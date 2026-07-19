@@ -7,12 +7,23 @@ use std::path::PathBuf;
 /// is the native, monotonic-within-boot incarnation token (Windows FILETIME or
 /// Linux `/proc/<pid>/stat` starttime), and the executable path prevents a
 /// different image from inheriting authority through an erroneous launch.
+/// `created_at_rfc3339` is a display projection derived from the native token;
+/// its presence or formatting is not a fourth process-identity authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProcessInstanceIdentity {
     pub process_id: u32,
     pub creation_token: u64,
     pub created_at_rfc3339: Option<String>,
     pub executable_path: PathBuf,
+}
+
+fn same_process_incarnation(
+    expected: &ProcessInstanceIdentity,
+    observed: &ProcessInstanceIdentity,
+) -> bool {
+    expected.process_id == observed.process_id
+        && expected.creation_token == observed.creation_token
+        && expected.executable_path == observed.executable_path
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -262,7 +273,7 @@ mod platform {
             }
         };
         let observed = match identity_from_handle(expected.process_id, &handle) {
-            Ok(observed) if observed != *expected => {
+            Ok(observed) if !same_process_incarnation(expected, &observed) => {
                 return ProcessInstanceObservation::Replaced { observed };
             }
             Ok(observed) => observed,
@@ -272,7 +283,7 @@ mod platform {
                 };
             }
         };
-        debug_assert_eq!(observed, *expected);
+        debug_assert!(same_process_incarnation(expected, &observed));
         unsafe {
             match WaitForSingleObject(handle.0, 0) {
                 WAIT_OBJECT_0 => {
@@ -417,7 +428,7 @@ mod platform {
             return ProcessInstanceObservation::ExactExited { exit_code: None };
         }
         match capture(expected.process_id) {
-            Ok(observed) if observed != *expected => {
+            Ok(observed) if !same_process_incarnation(expected, &observed) => {
                 ProcessInstanceObservation::Replaced { observed }
             }
             Ok(_) => ProcessInstanceObservation::ExactAlive,
@@ -524,6 +535,16 @@ mod tests {
         assert_ne!(identity.creation_token, 0);
         assert!(identity.created_at_rfc3339.is_some());
         assert!(identity.executable_path.is_absolute());
+        assert_eq!(
+            observe_process_instance(&identity),
+            ProcessInstanceObservation::ExactAlive
+        );
+    }
+
+    #[test]
+    fn derived_creation_time_is_not_process_identity_authority() {
+        let mut identity = capture_process_instance(std::process::id()).unwrap();
+        identity.created_at_rfc3339 = None;
         assert_eq!(
             observe_process_instance(&identity),
             ProcessInstanceObservation::ExactAlive

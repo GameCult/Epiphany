@@ -2951,3 +2951,16 @@ fail-closed predicates plus operator-safe failed-predicate names; do not relax
 admission. Keep the bounded diagnosis window while the Idunn transaction and
 brake remain exact. If transaction ownership or the brake disappears, or any
 protected surface actuates, use the existing rollback boundary immediately.
+
+The diagnostic successor `c9e9a352bde640d03a2e2394de1b22477a23ee96`
+named the shared refusal exactly: both providers failed only
+`process-incarnation`. The native observer compared the complete
+`ProcessInstanceIdentity`, including optional `created_at_rfc3339`, while
+resident readiness deliberately reconstructs authority from PID, native
+creation token, and executable path without that display timestamp. The same
+live process was therefore classified as replaced. `created_at_rfc3339` is now
+explicitly derived/display-only; Windows and Linux compare only PID, native
+creation token, and executable. Exact token and executable substitution still
+refuse. Focused process-observation and resident-readiness suites pass. Replace
+the braked, unadmitted `c9e9a352` transaction through Idunn after committing
+this cut; do not reinterpret the current candidate as deployed.
