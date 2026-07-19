@@ -2964,3 +2964,29 @@ creation token, and executable. Exact token and executable substitution still
 refuse. Focused process-observation and resident-readiness suites pass. Replace
 the braked, unadmitted `c9e9a352` transaction through Idunn after committing
 this cut; do not reinterpret the current candidate as deployed.
+
+Candidate `5e298e637d3470828fec3b26feeaa550a0ad91f9` proved resident readiness and
+the installed operator check healthy under the `epiphany` runtime identity,
+with all three services stable and the all-scope brake engaged. Idunn still
+withheld final admission because workspace coverage had already terminalized
+under a historical managed launch, while the restarted projector obeyed a
+stale recovery directive before recognizing that durable terminal authority.
+It first rejected the new launch as the owner of the old terminal receipt and
+then refused to recover the already-succeeded claim.
+
+Terminal coverage authority belongs to the succeeded claim and its historical
+managed launch. A later daemon may authenticate and reuse the immutable signed
+terminal sight, but cannot rewrite it or inherit the receipt. Projector pulse
+now classifies current terminal coverage and republishes that historical sight
+before considering process-recovery pressure; recovery still precedes every
+nonterminal acquisition or claim path. The real checkpoint-to-terminal fixture
+proves a different later launch receives the original sight byte-for-byte, and
+the service ordering proof fixes terminal classification before recovery and
+recovery before new Body work.
+
+Next action: commit and push this successor, revoke exact candidate `5e298e63`,
+terminate only Idunn transaction PGID `1485835`, and verify the installed
+signal-safe rollback boundary. Then authorize and deploy the exact successor
+through Bifrost and Idunn under brake. Require historical terminal-sight reuse,
+three stable services, typed resident readiness, signed aggregate health, and
+`deployment.env` before beginning the ordinary organizational product loop.

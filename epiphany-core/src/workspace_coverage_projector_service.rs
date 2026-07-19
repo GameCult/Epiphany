@@ -220,40 +220,6 @@ impl WorkspaceCoverageProjectorServiceBody {
         let authority = self.execution_authority.as_ref().ok_or_else(|| {
             anyhow!("workspace coverage projector has no installed execution authority")
         })?;
-        if let Some(directive) = authenticate_workspace_coverage_recovery_directive(
-            &authority.local_verse_store,
-            &self.runtime_store,
-            &authority.runtime_id,
-            &self.managed_process_launch_id,
-            &authority.trusted_host,
-        )?
-        {
-            let basis = load_current_runtime_repository_body_basis(&self.runtime_store)?;
-            if directive.workspace_id != basis.workspace_id
-                || directive.body_binding_sha256 != basis.body_binding_sha256
-                || directive.body_observation_id != basis.observation_id
-                || directive.body_generation != basis.generation
-                || directive.manifest_root_sha256 != basis.manifest_root_sha256
-                || directive.coverage_store_binding_id
-                    != self.coverage_authority.store_binding.binding_id
-                || directive.coverage_store_binding_envelope_digest
-                    != self.coverage_authority.store_binding_envelope_sha256
-                || directive.coverage_store_file_identity
-                    != self.coverage_authority.store_binding.store_file_identity
-                || directive.runtime_coverage_route_envelope_digest
-                    != self
-                        .coverage_authority
-                        .runtime_coverage_route_envelope_sha256
-            {
-                bail!("workspace coverage recovery directive disagrees with held authority");
-            }
-            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
-                &self.coverage_authority, &self.runtime_store, &authority.local_verse_store,
-                &authority.runtime_id, &authority.trusted_host, &directive.old_launch_id,
-                &directive.replacement_launch_id, &directive.replacement_ready_heartbeat_id,
-                &directive.old_claim_id,
-            )?;
-        }
         // Retirement is derived from typed Body history and is deliberately
         // performed before the idle fast path. Qdrant never nominates its own
         // garbage and incompatible same-name collections stop the pulse.
@@ -295,6 +261,43 @@ impl WorkspaceCoverageProjectorServiceBody {
                 receipt_id: Some(receipt.receipt_id),
                 fault: None,
             });
+        }
+        // A durable terminal projection outranks process recovery. Its signed
+        // historical sight remains valid across managed-policy rotation; a new
+        // daemon observes that fact but does not take ownership of the old
+        // succeeded claim. Recovery still precedes all nonterminal claim work.
+        if let Some(directive) = authenticate_workspace_coverage_recovery_directive(
+            &authority.local_verse_store,
+            &self.runtime_store,
+            &authority.runtime_id,
+            &self.managed_process_launch_id,
+            &authority.trusted_host,
+        )?
+        {
+            if directive.workspace_id != basis.workspace_id
+                || directive.body_binding_sha256 != basis.body_binding_sha256
+                || directive.body_observation_id != basis.observation_id
+                || directive.body_generation != basis.generation
+                || directive.manifest_root_sha256 != basis.manifest_root_sha256
+                || directive.coverage_store_binding_id
+                    != self.coverage_authority.store_binding.binding_id
+                || directive.coverage_store_binding_envelope_digest
+                    != self.coverage_authority.store_binding_envelope_sha256
+                || directive.coverage_store_file_identity
+                    != self.coverage_authority.store_binding.store_file_identity
+                || directive.runtime_coverage_route_envelope_digest
+                    != self
+                        .coverage_authority
+                        .runtime_coverage_route_envelope_sha256
+            {
+                bail!("workspace coverage recovery directive disagrees with held authority");
+            }
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+                &self.coverage_authority, &self.runtime_store, &authority.local_verse_store,
+                &authority.runtime_id, &authority.trusted_host, &directive.old_launch_id,
+                &directive.replacement_launch_id, &directive.replacement_ready_heartbeat_id,
+                &directive.old_claim_id,
+            )?;
         }
         let body = RepositoryBodyReadSession::open(&self.runtime_store, &basis)?;
         let prepared = prepare_workspace_coverage_projection(
@@ -416,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn recovery_directive_is_consumed_before_normal_projection_work() {
+    fn terminal_authority_precedes_recovery_and_recovery_precedes_new_work() {
         let source = include_str!("workspace_coverage_projector_service.rs");
         let start = source.find("fn pulse_inner(&mut self)").unwrap();
         let tail = &source[start..];
@@ -427,10 +430,16 @@ mod tests {
         let recovery = body
             .find("recover_workspace_coverage_projection_with_authority")
             .unwrap();
-        let normal = body
+        let retirement = body
             .find("retire_workspace_coverage_collections")
             .unwrap();
-        assert!(directive < recovery && recovery < normal);
+        let classification = body
+            .find("classify_current_workspace_coverage")
+            .unwrap();
+        let new_work = body.find("RepositoryBodyReadSession::open").unwrap();
+        assert!(retirement < classification);
+        assert!(classification < directive && directive < recovery);
+        assert!(recovery < new_work);
         assert!(!body.contains("authenticate_current_workspace_coverage_claim_sight"));
     }
 

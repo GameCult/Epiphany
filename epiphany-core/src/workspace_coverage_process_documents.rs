@@ -2817,16 +2817,13 @@ pub(crate) fn publish_workspace_coverage_terminal_sight(
     let terminal = crate::workspace_coverage_projector::authenticate_current_workspace_coverage_terminal_authority_with_store(
         runtime_store, &coverage.store,
     )?.ok_or_else(|| anyhow!("owned workspace coverage has no current terminal authority"))?;
-    if terminal.managed_process_launch_id != launch_id {
-        bail!("terminal sight launch disagrees with terminal coverage authority");
-    }
     if let Some(existing) = authenticate_current_workspace_coverage_terminal_sight(
         runtime_store,
         local_verse_store,
         runtime_id,
         trusted_host,
     )? {
-        if existing.launch_id == launch_id
+        if existing.launch_id == terminal.managed_process_launch_id
             && existing.claim_id == terminal.claim_id
             && existing.claim_epoch == terminal.claim_epoch
             && existing.plan_id == terminal.plan_id
@@ -2835,6 +2832,9 @@ pub(crate) fn publish_workspace_coverage_terminal_sight(
             return Ok(existing);
         }
         bail!("current terminal sight disagrees with owned terminal authority");
+    }
+    if terminal.managed_process_launch_id != launch_id {
+        bail!("terminal sight launch disagrees with terminal coverage authority");
     }
     let opening = coverage.store.pull_all()?;
     let receipt_env = opening
@@ -3899,6 +3899,28 @@ mod tests {
                 _ => bail!("reopened exact executor did not resume claim"),
             };
         crate::workspace_coverage_projector::commit_workspace_coverage_success(&resumed, observed)?;
+        let terminal_sight = publish_workspace_coverage_terminal_sight(
+            &verse,
+            &runtime,
+            &reopened,
+            "local",
+            &launch.launch_id,
+            host.entry(),
+            &provider,
+            chrono::Utc::now(),
+        )?;
+        let historical_sight = publish_workspace_coverage_terminal_sight(
+            &verse,
+            &runtime,
+            &reopened,
+            "local",
+            &Uuid::new_v4().to_string(),
+            host.entry(),
+            &provider_key(),
+            chrono::Utc::now(),
+        )?;
+        assert_eq!(historical_sight, terminal_sight);
+        assert_eq!(historical_sight.launch_id, launch.launch_id);
         assert_eq!(std::fs::read(&body_store)?, body_before);
         assert!(reopened.store.pull_all()?.iter().all(|entry| !matches!(
             entry.r#type.as_str(),
