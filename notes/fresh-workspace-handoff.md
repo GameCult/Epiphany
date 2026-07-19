@@ -2849,3 +2849,14 @@ Next action: commit/push the successor, cross its exact SHA through Bifrost and
 Idunn under brake, and require historical terminal evidence, current-policy
 replacement launch, three stable services, signed aggregate health, and the
 final deployment witness before rehearsing Starfire-independent operation.
+
+Candidate `b5405beaa95cddc837f3b7a7ca268ac9b5ae4502` then proved the historical
+authenticator shipped but exposed an ordering fault: reconciliation asked
+provider claim sight to authenticate before it inspected the supervisor-owned
+latest launch. Claim sight correctly rejected the stale policy, so the new
+rotation branch was unreachable. The candidate was rolled back, its authority
+revoked, services stopped, active pointer removed, and no deployment witness
+exists. Reconciliation now loads latest launch and completes stale-policy
+rotation before current claim authentication. Provider claim state participates
+only after a current-policy launch exists. Supervisor proof passes 24/24 and
+full core remains 573/573 with one ignored.

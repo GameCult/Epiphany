@@ -2303,28 +2303,6 @@ fn reconcile_workspace_coverage_projector(
     )?;
     let host = open_default_host_identity()
         .context("workspace coverage reconciliation requires an enrolled host identity")?;
-    let target = match authenticate_current_workspace_coverage_claim_sight(
-        &args.store,
-        &runtime_store,
-        &args.runtime_id,
-        host.entry(),
-    ) {
-        Ok(target) => target,
-        Err(error) => {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
-                    "status": "observation-refused",
-                    "serviceId": policy.service_id,
-                    "reason": error.to_string(),
-                    "restarted": false,
-                    "privateStateExposed": false,
-                }))?
-            );
-            return Ok(());
-        }
-    };
     let latest = match load_latest_workspace_coverage_managed_process_launch(
         &args.store,
         args.runtime_id.clone(),
@@ -2461,6 +2439,28 @@ fn reconcile_workspace_coverage_projector(
         )?;
         return Ok(());
     }
+    let target = match authenticate_current_workspace_coverage_claim_sight(
+        &args.store,
+        &runtime_store,
+        &args.runtime_id,
+        host.entry(),
+    ) {
+        Ok(target) => target,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-refused",
+                    "serviceId": policy.service_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
     if target
         .as_ref()
         .is_some_and(|claim| claim.launch_id != latest.launch_id)
@@ -4412,6 +4412,14 @@ mod semantic_projector_authority_tests {
         let tail = &source[start..];
         let end = tail.find("\nfn service_runbook").unwrap();
         let body = &tail[..end];
+        let latest = body
+            .find("load_latest_workspace_coverage_managed_process_launch")
+            .unwrap();
+        let stale_rotation = body.find("if !current_policy_matches_latest").unwrap();
+        let claim_sight = body
+            .find("let target = match authenticate_current_workspace_coverage_claim_sight")
+            .unwrap();
+        assert!(latest < stale_rotation && stale_rotation < claim_sight);
         let observation = body
             .rfind("let observation = match observe_workspace_coverage_managed_process")
             .unwrap();
