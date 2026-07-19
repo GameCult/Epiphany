@@ -483,11 +483,13 @@ pub fn admit_and_execute_bifrost_operator_command(
                 OperatorCommandResultDisposition::Observed,
                 "operator-snapshot",
                 snapshot.snapshot_id,
-                snapshot.status,
-                snapshot.state_status,
-                snapshot.coordinator_action,
+                format!("coordinator-snapshot/{}", snapshot.status),
+                format!("coordinator-state/{}", snapshot.state_status),
+                format!("coordinator-action/{}", snapshot.coordinator_action),
                 brake_status,
-                String::from("bounded operator-safe status projection"),
+                String::from(
+                    "bounded coordinator snapshot plus independently owned swarm-brake observation; this is not deployment or provider readiness",
+                ),
                 Vec::new(),
                 String::new(),
                 String::new(),
@@ -1140,8 +1142,23 @@ mod tests {
             "2026-07-19T12:00:00Z",
         )?;
         assert_eq!(status_result.consequence_ref, "snapshot-1");
-        assert_eq!(status_result.operator_status, "sleeping");
-        assert_eq!(status_result.state_status, "ready");
+        assert_eq!(
+            status_result.operator_status,
+            "coordinator-snapshot/sleeping"
+        );
+        assert_eq!(status_result.state_status, "coordinator-state/ready");
+        assert_eq!(
+            status_result.coordinator_action,
+            "coordinator-action/none"
+        );
+        assert!([
+            status_result.operator_status.as_str(),
+            status_result.state_status.as_str(),
+            status_result.coordinator_action.as_str(),
+        ]
+        .into_iter()
+        .all(|value| value != "ready" && value != "none"));
+        assert!(status_result.detail.contains("not deployment or provider readiness"));
         assert!(!resident.exists());
         let sleep = signed(
             &signer,

@@ -70,9 +70,10 @@ release authorization, or deployment.
 
 ### Existing Epiphany owners
 
-- Status: read-only operator-safe projection over release, brake, resident,
-  pending pressure/review counts, and provider health. It exposes no raw worker
-  state or transcripts.
+- Status: read-only operator-safe projection. The deployed v1 result currently
+  carries a coordinator snapshot plus the independently owned brake state. It
+  exposes no raw worker state or transcripts, but it also does not yet compose
+  authenticated release, resident-readiness, Idunn, or Bifrost health.
 - Sleep: swarm-brake owner engages the named cognitive/action surfaces.
 - Wake: swarm-brake owner releases the brake only. Wake does not issue a grant,
   enqueue a turn, adopt a plan, invoke Hands, speak, release, or deploy.
@@ -130,7 +131,8 @@ With Starfire disconnected and no SSH tunnel dependency:
 
 1. owner and non-owner Discord actors receive the correct admission/refusal;
 2. status names exact deployed commit/release, brake, resident state, pressure
-   and review counts, and Idunn/Bifrost health without private state;
+   and review counts, and Idunn/Bifrost health without private state; this is an
+   open acceptance item, not a property of the current coordinator snapshot;
 3. sleep engages the brake and is idempotent;
 4. wake releases only the brake and creates no grant, job, Mind change, Hands
    authority, speech, release, or deployment;
