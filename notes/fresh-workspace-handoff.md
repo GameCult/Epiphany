@@ -1,5 +1,36 @@
 # Fresh Workspace Handoff
 
+## Organizational Yggdrasil deployment is live and braked (2026-07-19)
+
+Epiphany's ordinary organizational product path is now deployed on Yggdrasil,
+not merely proven in local smoke. Bifrost authorized each exact upstream
+release and Idunn produced successful deployment receipts for Epiphany
+`b0e8b427e41138a462a8464424d37574d21a8c8d`, Bifrost
+`225859bd7ec3339944841ebbfc67b421eb405727` with CultLib
+`693df0901d75cfd8e3a0a5225e270011eeddb0be`, and VoidBot
+`74abfed109e1d793034796e5eff1562b0aa6c8de`.
+
+All Epiphany resident services, Idunn, and VoidBot are active. The Bifrost
+Persona-feedback sidecar is healthy under its own `bifrost-feedback` service
+identity; it owns its private provider and delivery state, participates in the
+shared CultCache lock groups, and publishes daemon-owned CultNet/RUDP health
+over host networking so Idunn observes Ygg-local provenance instead of Docker
+bridge NAT. The Bifrost Epiphany operator worker is running against the
+loopback-only Epiphany command service on port 17875. The final Ygg checker
+passes.
+
+Resident readiness is active and release-authenticated with
+`brakeEngaged=true`. Do not release it as part of verification. Ollama exposes
+`qwen3-embedding:0.6b` at 100% GPU placement on the GTX 1080; both Modeling
+semantic projectors point at the Ygg-local Qdrant/Ollama path.
+
+The next proof is organizational interaction, not another deployment: use
+Discord to request `/epiphany status` and submit ordinary repository feedback
+to the Epiphany Persona, then verify only operator-safe typed projections and
+receipts. Do not test Wake while the deployment brake is the intended owner of
+sleep. Conversation remains feedback pressure; it does not adopt Mind state or
+grant Hands, release, or deployment authority.
+
 ## Swarm brake observation/actuation purification (2026-07-19)
 
 `epiphany-verse-query swarm-brake` was a mutating pseudo-query whose missing
