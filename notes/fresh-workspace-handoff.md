@@ -3175,3 +3175,26 @@ transaction to roll back cleanly, then retry the exact Bifrost-authorized 36f
 release under the all-scope brake. Require signed active admission and final
 `deployment.env`. Then commit/push the autonomous bridge and certify its exact
 successor separately. No host reboot is authorized.
+
+## Ygg resident baseline certified (2026-07-19)
+
+That crossing is now complete. Idunn `64bb679` is installed at SHA-256
+`bad36e84706ec0a2354012d11aa7556fd0bd2f01484c36d3a5d0bc0b8390485f`.
+The incomplete transaction rolled back with all units and candidate witnesses
+absent, then typed redeploy intent
+`manual:redeploy:yggdrasil-epiphany:unix:1784452916` retried exact commit
+`36f687eaa34153a166b5860087c28f8847244823`. Idunn first admitted signed
+degraded health while one service reconciled, then admitted the exact active
+candidate and published deployment manifest v2 at `2026-07-19T09:23:14Z`.
+Release id is
+`sha256-a9afe96abf5b104da3d25bf5e11b967de546c57a230fa155b3cbb98c3b176385`;
+witness is
+`sha256-f6b4c68054ce9566002e46d49e8773924d3518afdd02798e1a09f1778359d3c2`.
+Idunn, supervisor, Heartbeat, and resident Self are active with zero restarts;
+the full Ygg typed check passes; no trust-anchor lock exists; the all-scope
+deployment brake remains engaged.
+
+The autonomous organizational bridge is committed and pushed at `fc733675`.
+Next commit this certification state, cross only that exact successor through
+Bifrost and Idunn under the brake, then prove Persona/Discord replay and tamper
+boundaries plus Starfire-independent operation before granting any wake.
