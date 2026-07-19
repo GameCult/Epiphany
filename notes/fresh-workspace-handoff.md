@@ -48,6 +48,21 @@ receipts. Do not test Wake while the deployment brake is the intended owner of
 sleep. Conversation remains feedback pressure; it does not adopt Mind state or
 grant Hands, release, or deployment authority.
 
+Do not expand Discord Status with the current Idunn/Bifrost health packet. The
+provider audit found that generic `idunn.daemon_health.v1` is unsigned: Idunn
+checks typed shape, daemon id, contract, self-declared publication source and
+transport, and freshness, but no pinned publisher identity or signature. Idunn
+also exposes no authenticated outward projection for Epiphany to consume. The
+deployed Odin lineage is the clean `E:\Projects\Odin-yggdrasil-idunn` worktree,
+not the unrelated active Odin branch. Odin commit `cc80cd4` adds the generic
+`idunn.signed_daemon_health.v1` and root-owned
+`idunn.daemon_health_trust_binding.v1` contract foundations plus
+`docs/idunn-signed-daemon-health-authority.md`. Next, wire generic Idunn
+verification and monotonic admission, migrate Epiphany and Bifrost publishers,
+publish an Idunn-signed outward projection, and only then let Discord Status
+compose it. Unsigned legacy health may remain diagnostic during migration but
+must lose managed-health authority before this rebuild is complete.
+
 ### Unattended continuity aftercare
 
 The Ygg body has no live Starfire reference. Epiphany, operator, heartbeat,
