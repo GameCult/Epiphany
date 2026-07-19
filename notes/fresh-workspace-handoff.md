@@ -2984,9 +2984,16 @@ proves a different later launch receives the original sight byte-for-byte, and
 the service ordering proof fixes terminal classification before recovery and
 recovery before new Body work.
 
-Next action: commit and push this successor, revoke exact candidate `5e298e63`,
-terminate only Idunn transaction PGID `1485835`, and verify the installed
-signal-safe rollback boundary. Then authorize and deploy the exact successor
-through Bifrost and Idunn under brake. Require historical terminal-sight reuse,
+The terminal-authority correction is committed and pushed as exact successor
+`519574ce0d63ffa8fa813885c6629c664a3ae2e0`.
+
+Candidate `5e298e63` is revoked and its exact Idunn PGID `1485835` completed
+the installed signal-safe rollback boundary: all three services, both current
+links, both manifests, and the deployment lock were absent afterward. Bifrost
+then authorized exact successor `519574ce`, and Idunn command
+`manual:redeploy:yggdrasil-epiphany:unix:1784440234` owns its detached build
+and deployment under the all-scope brake.
+
+Next action: monitor Idunn's exact successor transaction. Require historical terminal-sight reuse,
 three stable services, typed resident readiness, signed aggregate health, and
 `deployment.env` before beginning the ordinary organizational product loop.
