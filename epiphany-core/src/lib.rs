@@ -21,6 +21,7 @@ mod idunn_runtime_health;
 mod imagination_consideration;
 mod memory_graph;
 mod mind_gateway;
+mod operator_command;
 mod organ_dependencies;
 mod packaged_release;
 mod persona_feedback_admission;
@@ -813,6 +814,15 @@ pub use mind_gateway::mind_review_allows_state;
 pub use mind_gateway::mind_review_reorient_acceptance;
 pub use mind_gateway::mind_review_role_acceptance;
 pub use mind_gateway::mind_state_commit_receipt;
+pub use operator_command::{
+    BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION, BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE,
+    BifrostOperatorCommandAdmission, LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
+    LocalAdmittedOperatorCommand, OPERATOR_COMMAND_RESULT_SCHEMA_VERSION, OperatorCapability,
+    OperatorCommand, OperatorCommandPacket, OperatorCommandPolicy, OperatorCommandResult,
+    OperatorCommandResultDisposition, admit_and_execute_bifrost_operator_command,
+    operator_command_admission_signing_payload, operator_command_admission_signing_purpose,
+    operator_command_packet_sha256,
+};
 pub use organ_dependencies::EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION;
 pub use organ_dependencies::EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION;
 pub use organ_dependencies::EPIPHANY_STANDING_ORGANS;
