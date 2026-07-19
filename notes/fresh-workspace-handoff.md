@@ -3128,3 +3128,33 @@ selection for Modeling review -> admitted frontier item -> existing Imagination
 planning -> explicit Mind adoption -> Hands. Proposals and conversation must
 remain structurally unable to grant Mind, Hands, Persona public speech,
 Bifrost release, or Idunn deployment authority. No host reboot is authorized.
+
+## Idunn observation/actuation authority split (2026-07-19)
+
+The e449 successor reached exact resident readiness, stable terminal coverage,
+and three healthy braked services, but produced no Idunn witness. Commit
+`75bd5f2` moved the mutex without separating the automatic target task: that
+task still awaited the long deployment command and could not re-evaluate the
+new Epiphany RUDP health needed to finish it. The exact deployment PGID was
+terminated, rollback removed all services/current pointers/witnesses, and
+Bifrost authority for e449 was revoked.
+
+Odin commit `a17b0b6` is the actual authority split. The target loop remains
+continuously available for observation, evaluation, admission, and publication.
+Deploy/restart consequences run separately under one per-target reservation;
+manual and automatic paths share it, and stale automatic work is dropped while
+the actuator is occupied. Durable request-head/result CAS remains unchanged.
+All 49 Idunn tests pass. No Ygg deployment has yet used this binary.
+
+The autonomous option-to-frontier bridge is concurrently implemented but is
+not release-ready. Exact worker launch/result provenance, Body-workspace
+binding, preserved-authority CAS, true Self selection time, idempotent replay,
+counterfeit companion refusal, and alien-workspace refusal pass the full
+Epiphany library (578 passed, one ignored). Remaining blockers are typed
+canonical repository-name authority and a direct negative proof that no Hands
+authority appears without explicit Mind adoption.
+
+Next action: install `a17b0b6` on Ygg, commit/push only this state boundary as a
+new Epiphany successor, authorize that exact commit through Bifrost, and require
+signed health admission plus `deployment.env` under the all-scope brake. Do not
+include the uncommitted autonomous bridge in that deployment release.
