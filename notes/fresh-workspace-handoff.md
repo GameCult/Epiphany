@@ -3078,3 +3078,14 @@ and rolled back. The successor is crossing Bifrost and Idunn under the all-scope
 brake. Next action: monitor only that exact transaction and require the live
 verification layer above before beginning the ordinary organizational product
 rehearsal. No host reboot is authorized.
+
+Live certification refused `84e648eb` at the correct boundary. The supervisor
+selected the terminal-observer path but emitted `terminal-observation-refused`:
+the Ygg runtime has no repository Body-store binding, so it cannot authenticate
+which repository Body the historical terminal sight belongs to. Idunn withheld
+the deployment witness. The exact Bifrost authority was revoked and only Idunn
+transaction PGID `1597264` was terminated; rollback left `epiphany.service`
+inactive with no current link, active-release document, or deployment witness.
+The next cut is not an observer bypass. Modeling must identify the owner of the
+typed runtime-to-repository Body binding and make that binding available to
+terminal observer authentication, preserving projector-only coverage authority.
