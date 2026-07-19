@@ -3041,6 +3041,40 @@ nonterminal running claim. Focused supervisor authority tests prove terminal
 selection precedes recovery and the entire terminal branch contains no recovery
 writer or coverage-store mutation.
 
-Next action: commit/push the supervisor correction, revoke `cb665dc6`, cancel
-exact Idunn PGID `1569316`, verify rollback, and deploy the exact successor
-through Bifrost and Idunn under brake.
+Authority map for the successor is now explicit:
+
+- Owner: the projector alone owns coverage obligation, claim, recovery, receipt,
+  terminal sight, and coverage-store mutation. The supervisor alone owns managed
+  policy, process launch, observation, termination evidence, and causal process
+  replacement.
+- Inputs: the terminal branch reads authenticated historical terminal sight,
+  current managed policy/latest launch, host-signed replacement lineage, and an
+  exact native process observation. It does not read private coverage state.
+- Outputs: operator-safe alive/degraded/refused status, or immutable termination
+  evidence plus a causally bound replacement launch after proven process death.
+- Derived state: `terminal-observer-alive`, degraded observation, and the current
+  observer launch are process projections only. They neither own nor refresh the
+  historical terminal receipt.
+- Forbidden writers: no terminal branch may publish a recovery directive, open
+  the coverage store, recover a claim, rewrite terminal sight, or mutate a
+  succeeded claim. Recovery claim selection is unreachable after terminal sight
+  is selected.
+- Shared paths: historical and descendant observers share lineage
+  authentication; alive, degraded, and dead classification share the exact
+  native observation; dead replacement shares the ordinary immutable
+  termination and `service_launch_internal` primitive.
+- Cut line: the supervisor's old fall-through from succeeded terminal sight into
+  recovery-claim selection is removed. Terminal coverage and observer liveness
+  are no longer one authority.
+- Verification layer: focused tests currently prove source ordering and the
+  absence of recovery writers in the terminal branch. Live certification must
+  still prove the actual terminal status, absence of a new directive, unchanged
+  signed terminal sight, stable services, signed aggregate health, and final
+  Idunn deployment admission. The structural tests are not that runtime proof.
+
+The correction is committed as exact successor
+`84e648eb374f107f26258ae96f05932c812dffae`. Candidate `cb665dc6` was revoked
+and rolled back. The successor is crossing Bifrost and Idunn under the all-scope
+brake. Next action: monitor only that exact transaction and require the live
+verification layer above before beginning the ordinary organizational product
+rehearsal. No host reboot is authorized.
