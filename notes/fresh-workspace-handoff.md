@@ -3225,3 +3225,38 @@ authorize only the corrected exact commit, install/use the ops cut, and deploy
 through Idunn under the brake. Admission requires all three units active with
 no restart growth and exact signed health. Then run the Starfire-offline
 Persona/Discord feedback rehearsal. No host reboot is authorized.
+
+## Corrected organizational resident admitted (2026-07-19)
+
+The cold-start correction is committed and pushed as
+`154dc1eadd98dda25916ee40e7130770e145e874`. Cancelling the refused 2d
+actuator exposed a separate Idunn recovery wound: its child process died with
+the daemon, but the exact deployment head survived without a terminal result
+and permanently blocked supersession. Odin commit
+`15a744c826f0aa2e8cc322a6543ea8a9afcd852a` repairs the owner: fresh Idunn
+startup CAS-terminalizes only an exact unresolved prior-incarnation request as
+failed. It passes 51/51 tests. Ygg runs that binary at SHA-256
+`c441b9e58e85aff1d869b1e07b0a12a4795c6805619ce640184dbdcfce4e7e03`.
+
+The deployment purification cut also needed package-directory traversal.
+`gamecult-ops` commits `584b94c` and `46425f9` keep packaging before the outage
+and seal package directories `0555`; files retain their built execute bits.
+
+Exact 154d is now Bifrost/Idunn admitted on Yggdrasil:
+
+- authority digest: `d7e21f11d758e3ebaa46945ddd7acca1417ab8f8a81c3ec1932f3d5e0109e72f`
+- release: `sha256-16c51bb3b4914578213f0d0b64e40e17982ad45832e073d747db903509f237ed`
+- witness: `sha256-85702cf922ea32c07457630a7911b2b9196c8b58ee4baa642185a0b77902f234`
+- Idunn request: `deploy:yggdrasil-epiphany:unix:1784456326`
+- manifest time: `2026-07-19T10:20:04Z`
+
+The full typed check passes. Signed health names the exact source, release, and
+witness. Supervisor and Heartbeat have zero restarts. Resident Self is stable
+on one MainPID; its historical restart counter remains 10 without growth. Its
+operator projection is braked, revision zero, no active turn, and no private
+state exposure. GPU embedding remains 100% on the GTX 1080.
+
+Next: run the Starfire-offline real Discord/Persona feedback rehearsal wholly
+on Ygg, proving replay/tamper refusal and byte-identical Mind, Hands, release,
+and deployment stores. Then audit the Discord operator surface needed during
+the move. No wake grant and no host reboot are authorized.
