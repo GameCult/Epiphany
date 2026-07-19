@@ -116,8 +116,10 @@ pub struct OperatorCommandInteropFixtureManifest {
     pub executor_raw_trust_anchor_file: String,
     pub executor_cultcache_trust_anchor_file: String,
     pub sealed_result_file: String,
+    pub protocol_file: String,
     pub admission_sha256: String,
     pub sealed_result_sha256: String,
+    pub protocol_sha256: String,
     pub admission_signing_purpose: String,
     pub result_signing_purpose: String,
     pub rudp_connection_id: u32,
@@ -395,6 +397,64 @@ pub fn write_operator_command_interop_fixture(
             rmp_serde::to_vec(&executor_anchor)?,
         )?;
         std::fs::write(output.join("sealed-result.msgpack"), &receipt_bytes)?;
+        let protocol = serde_json::json!({
+            "schemaVersion": "epiphany.operator_command.protocol_fixture.v1",
+            "admissionSchemaVersion": crate::BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
+            "resultSchemaVersion": crate::OPERATOR_COMMAND_RESULT_SCHEMA_VERSION,
+            "sealedResultSchemaVersion": EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
+            "admissionSigningPurpose": crate::operator_command_admission_signing_purpose(),
+            "resultSigningPurpose": RESULT_SIGNING_PURPOSE,
+            "commands": [
+                serde_json::to_value(crate::OperatorCommand::Status)?,
+                serde_json::to_value(crate::OperatorCommand::Sleep { reason: "Bounded sleep reason".into() })?,
+                serde_json::to_value(crate::OperatorCommand::Wake)?,
+                serde_json::to_value(crate::OperatorCommand::Directive { objective: "Bounded operator objective".into() })?,
+                serde_json::to_value(crate::OperatorCommand::Reviews)?,
+                serde_json::to_value(crate::OperatorCommand::Review {
+                    mind_request_id: "mind-request-fixture-1".into(),
+                    candidate_id: "candidate-fixture-1".into(),
+                    candidate_sha256: "1".repeat(64),
+                    expected_model_revision: 41,
+                    expected_model_hash: "2".repeat(64),
+                    decision: crate::RepoFrontierPlanDecision::Adopt,
+                })?,
+            ],
+            "reviewDecisions": [
+                serde_json::to_value(crate::RepoFrontierPlanDecision::Adopt)?,
+                serde_json::to_value(crate::RepoFrontierPlanDecision::Refuse)?,
+                serde_json::to_value(crate::RepoFrontierPlanDecision::Hold)?,
+            ],
+            "boundedReviewResult": serde_json::to_value(EpiphanyOperatorCommandWireResult {
+                schema_version: crate::OPERATOR_COMMAND_RESULT_SCHEMA_VERSION.into(),
+                result_id: "operator-result-fixture-reviews".into(),
+                command_id: "fixture-command-reviews".into(),
+                packet_sha256: format!("sha256-{}", "3".repeat(64)),
+                target_runtime_id: "epiphany-interop-fixture".into(),
+                disposition: "observed".into(),
+                consequence_kind: "mind-review-candidates".into(),
+                consequence_ref: String::new(),
+                completed_at: "2026-07-19T12:00:01Z".into(),
+                private_state_exposed: false,
+                operator_status: String::new(),
+                state_status: String::new(),
+                coordinator_action: String::new(),
+                brake_status: String::new(),
+                detail: "1 pending Mind review candidate(s)".into(),
+                reviews: vec![crate::RepoFrontierPlanReviewSummary {
+                    mind_request_id: "mind-request-fixture-1".into(),
+                    candidate_id: "candidate-fixture-1".into(),
+                    candidate_sha256: "1".repeat(64),
+                    model_revision: 41,
+                    model_hash: "2".repeat(64),
+                    frontier_item_id: "frontier-fixture-1".into(),
+                    requested_at: "2026-07-19T11:59:00Z".into(),
+                }],
+                review_candidate_id: String::new(),
+                review_decision: String::new(),
+            })?,
+        });
+        let protocol_bytes = serde_json::to_vec_pretty(&protocol)?;
+        std::fs::write(output.join("protocol.json"), &protocol_bytes)?;
         let manifest = OperatorCommandInteropFixtureManifest {
             schema_version: "epiphany.operator_command.interop_fixture.v0".into(),
             admission_file: "operator-admission.msgpack".into(),
@@ -402,8 +462,10 @@ pub fn write_operator_command_interop_fixture(
             executor_raw_trust_anchor_file: "executor-anchor.msgpack".into(),
             executor_cultcache_trust_anchor_file: "executor-anchor.cc".into(),
             sealed_result_file: "sealed-result.msgpack".into(),
+            protocol_file: "protocol.json".into(),
             admission_sha256: format!("sha256-{:x}", Sha256::digest(&admission_bytes)),
             sealed_result_sha256: format!("sha256-{:x}", Sha256::digest(&receipt_bytes)),
+            protocol_sha256: format!("sha256-{:x}", Sha256::digest(&protocol_bytes)),
             admission_signing_purpose: crate::operator_command_admission_signing_purpose().into(),
             result_signing_purpose: RESULT_SIGNING_PURPOSE.into(),
             rudp_connection_id: EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
@@ -759,6 +821,37 @@ mod tests {
         assert_eq!(
             receipt.result_payload_sha256,
             format!("sha256-{:x}", Sha256::digest(wire_result))
+        );
+        let protocol_bytes = std::fs::read(temp.path().join(&manifest.protocol_file))?;
+        assert_eq!(
+            manifest.protocol_sha256,
+            format!("sha256-{:x}", Sha256::digest(&protocol_bytes))
+        );
+        let protocol: serde_json::Value = serde_json::from_slice(&protocol_bytes)?;
+        assert_eq!(
+            protocol["commands"]
+                .as_array()
+                .expect("fixture commands")
+                .iter()
+                .map(|command| command["kind"].as_str().expect("command kind"))
+                .collect::<Vec<_>>(),
+            vec!["status", "sleep", "wake", "directive", "reviews", "review"]
+        );
+        let review = &protocol["commands"][5];
+        assert!(review.get("mindRequestId").is_some());
+        assert!(review.get("expectedModelRevision").is_some());
+        assert!(review.get("mind_request_id").is_none());
+        assert_eq!(
+            protocol["boundedReviewResult"]["reviews"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            protocol["boundedReviewResult"]["reviews"][0]
+                .get("proposalText")
+                .is_none()
         );
         Ok(())
     }
