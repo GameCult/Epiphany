@@ -3494,3 +3494,46 @@ smoke. Modeling is mapping the separate move-period Discord operator nerve;
 before July 22, essential status/sleep/wake/directive/review must not depend on
 Starfire or improvised SSH, and Persona conversation must remain pressure
 rather than Mind/Hands/release/deployment authority.
+
+## Idunn outward managed-health authority mapped (2026-07-19)
+
+The organizational posture is ordinary product behavior, not a special-case
+experiment: Modeling persistently maps the authorized domain, Self derives
+bounded pressure from that map and attributed organizational feedback,
+Imagination may propose improvements and features without an instruction, and
+the organization may converse with the repository Persona. Feedback remains
+pressure; it cannot adopt Mind state or grant Hands, release, deployment, Wake,
+or public-speech authority.
+
+Odin commit `be8836f` closes generic signed-health ingress but deliberately
+does not make the source deployable. The outward health seam must be a new
+Idunn-owned statement derived from the current signed provider statement,
+authenticated admission, exact root trust binding, and current deployment
+lineage. Idunn signs a bounded monotonic projection with its own typed service
+identity and writes only a dedicated public CultCache store. Its private
+identity store and private operational/admission store remain physically
+separate. A generic CultNet filtered-snapshot server serves the exact public
+bytes; Odin is transport, never health authority.
+
+Epiphany must query this surface without mutating a consumer cache, pin Idunn's
+public trust anchor independently, and verify signature, strict schema,
+freshness, replay order, requested daemon/contract/runtime, and exact current
+release/deployment lineage locally. Both Epiphany and Bifrost projections are
+required independently; one cannot mask the other. Unsigned diagnostics,
+provider-signed packets, process/PID sight, coordinator readiness, and transport
+success cannot fill a missing projection. Discord receives only the bounded
+verified lowering.
+
+The reusable substrate cut is: extract Epiphany's typed immutable identity
+enrollment/signing machinery into CultNet with compile-time profiles; preserve
+Epiphany's existing wire domains while giving Idunn a distinct profile; promote
+the existing CultNet snapshot example loop into a generic read-only server.
+Linux custody on Ygg is honestly only an
+`os_installation_file_bound_cloneable_baseline` until a stronger protector is
+added. Do not use a raw 32-byte Idunn key file or pretend the baseline is TPM
+custody.
+
+Next: finish contracts, identity, Idunn projection/publication, pure query, and
+Epiphany verification; migrate both publishers and root bindings as one safe
+deployment slice. Keep the canonical brake engaged and do not deploy the
+partially migrated Odin source.
