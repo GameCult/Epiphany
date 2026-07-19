@@ -5,7 +5,7 @@
 Epiphany's ordinary organizational product path is now deployed on Yggdrasil,
 not merely proven in local smoke. Bifrost authorized each exact upstream
 release and Idunn produced successful deployment receipts for Epiphany
-`b0e8b427e41138a462a8464424d37574d21a8c8d`, Bifrost
+`714187812f778160882e204ea4f369423578a195`, Bifrost
 `225859bd7ec3339944841ebbfc67b421eb405727` with CultLib
 `693df0901d75cfd8e3a0a5225e270011eeddb0be`, and VoidBot
 `74abfed109e1d793034796e5eff1562b0aa6c8de`.
@@ -23,6 +23,11 @@ Resident readiness is active and release-authenticated with
 `brakeEngaged=true`. Do not release it as part of verification. Ollama exposes
 `qwen3-embedding:0.6b` at 100% GPU placement on the GTX 1080; both Modeling
 semantic projectors point at the Ygg-local Qdrant/Ollama path.
+
+The Epiphany release id is
+`sha256-4ad609a797afbc4e7a06251463c0a52faf760880892b6fe6cb7f9ff239e4c460`
+with witness
+`sha256-0e4bd42640352b932af8c0395efd473dfc9e799c3020a1774fc86bc7d5f39342`.
 
 The next proof is organizational interaction, not another deployment: use
 Discord to request `/epiphany status` and submit ordinary repository feedback
@@ -51,12 +56,15 @@ operator-authored.
 
 `gamecult-authority-backup.timer` now seals one validated, SHA-256-addressed,
 root-only recovery archive daily with 14-day retention. The exact Epiphany,
-Idunn, Bifrost, and VoidBot state writers are briefly frozen or paused while
-the archive is opened. Missing writers fail the run, and publication is refused
+Bifrost, and VoidBot state writers are briefly frozen or paused while the
+archive is opened. Idunn is deliberately not frozen: live proof showed
+freeze/thaw leaves its process alive while killing its RUDP receiver. Missing
+writers fail the run, and publication is refused
 unless every quiesced writer is confirmed active and thawed/unpaused. Strict
-snapshot `20260719T170438Z` passed checksum and tar traversal, contains Bifrost release
-authority plus Idunn state/config/provenance, and all writers were active and
-unpaused afterward. The earlier incomplete snapshot was deleted. Release
+snapshot `20260719T173400Z` passed checksum and tar traversal while Idunn kept
+accepting provider health. It contains Bifrost release authority plus Idunn
+config/trust/provenance; Idunn's live observation/command state is excluded and
+reconstructed from providers after restore. Older unsafe snapshots were deleted. Release
 trees, logs, media, RAG/vector projections, and Qdrant remain excluded. This is
 local logical-corruption recovery on clean two-disk RAID1, not off-host backup.
 
@@ -67,6 +75,13 @@ behind the live PID. Every installed surface is root-owned at its exact safe
 mode, and systemd reports the sealed unit/drop-in loaded with no pending reload.
 Verification owns no lifecycle or deployment action. The
 final Ygg checker requires this proof and passes with the brake engaged.
+
+Restarting Idunn to repair the frozen RUDP nerve also proved that Docker moves
+the package builder outside Idunn's systemd cgroup: the interrupted build
+container survived beside the retry. The exact orphan was stopped and its
+worktree removed. Ops commit `391842e` gives every future Epiphany packager a
+CID file and force-removes that exact container in the actuator EXIT trap; the
+installed Idunn manifest already contains the correction.
 
 The host reports a pending reboot for installed kernel `6.8.0-136`; it still
 runs `6.8.0-134`. No reboot was performed or authorized. Schedule that as an
