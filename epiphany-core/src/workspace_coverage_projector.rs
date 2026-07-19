@@ -32,6 +32,7 @@ use crate::{
     runtime_repository_body_store_binding, validate_workspace_coverage_head,
     validate_workspace_coverage_projection_plan, workspace_coverage_execution_collection,
     workspace_coverage_process_documents::{
+        authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest,
         authenticate_workspace_coverage_managed_process_launch_with_envelope_digest,
         authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest,
         authenticate_workspace_coverage_termination_with_envelope_digest,
@@ -2119,7 +2120,7 @@ pub(crate) fn recover_workspace_coverage_projection_with_authority(
     }
     let cultmesh_store = cultmesh_store.as_ref();
     let (old_launch, _) =
-        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+        authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest(
             cultmesh_store,
             runtime_id,
             old_launch_id,

@@ -2860,3 +2860,23 @@ exists. Reconciliation now loads latest launch and completes stale-policy
 rotation before current claim authentication. Provider claim state participates
 only after a current-policy launch exists. Supervisor proof passes 24/24 and
 full core remains 573/573 with one ignored.
+
+Candidate `b8517d9d7905eb62314db675cc2f0688510aa5bd` then crossed the first two
+rotation cuts: supervisor PID `1147968` launched replacement workspace
+projector PID `1148157`, and the replacement published advancing ready
+heartbeats under the new policy while the brake held. Recovery still stalled
+because the old Body claim was readable only through current-claim
+authentication, which correctly rejected its historical launch before the
+mismatch branch could issue a recovery directive. The candidate was rolled
+back and revoked; no deployment witness exists.
+
+Claim sight now has separate current and recovery readers. Current
+authentication remains mandatory for provider projection work and refuses a
+stale launch. Recovery authentication proves only the old signed
+claim/Body/route lineage. Supervisor recovery and directive writing use that
+historical reader, while the replacement launch and ready heartbeat remain
+bound to the current policy. The atomic lease-transfer path also authenticates
+the old launch historically. The full causal test now performs real policy
+rotation and proves current refusal, historical recovery, directive fencing,
+lease transfer, successor current sight, exact replay, and tamper refusal. Full
+core passes 573/573 with one ignored; all binaries compile.

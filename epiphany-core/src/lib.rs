@@ -1242,6 +1242,7 @@ pub use workspace_coverage_process_documents::{
     authenticate_current_workspace_coverage_claim_sight,
     authenticate_current_workspace_coverage_terminal_sight,
     authenticate_historical_workspace_coverage_managed_process_launch,
+    authenticate_recovery_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_process_termination_observation,
     authenticate_workspace_coverage_provider_heartbeat,

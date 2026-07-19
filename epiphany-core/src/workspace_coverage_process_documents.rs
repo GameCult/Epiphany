@@ -1213,6 +1213,26 @@ pub(crate) fn authenticate_workspace_coverage_managed_process_launch_with_envelo
     Ok((launch, envelope_digest(&envelope)))
 }
 
+pub(crate) fn authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<(WorkspaceCoverageManagedProcessLaunchEntry, String)> {
+    let runtime_id = runtime_id.into();
+    let launch = authenticate_historical_workspace_coverage_managed_process_launch(
+        store_path.as_ref(),
+        runtime_id.clone(),
+        launch_id,
+        host_identity,
+    )?;
+    let envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .cache()
+        .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
+        .ok_or_else(|| anyhow!("historical workspace coverage launch envelope disappeared"))?;
+    Ok((launch, envelope_digest(&envelope)))
+}
+
 pub fn observe_workspace_coverage_managed_process(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -2086,6 +2106,37 @@ pub fn authenticate_current_workspace_coverage_claim_sight(
     runtime_id: &str,
     trusted_host: &HostIncarnationIdentityEntry,
 ) -> Result<Option<WorkspaceCoverageClaimSightEntry>> {
+    authenticate_workspace_coverage_claim_sight(
+        local_verse_store,
+        runtime_store,
+        runtime_id,
+        trusted_host,
+        true,
+    )
+}
+
+pub fn authenticate_recovery_workspace_coverage_claim_sight(
+    local_verse_store: impl AsRef<Path>,
+    runtime_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+) -> Result<Option<WorkspaceCoverageClaimSightEntry>> {
+    authenticate_workspace_coverage_claim_sight(
+        local_verse_store,
+        runtime_store,
+        runtime_id,
+        trusted_host,
+        false,
+    )
+}
+
+fn authenticate_workspace_coverage_claim_sight(
+    local_verse_store: impl AsRef<Path>,
+    runtime_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+    require_current_policy: bool,
+) -> Result<Option<WorkspaceCoverageClaimSightEntry>> {
     let runtime_store = runtime_store.as_ref();
     let basis = crate::load_current_runtime_repository_body_basis(runtime_store)?;
     let route = crate::runtime_workspace_coverage_store_binding(runtime_store)?
@@ -2114,13 +2165,28 @@ pub fn authenticate_current_workspace_coverage_claim_sight(
     }
     let entry: WorkspaceCoverageClaimSightEntry = rmp_serde::from_slice(&env.payload)?;
     authenticate_workspace_coverage_claim_sight_entry(&entry)?;
-    let (launch, digest) =
+    let (launch, digest) = if require_current_policy {
         authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
             local_verse_store.as_ref(),
             runtime_id,
             &entry.launch_id,
             trusted_host,
+        )?
+    } else {
+        let launch = authenticate_historical_workspace_coverage_managed_process_launch(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &entry.launch_id,
+            trusted_host,
         )?;
+        let envelope = node
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(
+                &entry.launch_id,
+            ))?
+            .ok_or_else(|| anyhow!("historical claim launch envelope disappeared"))?;
+        (launch, envelope_digest(&envelope))
+    };
     if entry.runtime_id != runtime_id
         || entry.launch_envelope_digest != digest
         || entry.provider_incarnation_id != launch.provider_incarnation_id
@@ -2165,7 +2231,7 @@ pub fn write_workspace_coverage_recovery_directive(
 ) -> Result<WorkspaceCoverageRecoveryDirectiveEntry> {
     let local_verse_store = local_verse_store.as_ref();
     let runtime_store = runtime_store.as_ref();
-    let authenticated = authenticate_current_workspace_coverage_claim_sight(
+    let authenticated = authenticate_recovery_workspace_coverage_claim_sight(
         local_verse_store,
         runtime_store,
         runtime_id,
@@ -4260,6 +4326,35 @@ mod tests {
             .is_some()
         );
 
+        let mut rotated_policy = policy()?;
+        rotated_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &verse,
+            "local",
+            rotated_policy,
+        )?;
+        assert!(
+            authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )
+            .expect_err("ordinary provider work must reject a stale-policy claim")
+            .to_string()
+            .contains("current managed policy")
+        );
+        assert!(
+            authenticate_recovery_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .is_some(),
+            "recovery must preserve the old signed claim/body lineage"
+        );
+
         let source = FakeObservation {
             boot: Some(old_launch.boot_identity.clone()),
             process: ProcessInstanceObservation::Missing,
@@ -4435,7 +4530,7 @@ mod tests {
             &verse,
             &runtime,
             "local",
-            &authenticate_current_workspace_coverage_claim_sight(
+            &authenticate_recovery_workspace_coverage_claim_sight(
                 &verse,
                 &runtime,
                 "local",
@@ -4456,7 +4551,7 @@ mod tests {
             )?
             .is_some()
         );
-        let mut conflicting_lineage = authenticate_current_workspace_coverage_claim_sight(
+        let mut conflicting_lineage = authenticate_recovery_workspace_coverage_claim_sight(
             &verse,
             &runtime,
             "local",
@@ -4499,7 +4594,7 @@ mod tests {
             &verse,
             &runtime,
             "local",
-            &authenticate_current_workspace_coverage_claim_sight(
+            &authenticate_recovery_workspace_coverage_claim_sight(
                 &verse,
                 &runtime,
                 "local",

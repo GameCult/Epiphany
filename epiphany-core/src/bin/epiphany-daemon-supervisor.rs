@@ -58,8 +58,8 @@ use epiphany_core::{
     ProcessInstanceIdentity, ProcessInstanceObservation,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
     WorkspaceCoverageProcessBootstrap, WorkspaceCoverageProcessLifecycleObservation,
-    authenticate_current_workspace_coverage_claim_sight,
     authenticate_historical_workspace_coverage_managed_process_launch,
+    authenticate_recovery_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_provider_heartbeat,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
@@ -2439,7 +2439,7 @@ fn reconcile_workspace_coverage_projector(
         )?;
         return Ok(());
     }
-    let target = match authenticate_current_workspace_coverage_claim_sight(
+    let target = match authenticate_recovery_workspace_coverage_claim_sight(
         &args.store,
         &runtime_store,
         &args.runtime_id,
@@ -2672,7 +2672,7 @@ fn reconcile_workspace_coverage_projector(
     // Claim acquisition may race the first reconciliation observation.  The
     // terminal proof is the cut: authenticate Body sight again after it, and
     // use only this post-terminal target for replacement/recovery authority.
-    let post_terminal_target = match authenticate_current_workspace_coverage_claim_sight(
+    let post_terminal_target = match authenticate_recovery_workspace_coverage_claim_sight(
         &args.store,
         &runtime_store,
         &args.runtime_id,
@@ -4417,7 +4417,7 @@ mod semantic_projector_authority_tests {
             .unwrap();
         let stale_rotation = body.find("if !current_policy_matches_latest").unwrap();
         let claim_sight = body
-            .find("let target = match authenticate_current_workspace_coverage_claim_sight")
+            .find("let target = match authenticate_recovery_workspace_coverage_claim_sight")
             .unwrap();
         assert!(latest < stale_rotation && stale_rotation < claim_sight);
         let observation = body
@@ -4476,7 +4476,7 @@ mod semantic_projector_authority_tests {
             .rfind("authenticate_workspace_coverage_termination_with_envelope_digest")
             .unwrap();
         let post_auth = body
-            .find("let post_terminal_target = match authenticate_current_workspace_coverage_claim_sight")
+            .find("let post_terminal_target = match authenticate_recovery_workspace_coverage_claim_sight")
             .unwrap();
         let replacement_selection = body.find("let existing_replacement =").unwrap();
         let post_target = body
