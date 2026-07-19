@@ -1329,7 +1329,7 @@ fn validate_runtime_body_store_binding(
     }
     Ok(())
 }
-fn body_binding_sha256(binding: &RepositoryBodyBinding) -> Result<String> {
+pub(crate) fn body_binding_sha256(binding: &RepositoryBodyBinding) -> Result<String> {
     Ok(format!(
         "{:x}",
         Sha256::digest(rmp_serde::to_vec_named(binding)?)

@@ -5,11 +5,12 @@ use epiphany_core::{
     ProcessInstanceObservation, ResidentProviderReadiness, ResidentReadinessRequest,
     ResidentSelfOutcome, ResidentSelfPolicy, ResidentSelfPorts, ResidentSelfPressure,
     ResidentSelfState, acknowledge_resident_self_launch, authenticate_resident_self_policy,
-    cancel_resident_self_turn, capture_process_instance, complete_resident_self_turn,
-    coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
-    import_bifrost_persona_feedback_deliveries, ingest_resident_self_domain_pressure,
-    load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
-    prepare_resident_self_launch, publish_resident_provider_readiness, resident_self_child_claim,
+    bind_runtime_repository_domain, cancel_resident_self_turn, capture_process_instance,
+    complete_resident_self_turn, coordinator_run_receipts, derive_resident_cognition_readiness,
+    enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
+    ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
+    load_resident_self_state, observe_process_instance, prepare_resident_self_launch,
+    publish_resident_provider_readiness, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
     validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
     validate_resident_self_store_separation,
@@ -152,11 +153,18 @@ fn cycle(
         &args.feedback_target_repository,
         &args.feedback_target_persona,
     )?;
+    bind_runtime_repository_domain(
+        &args.policy.runtime_store,
+        &args.feedback_target_repository,
+        &Utc::now().to_rfc3339(),
+    )?;
     ingest_resident_self_domain_pressure(
         &args.state_store,
         &args.policy.runtime_store,
         &args.persona_feedback_store,
         &args.policy.release_runtime_id,
+        &args.feedback_target_repository,
+        &args.policy.workspace.display().to_string(),
         now,
     )?;
     *state = load_resident_self_state(&args.state_store)?;

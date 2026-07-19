@@ -1128,5 +1128,27 @@ Idunn separately own release and deployment. Operator silence permits bounded
 observation, map maintenance, rumination, and proposals. It grants none of the
 later consequences.
 
+The autonomous proposal crossing is source-grounded in
+`runtime_spine.rs`, `admitted_model_direction_consideration.rs`,
+`coordinator_launch.rs`, and `repo_model_gateway.rs`. A deployment-configured
+`RuntimeRepositoryDomainBinding` immutably joins the runtime/swarm/workspace to
+the exact repository Body binding. It names organizational jurisdiction only;
+it is not proof of a Git remote. Self promotion reloads the exact direction
+request/result, worker result and launch, admitted model receipt, domain
+binding, and Body-owned canonical Git root, then one preserved-authority CAS
+creates an inert frontier proposal and its Modeling selection. The generic
+proposal mouth rejects Imagination provenance so it cannot substitute for this
+causal crossing.
+
+Proposal Modeling is structurally bounded: its sole frontier upsert must
+recommend `Imagination` and carry no adopted plan. Ordinary Evolution cannot
+mutate frontier state, and proposal Evolution is insert-only. Therefore map
+direction can become an inspectable proposal and planning request, but not a
+Hands route. The full-chain hostile test supplies an exact proposal-citing
+Modeling result that recommends direct Hands; Mind admission rejects it before
+mutation, the store remains byte-identical, and Hands authority remains absent.
+Only the existing explicit Mind adoption transition may create the route that
+Hands consumes.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

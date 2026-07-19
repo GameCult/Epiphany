@@ -211,6 +211,10 @@ pub fn validate_result(
     request: &AdmittedModelDirectionConsiderationRequest,
     result: &AdmittedModelDirectionConsiderationResult,
 ) -> Result<()> {
+    let requested_at = chrono::DateTime::parse_from_rfc3339(&request.requested_at)
+        .map_err(|_| anyhow!("model direction request timestamp must be RFC3339"))?;
+    let proposed_at = chrono::DateTime::parse_from_rfc3339(&result.proposed_at)
+        .map_err(|_| anyhow!("model direction result timestamp must be RFC3339"))?;
     if result.schema_version != RESULT_SCHEMA
         || result.contract != RESULT_CONTRACT
         || !result.proposal_only
@@ -223,7 +227,7 @@ pub fn validate_result(
         || result.model_admission_receipt_id != request.model_admission_receipt_id
         || result.result_id.trim().is_empty()
         || result.summary.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&result.proposed_at).is_err()
+        || proposed_at < requested_at
     {
         bail!("model direction result substituted causal identity");
     }

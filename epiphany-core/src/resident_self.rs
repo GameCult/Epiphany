@@ -52,6 +52,7 @@ impl ResidentSelfPressure {
                     | "persona-feedback"
                     | "imagination-consideration"
                     | "imagination-proposal"
+                    | "repo-frontier-proposal-modeling"
             )
             || self.pressure_id.trim().is_empty()
             || self.provenance_ref.trim().is_empty()
@@ -811,6 +812,8 @@ pub fn ingest_resident_self_domain_pressure(
     runtime_store: &Path,
     persona_feedback_store: &Path,
     runtime_id: &str,
+    repository: &str,
+    workspace: &str,
     now_millis: u64,
 ) -> Result<usize> {
     let mut inserted = 0;
@@ -828,6 +831,30 @@ pub fn ingest_resident_self_domain_pressure(
             objective: "Launch the exact typed admitted model direction consideration request; proposal only.".into(),
             created_at_millis: now_millis, status: "pending".into(), consumed_by_grant_id: None, private_state_exposed: false,
         })?);
+    }
+    for selection in crate::promote_autonomous_direction_options_for_modeling(
+        runtime_store,
+        repository,
+        workspace,
+        &requested_at,
+    )? {
+        inserted += usize::from(enqueue_resident_self_pressure_idempotent(
+            resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: format!("repo-frontier-proposal-modeling-{}", selection.request_id),
+                kind: "repo-frontier-proposal-modeling".into(),
+                provenance_ref: format!(
+                    "cultcache://repo-frontier-proposal-modeling/{}",
+                    selection.request_id
+                ),
+                objective: "Launch the exact autonomous proposal Modeling review; do not admit, adopt, act, release, or deploy.".into(),
+                created_at_millis: now_millis,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?);
     }
     for feedback in crate::admitted_persona_feedback(persona_feedback_store, runtime_id)? {
         if feedback.target_runtime_id != runtime_id {
@@ -1009,18 +1036,23 @@ pub fn prepare_resident_self_launch(
     let mut argv = coordinator_argv(policy, &turn_id, &wake);
     if matches!(
         grant.pressure_kind.as_str(),
-        "imagination-consideration" | "admitted-model-direction-consideration"
+        "imagination-consideration"
+            | "admitted-model-direction-consideration"
+            | "repo-frontier-proposal-modeling"
     ) {
-        let (prefix, request_flag) = if grant.pressure_kind == "imagination-consideration" {
-            (
+        let (prefix, request_flag) = match grant.pressure_kind.as_str() {
+            "imagination-consideration" => (
                 "cultcache://imagination-consideration/",
                 "--imagination-consideration-request-id",
-            )
-        } else {
-            (
+            ),
+            "admitted-model-direction-consideration" => (
                 "cultcache://admitted-model-direction-consideration/",
                 "--admitted-model-direction-consideration-request-id",
-            )
+            ),
+            _ => (
+                "cultcache://repo-frontier-proposal-modeling/",
+                "--proposal-modeling-request-id",
+            ),
         };
         let request_id = grant
             .provenance_ref
@@ -1748,6 +1780,43 @@ mod tests {
         assert!(complete_resident_self_turn(&store, &lease, &wrong, 8).is_err());
         let ack = complete_resident_self_turn(&store, &lease, &receipt, 9)?;
         assert_eq!(ack.coordinator_receipt_id, receipt.receipt_id);
+        Ok(())
+    }
+
+    #[test]
+    fn autonomous_frontier_pressure_launches_exact_modeling_selection_without_objective()
+    -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-autonomous.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator;
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-autonomous-modeling-1".into(),
+                kind: "repo-frontier-proposal-modeling".into(),
+                provenance_ref: "cultcache://repo-frontier-proposal-modeling/selection-1".into(),
+                objective: "Launch exact autonomous proposal Modeling review.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        heartbeat_issue_resident_self_grant(&store, "heartbeat-autonomous", "action-1", 2)?
+            .expect("autonomous grant");
+        let prepared = prepare_resident_self_launch(&store, &policy, 3)?
+            .expect("autonomous Modeling preparation");
+        assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
+        assert!(
+            prepared
+                .argv
+                .windows(2)
+                .any(|pair| { pair == ["--proposal-modeling-request-id", "selection-1"] })
+        );
         Ok(())
     }
 

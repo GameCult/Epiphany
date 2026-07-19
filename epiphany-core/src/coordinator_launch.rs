@@ -965,6 +965,9 @@ fn validate_proposal_modeling_launch(
         .get::<RepoFrontierWorkProposal>(&selection.proposal_id)?
         .ok_or_else(|| anyhow!("proposal Modeling selection references a missing proposal"))?;
     crate::runtime_spine::validate_repo_frontier_work_proposal(&proposal)?;
+    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+        crate::runtime_spine::validate_autonomous_proposal_binding(cache, &proposal)?;
+    }
     if cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
         .iter()

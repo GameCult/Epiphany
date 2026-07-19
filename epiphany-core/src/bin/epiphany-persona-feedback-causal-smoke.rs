@@ -46,11 +46,14 @@ fn main() -> Result<()> {
         bail!("fixture requires exact public, organization, and private feedback classes");
     }
 
+    bind_runtime_repository_domain(&runtime_store, "GameCult/Epiphany", "2026-07-18T00:00:00Z")?;
     let inserted = ingest_resident_self_domain_pressure(
         &resident_store,
         &runtime_store,
         &feedback_store,
         "epiphany-yggdrasil",
+        "GameCult/Epiphany",
+        runtime_store.parent().unwrap().to_str().unwrap(),
         1_752_796_800_000,
     )?;
     if inserted < admitted.len() {

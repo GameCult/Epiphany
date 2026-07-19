@@ -50,6 +50,8 @@ use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
+    REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
+    REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION, REPO_FRONTIER_PLAN_DECISION_CONTRACT,
@@ -71,7 +73,9 @@ use crate::repo_model_gateway::{
     REPO_MODEL_CLAIM_CHALLENGE_CONTRACT, REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION,
     REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT, REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_CONTRACT, REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
-    REPO_MODEL_MIGRATION_RECEIPT_TYPE, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
+    REPO_MODEL_MIGRATION_RECEIPT_TYPE, RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT,
+    RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION,
+    RepoFrontierAutonomousProposalBinding, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
     RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
     RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
     RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
@@ -80,7 +84,7 @@ use crate::repo_model_gateway::{
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
     RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
     RepoModelClaimRepairFrontierRef, RepoModelClaimRepairLaunchBinding,
-    RepoModelClaimRepairRequest, RepoModelMigrationReceipt,
+    RepoModelClaimRepairRequest, RepoModelMigrationReceipt, RuntimeRepositoryDomainBinding,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -896,6 +900,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierWorkProposal>()?;
+    cache.register_entry_type::<RepoFrontierAutonomousProposalBinding>()?;
+    cache.register_entry_type::<RuntimeRepositoryDomainBinding>()?;
     cache.register_entry_type::<RepoFrontierProposalModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierProposalModelingLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
@@ -2033,6 +2039,7 @@ pub fn put_runtime_role_worker_result(
             ));
         }
     }
+    let mut model_direction_companion = None;
     let has_model_direction_echo = result
         .admitted_model_direction_consideration_request_id
         .is_some();
@@ -2101,6 +2108,7 @@ pub fn put_runtime_role_worker_result(
                 "model direction result does not exactly bind request and launch"
             ));
         }
+        model_direction_companion = Some(direction_result);
     }
     let has_consideration_echo = result.imagination_consideration_request_id.is_some();
     let has_consideration_candidate = result.imagination_consideration_candidate_msgpack.is_some();
@@ -2271,26 +2279,58 @@ pub fn put_runtime_role_worker_result(
         }
     }
     if let Some(existing) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
-        return if existing == *result {
-            Ok(())
-        } else {
-            Err(anyhow!(
+        if existing != *result {
+            return Err(anyhow!(
                 "role worker result is immutable for its runtime job"
-            ))
-        };
+            ));
+        }
+        if let Some(companion) = model_direction_companion.as_ref() {
+            return match cache
+                .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
+            {
+                Some(existing) if existing == *companion => Ok(()),
+                _ => Err(anyhow!(
+                    "model direction worker result lost its exact typed companion"
+                )),
+            };
+        }
+        return Ok(());
     }
     let (envelope, _) = cache.prepare_entry(&result.job_id, result)?;
+    let mut writes = vec![envelope];
+    if let Some(companion) = model_direction_companion.as_ref() {
+        if cache
+            .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "model direction result companion identity already exists without its worker result"
+            ));
+        }
+        let (companion_envelope, _) = cache.prepare_entry(&companion.result_id, companion)?;
+        writes.push(companion_envelope);
+    }
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.insert_entry_if_absent(envelope)? {
+    if backing.compare_and_swap_batch(&[], writes)? {
         return Ok(());
     }
     let mut reloaded = runtime_spine_cache(store_path)?;
     reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
-        Some(existing) if existing == *result => Ok(()),
-        _ => Err(anyhow!(
-            "role worker result lost immutable insertion to a different result"
-        )),
+    let worker_matches = reloaded
+        .get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+        .is_some_and(|existing| existing == *result);
+    let companion_matches = match model_direction_companion.as_ref() {
+        Some(companion) => reloaded
+            .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
+            .is_some_and(|existing| existing == *companion),
+        None => true,
+    };
+    if worker_matches && companion_matches {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "role worker result lost immutable insertion to a different result or companion"
+        ))
     }
 }
 
@@ -2849,6 +2889,9 @@ pub fn commit_repo_model_admission(
                     .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
                     .ok_or_else(|| anyhow!("proposal Evolution requires exact proposal"))?;
                 validate_repo_frontier_work_proposal(&proposal)?;
+                if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+                    validate_autonomous_proposal_binding(&cache, &proposal)?;
+                }
                 let launch_bindings = cache
                     .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
                     .into_iter()
@@ -3062,6 +3105,14 @@ pub fn commit_repo_model_admission(
                 {
                     return Err(anyhow!(
                         "proposal Evolution requires one proposal-citing frontier upsert and exact evidence"
+                    ));
+                }
+                if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
+                    && (upserts[0].recommended_next_organ != "Imagination"
+                        || upserts[0].adopted_plan.is_some())
+                {
+                    return Err(anyhow!(
+                        "autonomous proposal Modeling may admit only an unadopted Imagination-planning frontier; Mind alone may adopt a plan before Hands"
                     ));
                 }
                 request.request_id
@@ -3491,6 +3542,169 @@ pub(crate) fn validate_repo_frontier_work_proposal(
     Ok(())
 }
 
+pub(crate) fn validate_autonomous_proposal_binding(
+    cache: &CultCache,
+    proposal: &RepoFrontierWorkProposal,
+) -> Result<RepoFrontierAutonomousProposalBinding> {
+    if proposal.source_kind != crate::RepoFrontierProposalSourceKind::Imagination {
+        return Err(anyhow!(
+            "autonomous binding requires an Imagination proposal"
+        ));
+    }
+    let binding_id = format!("autonomous-proposal-binding-{}", proposal.proposal_id);
+    let binding = cache
+        .get::<RepoFrontierAutonomousProposalBinding>(&binding_id)?
+        .ok_or_else(|| anyhow!("Imagination proposal lacks its autonomous origin binding"))?;
+    let request = cache
+        .get::<crate::AdmittedModelDirectionConsiderationRequest>(&binding.direction_request_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction request"))?;
+    let result = cache
+        .get::<crate::AdmittedModelDirectionConsiderationResult>(&binding.direction_result_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction result"))?;
+    let worker_result = cache
+        .get::<EpiphanyRuntimeRoleWorkerResult>(&binding.direction_worker_job_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its Imagination worker result"))?;
+    let worker_launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&binding.direction_worker_job_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its Imagination worker launch"))?;
+    crate::validate_current_admitted_model_direction_consideration_request(cache, &request)?;
+    crate::validate_admitted_model_direction_consideration_result(&request, &result)?;
+    let result_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&result)?));
+    let worker_result_sha256 = format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&worker_result)?)
+    );
+    let worker_launch_sha256 = format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&worker_launch)?)
+    );
+    let worker_direction = worker_result
+        .admitted_model_direction_consideration_result()?
+        .ok_or_else(|| anyhow!("autonomous proposal worker result lost its direction cargo"))?;
+    let launch_projection = match worker_launch.launch_document()? {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.admitted_model_direction_consideration_context
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let option = result
+        .option_drafts
+        .get(binding.option_ordinal as usize)
+        .ok_or_else(|| anyhow!("autonomous proposal binding names a missing option"))?;
+    let option_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(option)?));
+    let route = cache
+        .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal requires repository Body binding"))?;
+    let domain = cache
+        .get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal requires repository domain binding"))?;
+    let (body_binding, _) = crate::load_repository_body_status(Path::new(&route.body_store_path))?
+        .ok_or_else(|| anyhow!("autonomous proposal requires authenticated Body status"))?;
+    let chain_checks = [
+        (
+            "worker result identity",
+            binding.direction_worker_result_id == worker_result.result_id,
+        ),
+        (
+            "worker result hash",
+            binding.direction_worker_result_sha256 == worker_result_sha256,
+        ),
+        (
+            "worker launch hash",
+            binding.direction_worker_launch_sha256 == worker_launch_sha256,
+        ),
+        (
+            "worker job",
+            worker_result.job_id == binding.direction_worker_job_id,
+        ),
+        (
+            "worker role",
+            worker_result.role_id.eq_ignore_ascii_case("imagination"),
+        ),
+        (
+            "worker request echo",
+            worker_result
+                .admitted_model_direction_consideration_request_id
+                .as_deref()
+                == Some(request.request_id.as_str()),
+        ),
+        ("worker direction cargo", worker_direction == result),
+        (
+            "direction launch identity",
+            result.result_id
+                == crate::admitted_model_direction_consideration_result_id_for_launch(
+                    &request.request_id,
+                    &binding.direction_worker_job_id,
+                ),
+        ),
+        (
+            "launch role",
+            worker_launch
+                .role
+                .eq_ignore_ascii_case(EPIPHANY_IMAGINATION_OWNER_ROLE),
+        ),
+        (
+            "launch binding",
+            worker_launch.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
+        ),
+        (
+            "launch request echo",
+            worker_launch
+                .admitted_model_direction_consideration_request_id
+                .as_deref()
+                == Some(request.request_id.as_str()),
+        ),
+        (
+            "launch request projection",
+            launch_projection.map(|projection| projection.request) == Some(request.clone()),
+        ),
+    ];
+    if let Some((failed, _)) = chain_checks.into_iter().find(|(_, matches)| !matches) {
+        return Err(anyhow!(
+            "autonomous proposal Imagination chain mismatch: {failed}"
+        ));
+    }
+    if binding.schema_version != REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION
+        || binding.contract != REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT
+        || binding.binding_id != binding_id
+        || binding.proposal_id != proposal.proposal_id
+        || binding.proposal_payload_sha256 != proposal.payload_sha256
+        || binding.direction_request_id != result.request_id
+        || binding.direction_result_id != result.result_id
+        || binding.direction_result_sha256 != result_sha256
+        || binding.model_revision != result.model_revision
+        || binding.model_hash != result.model_hash
+        || binding.model_admission_receipt_id != result.model_admission_receipt_id
+        || binding.option_sha256 != option_sha256
+        || binding.runtime_id != proposal.runtime_id
+        || binding.thread_id != proposal.thread_id
+        || binding.workspace_id != route.workspace_id
+        || binding.body_binding_sha256 != route.body_binding_sha256
+        || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
+        || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
+        || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
+        || domain.repository_full_name != proposal.repository
+        || domain.runtime_id != route.runtime_id
+        || domain.swarm_id != route.swarm_id
+        || domain.workspace_id != route.workspace_id
+        || domain.body_binding_sha256 != route.body_binding_sha256
+        || body_binding.runtime_id != route.runtime_id
+        || body_binding.swarm_id != route.swarm_id
+        || body_binding.workspace_id != route.workspace_id
+        || crate::repository_body_observer::body_binding_sha256(&body_binding)?
+            != route.body_binding_sha256
+        || proposal.workspace != body_binding.git_top_level
+        || chrono::DateTime::parse_from_rfc3339(&binding.created_at).is_err()
+        || proposal.source_actor != EPIPHANY_IMAGINATION_OWNER_ROLE
+        || proposal.source_ref != result.result_id
+        || proposal.title != option.title
+        || proposal.body != option.summary
+    {
+        return Err(anyhow!("autonomous proposal origin binding mismatch"));
+    }
+    Ok(binding)
+}
+
 pub(crate) fn validate_repo_frontier_proposal_modeling_request(
     request: &RepoFrontierProposalModelingRequest,
 ) -> Result<()> {
@@ -3517,6 +3731,11 @@ pub fn put_repo_frontier_work_proposal(
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<()> {
     validate_repo_frontier_work_proposal(proposal)?;
+    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+        return Err(anyhow!(
+            "generic proposal intake cannot author Imagination provenance"
+        ));
+    }
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     let identity = require_identity(&cache)?;
@@ -3577,6 +3796,380 @@ pub fn runtime_repo_frontier_work_proposal(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<RepoFrontierWorkProposal>(proposal_id)
+}
+
+pub fn bind_runtime_repository_domain(
+    runtime_store: impl AsRef<Path>,
+    repository_full_name: &str,
+    bound_at: &str,
+) -> Result<RuntimeRepositoryDomainBinding> {
+    if !repository_full_name.starts_with("GameCult/")
+        || repository_full_name["GameCult/".len()..].trim().is_empty()
+        || repository_full_name.chars().any(char::is_whitespace)
+    {
+        return Err(anyhow!(
+            "runtime repository domain requires a canonical GameCult name"
+        ));
+    }
+    chrono::DateTime::parse_from_rfc3339(bound_at)
+        .map_err(|_| anyhow!("runtime repository domain timestamp must be RFC3339"))?;
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let identity = require_identity(&cache)?;
+    let route = cache
+        .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("runtime repository domain requires Body binding"))?;
+    let (body, _) = crate::load_repository_body_status(Path::new(&route.body_store_path))?
+        .ok_or_else(|| anyhow!("runtime repository domain requires authenticated Body status"))?;
+    if route.runtime_id != identity.runtime_id
+        || body.runtime_id != route.runtime_id
+        || body.swarm_id != route.swarm_id
+        || body.workspace_id != route.workspace_id
+        || crate::repository_body_observer::body_binding_sha256(&body)? != route.body_binding_sha256
+    {
+        return Err(anyhow!("runtime repository domain Body authority mismatch"));
+    }
+    let binding = RuntimeRepositoryDomainBinding {
+        schema_version: RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION.into(),
+        binding_id: RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY.into(),
+        repository_full_name: repository_full_name.into(),
+        runtime_id: route.runtime_id.clone(),
+        swarm_id: route.swarm_id.clone(),
+        workspace_id: route.workspace_id.clone(),
+        body_binding_sha256: route.body_binding_sha256.clone(),
+        bound_at: bound_at.into(),
+        contract: RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT.into(),
+    };
+    if let Some(existing) =
+        cache.get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
+    {
+        let mut replay = binding;
+        replay.bound_at = existing.bound_at.clone();
+        return if replay == existing {
+            Ok(existing)
+        } else {
+            Err(anyhow!("runtime repository domain is immutable"))
+        };
+    }
+    let identity_envelope = cache
+        .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("runtime repository domain identity disappeared"))?;
+    let route_envelope = cache
+        .get_envelope::<crate::RuntimeRepositoryBodyStoreBinding>(
+            crate::RUNTIME_BODY_STORE_BINDING_KEY,
+        )?
+        .ok_or_else(|| anyhow!("runtime repository domain Body route disappeared"))?;
+    let (binding_envelope, _) =
+        cache.prepare_entry(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, &binding)?;
+    let expected = vec![identity_envelope, route_envelope];
+    let mut replacement = expected.clone();
+    replacement.push(binding_envelope);
+    if !SingleFileMessagePackBackingStore::new(runtime_store)
+        .compare_and_swap_batch(&expected, replacement)?
+    {
+        return Err(anyhow!("runtime repository domain lost atomic binding"));
+    }
+    Ok(binding)
+}
+
+pub fn promote_autonomous_direction_options_for_modeling(
+    runtime_store: impl AsRef<Path>,
+    repository: &str,
+    workspace: &str,
+    selected_at: &str,
+) -> Result<Vec<RepoFrontierProposalModelingRequest>> {
+    chrono::DateTime::parse_from_rfc3339(selected_at)
+        .map_err(|_| anyhow!("autonomous proposal promotion timestamp must be RFC3339"))?;
+    validate_non_empty(repository, "autonomous proposal repository")?;
+    validate_non_empty(workspace, "autonomous proposal workspace")?;
+    let runtime_store = runtime_store.as_ref();
+    let mut opening = runtime_spine_cache(runtime_store)?;
+    opening.pull_all_backing_stores()?;
+    let identity = require_identity(&opening)?;
+    let thread = opening
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal promotion requires thread state"))?;
+    let model = opening
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal promotion requires admitted Modeling map"))?
+        .snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let receipts = opening
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.admitted_revision == model.model_revision && receipt.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "autonomous proposal promotion requires one current model receipt"
+        ));
+    }
+    let mut results = opening
+        .get_all::<crate::AdmittedModelDirectionConsiderationResult>()?
+        .into_iter()
+        .filter(|result| {
+            result.disposition == crate::AdmittedModelDirectionDisposition::Suggest
+                && result.model_revision == model.model_revision
+                && result.model_hash == model_hash
+                && result.model_admission_receipt_id == receipts[0].receipt_id
+        })
+        .collect::<Vec<_>>();
+    if results.is_empty() {
+        return Ok(Vec::new());
+    }
+    let route = opening
+        .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal promotion requires Body binding"))?;
+    if route.runtime_id != identity.runtime_id {
+        return Err(anyhow!("autonomous proposal Body binding runtime mismatch"));
+    }
+    let domain = opening
+        .get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
+        .ok_or_else(|| {
+            anyhow!("autonomous proposal promotion requires repository domain binding")
+        })?;
+    let body_store = PathBuf::from(&route.body_store_path);
+    let (body_binding, _) = crate::load_repository_body_status(&body_store)?
+        .ok_or_else(|| anyhow!("autonomous proposal Body store has no authenticated status"))?;
+    if body_binding.workspace_id != route.workspace_id
+        || body_binding.runtime_id != route.runtime_id
+        || body_binding.swarm_id != route.swarm_id
+        || crate::repository_body_observer::body_binding_sha256(&body_binding)?
+            != route.body_binding_sha256
+        || Path::new(workspace).canonicalize()?
+            != Path::new(&body_binding.git_top_level).canonicalize()?
+        || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
+        || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
+        || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
+        || domain.repository_full_name != repository
+        || domain.runtime_id != route.runtime_id
+        || domain.swarm_id != route.swarm_id
+        || domain.workspace_id != route.workspace_id
+        || domain.body_binding_sha256 != route.body_binding_sha256
+    {
+        return Err(anyhow!(
+            "autonomous proposal workspace is not the bound repository Body"
+        ));
+    }
+    results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
+    let mut promoted = Vec::new();
+    for result in results {
+        let request = opening
+            .get::<crate::AdmittedModelDirectionConsiderationRequest>(&result.request_id)?
+            .ok_or_else(|| anyhow!("autonomous proposal result lost its request"))?;
+        crate::validate_admitted_model_direction_consideration_result(&request, &result)?;
+        let mut direction_workers = opening
+            .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+            .into_iter()
+            .filter_map(|worker| {
+                worker
+                    .admitted_model_direction_consideration_result()
+                    .ok()
+                    .flatten()
+                    .filter(|embedded| embedded == &result)
+                    .map(|_| worker)
+            })
+            .collect::<Vec<_>>();
+        if direction_workers.len() != 1 {
+            return Err(anyhow!(
+                "autonomous proposal requires exactly one immutable Imagination worker result"
+            ));
+        }
+        let direction_worker = direction_workers.remove(0);
+        let direction_launch = opening
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&direction_worker.job_id)?
+            .ok_or_else(|| anyhow!("autonomous proposal direction worker lost its launch"))?;
+        let direction_worker_result_sha256 = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&direction_worker)?)
+        );
+        let direction_worker_launch_sha256 = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&direction_launch)?)
+        );
+        let result_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&result)?));
+        for (ordinal, option) in result.option_drafts.iter().enumerate() {
+            if option.title.trim().is_empty() || option.summary.trim().is_empty() {
+                return Err(anyhow!("autonomous direction option is empty"));
+            }
+            let option_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(option)?));
+            let proposal_id = format!(
+                "repo-frontier-autonomous-{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(&(
+                    &result.result_id,
+                    ordinal as u32,
+                    &option_sha256
+                ))?)
+            );
+            let evidence_refs = result
+                .evidence_refs
+                .iter()
+                .cloned()
+                .chain([
+                    format!(
+                        "cultcache://admitted-model-direction/{}",
+                        request.request_id
+                    ),
+                    format!(
+                        "cultcache://admitted-model-direction-result/{}",
+                        result.result_id
+                    ),
+                    format!(
+                        "cultcache://repo-model-admission/{}",
+                        result.model_admission_receipt_id
+                    ),
+                ])
+                .collect::<Vec<_>>();
+            let content = rmp_serde::to_vec_named(&(
+                &option.title,
+                &option.summary,
+                &option.summary,
+                &result.uncertainties,
+                &Vec::<String>::new(),
+                &evidence_refs,
+            ))?;
+            let payload_sha256 = format!("{:x}", Sha256::digest(content));
+            let proposal = RepoFrontierWorkProposal {
+                schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
+                proposal_id: proposal_id.clone(),
+                source_kind: crate::RepoFrontierProposalSourceKind::Imagination,
+                source_actor: EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+                source_ref: result.result_id.clone(),
+                repository: repository.into(),
+                workspace: body_binding.git_top_level.clone(),
+                thread_id: thread.thread_id.clone(),
+                runtime_id: identity.runtime_id.clone(),
+                payload_sha256: payload_sha256.clone(),
+                title: option.title.clone(),
+                body: option.summary.clone(),
+                desired_outcome: option.summary.clone(),
+                constraints: result.uncertainties.clone(),
+                scope_hints: Vec::new(),
+                evidence_refs,
+                private_state_included: false,
+                proposed_at: result.proposed_at.clone(),
+                contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
+            };
+            validate_repo_frontier_work_proposal(&proposal)?;
+            let binding = RepoFrontierAutonomousProposalBinding {
+                schema_version: REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION.into(),
+                binding_id: format!("autonomous-proposal-binding-{proposal_id}"),
+                proposal_id: proposal_id.clone(),
+                proposal_payload_sha256: payload_sha256.clone(),
+                direction_request_id: request.request_id.clone(),
+                direction_result_id: result.result_id.clone(),
+                direction_result_sha256: result_sha256.clone(),
+                model_revision: result.model_revision,
+                model_hash: result.model_hash.clone(),
+                model_admission_receipt_id: result.model_admission_receipt_id.clone(),
+                option_ordinal: ordinal as u32,
+                option_sha256,
+                runtime_id: identity.runtime_id.clone(),
+                thread_id: thread.thread_id.clone(),
+                workspace_id: route.workspace_id.clone(),
+                body_binding_sha256: route.body_binding_sha256.clone(),
+                created_at: selected_at.into(),
+                contract: REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT.into(),
+                direction_worker_job_id: direction_worker.job_id.clone(),
+                direction_worker_result_id: direction_worker.result_id.clone(),
+                direction_worker_result_sha256: direction_worker_result_sha256.clone(),
+                direction_worker_launch_sha256: direction_worker_launch_sha256.clone(),
+            };
+            let selection = RepoFrontierProposalModelingRequest {
+                schema_version: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
+                request_id: format!(
+                    "repo-frontier-proposal-modeling-{:x}",
+                    Sha256::digest(format!("{}:{}", proposal_id, payload_sha256).as_bytes())
+                ),
+                proposal_id: proposal_id.clone(),
+                proposal_payload_sha256: payload_sha256,
+                runtime_id: identity.runtime_id.clone(),
+                thread_id: thread.thread_id.clone(),
+                repository: repository.into(),
+                workspace: body_binding.git_top_level.clone(),
+                selected_at: selected_at.into(),
+                contract: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
+            };
+            validate_repo_frontier_proposal_modeling_request(&selection)?;
+            let mut current = runtime_spine_cache(runtime_store)?;
+            current.pull_all_backing_stores()?;
+            let existing = (
+                current.get::<RepoFrontierWorkProposal>(&proposal.proposal_id)?,
+                current.get::<RepoFrontierAutonomousProposalBinding>(&binding.binding_id)?,
+                current.get::<RepoFrontierProposalModelingRequest>(&selection.request_id)?,
+            );
+            if let (Some(existing_proposal), Some(_), Some(existing_selection)) = &existing {
+                validate_autonomous_proposal_binding(&current, existing_proposal)?;
+                let mut replay_selection = selection.clone();
+                replay_selection.selected_at = existing_selection.selected_at.clone();
+                if existing_proposal == &proposal && existing_selection == &replay_selection {
+                    promoted.push(existing_selection.clone());
+                    continue;
+                }
+            }
+            if existing.0.is_some() || existing.1.is_some() || existing.2.is_some() {
+                return Err(anyhow!("autonomous proposal promotion companion collision"));
+            }
+            let (proposal_envelope, _) = current.prepare_entry(&proposal.proposal_id, &proposal)?;
+            let (binding_envelope, _) = current.prepare_entry(&binding.binding_id, &binding)?;
+            let (selection_envelope, _) =
+                current.prepare_entry(&selection.request_id, &selection)?;
+            let expected = vec![
+                current
+                    .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+                    .ok_or_else(|| anyhow!("runtime identity envelope disappeared"))?,
+                current
+                    .get_envelope::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                    .ok_or_else(|| anyhow!("thread envelope disappeared"))?,
+                current
+                    .get_envelope::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+                    .ok_or_else(|| anyhow!("model envelope disappeared"))?,
+                current
+                    .get_envelope::<RepoModelAdmissionReceipt>(&result.model_admission_receipt_id)?
+                    .ok_or_else(|| anyhow!("model receipt envelope disappeared"))?,
+                current
+                    .get_envelope::<crate::RuntimeRepositoryBodyStoreBinding>(
+                        crate::RUNTIME_BODY_STORE_BINDING_KEY,
+                    )?
+                    .ok_or_else(|| anyhow!("Body route envelope disappeared"))?,
+                current
+                    .get_envelope::<RuntimeRepositoryDomainBinding>(
+                        RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY,
+                    )?
+                    .ok_or_else(|| anyhow!("repository domain envelope disappeared"))?,
+                current
+                    .get_envelope::<crate::AdmittedModelDirectionConsiderationRequest>(
+                        &request.request_id,
+                    )?
+                    .ok_or_else(|| anyhow!("direction request envelope disappeared"))?,
+                current
+                    .get_envelope::<crate::AdmittedModelDirectionConsiderationResult>(
+                        &result.result_id,
+                    )?
+                    .ok_or_else(|| anyhow!("direction result envelope disappeared"))?,
+                current
+                    .get_envelope::<EpiphanyRuntimeWorkerLaunchRequest>(&direction_worker.job_id)?
+                    .ok_or_else(|| anyhow!("direction launch envelope disappeared"))?,
+                current
+                    .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(&direction_worker.job_id)?
+                    .ok_or_else(|| anyhow!("direction worker envelope disappeared"))?,
+            ];
+            let mut replacement = expected.clone();
+            replacement.extend([proposal_envelope, binding_envelope, selection_envelope]);
+            if !SingleFileMessagePackBackingStore::new(runtime_store)
+                .compare_and_swap_batch(&expected, replacement)?
+            {
+                return Err(anyhow!(
+                    "autonomous proposal promotion lost atomic insertion"
+                ));
+            }
+            promoted.push(selection);
+        }
+    }
+    Ok(promoted)
 }
 
 pub fn runtime_repo_frontier_proposal_modeling_request(
@@ -3692,6 +4285,9 @@ pub fn select_repo_frontier_work_proposal_for_modeling(
         .get::<RepoFrontierWorkProposal>(proposal_id)?
         .ok_or_else(|| anyhow!("proposal selection requires exact persisted proposal"))?;
     validate_repo_frontier_work_proposal(&proposal)?;
+    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+        validate_autonomous_proposal_binding(&cache, &proposal)?;
+    }
     let thread = cache
         .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
         .ok_or_else(|| anyhow!("proposal selection requires authoritative thread state"))?;
@@ -8801,6 +9397,350 @@ pub(crate) mod tests {
         let public_surface = include_str!("lib.rs");
         assert!(!public_surface.contains("put_repo_frontier_plan_candidate"));
         assert!(!public_surface.contains("put_repo_frontier_plan_adoption"));
+    }
+
+    #[test]
+    fn autonomous_direction_option_is_atomically_bound_and_selected_for_modeling() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, modeling_result, review) =
+            proposal_admission_fixture(root.path(), "autonomous-bridge")?;
+        put_runtime_role_worker_result(&store, &modeling_result)?;
+        let admitted = commit_repo_model_admission(&store, &modeling_result.result_id, &review)?;
+        let request = crate::commit_admitted_model_direction_consideration_request(
+            &store,
+            "2026-07-18T01:00:00Z",
+        )?
+        .expect("current admitted model direction request");
+        assert_eq!(request.model_admission_receipt_id, admitted.receipt_id);
+        let mut launch_cache = runtime_spine_cache(&store)?;
+        launch_cache.pull_all_backing_stores()?;
+        let thread = launch_cache
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .expect("direction thread state");
+        let state = thread.state()?;
+        let launch = crate::build_epiphany_admitted_model_direction_consideration_launch_request(
+            &thread.thread_id,
+            Some(state.revision),
+            Some(60),
+            &state,
+            request.request_id.clone(),
+        )
+        .map_err(|error| anyhow!(error))?;
+        let job_id = "direction-job-autonomous-bridge";
+        let plan = crate::plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "direction-launcher-autonomous-bridge".into(),
+            job_id.into(),
+        )?;
+        crate::commit_coordinator_job_launch(
+            &store,
+            &thread.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-18T01:00:01Z".into(),
+        )?;
+        let direction = crate::AdmittedModelDirectionConsiderationResult {
+            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
+                .into(),
+            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
+                &request.request_id,
+                job_id,
+            ),
+            request_id: request.request_id.clone(),
+            runtime_id: request.runtime_id.clone(),
+            thread_id: request.thread_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            model_admission_receipt_id: request.model_admission_receipt_id.clone(),
+            disposition: crate::AdmittedModelDirectionDisposition::Suggest,
+            summary: "One coherent option fits the admitted map.".into(),
+            option_drafts: vec![crate::ImaginationOptionDraft {
+                title: "Persist autonomous frontier causality".into(),
+                summary: "Carry exact direction and Body provenance into Modeling review.".into(),
+            }],
+            uncertainties: vec!["Modeling must verify source scope.".into()],
+            evidence_refs: vec!["evidence:admitted-map".into()],
+            proposed_at: "2026-07-18T01:00:01Z".into(),
+            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
+            proposal_only: true,
+            terminal: true,
+        };
+        crate::validate_admitted_model_direction_consideration_result(&request, &direction)?;
+        let body_route = launch_cache
+            .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
+            .expect("autonomous Body route");
+        let (body_binding, _) =
+            crate::load_repository_body_status(Path::new(&body_route.body_store_path))?
+                .expect("autonomous Body status");
+        let workspace = body_binding.git_top_level;
+        bind_runtime_repository_domain(&store, "GameCult/Epiphany", "2026-07-18T01:00:01Z")?;
+
+        let counterfeit_store = root.path().join("counterfeit-direction-companion.cc");
+        std::fs::copy(&store, &counterfeit_store)?;
+        let mut counterfeit_cache = runtime_spine_cache(&counterfeit_store)?;
+        counterfeit_cache.put(&direction.result_id, &direction)?;
+        let before_counterfeit_promotion = std::fs::read(&counterfeit_store)?;
+        assert!(
+            promote_autonomous_direction_options_for_modeling(
+                &counterfeit_store,
+                "GameCult/Epiphany",
+                &workspace,
+                "2026-07-18T01:00:02Z",
+            )
+            .is_err()
+        );
+        assert_eq!(
+            std::fs::read(&counterfeit_store)?,
+            before_counterfeit_promotion
+        );
+        let worker_result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "worker-result-autonomous-bridge".into(),
+            job_id: job_id.into(),
+            role_id: "imagination".into(),
+            verdict: "proposal-only".into(),
+            summary: direction.summary.clone(),
+            next_safe_move: "Self may route exact options to Modeling review.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: direction.evidence_refs.clone(),
+            artifact_refs: Vec::new(),
+            open_questions: direction.uncertainties.clone(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: Some(request.request_id.clone()),
+            admitted_model_direction_consideration_result_msgpack: Some(rmp_serde::to_vec_named(
+                &direction,
+            )?),
+        };
+        put_runtime_role_worker_result(&store, &worker_result)?;
+        let mut companion_cache = runtime_spine_cache(&store)?;
+        companion_cache.pull_all_backing_stores()?;
+        assert_eq!(
+            companion_cache
+                .get::<crate::AdmittedModelDirectionConsiderationResult>(&direction.result_id)?,
+            Some(direction.clone())
+        );
+        let alien_workspace = root.path().join("alien-workspace");
+        std::fs::create_dir_all(&alien_workspace)?;
+        let before_substitution = std::fs::read(&store)?;
+        assert!(
+            promote_autonomous_direction_options_for_modeling(
+                &store,
+                "GameCult/Epiphany",
+                alien_workspace.to_str().expect("UTF-8 alien workspace"),
+                "2026-07-18T01:00:02Z",
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&store)?, before_substitution);
+        assert!(
+            promote_autonomous_direction_options_for_modeling(
+                &store,
+                "GameCult/Alien",
+                &workspace,
+                "2026-07-18T01:00:02Z",
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&store)?, before_substitution);
+
+        let selections = promote_autonomous_direction_options_for_modeling(
+            &store,
+            "GameCult/Epiphany",
+            &workspace,
+            "2026-07-18T01:00:02Z",
+        )?;
+        assert_eq!(selections.len(), 1);
+        let selection = &selections[0];
+        let mut persisted = runtime_spine_cache(&store)?;
+        persisted.pull_all_backing_stores()?;
+        let proposal = persisted
+            .get::<RepoFrontierWorkProposal>(&selection.proposal_id)?
+            .expect("autonomous proposal");
+        assert!(
+            persisted
+                .get_all::<RepoFrontierHandsAuthority>()?
+                .is_empty()
+        );
+        assert_eq!(
+            proposal.source_kind,
+            crate::RepoFrontierProposalSourceKind::Imagination
+        );
+        let binding = validate_autonomous_proposal_binding(&persisted, &proposal)?;
+        assert_eq!(binding.direction_result_id, direction.result_id);
+        assert_eq!(binding.model_admission_receipt_id, admitted.receipt_id);
+
+        let pre_modeling_state =
+            crate::read_coordinator_state(&store)?.expect("autonomous Modeling coordinator state");
+        let modeling_thread = persisted
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .expect("autonomous Modeling thread");
+        let modeling_state = crate::interrupt_coordinator_job(
+            &store,
+            &modeling_thread.thread_id,
+            &pre_modeling_state,
+            EpiphanyJobInterruptRequest {
+                expected_revision: Some(pre_modeling_state.revision),
+                binding_id: "modeling-checkpoint-worker".into(),
+                reason: Some("exercise autonomous direct-Hands refusal".into()),
+            },
+        )?
+        .epiphany_state;
+        let mut modeling_launch = crate::build_epiphany_role_launch_request(
+            &modeling_thread.thread_id,
+            crate::EpiphanyRoleResultRoleId::Modeling,
+            Some(modeling_state.revision),
+            Some(60),
+            &modeling_state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        modeling_launch.proposal_modeling_request_id = Some(selection.request_id.clone());
+        let modeling_job = "autonomous-direct-hands-modeling-job";
+        let modeling_plan = crate::plan_coordinator_job_launch(
+            &modeling_state,
+            &modeling_launch,
+            &store,
+            "autonomous-direct-hands-launcher".into(),
+            modeling_job.into(),
+        )?;
+        crate::commit_coordinator_job_launch(
+            &store,
+            &modeling_thread.thread_id,
+            &modeling_state,
+            &modeling_launch,
+            &modeling_plan,
+            "2026-07-18T01:00:04Z".into(),
+        )?;
+        let current_model = runtime_current_repo_model(&store)?.expect("autonomous current model");
+        let hostile_patch = crate::RepoModelPatch {
+            patch_id: "autonomous-direct-hands-patch".into(),
+            base_revision: current_model.model_revision,
+            base_hash: crate::memory_graph_model_hash(&current_model)?,
+            applied_at: "2026-07-18T01:00:05Z".into(),
+            purpose: crate::RepoModelPatchPurpose::Evolution,
+            operations: vec![crate::RepoModelPatchOperation::UpsertFrontier {
+                item: crate::RepoFrontierItem {
+                    id: "autonomous-direct-hands-frontier".into(),
+                    migration_body: "Attempt to skip plan adoption.".into(),
+                    question: "Can Modeling route an autonomous idea directly to Hands?".into(),
+                    gap: "Mind has not adopted a plan.".into(),
+                    target_claim_ids: vec!["claim-runtime-model".into()],
+                    source_scope: vec!["epiphany-core/src/runtime_spine.rs".into()],
+                    recommended_next_organ: "Hands".into(),
+                    evidence_refs: vec![proposal.proposal_id.clone()],
+                    status: crate::RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+            }],
+        };
+        let hostile_patch_bytes = rmp_serde::to_vec_named(&hostile_patch)?;
+        let mut hostile_result = worker_result.clone();
+        hostile_result.result_id = "autonomous-direct-hands-result".into();
+        hostile_result.job_id = modeling_job.into();
+        hostile_result.role_id = "modeling".into();
+        hostile_result.verdict = "checkpoint-ready".into();
+        hostile_result.summary = "Attempted direct Hands routing.".into();
+        hostile_result.next_safe_move = "Mind adoption is required.".into();
+        hostile_result.files_inspected = vec!["epiphany-core/src/runtime_spine.rs".into()];
+        hostile_result.frontier_node_ids = vec!["claim-runtime-model".into()];
+        hostile_result.evidence_ids = vec![proposal.proposal_id.clone()];
+        hostile_result.repo_model_patch_msgpack = Some(hostile_patch_bytes.clone());
+        hostile_result.proposal_modeling_request_id = Some(selection.request_id.clone());
+        hostile_result.repository_body_observation_basis =
+            runtime_worker_launch_body_basis(&store, modeling_job)?;
+        hostile_result.admitted_model_direction_consideration_request_id = None;
+        hostile_result.admitted_model_direction_consideration_result_msgpack = None;
+        put_runtime_role_worker_result(&store, &hostile_result)?;
+        let hostile_review = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
+            review_id: "autonomous-direct-hands-review".into(),
+            result_id: hostile_result.result_id.clone(),
+            job_id: modeling_job.into(),
+            patch_id: hostile_patch.patch_id.clone(),
+            patch_sha256: format!("{:x}", Sha256::digest(&hostile_patch_bytes)),
+            base_revision: hostile_patch.base_revision,
+            base_hash: hostile_patch.base_hash.clone(),
+            decision: MindGatewayDecision::Accept,
+            evidence_ids: hostile_result.evidence_ids.clone(),
+            reviewed_at: "2026-07-18T01:00:06Z".into(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+            repository_body_observation_basis: hostile_result
+                .repository_body_observation_basis
+                .clone(),
+        };
+        let before_direct_hands_admission = std::fs::read(&store)?;
+        assert!(
+            commit_repo_model_admission(&store, &hostile_result.result_id, &hostile_review,)
+                .is_err()
+        );
+        assert_eq!(std::fs::read(&store)?, before_direct_hands_admission);
+        assert!(
+            runtime_spine_cache(&store)?
+                .get_all::<RepoFrontierHandsAuthority>()?
+                .is_empty()
+        );
+        assert_eq!(
+            promote_autonomous_direction_options_for_modeling(
+                &store,
+                "GameCult/Epiphany",
+                &workspace,
+                "2026-07-18T01:00:03Z",
+            )?,
+            selections
+        );
+        let resident_store = root.path().join("autonomous-resident.cc");
+        let feedback_store = root.path().join("autonomous-feedback.cc");
+        assert_eq!(
+            crate::ingest_resident_self_domain_pressure(
+                &resident_store,
+                &store,
+                &feedback_store,
+                "proposal-runtime-autonomous-bridge",
+                "GameCult/Epiphany",
+                &workspace,
+                1_752_796_803_000,
+            )?,
+            1
+        );
+        let grant = crate::resident_self::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "autonomous-heartbeat",
+            "autonomous-action",
+            1_752_796_803_001,
+        )?
+        .expect("autonomous Modeling grant");
+        assert_eq!(grant.pressure_kind, "repo-frontier-proposal-modeling");
+        assert!(grant.provenance_ref.ends_with(&selection.request_id));
+
+        let before = std::fs::read(&store)?;
+        let mut forged = proposal;
+        forged.proposal_id = "forged-imagination-proposal".into();
+        assert!(put_repo_frontier_work_proposal(&store, &forged).is_err());
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
     }
 
     fn proposal_selection_fixture(root: &Path, suffix: &str) -> Result<(PathBuf, String)> {

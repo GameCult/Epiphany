@@ -3146,15 +3146,32 @@ manual and automatic paths share it, and stale automatic work is dropped while
 the actuator is occupied. Durable request-head/result CAS remains unchanged.
 All 49 Idunn tests pass. No Ygg deployment has yet used this binary.
 
-The autonomous option-to-frontier bridge is concurrently implemented but is
-not release-ready. Exact worker launch/result provenance, Body-workspace
-binding, preserved-authority CAS, true Self selection time, idempotent replay,
-counterfeit companion refusal, and alien-workspace refusal pass the full
-Epiphany library (578 passed, one ignored). Remaining blockers are typed
-canonical repository-name authority and a direct negative proof that no Hands
-authority appears without explicit Mind adoption.
+The autonomous option-to-frontier bridge is now locally release-ready. A typed,
+immutable deployment-configured repository-domain binding joins runtime,
+swarm, workspace, and the exact Body binding. It is an organizational label,
+not authenticated Git-remote identity. Promotion reloads the exact direction
+request/result, worker result and launch, admitted model and receipt, canonical
+Body Git root, and domain binding before one CAS creates an inert proposal and
+Self selection for Modeling. Generic Imagination intake cannot forge this path.
+Proposal Modeling may recommend only Imagination and may not carry an adopted
+plan; ordinary Evolution cannot mutate frontier state. The hostile full-chain
+test attempts a proposal-citing direct Hands route, is rejected with a
+byte-identical store, and leaves Hands empty. Full core proof is 578 passed,
+zero failed, one ignored; all binaries compile; Soul found no release blocker.
 
-Next action: install `a17b0b6` on Ygg, commit/push only this state boundary as a
-new Epiphany successor, authorize that exact commit through Bifrost, and require
-signed health admission plus `deployment.env` under the all-scope brake. Do not
-include the uncommitted autonomous bridge in that deployment release.
+Live certification of state-only Epiphany commit `36f687e` exposed a separate
+Idunn verifier wound. Epiphany sent a 2,260-byte signed active health document
+with the exact request, release, witness, commit, signer, and Body terminal
+receipt. Idunn received it but tried to create
+`/etc/gamecult/idunn/epiphany-health-identity.ccmp.lock` while reading the
+root-owned trust anchor, so no signed admission or deployment witness was
+published. Making the config directory daemon-writable is forbidden because it
+would let the verifier alter its own trust root. Odin commit `64bb679` uses an
+atomic read-only CultCache snapshot for this one pinned-anchor read, proves no
+sibling lock in a read-only directory, and passes 50/50 Idunn tests.
+
+Next action: install exact Idunn `64bb679` on Ygg, allow the incomplete
+transaction to roll back cleanly, then retry the exact Bifrost-authorized 36f
+release under the all-scope brake. Require signed active admission and final
+`deployment.env`. Then commit/push the autonomous bridge and certify its exact
+successor separately. No host reboot is authorized.
