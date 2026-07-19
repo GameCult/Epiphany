@@ -1,7 +1,10 @@
 use anyhow::{Context, Result, anyhow};
-use cultcache_rs::{CultCache, DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::{
+    CacheBackingStore, CultCache, DatabaseEntry, SingleFileMessagePackBackingStore,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
@@ -733,8 +736,46 @@ fn state_cache(path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<ResidentSelfHeartbeatGrant>()?;
     cache.register_entry_type::<ResidentSelfTerminalAck>()?;
     cache.register_entry_type::<ResidentSelfChildClaim>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
-    cache.pull_all_backing_stores()?;
+    let mut identities = HashSet::new();
+    for envelope in SingleFileMessagePackBackingStore::new(path).pull_all()? {
+        let owned = envelope.r#type == ResidentSelfState::TYPE
+            || envelope.r#type == ResidentSelfRuntimeReceipt::TYPE
+            || envelope.r#type == ResidentSelfPressure::TYPE
+            || envelope.r#type == ResidentSelfHeartbeatGrant::TYPE
+            || envelope.r#type == ResidentSelfTerminalAck::TYPE
+            || envelope.r#type == ResidentSelfChildClaim::TYPE;
+        if !owned {
+            continue;
+        }
+        if !identities.insert((envelope.r#type.clone(), envelope.key.clone())) {
+            return Err(anyhow!(
+                "resident Self store contains duplicate owner entry type {:?} key {:?}",
+                envelope.r#type,
+                envelope.key
+            ));
+        }
+        match envelope.r#type.as_str() {
+            ResidentSelfState::TYPE => {
+                cache.load_envelope::<ResidentSelfState>(envelope)?;
+            }
+            ResidentSelfRuntimeReceipt::TYPE => {
+                cache.load_envelope::<ResidentSelfRuntimeReceipt>(envelope)?;
+            }
+            ResidentSelfPressure::TYPE => {
+                cache.load_envelope::<ResidentSelfPressure>(envelope)?;
+            }
+            ResidentSelfHeartbeatGrant::TYPE => {
+                cache.load_envelope::<ResidentSelfHeartbeatGrant>(envelope)?;
+            }
+            ResidentSelfTerminalAck::TYPE => {
+                cache.load_envelope::<ResidentSelfTerminalAck>(envelope)?;
+            }
+            ResidentSelfChildClaim::TYPE => {
+                cache.load_envelope::<ResidentSelfChildClaim>(envelope)?;
+            }
+            _ => unreachable!("owned resident Self type was matched above"),
+        };
+    }
     Ok(cache)
 }
 
@@ -1403,6 +1444,50 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
+    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+    #[cultcache(type = "test.resident.provider_readiness", schema = "ForeignReadiness")]
+    struct ForeignReadiness {
+        #[cultcache(key = 0)]
+        status: String,
+    }
+
+    #[test]
+    fn resident_owner_view_preserves_foreign_readiness_rows() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let mut foreign_cache = CultCache::new();
+        foreign_cache.register_entry_type::<ForeignReadiness>()?;
+        let (foreign, _) = foreign_cache.prepare_entry(
+            "provider-readiness",
+            &ForeignReadiness {
+                status: "ready".into(),
+            },
+        )?;
+        let mut backing = SingleFileMessagePackBackingStore::new(&store);
+        backing.push(&foreign)?;
+
+        assert_eq!(
+            load_resident_self_state(&store)?,
+            ResidentSelfState::default()
+        );
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-test".into(),
+                kind: "persona-feedback".into(),
+                provenance_ref: "test://pressure".into(),
+                objective: "preserve foreign row".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        assert!(backing.pull_all()?.contains(&foreign));
+        Ok(())
+    }
+
     struct FakePorts {
         brake: bool,
         next_pid: u32,
@@ -1723,7 +1808,9 @@ mod tests {
             consumed_by_heartbeat_at_millis: None,
             private_state_exposed: false,
         };
-        state_cache(&resident_store)?.put(&ack.ack_id, &ack)?;
+        let cache = state_cache(&resident_store)?;
+        let (entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
+        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
         let ack_pulse = crate::pulse_resident_self_heartbeat(
             &heartbeat_store,
             &resident_store,
@@ -1753,7 +1840,9 @@ mod tests {
         );
         let mut crash_gap_ack = ack.clone();
         crash_gap_ack.consumed_by_heartbeat_at_millis = None;
-        state_cache(&resident_store)?.put(&crash_gap_ack.ack_id, &crash_gap_ack)?;
+        let cache = state_cache(&resident_store)?;
+        let (entry, _) = cache.prepare_entry(&crash_gap_ack.ack_id, &crash_gap_ack)?;
+        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
         assert_eq!(
             crate::reconcile_resident_self_heartbeat_ack(&heartbeat_store, &resident_store)?,
             Some(crash_gap_ack.ack_id.clone())

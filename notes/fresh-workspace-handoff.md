@@ -2793,3 +2793,31 @@ rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->
 bounded Imagination proposal -> explicit review/adoption -> Hands consequence ->
 Bifrost release -> Idunn deployment, plus replay/tamper refusal and the negative
 chat-only path. No host reboot is authorized.
+
+## Generation handoff and resident mixed-store cut (2026-07-18)
+
+Candidate `03e1afd24546a7ca37e900c47ca26ae257b14161` proved generation-scoped
+packaging and sealed immutable release
+`sha256-fe7f25ff60d84ae9316d7b4aa2833bd5d1b65189c9d08cc64e903a83d8f35268`.
+Its first application publication failed because the exact commit parent was
+still builder-owned mode 0750; cleanup sealed that parent and an automatic
+retry reused the exact package and started all three services. The actuator now
+seals the exact generation parent root-owned mode 0755 before handing
+publication to the application owner.
+
+The candidate was not deployed. Projection and Heartbeat were healthy and
+braked, but resident Self treated the shared resident/readiness CultCache store
+as if every row belonged to Self and rejected the legitimate provider-readiness
+document. The exact process group was terminated, all services were stopped,
+`active-release.env` was removed, and no deployment witness exists. Resident
+Self now loads only its six owned typed families into its in-memory view,
+rejects duplicate owned identities, and leaves foreign readiness rows intact.
+Focused resident proof passes 12/12; full core proof passes 572/572 with one
+ignored.
+
+Next action: commit and push both cuts, install the exact ops actuator on
+Yggdrasil, revoke obsolete Bifrost authority, authorize the new exact Epiphany
+commit, and let Idunn deploy under the engaged brake. Require the immutable
+package/witness, all three healthy service owners, signed aggregate health, and
+`deployment.env`; then prove the ordinary organization loop and its negative
+authority boundaries. No host reboot is authorized.
