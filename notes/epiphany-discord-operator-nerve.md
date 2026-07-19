@@ -173,8 +173,10 @@ the v1 review vocabulary.
 
 The live Ygg body has the Persona feedback nerve but does not yet run this
 successor Discord operator crossing. `epiphany-verse-query swarm-brake` and
-other local CLIs rely on filesystem authority and caller-supplied operator
-labels; they are implementation primitives, not remote authentication. Generic
+its query/actuation substitution have been removed: `swarm-brake-status` is
+read-only and `swarm-brake-set` requires an explicit transition against the
+canonical brake id/owner. The local CLI still relies on filesystem/host
+authority and its actor label is provenance, not remote authentication. Generic
 VoidBot `provider-status`, `queue-codex`, and job approval operate VoidBot's own
 provider/job system and cannot stand in for Epiphany status, direction, or Mind
 review.
@@ -231,7 +233,8 @@ path is later work and must not delay the move-period command nerve.
 - Epiphany brake owner:
   `epiphany-core/src/cultmesh_integration.rs`
   (`load_epiphany_cultmesh_swarm_brake`,
-  `write_epiphany_cultmesh_swarm_brake`)
+  `engage_epiphany_cultmesh_swarm_brake`,
+  `release_epiphany_cultmesh_swarm_brake`)
 - Epiphany operator-safe status owner:
   `EpiphanyCultMeshOperatorSnapshotEntry` in the same CultMesh module
 - Epiphany frontier Mind decision owner:

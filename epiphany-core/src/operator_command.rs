@@ -8,13 +8,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::{
-    EpiphanyCultMeshSwarmBrakeEntry, HostIdentitySignature, HostIdentityTrustAnchorEntry,
-    RepoFrontierPlanDecision, RepoFrontierPlanOperatorReview, RepoFrontierPlanReviewSummary,
-    ResidentSelfPressure, commit_operator_repo_frontier_plan_review,
-    enqueue_resident_self_pressure, load_epiphany_cultmesh_swarm_brake,
-    load_latest_epiphany_cultmesh_operator_snapshot, operator_repo_frontier_plan_review_is_current,
-    pending_repo_frontier_plan_reviews, resident_self_pressures,
-    verify_host_identity_trust_anchor_signature, write_epiphany_cultmesh_swarm_brake,
+    EPIPHANY_CANONICAL_SWARM_BRAKE_ID, EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER, HostIdentitySignature,
+    HostIdentityTrustAnchorEntry, RepoFrontierPlanDecision, RepoFrontierPlanOperatorReview,
+    RepoFrontierPlanReviewSummary, ResidentSelfPressure, commit_operator_repo_frontier_plan_review,
+    engage_epiphany_cultmesh_swarm_brake, enqueue_resident_self_pressure,
+    load_epiphany_cultmesh_swarm_brake, load_latest_epiphany_cultmesh_operator_snapshot,
+    operator_repo_frontier_plan_review_is_current, pending_repo_frontier_plan_reviews,
+    release_epiphany_cultmesh_swarm_brake, resident_self_pressures,
+    verify_host_identity_trust_anchor_signature,
 };
 
 pub const BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
@@ -29,7 +30,6 @@ pub const LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
 pub const OPERATOR_COMMAND_RESULT_SCHEMA_VERSION: &str = "epiphany.operator_command.result.v1";
 const SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v1";
 const LEGACY_SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v0";
-const DISCORD_OPERATOR_BRAKE_ID: &str = "epiphany-discord-operator-brake";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -43,7 +43,12 @@ pub enum OperatorCapability {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum OperatorCommand {
     Status,
     Sleep {
@@ -489,17 +494,24 @@ pub fn admit_and_execute_bifrost_operator_command(
             )
         }
         OperatorCommand::Sleep { reason } => {
+            let brake_actor = format!(
+                "operator-command:{};source:{}",
+                packet.command_id, packet.source_actor_id
+            );
             if let Some(current) =
                 load_epiphany_cultmesh_swarm_brake(local_verse_store, policy.runtime_id.clone())?
             {
-                let exact_retry = current.brake_id == DISCORD_OPERATOR_BRAKE_ID
+                let exact_retry = current.brake_id == EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+                    && current.operator_agent_id == EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
                     && current.notes.iter().any(|note| {
-                        note == &format!("Authenticated operator command {}", packet.command_id)
+                        note == &format!("Explicit brake engagement by {brake_actor}.")
                     });
                 let current_is_not_older =
                     chrono::DateTime::parse_from_rfc3339(&current.created_at_utc)?
                         >= chrono::DateTime::parse_from_rfc3339(&packet.issued_at)?;
-                if (current.status == "engaged" && current.brake_id != DISCORD_OPERATOR_BRAKE_ID)
+                let foreign = current.brake_id != EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+                    || current.operator_agent_id != EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER;
+                if (current.status == "engaged" && foreign)
                     || (!exact_retry && current_is_not_older)
                 {
                     return persist_result(
@@ -523,33 +535,13 @@ pub fn admit_and_execute_bifrost_operator_command(
                     );
                 }
             }
-            let brake = EpiphanyCultMeshSwarmBrakeEntry {
-                schema_version: "epiphany.cultmesh.swarm_brake.v0".into(),
-                brake_id: DISCORD_OPERATOR_BRAKE_ID.into(),
-                status: "engaged".into(),
-                scope: "all".into(),
-                reason: reason.trim().into(),
-                operator_agent_id: packet.source_actor_id.clone(),
-                affected_clusters: vec![policy.runtime_id.clone()],
-                protected_surfaces: vec![
-                    "heartbeat.scheduler".into(),
-                    "coordinator.run".into(),
-                    "persona.public_speech".into(),
-                    "daemon.tool_invocation".into(),
-                ],
-                created_at_utc: packet.issued_at.clone(),
-                expires_at_utc: None,
-                private_state_exposed: false,
-                notes: vec![format!(
-                    "Authenticated operator command {}",
-                    packet.command_id
-                )],
-                runtime_id: policy.runtime_id.clone(),
-            };
-            write_epiphany_cultmesh_swarm_brake(
+            let brake = engage_epiphany_cultmesh_swarm_brake(
                 local_verse_store,
                 policy.runtime_id.clone(),
-                brake.clone(),
+                reason.trim(),
+                brake_actor,
+                packet.issued_at.clone(),
+                false,
             )?;
             (
                 OperatorCommandResultDisposition::Applied,
@@ -568,8 +560,10 @@ pub fn admit_and_execute_bifrost_operator_command(
         OperatorCommand::Wake => {
             let brake =
                 load_epiphany_cultmesh_swarm_brake(local_verse_store, policy.runtime_id.clone())?;
-            let Some(mut brake) = brake.filter(|brake| brake.brake_id == DISCORD_OPERATOR_BRAKE_ID)
-            else {
+            let Some(_) = brake.filter(|brake| {
+                brake.brake_id == EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+                    && brake.operator_agent_id == EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
+            }) else {
                 return persist_result(
                     command_store,
                     packet,
@@ -590,16 +584,15 @@ pub fn admit_and_execute_bifrost_operator_command(
                     "",
                 );
             };
-            brake.status = "released".into();
-            brake.reason = "Authenticated operator wake; release brake only.".into();
-            brake.operator_agent_id = packet.source_actor_id.clone();
-            brake.created_at_utc = packet.issued_at.clone();
-            brake.expires_at_utc = None;
-            brake.runtime_id = policy.runtime_id.clone();
-            write_epiphany_cultmesh_swarm_brake(
+            let brake = release_epiphany_cultmesh_swarm_brake(
                 local_verse_store,
                 policy.runtime_id.clone(),
-                brake.clone(),
+                "Authenticated operator wake; release brake only.",
+                format!(
+                    "operator-command:{};source:{}",
+                    packet.command_id, packet.source_actor_id
+                ),
+                packet.issued_at.clone(),
             )?;
             (
                 OperatorCommandResultDisposition::Applied,
@@ -1170,7 +1163,11 @@ mod tests {
         let written_brake =
             load_epiphany_cultmesh_swarm_brake(&verse, p.runtime_id.clone())?.unwrap();
         assert_eq!(written_brake.status, "engaged");
-        assert_eq!(written_brake.brake_id, DISCORD_OPERATOR_BRAKE_ID);
+        assert_eq!(written_brake.brake_id, EPIPHANY_CANONICAL_SWARM_BRAKE_ID);
+        assert_eq!(
+            written_brake.operator_agent_id,
+            EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
+        );
         assert_eq!(written_brake.scope, "all");
         assert_eq!(
             written_brake.protected_surfaces,

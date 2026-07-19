@@ -1,5 +1,25 @@
 # Fresh Workspace Handoff
 
+## Swarm brake observation/actuation purification (2026-07-19)
+
+`epiphany-verse-query swarm-brake` was a mutating pseudo-query whose missing
+`--brake-status` defaulted to `released`; a read-only audit therefore released
+the live Ygg brake. The old command is now disabled. `swarm-brake-status` is a
+read-only projection over the one runtime-scoped CultMesh key
+`epiphany-local/swarm-brake`; tests prove its store bytes remain identical.
+`swarm-brake-set` is the only CLI mutation surface and requires explicit
+`engaged|released`, canonical document id `epiphany/swarm-brake`, actor, and
+reason. The document's stable owner is `epiphany.swarm-brake`; actors remain
+provenance instead of repainting authority on every command.
+
+Release refuses absent and foreign/legacy identities. Readers continue to
+honor an engaged legacy head. Idunn may explicitly adopt an already-engaged
+legacy head during deployment, with no released interval; non-Idunn actors and
+Discord Sleep cannot. Discord Wake releases only the canonical id+owner.
+Resident readiness reads the same key. The ops actuator now engages that
+canonical brake before service restart and deployment readiness requires
+`brakeEngaged=true`. No Ygg service was deployed or restarted during this cut.
+
 ## Typed Discord Mind review owner (2026-07-19)
 
 The operator-command core now implements `Reviews` and `Review` without a

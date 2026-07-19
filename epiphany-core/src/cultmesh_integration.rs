@@ -4216,11 +4216,11 @@ pub fn default_epiphany_cultmesh_swarm_brake(
 ) -> EpiphanyCultMeshSwarmBrakeEntry {
     EpiphanyCultMeshSwarmBrakeEntry {
         schema_version: EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION.to_string(),
-        brake_id: "epiphany-local/swarm-brake/default".to_string(),
+        brake_id: EPIPHANY_CANONICAL_SWARM_BRAKE_ID.to_string(),
         status: "released".to_string(),
         scope: "swarm".to_string(),
         reason: "No swarm brake is engaged; unattended automation still requires typed scheduler, cooldown, recovery, and operator receipt gates.".to_string(),
-        operator_agent_id: "epiphany.Self".to_string(),
+        operator_agent_id: EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER.to_string(),
         affected_clusters: epiphany_cultmesh_cluster_topology()
             .into_iter()
             .map(|cluster| cluster.cluster_id)
@@ -4242,6 +4242,91 @@ pub fn default_epiphany_cultmesh_swarm_brake(
         ],
         runtime_id: String::new(),
     }
+}
+
+/// The single runtime brake identity shared by deployment, resident readiness,
+/// and authenticated operator commands. A caller identity is provenance, not
+/// brake ownership, and must not be substituted into either constant.
+pub const EPIPHANY_CANONICAL_SWARM_BRAKE_ID: &str = "epiphany/swarm-brake";
+pub const EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER: &str = "epiphany.swarm-brake";
+
+pub fn canonical_epiphany_swarm_brake_protected_surfaces() -> Vec<String> {
+    vec![
+        "heartbeat.scheduler".to_string(),
+        "coordinator.run".to_string(),
+        "persona.public_speech".to_string(),
+        "daemon.tool_invocation".to_string(),
+    ]
+}
+
+pub fn engage_epiphany_cultmesh_swarm_brake(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    reason: impl Into<String>,
+    actor_id: impl Into<String>,
+    created_at_utc: impl Into<String>,
+    allow_engaged_adoption: bool,
+) -> Result<EpiphanyCultMeshSwarmBrakeEntry> {
+    let runtime_id = runtime_id.into();
+    let actor_id = actor_id.into();
+    if actor_id.trim().is_empty() {
+        return Err(anyhow!("swarm brake engagement requires an actor identity"));
+    }
+    if allow_engaged_adoption && actor_id != "Idunn" {
+        return Err(anyhow!(
+            "only Idunn may adopt an already-engaged legacy brake"
+        ));
+    }
+    if let Some(current) = load_epiphany_cultmesh_swarm_brake(&store_path, runtime_id.clone())? {
+        let foreign = current.brake_id != EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+            || current.operator_agent_id != EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER;
+        if current.status == "engaged" && foreign && !allow_engaged_adoption {
+            return Err(anyhow!(
+                "refusing to replace engaged foreign swarm brake {} owned by {}",
+                current.brake_id,
+                current.operator_agent_id
+            ));
+        }
+    }
+    let mut brake = default_epiphany_cultmesh_swarm_brake(created_at_utc);
+    brake.status = "engaged".to_string();
+    brake.scope = "all".to_string();
+    brake.reason = reason.into();
+    brake.affected_clusters = vec![runtime_id.clone()];
+    brake.protected_surfaces = canonical_epiphany_swarm_brake_protected_surfaces();
+    brake.notes = vec![format!("Explicit brake engagement by {actor_id}.")];
+    write_epiphany_cultmesh_swarm_brake(store_path, runtime_id, brake)
+}
+
+pub fn release_epiphany_cultmesh_swarm_brake(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    reason: impl Into<String>,
+    actor_id: impl Into<String>,
+    created_at_utc: impl Into<String>,
+) -> Result<EpiphanyCultMeshSwarmBrakeEntry> {
+    let runtime_id = runtime_id.into();
+    let actor_id = actor_id.into();
+    if actor_id.trim().is_empty() {
+        return Err(anyhow!("swarm brake release requires an actor identity"));
+    }
+    let mut brake = load_epiphany_cultmesh_swarm_brake(&store_path, runtime_id.clone())?
+        .ok_or_else(|| anyhow!("refusing to release an absent swarm brake"))?;
+    if brake.brake_id != EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+        || brake.operator_agent_id != EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
+    {
+        return Err(anyhow!(
+            "refusing to release foreign swarm brake {} owned by {}",
+            brake.brake_id,
+            brake.operator_agent_id
+        ));
+    }
+    brake.status = "released".to_string();
+    brake.reason = reason.into();
+    brake.created_at_utc = created_at_utc.into();
+    brake.expires_at_utc = None;
+    brake.notes = vec![format!("Explicit brake release by {actor_id}.")];
+    write_epiphany_cultmesh_swarm_brake(store_path, runtime_id, brake)
 }
 
 pub fn write_epiphany_cultmesh_swarm_brake(

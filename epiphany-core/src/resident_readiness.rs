@@ -296,13 +296,10 @@ pub fn derive_resident_cognition_readiness(
                 (false, "unreadable".into())
             }
         };
-    let brake_engaged = load_epiphany_cultmesh_swarm_brake(
+    let brake_engaged = resident_brake_engaged(
         &request.policy.local_verse_store,
         &request.policy.release_runtime_id,
-    )
-    .ok()
-    .flatten()
-    .is_some_and(|brake| brake.status == "engaged");
+    );
     let workspace_ready = directory_ready(&request.policy.workspace);
     if !workspace_ready {
         reasons.push("workspace is absent, inaccessible, or read-only".into());
@@ -352,6 +349,13 @@ pub fn derive_resident_cognition_readiness(
         reasons,
         private_state_exposed: false,
     }
+}
+
+fn resident_brake_engaged(store: &Path, runtime_id: &str) -> bool {
+    load_epiphany_cultmesh_swarm_brake(store, runtime_id)
+        .ok()
+        .flatten()
+        .is_some_and(|brake| brake.status == "engaged")
 }
 
 fn classify_active_lease_observation(
@@ -619,6 +623,30 @@ fn credential_file_ready(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resident_readiness_reads_the_canonical_brake_store_truth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        crate::engage_epiphany_cultmesh_swarm_brake(
+            &store,
+            "epiphany-yggdrasil",
+            "sleep",
+            "idunn",
+            "2026-07-19T00:00:00Z",
+            false,
+        )?;
+        assert!(resident_brake_engaged(&store, "epiphany-yggdrasil"));
+        crate::release_epiphany_cultmesh_swarm_brake(
+            &store,
+            "epiphany-yggdrasil",
+            "wake",
+            "discord-owner",
+            "2026-07-19T00:01:00Z",
+        )?;
+        assert!(!resident_brake_engaged(&store, "epiphany-yggdrasil"));
+        Ok(())
+    }
 
     fn provider() -> ResidentProviderReadiness {
         ResidentProviderReadiness {

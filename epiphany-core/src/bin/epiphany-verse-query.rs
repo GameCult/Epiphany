@@ -2,6 +2,8 @@ use anyhow::Context;
 use anyhow::Result;
 use chrono::DateTime;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CANONICAL_SWARM_BRAKE_ID;
+use epiphany_core::EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
@@ -29,6 +31,7 @@ use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditCheck;
 use epiphany_core::default_epiphany_cultmesh_swarm_brake;
+use epiphany_core::engage_epiphany_cultmesh_swarm_brake;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
@@ -65,6 +68,7 @@ use epiphany_core::native_process_executable_path;
 use epiphany_core::observe_native_process;
 use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::release_epiphany_cultmesh_swarm_brake;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
@@ -153,6 +157,74 @@ fn require_query_bootstrap(args: &Args) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn swarm_brake_status_projection(
+    store: &Path,
+    runtime_id: &str,
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
+) -> serde_json::Value {
+    json!({
+        "schemaVersion": "epiphany.cultmesh.swarm_brake_status.v0",
+        "status": "observed",
+        "store": store,
+        "runtimeId": runtime_id,
+        "storeKey": "epiphany-local/swarm-brake",
+        "brakePresent": brake.is_some(),
+        "brakeId": brake.map(|value| value.brake_id.as_str()),
+        "brakeStatus": brake.map(|value| value.status.as_str()).unwrap_or("absent"),
+        "brakeOwner": brake.map(|value| value.operator_agent_id.as_str()),
+        "canonicalBrakeId": EPIPHANY_CANONICAL_SWARM_BRAKE_ID,
+        "canonicalBrakeOwner": EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER,
+        "canonicalAuthority": brake.is_some_and(|value|
+            value.brake_id == EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+                && value.operator_agent_id == EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER),
+        "scope": brake.map(|value| value.scope.as_str()),
+        "reason": brake.map(|value| value.reason.as_str()),
+        "affectedClusters": brake.map(|value| value.affected_clusters.as_slice()),
+        "protectedSurfaces": brake.map(|value| value.protected_surfaces.as_slice()),
+        "expiresAtUtc": brake.and_then(|value| value.expires_at_utc.as_deref()),
+        "privateStateExposed": false,
+    })
+}
+
+fn apply_explicit_swarm_brake_set(
+    store: &Path,
+    runtime_id: &str,
+    status: Option<&str>,
+    brake_id: Option<&str>,
+    actor: Option<&str>,
+    reason: Option<&str>,
+    created_at_utc: &str,
+    allow_engaged_adoption: bool,
+) -> Result<EpiphanyCultMeshSwarmBrakeEntry> {
+    let status =
+        status.context("swarm-brake-set requires explicit --brake-status engaged|released")?;
+    let brake_id = brake_id.context("swarm-brake-set requires explicit --brake-id")?;
+    if brake_id != EPIPHANY_CANONICAL_SWARM_BRAKE_ID {
+        anyhow::bail!(
+            "swarm-brake-set requires canonical --brake-id {}",
+            EPIPHANY_CANONICAL_SWARM_BRAKE_ID
+        );
+    }
+    let actor = actor.context("swarm-brake-set requires explicit --requesting-agent-id")?;
+    let reason = reason.context("swarm-brake-set requires explicit --reason")?;
+    match status {
+        "engaged" => engage_epiphany_cultmesh_swarm_brake(
+            store,
+            runtime_id,
+            reason,
+            actor,
+            created_at_utc,
+            allow_engaged_adoption,
+        ),
+        "released" => {
+            release_epiphany_cultmesh_swarm_brake(store, runtime_id, reason, actor, created_at_utc)
+        }
+        other => {
+            anyhow::bail!("invalid explicit --brake-status {other:?}; expected engaged or released")
+        }
+    }
 }
 
 fn reset_quarantined_smoke_store(base: &Path, store: &Path) -> Result<()> {
@@ -419,105 +491,40 @@ fn run_cli() -> Result<()> {
         "invoke-tool" | "tool-invocation" | "tool-intent" => {
             run_invoke_tool_command(&args)?;
         }
-        "swarm-brake" | "brake" => {
-            require_query_bootstrap(&args)?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let created_at_utc = Utc::now().to_rfc3339();
-            let status = args
-                .brake_status
-                .clone()
-                .unwrap_or_else(|| "released".to_string());
-            let brake_id = args
-                .brake_id
-                .clone()
-                .unwrap_or_else(|| "epiphany-local/swarm-brake/operator".to_string());
-            let scope = args.scope.clone().unwrap_or_else(|| "swarm".to_string());
-            let operator_agent_id = args
-                .requesting_agent_id
-                .clone()
-                .or_else(|| args.source_agent_id.clone())
-                .unwrap_or_else(|| "epiphany.Self".to_string());
-            let reason = args.reason.clone().unwrap_or_else(|| {
-                if status == "engaged" {
-                    "Operator engaged the local CultMesh swarm brake.".to_string()
-                } else {
-                    "Operator released the local CultMesh swarm brake.".to_string()
-                }
-            });
-            let affected_clusters = args.affected_clusters.clone().unwrap_or_else(|| {
-                context
-                    .cluster_topology
-                    .iter()
-                    .map(|cluster| cluster.cluster_id.clone())
-                    .collect()
-            });
-            let protected_surfaces = args.protected_surfaces.clone().unwrap_or_else(|| {
-                vec![
-                    "heartbeat.scheduler".to_string(),
-                    "coordinator.run".to_string(),
-                    "persona.public_speech".to_string(),
-                    "daemon.tool_invocation".to_string(),
-                ]
-            });
-            let mut brake = if status == "released" {
-                default_epiphany_cultmesh_swarm_brake(created_at_utc)
-            } else {
-                EpiphanyCultMeshSwarmBrakeEntry {
-                    schema_version: "epiphany.cultmesh.swarm_brake.v0".to_string(),
-                    brake_id: brake_id.clone(),
-                    status: status.clone(),
-                    scope: scope.clone(),
-                    reason: reason.clone(),
-                    operator_agent_id: operator_agent_id.clone(),
-                    affected_clusters: affected_clusters.clone(),
-                    protected_surfaces: protected_surfaces.clone(),
-                    created_at_utc,
-                    expires_at_utc: args.expires_at_utc.clone(),
-                    private_state_exposed: false,
-                    notes: vec![
-                        "Operator wrote this swarm brake through the local CultMesh Verse CLI."
-                            .to_string(),
-                        "Runners should treat engaged brakes as fail-closed launch pressure for the protected surfaces.".to_string(),
-                        "The brake carries scope and reason only; it does not expose private worker state.".to_string(),
-                    ],
-                    runtime_id: args.runtime_id.clone(),
-                }
-            };
-            if status == "released" {
-                brake.brake_id = brake_id;
-                brake.scope = scope;
-                brake.reason = reason;
-                brake.operator_agent_id = operator_agent_id;
-                brake.affected_clusters = affected_clusters;
-                brake.protected_surfaces = protected_surfaces;
-                brake.expires_at_utc = args.expires_at_utc.clone();
-            }
-            let written =
-                write_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone(), brake)?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let projected = context
-                .swarm_brake
-                .as_ref()
-                .context("local Verse query lost swarm brake after write")?;
-            if projected.brake_id != written.brake_id || projected.status != written.status {
-                anyhow::bail!("local Verse projected a different swarm brake after write");
-            }
+        "swarm-brake" | "brake" => anyhow::bail!(
+            "legacy swarm-brake command is disabled because it mixed observation and mutation; use swarm-brake-status to read or swarm-brake-set with explicit --brake-status and --brake-id"
+        ),
+        "swarm-brake-status" => {
+            let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&json!({
-                    "status": "ok",
-                    "store": args.store,
-                    "runtimeId": context.runtime_id,
-                    "brakeId": written.brake_id,
-                    "brakeStatus": written.status,
-                    "scope": written.scope,
-                    "reason": written.reason,
-                    "operatorAgentId": written.operator_agent_id,
-                    "affectedClusters": written.affected_clusters,
-                    "protectedSurfaces": written.protected_surfaces,
-                    "expiresAtUtc": written.expires_at_utc,
-                    "privateStateExposed": written.private_state_exposed,
-                }))?
+                serde_json::to_string_pretty(&swarm_brake_status_projection(
+                    &args.store,
+                    &args.runtime_id,
+                    brake.as_ref(),
+                ))?
+            );
+        }
+        "swarm-brake-set" => {
+            require_query_bootstrap(&args)?;
+            let created_at_utc = Utc::now().to_rfc3339();
+            let written = apply_explicit_swarm_brake_set(
+                &args.store,
+                &args.runtime_id,
+                args.brake_status.as_deref(),
+                args.brake_id.as_deref(),
+                args.requesting_agent_id.as_deref(),
+                args.reason.as_deref(),
+                &created_at_utc,
+                true,
+            )?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&swarm_brake_status_projection(
+                    &args.store,
+                    &args.runtime_id,
+                    Some(&written),
+                ))?
             );
         }
         "agent-state" | "agent-state-soa" => {
@@ -6971,8 +6978,6 @@ struct Args {
     requesting_agent_id: Option<String>,
     brake_id: Option<String>,
     brake_status: Option<String>,
-    scope: Option<String>,
-    expires_at_utc: Option<String>,
     reason: Option<String>,
     intent_id: Option<String>,
     receipt_id: Option<String>,
@@ -6999,8 +7004,6 @@ struct Args {
     source_agent_id: Option<String>,
     body_domain: Option<String>,
     public_room_id: Option<String>,
-    affected_clusters: Option<Vec<String>>,
-    protected_surfaces: Option<Vec<String>>,
 }
 
 impl Args {
@@ -7017,8 +7020,6 @@ impl Args {
         let mut requesting_agent_id = None;
         let mut brake_id = None;
         let mut brake_status = None;
-        let mut scope = None;
-        let mut expires_at_utc = None;
         let mut reason = None;
         let mut intent_id = None;
         let mut receipt_id = None;
@@ -7045,8 +7046,6 @@ impl Args {
         let mut source_agent_id = None;
         let mut body_domain = None;
         let mut public_room_id = None;
-        let mut affected_clusters = Vec::new();
-        let mut protected_surfaces = Vec::new();
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -7081,24 +7080,6 @@ impl Args {
                 }
                 "--brake-status" => {
                     brake_status = Some(values.next().context("missing --brake-status value")?);
-                }
-                "--scope" => {
-                    scope = Some(values.next().context("missing --scope value")?);
-                }
-                "--expires-at-utc" => {
-                    expires_at_utc = Some(values.next().context("missing --expires-at-utc value")?);
-                }
-                "--affected-cluster" | "--affected-clusters" => {
-                    extend_list(
-                        &mut affected_clusters,
-                        values.next().context("missing --affected-cluster value")?,
-                    );
-                }
-                "--protected-surface" | "--protected-surfaces" => {
-                    extend_list(
-                        &mut protected_surfaces,
-                        values.next().context("missing --protected-surface value")?,
-                    );
                 }
                 "--reason" => {
                     reason = Some(values.next().context("missing --reason value")?);
@@ -7235,8 +7216,6 @@ impl Args {
             requesting_agent_id,
             brake_id,
             brake_status,
-            scope,
-            expires_at_utc,
             reason,
             intent_id,
             receipt_id,
@@ -7263,8 +7242,6 @@ impl Args {
             source_agent_id,
             body_domain,
             public_room_id,
-            affected_clusters: some_if_not_empty(affected_clusters),
-            protected_surfaces: some_if_not_empty(protected_surfaces),
         })
     }
 }
@@ -7293,6 +7270,149 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
         .filter(|items| !items.is_empty())
         .cloned()
         .context(message.to_string())
+}
+
+#[cfg(test)]
+mod swarm_brake_command_tests {
+    use super::*;
+
+    fn bytes(path: &Path) -> Result<Vec<u8>> {
+        Ok(fs::read(path)?)
+    }
+
+    #[test]
+    fn status_is_byte_identical_and_reports_legacy_engaged_truth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let mut legacy = default_epiphany_cultmesh_swarm_brake("2026-07-19T00:00:00Z");
+        legacy.brake_id = "epiphany-local/swarm-brake/operator".into();
+        legacy.operator_agent_id = "epiphany-operator".into();
+        legacy.status = "engaged".into();
+        legacy.reason = "live legacy sleep mode".into();
+        write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", legacy)?;
+        let before = bytes(&store)?;
+        let observed = load_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil")?;
+        let projection =
+            swarm_brake_status_projection(&store, "epiphany-yggdrasil", observed.as_ref());
+        assert_eq!(projection["brakeStatus"], "engaged");
+        assert_eq!(projection["canonicalAuthority"], false);
+        assert_eq!(bytes(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn missing_status_refuses_without_write() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let brake = engage_epiphany_cultmesh_swarm_brake(
+            &store,
+            "epiphany-yggdrasil",
+            "sleep",
+            "idunn",
+            "2026-07-19T00:00:00Z",
+            false,
+        )?;
+        assert_eq!(brake.status, "engaged");
+        let before = bytes(&store)?;
+        let error = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-yggdrasil",
+            None,
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("operator"),
+            Some("must not default"),
+            "2026-07-19T00:01:00Z",
+            false,
+        )
+        .expect_err("missing status must fail closed");
+        assert!(error.to_string().contains("explicit --brake-status"));
+        assert_eq!(bytes(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_engage_status_and_exact_owned_release_share_one_truth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let engaged = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-yggdrasil",
+            Some("engaged"),
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("idunn"),
+            Some("deployment sleep"),
+            "2026-07-19T00:00:00Z",
+            true,
+        )?;
+        assert_eq!(
+            engaged.operator_agent_id,
+            EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
+        );
+        let observed = load_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil")?
+            .expect("canonical brake");
+        assert_eq!(observed, engaged);
+        let projection =
+            swarm_brake_status_projection(&store, "epiphany-yggdrasil", Some(&observed));
+        assert_eq!(projection["brakeStatus"], "engaged");
+        assert_eq!(projection["canonicalAuthority"], true);
+
+        let released = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-yggdrasil",
+            Some("released"),
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("discord-owner"),
+            Some("explicit wake"),
+            "2026-07-19T00:01:00Z",
+            false,
+        )?;
+        assert_eq!(released.status, "released");
+        assert_eq!(
+            load_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil")?,
+            Some(released)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn release_cannot_touch_foreign_deployment_brake() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let mut foreign = default_epiphany_cultmesh_swarm_brake("2026-07-19T00:00:00Z");
+        foreign.brake_id = "epiphany-yggdrasil/deployment-brake".into();
+        foreign.operator_agent_id = "legacy-idunn".into();
+        foreign.status = "engaged".into();
+        foreign.reason = "legacy deployment brake".into();
+        write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", foreign)?;
+        let before = bytes(&store)?;
+        let adoption_error = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-yggdrasil",
+            Some("engaged"),
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("operator"),
+            Some("must not adopt foreign authority"),
+            "2026-07-19T00:00:30Z",
+            true,
+        )
+        .expect_err("non-Idunn actor must not adopt a legacy brake");
+        assert!(adoption_error.to_string().contains("only Idunn"));
+        assert_eq!(bytes(&store)?, before);
+        let error = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-yggdrasil",
+            Some("released"),
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("operator"),
+            Some("must refuse"),
+            "2026-07-19T00:01:00Z",
+            false,
+        )
+        .expect_err("foreign deployment brake must not be released");
+        assert!(error.to_string().contains("foreign swarm brake"));
+        assert_eq!(bytes(&store)?, before);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
