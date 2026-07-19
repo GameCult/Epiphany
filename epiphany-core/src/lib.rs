@@ -22,6 +22,7 @@ mod imagination_consideration;
 mod memory_graph;
 mod mind_gateway;
 mod operator_command;
+mod operator_command_service;
 mod organ_dependencies;
 mod packaged_release;
 mod persona_feedback_admission;
@@ -822,6 +823,15 @@ pub use operator_command::{
     OperatorCommandResultDisposition, admit_and_execute_bifrost_operator_command,
     operator_command_admission_signing_payload, operator_command_admission_signing_purpose,
     operator_command_packet_sha256,
+};
+pub use operator_command_service::{
+    EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
+    EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE, EpiphanyOperatorCommandResultReceipt,
+    EpiphanyOperatorCommandWireResult, OperatorCommandServiceConfig,
+    OperatorCommandServiceReadiness, execute_operator_command_admission,
+    operator_command_result_receipt_signing_payload,
+    operator_command_result_receipt_signing_purpose, read_operator_command_trust_anchor,
+    serve_operator_command_rudp,
 };
 pub use organ_dependencies::EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION;
 pub use organ_dependencies::EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION;

@@ -33,7 +33,7 @@ pub enum OperatorCapability {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperatorCommand {
     Status,
     Sleep { reason: String },
@@ -53,6 +53,7 @@ impl OperatorCommand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperatorCommandPacket {
     pub command_id: String,
     pub nonce: String,
@@ -68,7 +69,9 @@ pub struct OperatorCommandPacket {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BifrostOperatorCommandAdmission {
+    pub schema_name: String,
     pub schema_version: String,
     pub admission_id: String,
     pub packet: OperatorCommandPacket,
@@ -228,6 +231,7 @@ fn validate_admission(
     anchor: &HostIdentityTrustAnchorEntry,
     policy: &OperatorCommandPolicy,
     now: chrono::DateTime<chrono::Utc>,
+    enforce_time: bool,
 ) -> Result<OperatorCapability> {
     let packet = &admission.packet;
     let issued =
@@ -242,7 +246,8 @@ fn validate_admission(
         }
         _ => true,
     };
-    if admission.schema_version != BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
+    if admission.schema_name != BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE
+        || admission.schema_version != BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
         || admission.admission_id.trim().is_empty()
         || packet.command_id.trim().is_empty()
         || packet.nonce.trim().is_empty()
@@ -260,8 +265,8 @@ fn validate_admission(
         || !policy
             .allowed_channel_ids
             .contains(&packet.discord_channel_id)
-        || issued > now
-        || expires < now
+        || (enforce_time && issued > now)
+        || (enforce_time && expires < now)
         || expires <= issued
         || (expires - issued).num_seconds() > policy.max_ttl_seconds
         || policy.max_ttl_seconds <= 0
@@ -299,7 +304,8 @@ pub fn admit_and_execute_bifrost_operator_command(
     now: &str,
 ) -> Result<OperatorCommandResult> {
     let now_dt = chrono::DateTime::parse_from_rfc3339(now)?.with_timezone(&chrono::Utc);
-    let capability = validate_admission(admission, trusted_bifrost_identity, policy, now_dt)?;
+    let capability =
+        validate_admission(admission, trusted_bifrost_identity, policy, now_dt, false)?;
     let packet = &admission.packet;
     let mut admitted = LocalAdmittedOperatorCommand {
         schema_version: LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
@@ -340,6 +346,7 @@ pub fn admit_and_execute_bifrost_operator_command(
     if let Some(existing) = cache.get::<OperatorCommandResult>(&result_id)? {
         return Ok(existing);
     }
+    validate_admission(admission, trusted_bifrost_identity, policy, now_dt, true)?;
     if cache
         .get::<LocalAdmittedOperatorCommand>(&packet.command_id)?
         .as_ref()
@@ -672,6 +679,7 @@ mod tests {
             command,
         };
         let mut admission = BifrostOperatorCommandAdmission {
+            schema_name: BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE.into(),
             schema_version: BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
             admission_id: format!("admission-{id}"),
             packet_sha256: operator_command_packet_sha256(&packet)?,

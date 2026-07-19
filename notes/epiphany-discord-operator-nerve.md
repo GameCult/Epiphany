@@ -2,16 +2,26 @@
 
 ## Objective
 
-Yggdrasil must continue operating while Starfire is packed. The operator must
-be able to inspect and direct Epiphany through Discord without turning ordinary
-conversation into command authority or giving VoidBot access to Epiphany's
-private stores.
+This is Epiphany's ordinary organizational interface, not a remote-control
+fixture for one deployment. A resident swarm continuously models its authorized
+domain, derives bounded direction from the admitted map, and lets Imagination
+suggest improvements and possible features without waiting for an instruction.
+The repository Persona gives the organization a shared conversational crossing:
+members can add attributed feedback, challenge the model, and discuss proposals
+without becoming machine operators merely by speaking.
+
+Explicit operator commands form a second, narrower nerve for named consequences
+such as inspection, sleep, wake, direction pressure, and Mind review. Yggdrasil
+continuing while Starfire is packed is the July 22 acceptance case for that
+product contract, not the reason the contract exists. VoidBot must never gain
+access to Epiphany's private stores.
 
 Persona feedback and operator command are different nerves:
 
 - Persona conversation is `feedback_only` at VoidBot/Bifrost and
   `resident-pressure-only` in Epiphany. It may provoke attention and an
-  Imagination proposal. It cannot adopt Mind state or grant consequence.
+  Imagination proposal, but it is not required to ignite either Modeling or
+  autonomous direction. It cannot adopt Mind state or grant consequence.
 - Operator commands are explicit owner-authenticated slash commands. They cross
   Bifrost as signed, expiring, target-bound typed intent and invoke one named
   Epiphany owner primitive. They are never inferred from prose.
