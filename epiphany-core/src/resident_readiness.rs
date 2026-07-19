@@ -598,10 +598,12 @@ fn directory_ready(path: &Path) -> bool {
 }
 
 fn codex_credentials_ready(codex_home: &Path) -> bool {
-    directory_ready(codex_home)
-        && ["auth.json", "credentials.json"]
-            .iter()
-            .any(|name| credential_file_ready(&codex_home.join(name)))
+    directory_ready(codex_home) && credential_file_ready(&codex_home.join("auth.json"))
+}
+
+#[cfg(any(unix, test))]
+fn unix_credential_mode_ready(mode: u32) -> bool {
+    mode & 0o600 == 0o600 && mode & 0o077 == 0
 }
 
 fn credential_file_ready(path: &Path) -> bool {
@@ -614,7 +616,8 @@ fn credential_file_ready(path: &Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        return metadata.uid() == unsafe { libc::geteuid() } && metadata.mode() & 0o077 == 0;
+        let mode = metadata.mode();
+        return metadata.uid() == unsafe { libc::geteuid() } && unix_credential_mode_ready(mode);
     }
     #[cfg(not(unix))]
     true
@@ -794,10 +797,27 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let auth = temp.path().join("auth.json");
         fs::write(&auth, b"{}")?;
+        fs::set_permissions(&auth, fs::Permissions::from_mode(0o400))?;
+        assert!(!codex_credentials_ready(temp.path()));
         fs::set_permissions(&auth, fs::Permissions::from_mode(0o644))?;
         assert!(!codex_credentials_ready(temp.path()));
         fs::set_permissions(&auth, fs::Permissions::from_mode(0o600))?;
         assert!(codex_credentials_ready(temp.path()));
+        Ok(())
+    }
+
+    #[test]
+    fn credential_mode_requires_private_owner_read_write() {
+        assert!(!unix_credential_mode_ready(0o400));
+        assert!(!unix_credential_mode_ready(0o644));
+        assert!(unix_credential_mode_ready(0o600));
+    }
+
+    #[test]
+    fn legacy_credentials_file_cannot_impersonate_canonical_auth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        fs::write(temp.path().join("credentials.json"), b"{}")?;
+        assert!(!codex_credentials_ready(temp.path()));
         Ok(())
     }
 

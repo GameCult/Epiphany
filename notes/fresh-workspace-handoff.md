@@ -31,6 +31,48 @@ receipts. Do not test Wake while the deployment brake is the intended owner of
 sleep. Conversation remains feedback pressure; it does not adopt Mind state or
 grant Hands, release, or deployment authority.
 
+### Unattended continuity aftercare
+
+The Ygg body has no live Starfire reference. Epiphany, operator, heartbeat,
+resident Self, Idunn, VoidBot, Docker, WireGuard, SSH socket activation, and the
+new authority-backup timer are enabled for boot; all current services are
+active and all relevant containers use restart policies. Seven obsolete failed
+transient Idunn build units were cleared so `systemctl --failed` is meaningful.
+
+The swarm unit no longer overwrites persistent refreshed Codex auth on every
+restart. `/etc/gamecult/epiphany/credentials/codex-auth.json` is a cold-start
+seed copied with `cp --update=none`; `/var/lib/gamecult/epiphany/codex-home`
+owns later provider refreshes. The runtime file is forced to mode `0600` so
+Codex can refresh it in place, and resident readiness now requires private
+owner read/write rather than accepting an unwritable `0400` seed. Only
+canonical `auth.json` satisfies Ygg readiness; legacy `credentials.json` cannot
+stand in for an absent canonical credential. Operator config remains
+operator-authored.
+
+`gamecult-authority-backup.timer` now seals one validated, SHA-256-addressed,
+root-only recovery archive daily with 14-day retention. The exact Epiphany,
+Idunn, Bifrost, and VoidBot state writers are briefly frozen or paused while
+the archive is opened. Missing writers fail the run, and publication is refused
+unless every quiesced writer is confirmed active and thawed/unpaused. Strict
+snapshot `20260719T170438Z` passed checksum and tar traversal, contains Bifrost release
+authority plus Idunn state/config/provenance, and all writers were active and
+unpaused afterward. The earlier incomplete snapshot was deleted. Release
+trees, logs, media, RAG/vector projections, and Qdrant remain excluded. This is
+local logical-corruption recovery on clean two-disk RAID1, not off-host backup.
+
+Idunn's live process is now self-proven by a root-sealed manifest: exact Odin
+commit `15a744c826f0aa2e8cc322a6543ea8a9afcd852a`, digest-pinned Rust image,
+build artifact, installed binary and privileged surfaces, and the executable
+behind the live PID. Every installed surface is root-owned at its exact safe
+mode, and systemd reports the sealed unit/drop-in loaded with no pending reload.
+Verification owns no lifecycle or deployment action. The
+final Ygg checker requires this proof and passes with the brake engaged.
+
+The host reports a pending reboot for installed kernel `6.8.0-136`; it still
+runs `6.8.0-134`. No reboot was performed or authorized. Schedule that as an
+explicit operator maintenance window before departure if desired; deployment
+and readiness must never smuggle it in.
+
 ## Swarm brake observation/actuation purification (2026-07-19)
 
 `epiphany-verse-query swarm-brake` was a mutating pseudo-query whose missing
