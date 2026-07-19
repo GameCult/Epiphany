@@ -65,7 +65,8 @@ fn main() -> Result<()> {
             "epiphany",
             "resident-feedback-consideration-v0",
             AT,
-        )?;
+        )?
+        .ok_or_else(|| anyhow::anyhow!("fixture thread did not admit consideration"))?;
         if request.source_visibility != feedback.source_visibility
             || request.data_classification != feedback.data_classification
             || request.source_room_id != feedback.source_room_id

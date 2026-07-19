@@ -205,7 +205,7 @@ pub fn commit_request(
     persona_id: &str,
     routing_policy_id: &str,
     requested_at: &str,
-) -> Result<ImaginationConsiderationRequest> {
+) -> Result<Option<ImaginationConsiderationRequest>> {
     chrono::DateTime::parse_from_rfc3339(requested_at)
         .map_err(|_| anyhow!("consideration timestamp must be RFC3339"))?;
     let mut cache = crate::runtime_spine_cache(runtime_store)?;
@@ -213,9 +213,10 @@ pub fn commit_request(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("consideration requires runtime identity"))?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("consideration requires thread state"))?;
+    let Some(thread) = cache.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+    else {
+        return Ok(None);
+    };
     let model = crate::runtime_current_repo_model(runtime_store)?
         .ok_or_else(|| anyhow!("consideration requires Modeling map"))?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
@@ -281,14 +282,14 @@ pub fn commit_request(
         let mut replay = request;
         replay.requested_at = existing.requested_at.clone();
         return if replay == existing {
-            Ok(existing)
+            Ok(Some(existing))
         } else {
             bail!("consideration id collision")
         };
     }
     let (entry, _) = cache.prepare_entry(&request_id, &request)?;
     SingleFileMessagePackBackingStore::new(runtime_store).push(&entry)?;
-    Ok(request)
+    Ok(Some(request))
 }
 
 pub fn validate_current_request(
@@ -485,6 +486,41 @@ pub fn request_candidate_modeling_review(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn cold_runtime_without_thread_defers_feedback_consideration() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime = temp.path().join("runtime.ccmp");
+        let feedback = temp.path().join("feedback.ccmp");
+        let mut cache = crate::runtime_spine_cache(&runtime)?;
+        cache.put(
+            crate::RUNTIME_IDENTITY_KEY,
+            &crate::EpiphanyRuntimeIdentity {
+                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                runtime_id: "runtime-cold".into(),
+                display_name: "Cold runtime".into(),
+                runtime_kind: "resident".into(),
+                created_at: "2026-07-18T00:00:00Z".into(),
+                updated_at: "2026-07-18T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        assert!(
+            commit_request(
+                &runtime,
+                &feedback,
+                "feedback-1",
+                "GameCult/Epiphany",
+                "epiphany",
+                "resident-feedback-consideration-v0",
+                "2026-07-18T00:01:00Z",
+            )?
+            .is_none()
+        );
+        Ok(())
+    }
 
     fn request() -> ImaginationConsiderationRequest {
         ImaginationConsiderationRequest {

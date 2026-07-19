@@ -2756,9 +2756,24 @@ daemon lifecycle physiology; explicit daemon lifecycle surfaces still do.
 Focused proofs pass and the full core library reports 570 passed, zero failed,
 one ignored.
 
-Next action: commit and push the successor and CultCache dependency, revoke the
-failed exact candidate authority, then cross the successor through Bifrost and
-Idunn while braked. Verify the typed brake, exact
+Candidate `86d702002acee8321438f32fb9cf69a29a667d70` built and sealed immutable
+release `sha256-da19a70a7e8c0229cd59b292bf5867fd1e97fa40643ab772e918c5d49dd7ff22`
+with witness
+`sha256-62c65d813837dd4a939e941d798d0842ee5f6c77cddaa645f2c47a18b7c3ec44`.
+It was not deployed. Projection and Heartbeat were healthy and braked, but
+resident Self found a second cold-start path: feedback-driven Imagination
+consideration required thread state before a thread existed. Idunn was
+terminated through rollback; all services are inactive and no deployment or
+active-release witness exists. The immutable package is evidence only.
+
+That second path now treats absent thread state as a missing prerequisite: it
+emits no request, writes nothing, preserves admitted feedback, and retries on a
+later pulse. The causal smoke explicitly requires its fixture thread. Focused
+Imagination tests, resident-Self tests, and all-bin compilation pass.
+
+Next action: commit and push the second cold-start successor, revoke the failed
+`86d70200` authority, then cross the new exact commit through Bifrost and Idunn
+while braked. Verify the typed brake, exact
 release/witness bindings, all three service owners, signed Idunn health, local
 Qdrant/Ollama routes, and final deployment witness. Then run the Starfire-offline
 rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->

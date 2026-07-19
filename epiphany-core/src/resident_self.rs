@@ -794,7 +794,7 @@ pub fn ingest_resident_self_domain_pressure(
                 "admitted Persona feedback escaped its target runtime"
             ));
         }
-        let request = crate::commit_imagination_consideration_request(
+        let Some(request) = crate::commit_imagination_consideration_request(
             runtime_store,
             persona_feedback_store,
             &feedback.feedback_id,
@@ -802,7 +802,10 @@ pub fn ingest_resident_self_domain_pressure(
             &feedback.target_persona_id,
             "resident-feedback-consideration-v0",
             &requested_at,
-        )?;
+        )?
+        else {
+            continue;
+        };
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
             &ResidentSelfPressure {
