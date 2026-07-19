@@ -3089,3 +3089,42 @@ inactive with no current link, active-release document, or deployment witness.
 The next cut is not an observer bypass. Modeling must identify the owner of the
 typed runtime-to-repository Body binding and make that binding available to
 terminal observer authentication, preserving projector-only coverage authority.
+
+The Body-binding correction is committed and pushed as `67f0fe0b44357c56c98f82499cdfa3ae7b944e09`.
+The supervisor bootstrap already published the typed runtime-store binding and
+repository Body-store binding; the live fault was reversed arguments at the
+terminal-sight call site. The corrected candidate proved
+`terminal-observer-alive`, three stable services, the all-scope brake, and a
+healthy pre-witness check. It did not receive a deployment witness because
+Idunn's automatic target worker published a newer request while the manual
+deployment still owned the actuator, superseding the typed current-request
+head. The candidate authority was revoked and exact process group terminated;
+rollback left all Epiphany units, current pointers, active release, and
+deployment witness absent.
+
+Idunn's authority split is repaired in Odin commit
+`eefd47f` (`codex/ygg-organizational-idunn`). A per-target local gate serializes
+manual and automatic command lifetimes. More importantly, the persistent
+current-request CAS chain refuses replacement until the exact predecessor
+request has an exact terminal result, so restart or duplicate processes cannot
+steal a live head. All 48 Idunn tests pass and an independent Soul re-audit found
+no release blocker. Ygg now runs that binary as PID `1673938`, zero restarts,
+SHA-256 `49e09d1989342737f6c996be267894555e8c23886f090a5ae5d334e4aa29ff8d`;
+the prior binary is `/usr/local/bin/idunn.20260719-072532.bak`.
+
+Bifrost correctly refuses reauthorization of revoked immutable authority for
+`67f0fe0`. The next action is therefore to commit/push this persisted Epiphany
+state as a new exact successor, authorize only that commit, and perform one
+Idunn-owned Ygg deployment under the all-scope brake. Certification requires a
+single stable deployment request head, `terminal-observer-alive`, three stable
+services, exact signed health admission, and final `deployment.env` witness.
+
+After certification, treat the organizational loop as normal product behavior,
+not an experiment. The existing runtime autonomously turns admitted Modeling
+direction into an Imagination option, and Persona feedback is authenticated
+additional pressure. The missing bridge is option result -> immutable
+`RepoFrontierWorkProposal` with exact model causality -> automatic Self
+selection for Modeling review -> admitted frontier item -> existing Imagination
+planning -> explicit Mind adoption -> Hands. Proposals and conversation must
+remain structurally unable to grant Mind, Hands, Persona public speech,
+Bifrost release, or Idunn deployment authority. No host reboot is authorized.
