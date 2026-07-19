@@ -1233,6 +1233,79 @@ pub(crate) fn authenticate_historical_workspace_coverage_managed_process_launch_
     Ok((launch, envelope_digest(&envelope)))
 }
 
+pub fn authenticate_workspace_coverage_replacement_lineage(
+    store_path: impl AsRef<Path>,
+    runtime_id: &str,
+    old_launch_id: &str,
+    replacement_launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    if old_launch_id == replacement_launch_id {
+        bail!("workspace coverage replacement lineage did not advance");
+    }
+    authenticate_historical_workspace_coverage_managed_process_launch(
+        store_path,
+        runtime_id.to_string(),
+        old_launch_id,
+        host_identity,
+    )?;
+    let mut cursor = replacement_launch_id.to_string();
+    let mut visited = std::collections::BTreeSet::new();
+    loop {
+        if !visited.insert(cursor.clone()) {
+            bail!("workspace coverage replacement lineage contains a cycle");
+        }
+        let child = if cursor == replacement_launch_id {
+            authenticate_workspace_coverage_managed_process_launch(
+                store_path,
+                runtime_id.to_string(),
+                &cursor,
+                host_identity,
+            )?
+        } else {
+            authenticate_historical_workspace_coverage_managed_process_launch(
+                store_path,
+                runtime_id.to_string(),
+                &cursor,
+                host_identity,
+            )?
+        };
+        let parent_id = child
+            .replaces_launch_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("workspace coverage replacement lineage ended before the claimed launch"))?;
+        let (termination, termination_digest) =
+            authenticate_workspace_coverage_termination_with_envelope_digest(
+                store_path,
+                runtime_id.to_string(),
+                parent_id,
+                host_identity,
+            )?;
+        if child.replaces_termination_id.as_deref() != Some(termination.termination_id.as_str())
+            || child.replaces_termination_envelope_digest.as_deref()
+                != Some(termination_digest.as_str())
+        {
+            bail!("workspace coverage replacement lineage has a broken termination edge");
+        }
+        let terminated_at = chrono::DateTime::parse_from_rfc3339(&termination.observed_at_utc)?;
+        let launched_at = chrono::DateTime::parse_from_rfc3339(&child.launched_at_utc)?;
+        if terminated_at >= launched_at {
+            bail!("workspace coverage replacement lineage violates termination ordering");
+        }
+        if parent_id == old_launch_id {
+            return Ok(());
+        }
+        authenticate_historical_workspace_coverage_managed_process_launch(
+            store_path,
+            runtime_id.to_string(),
+            parent_id,
+            host_identity,
+        )?;
+        cursor = parent_id.to_string();
+    }
+}
+
 pub fn observe_workspace_coverage_managed_process(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -2300,6 +2373,13 @@ pub fn write_workspace_coverage_recovery_directive(
             replacement_launch_id,
             host.entry(),
         )?;
+    authenticate_workspace_coverage_replacement_lineage(
+        local_verse_store,
+        runtime_id,
+        &claim_sight.launch_id,
+        replacement_launch_id,
+        host.entry(),
+    )?;
     let (ready, ready_digest) =
         authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
             local_verse_store,
@@ -2307,10 +2387,7 @@ pub fn write_workspace_coverage_recovery_directive(
             replacement_ready_heartbeat_id,
             host.entry(),
         )?;
-    if replacement.replaces_launch_id.as_deref() != Some(claim_sight.launch_id.as_str())
-        || replacement.replaces_termination_id.as_deref()
-            != Some(termination.termination_id.as_str())
-        || ready.launch_id != replacement.launch_id
+    if ready.launch_id != replacement.launch_id
         || ready.status != "ready"
     {
         bail!("workspace coverage recovery directive evidence is not an exact ready replacement");
@@ -4432,6 +4509,42 @@ mod tests {
         );
         assert_eq!(std::fs::read(&body_store)?, body_before_refusal);
 
+        let intermediate_provider = provider_key();
+        let mut intermediate = launch(
+            &policy,
+            envelope_digest(&policy_envelope),
+            &host,
+            &intermediate_provider,
+        )?;
+        intermediate.replaces_launch_id = Some(old_launch.launch_id.clone());
+        intermediate.replaces_termination_id = Some(termination.termination_id.clone());
+        intermediate.replaces_termination_envelope_digest = Some(termination_digest);
+        sign_workspace_coverage_launch(&mut intermediate, &host)?;
+        write_workspace_coverage_managed_process_launch(
+            &verse,
+            "local",
+            intermediate.clone(),
+            host.entry(),
+        )?;
+        let intermediate_source = FakeObservation {
+            boot: Some(intermediate.boot_identity.clone()),
+            process: ProcessInstanceObservation::Missing,
+        };
+        let intermediate_termination =
+            write_workspace_coverage_process_termination_observation_with_source(
+                &verse,
+                "local",
+                &intermediate.launch_id,
+                &host,
+                &intermediate_source,
+            )?;
+        let (_, intermediate_termination_digest) =
+            authenticate_workspace_coverage_termination_with_envelope_digest(
+                &verse,
+                "local",
+                &intermediate.launch_id,
+                host.entry(),
+            )?;
         let replacement_provider = provider_key();
         let mut replacement = launch(
             &policy,
@@ -4439,9 +4552,9 @@ mod tests {
             &host,
             &replacement_provider,
         )?;
-        replacement.replaces_launch_id = Some(old_launch.launch_id.clone());
-        replacement.replaces_termination_id = Some(termination.termination_id.clone());
-        replacement.replaces_termination_envelope_digest = Some(termination_digest);
+        replacement.replaces_launch_id = Some(intermediate.launch_id.clone());
+        replacement.replaces_termination_id = Some(intermediate_termination.termination_id.clone());
+        replacement.replaces_termination_envelope_digest = Some(intermediate_termination_digest);
         sign_workspace_coverage_launch(&mut replacement, &host)?;
         write_workspace_coverage_managed_process_launch(
             &verse,
@@ -4456,8 +4569,8 @@ mod tests {
             &host,
             &competing_provider,
         )?;
-        competing.replaces_launch_id = Some(old_launch.launch_id.clone());
-        competing.replaces_termination_id = Some(termination.termination_id.clone());
+        competing.replaces_launch_id = Some(intermediate.launch_id.clone());
+        competing.replaces_termination_id = Some(intermediate_termination.termination_id.clone());
         competing.replaces_termination_envelope_digest =
             replacement.replaces_termination_envelope_digest.clone();
         sign_workspace_coverage_launch(&mut competing, &host)?;

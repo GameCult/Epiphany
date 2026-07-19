@@ -2880,3 +2880,24 @@ the old launch historically. The full causal test now performs real policy
 rotation and proves current refusal, historical recovery, directive fencing,
 lease transfer, successor current sight, exact replay, and tamper refusal. Full
 core passes 573/573 with one ignored; all binaries compile.
+
+Candidate `351355d3baee2d475f84168136380d2f50197ef8` reached live runtime with all
+three service owners active and the brake engaged, but emitted
+`authenticated claim sight does not name the current managed launch`. The old
+claim named the original historical launch while successive failed deployment
+attempts had created a valid signed chain of replacement generations. Recovery
+still required the current launch to be the old claim's direct child. The exact
+Idunn process group was terminated, services stopped, active pointer and
+witness removed, and Bifrost authority revoked; no deployment witness exists.
+
+Recovery now proves ancestry rather than pretending retries did not happen.
+It walks backward from the selected current-policy launch to the claimed
+historical launch, authenticating every host-signed launch, exact parent
+termination id and envelope digest, and termination-before-child chronology.
+It refuses cycles, missing ancestors, broken edges, and a non-current endpoint.
+Directive writing, directive receipt verification, atomic lease transfer, and
+supervisor crash-resume use the same lineage proof. The supervisor publishes
+the actual lineage error instead of collapsing it into a generic mismatch.
+The causal test now includes an intermediate failed-deployment generation and
+passes the complete recovery transaction. Full library passes 573/573 with one
+ignored; supervisor authority tests pass 24/24.

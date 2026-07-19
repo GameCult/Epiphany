@@ -58,9 +58,9 @@ use epiphany_core::{
     ProcessInstanceIdentity, ProcessInstanceObservation,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
     WorkspaceCoverageProcessBootstrap, WorkspaceCoverageProcessLifecycleObservation,
-    authenticate_historical_workspace_coverage_managed_process_launch,
     authenticate_recovery_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_managed_process_launch,
+    authenticate_workspace_coverage_replacement_lineage,
     authenticate_workspace_coverage_provider_heartbeat,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
     load_latest_workspace_coverage_managed_process_launch,
@@ -2469,35 +2469,19 @@ fn reconcile_workspace_coverage_projector(
             .clone()
             .context("workspace coverage mismatch lost its authenticated claim target")?;
         let in_flight = (|| -> Result<_> {
-            let (termination, termination_digest) =
-                authenticate_workspace_coverage_termination_with_envelope_digest(
-                    &args.store,
-                    args.runtime_id.clone(),
-                    &old_target.launch_id,
-                    host.entry(),
-                )?;
-            authenticate_historical_workspace_coverage_managed_process_launch(
-                &args.store,
-                args.runtime_id.clone(),
-                &old_target.launch_id,
-                host.entry(),
-            )?;
             let replacement = authenticate_workspace_coverage_managed_process_launch(
                 &args.store,
                 args.runtime_id.clone(),
                 &latest.launch_id,
                 host.entry(),
             )?;
-            if replacement.replaces_launch_id.as_deref() != Some(old_target.launch_id.as_str())
-                || replacement.replaces_termination_id.as_deref()
-                    != Some(termination.termination_id.as_str())
-                || replacement.replaces_termination_envelope_digest.as_deref()
-                    != Some(termination_digest.as_str())
-            {
-                anyhow::bail!(
-                    "latest launch is not the exact authenticated in-flight replacement lineage"
-                );
-            }
+            authenticate_workspace_coverage_replacement_lineage(
+                &args.store,
+                &args.runtime_id,
+                &old_target.launch_id,
+                &latest.launch_id,
+                host.entry(),
+            )?;
             Ok(replacement)
         })();
         if let Ok(replacement) = in_flight {
@@ -2559,6 +2543,9 @@ fn reconcile_workspace_coverage_projector(
                 }
             }
         }
+        let lineage_error = in_flight
+            .expect_err("workspace coverage mismatch branch lost its lineage error")
+            .to_string();
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -2566,7 +2553,7 @@ fn reconcile_workspace_coverage_projector(
                 "status": "observation-refused",
                 "serviceId": policy.service_id,
                 "launchId": latest.launch_id,
-                "reason": "authenticated claim sight does not name the current managed launch",
+                "reason": lineage_error,
                 "restarted": false,
                 "privateStateExposed": false,
             }))?
@@ -4455,9 +4442,7 @@ mod semantic_projector_authority_tests {
         assert!(observation + termination < launch && launch < readiness && readiness < recovery);
         assert!(body.contains("write_workspace_coverage_process_termination_observation"));
         assert!(body.contains("status == \"ready\""));
-        assert!(
-            body.contains("authenticated claim sight does not name the current managed launch")
-        );
+        assert!(body.contains("authenticate_workspace_coverage_replacement_lineage"));
         assert!(!body.contains("awaiting-exact-termination"));
         assert!(!body.contains("open_workspace_coverage_authority"));
         assert!(!body.contains("recover_workspace_coverage_projection"));
@@ -4524,22 +4509,15 @@ mod semantic_projector_authority_tests {
                 .find("\n    let observation = match observe_workspace_coverage_managed_process")
                 .unwrap();
         let branch = &body[mismatch..normal_observation];
-        let termination = branch
-            .find("authenticate_workspace_coverage_termination_with_envelope_digest")
-            .unwrap();
-        let old_launch = branch
-            .find("authenticate_historical_workspace_coverage_managed_process_launch")
-            .unwrap();
         let replacement = branch
             .find("let replacement = authenticate_workspace_coverage_managed_process_launch")
             .unwrap();
         let lineage = branch
-            .find("replacement.replaces_termination_envelope_digest")
+            .find("authenticate_workspace_coverage_replacement_lineage")
             .unwrap();
         let resume = branch
             .find("return finish_workspace_coverage_recovery")
             .unwrap();
-        assert!(termination < old_launch && old_launch < replacement);
         assert!(replacement < lineage && lineage < resume);
         assert!(!branch.contains("replacement.policy_envelope_digest != old_launch"));
         assert!(!branch.contains("service_launch_internal"));

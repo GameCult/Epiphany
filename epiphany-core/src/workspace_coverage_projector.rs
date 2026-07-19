@@ -33,6 +33,7 @@ use crate::{
     validate_workspace_coverage_projection_plan, workspace_coverage_execution_collection,
     workspace_coverage_process_documents::{
         authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest,
+        authenticate_workspace_coverage_replacement_lineage,
         authenticate_workspace_coverage_managed_process_launch_with_envelope_digest,
         authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest,
         authenticate_workspace_coverage_termination_with_envelope_digest,
@@ -1232,6 +1233,13 @@ pub fn authenticate_workspace_coverage_recovery_receipt(
             &receipt.ready_heartbeat_id,
             host,
         )?;
+    authenticate_workspace_coverage_replacement_lineage(
+        cultmesh_store.as_ref(),
+        runtime_id,
+        &receipt.old_launch_id,
+        &receipt.replacement_launch_id,
+        host,
+    )?;
     let latest = load_latest_workspace_coverage_provider_heartbeat(
         cultmesh_store,
         runtime_id,
@@ -2147,6 +2155,13 @@ pub(crate) fn recover_workspace_coverage_projection_with_authority(
             replacement_ready_heartbeat_id,
             host,
         )?;
+    authenticate_workspace_coverage_replacement_lineage(
+        cultmesh_store,
+        runtime_id,
+        old_launch_id,
+        replacement_launch_id,
+        host,
+    )?;
     let latest = load_latest_workspace_coverage_provider_heartbeat(
         cultmesh_store,
         runtime_id,
@@ -2162,13 +2177,6 @@ pub(crate) fn recover_workspace_coverage_projection_with_authority(
     let ready_at = chrono::DateTime::parse_from_rfc3339(&ready.observed_at_utc)?;
     let latest_at = chrono::DateTime::parse_from_rfc3339(&latest.observed_at_utc)?;
     if old_launch.launch_id == replacement_launch.launch_id
-        || replacement_launch.replaces_launch_id.as_deref() != Some(old_launch.launch_id.as_str())
-        || replacement_launch.replaces_termination_id.as_deref()
-            != Some(termination.termination_id.as_str())
-        || replacement_launch
-            .replaces_termination_envelope_digest
-            .as_deref()
-            != Some(termination_digest.as_str())
         || ready.launch_id != replacement_launch.launch_id
         || ready.status != "ready"
         || ready.sequence == 0
