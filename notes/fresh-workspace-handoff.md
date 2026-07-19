@@ -3198,3 +3198,30 @@ The autonomous organizational bridge is committed and pushed at `fc733675`.
 Next commit this certification state, cross only that exact successor through
 Bifrost and Idunn under the brake, then prove Persona/Discord replay and tamper
 boundaries plus Starfire-independent operation before granting any wake.
+
+## Autonomous successor refused; cold-start owner corrected (2026-07-19)
+
+Bifrost authorized and Idunn attempted exact successor
+`2d21c48d7425c3d6d692e506e1981f92991d82ac`. Idunn correctly refused final
+admission: `epiphany-swarm.service` restart-looped with `autonomous proposal
+promotion requires thread state`. The deploy process was terminated and
+rollback restored exact 36f source, active release symlink, release environment,
+supervisor, and Heartbeat. Resident Self is intentionally stopped until the
+corrected successor crosses; this prevents durable proposal pressure from
+retriggering the old binary's fault. The all-scope brake remains engaged.
+
+The fault belonged to promotion intake. Absent thread state during cold start
+means no proposal is eligible yet; it is not corrupt state. Promotion now
+returns an empty result without writing when the thread is absent. Present but
+malformed authority still fails. A focused byte-identity negative test passes,
+and the complete core library proof is 579 passed, zero failed, one ignored.
+
+Separately, `gamecult-ops` commit `584b94c` moves clone/build/package/verify
+before the service stop. Packaging failures can no longer blind the active
+body; the remaining outage begins only at canonical Body mutation/promotion.
+
+Next: commit/push this correction and state, revoke refused 2d authority,
+authorize only the corrected exact commit, install/use the ops cut, and deploy
+through Idunn under the brake. Admission requires all three units active with
+no restart growth and exact signed health. Then run the Starfire-offline
+Persona/Discord feedback rehearsal. No host reboot is authorized.

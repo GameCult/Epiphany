@@ -3887,9 +3887,10 @@ pub fn promote_autonomous_direction_options_for_modeling(
     let mut opening = runtime_spine_cache(runtime_store)?;
     opening.pull_all_backing_stores()?;
     let identity = require_identity(&opening)?;
-    let thread = opening
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("autonomous proposal promotion requires thread state"))?;
+    let Some(thread) = opening.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+    else {
+        return Ok(Vec::new());
+    };
     let model = opening
         .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
         .ok_or_else(|| anyhow!("autonomous proposal promotion requires admitted Modeling map"))?
@@ -9397,6 +9398,32 @@ pub(crate) mod tests {
         let public_surface = include_str!("lib.rs");
         assert!(!public_surface.contains("put_repo_frontier_plan_candidate"));
         assert!(!public_surface.contains("put_repo_frontier_plan_adoption"));
+    }
+
+    #[test]
+    fn autonomous_direction_promotion_waits_for_thread_without_mutation() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = root.path().join("cold-autonomous-promotion.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "cold-autonomous-runtime".into(),
+                display_name: "Cold autonomous runtime".into(),
+                created_at: "2026-07-19T10:00:00Z".into(),
+            },
+        )?;
+        let before = std::fs::read(&store)?;
+        assert!(
+            promote_autonomous_direction_options_for_modeling(
+                &store,
+                "GameCult/Epiphany",
+                root.path().to_str().expect("UTF-8 workspace"),
+                "2026-07-19T10:00:01Z",
+            )?
+            .is_empty()
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
     }
 
     #[test]
