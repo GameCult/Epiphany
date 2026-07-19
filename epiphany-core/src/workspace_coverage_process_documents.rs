@@ -3043,6 +3043,7 @@ fn authenticate_advancement_sight(
         bail!("workspace coverage advancement sight identity disagrees");
     }
     authenticate_sight_common(
+        WorkspaceCoverageSightLaunchAuthority::Current,
         runtime_store,
         local_verse_store,
         runtime_id,
@@ -3083,6 +3084,7 @@ fn authenticate_terminal_sight(
         bail!("workspace coverage terminal sight identity disagrees");
     }
     authenticate_sight_common(
+        WorkspaceCoverageSightLaunchAuthority::HistoricalTerminal,
         runtime_store,
         local_verse_store,
         runtime_id,
@@ -3111,8 +3113,15 @@ fn authenticate_terminal_sight(
     )
 }
 
+#[derive(Clone, Copy)]
+enum WorkspaceCoverageSightLaunchAuthority {
+    Current,
+    HistoricalTerminal,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn authenticate_sight_common(
+    launch_authority: WorkspaceCoverageSightLaunchAuthority,
     runtime_store: &Path,
     local_verse_store: &Path,
     runtime_id: &str,
@@ -3131,13 +3140,24 @@ fn authenticate_sight_common(
     body_generation: u64,
     manifest_root_sha256: &str,
 ) -> Result<()> {
-    let (launch, exact_launch_digest) =
-        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
-            local_verse_store,
-            runtime_id,
-            launch_id,
-            host,
-        )?;
+    let (launch, exact_launch_digest) = match launch_authority {
+        WorkspaceCoverageSightLaunchAuthority::Current => {
+            authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+                local_verse_store,
+                runtime_id,
+                launch_id,
+                host,
+            )?
+        }
+        WorkspaceCoverageSightLaunchAuthority::HistoricalTerminal => {
+            authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest(
+                local_verse_store,
+                runtime_id,
+                launch_id,
+                host,
+            )?
+        }
+    };
     if exact_launch_digest != launch_digest
         || launch.provider_incarnation_id != provider_incarnation_id
         || launch.provider_public_key != provider_public_key
@@ -3908,6 +3928,13 @@ mod tests {
             host.entry(),
             &provider,
             chrono::Utc::now(),
+        )?;
+        let mut rotated_policy = policy.clone();
+        rotated_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &verse,
+            "local",
+            rotated_policy,
         )?;
         let historical_sight = publish_workspace_coverage_terminal_sight(
             &verse,

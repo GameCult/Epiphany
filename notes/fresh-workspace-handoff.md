@@ -2997,3 +2997,27 @@ and deployment under the all-scope brake.
 Next action: monitor Idunn's exact successor transaction. Require historical terminal-sight reuse,
 three stable services, typed resident readiness, signed aggregate health, and
 `deployment.env` before beginning the ordinary organizational product loop.
+
+Candidate `519574ce0d63ffa8fa813885c6629c664a3ae2e0` sealed release
+`sha256-3bfbd4640f7259613ea6146fe80d6a68c9be55edb1ad100fb3c39a4f0e040e3e`
+and started all three braked services with zero restarts. The installed
+pre-witness check was healthy, proving terminal coverage and resident readiness
+were present, but the workspace projector still refused every pulse with
+`workspace coverage launch disagrees with current managed policy`; the
+supervisor then issued recovery directive `9084c09e-1da9-4187-acd4-6b214edd7fb2`
+for the already-succeeded claim. Idunn correctly withheld signed admission and
+`deployment.env`.
+
+The surviving obsolete owner was inside terminal-sight authentication itself.
+Both advancing and terminal sights shared current-policy launch authentication.
+That is correct for a live advancing lease and wrong for immutable terminal
+proof. Sight authentication now has an explicit authority split: advancement
+requires a current-policy launch; terminal requires its exact historical
+host-signed launch and envelope. Policy rotation cannot invalidate or re-sign
+the succeeded claim's sight. The real checkpoint-to-terminal fixture now
+rotates managed policy before a later daemon reuses the original sight
+byte-for-byte.
+
+Next action: commit/push this correction, revoke `519574ce`, terminate exact
+Idunn transaction PGID `1534830`, verify signal-safe rollback, then cross the
+exact successor through Bifrost and Idunn under brake.
