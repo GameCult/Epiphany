@@ -1,13 +1,14 @@
 use anyhow::{Result, anyhow};
 use epiphany_core::{
     default_host_identity_store_path, enroll_default_host_identity, enroll_host_identity_at,
-    export_host_identity_trust_anchor, open_default_host_identity, open_host_identity_at,
+    export_host_identity_trust_anchor, export_raw_host_identity_trust_anchor,
+    open_default_host_identity, open_host_identity_at,
 };
 use serde_json::json;
 
 fn main() -> Result<()> {
     let command = std::env::args().nth(1).ok_or_else(|| {
-        anyhow!("usage: epiphany-host-identity <enroll|status|enroll-trust-anchor|export-trust-anchor> [output]")
+        anyhow!("usage: epiphany-host-identity <enroll|status|enroll-trust-anchor|export-trust-anchor|enroll-raw-trust-anchor|export-raw-trust-anchor> [output]")
     })?;
     let values = std::env::args().skip(2).collect::<Vec<_>>();
     let store_index = values.iter().position(|value| value == "--store");
@@ -21,13 +22,19 @@ fn main() -> Result<()> {
     let positional = &values[..store_index.unwrap_or(values.len())];
     if matches!(
         command.as_str(),
-        "enroll-trust-anchor" | "export-trust-anchor"
+        "enroll-trust-anchor"
+            | "export-trust-anchor"
+            | "enroll-raw-trust-anchor"
+            | "export-raw-trust-anchor"
     ) {
         let output = positional
             .first()
             .filter(|_| positional.len() == 1)
             .ok_or_else(|| anyhow!("{command} requires one output path"))?;
-        let signer = if command == "enroll-trust-anchor" {
+        let signer = if matches!(
+            command.as_str(),
+            "enroll-trust-anchor" | "enroll-raw-trust-anchor"
+        ) {
             match explicit_store.as_deref() {
                 Some(store) => enroll_host_identity_at(store)?,
                 None => enroll_default_host_identity()?,
@@ -38,7 +45,11 @@ fn main() -> Result<()> {
                 None => open_default_host_identity()?,
             }
         };
-        let anchor = export_host_identity_trust_anchor(&signer, std::path::Path::new(output))?;
+        let anchor = if command.ends_with("raw-trust-anchor") {
+            export_raw_host_identity_trust_anchor(&signer, std::path::Path::new(output))?
+        } else {
+            export_host_identity_trust_anchor(&signer, std::path::Path::new(output))?
+        };
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -64,7 +75,7 @@ fn main() -> Result<()> {
         },
         _ => {
             return Err(anyhow!(
-                "usage: epiphany-host-identity <enroll|status|enroll-trust-anchor|export-trust-anchor> [output]"
+                "usage: epiphany-host-identity <enroll|status|enroll-trust-anchor|export-trust-anchor|enroll-raw-trust-anchor|export-raw-trust-anchor> [output]"
             ));
         }
     };

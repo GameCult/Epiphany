@@ -674,8 +674,8 @@ pub use host_identity::{
     HostIdentityTrustAnchorEntry, HostIncarnationIdentityEntry, LINUX_HOST_IDENTITY_ASSURANCE,
     WINDOWS_HOST_IDENTITY_ASSURANCE, default_host_identity_store_path,
     enroll_default_host_identity, enroll_host_identity_at, export_host_identity_trust_anchor,
-    open_default_host_identity, open_host_identity_at, verify_host_identity_signature,
-    verify_host_identity_trust_anchor_signature,
+    export_raw_host_identity_trust_anchor, open_default_host_identity, open_host_identity_at,
+    verify_host_identity_signature, verify_host_identity_trust_anchor_signature,
 };
 pub use idunn_runtime_health::{
     CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,

@@ -5,6 +5,8 @@ use cultcache_rs::{
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand_core::OsRng;
 use sha2::{Digest, Sha256};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const HOST_IDENTITY_TYPE: &str = "epiphany.host_incarnation_identity.v0";
@@ -135,18 +137,8 @@ pub fn export_host_identity_trust_anchor(
     signer: &HostIdentitySigner,
     output: &Path,
 ) -> Result<HostIdentityTrustAnchorEntry> {
+    let anchor = host_identity_trust_anchor(signer)?;
     let entry = signer.entry();
-    let anchor = HostIdentityTrustAnchorEntry {
-        schema_version: HOST_IDENTITY_TRUST_ANCHOR_TYPE.into(),
-        identity_id: entry.identity_id.clone(),
-        public_key: entry.public_key.clone(),
-        assurance: entry.assurance.clone(),
-        identity_created_at: entry.created_at.clone(),
-        source_identity_record_sha256: format!(
-            "sha256-{:x}",
-            Sha256::digest(rmp_serde::to_vec(entry)?)
-        ),
-    };
     prepare_parent(output)?;
     let envelope = CultCacheEnvelope {
         key: HOST_IDENTITY_TRUST_ANCHOR_KEY.into(),
@@ -162,6 +154,44 @@ pub fn export_host_identity_trust_anchor(
         [current] if current == &envelope => {}
         _ => bail!("host identity trust anchor output already contains different state"),
     }
+    Ok(anchor)
+}
+
+pub fn export_raw_host_identity_trust_anchor(
+    signer: &HostIdentitySigner,
+    output: &Path,
+) -> Result<HostIdentityTrustAnchorEntry> {
+    let anchor = host_identity_trust_anchor(signer)?;
+    let bytes = rmp_serde::to_vec(&anchor)?;
+    prepare_parent(output)?;
+    if output.exists() {
+        if std::fs::read(output)? != bytes {
+            bail!("raw host identity trust anchor output already contains different state");
+        }
+        return Ok(anchor);
+    }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output)?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    Ok(anchor)
+}
+
+fn host_identity_trust_anchor(signer: &HostIdentitySigner) -> Result<HostIdentityTrustAnchorEntry> {
+    let entry = signer.entry();
+    let anchor = HostIdentityTrustAnchorEntry {
+        schema_version: HOST_IDENTITY_TRUST_ANCHOR_TYPE.into(),
+        identity_id: entry.identity_id.clone(),
+        public_key: entry.public_key.clone(),
+        assurance: entry.assurance.clone(),
+        identity_created_at: entry.created_at.clone(),
+        source_identity_record_sha256: format!(
+            "sha256-{:x}",
+            Sha256::digest(rmp_serde::to_vec(entry)?)
+        ),
+    };
     Ok(anchor)
 }
 
@@ -572,6 +602,21 @@ mod tests {
         let before = std::fs::read(&anchor_store)?;
         export_host_identity_trust_anchor(&signer, &anchor_store)?;
         assert_eq!(std::fs::read(&anchor_store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn exported_raw_trust_anchor_is_the_six_field_crossing_artifact() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let signer = enroll_host_identity_at(&temp.path().join("identity.ccmp"))?;
+        let output = temp.path().join("anchor.msgpack");
+        let anchor = export_raw_host_identity_trust_anchor(&signer, &output)?;
+        let decoded: HostIdentityTrustAnchorEntry =
+            rmp_serde::from_slice(&std::fs::read(&output)?)?;
+        assert_eq!(decoded, anchor);
+        let before = std::fs::read(&output)?;
+        export_raw_host_identity_trust_anchor(&signer, &output)?;
+        assert_eq!(std::fs::read(&output)?, before);
         Ok(())
     }
 }
