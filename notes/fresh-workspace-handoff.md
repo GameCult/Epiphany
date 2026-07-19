@@ -2771,9 +2771,22 @@ emits no request, writes nothing, preserves admitted feedback, and retries on a
 later pulse. The causal smoke explicitly requires its fixture thread. Focused
 Imagination tests, resident-Self tests, and all-bin compilation pass.
 
-Next action: commit and push the second cold-start successor, revoke the failed
-`86d70200` authority, then cross the new exact commit through Bifrost and Idunn
-while braked. Verify the typed brake, exact
+Exact successor `aa3d2330062a34145cb70b527e02fa00215eac1b` was revoked before
+deployment because packaging repeated the release-root staging permission
+failure with no predecessor alive. This killed the cleanup-race hypothesis.
+The real fault was the builder's long-lived write lease over the shared
+root-owned release directory.
+
+Packaging is now source-generation scoped. The packager stages beneath the
+exact commit directory and atomically renames the final release within that
+same directory, so canonical witness paths do not move. Idunn keeps the shared
+release root root-owned and grants the builder only that exact commit directory;
+cleanup seals it root-owned and removes only its nested staging. Package tests
+pass 12/12, all binaries compile, and the actuator passes remote Bash syntax.
+
+Next action: commit and push the generation-scoped Epiphany and ops cuts,
+install the exact root-owned actuator, then authorize and cross the new exact
+commit through Bifrost and Idunn while braked. Verify the typed brake, exact
 release/witness bindings, all three service owners, signed Idunn health, local
 Qdrant/Ollama routes, and final deployment witness. Then run the Starfire-offline
 rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->

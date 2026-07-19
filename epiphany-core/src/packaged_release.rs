@@ -151,7 +151,17 @@ pub fn package_epiphany_release(
         request.target_triple,
         &toolchain.cargo,
     )?;
-    let staging = destination.join(format!(".staging-{}", Uuid::new_v4()));
+    // Construction authority is scoped to one exact source generation. The
+    // shared release root remains root-owned while the builder creates only a
+    // private staging sibling beneath its commit-specific directory.
+    let commit_root = destination.join(&source_commit_sha);
+    fs::create_dir_all(&commit_root).with_context(|| {
+        format!(
+            "failed to create release commit root {}",
+            commit_root.display()
+        )
+    })?;
+    let staging = commit_root.join(format!(".staging-{}", Uuid::new_v4()));
     fs::create_dir(&staging)
         .with_context(|| format!("failed to create release staging {}", staging.display()))?;
     let result = (|| {
@@ -181,15 +191,7 @@ pub fn package_epiphany_release(
             &toolchain.fingerprint,
             &binaries,
         );
-        let final_root = destination.join(&source_commit_sha).join(&release_id);
-        fs::create_dir_all(final_root.parent().expect("release root has parent")).with_context(
-            || {
-                format!(
-                    "failed to create release commit root for {}",
-                    final_root.display()
-                )
-            },
-        )?;
+        let final_root = commit_root.join(&release_id);
         for binary in &mut binaries {
             binary.canonical_path = final_root.join(&binary.file_name).display().to_string();
         }
