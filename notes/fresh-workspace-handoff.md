@@ -2821,3 +2821,31 @@ commit, and let Idunn deploy under the engaged brake. Require the immutable
 package/witness, all three healthy service owners, signed aggregate health, and
 `deployment.env`; then prove the ordinary organization loop and its negative
 authority boundaries. No host reboot is authorized.
+
+## Managed-policy rotation preserves historical process evidence (2026-07-19)
+
+Exact candidate `2d4c92d24c2007858914d352b5892f599e6a20e9` sealed release
+`sha256-1dd1271405e82958df2c03133b0d89d2555a8a3c7013486e1c41465ec84f6b3c`
+and witness
+`sha256-e01803545e557488cf2a0a42c31bb65e17ff7ead21790d7c982216901d94e12b`.
+The generation handoff and resident mixed-store repairs held: all three services
+started, Heartbeat remained braked, and resident Self remained stably braked.
+Workspace coverage did not launch because its prior signed launch was checked
+against the newly written current managed policy and became impossible to
+observe, terminalize, or replace. The exact transaction was rolled back,
+Bifrost authority revoked, services stopped, active pointer removed, and no
+deployment witness exists.
+
+The source authority is now split correctly. Historical host-signed launch
+evidence remains authentic across policy rotation and may prove only exact
+process identity and immutable termination. New process admission still
+requires the exact current policy digest. Reconciliation terminalizes the stale
+identity without deleting history, then launches a causally bound replacement
+under the current policy. Public current-process observation continues to reject
+stale launches. Focused process tests pass 11/11, supervisor authority tests
+pass 24/24, full core passes 573/573 with one ignored, and all binaries compile.
+
+Next action: commit/push the successor, cross its exact SHA through Bifrost and
+Idunn under brake, and require historical terminal evidence, current-policy
+replacement launch, three stable services, signed aggregate health, and the
+final deployment witness before rehearsing Starfire-independent operation.

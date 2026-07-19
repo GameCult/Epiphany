@@ -1143,6 +1143,23 @@ pub fn authenticate_workspace_coverage_managed_process_launch(
     Ok(entry)
 }
 
+pub fn authenticate_historical_workspace_coverage_managed_process_launch(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<WorkspaceCoverageManagedProcessLaunchEntry> {
+    let runtime_id = runtime_id.into();
+    let entry =
+        load_workspace_coverage_managed_process_launch(store_path, runtime_id.clone(), launch_id)?
+            .ok_or_else(|| anyhow!("workspace coverage managed process launch is absent"))?;
+    if entry.runtime_id != runtime_id {
+        bail!("workspace coverage launch runtime argument disagrees with signed runtime id");
+    }
+    validate_launch(&entry, host_identity)?;
+    Ok(entry)
+}
+
 pub fn authenticate_workspace_coverage_provider_heartbeat(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -1231,6 +1248,24 @@ pub fn observe_workspace_coverage_managed_process(
     ))
 }
 
+pub fn observe_historical_workspace_coverage_managed_process(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<WorkspaceCoverageProcessLifecycleObservation> {
+    let launch = authenticate_historical_workspace_coverage_managed_process_launch(
+        store_path,
+        runtime_id,
+        launch_id,
+        host_identity,
+    )?;
+    Ok(observe_workspace_coverage_process_with_source(
+        &launch,
+        &NativeWorkspaceCoverageProcessObservationSource,
+    ))
+}
+
 pub(crate) fn authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -1276,14 +1311,6 @@ fn write_workspace_coverage_process_termination_observation_with_source(
     let runtime_id = runtime_id.into();
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
 
-    let policy_envelope = node
-        .cache()
-        .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
-        .ok_or_else(|| anyhow!("workspace coverage managed policy is absent"))?;
-    let policy: EpiphanyCultMeshManagedServicePolicyEntry =
-        rmp_serde::from_slice(&policy_envelope.payload)?;
-    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
-
     let launch_envelope = node
         .cache()
         .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
@@ -1291,14 +1318,8 @@ fn write_workspace_coverage_process_termination_observation_with_source(
     let launch: WorkspaceCoverageManagedProcessLaunchEntry =
         rmp_serde::from_slice(&launch_envelope.payload)?;
     validate_launch(&launch, host.entry())?;
-    if launch.runtime_id != runtime_id
-        || launch.policy_id != policy.policy_id
-        || launch.policy_envelope_digest != envelope_digest(&policy_envelope)
-        || launch.command != policy.command
-        || launch.args != policy.args
-        || launch.cwd != policy.cwd
-    {
-        bail!("workspace coverage termination launch disagrees with current managed policy");
+    if launch.runtime_id != runtime_id {
+        bail!("workspace coverage termination launch runtime disagrees with signed identity");
     }
 
     let evidence_head_key = process_evidence_head_key(launch_id);
@@ -1376,8 +1397,8 @@ fn write_workspace_coverage_process_termination_observation_with_source(
         heartbeat_envelope_digest: heartbeat_evidence
             .as_ref()
             .map(|(envelope, _)| envelope_digest(envelope)),
-        policy_id: policy.policy_id.clone(),
-        policy_envelope_digest: envelope_digest(&policy_envelope),
+        policy_id: launch.policy_id.clone(),
+        policy_envelope_digest: launch.policy_envelope_digest.clone(),
         runtime_id,
         host_identity_id: host.entry().identity_id.clone(),
         host_identity_record_digest: workspace_coverage_host_identity_record_digest(host.entry())?,
@@ -1417,13 +1438,8 @@ fn write_workspace_coverage_process_termination_observation_with_source(
         termination_id: Some(entry.termination_id.clone()),
     };
     let replacement = node.cache().prepare_entry(&key, &entry)?.0;
-    let mut expected = vec![
-        policy_envelope.clone(),
-        launch_envelope.clone(),
-        evidence_head_envelope,
-    ];
+    let mut expected = vec![launch_envelope.clone(), evidence_head_envelope];
     let mut replacements = vec![
-        policy_envelope,
         launch_envelope,
         node.cache()
             .prepare_entry(&evidence_head_key, &terminal_head)?
@@ -1437,7 +1453,7 @@ fn write_workspace_coverage_process_termination_observation_with_source(
     if !SingleFileMessagePackBackingStore::new(store_path)
         .compare_and_swap_batch(&expected, replacements)?
     {
-        bail!("workspace coverage termination lost exact policy/launch/heartbeat CAS or collided");
+        bail!("workspace coverage termination lost exact launch/heartbeat CAS or collided");
     }
     Ok(entry)
 }
@@ -1470,13 +1486,6 @@ pub fn authenticate_workspace_coverage_process_termination_observation(
         bail!("workspace coverage termination request disagrees with signed identity");
     }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let policy_envelope = node
-        .cache()
-        .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
-        .ok_or_else(|| anyhow!("workspace coverage termination policy evidence is absent"))?;
-    let policy: EpiphanyCultMeshManagedServicePolicyEntry =
-        rmp_serde::from_slice(&policy_envelope.payload)?;
-    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
     let launch_envelope = node
         .cache()
         .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
@@ -1524,9 +1533,7 @@ pub fn authenticate_workspace_coverage_process_termination_observation(
         (None, None) => None,
         _ => bail!("workspace coverage termination has partial heartbeat evidence"),
     };
-    if entry.policy_id != policy.policy_id
-        || entry.policy_envelope_digest != envelope_digest(&policy_envelope)
-        || launch.policy_id != policy.policy_id
+    if entry.policy_id != launch.policy_id
         || launch.policy_envelope_digest != entry.policy_envelope_digest
         || entry.launch_envelope_digest != envelope_digest(&launch_envelope)
         || entry.host_identity_id != launch.host_identity_id
@@ -3927,16 +3934,15 @@ mod tests {
                 "local",
                 advanced_policy,
             )?;
-            assert!(
+            assert_eq!(
                 authenticate_workspace_coverage_process_termination_observation(
                     &store,
                     "local",
                     &launch.launch_id,
                     host.entry(),
-                )
-                .expect_err("moved policy source invalidates exact termination chain")
-                .to_string()
-                .contains("disagrees")
+                )?,
+                proof,
+                "policy rotation must not erase historical process evidence"
             );
         }
 
@@ -4082,6 +4088,42 @@ mod tests {
             )?
             .is_none()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn policy_rotation_preserves_historical_termination_authority() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (store, host, launch, _provider) = persisted_chain(temp.path())?;
+        let mut moved_policy = policy()?;
+        moved_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &store,
+            "local",
+            moved_policy,
+        )?;
+
+        let termination = write_workspace_coverage_process_termination_observation_with_source(
+            &store,
+            "local",
+            &launch.launch_id,
+            &host,
+            &FakeObservation {
+                boot: Some(launch.boot_identity.clone()),
+                process: ProcessInstanceObservation::Missing,
+            },
+        )?;
+        assert_eq!(termination.policy_id, launch.policy_id);
+        assert_eq!(
+            termination.policy_envelope_digest,
+            launch.policy_envelope_digest
+        );
+        authenticate_workspace_coverage_process_termination_observation(
+            &store,
+            "local",
+            &launch.launch_id,
+            host.entry(),
+        )?;
         Ok(())
     }
 
