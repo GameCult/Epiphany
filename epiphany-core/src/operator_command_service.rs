@@ -21,7 +21,7 @@ pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE: &str =
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.operator_command.sealed_result.v0";
 const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v0";
-const RUDP_CONNECTION_ID: u32 = 0xe91f_0001;
+pub const EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID: u32 = 0xe91f_0001;
 
 #[derive(Clone, Debug)]
 pub struct OperatorCommandServiceConfig {
@@ -100,6 +100,23 @@ pub struct OperatorCommandServiceReadiness {
     pub private_state_exposed: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperatorCommandInteropFixtureManifest {
+    pub schema_version: String,
+    pub admission_file: String,
+    pub bifrost_raw_trust_anchor_file: String,
+    pub executor_raw_trust_anchor_file: String,
+    pub executor_cultcache_trust_anchor_file: String,
+    pub sealed_result_file: String,
+    pub admission_sha256: String,
+    pub sealed_result_sha256: String,
+    pub admission_signing_purpose: String,
+    pub result_signing_purpose: String,
+    pub rudp_connection_id: u32,
+    pub private_state_exposed: bool,
+}
+
 pub fn operator_command_result_receipt_signing_purpose() -> &'static str {
     RESULT_SIGNING_PURPOSE
 }
@@ -171,24 +188,56 @@ pub fn serve_operator_command_rudp(
         CultNetRudpSocketTransportConnection::new(CultNetRudpSocketTransportOptions::server(
             &config.policy.runtime_id,
             socket,
-            RUDP_CONNECTION_ID,
+            EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
         ))?;
+    serve_operator_command_rudp_loop(&mut transport, config, signer, None, None)
+}
+
+fn serve_operator_command_rudp_loop(
+    transport: &mut CultNetRudpSocketTransportConnection,
+    config: &OperatorCommandServiceConfig,
+    signer: &HostIdentitySigner,
+    iteration_limit: Option<usize>,
+    fixed_now: Option<&str>,
+) -> Result<()> {
+    let mut iterations = 0usize;
     loop {
-        if let Some(frame) = transport.receive_once()? {
-            let response = process_wire_frame(config, signer, &frame.payload);
-            if let Ok(message) = response {
-                transport.send(
-                    "schema",
-                    encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?,
-                )?;
-            }
-            // Malformed, foreign, unsigned, expired-new, and capability-invalid
-            // admissions receive no signed application reply. A receipt would
-            // falsely turn unauthenticated material into an Epiphany statement.
-            // Authenticated owner precondition failures are instead returned by
-            // the core as sealed `refused` results.
+        if iteration_limit.is_some_and(|limit| iterations >= limit) {
+            return Ok(());
         }
-        transport.poll_resends()?;
+        iterations += 1;
+        match transport.receive_once() {
+            Ok(Some(frame)) => {
+                let response = match fixed_now {
+                    Some(now) => process_wire_frame_at(config, signer, &frame.payload, now),
+                    None => process_wire_frame(config, signer, &frame.payload),
+                };
+                if let Ok(message) = response {
+                    match encode_cultnet_message_to_vec(
+                        &message,
+                        CultNetWireContract::CultNetSchemaV0,
+                    ) {
+                        Ok(payload) => {
+                            if let Err(error) = transport.send("schema", payload) {
+                                eprintln!("operator service reply transport error: {error:#}");
+                            }
+                        }
+                        Err(error) => eprintln!("operator service reply encoding error: {error:#}"),
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                eprintln!("operator service discarded hostile transport frame: {error:#}")
+            } // Malformed, foreign, unsigned, expired-new, and capability-invalid
+              // admissions receive no signed application reply. A receipt would
+              // falsely turn unauthenticated material into an Epiphany statement.
+              // Authenticated owner precondition failures are instead returned by
+              // the core as sealed `refused` results.
+        }
+        if let Err(error) = transport.poll_resends() {
+            eprintln!("operator service resend transport error: {error:#}");
+        }
     }
 }
 
@@ -243,15 +292,135 @@ fn process_wire_frame_at(
 }
 
 pub fn read_operator_command_trust_anchor(path: &Path) -> Result<HostIdentityTrustAnchorEntry> {
+    // This is the Bifrost-owned boundary artifact: one raw compact MessagePack
+    // six-tuple. Epiphany's canonical exported `.cc` anchor is a CultCache
+    // envelope and intentionally is not accepted by this ingress reader.
     rmp_serde::from_slice(&std::fs::read(path)?)
         .map_err(|error| anyhow!("operator Bifrost trust anchor is malformed: {error}"))
+}
+
+pub fn write_operator_command_interop_fixture(
+    output: &Path,
+) -> Result<OperatorCommandInteropFixtureManifest> {
+    std::fs::create_dir_all(output)?;
+    let private = output.join(".fixture-private");
+    if private.exists() {
+        bail!("operator interop fixture private workspace already exists");
+    }
+    std::fs::create_dir(&private)?;
+    let generated = (|| -> Result<OperatorCommandInteropFixtureManifest> {
+        let bifrost = crate::enroll_host_identity_at(&private.join("bifrost.cc"))?;
+        let executor = crate::enroll_host_identity_at(&private.join("executor.cc"))?;
+        let bifrost_anchor =
+            crate::export_host_identity_trust_anchor(&bifrost, &private.join("bifrost-anchor.cc"))?;
+        let executor_anchor = crate::export_host_identity_trust_anchor(
+            &executor,
+            &output.join("executor-anchor.cc"),
+        )?;
+        let config = OperatorCommandServiceConfig {
+            command_store: private.join("commands.cc"),
+            local_verse_store: private.join("verse.cc"),
+            resident_self_store: private.join("resident.cc"),
+            policy: OperatorCommandPolicy {
+                runtime_id: "epiphany-interop-fixture".into(),
+                discord_guild_id: "fixture-guild".into(),
+                allowed_channel_ids: vec!["fixture-ops".into()],
+                actor_capabilities: std::collections::BTreeMap::from([(
+                    "fixture-actor".into(),
+                    vec![crate::OperatorCapability::Sleep],
+                )]),
+                max_ttl_seconds: 60,
+            },
+            trusted_bifrost_identity: bifrost_anchor.clone(),
+        };
+        let packet = crate::OperatorCommandPacket {
+            command_id: "fixture-command-1".into(),
+            nonce: "fixture-nonce-1".into(),
+            source_event_id: "fixture-event-1".into(),
+            source_actor_id: "fixture-actor".into(),
+            discord_guild_id: "fixture-guild".into(),
+            discord_channel_id: "fixture-ops".into(),
+            discord_message_id: "fixture-message-1".into(),
+            target_runtime_id: "epiphany-interop-fixture".into(),
+            issued_at: "2026-07-19T12:00:00Z".into(),
+            expires_at: "2026-07-19T12:01:00Z".into(),
+            command: crate::OperatorCommand::Sleep {
+                reason: "Interop fixture".into(),
+            },
+        };
+        let mut admission = BifrostOperatorCommandAdmission {
+            schema_name: BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE.into(),
+            schema_version: crate::BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
+            admission_id: "fixture-admission-1".into(),
+            packet_sha256: crate::operator_command_packet_sha256(&packet)?,
+            packet,
+            source_observer_id: "voidbot".into(),
+            source_observer_runtime_id: "fixture-bifrost".into(),
+            provider: "bifrost".into(),
+            bifrost_admission_receipt_id: "fixture-bifrost-receipt-1".into(),
+            authority: "exact_operator_command_only".into(),
+            provider_identity_id: bifrost.entry().identity_id.clone(),
+            provider_signature: Vec::new(),
+        };
+        admission.provider_signature = bifrost
+            .sign(
+                crate::operator_command_admission_signing_purpose(),
+                &crate::operator_command_admission_signing_payload(&admission)?,
+            )?
+            .signature;
+        let admission_bytes = rmp_serde::to_vec_named(&admission)?;
+        let receipt = execute_operator_command_admission(
+            &config,
+            &executor,
+            &admission_bytes,
+            "2026-07-19T12:00:01Z",
+        )?;
+        let receipt_bytes = rmp_serde::to_vec_named(&receipt)?;
+        std::fs::write(output.join("operator-admission.msgpack"), &admission_bytes)?;
+        std::fs::write(
+            output.join("bifrost-anchor.msgpack"),
+            rmp_serde::to_vec(&bifrost_anchor)?,
+        )?;
+        std::fs::write(
+            output.join("executor-anchor.msgpack"),
+            rmp_serde::to_vec(&executor_anchor)?,
+        )?;
+        std::fs::write(output.join("sealed-result.msgpack"), &receipt_bytes)?;
+        let manifest = OperatorCommandInteropFixtureManifest {
+            schema_version: "epiphany.operator_command.interop_fixture.v0".into(),
+            admission_file: "operator-admission.msgpack".into(),
+            bifrost_raw_trust_anchor_file: "bifrost-anchor.msgpack".into(),
+            executor_raw_trust_anchor_file: "executor-anchor.msgpack".into(),
+            executor_cultcache_trust_anchor_file: "executor-anchor.cc".into(),
+            sealed_result_file: "sealed-result.msgpack".into(),
+            admission_sha256: format!("sha256-{:x}", Sha256::digest(&admission_bytes)),
+            sealed_result_sha256: format!("sha256-{:x}", Sha256::digest(&receipt_bytes)),
+            admission_signing_purpose: crate::operator_command_admission_signing_purpose().into(),
+            result_signing_purpose: RESULT_SIGNING_PURPOSE.into(),
+            rudp_connection_id: EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
+            private_state_exposed: false,
+        };
+        std::fs::write(
+            output.join("manifest.json"),
+            serde_json::to_vec_pretty(&manifest)?,
+        )?;
+        Ok(manifest)
+    })();
+    let cleanup = std::fs::remove_dir_all(&private);
+    generated.and_then(|manifest| {
+        cleanup.context("failed to remove interop fixture private signing material")?;
+        Ok(manifest)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{OperatorCapability, OperatorCommand, OperatorCommandPacket};
+    use cultcache_rs::{CacheBackingStore, SingleFileMessagePackBackingStore};
     use std::collections::BTreeMap;
+    use std::thread;
+    use std::time::Instant;
 
     fn fixture(
         root: &Path,
@@ -431,6 +600,156 @@ mod tests {
             .is_err()
         );
         assert_eq!(std::fs::read(&config.command_store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn valid_command_succeeds_after_hostile_udp_on_same_service_instance() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (config, executor, bifrost) = fixture(temp.path())?;
+        let admission = admission(&bifrost)?;
+        let socket = UdpSocket::bind("127.0.0.1:0")?;
+        socket.set_read_timeout(Some(Duration::from_millis(20)))?;
+        let target = socket.local_addr()?;
+        let attacker = UdpSocket::bind("127.0.0.1:0")?;
+        attacker.send_to(b"not-cultnet-rudp", target)?;
+        let server = thread::spawn(move || -> Result<()> {
+            let mut transport = CultNetRudpSocketTransportConnection::new(
+                CultNetRudpSocketTransportOptions::server(
+                    &config.policy.runtime_id,
+                    socket,
+                    EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
+                ),
+            )?;
+            serve_operator_command_rudp_loop(
+                &mut transport,
+                &config,
+                &executor,
+                Some(100),
+                Some("2026-07-19T12:00:01Z"),
+            )
+        });
+
+        let request = CultNetMessage::DocumentPutRaw {
+            message_id: "post-hostile-request".into(),
+            document: CultNetRawDocumentRecord {
+                schema_id: BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE.into(),
+                record_key: admission.admission_id.clone(),
+                stored_at: admission.packet.issued_at.clone(),
+                payload_encoding: CultNetRawPayloadEncoding::Messagepack,
+                payload: rmp_serde::to_vec_named(&admission)?,
+                source_runtime_id: Some(admission.source_observer_runtime_id.clone()),
+                source_agent_id: Some(admission.provider_identity_id.clone()),
+                source_role: Some("bifrost-operator-admission".into()),
+                tags: Some(vec!["cultnet.transport.rudp.v0".into()]),
+            },
+        };
+        let client_socket = UdpSocket::bind("127.0.0.1:0")?;
+        client_socket.set_read_timeout(Some(Duration::from_millis(20)))?;
+        let mut client =
+            CultNetRudpSocketTransportConnection::new(CultNetRudpSocketTransportOptions::client(
+                "fixture-bifrost",
+                client_socket,
+                target,
+                EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
+            ))?;
+        client.connect(Vec::new())?;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !client.connected() {
+            let _ = client.receive_once()?;
+            client.poll_resends()?;
+            if Instant::now() >= deadline {
+                bail!("post-hostile client handshake timed out");
+            }
+        }
+        client.send(
+            "schema",
+            encode_cultnet_message_to_vec(&request, CultNetWireContract::CultNetSchemaV0)?,
+        )?;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let response = loop {
+            if let Some(frame) = client.receive_once()? {
+                break decode_cultnet_message_from_slice(
+                    &frame.payload,
+                    CultNetWireContract::CultNetSchemaV0,
+                )?;
+            }
+            client.poll_resends()?;
+            if Instant::now() >= deadline {
+                bail!("post-hostile sealed response timed out");
+            }
+        };
+        let CultNetMessage::DocumentPutRaw { document, .. } = response else {
+            bail!("post-hostile service returned non-document response");
+        };
+        assert_eq!(
+            document.schema_id,
+            EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE
+        );
+        let receipt: EpiphanyOperatorCommandResultReceipt =
+            rmp_serde::from_slice(&document.payload)?;
+        assert_eq!(receipt.command_id, admission.packet.command_id);
+        assert_eq!(receipt.packet_sha256, admission.packet_sha256);
+        server
+            .join()
+            .map_err(|_| anyhow!("operator service test thread panicked"))??;
+        Ok(())
+    }
+
+    #[test]
+    fn rust_fixture_contains_verifiable_bifrost_and_executor_bytes() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let manifest = write_operator_command_interop_fixture(temp.path())?;
+        assert_eq!(
+            manifest.rudp_connection_id,
+            EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID
+        );
+        assert!(!temp.path().join(".fixture-private").exists());
+
+        let admission_bytes = std::fs::read(temp.path().join(&manifest.admission_file))?;
+        let admission: BifrostOperatorCommandAdmission = rmp_serde::from_slice(&admission_bytes)?;
+        let bifrost_anchor: HostIdentityTrustAnchorEntry = rmp_serde::from_slice(&std::fs::read(
+            temp.path().join(&manifest.bifrost_raw_trust_anchor_file),
+        )?)?;
+        crate::verify_host_identity_trust_anchor_signature(
+            &bifrost_anchor,
+            crate::operator_command_admission_signing_purpose(),
+            &crate::operator_command_admission_signing_payload(&admission)?,
+            &crate::HostIdentitySignature {
+                identity_id: admission.provider_identity_id.clone(),
+                signature: admission.provider_signature.clone(),
+            },
+        )?;
+
+        let receipt_bytes = std::fs::read(temp.path().join(&manifest.sealed_result_file))?;
+        let receipt: EpiphanyOperatorCommandResultReceipt = rmp_serde::from_slice(&receipt_bytes)?;
+        let executor_anchor: HostIdentityTrustAnchorEntry = rmp_serde::from_slice(&std::fs::read(
+            temp.path().join(&manifest.executor_raw_trust_anchor_file),
+        )?)?;
+        let envelopes = SingleFileMessagePackBackingStore::new(
+            &temp
+                .path()
+                .join(&manifest.executor_cultcache_trust_anchor_file),
+        )
+        .pull_all()?;
+        assert_eq!(envelopes.len(), 1);
+        let canonical_anchor: HostIdentityTrustAnchorEntry =
+            rmp_serde::from_slice(&envelopes[0].payload)?;
+        assert_eq!(canonical_anchor, executor_anchor);
+        crate::verify_host_identity_trust_anchor_signature(
+            &executor_anchor,
+            RESULT_SIGNING_PURPOSE,
+            &operator_command_result_receipt_signing_payload(&receipt)?,
+            &crate::HostIdentitySignature {
+                identity_id: receipt.provider_identity_id.clone(),
+                signature: receipt.executor_signature.clone(),
+            },
+        )?;
+        let wire_result = rmp_serde::to_vec_named(&receipt.result)?;
+        assert_eq!(
+            receipt.result_payload_sha256,
+            format!("sha256-{:x}", Sha256::digest(wire_result))
+        );
         Ok(())
     }
 }

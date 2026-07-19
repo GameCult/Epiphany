@@ -155,6 +155,31 @@ VoidBot `provider-status`, `queue-codex`, and job approval operate VoidBot's own
 provider/job system and cannot stand in for Epiphany status, direction, or Mind
 review.
 
+## Rust/Bifrost boundary proof (2026-07-19)
+
+The Epiphany-owned command service now admits the exact signed Bifrost command,
+persists admission before consequence, recovers an identity-equal admitted
+command after packet expiry, and seals the truthful completion time. Packet
+expiry gates first admission; it is not a demand to falsify recovery time.
+Malformed UDP is contained inside the daemon loop, and the hostile smoke proves
+the same service instance can subsequently complete a CultNet/RUDP handshake
+and return the exact sealed receipt.
+
+`epiphany-operator-command-fixture` emits public Rust-produced interop bytes:
+the named admission and sealed receipt, raw compact Bifrost/executor trust
+anchors, the canonical executor CultCache `.cc`, and a hash/purpose/connection
+manifest. Private fixture signers are quarantined during generation and deleted
+before return. The ignored persistent smoke output lives at
+`.epiphany-smoke/operator-command-interop-rust`; regenerate it rather than
+committing generated signatures or private material.
+
+Bifrost's JavaScript smoke consumes those Rust bytes, verifies admission and
+receipt signatures plus payload digests, compares the real compact enum/byte
+shapes, and rejects mutation. That proof exposed two corrected boundary faults:
+Rust compact command enums are unit strings or `[variant, sole-field]` tuples,
+not named command maps, and MessagePack integer sequences must be normalized to
+exact byte arrays before signature verification.
+
 Addressing Epiphany currently queues a local VoidBot repo-Face turn and
 independently exports the visible prompt as remote feedback. There is not yet a
 correlated live Epiphany Persona speech result -> Bifrost Discord receipt ->

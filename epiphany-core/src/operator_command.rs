@@ -323,6 +323,7 @@ pub fn admit_and_execute_bifrost_operator_command(
     };
     let cache = command_cache(command_store)?;
     let prior_admission = cache.get::<LocalAdmittedOperatorCommand>(&packet.command_id)?;
+    let was_admitted = prior_admission.is_some();
     for prior in cache.get_all::<LocalAdmittedOperatorCommand>()? {
         if prior.source_actor_id == admitted.source_actor_id
             && prior.nonce == admitted.nonce
@@ -346,7 +347,9 @@ pub fn admit_and_execute_bifrost_operator_command(
     if let Some(existing) = cache.get::<OperatorCommandResult>(&result_id)? {
         return Ok(existing);
     }
-    validate_admission(admission, trusted_bifrost_identity, policy, now_dt, true)?;
+    if !was_admitted {
+        validate_admission(admission, trusted_bifrost_identity, policy, now_dt, true)?;
+    }
     if cache
         .get::<LocalAdmittedOperatorCommand>(&packet.command_id)?
         .as_ref()
@@ -992,7 +995,7 @@ mod tests {
             &admission,
             &anchor,
             &policy(),
-            "2026-07-19T12:00:03Z",
+            "2026-07-19T12:06:00Z",
         )?;
         assert_eq!(result.disposition, "applied");
         assert_eq!(resident_self_pressures(&resident)?, vec![pressure]);
