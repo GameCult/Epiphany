@@ -1,5 +1,30 @@
 # Fresh Workspace Handoff
 
+## Epiphany canonical signed-health publisher landed (2026-07-19)
+
+The Epiphany supervisor now publishes the generic canonical
+`idunn.signed_daemon_health.v1` 17-field positional CultCache record using a
+dedicated `GameCultProviderHealthIdentity`, exact `runtime_id`, release witness,
+source commit, deployment request, one UUID per supervisor process, and checked
+monotonic sequence. It no longer signs provider health with host identity or
+publishes the Epiphany-only v0 contract. Detail is a bounded generic reason and
+never carries process, path, contradiction, or workspace evidence.
+
+The existing `epiphany-daemon-supervisor` binary owns explicit immutable
+`provider-health-identity-enroll` and public-only
+`provider-health-identity-export` commands, so no package role was added. The
+serve path opens the private typed store only; it never creates identity during
+runtime. CultNet owner commit `a1001dc` now owns the shared signed record schema,
+17 keyed fields, and validation beside the provider identity and signing
+purpose. Focused publisher tests pass 6/6, supervisor tests 25/25, full core
+library 603/0/1, and a live isolated enroll/export smoke produced distinct
+private and public CultCache files without exposing private state.
+
+Next: advance Odin to the CultNet owner commit and remove/re-export its duplicate
+Rust signed-health record, then install root trust bindings and finish the Idunn
+public projection/query path. Status remains untouched until that chain is
+complete.
+
 ## Organizational Yggdrasil deployment is live and braked (2026-07-19)
 
 Epiphany's ordinary organizational product path is now deployed on Yggdrasil,
@@ -80,7 +105,7 @@ set atomically with per-pair projection/provider replay rules. Root key rotation
 is possible only through a newer pinned anchor whose binding follows prior
 admission/evaluation and whose new projection follows the binding; packet keys
 cannot rotate trust. Missing or invalid input never deletes prior admission.
-CultNet owner commit `014f998b97c37a34055ce0af069ebaead32d11fb`
+CultNet owner commit `a1001dc`
 supplies the shared contracts, identity verifier, pure query, and mature RUDP
 transport. Focused tests pass 5/5, full core library 606/0/1, and the sole
 integration target 1/1. Next migrate the two publishers and root bindings,

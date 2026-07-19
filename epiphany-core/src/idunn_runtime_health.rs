@@ -1,22 +1,17 @@
 use anyhow::{Context, Result, anyhow, bail};
+use cultcache_rs::DatabaseEntry;
 use cultnet_rs::{
     CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
     CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
-    encode_cultnet_message_to_vec,
+    GameCultProviderHealthIdentity, IdunnSignedDaemonHealthPurpose, IdunnSignedDaemonHealthRecord,
+    ServiceIdentitySigner, encode_cultnet_message_to_vec,
 };
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
 
-pub const IDUNN_DAEMON_HEALTH_TYPE: &str = "idunn.daemon_health";
-pub const IDUNN_DAEMON_HEALTH_SCHEMA_VERSION: &str = "idunn.daemon_health.v1";
-pub const EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE: &str = "epiphany.idunn_signed_runtime_health";
-pub const EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION: &str =
-    "epiphany.idunn_signed_runtime_health.v0";
 pub const EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT: &str = "epiphany.cultnet-rudp-runtime-health";
 pub const CULTNET_RUDP_PROTOCOL_ID: &str = "cultnet.transport.rudp.v0";
-// Shared Idunn daemon-health RUDP contract. This must match the Idunn ingress
-// constant; a private Epiphany connection id cannot complete the handshake.
 const IDUNN_HEALTH_RUDP_CONNECTION_ID: u32 = 0x1d0d_0001;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,26 +25,6 @@ pub struct IdunnDaemonHealthDocument {
     pub transport: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EpiphanySignedRuntimeHealthDocument {
-    pub schema_version: String,
-    pub health: IdunnDaemonHealthDocument,
-    pub source_runtime_id: String,
-    pub release_id: String,
-    pub release_witness_sha256: String,
-    pub source_commit: String,
-    pub deployment_request_id: String,
-    pub publisher_incarnation_id: String,
-    pub publisher_sequence: u64,
-    pub publisher_process_id: u32,
-    pub publisher_process_creation_token: u64,
-    pub publisher_process_created_at: String,
-    pub publisher_executable_path: String,
-    pub signer_identity_id: String,
-    pub signature_algorithm: String,
-    pub signature: Vec<u8>,
-}
-
 pub fn sign_epiphany_runtime_health(
     health: IdunnDaemonHealthDocument,
     source_runtime_id: &str,
@@ -59,38 +34,41 @@ pub fn sign_epiphany_runtime_health(
     deployment_request_id: &str,
     publisher_incarnation_id: &str,
     publisher_sequence: u64,
-    process: &crate::ProcessInstanceIdentity,
-    signer: &crate::HostIdentitySigner,
-) -> Result<EpiphanySignedRuntimeHealthDocument> {
+    signer: &ServiceIdentitySigner<GameCultProviderHealthIdentity>,
+) -> Result<IdunnSignedDaemonHealthRecord> {
     validate_health_document(&health)?;
-    let mut document = EpiphanySignedRuntimeHealthDocument {
-        schema_version: EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION.into(),
-        health,
+    let observed_at_unix_millis = chrono::DateTime::parse_from_rfc3339(&health.observed_at)?
+        .timestamp_millis()
+        .try_into()
+        .context("runtime health observation precedes Unix epoch")?;
+    let mut record = IdunnSignedDaemonHealthRecord {
+        schema_version: "idunn.signed_daemon_health.v1".into(),
+        daemon_id: health.daemon_id,
+        health_contract: health.health_contract,
         source_runtime_id: source_runtime_id.into(),
-        release_id: release_id.into(),
-        release_witness_sha256: release_witness_sha256.into(),
-        source_commit: source_commit.into(),
-        deployment_request_id: deployment_request_id.into(),
+        state: health.state,
+        detail: health.detail,
+        signer_identity_id: signer.entry().identity_id.clone(),
         publisher_incarnation_id: publisher_incarnation_id.into(),
         publisher_sequence,
-        publisher_process_id: process.process_id,
-        publisher_process_creation_token: process.creation_token,
-        publisher_process_created_at: process
-            .created_at_rfc3339
-            .clone()
-            .context("runtime health publisher process creation time is unavailable")?,
-        publisher_executable_path: process.executable_path.display().to_string(),
-        signer_identity_id: signer.entry().identity_id.clone(),
+        observed_at_unix_millis,
+        release_id: Some(release_id.into()),
+        release_witness_sha256: Some(release_witness_sha256.into()),
+        source_commit: Some(source_commit.into()),
+        deployment_id: Some(deployment_request_id.into()),
         signature_algorithm: "ed25519".into(),
         signature: Vec::new(),
+        private_state_exposed: false,
     };
-    validate_signed_health_shape(&document, false)?;
-    let statement = signed_health_statement(&document)?;
-    document.signature = signer
-        .sign(EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE, &statement)?
-        .signature;
-    validate_signed_health_shape(&document, true)?;
-    Ok(document)
+    validate_unsigned_record(&record)?;
+    let canonical = canonical_unsigned_record(&record)?;
+    let proof = signer.sign::<IdunnSignedDaemonHealthPurpose>(&canonical);
+    if proof.identity_id != record.signer_identity_id {
+        bail!("provider-health signer identity disagrees with record")
+    }
+    record.signature = proof.signature;
+    record.validate()?;
+    Ok(record)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,93 +101,67 @@ pub fn derive_epiphany_aggregate_runtime_health(
     {
         bail!("managed service health counts exceed the expected service count");
     }
-
     let (state, detail) = if !input.contradictions.is_empty() {
-        (
-            "failed",
-            format!(
-                "Epiphany runtime authority is contradictory: {}",
-                input.contradictions.join("; ")
-            ),
-        )
+        ("failed", "runtime-contradiction")
     } else if !input.release_authenticated {
-        (
-            "failed",
-            "Epiphany packaged release authentication failed.".to_string(),
-        )
+        ("failed", "release-authentication-failed")
     } else if input.terminal_current_service_count == input.expected_service_count {
-        (
-            "active",
-            format!(
-                "Epiphany packaged release and all {} managed services have terminal current authority.",
-                input.expected_service_count
-            ),
-        )
+        ("active", "managed-services-current")
     } else if input.warming_service_count > 0
         && input
             .terminal_current_service_count
             .saturating_add(input.warming_service_count)
             == input.expected_service_count
     {
-        (
-            "warming",
-            format!(
-                "Epiphany is advancing authenticated durable work: {} terminal current, {} warming, {} expected.",
-                input.terminal_current_service_count,
-                input.warming_service_count,
-                input.expected_service_count
-            ),
-        )
+        ("warming", "managed-services-warming")
     } else {
-        (
-            "degraded",
-            format!(
-                "Epiphany is reconciling managed services: {} terminal current, {} warming, {} expected.",
-                input.terminal_current_service_count,
-                input.warming_service_count,
-                input.expected_service_count
-            ),
-        )
+        ("degraded", "managed-services-reconciling")
     };
-
     Ok(IdunnDaemonHealthDocument {
         daemon_id: input.daemon_id,
-        state: state.to_string(),
-        detail,
+        state: state.into(),
+        detail: detail.into(),
         observed_at: input.observed_at,
         health_contract: input.health_contract,
-        publication_source: "daemon-published".to_string(),
-        transport: CULTNET_RUDP_PROTOCOL_ID.to_string(),
+        publication_source: "daemon-published".into(),
+        transport: CULTNET_RUDP_PROTOCOL_ID.into(),
     })
 }
 
 pub fn publish_idunn_daemon_health_rudp(
     endpoint: SocketAddr,
     source_runtime_id: &str,
-    signed: &EpiphanySignedRuntimeHealthDocument,
+    signed: &IdunnSignedDaemonHealthRecord,
 ) -> Result<()> {
-    validate_signed_health_shape(signed, true)?;
+    signed.validate()?;
     require_id(source_runtime_id, "health publisher runtime id")?;
     if source_runtime_id != signed.source_runtime_id {
         bail!("health transport source disagrees with signed source runtime");
     }
+    let payload = rmp_serde::to_vec(signed).context("encoding canonical signed Idunn health")?;
+    let decoded: IdunnSignedDaemonHealthRecord = rmp_serde::from_slice(&payload)?;
+    if decoded != *signed || rmp_serde::to_vec(&decoded)? != payload {
+        bail!("signed Idunn health encoding is noncanonical");
+    }
     let message = CultNetMessage::DocumentPutRaw {
         message_id: format!(
-            "epiphany-health:{}:{}",
-            signed.health.daemon_id,
-            signed.health.observed_at.replace(':', "-")
+            "epiphany-signed-health:{}:{}:{}",
+            signed.daemon_id, signed.publisher_incarnation_id, signed.publisher_sequence
         ),
         document: CultNetRawDocumentRecord {
-            schema_id: EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE.to_string(),
-            record_key: signed.health.daemon_id.clone(),
-            stored_at: signed.health.observed_at.clone(),
+            schema_id: IdunnSignedDaemonHealthRecord::TYPE.into(),
+            record_key: signed.daemon_id.clone(),
+            stored_at: chrono::DateTime::from_timestamp_millis(
+                signed.observed_at_unix_millis.try_into()?,
+            )
+            .context("signed health observation time is invalid")?
+            .to_rfc3339(),
             payload_encoding: CultNetRawPayloadEncoding::Messagepack,
-            payload: rmp_serde::to_vec_named(signed)
-                .context("encoding signed Epiphany Idunn daemon health")?,
-            source_runtime_id: Some(source_runtime_id.to_string()),
-            source_agent_id: None,
-            source_role: Some("daemon-health-publisher".to_string()),
-            tags: Some(vec![CULTNET_RUDP_PROTOCOL_ID.to_string()]),
+            payload,
+            source_runtime_id: Some(source_runtime_id.into()),
+            source_agent_id: Some(signed.signer_identity_id.clone()),
+            source_role: Some("signed-daemon-health-publisher".into()),
+            tags: Some(vec![CULTNET_RUDP_PROTOCOL_ID.into()]),
         },
     };
     let bind = if endpoint.is_ipv4() {
@@ -238,80 +190,29 @@ pub fn publish_idunn_daemon_health_rudp(
             ));
         }
     }
-    let payload = encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)
-        .context("encoding Idunn health CultNet message")?;
-    transport
-        .send("schema", payload)
-        .with_context(|| format!("sending Epiphany Idunn health to {endpoint}"))
+    transport.send(
+        "schema",
+        encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?,
+    )?;
+    Ok(())
 }
 
-fn signed_health_statement(document: &EpiphanySignedRuntimeHealthDocument) -> Result<Vec<u8>> {
-    let mut unsigned = document.clone();
+fn canonical_unsigned_record(record: &IdunnSignedDaemonHealthRecord) -> Result<Vec<u8>> {
+    let mut unsigned = record.clone();
     unsigned.signature.clear();
-    validate_signed_health_shape(&unsigned, false)?;
-    rmp_serde::to_vec_named(&unsigned).context("encoding signed runtime health statement")
+    validate_unsigned_record(&unsigned)?;
+    rmp_serde::to_vec(&unsigned).context("encoding canonical unsigned Idunn health")
 }
 
-fn validate_signed_health_shape(
-    document: &EpiphanySignedRuntimeHealthDocument,
-    signed: bool,
-) -> Result<()> {
-    if document.schema_version != EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION {
-        bail!("signed Epiphany runtime health schema is invalid");
+fn validate_unsigned_record(record: &IdunnSignedDaemonHealthRecord) -> Result<()> {
+    if !record.signature.is_empty() {
+        bail!("unsigned signing record already contains a signature");
     }
-    validate_health_document(&document.health)?;
-    for (label, value) in [
-        ("source runtime id", document.source_runtime_id.as_str()),
-        ("release id", document.release_id.as_str()),
-        ("source commit", document.source_commit.as_str()),
-        (
-            "deployment request id",
-            document.deployment_request_id.as_str(),
-        ),
-        (
-            "publisher incarnation id",
-            document.publisher_incarnation_id.as_str(),
-        ),
-        (
-            "publisher process creation time",
-            document.publisher_process_created_at.as_str(),
-        ),
-        (
-            "publisher executable path",
-            document.publisher_executable_path.as_str(),
-        ),
-        ("signer identity id", document.signer_identity_id.as_str()),
-    ] {
-        require_id(value, label)?;
-    }
-    uuid::Uuid::parse_str(&document.publisher_incarnation_id)
+    let mut signed_shape = record.clone();
+    signed_shape.signature = vec![0; 64];
+    signed_shape.validate()?;
+    uuid::Uuid::parse_str(&record.publisher_incarnation_id)
         .context("publisher incarnation id must be UUID")?;
-    if document.publisher_sequence == 0
-        || document.publisher_process_id == 0
-        || document.publisher_process_creation_token == 0
-    {
-        bail!("signed Epiphany runtime health publisher identity is invalid");
-    }
-    chrono::DateTime::parse_from_rfc3339(&document.publisher_process_created_at)?;
-    let witness = document
-        .release_witness_sha256
-        .strip_prefix("sha256-")
-        .unwrap_or(&document.release_witness_sha256);
-    if witness.len() != 64
-        || !witness
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-        || document.source_commit.len() != 40
-        || !document
-            .source_commit
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-        || document.signature_algorithm != "ed25519"
-        || (signed && document.signature.len() != 64)
-        || (!signed && !document.signature.is_empty())
-    {
-        bail!("signed Epiphany runtime health cryptographic shape is invalid");
-    }
     Ok(())
 }
 
@@ -325,17 +226,28 @@ fn validate_health_document(health: &IdunnDaemonHealthDocument) -> Result<()> {
     ) {
         bail!("unsupported Idunn daemon health state");
     }
+    if !matches!(
+        health.detail.as_str(),
+        "runtime-contradiction"
+            | "release-authentication-failed"
+            | "managed-services-current"
+            | "managed-services-warming"
+            | "managed-services-reconciling"
+    ) {
+        bail!("Idunn daemon health detail is not a bounded generic reason");
+    }
     if health.publication_source != "daemon-published"
         || health.transport != CULTNET_RUDP_PROTOCOL_ID
     {
         bail!("Idunn daemon health publication authority is invalid");
     }
+    chrono::DateTime::parse_from_rfc3339(&health.observed_at)?;
     Ok(())
 }
 
 fn require_id(value: &str, label: &str) -> Result<()> {
-    if value.trim().is_empty() {
-        bail!("{label} is required");
+    if value.trim().is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+        bail!("{label} is empty, oversized, or contains control characters");
     }
     Ok(())
 }
@@ -343,30 +255,16 @@ fn require_id(value: &str, label: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cultnet_rs::decode_cultnet_message_from_slice;
+    use cultnet_rs::{
+        ServiceIdentityProfile, ServiceIdentitySignature, ServiceSignaturePurpose,
+        decode_cultnet_message_from_slice, enroll_service_identity_at,
+        verify_service_identity_signature,
+    };
     use std::thread;
 
-    fn signed_health(health: IdunnDaemonHealthDocument) -> EpiphanySignedRuntimeHealthDocument {
-        let root = tempfile::tempdir().unwrap();
-        let signer = crate::enroll_host_identity_at(&root.path().join("host.ccmp")).unwrap();
-        sign_epiphany_runtime_health(
-            health,
-            "epiphany-daemon-supervisor",
-            "release-test",
-            &format!("sha256-{}", "a".repeat(64)),
-            &"b".repeat(40),
-            "deploy-request-test",
-            "00000000-0000-4000-8000-000000000001",
-            1,
-            &crate::ProcessInstanceIdentity {
-                process_id: 42,
-                creation_token: 7,
-                created_at_rfc3339: Some("2026-07-16T00:00:00Z".into()),
-                executable_path: std::path::PathBuf::from("/srv/epiphany/supervisor"),
-            },
-            &signer,
-        )
-        .unwrap()
+    struct WrongPurpose;
+    impl ServiceSignaturePurpose<GameCultProviderHealthIdentity> for WrongPurpose {
+        const PURPOSE: &'static [u8] = b"wrong-purpose";
     }
 
     fn input(current: usize) -> EpiphanyAggregateRuntimeHealthInput {
@@ -382,69 +280,186 @@ mod tests {
         }
     }
 
+    fn signed_health() -> (
+        tempfile::TempDir,
+        ServiceIdentitySigner<GameCultProviderHealthIdentity>,
+        IdunnSignedDaemonHealthRecord,
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let signer = enroll_service_identity_at::<GameCultProviderHealthIdentity>(
+            &root.path().join("provider.cc"),
+        )
+        .unwrap();
+        let record = sign_epiphany_runtime_health(
+            derive_epiphany_aggregate_runtime_health(input(2)).unwrap(),
+            "epiphany-yggdrasil",
+            "release-test",
+            &format!("sha256-{}", "a".repeat(64)),
+            &"b".repeat(40),
+            "deploy-request-test",
+            "00000000-0000-4000-8000-000000000001",
+            1,
+            &signer,
+        )
+        .unwrap();
+        (root, signer, record)
+    }
+
     #[test]
-    fn aggregate_health_requires_every_current_lineage() {
+    fn aggregate_health_uses_closed_nonprivate_reasons() {
         assert_eq!(
             derive_epiphany_aggregate_runtime_health(input(2))
                 .unwrap()
-                .state,
-            "active"
+                .detail,
+            "managed-services-current"
         );
+        let mut warming = input(1);
+        warming.warming_service_count = 1;
         assert_eq!(
-            derive_epiphany_aggregate_runtime_health(input(1))
+            derive_epiphany_aggregate_runtime_health(warming)
                 .unwrap()
-                .state,
-            "degraded"
+                .detail,
+            "managed-services-warming"
         );
-    }
-
-    #[test]
-    fn aggregate_health_names_authenticated_nonterminal_work_as_warming() {
-        let mut value = input(1);
-        value.warming_service_count = 1;
-        let health = derive_epiphany_aggregate_runtime_health(value).unwrap();
-        assert_eq!(health.state, "warming");
-        assert!(health.detail.contains("1 terminal current, 1 warming"));
-    }
-
-    #[test]
-    fn warming_cannot_hide_a_missing_required_service() {
-        let mut value = input(0);
-        value.warming_service_count = 1;
-        assert_eq!(
-            derive_epiphany_aggregate_runtime_health(value)
-                .unwrap()
-                .state,
-            "degraded"
-        );
-    }
-
-    #[test]
-    fn aggregate_health_fails_authenticated_contradictions() {
-        let mut value = input(2);
-        value
+        let mut failed = input(2);
+        failed
             .contradictions
-            .push("semantic child uses stale policy".into());
-        let health = derive_epiphany_aggregate_runtime_health(value).unwrap();
-        assert_eq!(health.state, "failed");
-        assert!(health.detail.contains("stale policy"));
+            .push("secret path and process detail".into());
+        assert_eq!(
+            derive_epiphany_aggregate_runtime_health(failed)
+                .unwrap()
+                .detail,
+            "runtime-contradiction"
+        );
     }
 
     #[test]
-    fn semantic_sight_cannot_substitute_for_runtime_lineage() {
-        let health = derive_epiphany_aggregate_runtime_health(input(0)).unwrap();
-        assert_ne!(health.state, "active");
+    fn canonical_record_binds_exact_release_and_process_continuity() {
+        let (_root, signer, record) = signed_health();
+        assert_eq!(record.source_runtime_id, "epiphany-yggdrasil");
+        assert_eq!(record.release_id.as_deref(), Some("release-test"));
+        assert_eq!(record.deployment_id.as_deref(), Some("deploy-request-test"));
+        assert_eq!(record.publisher_sequence, 1);
+        assert!(!record.private_state_exposed);
+        let statement = canonical_unsigned_record(&record).unwrap();
+        let proof = ServiceIdentitySignature {
+            identity_id: record.signer_identity_id.clone(),
+            signature: record.signature.clone(),
+        };
+        verify_service_identity_signature::<
+            GameCultProviderHealthIdentity,
+            IdunnSignedDaemonHealthPurpose,
+        >(&signer.trust_anchor().unwrap(), &statement, &proof)
+        .unwrap();
+        assert_eq!(&statement[..3], &[0xdc, 0, 17]);
     }
 
     #[test]
-    fn health_document_rejects_alien_publication_authority() {
-        let mut health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
-        health.publication_source = "probe".into();
-        assert!(validate_health_document(&health).is_err());
+    fn wrong_purpose_key_mutation_and_noncanonical_encoding_fail() {
+        let (_root, signer, record) = signed_health();
+        let statement = canonical_unsigned_record(&record).unwrap();
+        let wrong = signer.sign::<WrongPurpose>(&statement);
+        assert!(
+            verify_service_identity_signature::<
+                GameCultProviderHealthIdentity,
+                IdunnSignedDaemonHealthPurpose,
+            >(&signer.trust_anchor().unwrap(), &statement, &wrong)
+            .is_err()
+        );
+        let other_root = tempfile::tempdir().unwrap();
+        let other = enroll_service_identity_at::<GameCultProviderHealthIdentity>(
+            &other_root.path().join("other.cc"),
+        )
+        .unwrap();
+        let proof = ServiceIdentitySignature {
+            identity_id: record.signer_identity_id.clone(),
+            signature: record.signature.clone(),
+        };
+        assert!(
+            verify_service_identity_signature::<
+                GameCultProviderHealthIdentity,
+                IdunnSignedDaemonHealthPurpose,
+            >(&other.trust_anchor().unwrap(), &statement, &proof)
+            .is_err()
+        );
+        let mut mutated = record.clone();
+        mutated.state = "failed".into();
+        assert!(
+            verify_service_identity_signature::<
+                GameCultProviderHealthIdentity,
+                IdunnSignedDaemonHealthPurpose,
+            >(
+                &signer.trust_anchor().unwrap(),
+                &canonical_unsigned_record(&mutated).unwrap(),
+                &proof
+            )
+            .is_err()
+        );
+        let named = rmp_serde::to_vec(&serde_json::json!({
+            "schema_version": record.schema_version,
+            "daemon_id": record.daemon_id,
+            "health_contract": record.health_contract,
+            "source_runtime_id": record.source_runtime_id,
+            "state": record.state,
+            "detail": record.detail,
+            "signer_identity_id": record.signer_identity_id,
+            "publisher_incarnation_id": record.publisher_incarnation_id,
+            "publisher_sequence": record.publisher_sequence,
+            "observed_at_unix_millis": record.observed_at_unix_millis,
+            "release_id": record.release_id,
+            "release_witness_sha256": record.release_witness_sha256,
+            "source_commit": record.source_commit,
+            "deployment_id": record.deployment_id,
+            "signature_algorithm": record.signature_algorithm,
+            "signature": [],
+            "private_state_exposed": record.private_state_exposed,
+        }))
+        .unwrap();
+        assert!(
+            verify_service_identity_signature::<
+                GameCultProviderHealthIdentity,
+                IdunnSignedDaemonHealthPurpose,
+            >(&signer.trust_anchor().unwrap(), &named, &proof)
+            .is_err()
+        );
     }
 
     #[test]
-    fn rudp_publisher_emits_exact_messagepack_health_document() {
+    fn sequence_and_incarnation_are_strict() {
+        let (_root, signer, record) = signed_health();
+        let health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
+        assert!(
+            sign_epiphany_runtime_health(
+                health.clone(),
+                "epiphany-yggdrasil",
+                "r",
+                &format!("sha256-{}", "a".repeat(64)),
+                &"b".repeat(40),
+                "d",
+                "bad",
+                2,
+                &signer
+            )
+            .is_err()
+        );
+        assert!(
+            sign_epiphany_runtime_health(
+                health,
+                "epiphany-yggdrasil",
+                "r",
+                &format!("sha256-{}", "a".repeat(64)),
+                &"b".repeat(40),
+                "d",
+                &record.publisher_incarnation_id,
+                0,
+                &signer
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rudp_publisher_emits_exact_canonical_tuple() {
         let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
         socket
             .set_read_timeout(Some(Duration::from_millis(100)))
@@ -469,40 +484,34 @@ mod tests {
                     .unwrap();
                 }
                 transport.poll_resends().unwrap();
-                assert!(Instant::now() < deadline, "health frame timed out");
+                assert!(Instant::now() < deadline);
             }
         });
-        let health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
-        let signed = signed_health(health.clone());
-        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &signed).unwrap();
+        let (_root, _signer, record) = signed_health();
+        publish_idunn_daemon_health_rudp(endpoint, "epiphany-yggdrasil", &record).unwrap();
         let CultNetMessage::DocumentPutRaw { document, .. } = server.join().unwrap() else {
-            panic!("publisher emitted a non-document message")
+            panic!("wrong message")
         };
-        assert_eq!(document.schema_id, EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE);
-        assert_eq!(document.record_key, health.daemon_id);
+        assert_eq!(document.schema_id, IdunnSignedDaemonHealthRecord::TYPE);
         assert_eq!(
-            document.payload_encoding,
-            CultNetRawPayloadEncoding::Messagepack
+            document.source_role.as_deref(),
+            Some("signed-daemon-health-publisher")
         );
-        let decoded: EpiphanySignedRuntimeHealthDocument =
+        let decoded: IdunnSignedDaemonHealthRecord =
             rmp_serde::from_slice(&document.payload).unwrap();
-        assert_eq!(decoded, signed);
+        assert_eq!(decoded, record);
+        assert_eq!(rmp_serde::to_vec(&decoded).unwrap(), document.payload);
     }
 
     #[test]
-    fn rudp_publisher_fails_closed_when_idunn_does_not_accept() {
-        let reserved = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let endpoint = reserved.local_addr().unwrap();
-        drop(reserved);
-        let health = signed_health(derive_epiphany_aggregate_runtime_health(input(2)).unwrap());
-        assert!(
-            publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health,)
-                .is_err()
+    fn identity_profile_is_not_host_identity() {
+        assert_eq!(
+            GameCultProviderHealthIdentity::TRUST_ANCHOR_SCHEMA,
+            "gamecult.provider_health_identity.trust_anchor.v1"
         );
-    }
-
-    #[test]
-    fn rudp_publisher_uses_the_idunn_daemon_health_connection_contract() {
-        assert_eq!(IDUNN_HEALTH_RUDP_CONNECTION_ID, 0x1d0d_0001);
+        assert_ne!(
+            GameCultProviderHealthIdentity::ID_DOMAIN,
+            b"epiphany.host-incarnation.identity.v0\0"
+        );
     }
 }

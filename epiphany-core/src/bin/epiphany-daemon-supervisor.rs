@@ -3,6 +3,10 @@ use anyhow::Result;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+use cultnet_rs::{
+    GameCultProviderHealthIdentity, ServiceIdentitySigner, enroll_service_identity_at,
+    export_service_identity_trust_anchor, open_service_identity_at,
+};
 use ed25519_dalek::SigningKey;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
@@ -191,6 +195,8 @@ fn dispatch(args: Args) -> Result<()> {
         "managed-service-task-uninstall" => managed_service_task_control(args, "uninstall"),
         "migrate-retired-operator-status" => migrate_retired_operator_status(args),
         "migrate-semantic-attempts-v0" => migrate_semantic_attempts_v0(args),
+        "provider-health-identity-enroll" => provider_health_identity_enroll(args),
+        "provider-health-identity-export" => provider_health_identity_export(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
         "service-plan" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
@@ -266,6 +272,46 @@ fn append_fatal_log(path: &Path, error: &anyhow::Error) -> Result<()> {
         .append(true)
         .open(path)?;
     writeln!(file, "{} {}", Utc::now().to_rfc3339(), error)?;
+    Ok(())
+}
+
+fn provider_health_identity_enroll(args: Args) -> Result<()> {
+    let path = args.idunn_provider_health_identity_store.context(
+        "provider-health identity enrollment requires --idunn-provider-health-identity-store",
+    )?;
+    let signer = enroll_service_identity_at::<GameCultProviderHealthIdentity>(&path)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.provider_health_identity_enrollment.v1",
+            "identityId": signer.entry().identity_id,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
+}
+
+fn provider_health_identity_export(args: Args) -> Result<()> {
+    let private = args.idunn_provider_health_identity_store.context(
+        "provider-health identity export requires --idunn-provider-health-identity-store",
+    )?;
+    let public = args.idunn_provider_health_public_anchor.context(
+        "provider-health identity export requires --idunn-provider-health-public-anchor",
+    )?;
+    if private == public {
+        anyhow::bail!("provider-health private identity and public anchor paths must differ");
+    }
+    let signer = open_service_identity_at::<GameCultProviderHealthIdentity>(&private)?;
+    export_service_identity_trust_anchor(&signer, &public)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.provider_health_identity_export.v1",
+            "identityId": signer.entry().identity_id,
+            "publicAnchor": public,
+            "privateStateExposed": false,
+        }))?
+    );
     Ok(())
 }
 
@@ -858,9 +904,12 @@ fn managed_service_serve(args: Args) -> Result<()> {
     if fs::canonicalize(env::current_exe()?)? != expected_supervisor {
         anyhow::bail!("managed-service reconciler executable is not the pinned release supervisor");
     }
-    let health_signer = open_default_host_identity()?;
+    let health_signer = args
+        .idunn_provider_health_identity_store
+        .as_deref()
+        .map(open_service_identity_at::<GameCultProviderHealthIdentity>)
+        .transpose()?;
     let health_publisher_incarnation = Uuid::new_v4().to_string();
-    let health_publisher_process = capture_process_instance(std::process::id())?;
     let mut iteration = 0_u64;
     loop {
         let (release, release_witness_sha256) = pinned_packaged_release(&args, true)?;
@@ -881,8 +930,7 @@ fn managed_service_serve(args: Args) -> Result<()> {
             &policies,
             &health_publisher_incarnation,
             iteration,
-            &health_publisher_process,
-            &health_signer,
+            health_signer.as_ref(),
         );
         println!(
             "{}",
@@ -912,13 +960,13 @@ fn publish_managed_service_iteration_health(
     policies: &[EpiphanyCultMeshManagedServicePolicyEntry],
     publisher_incarnation_id: &str,
     publisher_sequence: u64,
-    publisher_process: &ProcessInstanceIdentity,
-    health_signer: &epiphany_core::HostIdentitySigner,
+    health_signer: Option<&ServiceIdentitySigner<GameCultProviderHealthIdentity>>,
 ) {
-    let (Some(endpoint), Some(daemon_id), Some(health_contract)) = (
+    let (Some(endpoint), Some(daemon_id), Some(health_contract), Some(health_signer)) = (
         args.idunn_rudp_health,
         args.idunn_daemon.as_deref(),
         args.idunn_health_contract.as_deref(),
+        health_signer,
     ) else {
         return;
     };
@@ -929,7 +977,6 @@ fn publish_managed_service_iteration_health(
     let mut expected = required.len();
     let mut terminal_current = 0_usize;
     let mut warming = 0_usize;
-    let mut workspace_evidence = None;
     let mut contradictions = Vec::new();
     if let (Some(heartbeat_store), Some(resident_store)) = (
         args.resident_heartbeat_store.as_deref(),
@@ -1044,15 +1091,8 @@ fn publish_managed_service_iteration_health(
                     &args.runtime_id,
                     host.entry(),
                 ) {
-                    Ok(Some(authority)) => {
+                    Ok(Some(_authority)) => {
                         terminal_current += 1;
-                        workspace_evidence = Some(format!(
-                            "workspaceTerminalReceiptId={} workspacePlanId={} workspaceBodyObservationId={} workspaceBodyGeneration={}",
-                            authority.receipt_id,
-                            authority.plan_id,
-                            authority.body_observation_id,
-                            authority.body_generation
-                        ));
                     }
                     Ok(None) => {
                         let launch = match load_latest_workspace_coverage_managed_process_launch(
@@ -1083,11 +1123,6 @@ fn publish_managed_service_iteration_health(
                                     Ok(advanced) if Utc::now().signed_duration_since(advanced) >= Duration::zero()
                                         && Utc::now().signed_duration_since(advanced) <= Duration::seconds(WORKSPACE_PROGRESS_NO_ADVANCE_LEASE_SECONDS) => {
                                             warming += 1;
-                                            workspace_evidence = Some(format!(
-                                                "workspaceProgressId={} workspaceCheckpointId={} workspacePlanId={} workspaceCompletedUnits={} workspaceTotalUnits={} workspaceLastAdvancedAt={}",
-                                                authority.progress_id, authority.checkpoint_id, authority.plan_id,
-                                                authority.completed_units, authority.total_units, authority.last_advanced_at_utc
-                                            ));
                                         }
                                     Ok(_) => contradictions.push("workspace advancement sight exceeded the supervisor no-advance lease".into()),
                                     Err(error) => contradictions.push(format!("workspace advancement sight time is invalid: {error:#}")),
@@ -1126,22 +1161,14 @@ fn publish_managed_service_iteration_health(
         warming_service_count: warming,
         contradictions,
     });
-    match health.and_then(|mut health| {
+    match health.and_then(|health| {
         let witness_sha256 = epiphany_packaged_release_witness_sha256(release)?;
         if witness_sha256 != authenticated_release_witness_sha256 {
             anyhow::bail!("aggregate health release witness changed after authentication");
         }
-        health.detail.push_str(&format!(
-            " releaseId={} witnessSha256={} sourceCommit={}",
-            release.release_id, witness_sha256, release.source_commit_sha
-        ));
-        if let Some(evidence) = &workspace_evidence {
-            health.detail.push(' ');
-            health.detail.push_str(evidence);
-        }
         let signed = sign_epiphany_runtime_health(
             health,
-            "epiphany-daemon-supervisor",
+            &args.runtime_id,
             &release.release_id,
             &witness_sha256,
             &release.source_commit_sha,
@@ -1150,10 +1177,9 @@ fn publish_managed_service_iteration_health(
                 .context("aggregate health requires --idunn-deployment-request-id")?,
             publisher_incarnation_id,
             publisher_sequence,
-            publisher_process,
             health_signer,
         )?;
-        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &signed)
+        publish_idunn_daemon_health_rudp(endpoint, &args.runtime_id, &signed)
     }) {
         Ok(()) => {}
         Err(error) => eprintln!("Epiphany could not publish aggregate Idunn health: {error:#}"),
@@ -5030,18 +5056,30 @@ mod semantic_projector_authority_tests {
     #[test]
     fn idunn_health_configuration_is_explicit_and_all_or_none() {
         let endpoint: SocketAddr = "127.0.0.1:17870".parse().unwrap();
-        assert!(validate_idunn_health_options(None, None, None, None).is_ok());
+        let identity_store = Path::new("provider-health.cc");
+        assert!(validate_idunn_health_options(None, None, None, None, None).is_ok());
         assert!(
             validate_idunn_health_options(
                 Some(&endpoint),
                 Some("yggdrasil-epiphany"),
                 Some("epiphany.cultnet-rudp-runtime-health"),
                 Some("deploy-request-test"),
+                Some(identity_store),
             )
             .is_ok()
         );
-        assert!(validate_idunn_health_options(Some(&endpoint), None, None, None).is_err());
-        assert!(validate_idunn_health_options(None, Some("epiphany"), None, None).is_err());
+        assert!(validate_idunn_health_options(Some(&endpoint), None, None, None, None).is_err());
+        assert!(validate_idunn_health_options(None, Some("epiphany"), None, None, None).is_err());
+        assert!(
+            validate_idunn_health_options(
+                Some(&endpoint),
+                Some("yggdrasil-epiphany"),
+                Some("epiphany.cultnet-rudp-runtime-health"),
+                Some("deploy-request-test"),
+                None,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -5172,6 +5210,8 @@ struct Args {
     idunn_daemon: Option<String>,
     idunn_health_contract: Option<String>,
     idunn_deployment_request_id: Option<String>,
+    idunn_provider_health_identity_store: Option<PathBuf>,
+    idunn_provider_health_public_anchor: Option<PathBuf>,
     resident_heartbeat_store: Option<PathBuf>,
     resident_self_store: Option<PathBuf>,
     resident_provider_stale_seconds: u64,
@@ -5232,6 +5272,8 @@ impl Args {
         let mut idunn_daemon = None;
         let mut idunn_health_contract = None;
         let mut idunn_deployment_request_id = None;
+        let mut idunn_provider_health_identity_store = None;
+        let mut idunn_provider_health_public_anchor = None;
         let mut resident_heartbeat_store = None;
         let mut resident_self_store = None;
         let mut resident_provider_stale_seconds = 180_u64;
@@ -5441,6 +5483,18 @@ impl Args {
                             .context("missing --idunn-deployment-request-id value")?,
                     );
                 }
+                "--idunn-provider-health-identity-store" => {
+                    idunn_provider_health_identity_store =
+                        Some(PathBuf::from(values.next().context(
+                            "missing --idunn-provider-health-identity-store value",
+                        )?));
+                }
+                "--idunn-provider-health-public-anchor" => {
+                    idunn_provider_health_public_anchor =
+                        Some(PathBuf::from(values.next().context(
+                            "missing --idunn-provider-health-public-anchor value",
+                        )?));
+                }
                 "--resident-heartbeat-store" => {
                     resident_heartbeat_store = Some(PathBuf::from(
                         values
@@ -5515,6 +5569,8 @@ impl Args {
                     | "managed-service-task-uninstall"
                     | "migrate-retired-operator-status"
                     | "migrate-semantic-attempts-v0"
+                    | "provider-health-identity-enroll"
+                    | "provider-health-identity-export"
                     | "semantic-projector-service-status"
                     | "service-plan"
                     | "install-service"
@@ -5588,12 +5644,47 @@ impl Args {
         if !matches!(restart_mode.as_str(), "always" | "on-failure" | "never") {
             anyhow::bail!("--restart-mode must be always, on-failure, or never");
         }
-        validate_idunn_health_options(
-            idunn_rudp_health.as_ref(),
-            idunn_daemon.as_deref(),
-            idunn_health_contract.as_deref(),
-            idunn_deployment_request_id.as_deref(),
-        )?;
+        if matches!(
+            command.as_str(),
+            "provider-health-identity-enroll" | "provider-health-identity-export"
+        ) {
+            if [
+                idunn_rudp_health.is_some(),
+                idunn_daemon.is_some(),
+                idunn_health_contract.is_some(),
+                idunn_deployment_request_id.is_some(),
+            ]
+            .into_iter()
+            .any(|present| present)
+            {
+                anyhow::bail!("provider-health identity commands cannot publish health");
+            }
+            if idunn_provider_health_identity_store.is_none() {
+                anyhow::bail!(
+                    "provider-health identity command requires --idunn-provider-health-identity-store"
+                );
+            }
+            if command == "provider-health-identity-enroll"
+                && idunn_provider_health_public_anchor.is_some()
+            {
+                anyhow::bail!(
+                    "provider-health enrollment cannot write a public anchor; use provider-health-identity-export"
+                );
+            }
+        } else {
+            validate_idunn_health_options(
+                idunn_rudp_health.as_ref(),
+                idunn_daemon.as_deref(),
+                idunn_health_contract.as_deref(),
+                idunn_deployment_request_id.as_deref(),
+                idunn_provider_health_identity_store.as_deref(),
+            )?;
+            if idunn_provider_health_public_anchor.is_some() {
+                anyhow::bail!(
+                    "--idunn-provider-health-public-anchor belongs only to provider-health-identity-export"
+                );
+            }
+        }
         let operator_health_fields = [
             operator_service_readiness_store.is_some(),
             operator_executor_trust_anchor.is_some(),
@@ -5656,6 +5747,8 @@ impl Args {
             idunn_daemon,
             idunn_health_contract,
             idunn_deployment_request_id,
+            idunn_provider_health_identity_store,
+            idunn_provider_health_public_anchor,
             resident_heartbeat_store,
             resident_self_store,
             resident_provider_stale_seconds,
@@ -5671,16 +5764,18 @@ fn validate_idunn_health_options(
     daemon_id: Option<&str>,
     health_contract: Option<&str>,
     deployment_request_id: Option<&str>,
+    identity_store: Option<&Path>,
 ) -> Result<()> {
     let fields = [
         endpoint.is_some(),
         daemon_id.is_some(),
         health_contract.is_some(),
         deployment_request_id.is_some(),
+        identity_store.is_some(),
     ];
     if fields.into_iter().any(|present| present) && !fields.into_iter().all(|present| present) {
         anyhow::bail!(
-            "--idunn-rudp-health, --idunn-daemon, --idunn-health-contract, and --idunn-deployment-request-id are all-or-none"
+            "--idunn-rudp-health, --idunn-daemon, --idunn-health-contract, --idunn-deployment-request-id, and --idunn-provider-health-identity-store are all-or-none"
         );
     }
     for (label, value) in [

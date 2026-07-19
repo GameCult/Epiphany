@@ -686,9 +686,7 @@ pub use idunn_provider_health::{
 };
 pub use idunn_runtime_health::{
     CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
-    EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION, EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE,
-    EpiphanyAggregateRuntimeHealthInput, EpiphanySignedRuntimeHealthDocument,
-    IDUNN_DAEMON_HEALTH_SCHEMA_VERSION, IDUNN_DAEMON_HEALTH_TYPE, IdunnDaemonHealthDocument,
+    EpiphanyAggregateRuntimeHealthInput, IdunnDaemonHealthDocument,
     derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
     sign_epiphany_runtime_health,
 };
