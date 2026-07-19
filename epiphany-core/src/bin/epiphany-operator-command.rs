@@ -36,7 +36,14 @@ fn main() -> Result<()> {
         )
     })?;
     print_readiness(&args, &signer, "serving")?;
-    serve_operator_command_rudp(socket, &config, &signer)
+    let health = epiphany_core::OperatorCommandServiceHealthConfig {
+        store: args.readiness_store.clone(),
+        bind: args.bind.to_string(),
+        release_id: args.release_id.clone(),
+        release_witness_sha256: args.release_witness_sha256.clone(),
+        source_commit: args.source_commit.clone(),
+    };
+    serve_operator_command_rudp(socket, &config, &signer, &health)
 }
 
 fn print_readiness(
@@ -71,6 +78,10 @@ struct Args {
     channel_ids: Vec<String>,
     actor_capabilities: BTreeMap<String, Vec<OperatorCapability>>,
     max_ttl_seconds: i64,
+    readiness_store: PathBuf,
+    release_id: String,
+    release_witness_sha256: String,
+    source_commit: String,
     status_only: bool,
 }
 
@@ -111,6 +122,10 @@ impl Args {
                 | "--resident-self-store"
                 | "--runtime-store"
                 | "--guild-id"
+                | "--readiness-store"
+                | "--release-id"
+                | "--release-witness-sha256"
+                | "--source-commit"
                 | "--max-ttl-seconds" => {
                     let value = values
                         .next()
@@ -152,6 +167,10 @@ impl Args {
             channel_ids: channels,
             actor_capabilities: actors,
             max_ttl_seconds,
+            readiness_store: required("--readiness-store")?.into(),
+            release_id: required("--release-id")?,
+            release_witness_sha256: required("--release-witness-sha256")?,
+            source_commit: required("--source-commit")?,
             status_only,
         })
     }

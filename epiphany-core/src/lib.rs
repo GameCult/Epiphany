@@ -832,10 +832,11 @@ pub use operator_command::{
 pub use operator_command_service::{
     EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
     EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE, EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
-    EpiphanyOperatorCommandResultReceipt, EpiphanyOperatorCommandWireResult,
-    OperatorCommandInteropFixtureManifest, OperatorCommandServiceConfig,
-    OperatorCommandServiceReadiness, execute_operator_command_admission,
-    operator_command_result_receipt_signing_payload,
+    EpiphanyOperatorCommandResultReceipt, EpiphanyOperatorCommandServiceHealth,
+    EpiphanyOperatorCommandWireResult, OperatorCommandInteropFixtureManifest,
+    OperatorCommandServiceConfig, OperatorCommandServiceHealthConfig,
+    OperatorCommandServiceReadiness, authenticate_operator_command_service_health,
+    execute_operator_command_admission, operator_command_result_receipt_signing_payload,
     operator_command_result_receipt_signing_purpose, read_operator_command_trust_anchor,
     serve_operator_command_rudp, write_operator_command_interop_fixture,
 };

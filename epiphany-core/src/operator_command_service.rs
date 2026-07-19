@@ -1,4 +1,8 @@
 use anyhow::{Context, Result, anyhow, bail};
+use chrono::Utc;
+use cultcache_rs::{
+    CacheBackingStore, CultCache, DatabaseEntry, SingleFileMessagePackBackingStore,
+};
 use cultnet_rs::{
     CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
     CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
@@ -9,6 +13,7 @@ use sha2::{Digest, Sha256};
 use std::net::UdpSocket;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::{
     BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE, BifrostOperatorCommandAdmission, HostIdentitySigner,
@@ -22,6 +27,10 @@ pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.operator_command.sealed_result.v1";
 const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v1";
 pub const EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID: u32 = 0xe91f_0001;
+pub const EPIPHANY_OPERATOR_COMMAND_SERVICE_HEALTH_SCHEMA_VERSION: &str =
+    "epiphany.operator_command.service_health.v0";
+const SERVICE_HEALTH_KEY: &str = "operator-command-service";
+const SERVICE_HEALTH_SIGNING_PURPOSE: &str = "epiphany.operator-command.service-health.v0";
 
 #[derive(Clone, Debug)]
 pub struct OperatorCommandServiceConfig {
@@ -31,6 +40,55 @@ pub struct OperatorCommandServiceConfig {
     pub runtime_store: PathBuf,
     pub policy: OperatorCommandPolicy,
     pub trusted_bifrost_identity: HostIdentityTrustAnchorEntry,
+}
+
+#[derive(Clone, Debug)]
+pub struct OperatorCommandServiceHealthConfig {
+    pub store: PathBuf,
+    pub bind: String,
+    pub release_id: String,
+    pub release_witness_sha256: String,
+    pub source_commit: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.operator_command.service_health",
+    schema = "EpiphanyOperatorCommandServiceHealth"
+)]
+pub struct EpiphanyOperatorCommandServiceHealth {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub release_id: String,
+    #[cultcache(key = 3)]
+    pub release_witness_sha256: String,
+    #[cultcache(key = 4)]
+    pub source_commit: String,
+    #[cultcache(key = 5)]
+    pub bind: String,
+    #[cultcache(key = 6)]
+    pub config_sha256: String,
+    #[cultcache(key = 7)]
+    pub bifrost_identity_id: String,
+    #[cultcache(key = 8)]
+    pub executor_identity_id: String,
+    #[cultcache(key = 9)]
+    pub observed_at: String,
+    #[cultcache(key = 10)]
+    pub observed_at_millis: u64,
+    #[cultcache(key = 11)]
+    pub process_id: u32,
+    #[cultcache(key = 12)]
+    pub process_creation_token: u64,
+    #[cultcache(key = 13)]
+    pub process_executable_path: String,
+    #[cultcache(key = 14)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 15)]
+    pub executor_signature: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,6 +250,7 @@ pub fn serve_operator_command_rudp(
     socket: UdpSocket,
     config: &OperatorCommandServiceConfig,
     signer: &HostIdentitySigner,
+    health: &OperatorCommandServiceHealthConfig,
 ) -> Result<()> {
     socket.set_read_timeout(Some(Duration::from_millis(100)))?;
     let mut transport =
@@ -200,22 +259,30 @@ pub fn serve_operator_command_rudp(
             socket,
             EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
         ))?;
-    serve_operator_command_rudp_loop(&mut transport, config, signer, None, None)
+    serve_operator_command_rudp_loop(&mut transport, config, signer, Some(health), None, None)
 }
 
 fn serve_operator_command_rudp_loop(
     transport: &mut CultNetRudpSocketTransportConnection,
     config: &OperatorCommandServiceConfig,
     signer: &HostIdentitySigner,
+    health: Option<&OperatorCommandServiceHealthConfig>,
     iteration_limit: Option<usize>,
     fixed_now: Option<&str>,
 ) -> Result<()> {
     let mut iterations = 0usize;
+    let mut last_health = None::<Instant>;
     loop {
         if iteration_limit.is_some_and(|limit| iterations >= limit) {
             return Ok(());
         }
         iterations += 1;
+        if let Some(health) = health {
+            if last_health.is_none_or(|at| at.elapsed() >= Duration::from_secs(5)) {
+                publish_operator_command_service_health(&health.store, config, signer, health)?;
+                last_health = Some(Instant::now());
+            }
+        }
         match transport.receive_once() {
             Ok(Some(frame)) => {
                 let response = match fixed_now {
@@ -249,6 +316,156 @@ fn serve_operator_command_rudp_loop(
             eprintln!("operator service resend transport error: {error:#}");
         }
     }
+}
+
+fn service_config_sha256(
+    config: &OperatorCommandServiceConfig,
+    health: &OperatorCommandServiceHealthConfig,
+) -> Result<String> {
+    let bytes = rmp_serde::to_vec(&(
+        config.policy.runtime_id.as_str(),
+        config.policy.discord_guild_id.as_str(),
+        &config.policy.allowed_channel_ids,
+        &config.policy.actor_capabilities,
+        config.policy.max_ttl_seconds,
+        config.trusted_bifrost_identity.identity_id.as_str(),
+        health.bind.as_str(),
+        health.release_id.as_str(),
+        health.release_witness_sha256.as_str(),
+        health.source_commit.as_str(),
+    ))?;
+    Ok(format!("sha256-{:x}", Sha256::digest(bytes)))
+}
+
+fn service_health_signing_payload(value: &EpiphanyOperatorCommandServiceHealth) -> Result<Vec<u8>> {
+    rmp_serde::to_vec(&(
+        value.schema_version.as_str(),
+        value.runtime_id.as_str(),
+        value.release_id.as_str(),
+        value.release_witness_sha256.as_str(),
+        value.source_commit.as_str(),
+        value.bind.as_str(),
+        value.config_sha256.as_str(),
+        value.bifrost_identity_id.as_str(),
+        value.executor_identity_id.as_str(),
+        value.observed_at.as_str(),
+        value.observed_at_millis,
+        value.process_id,
+        value.process_creation_token,
+        value.process_executable_path.as_str(),
+        value.private_state_exposed,
+    ))
+    .map_err(Into::into)
+}
+
+pub fn publish_operator_command_service_health(
+    store: &Path,
+    config: &OperatorCommandServiceConfig,
+    signer: &HostIdentitySigner,
+    health: &OperatorCommandServiceHealthConfig,
+) -> Result<EpiphanyOperatorCommandServiceHealth> {
+    let observed_at_millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_millis()
+        .try_into()
+        .context("operator health time exceeds u64")?;
+    let process = crate::capture_process_instance(std::process::id())?;
+    let mut value = EpiphanyOperatorCommandServiceHealth {
+        schema_version: EPIPHANY_OPERATOR_COMMAND_SERVICE_HEALTH_SCHEMA_VERSION.into(),
+        runtime_id: config.policy.runtime_id.clone(),
+        release_id: health.release_id.clone(),
+        release_witness_sha256: health.release_witness_sha256.clone(),
+        source_commit: health.source_commit.clone(),
+        bind: health.bind.clone(),
+        config_sha256: service_config_sha256(config, health)?,
+        bifrost_identity_id: config.trusted_bifrost_identity.identity_id.clone(),
+        executor_identity_id: signer.entry().identity_id.clone(),
+        observed_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        observed_at_millis,
+        process_id: process.process_id,
+        process_creation_token: process.creation_token,
+        process_executable_path: process.executable_path.display().to_string(),
+        private_state_exposed: false,
+        executor_signature: Vec::new(),
+    };
+    value.executor_signature = signer
+        .sign(
+            SERVICE_HEALTH_SIGNING_PURPOSE,
+            &service_health_signing_payload(&value)?,
+        )?
+        .signature;
+    let backing = SingleFileMessagePackBackingStore::new(store);
+    let existing = backing.pull_all()?.into_iter().find(|entry| {
+        entry.r#type == <EpiphanyOperatorCommandServiceHealth as DatabaseEntry>::TYPE
+            && entry.key == SERVICE_HEALTH_KEY
+    });
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<EpiphanyOperatorCommandServiceHealth>()?;
+    let (replacement, _) = cache.prepare_entry(SERVICE_HEALTH_KEY, &value)?;
+    let committed = match existing {
+        Some(expected) => backing.compare_and_swap_entry(&expected, replacement)?,
+        None => backing.insert_entry_if_absent(replacement)?,
+    };
+    if !committed {
+        bail!("operator service health lost exact CAS");
+    }
+    Ok(value)
+}
+
+pub fn authenticate_operator_command_service_health(
+    store: &Path,
+    runtime_id: &str,
+    release_id: &str,
+    release_witness_sha256: &str,
+    source_commit: &str,
+    bind: &str,
+    executor: &HostIdentityTrustAnchorEntry,
+    now_millis: u64,
+    freshness_millis: u64,
+) -> Result<EpiphanyOperatorCommandServiceHealth> {
+    let mut matches = SingleFileMessagePackBackingStore::new(store)
+        .pull_all()?
+        .into_iter()
+        .filter(|entry| {
+            entry.r#type == <EpiphanyOperatorCommandServiceHealth as DatabaseEntry>::TYPE
+                && entry.key == SERVICE_HEALTH_KEY
+        });
+    let envelope = matches
+        .next()
+        .context("operator service health is absent")?;
+    if matches.next().is_some() {
+        bail!("operator service health has duplicate owner state");
+    }
+    let value: EpiphanyOperatorCommandServiceHealth = rmp_serde::from_slice(&envelope.payload)?;
+    if value.schema_version != EPIPHANY_OPERATOR_COMMAND_SERVICE_HEALTH_SCHEMA_VERSION
+        || value.private_state_exposed
+        || value.runtime_id != runtime_id
+        || value.release_id != release_id
+        || value.release_witness_sha256 != release_witness_sha256
+        || value.source_commit != source_commit
+        || value.bind != bind
+        || !value.config_sha256.starts_with("sha256-")
+        || value.config_sha256.len() != 71
+        || value.bifrost_identity_id.trim().is_empty()
+        || value.executor_identity_id != executor.identity_id
+        || value.process_id == 0
+        || value.process_creation_token == 0
+        || value.process_executable_path.trim().is_empty()
+        || value.observed_at_millis > now_millis
+        || now_millis.saturating_sub(value.observed_at_millis) > freshness_millis
+    {
+        bail!("operator service health is stale or not bound to the exact release/config/identity");
+    }
+    crate::verify_host_identity_trust_anchor_signature(
+        executor,
+        SERVICE_HEALTH_SIGNING_PURPOSE,
+        &service_health_signing_payload(&value)?,
+        &crate::HostIdentitySignature {
+            identity_id: value.executor_identity_id.clone(),
+            signature: value.executor_signature.clone(),
+        },
+    )?;
+    Ok(value)
 }
 
 fn process_wire_frame(
@@ -566,6 +783,72 @@ mod tests {
     }
 
     #[test]
+    fn signed_service_health_binds_release_config_identity_and_freshness() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (config, executor, _) = fixture(temp.path())?;
+        let executor_anchor = crate::export_host_identity_trust_anchor(
+            &executor,
+            &temp.path().join("executor-anchor.cc"),
+        )?;
+        let health_config = OperatorCommandServiceHealthConfig {
+            store: temp.path().join("operator-health.cc"),
+            bind: "127.0.0.1:17874".into(),
+            release_id: "release-1".into(),
+            release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
+            source_commit: "b".repeat(40),
+        };
+        let published = publish_operator_command_service_health(
+            &health_config.store,
+            &config,
+            &executor,
+            &health_config,
+        )?;
+        assert_eq!(
+            authenticate_operator_command_service_health(
+                &health_config.store,
+                &config.policy.runtime_id,
+                &health_config.release_id,
+                &health_config.release_witness_sha256,
+                &health_config.source_commit,
+                &health_config.bind,
+                &executor_anchor,
+                published.observed_at_millis,
+                15_000,
+            )?,
+            published
+        );
+        assert!(
+            authenticate_operator_command_service_health(
+                &health_config.store,
+                &config.policy.runtime_id,
+                "alien-release",
+                &health_config.release_witness_sha256,
+                &health_config.source_commit,
+                &health_config.bind,
+                &executor_anchor,
+                published.observed_at_millis,
+                15_000,
+            )
+            .is_err()
+        );
+        assert!(
+            authenticate_operator_command_service_health(
+                &health_config.store,
+                &config.policy.runtime_id,
+                &health_config.release_id,
+                &health_config.release_witness_sha256,
+                &health_config.source_commit,
+                &health_config.bind,
+                &executor_anchor,
+                published.observed_at_millis + 15_001,
+                15_000,
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn seals_exact_result_and_replays_same_receipt() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let (config, executor, bifrost) = fixture(temp.path())?;
@@ -697,6 +980,7 @@ mod tests {
                 &mut transport,
                 &config,
                 &executor,
+                None,
                 Some(100),
                 Some("2026-07-19T12:00:01Z"),
             )

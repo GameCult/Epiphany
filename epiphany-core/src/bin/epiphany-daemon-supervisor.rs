@@ -19,6 +19,7 @@ use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::MemorySemanticProjectionInput;
 use epiphany_core::agent_memory_semantic_projection_input;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
+use epiphany_core::authenticate_operator_command_service_health;
 use epiphany_core::authenticate_resident_provider_pair;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
@@ -37,6 +38,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receip
 use epiphany_core::migrate_memory_semantic_projection_attempts_v0;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::read_operator_command_trust_anchor;
 use epiphany_core::retire_epiphany_cultmesh_operator_status_documents;
 use epiphany_core::retire_memory_semantic_projection_claims_v0;
 use epiphany_core::retire_orphaned_memory_semantic_projection_attempts_v0;
@@ -949,6 +951,61 @@ fn publish_managed_service_iteration_health(
         expected += 2;
         contradictions
             .push("resident health requires both heartbeat and Self provider stores".into());
+    }
+    match (
+        args.operator_service_readiness_store.as_deref(),
+        args.operator_executor_trust_anchor.as_deref(),
+        args.operator_service_bind.as_deref(),
+    ) {
+        (Some(store), Some(anchor_path), Some(bind)) => {
+            expected += 1;
+            let result = read_operator_command_trust_anchor(anchor_path).and_then(|anchor| {
+                authenticate_operator_command_service_health(
+                    store,
+                    &args.runtime_id,
+                    &release.release_id,
+                    authenticated_release_witness_sha256,
+                    &release.source_commit_sha,
+                    bind,
+                    &anchor,
+                    Utc::now().timestamp_millis().max(0) as u64,
+                    15_000,
+                )
+            });
+            match result {
+                Ok(health) => {
+                    let expected_executable =
+                        epiphany_packaged_release_binary_path(release, "operator-command")
+                            .and_then(|path| fs::canonicalize(path).map_err(Into::into));
+                    let observed = capture_process_instance(health.process_id);
+                    match (expected_executable, observed) {
+                        (Ok(expected_executable), Ok(process))
+                            if process.creation_token == health.process_creation_token
+                                && process.executable_path == expected_executable
+                                && process.executable_path.display().to_string()
+                                    == health.process_executable_path =>
+                        {
+                            terminal_current += 1
+                        }
+                        (Ok(_), Ok(_)) => contradictions.push(
+                            "operator service process identity is not the signed packaged sibling"
+                                .into(),
+                        ),
+                        (Err(error), _) | (_, Err(error)) => contradictions.push(format!(
+                            "operator service process cannot be authenticated: {error:#}"
+                        )),
+                    }
+                }
+                Err(error) => contradictions.push(format!(
+                    "operator service signed readiness is invalid: {error:#}"
+                )),
+            }
+        }
+        (None, None, None) => {}
+        _ => {
+            expected += 1;
+            contradictions.push("operator service health requires readiness store, executor trust anchor, and exact bind".into());
+        }
     }
     for service_id in required {
         let Some(policy) = policies
@@ -5118,6 +5175,9 @@ struct Args {
     resident_heartbeat_store: Option<PathBuf>,
     resident_self_store: Option<PathBuf>,
     resident_provider_stale_seconds: u64,
+    operator_service_readiness_store: Option<PathBuf>,
+    operator_executor_trust_anchor: Option<PathBuf>,
+    operator_service_bind: Option<String>,
 }
 
 impl Args {
@@ -5175,6 +5235,9 @@ impl Args {
         let mut resident_heartbeat_store = None;
         let mut resident_self_store = None;
         let mut resident_provider_stale_seconds = 180_u64;
+        let mut operator_service_readiness_store = None;
+        let mut operator_executor_trust_anchor = None;
+        let mut operator_service_bind = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -5401,6 +5464,26 @@ impl Args {
                         anyhow::bail!("--resident-provider-stale-seconds must be positive");
                     }
                 }
+                "--operator-service-readiness-store" => {
+                    operator_service_readiness_store =
+                        Some(PathBuf::from(values.next().context(
+                            "missing --operator-service-readiness-store value",
+                        )?))
+                }
+                "--operator-executor-trust-anchor" => {
+                    operator_executor_trust_anchor = Some(PathBuf::from(
+                        values
+                            .next()
+                            .context("missing --operator-executor-trust-anchor value")?,
+                    ))
+                }
+                "--operator-service-bind" => {
+                    operator_service_bind = Some(
+                        values
+                            .next()
+                            .context("missing --operator-service-bind value")?,
+                    )
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -5511,6 +5594,18 @@ impl Args {
             idunn_health_contract.as_deref(),
             idunn_deployment_request_id.as_deref(),
         )?;
+        let operator_health_fields = [
+            operator_service_readiness_store.is_some(),
+            operator_executor_trust_anchor.is_some(),
+            operator_service_bind.is_some(),
+        ];
+        if operator_health_fields.into_iter().any(|value| value)
+            && !operator_health_fields.into_iter().all(|value| value)
+        {
+            anyhow::bail!(
+                "operator service health store, executor trust anchor, and bind are all-or-none"
+            );
+        }
 
         Ok(Self {
             command,
@@ -5564,6 +5659,9 @@ impl Args {
             resident_heartbeat_store,
             resident_self_store,
             resident_provider_stale_seconds,
+            operator_service_readiness_store,
+            operator_executor_trust_anchor,
+            operator_service_bind,
         })
     }
 }
