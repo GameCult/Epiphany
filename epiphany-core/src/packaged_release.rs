@@ -1,5 +1,5 @@
 use crate::open_epiphany_cultmesh_node;
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::{DateTime, Utc};
 use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
 use sha2::{Digest, Sha256};
@@ -310,6 +310,12 @@ fn build_required_release_siblings(
     for (role, _) in required_packaged_release_binaries(target) {
         manifests.insert(required_release_build_target(role)?.0);
     }
+    // Validate every independently locked owner before compiling any sibling.
+    // Otherwise a late stale lockfile can waste the earlier builds and make a
+    // release candidate fail only after several minutes of unrelated work.
+    for manifest_dir in &manifests {
+        verify_owned_release_lock(repo, manifest_dir, cargo)?;
+    }
     let mut outputs = BTreeMap::new();
     for manifest_dir in manifests {
         let manifest = repo.join(manifest_dir).join("Cargo.toml");
@@ -349,6 +355,37 @@ fn build_required_release_siblings(
         }
     }
     Ok(outputs)
+}
+
+fn verify_owned_release_lock(
+    repo: &Path,
+    manifest_dir: &str,
+    cargo: &std::ffi::OsStr,
+) -> Result<()> {
+    let manifest = repo.join(manifest_dir).join("Cargo.toml");
+    if !manifest.is_file() {
+        bail!(
+            "Epiphany release manifest is absent: {}",
+            manifest.display()
+        );
+    }
+    let output = std::process::Command::new(cargo)
+        .arg("metadata")
+        .arg("--locked")
+        .arg("--no-deps")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .output()
+        .with_context(|| format!("failed to validate {manifest_dir} release lockfile"))?;
+    if !output.status.success() {
+        bail!(
+            "owned Epiphany release lockfile is stale for {manifest_dir}: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(())
 }
 
 fn release_manifest_target_dir(target_root: &Path, manifest_dir: &str) -> PathBuf {
@@ -821,6 +858,23 @@ mod tests {
     }
 
     #[test]
+    fn every_owned_release_lockfile_is_frozen() {
+        let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = core
+            .parent()
+            .expect("epiphany-core has a repository parent");
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        for manifest_dir in [
+            "epiphany-core",
+            "epiphany-openai-runtime",
+            "epiphany-tool-codex-mcp-spine",
+        ] {
+            verify_owned_release_lock(repo, manifest_dir, &cargo)
+                .unwrap_or_else(|error| panic!("{manifest_dir} lockfile is not frozen: {error:#}"));
+        }
+    }
+
+    #[test]
     fn resident_cognition_roles_keep_their_owning_manifests() {
         let packaged_roles = required_packaged_release_binaries("x86_64-unknown-linux-gnu")
             .into_iter()
@@ -910,15 +964,13 @@ mod tests {
     fn witness_reader_refuses_tamper_and_inspector_refuses_wrong_runtime() {
         let (d, e) = fixture();
         let witness = Path::new(&e.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE);
-        assert!(
-            inspect_epiphany_packaged_release_witness(
-                &witness,
-                d.path(),
-                "alien-runtime",
-                &e.source_commit_sha,
-            )
-            .is_err()
-        );
+        assert!(inspect_epiphany_packaged_release_witness(
+            &witness,
+            d.path(),
+            "alien-runtime",
+            &e.source_commit_sha,
+        )
+        .is_err());
         fs::write(&witness, b"hostile witness").unwrap();
         assert!(read_epiphany_packaged_release_witness(&witness).is_err());
     }
