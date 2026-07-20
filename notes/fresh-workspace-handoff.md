@@ -3657,3 +3657,20 @@ result or unknown consequence. Accept only an exact signed live witness with
 all organs stable; on failure require the old generation to be completely
 active. Then prove complete and one-missing-provider Discord Status. Do not
 test Wake and do not reboot Yggdrasil.
+
+The exact 0e request (`seq268`, request digest `279d3a33...`) was granted once
+and failed safely before the actuator body at `2026-07-20T02:57:59Z`:
+`/usr/bin/env: bash\r: No such file or directory`. The manual ops-only install
+had compared Windows working-tree bytes to themselves rather than canonical Git
+blob bytes. Idunn's deployment brake was immediately re-engaged. The canonical
+swarm brake remained engaged. No cutover, unit installation, Body mutation,
+link change, or witness promotion began; the exact old bcff generation and all
+five organs remained active on unchanged PIDs.
+
+The repair is not an operator-memory rule. `gamecult-ops` commit `3676a61`
+rejects CRLF-contaminated actuator and unit inputs at bootstrap, while retaining
+the transactional cut from `64a0965`. Install the artifacts from a clean Linux
+checkout of exact `3676a61` and prove their bytes against canonical Git objects.
+The failed seq268 request is terminal and must never be replayed or regranted.
+Authorize only a new meaningful Epiphany successor, accept only its fresh exact
+request, and keep both brakes engaged except for that one bounded Idunn grant.
