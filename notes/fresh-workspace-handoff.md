@@ -3616,3 +3616,44 @@ typed signing purpose to
 requires canonical positional MessagePack at signed-health ingress and samples
 admission time at millisecond precision, preventing semantically equivalent
 wire encodings and second truncation from changing later digest/read truth.
+
+## Organizational mode and transactional deployment correction (2026-07-20)
+
+Epiphany's autonomous organizational posture is ordinary product behavior, not
+a dogfood exception. Modeling maintains the persistent typed map of the
+authorized organizational domain. Self derives direction and bounded pressure
+from that map plus attributed feedback. Imagination may propose improvements
+and features without waiting for a direct instruction. Persona is the
+organization-wide conversational membrane through which people can inspect,
+challenge, and refine those proposals. Feedback remains pressure: it cannot
+adopt Mind, grant Hands, Wake, release, deployment, or public-speech authority.
+
+The exact d841 deployment reached package completion but failed before
+promotion because the candidate `epiphany-operator-command` required
+`--provider-ttl-millis` while the installed systemd unit was an older
+generation. Idunn recorded failure without restoring the active chain. No new
+release or deployment witness was promoted. The old bcff generation was then
+explicitly restored: supervisor, operator command, Heartbeat, swarm, and the
+supervisor-owned semantic projector are active from the old release with zero
+restart growth. The canonical Epiphany all-scope brake and Idunn deployment
+brake are engaged; swarm reports braked.
+
+The root fault was split generation authority: bootstrap owned the four unit
+files while deployment owned binaries, links, and lineage. `gamecult-ops`
+commit `64a0965` makes one Idunn transaction snapshot, promote, or restore all
+four unit files together with Body, app/source links, lineage state,
+enablement, and prior active organs. Generic cleanup no longer acts as a second
+service-restoration owner. Rollback verifies prior unit bytes and active states
+and returns a distinct critical failure if restoration is incomplete. A
+filesystem/fake-systemd failure-injection harness models the d841 incompatibility
+and proves exact restoration plus loud rollback failure. Focused operator
+wiring and rollback checks pass; the commit is pushed.
+
+Next: install exact ops `64a0965` on Ygg without opening either brake. Create a
+meaningful Epiphany successor to d841, revoke d841 authority, authorize only
+that successor, observe its fresh request, and grant exactly that request for
+no more than fifteen minutes. Re-engage the Idunn brake immediately on terminal
+result or unknown consequence. Accept only an exact signed live witness with
+all organs stable; on failure require the old generation to be completely
+active. Then prove complete and one-missing-provider Discord Status. Do not
+test Wake and do not reboot Yggdrasil.
