@@ -1746,6 +1746,7 @@ dependencies = [
  "base64",
  "chrono",
  "cultcache-rs",
+ "ed25519-dalek",
  "hmac 0.12.1",
  "rand 0.9.4",
  "rmp-serde",
@@ -1756,6 +1757,7 @@ dependencies = [
  "sha2 0.10.9",
  "socket2 0.5.10",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
