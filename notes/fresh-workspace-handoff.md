@@ -3674,3 +3674,20 @@ checkout of exact `3676a61` and prove their bytes against canonical Git objects.
 The failed seq268 request is terminal and must never be replayed or regranted.
 Authorize only a new meaningful Epiphany successor, accept only its fresh exact
 request, and keep both brakes engaged except for that one bounded Idunn grant.
+
+The next exact successor `20515d37` produced fresh request seq269 and entered
+the corrected LF actuator, but failed at candidate unit installation because
+Idunn's `ProtectSystem` namespace made `/etc/systemd/system` read-only. Rollback
+hit the same boundary and correctly returned CRITICAL/status 125 rather than
+claiming complete restoration. The unit writes never began, so the prior unit
+bytes remained intact; app/source pointers and lineage remained bcff, and the
+old supervisor, operator, Heartbeat, swarm, semantic projector, and workspace
+projector restarted from bcff. Both brakes are engaged and Idunn is stable.
+
+The missing authority is now explicit. `gamecult-ops` commit `a281e38` grants
+the Idunn service sandbox write custody only to the four named Epiphany unit
+files; it does not grant broad `/etc/systemd/system` access. Focused operator
+wiring tests require those exact paths and reject directory-wide custody. Next
+install exact a281e38 under both brakes, verify the Idunn restart and old body,
+then use only a fresh exact Epiphany successor/request. Seq269 is terminal and
+must never be replayed or regranted.
