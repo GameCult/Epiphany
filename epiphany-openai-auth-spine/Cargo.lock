@@ -1011,7 +1011,6 @@ dependencies = [
  "codex-utils-string",
  "codex-utils-template",
  "encoding_rs",
- "epiphany-state-model",
  "globset",
  "icu_decimal",
  "icu_locale_core",
@@ -1808,15 +1807,6 @@ version = "0.1.0"
 dependencies = [
  "codex-login",
  "serde_json",
-]
-
-[[package]]
-name = "epiphany-state-model"
-version = "0.1.0"
-dependencies = [
- "schemars 0.8.22",
- "serde",
- "ts-rs",
 ]
 
 [[package]]

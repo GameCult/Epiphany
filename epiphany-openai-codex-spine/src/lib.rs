@@ -21,7 +21,7 @@ use epiphany_openai_auth_spine::AuthCredentialsStoreMode;
 use epiphany_openai_auth_spine::AuthManager;
 use epiphany_openai_auth_spine::AuthMode;
 use epiphany_openai_auth_spine::CodexAuth;
-use epiphany_openai_auth_spine::default_client::build_reqwest_client;
+use epiphany_openai_auth_spine::build_reqwest_client;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
