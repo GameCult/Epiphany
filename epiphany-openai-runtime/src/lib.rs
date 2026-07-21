@@ -40,7 +40,7 @@ use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
-use epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID;
+use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::tool_invocation_intent_key;
@@ -1250,7 +1250,7 @@ pub fn tool_invocation_intent_from_model_event(
                 event.sequence,
                 sanitize_request_id(call_id)
             ),
-            CODEX_MCP_TOOL_ADAPTER_ID,
+            EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
             server,
             tool_name,
             arguments.clone(),
@@ -2552,7 +2552,7 @@ mod tests {
             .expect("MCP-shaped tool call should produce an intent");
         assert_eq!(
             intent.adapter,
-            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID
         );
         assert_eq!(intent.server, "calendar_server");
         assert_eq!(intent.tool_name, "list_events");
@@ -2629,7 +2629,7 @@ mod tests {
         let mut tool_receipt = EpiphanyToolInvocationReceipt::new(
             "receipt-tool",
             intent_id.clone(),
-            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID,
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
             "smoke_server",
             "smoke_tool",
             "completed",

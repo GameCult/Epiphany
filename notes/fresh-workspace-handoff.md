@@ -2762,7 +2762,7 @@ process; coordinator exit zero without its exact receipt fails. The old
 source-tree/Cargo swarm wrapper and its `online`, `run`, `run-queue`, `pulse`,
 and `epiphany-work` queue authority are outside the live body. Packaging now
 requires witnessed sibling roles for swarm, coordinator, model runtime, and the
-Codex MCP tool spine.
+first-party tool runtime.
 
 Verification must remain at these typed transitions: CAS/replay, store
 separation, release witness, child-claim-before-cognition, exact process
@@ -3691,3 +3691,23 @@ wiring tests require those exact paths and reject directory-wide custody. Next
 install exact a281e38 under both brakes, verify the Idunn restart and old body,
 then use only a fresh exact Epiphany successor/request. Seq269 is terminal and
 must never be replayed or regranted.
+
+## Native MCP authority cut (2026-07-21)
+
+Tool execution no longer crosses vendored Codex. `epiphany-tool-mcp-runtime`
+owns execution of one admitted typed intent and persistence of its typed
+receipt. It owns the native `epiphany_source` capability and Epiphany's
+endpoint, process, network, timeout, catalog, and receipt policy. The official
+RMCP Rust SDK owns MCP lifecycle and wire behavior only. Root-owned
+`.epiphany/mcp.toml` configuration may admit foreign stdio or Streamable HTTP
+servers; the model cannot configure endpoints. Codex auth, config, MCP, and
+app-server are absent from the tool path, the old
+`epiphany-tool-codex-mcp-spine` is deleted, and there is no fallback.
+
+This makes tool execution provider-independent, not model execution
+provider-neutral. `epiphany-openai-runtime` still defaults to `openai-codex`,
+supports OpenAI-shaped transport, and resident policy still carries
+`codex_home`. After the braked Yggdrasil deployment transaction is resolved,
+the next liberation cut is a provider-neutral model transport and auth policy
+that can admit DeepSeek/Kimi without subscription custody. Do not describe the
+RMCP cut as subscription independence.

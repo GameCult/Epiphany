@@ -8872,7 +8872,7 @@ mod tests {
                 "invocations": [
                     {
                         "intentId": "tool-intent-test",
-                        "adapter": "codex-mcp",
+                        "adapter": "epiphany-tools",
                         "server": "epiphany_source",
                         "toolName": "read_file",
                         "callId": "call-test",

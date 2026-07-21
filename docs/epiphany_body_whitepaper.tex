@@ -104,9 +104,10 @@ The checkout has nine primary Epiphany Rust crates:
   \code{epiphany-model-runtime}.
   \item \code{epiphany-tool-adapter}: typed tool capability, invocation intent,
   and invocation receipt documents.
-  \item \code{epiphany-tool-codex-mcp-spine}: quarantined Codex MCP adapter. It
-  consumes typed tool invocation intents and emits typed receipts; raw MCP JSON
-  remains adapter-edge cargo.
+  \item \code{epiphany-tool-mcp-runtime}: first-party tool executor. Native
+  Epiphany source tools are explicit local capabilities; foreign MCP calls use
+  the official RMCP SDK behind Epiphany-owned endpoint, process, network, and
+  receipt policy. Codex owns no tool discovery or execution path.
 \end{itemize}
 
 The vendored region contains:
@@ -314,9 +315,10 @@ Proprioception refresh.
 \subsection{Tool Calls}
 
 Tool use travels through typed capability, invocation intent, and invocation
-receipt documents. The Codex MCP adapter is an external compatibility executor.
-MCP's raw JSON belongs at that boundary; Epiphany's internal tool state is the
-typed intent/receipt pair.
+receipt documents. The first-party tool runtime owns admission policy, native
+tools, and typed receipts while the official RMCP SDK owns MCP lifecycle and
+wire behavior. MCP's raw JSON belongs at that boundary; Epiphany's internal
+tool state is the typed intent/receipt pair.
 
 \subsection{Local Verse And Daemon Awareness}
 

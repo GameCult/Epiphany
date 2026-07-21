@@ -369,6 +369,7 @@ struct RunWorkerCliOptions {
     provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
+    mcp_config: Option<PathBuf>,
     job_id: String,
     model: String,
     auto_tools: bool,
@@ -468,6 +469,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
+    let mut mcp_config = None;
     let mut job_id = None;
     let mut model = default_worker_model();
     let mut auto_tools = false;
@@ -481,6 +483,9 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--mcp-config" => {
+                mcp_config = Some(PathBuf::from(next_value(&mut iter, "--mcp-config")?))
+            }
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
             "--model" | "--default-model" => model = next_value(&mut iter, "--model")?,
             "--auto-tools" => auto_tools = true,
@@ -501,6 +506,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         provider,
         store_path,
         codex_home,
+        mcp_config,
         job_id: job_id.context("run-worker requires --job-id")?,
         model,
         auto_tools,
@@ -682,7 +688,7 @@ async fn run_worker_launch_with_tool_continuation(
             adapter_runs.push(run_tool_adapter(
                 &tool_adapter_bin,
                 &options.store_path,
-                &options.codex_home,
+                options.mcp_config.as_ref(),
                 options.cwd.as_ref(),
                 &intent_id,
             )?);
@@ -1224,7 +1230,7 @@ mod tests {
     fn tool_intent_fingerprint_ignores_argument_key_order() {
         let left = EpiphanyToolInvocationIntent::new(
             "left",
-            "codex-mcp",
+            "epiphany-tools",
             "epiphany_source",
             "read_file",
             r#"{"path":"README.md","offset":0}"#,
@@ -1234,7 +1240,7 @@ mod tests {
         );
         let right = EpiphanyToolInvocationIntent::new(
             "right",
-            "codex-mcp",
+            "epiphany-tools",
             "epiphany_source",
             "read_file",
             r#"{"offset":0,"path":"README.md"}"#,
@@ -1270,7 +1276,7 @@ async fn run_worker_options(options: RunWorkerCliOptions) -> Result<serde_json::
 fn run_tool_adapter(
     tool_adapter_bin: &PathBuf,
     store_path: &PathBuf,
-    codex_home: &PathBuf,
+    mcp_config: Option<&PathBuf>,
     cwd: Option<&PathBuf>,
     intent_id: &str,
 ) -> Result<serde_json::Value> {
@@ -1280,9 +1286,10 @@ fn run_tool_adapter(
         .arg("--store")
         .arg(store_path)
         .arg("--intent-id")
-        .arg(intent_id)
-        .arg("--codex-home")
-        .arg(codex_home);
+        .arg(intent_id);
+    if let Some(mcp_config) = mcp_config {
+        command.arg("--mcp-config").arg(mcp_config);
+    }
     if let Some(cwd) = cwd {
         command.arg("--cwd").arg(cwd);
     }
@@ -1395,5 +1402,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }

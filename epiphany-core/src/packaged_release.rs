@@ -1,5 +1,5 @@
 use crate::open_epiphany_cultmesh_node;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
 use sha2::{Digest, Sha256};
@@ -105,10 +105,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("model-runtime", file_name("epiphany-model-runtime")),
-        (
-            "tool-codex-mcp-spine",
-            file_name("epiphany-tool-codex-mcp-spine"),
-        ),
+        ("tool-mcp-runtime", file_name("epiphany-tool-mcp-runtime")),
     ]
 }
 
@@ -410,10 +407,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "persona-feedback-ingress" => Ok(("epiphany-core", "epiphany-persona-feedback-ingress")),
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
-        "tool-codex-mcp-spine" => Ok((
-            "epiphany-tool-codex-mcp-spine",
-            "epiphany-tool-codex-mcp-spine",
-        )),
+        "tool-mcp-runtime" => Ok(("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")),
         _ => bail!("unknown required release role {role}"),
     }
 }
@@ -850,7 +844,7 @@ mod tests {
         let root = Path::new("isolated-release-build");
         let core = release_manifest_target_dir(root, "epiphany-core");
         let model = release_manifest_target_dir(root, "epiphany-openai-runtime");
-        let tools = release_manifest_target_dir(root, "epiphany-tool-codex-mcp-spine");
+        let tools = release_manifest_target_dir(root, "epiphany-tool-mcp-runtime");
         assert_ne!(core, model);
         assert_ne!(core, tools);
         assert_ne!(model, tools);
@@ -867,7 +861,7 @@ mod tests {
         for manifest_dir in [
             "epiphany-core",
             "epiphany-openai-runtime",
-            "epiphany-tool-codex-mcp-spine",
+            "epiphany-tool-mcp-runtime",
         ] {
             verify_owned_release_lock(repo, manifest_dir, &cargo)
                 .unwrap_or_else(|error| panic!("{manifest_dir} lockfile is not frozen: {error:#}"));
@@ -886,7 +880,7 @@ mod tests {
             "heartbeat",
             "coordinator",
             "model-runtime",
-            "tool-codex-mcp-spine",
+            "tool-mcp-runtime",
         ] {
             assert!(packaged_roles.contains(role), "release omits {role}");
         }
@@ -911,11 +905,8 @@ mod tests {
             ("epiphany-openai-runtime", "epiphany-model-runtime")
         );
         assert_eq!(
-            required_release_build_target("tool-codex-mcp-spine").unwrap(),
-            (
-                "epiphany-tool-codex-mcp-spine",
-                "epiphany-tool-codex-mcp-spine"
-            )
+            required_release_build_target("tool-mcp-runtime").unwrap(),
+            ("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")
         );
     }
 
@@ -964,13 +955,15 @@ mod tests {
     fn witness_reader_refuses_tamper_and_inspector_refuses_wrong_runtime() {
         let (d, e) = fixture();
         let witness = Path::new(&e.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE);
-        assert!(inspect_epiphany_packaged_release_witness(
-            &witness,
-            d.path(),
-            "alien-runtime",
-            &e.source_commit_sha,
-        )
-        .is_err());
+        assert!(
+            inspect_epiphany_packaged_release_witness(
+                &witness,
+                d.path(),
+                "alien-runtime",
+                &e.source_commit_sha,
+            )
+            .is_err()
+        );
         fs::write(&witness, b"hostile witness").unwrap();
         assert!(read_epiphany_packaged_release_witness(&witness).is_err());
     }

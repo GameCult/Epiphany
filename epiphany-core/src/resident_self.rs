@@ -176,6 +176,7 @@ pub struct ResidentSelfPolicy {
     pub agent_memory_store: PathBuf,
     pub artifact_root: PathBuf,
     pub codex_home: PathBuf,
+    pub mcp_config: PathBuf,
     pub model_provider: String,
     pub max_steps: u64,
     pub turn_timeout_seconds: u64,
@@ -202,6 +203,7 @@ impl ResidentSelfPolicy {
             ("agent memory store", &self.agent_memory_store),
             ("artifact root", &self.artifact_root),
             ("Codex home", &self.codex_home),
+            ("MCP config", &self.mcp_config),
             ("release store", &self.release_store),
         ] {
             if !path.is_absolute() {
@@ -247,7 +249,7 @@ pub fn authenticate_resident_self_policy(policy: &mut ResidentSelfPolicy) -> Res
     policy.model_runtime_bin =
         crate::epiphany_packaged_release_binary_path(&witness, "model-runtime")?;
     policy.tool_adapter_bin =
-        crate::epiphany_packaged_release_binary_path(&witness, "tool-codex-mcp-spine")?;
+        crate::epiphany_packaged_release_binary_path(&witness, "tool-mcp-runtime")?;
     policy.release_commit = witness.source_commit_sha;
     policy.release_manifest_digest = policy.release_witness_sha256.clone();
     policy.validate()
@@ -508,6 +510,8 @@ pub fn coordinator_argv(
         policy.workspace.display().to_string(),
         "--codex-home".into(),
         policy.codex_home.display().to_string(),
+        "--mcp-config".into(),
+        policy.mcp_config.display().to_string(),
         "--artifact-dir".into(),
         artifact_dir.display().to_string(),
         "--agent-memory-dir".into(),
@@ -1580,12 +1584,13 @@ mod tests {
             workspace: absolute("workspace"),
             coordinator_bin: absolute("opt/epiphany/bin/epiphany-mvp-coordinator"),
             model_runtime_bin: absolute("opt/epiphany/bin/epiphany-model-runtime"),
-            tool_adapter_bin: absolute("opt/epiphany/bin/epiphany-tool-codex-mcp-spine"),
+            tool_adapter_bin: absolute("opt/epiphany/bin/epiphany-tool-mcp-runtime"),
             runtime_store: absolute("state/runtime.cc"),
             local_verse_store: absolute("state/verse.cc"),
             agent_memory_store: absolute("state/mind.cc"),
             artifact_root: absolute("state/artifacts"),
             codex_home: absolute("state/codex"),
+            mcp_config: absolute("state/epiphany-mcp.toml"),
             model_provider: "local".into(),
             max_steps: 2,
             turn_timeout_seconds: 60,

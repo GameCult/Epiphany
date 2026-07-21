@@ -387,6 +387,7 @@ impl Args {
             agent_memory_store: path("--agent-memory-store")?,
             artifact_root: path("--artifact-root")?,
             codex_home: path("--codex-home")?,
+            mcp_config: path("--mcp-config")?,
             model_provider: value
                 .get("--model-provider")
                 .cloned()

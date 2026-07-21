@@ -12070,7 +12070,7 @@ pub(crate) mod tests {
             "intent:done",
             &EpiphanyToolInvocationIntent::new(
                 "done",
-                "codex-mcp",
+                "epiphany-tools",
                 "smoke-server",
                 "smoke_tool",
                 "{}",
@@ -12083,7 +12083,7 @@ pub(crate) mod tests {
             "intent:pending",
             &EpiphanyToolInvocationIntent::new(
                 "pending",
-                "codex-mcp",
+                "epiphany-tools",
                 "smoke-server",
                 "waiting_tool",
                 "{}",
@@ -12095,7 +12095,7 @@ pub(crate) mod tests {
         let mut failed_receipt = EpiphanyToolInvocationReceipt::new(
             "receipt-done",
             "done",
-            "codex-mcp",
+            "epiphany-tools",
             "smoke-server",
             "smoke_tool",
             "failed",

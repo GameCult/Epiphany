@@ -275,7 +275,6 @@ $dogfoodRoot = Join-Path $Root ".epiphany-dogfood\$runId"
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $dogfoodRoot | Out-Null
 
-$codexAppServer = Join-Path $TargetDir "debug\codex-app-server.exe"
 $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
 $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
@@ -290,7 +289,7 @@ $handsActionExe = Join-Path $TargetDir "debug\epiphany-hands-action.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
-$toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
+$toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-mcp-runtime.exe"
 $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $PersonaExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
 $PersonaRedditExe = Join-Path $TargetDir "debug\epiphany-persona-reddit.exe"
@@ -325,19 +324,10 @@ if ($BifrostTargetRepository -eq "") {
 $agentStore = Join-Path $Root "state\agents.msgpack"
 $heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
 $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
+$mcpConfig = Join-Path $Workspace ".epiphany\mcp.toml"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if (@("plan", "smoke", "run", "mvp") -contains $Mode) {
-        Invoke-Checked `
-            -Label "build Codex app-server compatibility organ" `
-            -FilePath $cargoExe `
-            -Arguments @("build", "-p", "codex-app-server", "--manifest-path", ".\vendor\codex\codex-rs\Cargo.toml") `
-            -WorkingDirectory $Root `
-            -StdoutPath (Join-Path $artifactRoot "build-codex-app-server.stdout.log") `
-            -StderrPath (Join-Path $artifactRoot "build-codex-app-server.stderr.log")
-    }
-
     Invoke-Checked `
         -Label "build Epiphany operator binaries" `
         -FilePath $cargoExe `
@@ -379,9 +369,9 @@ if (-not $SkipBuild) {
             -StdoutPath (Join-Path $artifactRoot "build-model-runtime.stdout.log") `
             -StderrPath (Join-Path $artifactRoot "build-model-runtime.stderr.log")
         Invoke-Checked `
-            -Label "build quarantined Codex MCP tool adapter" `
+            -Label "build native Epiphany MCP tool runtime" `
             -FilePath $cargoExe `
-            -Arguments @("build", "--manifest-path", ".\epiphany-tool-codex-mcp-spine\Cargo.toml") `
+            -Arguments @("build", "--manifest-path", ".\epiphany-tool-mcp-runtime\Cargo.toml") `
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "build-tool-adapter.stdout.log") `
             -StderrPath (Join-Path $artifactRoot "build-tool-adapter.stderr.log")
@@ -410,7 +400,7 @@ function Format-ServiceExecutionFailedChecks {
     }) -join "; ")
 }
 if (@("plan", "smoke", "run", "mvp") -contains $Mode) {
-    $requiredBinaries += @($codexAppServer, $coordinatorExe)
+    $requiredBinaries += @($coordinatorExe)
 }
 function Assert-SwarmBrakeAllowsLiveRun {
     $brakeContextPath = Join-Path $artifactRoot "swarm-brake-preflight.stdout.json"
@@ -1483,8 +1473,8 @@ if ($Mode -eq "repo-work-service-plan" -or $Mode -eq "repo-work-service-runbook"
 if ($Mode -eq "plan") {
     $resultPath = Join-Path $artifactRoot "coordinator-plan.stdout.json"
     $planArgs = @(
-        "--app-server", $codexAppServer,
         "--codex-home", $CodexHome,
+        "--mcp-config", $mcpConfig,
         "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
         "--runtime-store", $runtimeStore,
@@ -1513,7 +1503,6 @@ if ($Mode -eq "smoke") {
         -Label "run coordinator smoke" `
         -FilePath $coordinatorSmokeExe `
         -Arguments @(
-            "--app-server", $codexAppServer,
             "--artifact-root", (Join-Path $dogfoodRoot "coordinator-smoke"),
             "--coordinator-exe", $coordinatorExe
         ) `
@@ -1566,11 +1555,11 @@ if ($Mode -eq "mvp") {
 if ($liveRuntimeMode) {
     $resultPath = Join-Path $artifactRoot "coordinator-run.stdout.json"
     $runArgs = @(
-        "--app-server", $codexAppServer,
         "--model-runtime-bin", $modelRuntimeExe,
         "--tool-adapter-bin", $toolAdapterExe,
         "--model-provider", $modelProvider,
         "--codex-home", $CodexHome,
+        "--mcp-config", $mcpConfig,
         "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
         "--runtime-store", $runtimeStore,
@@ -1670,10 +1659,10 @@ $summary = @"
 - workspace: $Workspace
 - threadId: $ThreadId
 - codexHome: $CodexHome
+- mcpConfig: $mcpConfig
 - targetDir: $TargetDir
 - artifactRoot: $artifactRoot
 - dogfoodRoot: $dogfoodRoot
-- codexAppServer: $codexAppServer
 - statusBinary: $statusExe
 - operatorRunBinary: $operatorRunExe
 - operatorRunStore: $operatorRunStore

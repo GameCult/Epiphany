@@ -56,7 +56,7 @@ const DETACHED_PROCESS: u32 = 0x0000_0008;
 mod status_cli;
 
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
-const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
+const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-mcp-runtime";
 const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
 
 fn main() -> Result<()> {
@@ -75,6 +75,7 @@ struct Args {
     objective: Option<String>,
     cwd: PathBuf,
     codex_home: PathBuf,
+    mcp_config: PathBuf,
     artifact_dir: PathBuf,
     agent_memory_dir: PathBuf,
     runtime_store: PathBuf,
@@ -111,6 +112,7 @@ impl Args {
             codex_home: env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home_dir().join(".codex")),
+            mcp_config: root.join(".epiphany").join("mcp.toml"),
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
             agent_memory_dir: root.join("state").join("agents.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
@@ -137,9 +139,6 @@ impl Args {
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--app-server" => {
-                    let _ = take_path(&mut args, "--app-server")?;
-                }
                 "--model-runtime-bin" => {
                     parsed.model_runtime_bin = take_path(&mut args, "--model-runtime-bin")?;
                 }
@@ -194,6 +193,7 @@ impl Args {
                 "--runtime-id" => parsed.runtime_id = Some(take_string(&mut args, "--runtime-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
+                "--mcp-config" => parsed.mcp_config = take_path(&mut args, "--mcp-config")?,
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
                 "--agent-memory-dir" => {
                     parsed.agent_memory_dir = take_path(&mut args, "--agent-memory-dir")?;
@@ -275,6 +275,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
+    let mcp_config = status_cli::absolute_path(&args.mcp_config)?;
     let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
     let agent_memory_dir = status_cli::absolute_path(&args.agent_memory_dir)?;
     let runtime_store = status_cli::absolute_path(&args.runtime_store)?;
@@ -398,6 +399,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             &args.model_provider,
             &runtime_store,
             &codex_home,
+            &mcp_config,
             &cwd,
             &worker_job_id,
             "imagination",
@@ -456,6 +458,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             &args.model_provider,
             &runtime_store,
             &codex_home,
+            &mcp_config,
             &cwd,
             &worker_job_id,
             "imagination",
@@ -693,6 +696,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &args.model_provider,
                     &runtime_store,
                     &codex_home,
+                    &mcp_config,
                     &cwd,
                     &worker_job_id,
                     role_id,
@@ -752,6 +756,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &args.model_provider,
                     &runtime_store,
                     &codex_home,
+                    &mcp_config,
                     &cwd,
                     &worker_job_id,
                     "reorient-worker",
@@ -849,6 +854,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "toolAdapterBin".to_string(),
                 tool_adapter_bin.display().to_string(),
             ),
+            ("mcpConfig".to_string(), mcp_config.display().to_string()),
             ("autoTools".to_string(), args.auto_tools.to_string()),
         ]),
         resident_grant_id: args.resident_binding.get("grant-id").cloned(),
@@ -872,6 +878,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "autoTools": args.auto_tools,
         "modelProvider": args.model_provider,
         "codexHome": codex_home,
+        "mcpConfig": mcp_config,
         "runtimeStore": runtime_store,
         "runtimeSpine": runtime_status,
         "workspace": cwd,
@@ -1524,6 +1531,7 @@ fn launch_worker_runtime_detached(
     model_provider: &str,
     runtime_store: &Path,
     codex_home: &Path,
+    mcp_config: &Path,
     cwd: &Path,
     job_id: &str,
     role_id: &str,
@@ -1549,6 +1557,8 @@ fn launch_worker_runtime_detached(
         .arg(runtime_store)
         .arg("--codex-home")
         .arg(codex_home)
+        .arg("--mcp-config")
+        .arg(mcp_config)
         .arg("--job-id")
         .arg(job_id)
         .arg("--max-runtime-seconds")
