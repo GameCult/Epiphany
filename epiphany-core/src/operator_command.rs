@@ -1147,18 +1147,21 @@ mod tests {
             "coordinator-snapshot/sleeping"
         );
         assert_eq!(status_result.state_status, "coordinator-state/ready");
-        assert_eq!(
-            status_result.coordinator_action,
-            "coordinator-action/none"
+        assert_eq!(status_result.coordinator_action, "coordinator-action/none");
+        assert!(
+            [
+                status_result.operator_status.as_str(),
+                status_result.state_status.as_str(),
+                status_result.coordinator_action.as_str(),
+            ]
+            .into_iter()
+            .all(|value| value != "ready" && value != "none")
         );
-        assert!([
-            status_result.operator_status.as_str(),
-            status_result.state_status.as_str(),
-            status_result.coordinator_action.as_str(),
-        ]
-        .into_iter()
-        .all(|value| value != "ready" && value != "none"));
-        assert!(status_result.detail.contains("not deployment or provider readiness"));
+        assert!(
+            status_result
+                .detail
+                .contains("not deployment or provider readiness")
+        );
         assert!(!resident.exists());
         let sleep = signed(
             &signer,

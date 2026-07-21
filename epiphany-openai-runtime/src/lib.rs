@@ -47,6 +47,9 @@ use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::de::DeserializeOwned;
 
+mod persona_executor;
+pub use persona_executor::*;
+
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";

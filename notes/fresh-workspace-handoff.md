@@ -1,5 +1,44 @@
 # Fresh Workspace Handoff
 
+## Native Persona conversation is locally proven and ready for braked promotion (2026-07-22)
+
+The earlier claim that Epiphany depended on VoidBot for Persona/Discord plumbing
+was false. Epiphany owns heartbeat/CTB pressure, immutable Persona turn
+reservation, Projector, Persona, Interpreter, Mind effects, signed speech
+requests, and terminal reconciliation. Bifrost owns only Discord Gateway/token,
+posting, and signed transport receipts. VoidBot owns nothing in this path.
+
+The live consequence boundary is a signed CultNet/RUDP permit. Bifrost journals
+the exact nonce and five-second request window before network, replays that
+exact tuple only while valid, writes `running` before Discord actuation, checks
+permit expiry again immediately before posting, and treats every crash-ambiguous
+or expired outcome as terminal unknown/failed without reposting. Epiphany's
+permit issuer rereads the canonical brake at issuance and grants one delivery
+digest once. Failed/unknown transport and ambiguous local Mind effects become
+non-schedulable typed quarantine. SAY is independent of memory: the Interpreter
+may speak without manufacturing a state note.
+
+Packaging now includes the Persona service, mouth identity, permit issuer, and
+permit identity. Ops owns distinct trust anchors, loopback permit service,
+read-only crossing directory mounts, rollback of first-enrollment identities and
+anchors, lifecycle checks, and authority-backup coverage. A Rust-authored
+CultCache request was consumed by Bifrost through the read-only mount shape; the
+smoke caught and repaired positional-tuple and byte-vector decoding at the TS
+boundary.
+
+Local gates are green: epiphany-core 617 passed / 0 failed / 1 ignored; Persona
+executor 3/3; Bifrost Persona delivery plus feedback 15/15; Rust-to-Bifrost
+crossing 1/1; ops rollback, deployment wiring, backup, shell syntax, Rust format,
+Node syntax, and diff checks pass. No successor has been deployed yet.
+
+Next: commit and push Epiphany, Bifrost, and gamecult-ops; promote only those
+exact commits through Bifrost/Idunn with both brakes engaged; run the root Ygg
+checker; then release only the narrow cognition interval needed for one real
+addressed Discord conversation. Require the full ingress -> CTB -> three model
+stages -> signed request -> live permit -> one post -> signed receipt -> terminal
+reconciliation chain, re-engage sleep immediately, and prove unattended
+readiness. Do not broadly Wake or reboot.
+
 ## Authenticated provider health is wired into Epiphany Status v2 (2026-07-19)
 
 The Epiphany operator service now requires Idunn public-query endpoint, pinned

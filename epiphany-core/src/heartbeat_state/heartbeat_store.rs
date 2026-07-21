@@ -12,6 +12,8 @@ use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::LegacyHeartbeatStateWithCognition;
 use super::PARTICIPANT_KIND_AGENT;
 use super::PARTICIPANT_KIND_CHARACTER;
+use super::PERSONA_TURN_REQUEST_SCHEMA_VERSION;
+use super::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION;
 use super::now_iso;
 use super::participant_arena;
 use super::participant_kind;
@@ -407,6 +409,91 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
                 "heartbeat participant {} participant_kind {:?} is unsupported",
                 participant.agent_id,
                 participant_kind
+            ));
+        }
+    }
+    let mut request_ids = std::collections::BTreeSet::new();
+    for request in &state.persona_turn_requests {
+        if request.schema_version != PERSONA_TURN_REQUEST_SCHEMA_VERSION {
+            return Err(anyhow!(
+                "Persona turn request {} has unsupported schema {:?}",
+                request.request_id,
+                request.schema_version
+            ));
+        }
+        if request.private_state_exposed {
+            return Err(anyhow!(
+                "Persona turn request must not expose private state"
+            ));
+        }
+        if request.request_id.trim().is_empty()
+            || request.schedule_id.trim().is_empty()
+            || request.action_id.trim().is_empty()
+            || request.role_id != "Persona"
+            || request.agent_id.trim().is_empty()
+        {
+            return Err(anyhow!("Persona turn request identity is incomplete"));
+        }
+        if !request_ids.insert(request.request_id.as_str()) {
+            return Err(anyhow!(
+                "duplicate Persona turn request {:?}",
+                request.request_id
+            ));
+        }
+        match (&*request.status, &request.terminal_receipt) {
+            ("reserved", None) | ("terminal", Some(_)) => {}
+            _ => return Err(anyhow!("Persona turn request status/receipt disagree")),
+        }
+        if let Some(receipt) = &request.terminal_receipt {
+            if receipt.schema_version != PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION
+                || receipt.private_state_exposed
+                || receipt.request_id != request.request_id
+                || receipt.schedule_id != request.schedule_id
+                || receipt.action_id != request.action_id
+                || receipt.mention_cargo_sha256.trim().is_empty()
+                || !request.mentions.is_empty()
+                || !request.semantic_memory_recall.is_null()
+            {
+                return Err(anyhow!("Persona turn terminal receipt binding is invalid"));
+            }
+        }
+    }
+    let mut quarantine_ids = std::collections::BTreeSet::new();
+    for pressure in &state.blocked_persona_pressures {
+        if pressure.schema_version != "epiphany.persona_blocked_conversation_pressure.v0"
+            || pressure.private_state_exposed
+            || pressure.quarantine_id.trim().is_empty()
+            || pressure.request_id.trim().is_empty()
+            || pressure.terminal_receipt_id.trim().is_empty()
+            || !matches!(pressure.crossing_status.as_str(), "unknown" | "failed")
+            || pressure.reason.trim().is_empty()
+            || pressure.mentions.is_empty()
+            || pressure.mention_cargo_sha256.trim().is_empty()
+        {
+            return Err(anyhow!("Persona blocked conversation pressure is invalid"));
+        }
+        if !quarantine_ids.insert(pressure.quarantine_id.as_str()) {
+            return Err(anyhow!("duplicate Persona blocked conversation pressure"));
+        }
+        let request = state
+            .persona_turn_requests
+            .iter()
+            .find(|request| request.request_id == pressure.request_id)
+            .ok_or_else(|| anyhow!("blocked Persona pressure has no bound turn request"))?;
+        let receipt = request
+            .terminal_receipt
+            .as_ref()
+            .filter(|receipt| {
+                receipt.receipt_id == pressure.terminal_receipt_id
+                    && receipt.mention_disposition == "quarantined"
+                    && receipt.mention_cargo_sha256 == pressure.mention_cargo_sha256
+            })
+            .ok_or_else(|| anyhow!("blocked Persona pressure terminal binding is invalid"))?;
+        if receipt.blocked_crossing_status.as_deref() != Some(&pressure.crossing_status)
+            || receipt.blocked_reason.as_deref() != Some(&pressure.reason)
+        {
+            return Err(anyhow!(
+                "blocked Persona pressure provenance does not match terminal receipt"
             ));
         }
     }

@@ -18,6 +18,7 @@ use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_heartbeat_state_entry;
+use epiphany_core::pulse_persona_heartbeat;
 use epiphany_core::pulse_resident_self_heartbeat;
 use epiphany_core::pump_heartbeat_store;
 use epiphany_core::queue_heartbeat_pending_mention_store;
@@ -87,6 +88,9 @@ fn main() -> Result<()> {
     let mut reply_to_message_id: Option<String> = None;
     let mut source_surface = "operator".to_string();
     let mut mention_id: Option<String> = None;
+    let mut source_visibility = "private".to_string();
+    let mut data_classification = "operator_input".to_string();
+    let mut model_provider_id = "operator-configured".to_string();
     let mut max_age_seconds = 1800_i64;
     let mut now_utc: Option<String> = None;
     let mut interval_seconds = 120_u64;
@@ -166,6 +170,15 @@ fn main() -> Result<()> {
             }
             "--source-surface" => source_surface = next_value(&mut args, "--source-surface")?,
             "--mention-id" => mention_id = Some(next_value(&mut args, "--mention-id")?),
+            "--source-visibility" => {
+                source_visibility = next_value(&mut args, "--source-visibility")?
+            }
+            "--data-classification" => {
+                data_classification = next_value(&mut args, "--data-classification")?
+            }
+            "--model-provider-id" => {
+                model_provider_id = next_value(&mut args, "--model-provider-id")?
+            }
             "--max-age-seconds" => {
                 max_age_seconds = next_value(&mut args, "--max-age-seconds")?.parse()?
             }
@@ -372,6 +385,10 @@ fn main() -> Result<()> {
                     reply_to_message_id,
                     queued_at: None,
                     mention_id,
+                    source_visibility,
+                    data_classification,
+                    model_provider_id,
+                    model_provider_disclosure_allowed: true,
                 },
             )?;
             println!("{}", result);
@@ -574,6 +591,23 @@ fn main() -> Result<()> {
                             "privateStateExposed": false
                         })
                     );
+                    if max_iterations > 0 && completed_iterations >= max_iterations {
+                        break;
+                    }
+                    thread::sleep(Duration::from_secs(interval_seconds));
+                    continue;
+                }
+                let persona_pulse = pulse_persona_heartbeat(
+                    &store_path,
+                    &iteration_dir,
+                    &format!("{schedule_id}.persona-{iteration:06}"),
+                    &source_scene_ref,
+                    agent_store.clone(),
+                    false,
+                )?;
+                if persona_pulse["status"] != "idle" {
+                    completed_iterations = iteration;
+                    println!("{}", persona_pulse);
                     if max_iterations > 0 && completed_iterations >= max_iterations {
                         break;
                     }

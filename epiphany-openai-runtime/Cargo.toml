@@ -12,6 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1"
 chrono = "0.4.44"
+cultcache-rs = { path = "../vendor/cultcache-rs" }
 epiphany-core = { path = "../epiphany-core" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }

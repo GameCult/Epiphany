@@ -17,6 +17,9 @@ pub const HEARTBEAT_STALE_TURN_REPAIR_TYPE: &str = "epiphany.heartbeat.stale_tur
 pub const HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
     "epiphany.heartbeat.stale_turn_repair.v0";
 pub const HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY: &str = "heartbeat/stale-turn-repair/latest";
+pub const PERSONA_TURN_REQUEST_SCHEMA_VERSION: &str = "epiphany.persona_turn_request.v0";
+pub const PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.persona_turn_terminal_receipt.v0";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -46,6 +49,10 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub adaptive_pacing: Option<HeartbeatAdaptivePacing>,
     #[cultcache(key = 19, default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
+    #[cultcache(key = 20, default)]
+    pub persona_turn_requests: Vec<PersonaTurnRequest>,
+    #[cultcache(key = 21, default)]
+    pub blocked_persona_pressures: Vec<PersonaBlockedConversationPressure>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -815,6 +822,96 @@ pub struct HeartbeatPendingMention {
     #[serde(default)]
     pub reply_to_message_id: Option<String>,
     pub queued_at: String,
+    #[serde(default)]
+    pub source_visibility: String,
+    #[serde(default)]
+    pub data_classification: String,
+    #[serde(default)]
+    pub model_provider_id: String,
+    #[serde(default)]
+    pub model_provider_disclosure_allowed: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaTurnRequest {
+    pub schema_version: String,
+    pub request_id: String,
+    pub schedule_id: String,
+    pub action_id: String,
+    pub role_id: String,
+    pub agent_id: String,
+    pub status: String,
+    pub reserved_at: String,
+    pub mentions: Vec<HeartbeatPendingMention>,
+    #[serde(default)]
+    pub semantic_memory_recall: Value,
+    #[serde(default)]
+    pub terminal_receipt: Option<PersonaTurnTerminalReceipt>,
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaTurnTerminalReceipt {
+    pub schema_version: String,
+    pub receipt_id: String,
+    pub request_id: String,
+    pub schedule_id: String,
+    pub action_id: String,
+    pub outcome: String,
+    pub mention_disposition: String,
+    pub mention_ids: Vec<String>,
+    pub mention_cargo_sha256: String,
+    #[serde(default)]
+    pub delivery_evidence_id: Option<String>,
+    #[serde(default)]
+    pub crossing_receipt_id: Option<String>,
+    #[serde(default)]
+    pub bridge_receipt_sha256: Option<String>,
+    #[serde(default)]
+    pub blocked_crossing_status: Option<String>,
+    #[serde(default)]
+    pub blocked_reason: Option<String>,
+    pub completed_at: String,
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PersonaTurnTerminalOptions {
+    pub request_id: String,
+    pub outcome: String,
+    pub delivery_evidence: Option<crate::PersonaDiscordDeliveryEvidence>,
+    pub blocked_evidence: Option<PersonaTurnBlockedEvidence>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PersonaTurnBlockedEvidence {
+    pub evidence_source: String,
+    pub crossing_status: String,
+    pub reason: String,
+    pub crossing_receipt_id: Option<String>,
+    pub bridge_receipt_sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaBlockedConversationPressure {
+    pub schema_version: String,
+    pub quarantine_id: String,
+    pub request_id: String,
+    pub terminal_receipt_id: String,
+    pub crossing_status: String,
+    pub evidence_source: String,
+    pub reason: String,
+    pub mentions: Vec<HeartbeatPendingMention>,
+    pub mention_cargo_sha256: String,
+    #[serde(default)]
+    pub crossing_receipt_id: Option<String>,
+    #[serde(default)]
+    pub bridge_receipt_sha256: Option<String>,
+    pub quarantined_at: String,
+    pub private_state_exposed: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -907,6 +1004,10 @@ pub struct HeartbeatQueueMentionOptions {
     pub reply_to_message_id: Option<String>,
     pub queued_at: Option<String>,
     pub mention_id: Option<String>,
+    pub source_visibility: String,
+    pub data_classification: String,
+    pub model_provider_id: String,
+    pub model_provider_disclosure_allowed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

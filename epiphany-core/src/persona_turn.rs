@@ -3,6 +3,9 @@ use crate::EpiphanyOrganDependency;
 use crate::HeartbeatPendingMention;
 use crate::default_organ_dependencies_for;
 use crate::render_organ_dependencies;
+use anyhow::Result;
+use anyhow::anyhow;
+use cultcache_rs::DatabaseEntry;
 use epiphany_state_model::EpiphanyMemoryContextPacket;
 use serde::Deserialize;
 use serde::Serialize;
@@ -13,6 +16,135 @@ pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
 pub const PERSONA_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_turn_prompt.v0";
 pub const PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION: &str =
     "epiphany.persona_interpreter_prompt.v0";
+pub const PERSONA_INTERPRETER_EFFECT_SET_SCHEMA_VERSION: &str =
+    "epiphany.persona_interpreter_effect_set.v0";
+pub const PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION: &str =
+    "epiphany.persona_interpreter_effect_document.v0";
+pub const PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.persona_model_stage_receipt.v0";
+pub const PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.persona_model_terminal_receipt.v0";
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersonaInterpreterEffectSet {
+    pub schema_version: String,
+    pub effects: Vec<PersonaInterpreterEffect>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PersonaInterpreterEffect {
+    StateNote {
+        memory_kind: String,
+        summary: String,
+        #[serde(default)]
+        subject_id: Option<String>,
+        #[serde(default)]
+        confidence: Option<f64>,
+    },
+    Say {
+        channel_id: String,
+        #[serde(default)]
+        reply_to_message_id: Option<String>,
+        content: String,
+        speech_act: String,
+        register: String,
+        #[serde(default)]
+        target_audience: Option<String>,
+        #[serde(default)]
+        safety_notes: Vec<String>,
+    },
+    Drop {
+        reason: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.persona_interpreter_effect_document.v0",
+    schema = "PersonaInterpreterEffectDocument"
+)]
+pub struct PersonaInterpreterEffectDocument {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub document_id: String,
+    #[cultcache(key = 2)]
+    pub turn_id: String,
+    #[cultcache(key = 3)]
+    pub identity_id: String,
+    #[cultcache(key = 4)]
+    pub interpreter_request_id: String,
+    #[cultcache(key = 5)]
+    pub created_at: String,
+    #[cultcache(key = 6)]
+    pub effects: Vec<PersonaInterpreterEffect>,
+    #[cultcache(key = 7)]
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.persona_model_stage_receipt.v0",
+    schema = "PersonaModelStageReceipt"
+)]
+pub struct PersonaModelStageReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub turn_id: String,
+    #[cultcache(key = 3)]
+    pub stage: String,
+    #[cultcache(key = 4)]
+    pub request_id: String,
+    #[cultcache(key = 5)]
+    pub output_sha256: String,
+    #[cultcache(key = 6)]
+    pub private_output_ref: String,
+    #[cultcache(key = 7)]
+    pub completed_at: String,
+    #[cultcache(key = 8)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 9)]
+    pub provider: String,
+    #[cultcache(key = 10)]
+    pub model: String,
+    #[cultcache(key = 11)]
+    pub prompt_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.persona_model_terminal_receipt.v0",
+    schema = "PersonaModelTerminalReceipt"
+)]
+pub struct PersonaModelTerminalReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub turn_id: String,
+    #[cultcache(key = 3)]
+    pub identity_id: String,
+    #[cultcache(key = 4)]
+    pub effect_document_id: String,
+    #[cultcache(key = 5)]
+    pub stage_receipt_ids: Vec<String>,
+    #[cultcache(key = 6)]
+    pub completed_at: String,
+    #[cultcache(key = 7)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 8)]
+    pub downstream_status: String,
+    #[cultcache(key = 9)]
+    pub effect_document_sha256: String,
+    #[cultcache(key = 10)]
+    pub stage_output_sha256: Vec<String>,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,7 +311,7 @@ Think narratively. Speak, hold silence, wonder, disagree, or form a private thou
 Hard boundary:
 - Do not emit JSON, tool calls, SAY blocks, STATE NOTE blocks, action blocks, or Discord routing syntax.
 - You may describe what you want to say or remember in natural language.
-- Your side effects are not yours to execute. A parent Interpreter will decide whether your natural turn becomes memory, a draft, public speech, a proposal, or silence.
+- Your side effects are not yours to execute. A parent Interpreter will decide whether your natural turn becomes bounded memory, a public speech request, or silence.
 - Read the raw transcript directly. Recent human correction beats stale memory.
 
 Projected inner state from Imagination:
@@ -225,24 +357,21 @@ Hard boundary:
 - The Persona was forbidden from action syntax. Do not punish natural prose for lacking blocks.
 - Decide side effects from the Persona output plus the original prompt evidence.
 - Public speech must sound like the Persona speaking to people, not a scheduler, status report, provenance label, or maintenance note.
-- If the Persona chooses silence, route without SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
-- Do not auto-post. Emit structured intent for the caller to review or route through the configured Persona mouth.
-- Keep consequence ownership explicit: Persona owns the natural speech candidate; the parent mouth policy owns eligibility; an Aquarium bubble owns only local projection; Mind owns durable admission; Bifrost/provider receipts alone own downstream publication or delivery.
+- If the Persona chooses silence, omit SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
+- Do not claim posting. Emit only the bounded typed effects supported by this v0 contract.
+- Keep consequence ownership explicit: Persona owns the natural speech candidate; this Interpreter owns typed effect selection; Mind owns durable admission; a signed Bifrost receipt alone proves downstream publication or delivery.
 - A successful mouth invocation, accepted request, bubble artifact, configured channel, or provider advertisement is not a publication receipt. Never label it posted, published, delivered, admitted, or consensus-accepted without the owning typed evidence.
 
-Allowed effect vocabulary:
-- STATE NOTE: bounded Persona memory, mood, need, social read, bond, value, goal, or agency pressure.
-- SAY: public utterance meaning candidate for an allowed channel; this becomes Weksa interlingua before target-language lowering or transport.
-- DRAFT: private candidate artifact when posting is blocked or needs review.
-- ROUTE: non-public action such as keep private, ask Self, or propose a bounded repo investigation.
-- DROP: no durable effect.
+Allowed typed effect vocabulary:
+- state_note: bounded memory, social read, or bond.
+- say: one public utterance request for an allowed channel. It is not delivery evidence.
+- drop: no durable effect. Drop must be the only effect.
 
-For any SAY block, preserve meaning separately from transport phrasing when possible:
-- meaning: what the Persona intends to communicate
+For any SAY effect:
 - speechAct: reply, status, invitation, correction, thanks, refusal, or other public act
-- register: public delivery feel such as warm-technical, concise, playful, careful
+- register: public delivery feel such as concise, playful, or careful
 - targetAudience: room or peer context
-- safetyNotes: anything Weksa must preserve while lowering into the target language
+- safetyNotes: meaning or safety constraints the transport must preserve
 
 Allowed channel ids:
 {channels}
@@ -266,7 +395,8 @@ Persona output:
 {persona_output}
 ```
 
-Return concise structured effect blocks. No prose outside the blocks.
+Return exactly one JSON object matching this schema. Do not wrap it in Markdown:
+{effect_schema}
 "#,
         schema = PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION,
         name = input.identity.display_name,
@@ -283,7 +413,117 @@ Return concise structured effect blocks. No prose outside the blocks.
         ),
         persona_prompt = input.persona_prompt.trim(),
         persona_output = input.persona_output.trim(),
+        effect_schema = persona_interpreter_effect_set_json_schema(),
     )
+}
+
+pub fn persona_interpreter_effect_set_json_schema() -> String {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "effects"],
+        "properties": {
+            "schemaVersion": {"const": PERSONA_INTERPRETER_EFFECT_SET_SCHEMA_VERSION},
+            "effects": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                    "oneOf": [
+                        {"type":"object","additionalProperties":false,"required":["kind","memory_kind","summary"],"properties":{"kind":{"const":"state_note"},"memory_kind":{"enum":["memory","social_read","bond"]},"summary":{"type":"string"},"subject_id":{"type":["string","null"]},"confidence":{"type":["number","null"],"minimum":0,"maximum":1}}},
+                        {"type":"object","additionalProperties":false,"required":["kind","channel_id","content","speech_act","register"],"properties":{"kind":{"const":"say"},"channel_id":{"type":"string"},"reply_to_message_id":{"type":["string","null"]},"content":{"type":"string","maxLength":1900,"description":"At most 1900 UTF-8 bytes."},"speech_act":{"type":"string"},"register":{"type":"string"},"target_audience":{"type":["string","null"]},"safety_notes":{"type":"array","items":{"type":"string"},"maxItems":8}}},
+                        {"type":"object","additionalProperties":false,"required":["kind","reason"],"properties":{"kind":{"const":"drop"},"reason":{"type":"string"}}}
+                    ]
+                }
+            }
+        }
+    }).to_string()
+}
+
+pub fn parse_and_validate_persona_interpreter_effect_set(
+    output: &str,
+    allowed_channel_ids: &[String],
+) -> Result<PersonaInterpreterEffectSet> {
+    let parsed: PersonaInterpreterEffectSet = serde_json::from_str(output.trim())
+        .map_err(|error| anyhow!("Persona Interpreter returned invalid typed effects: {error}"))?;
+    if parsed.schema_version != PERSONA_INTERPRETER_EFFECT_SET_SCHEMA_VERSION {
+        return Err(anyhow!("Persona Interpreter effect schema mismatch"));
+    }
+    if parsed.effects.is_empty() || parsed.effects.len() > 16 {
+        return Err(anyhow!("Persona Interpreter must return 1..=16 effects"));
+    }
+    let drop_count = parsed
+        .effects
+        .iter()
+        .filter(|effect| matches!(effect, PersonaInterpreterEffect::Drop { .. }))
+        .count();
+    if drop_count > 0 && parsed.effects.len() != 1 {
+        return Err(anyhow!("drop must be the only Persona Interpreter effect"));
+    }
+    if parsed
+        .effects
+        .iter()
+        .filter(|effect| matches!(effect, PersonaInterpreterEffect::Say { .. }))
+        .count()
+        > 1
+    {
+        return Err(anyhow!(
+            "Persona Interpreter v0 permits at most one say effect"
+        ));
+    }
+    const MEMORY_KINDS: &[&str] = &["memory", "social_read", "bond"];
+    for effect in &parsed.effects {
+        match effect {
+            PersonaInterpreterEffect::StateNote {
+                memory_kind,
+                summary,
+                confidence,
+                ..
+            } => {
+                if !MEMORY_KINDS.contains(&memory_kind.as_str())
+                    || summary.trim().is_empty()
+                    || summary.len() > 2000
+                {
+                    return Err(anyhow!("invalid bounded Persona state_note"));
+                }
+                if confidence.is_some_and(|value| !(0.0..=1.0).contains(&value)) {
+                    return Err(anyhow!(
+                        "Persona state_note confidence must be within 0..=1"
+                    ));
+                }
+            }
+            PersonaInterpreterEffect::Say {
+                channel_id,
+                content,
+                speech_act,
+                register,
+                safety_notes,
+                ..
+            } => {
+                if !allowed_channel_ids
+                    .iter()
+                    .any(|allowed| allowed == channel_id)
+                {
+                    return Err(anyhow!(
+                        "Persona SAY targets a channel outside the admitted set"
+                    ));
+                }
+                if content.trim().is_empty()
+                    || content.len() > 1900
+                    || speech_act.trim().is_empty()
+                    || register.trim().is_empty()
+                    || safety_notes.len() > 8
+                {
+                    return Err(anyhow!("invalid bounded Persona say effect"));
+                }
+            }
+            PersonaInterpreterEffect::Drop { reason } if reason.trim().is_empty() => {
+                return Err(anyhow!("Persona drop effect requires a reason"));
+            }
+            PersonaInterpreterEffect::Drop { .. } => {}
+        }
+    }
+    Ok(parsed)
 }
 
 pub fn render_persona_semantic_memory_recall(packet: &EpiphanyMemoryContextPacket) -> String {
@@ -554,6 +794,10 @@ mod tests {
             visible_prompt: "report the live cut".to_string(),
             reply_to_message_id: None,
             queued_at: "2026-05-24T00:00:00+00:00".to_string(),
+            source_visibility: "public".to_string(),
+            data_classification: "public_feedback".to_string(),
+            model_provider_id: "openai-codex".to_string(),
+            model_provider_disclosure_allowed: true,
         };
         let projector = build_persona_projector_prompt(&PersonaProjectorInput {
             identity: identity(),
@@ -602,11 +846,11 @@ mod tests {
             pending_mentions: vec![pending],
             allowed_channel_ids: vec!["aquarium".to_string()],
         });
-        assert!(interpreter.contains("Allowed effect vocabulary"));
-        assert!(interpreter.contains("STATE NOTE"));
-        assert!(interpreter.contains("SAY"));
-        assert!(interpreter.contains("Aquarium bubble owns only local projection"));
-        assert!(interpreter.contains("Bifrost/provider receipts alone own"));
+        assert!(interpreter.contains("Allowed typed effect vocabulary"));
+        assert!(interpreter.contains("epiphany.persona_interpreter_effect_set.v0"));
+        assert!(interpreter.contains("\"state_note\""));
+        assert!(interpreter.contains("\"say\""));
+        assert!(interpreter.contains("a signed Bifrost receipt alone proves"));
     }
 
     #[test]
@@ -706,5 +950,52 @@ mod tests {
         assert!(!persona_projected_surface_is_clean(
             "STATE NOTE: remember this as selfPatch"
         ));
+    }
+
+    #[test]
+    fn typed_interpreter_effects_reject_channel_escape_and_mixed_drop() {
+        let valid = r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"state_note","memory_kind":"memory","summary":"The operator expects a native conversational nerve."},{"kind":"say","channel_id":"aquarium","content":"The nerve is live.","speech_act":"status","register":"concise","safety_notes":[]}]}"#;
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(valid, &["aquarium".into()]).is_ok()
+        );
+
+        let speech_without_forced_memory = r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"say","channel_id":"aquarium","content":"The nerve is live.","speech_act":"status","register":"concise","safety_notes":[]}]}"#;
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(
+                speech_without_forced_memory,
+                &["aquarium".into()]
+            )
+            .is_ok()
+        );
+
+        let escaped = valid.replace("aquarium", "private-room");
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(&escaped, &["aquarium".into()])
+                .is_err()
+        );
+
+        let mixed_drop = r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"drop","reason":"quiet"},{"kind":"draft","content":"later","reason":"review"}]}"#;
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(mixed_drop, &["aquarium".into()])
+                .is_err()
+        );
+
+        let unsupported_memory = valid.replace("\"memory\"", "\"mood\"");
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(
+                &unsupported_memory,
+                &["aquarium".into()]
+            )
+            .is_err()
+        );
+
+        let oversized_unicode = valid.replace("The nerve is live.", &"é".repeat(951));
+        assert!(
+            parse_and_validate_persona_interpreter_effect_set(
+                &oversized_unicode,
+                &["aquarium".into()]
+            )
+            .is_err()
+        );
     }
 }

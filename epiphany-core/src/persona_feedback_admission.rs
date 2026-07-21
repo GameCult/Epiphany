@@ -1,5 +1,8 @@
 use anyhow::{Result, anyhow, bail};
-use cultcache_rs::{CultCache, DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::{
+    CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
+    SingleFileMessagePackBackingStore,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -14,6 +17,8 @@ pub const BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION: &str =
 pub const BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE: &str = "bifrost.persona_feedback.delivery";
 pub const LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION: &str =
     "epiphany.persona_feedback.admitted_pressure.v0";
+pub const PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION: &str =
+    "epiphany.persona_feedback.heartbeat_bridge.v0";
 const SIGNING_PURPOSE: &str = "bifrost.persona-feedback.delivery.v0";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +109,42 @@ pub struct LocalAdmittedPersonaFeedback {
     pub source_observer_id: String,
     #[cultcache(key = 18)]
     pub source_observer_runtime_id: String,
+    #[cultcache(key = 19)]
+    pub source_event_id: String,
+    #[cultcache(key = 20)]
+    pub discord_guild_id: String,
+    #[cultcache(key = 21)]
+    pub discord_channel_id: String,
+    #[cultcache(key = 22)]
+    pub discord_message_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.persona_feedback.heartbeat_bridge.v0",
+    schema = "PersonaFeedbackHeartbeatBridgeReceipt"
+)]
+pub struct PersonaFeedbackHeartbeatBridgeReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub feedback_id: String,
+    #[cultcache(key = 3)]
+    pub admission_id: String,
+    #[cultcache(key = 4)]
+    pub packet_sha256: String,
+    #[cultcache(key = 5)]
+    pub heartbeat_mention_id: String,
+    #[cultcache(key = 6)]
+    pub discord_channel_id: String,
+    #[cultcache(key = 7)]
+    pub discord_message_id: String,
+    #[cultcache(key = 8)]
+    pub status: String,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
 }
 
 pub fn persona_feedback_packet_sha256(packet: &PersonaFeedbackPacket) -> Result<String> {
@@ -172,13 +213,18 @@ pub fn admit_bifrost_persona_feedback(
         packet_sha256: admission.packet_sha256.clone(),
         source_observer_id: admission.source_observer_id.clone(),
         source_observer_runtime_id: admission.source_observer_runtime_id.clone(),
+        source_event_id: packet.source_event_id.clone(),
+        discord_guild_id: packet.discord_guild_id.clone(),
+        discord_channel_id: packet.discord_channel_id.clone(),
+        discord_message_id: packet.discord_message_id.clone(),
     };
-    let node = crate::open_epiphany_cultmesh_node(feedback_store, expected_runtime_id.to_string())?;
     let mut cache = CultCache::new();
     cache.register_entry_type::<LocalAdmittedPersonaFeedback>()?;
     let (entry, _) = cache.prepare_entry(&local.feedback_id, &local)?;
     if !SingleFileMessagePackBackingStore::new(feedback_store).insert_entry_if_absent(entry)? {
-        let existing = node.get::<LocalAdmittedPersonaFeedback>(&local.feedback_id)?;
+        let existing = admitted_persona_feedback(feedback_store, expected_runtime_id)?
+            .into_iter()
+            .find(|feedback| feedback.feedback_id == local.feedback_id);
         if existing.as_ref() != Some(&local) {
             return Err(anyhow!("admitted Persona feedback identity collision"));
         }
@@ -195,7 +241,7 @@ fn validate_bifrost_persona_feedback_admission(
 ) -> Result<()> {
     let packet = &admission.packet;
     if admission.schema_version != BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION
-        || admission.source_observer_id != "voidbot"
+        || admission.source_observer_id != "bifrost-discord"
         || admission.source_observer_runtime_id.trim().is_empty()
         || admission.provider != "bifrost"
         || admission.bifrost_admission_receipt_id.trim().is_empty()
@@ -213,6 +259,7 @@ fn validate_bifrost_persona_feedback_admission(
         || packet.discord_message_id.trim().is_empty()
         || !is_sha256(&packet.content_sha256)
         || packet.feedback_text.trim().is_empty()
+        || packet.feedback_text.len() > 1200
         || packet.source_discussion_refs.is_empty()
         || !matches!(
             (
@@ -252,6 +299,143 @@ fn validate_bifrost_persona_feedback_admission(
     Ok(())
 }
 
+pub fn bridge_admitted_persona_feedback_to_heartbeat(
+    feedback_store: &Path,
+    heartbeat_store: &Path,
+    runtime_id: &str,
+    model_provider_id: &str,
+    allowed_data_classifications: &[String],
+) -> Result<Vec<PersonaFeedbackHeartbeatBridgeReceipt>> {
+    if model_provider_id.trim().is_empty() || allowed_data_classifications.is_empty() {
+        bail!("Persona feedback bridge requires an explicit model-provider disclosure policy");
+    }
+    if paths_share_storage(feedback_store, heartbeat_store)? {
+        bail!("Persona feedback and heartbeat stores must be physically separate");
+    }
+    let feedback = admitted_persona_feedback(feedback_store, runtime_id)?;
+    let mut bridged = Vec::new();
+    for admitted in feedback {
+        if !allowed_data_classifications
+            .iter()
+            .any(|allowed| allowed == &admitted.data_classification)
+        {
+            continue;
+        }
+        let mention_id = format!("bifrost-feedback:{}", admitted.feedback_id);
+        let receipt_id = format!("persona-feedback-heartbeat:{}", admitted.feedback_id);
+        let existing = load_persona_feedback_bridge_receipt(feedback_store, &receipt_id)?;
+        let (mut receipt, expected) = if let Some((receipt, envelope)) = existing {
+            if receipt.admission_id != admitted.admission_id
+                || receipt.packet_sha256 != admitted.packet_sha256
+                || receipt.heartbeat_mention_id != mention_id
+            {
+                bail!("Persona feedback heartbeat bridge identity collision");
+            }
+            if receipt.status == "queued" {
+                continue;
+            }
+            if receipt.status != "pending" {
+                bail!("Persona feedback heartbeat bridge has invalid status");
+            }
+            (receipt, envelope)
+        } else {
+            let receipt = PersonaFeedbackHeartbeatBridgeReceipt {
+                schema_version: PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION.into(),
+                receipt_id: receipt_id.clone(),
+                feedback_id: admitted.feedback_id.clone(),
+                admission_id: admitted.admission_id.clone(),
+                packet_sha256: admitted.packet_sha256.clone(),
+                heartbeat_mention_id: mention_id.clone(),
+                discord_channel_id: admitted.discord_channel_id.clone(),
+                discord_message_id: admitted.discord_message_id.clone(),
+                status: "pending".into(),
+                private_state_exposed: false,
+            };
+            let envelope =
+                insert_pending_persona_feedback_bridge_receipt(feedback_store, &receipt)?;
+            (receipt, envelope)
+        };
+        crate::queue_heartbeat_pending_mention_store(
+            heartbeat_store,
+            crate::HeartbeatQueueMentionOptions {
+                target_role_id: "Persona".into(),
+                source_surface: "bifrost-discord".into(),
+                channel_id: admitted.discord_channel_id.clone(),
+                message_id: admitted.discord_message_id.clone(),
+                author_id: admitted.source_actor_id.clone(),
+                author_name: None,
+                content: admitted.feedback_text.clone(),
+                visible_prompt: admitted.feedback_text.clone(),
+                reply_to_message_id: Some(admitted.discord_message_id.clone()),
+                queued_at: None,
+                mention_id: Some(mention_id.clone()),
+                source_visibility: admitted.source_visibility.clone(),
+                data_classification: admitted.data_classification.clone(),
+                model_provider_id: model_provider_id.to_string(),
+                model_provider_disclosure_allowed: true,
+            },
+        )?;
+        receipt.status = "queued".into();
+        let mut cache = CultCache::new();
+        cache.register_entry_type::<PersonaFeedbackHeartbeatBridgeReceipt>()?;
+        let (replacement, _) = cache.prepare_entry(&receipt.receipt_id, &receipt)?;
+        if !SingleFileMessagePackBackingStore::new(feedback_store)
+            .compare_and_swap_entry(&expected, replacement)?
+        {
+            let raced = load_persona_feedback_bridge_receipt(feedback_store, &receipt.receipt_id)?
+                .map(|(receipt, _)| receipt);
+            if raced.as_ref() != Some(&receipt) {
+                bail!("Persona feedback heartbeat bridge receipt lost exact CAS");
+            }
+        }
+        bridged.push(receipt);
+    }
+    Ok(bridged)
+}
+
+fn load_persona_feedback_bridge_receipt(
+    feedback_store: &Path,
+    receipt_id: &str,
+) -> Result<Option<(PersonaFeedbackHeartbeatBridgeReceipt, CultCacheEnvelope)>> {
+    let matches = SingleFileMessagePackBackingStore::new(feedback_store)
+        .pull_all()?
+        .into_iter()
+        .filter(|entry| {
+            entry.r#type == <PersonaFeedbackHeartbeatBridgeReceipt as DatabaseEntry>::TYPE
+                && entry.key == receipt_id
+        })
+        .collect::<Vec<_>>();
+    if matches.len() > 1 {
+        bail!("duplicate Persona feedback heartbeat bridge receipt");
+    }
+    matches
+        .into_iter()
+        .next()
+        .map(|envelope| {
+            let receipt = rmp_serde::from_slice(&envelope.payload)?;
+            Ok((receipt, envelope))
+        })
+        .transpose()
+}
+
+fn insert_pending_persona_feedback_bridge_receipt(
+    feedback_store: &Path,
+    receipt: &PersonaFeedbackHeartbeatBridgeReceipt,
+) -> Result<CultCacheEnvelope> {
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<PersonaFeedbackHeartbeatBridgeReceipt>()?;
+    let (entry, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    if !SingleFileMessagePackBackingStore::new(feedback_store)
+        .insert_entry_if_absent(entry.clone())?
+    {
+        return load_persona_feedback_bridge_receipt(feedback_store, &receipt.receipt_id)?
+            .filter(|(existing, _)| existing == receipt)
+            .map(|(_, envelope)| envelope)
+            .ok_or_else(|| anyhow!("Persona feedback heartbeat bridge pending receipt collision"));
+    }
+    Ok(entry)
+}
+
 fn is_sha256(value: &str) -> bool {
     value.strip_prefix("sha256-").is_some_and(|digest| {
         digest.len() == 64
@@ -263,14 +447,17 @@ fn is_sha256(value: &str) -> bool {
 
 pub fn admitted_persona_feedback(
     path: &Path,
-    runtime_id: &str,
+    _runtime_id: &str,
 ) -> Result<Vec<LocalAdmittedPersonaFeedback>> {
-    let node = crate::open_epiphany_cultmesh_node(path, runtime_id.to_string())?;
-    let mut feedback = node
-        .get_all_with_keys::<LocalAdmittedPersonaFeedback>()?
+    let mut feedback = SingleFileMessagePackBackingStore::new(path)
+        .pull_all()?
         .into_iter()
-        .map(|(_, value)| value)
-        .collect::<Vec<_>>();
+        .filter(|entry| entry.r#type == <LocalAdmittedPersonaFeedback as DatabaseEntry>::TYPE)
+        .map(|entry| {
+            rmp_serde::from_slice::<LocalAdmittedPersonaFeedback>(&entry.payload)
+                .map_err(Into::into)
+        })
+        .collect::<Result<Vec<_>>>()?;
     feedback.sort_by(|left, right| left.feedback_id.cmp(&right.feedback_id));
     Ok(feedback)
 }
@@ -453,8 +640,8 @@ mod tests {
             admission_id: "bifrost-admission-1".into(),
             packet_sha256: persona_feedback_packet_sha256(&packet)?,
             packet,
-            source_observer_id: "voidbot".into(),
-            source_observer_runtime_id: "voidbot-yggdrasil".into(),
+            source_observer_id: "bifrost-discord".into(),
+            source_observer_runtime_id: "bifrost-yggdrasil".into(),
             provider: "bifrost".into(),
             bifrost_admission_receipt_id: "bifrost-receipt-1".into(),
             authority: "feedback_only".into(),
@@ -493,6 +680,186 @@ mod tests {
         assert_eq!(
             admitted_persona_feedback(&temp.path().join("local.cc"), "epiphany-yggdrasil")?,
             vec![local]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn pending_bridge_receipt_recovers_once_and_preserves_discord_coordinates() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let feedback_store = temp.path().join("local.cc");
+        let heartbeat_store = temp.path().join("heartbeat.cc");
+        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
+        let anchor = crate::export_host_identity_trust_anchor(
+            &signer,
+            &temp.path().join("bifrost-anchor.cc"),
+        )?;
+        let delivery = signed_delivery(&signer, "epiphany")?;
+        let admitted = admit_bifrost_persona_feedback(
+            &feedback_store,
+            &delivery,
+            &anchor,
+            "epiphany-yggdrasil",
+            "GameCult/Epiphany",
+            "epiphany",
+        )?;
+        crate::initialize_heartbeat_store(&heartbeat_store, 1.0)?;
+        let pending = PersonaFeedbackHeartbeatBridgeReceipt {
+            schema_version: PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION.into(),
+            receipt_id: format!("persona-feedback-heartbeat:{}", admitted.feedback_id),
+            feedback_id: admitted.feedback_id.clone(),
+            admission_id: admitted.admission_id.clone(),
+            packet_sha256: admitted.packet_sha256.clone(),
+            heartbeat_mention_id: format!("bifrost-feedback:{}", admitted.feedback_id),
+            discord_channel_id: admitted.discord_channel_id.clone(),
+            discord_message_id: admitted.discord_message_id.clone(),
+            status: "pending".into(),
+            private_state_exposed: false,
+        };
+        insert_pending_persona_feedback_bridge_receipt(&feedback_store, &pending)?;
+
+        let recovered = bridge_admitted_persona_feedback_to_heartbeat(
+            &feedback_store,
+            &heartbeat_store,
+            "epiphany-yggdrasil",
+            "openai-codex",
+            &["public_feedback".to_string()],
+        )?;
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].status, "queued");
+        let state = crate::load_heartbeat_state_entry(&heartbeat_store)?.expect("heartbeat state");
+        assert_eq!(state.pending_mentions.len(), 1);
+        assert_eq!(state.pending_mentions[0].source_surface, "bifrost-discord");
+        assert_eq!(state.pending_mentions[0].channel_id, "channel-1");
+        assert_eq!(state.pending_mentions[0].message_id, "message-1");
+        assert_eq!(
+            state.pending_mentions[0].reply_to_message_id.as_deref(),
+            Some("message-1")
+        );
+
+        let mut consumed = state;
+        consumed.pending_mentions.clear();
+        crate::write_heartbeat_state_entry(&heartbeat_store, &consumed)?;
+        assert!(
+            bridge_admitted_persona_feedback_to_heartbeat(
+                &feedback_store,
+                &heartbeat_store,
+                "epiphany-yggdrasil",
+                "openai-codex",
+                &["public_feedback".to_string()],
+            )?
+            .is_empty()
+        );
+        assert!(
+            crate::load_heartbeat_state_entry(&heartbeat_store)?
+                .expect("heartbeat state")
+                .pending_mentions
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bridge_refuses_receipt_substitution_before_queueing() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let feedback_store = temp.path().join("local.cc");
+        let heartbeat_store = temp.path().join("heartbeat.cc");
+        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
+        let anchor = crate::export_host_identity_trust_anchor(
+            &signer,
+            &temp.path().join("bifrost-anchor.cc"),
+        )?;
+        let delivery = signed_delivery(&signer, "epiphany")?;
+        let admitted = admit_bifrost_persona_feedback(
+            &feedback_store,
+            &delivery,
+            &anchor,
+            "epiphany-yggdrasil",
+            "GameCult/Epiphany",
+            "epiphany",
+        )?;
+        crate::initialize_heartbeat_store(&heartbeat_store, 1.0)?;
+        insert_pending_persona_feedback_bridge_receipt(
+            &feedback_store,
+            &PersonaFeedbackHeartbeatBridgeReceipt {
+                schema_version: PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION.into(),
+                receipt_id: format!("persona-feedback-heartbeat:{}", admitted.feedback_id),
+                feedback_id: admitted.feedback_id,
+                admission_id: admitted.admission_id,
+                packet_sha256:
+                    "sha256-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".into(),
+                heartbeat_mention_id: "bifrost-feedback:feedback-1".into(),
+                discord_channel_id: admitted.discord_channel_id,
+                discord_message_id: admitted.discord_message_id,
+                status: "pending".into(),
+                private_state_exposed: false,
+            },
+        )?;
+        assert!(
+            bridge_admitted_persona_feedback_to_heartbeat(
+                &feedback_store,
+                &heartbeat_store,
+                "epiphany-yggdrasil",
+                "openai-codex",
+                &["public_feedback".to_string()],
+            )
+            .is_err()
+        );
+        assert!(
+            crate::load_heartbeat_state_entry(&heartbeat_store)?
+                .expect("heartbeat state")
+                .pending_mentions
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn disclosure_policy_leaves_unapproved_feedback_admitted_but_unscheduled() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let feedback_store = temp.path().join("local.cc");
+        let heartbeat_store = temp.path().join("heartbeat.cc");
+        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
+        let anchor = crate::export_host_identity_trust_anchor(
+            &signer,
+            &temp.path().join("bifrost-anchor.cc"),
+        )?;
+        let delivery = signed_delivery(&signer, "epiphany")?;
+        admit_bifrost_persona_feedback(
+            &feedback_store,
+            &delivery,
+            &anchor,
+            "epiphany-yggdrasil",
+            "GameCult/Epiphany",
+            "epiphany",
+        )?;
+        crate::initialize_heartbeat_store(&heartbeat_store, 1.0)?;
+        assert!(
+            bridge_admitted_persona_feedback_to_heartbeat(
+                &feedback_store,
+                &heartbeat_store,
+                "epiphany-yggdrasil",
+                "openai-codex",
+                &["organization_feedback".to_string()],
+            )?
+            .is_empty()
+        );
+        assert_eq!(
+            admitted_persona_feedback(&feedback_store, "epiphany-yggdrasil")?.len(),
+            1
+        );
+        assert!(
+            crate::load_heartbeat_state_entry(&heartbeat_store)?
+                .expect("heartbeat state")
+                .pending_mentions
+                .is_empty()
+        );
+        assert!(
+            load_persona_feedback_bridge_receipt(
+                &feedback_store,
+                "persona-feedback-heartbeat:feedback-1"
+            )?
+            .is_none()
         );
         Ok(())
     }
@@ -539,6 +906,57 @@ mod tests {
             admit_bifrost_persona_feedback(
                 &temp.path().join("local.cc"),
                 &tampered,
+                &anchor,
+                "epiphany-yggdrasil",
+                "GameCult/Epiphany",
+                "epiphany",
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn feedback_limit_is_1200_utf8_bytes_not_unicode_scalars() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
+        let anchor = crate::export_host_identity_trust_anchor(
+            &signer,
+            &temp.path().join("bifrost-anchor.cc"),
+        )?;
+        let mut delivery = signed_delivery(&signer, "epiphany")?;
+        delivery.packet.feedback_text = "😀".repeat(300);
+        delivery.packet_sha256 = persona_feedback_packet_sha256(&delivery.packet)?;
+        delivery.provider_signature = signer
+            .sign(
+                SIGNING_PURPOSE,
+                &persona_feedback_admission_signing_payload(&delivery)?,
+            )?
+            .signature;
+        assert!(
+            admit_bifrost_persona_feedback(
+                &temp.path().join("accepted.cc"),
+                &delivery,
+                &anchor,
+                "epiphany-yggdrasil",
+                "GameCult/Epiphany",
+                "epiphany",
+            )
+            .is_ok()
+        );
+
+        delivery.packet.feedback_text.push('😀');
+        delivery.packet_sha256 = persona_feedback_packet_sha256(&delivery.packet)?;
+        delivery.provider_signature = signer
+            .sign(
+                SIGNING_PURPOSE,
+                &persona_feedback_admission_signing_payload(&delivery)?,
+            )?
+            .signature;
+        assert!(
+            admit_bifrost_persona_feedback(
+                &temp.path().join("rejected.cc"),
+                &delivery,
                 &anchor,
                 "epiphany-yggdrasil",
                 "GameCult/Epiphany",

@@ -103,6 +103,19 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             "persona-feedback-ingress",
             file_name("epiphany-persona-feedback-ingress"),
         ),
+        ("persona-service", file_name("epiphany-persona-service")),
+        (
+            "persona-mouth-identity",
+            file_name("epiphany-persona-mouth-identity"),
+        ),
+        (
+            "persona-discord-permit",
+            file_name("epiphany-persona-discord-permit"),
+        ),
+        (
+            "persona-discord-permit-identity",
+            file_name("epiphany-persona-discord-permit-identity"),
+        ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         ("tool-mcp-runtime", file_name("epiphany-tool-mcp-runtime")),
@@ -405,6 +418,12 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "operator-command" => Ok(("epiphany-core", "epiphany-operator-command")),
         "heartbeat" => Ok(("epiphany-core", "epiphany-heartbeat-store")),
         "persona-feedback-ingress" => Ok(("epiphany-core", "epiphany-persona-feedback-ingress")),
+        "persona-service" => Ok(("epiphany-openai-runtime", "epiphany-persona-service")),
+        "persona-mouth-identity" => Ok(("epiphany-core", "epiphany-persona-mouth-identity")),
+        "persona-discord-permit" => Ok(("epiphany-core", "epiphany-persona-discord-permit")),
+        "persona-discord-permit-identity" => {
+            Ok(("epiphany-core", "epiphany-persona-discord-permit-identity"))
+        }
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
         "tool-mcp-runtime" => Ok(("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")),
@@ -880,6 +899,10 @@ mod tests {
             "heartbeat",
             "coordinator",
             "model-runtime",
+            "persona-service",
+            "persona-mouth-identity",
+            "persona-discord-permit",
+            "persona-discord-permit-identity",
             "tool-mcp-runtime",
         ] {
             assert!(packaged_roles.contains(role), "release omits {role}");
@@ -903,6 +926,22 @@ mod tests {
         assert_eq!(
             required_release_build_target("model-runtime").unwrap(),
             ("epiphany-openai-runtime", "epiphany-model-runtime")
+        );
+        assert_eq!(
+            required_release_build_target("persona-service").unwrap(),
+            ("epiphany-openai-runtime", "epiphany-persona-service")
+        );
+        assert_eq!(
+            required_release_build_target("persona-mouth-identity").unwrap(),
+            ("epiphany-core", "epiphany-persona-mouth-identity")
+        );
+        assert_eq!(
+            required_release_build_target("persona-discord-permit").unwrap(),
+            ("epiphany-core", "epiphany-persona-discord-permit")
+        );
+        assert_eq!(
+            required_release_build_target("persona-discord-permit-identity").unwrap(),
+            ("epiphany-core", "epiphany-persona-discord-permit-identity")
         );
         assert_eq!(
             required_release_build_target("tool-mcp-runtime").unwrap(),
