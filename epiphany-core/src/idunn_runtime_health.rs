@@ -160,7 +160,7 @@ pub fn publish_idunn_daemon_health_rudp(
             payload,
             source_runtime_id: Some(source_runtime_id.into()),
             source_agent_id: Some(signed.signer_identity_id.clone()),
-            source_role: Some("signed-daemon-health-publisher".into()),
+            source_role: Some("daemon-health-publisher".into()),
             tags: Some(vec![CULTNET_RUDP_PROTOCOL_ID.into()]),
         },
     };
@@ -495,7 +495,7 @@ mod tests {
         assert_eq!(document.schema_id, IdunnSignedDaemonHealthRecord::TYPE);
         assert_eq!(
             document.source_role.as_deref(),
-            Some("signed-daemon-health-publisher")
+            Some("daemon-health-publisher")
         );
         let decoded: IdunnSignedDaemonHealthRecord =
             rmp_serde::from_slice(&document.payload).unwrap();
