@@ -3750,3 +3750,39 @@ supports OpenAI-shaped transport, and resident policy still carries
 the next liberation cut is a provider-neutral model transport and auth policy
 that can admit DeepSeek/Kimi without subscription custody. Do not describe the
 RMCP cut as subscription independence.
+## July 22 live provider-health and Persona deployment audit
+
+The earlier claim that Epiphany required VoidBot for Persona/Discord cognition
+was false. Epiphany owns Heartbeat/CTB, Projector -> Persona -> Interpreter,
+Mind effects, signed Persona requests, and result reconciliation. Bifrost owns
+only Discord transport/admission/delivery receipts. VoidBot is not an Epiphany
+runtime dependency.
+
+Live Yggdrasil dogfood proved and fixed three wire/control faults:
+
+- Epiphany commit `daeeff933c5f04c15e3f2281b8b53dcaad3d32d5`
+  publishes the canonical CultNet source role `daemon-health-publisher`; its
+  exact tuple test passes. Idunn accepted its signed candidate health as
+  `authority=authenticated`, `state=active`, `detail=managed-services-current`.
+- Odin `1870ed1488978c26c79894c4886f70014a398562` preserves millisecond
+  precision across target evaluation, veto, admission, and public projection.
+  Six focused projection tests pass. It is deployed on Yggdrasil with CultNet
+  `fdccc37aa68c3f0e53bfd53a92c15a148978f0c7`.
+- The apparent `EpiphanyAgent` upstream was a conceptual substitution. The
+  canonical repository and release-authority name is `GameCult/Epiphany`.
+  Bifrost correctly refused `GameCult/EpiphanyAgent`.
+
+Idunn's signed public projection store was proven present after restarting into
+the settled root-trust snapshot. The consumer projection anchor had never been
+staged; it was derived from Idunn's existing service identity without rotating
+identity or trust, then copied byte-identically to Epiphany and Bifrost.
+
+Current safe stop: the canonical Idunn deployment brake is engaged, owned by
+`codex-root`, reason `stalled-pending-request-safe-stop`, with root:idunn 0640
+store and lock. Epiphany services are inactive after clean rollback. Bifrost
+and Idunn remain active. Exact Epiphany authority for `daeeff93...` remains
+authorized. `idunn-pending-status` reports request
+`deploy:yggdrasil-epiphany:sha256-d0790bc0e82a3b114ae67ceb609bb24ef14eb931df42f3ddafce3096c297e8fb`
+as `awaiting-authorization` (sequence 280), but the current Idunn incarnation
+did not consume an exact valid grant for that head. Diagnose the stable
+request/owner ledger before another release. Do not issue speculative grants.
