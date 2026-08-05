@@ -4,7 +4,7 @@ experiment:
   purpose: Native, inspectable agent organism with typed state and explicit organ authority.
 
 objective:
-  current: Restore an authoritative Yggdrasil body, deploy Epiphany through Idunn, and prove sustained braked readiness before one bounded Persona conversation.
+  current: Run Epiphany's cognition body on Starfire, keep Bifrost crossings on the adopted small Yggdrasil, and prove sustained braked readiness before one bounded Persona conversation.
 
 architecture:
   body: Repository, runtime, service processes, stores, interfaces, and deployment substrate.
@@ -34,28 +34,29 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a native Rust/CultCache/CultMesh/CultNet organism, but no reachable host currently runs its canonical service body. The intended bare-metal Yggdrasil at 94.130.223.131 is unreachable on SSH, HTTP, and HTTPS from both the operator workstation and the live production VM. DNS, public applications, SSH, and WireGuard currently terminate on 94.130.75.184, a 2 GB fallback VM that runs Bifrost and the public stack but has no Idunn or Epiphany services. Provider-console inspection requires operator login. Choosing or recovering the deployment Body now precedes every Idunn request or grant.
+  summary: The retired bare-metal host is gone. The small Yggdrasil at 94.130.75.184 is the canonical public/crossing body and continues to own Bifrost, DNS, SSH, WireGuard, and public applications. Starfire is the authorized cognition/runtime body while Epiphany's RAM needs are measured. Starfire now has runtime identity epiphany-starfire, a bootstrapped local Verse, and an engaged canonical swarm brake. Native status completes against the cold runtime and correctly requests source regather before work. Resident physiology and the Yggdrasil Bifrost crossing are not yet running end to end.
   operational_state:
-    local_worktree: clean
+    local_worktree: deployment_changes_in_progress
     operator_wireguard: restored
-    intended_bare_metal_body: unreachable
-    live_fallback_body: production_apps_active_without_idunn_or_epiphany
-    deployment_brake: unavailable_with_unreachable_body
-    idunn: not_present_on_reachable_body
-    bifrost: active_on_fallback_body
-    epiphany_services: not_present_on_reachable_body
-  unresolved_authority: Decide whether 94.130.223.131 remains the canonical Body and must be recovered through Hetzner, or whether 94.130.75.184 is deliberately adopted and rebuilt as the canonical deployment Body.
-  next_action: Sign in to the Hetzner console and inspect the power, rescue, and network state of 94.130.223.131; if it cannot be recovered, explicitly authorize adoption of the constrained fallback VM before installing Idunn or Epiphany there.
+    yggdrasil: canonical_small_public_crossing_body
+    starfire: authorized_epiphany_cognition_body
+    starfire_runtime_identity: epiphany-starfire
+    starfire_swarm_brake: canonical_engaged
+    starfire_native_status: cold_needs_regather
+    bifrost: active_on_yggdrasil
+    resident_physiology: not_started
+  unresolved_authority: Define and prove the split-host provider/health boundary so Starfire cognition and Yggdrasil Bifrost transport remain separate owners.
+  next_action: Package the exact clean Starfire release, initialize heartbeat and resident Self stores under the engaged brake, start supervised physiology, and verify sustained readiness before wiring Bifrost transport.
 
 active_subgoals:
-  - Recover provider sight or obtain an explicit deployment-Body decision.
-  - Deploy Epiphany only after the Body owner is settled, then prove sustained braked readiness.
+  - Start Starfire resident physiology from an authenticated packaged release under the engaged brake.
+  - Connect Yggdrasil Bifrost as a governed crossing without moving Persona cognition authority.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
   - Do not broadly Wake the swarm.
   - Do not reboot Yggdrasil as part of diagnosis.
-  - Do not install the control plane on the fallback VM without explicitly adopting that constrained Body.
+  - Do not move RAM-heavy cognition onto the small Yggdrasil until measured demand justifies growing it.
   - Do not treat stored status, process liveness, or an old receipt as current authority.
 
 memory_policy:

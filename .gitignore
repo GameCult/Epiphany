@@ -20,6 +20,7 @@ apps/epiphany-gui/src-tauri/target/
 .epiphany-character-loop/
 .epiphany-rumination/
 .epiphany-run/
+.epiphany-bootstrap/
 .epiphany-status/
 .voidbot/
 state/agent-heartbeats.json

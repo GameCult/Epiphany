@@ -595,7 +595,6 @@ if ($Mode -eq "status" -or $Mode -eq "mvp") {
     if ($Mode -eq "status") {
         $resultPath = $statusJson
         $statusArgs = @(
-            "--source", "native",
             "--cwd", $Workspace,
             "--store", $runtimeStore,
             "--json",

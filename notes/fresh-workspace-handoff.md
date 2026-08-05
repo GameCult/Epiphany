@@ -9,20 +9,21 @@ OpenAI-compatible authentication and model-transport boundary.
 
 The local `main` branch is clean and synchronized with its upstream.
 
-Current host reality:
+Current host authority:
 
-- The intended bare-metal body at `94.130.223.131` is unreachable on ports 22,
-  80, and 443 from both the operator workstation and the live production VM.
-- DNS, SSH, public applications, and WireGuard currently terminate on
-  `94.130.75.184`.
-- That reachable fallback is a 2 GB VM with 15 GB free. It runs Bifrost and the
-  public application stack, but has no Idunn or Epiphany service body.
-- The operator workstation WireGuard service has been restored, but its
-  `10.77.0.1` peer is also the fallback VM.
-- The Hetzner console is not authenticated in the available browser session.
+- The bare-metal replacement is retired and must not steer deployment.
+- The small Yggdrasil at `94.130.75.184` is canonical for Bifrost, DNS, SSH,
+  WireGuard, and public applications.
+- Starfire is authorized to host Epiphany cognition while resource demand is
+  measured.
+- Starfire runtime identity is `epiphany-starfire`; its local Verse is
+  bootstrapped and its canonical swarm brake is engaged.
+- Native status completes and reports a cold runtime that needs source regather.
+- Resident physiology and the governed Starfire-to-Yggdrasil crossing remain
+  to be started and proved.
 
-No deployment, cognition release, broad Wake, or reboot is authorized until the
-deployment Body is recovered or deliberately reassigned.
+No cognition release, broad Wake, or host reboot is authorized during the
+braked startup proof.
 
 ## Authority map
 
@@ -41,11 +42,10 @@ deployment Body is recovered or deliberately reassigned.
 
 ## Next action
 
-Sign in to the Hetzner console and inspect the power, rescue, and network state
-of `94.130.223.131`. Recover it if it remains the intended canonical Body. If it
-cannot be recovered, explicitly decide whether to adopt the constrained fallback
-VM before installing Idunn or Epiphany there. Once the Body is settled, use the
-canonical Idunn deployment path and verify sustained braked readiness.
+Package the exact clean Starfire source, initialize heartbeat and resident Self
+stores beneath the engaged brake, start supervised resident physiology, and
+prove stable readiness. Then connect the existing Yggdrasil Bifrost transport
+without moving cognition or state-admission authority off Starfire.
 
 ## Immediate Re-entry Instruction
 

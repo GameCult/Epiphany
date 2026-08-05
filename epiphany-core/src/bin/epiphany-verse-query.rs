@@ -516,7 +516,7 @@ fn run_cli() -> Result<()> {
                 args.requesting_agent_id.as_deref(),
                 args.reason.as_deref(),
                 &created_at_utc,
-                true,
+                false,
             )?;
             println!(
                 "{}",
@@ -7339,7 +7339,7 @@ mod swarm_brake_command_tests {
             "epiphany-yggdrasil",
             Some("engaged"),
             Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
-            Some("idunn"),
+            Some("Idunn"),
             Some("deployment sleep"),
             "2026-07-19T00:00:00Z",
             true,
@@ -7370,6 +7370,32 @@ mod swarm_brake_command_tests {
         assert_eq!(
             load_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil")?,
             Some(released)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ordinary_actor_can_engage_an_existing_canonical_released_brake() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let released = default_epiphany_cultmesh_swarm_brake("2026-08-05T00:00:00Z");
+        write_epiphany_cultmesh_swarm_brake(&store, "epiphany-starfire", released)?;
+
+        let engaged = apply_explicit_swarm_brake_set(
+            &store,
+            "epiphany-starfire",
+            Some("engaged"),
+            Some(EPIPHANY_CANONICAL_SWARM_BRAKE_ID),
+            Some("codex-root"),
+            Some("cold-start verification"),
+            "2026-08-05T00:01:00Z",
+            false,
+        )?;
+
+        assert_eq!(engaged.status, "engaged");
+        assert_eq!(
+            engaged.operator_agent_id,
+            EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER
         );
         Ok(())
     }
