@@ -9,18 +9,20 @@ OpenAI-compatible authentication and model-transport boundary.
 
 The local `main` branch is clean and synchronized with its upstream.
 
-On Yggdrasil:
+Current host reality:
 
-- Idunn is active.
-- Bifrost is active.
-- Epiphany services are inactive after a clean rollback.
-- The canonical Idunn deployment brake is engaged.
-- A deployment request is awaiting authorization.
-- The current Idunn incarnation did not consume a matching valid grant for that
-  request.
+- The intended bare-metal body at `94.130.223.131` is unreachable on ports 22,
+  80, and 443 from both the operator workstation and the live production VM.
+- DNS, SSH, public applications, and WireGuard currently terminate on
+  `94.130.75.184`.
+- That reachable fallback is a 2 GB VM with 15 GB free. It runs Bifrost and the
+  public application stack, but has no Idunn or Epiphany service body.
+- The operator workstation WireGuard service has been restored, but its
+  `10.77.0.1` peer is also the fallback VM.
+- The Hetzner console is not authenticated in the available browser session.
 
-No deployment, cognition release, broad Wake, or reboot is authorized while
-that mismatch remains unexplained.
+No deployment, cognition release, broad Wake, or reboot is authorized until the
+deployment Body is recovered or deliberately reassigned.
 
 ## Authority map
 
@@ -39,10 +41,11 @@ that mismatch remains unexplained.
 
 ## Next action
 
-Inspect the stable Idunn request, owner, grant, and incarnation ledger without
-mutation. Identify the exact transition that prevented grant consumption.
-Only after that transition is understood should a new deployment decision be
-made.
+Sign in to the Hetzner console and inspect the power, rescue, and network state
+of `94.130.223.131`. Recover it if it remains the intended canonical Body. If it
+cannot be recovered, explicitly decide whether to adopt the constrained fallback
+VM before installing Idunn or Epiphany there. Once the Body is settled, use the
+canonical Idunn deployment path and verify sustained braked readiness.
 
 ## Immediate Re-entry Instruction
 
