@@ -11,7 +11,6 @@ The local `main` branch is clean and synchronized with its upstream.
 
 Current host authority:
 
-- The bare-metal replacement is retired and must not steer deployment.
 - The small Yggdrasil at `94.130.75.184` is canonical for Bifrost, DNS, SSH,
   WireGuard, and public applications.
 - Starfire is the temporary Epiphany cognition body while the resident footprint
@@ -23,8 +22,14 @@ Current host authority:
   useful runtime measurement exists.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
   bootstrapped and its canonical swarm brake is engaged.
-- Native Starfire status completes and reports a cold runtime that needs source
-  regather. An exact Windows release is being packaged as the temporary body.
+- The authenticated Windows release for source `af37dc9b` is published in the
+  Starfire local Verse. Its repository Body is bound to the canonical worktree
+  and immutable `gamecult.epiphany.main` swarm identity.
+- Heartbeat and resident Self are running as detached Starfire processes. Live
+  readiness is `active`: both providers are fresh, stores are coherent and
+  separate, credentials and workspace are ready, no lease is active, private
+  state is not exposed, and the canonical brake remains engaged.
+- Runtime process metadata and logs live under `.epiphany-run/resident/`.
 
 No cognition release, broad Wake, or host reboot is authorized during the
 braked startup proof.
@@ -46,10 +51,10 @@ braked startup proof.
 
 ## Next action
 
-Finish and authenticate the Starfire package. Start heartbeat and resident Self
-under the engaged brake, prove stable physiology, then install the typed
-Bifrost Persona-feedback provider on Yggdrasil and establish an authenticated
-delivery crossing before any cognition release.
+Prove sustained Starfire physiology, restart behavior, and resource use under
+the engaged brake. Then install the typed Bifrost Persona-feedback provider on
+Yggdrasil and establish an authenticated delivery crossing before any cognition
+release.
 
 ## Immediate Re-entry Instruction
 

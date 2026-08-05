@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host. Live inspection proves Ubuntu 24.04, two EPYC vCPUs, 1.9 GiB RAM, 2 GiB swap, a 38 GiB disk with 15 GiB free, active base Bifrost, PostgreSQL, Redis, nginx, and WireGuard. Epiphany, Idunn, Docker, and the typed Bifrost Persona-feedback sidecar are absent there. Building the complete governed stack locally would consume the constrained body before runtime demand can be measured, so Starfire is the adopted temporary cognition body. Its local Verse and runtime identity exist, its canonical brake is engaged, and its exact Windows package is building.
+  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host. It has two EPYC vCPUs, 1.9 GiB RAM, 2 GiB swap, a 38 GiB disk with about 15 GiB free, active base Bifrost, PostgreSQL, Redis, nginx, WireGuard, and no Epiphany, Idunn, Docker, or typed Bifrost Persona-feedback provider. Starfire is the temporary cognition body. The authenticated release for source af37dc9b is published in its local Verse; the repository Body is bound to the canonical worktree and swarm identity; heartbeat and resident Self are running with fresh provider incarnations; readiness is active; private state is not exposed; and the canonical brake remains engaged.
   operational_state:
     local_worktree: deployment_changes_in_progress
     operator_wireguard: restored
@@ -42,16 +42,18 @@ current_status:
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: canonical_engaged
-    starfire_native_status: cold_needs_regather
+    starfire_release: authenticated_and_published
+    starfire_repository_body: bound_and_observed
+    starfire_native_status: active_braked
     bifrost: base_application_active_on_yggdrasil
     bifrost_persona_feedback: absent_on_yggdrasil
     yggdrasil_epiphany_services: absent
-    resident_physiology: not_started
+    resident_physiology: heartbeat_and_self_running
   unresolved_authority: Establish a typed authenticated delivery crossing from Yggdrasil Bifrost to Starfire before releasing cognition.
-  next_action: Finish and authenticate the Starfire package, run heartbeat and resident Self under the engaged brake, then build the typed Yggdrasil feedback crossing and measure sustained Starfire resident memory.
+  next_action: Observe sustained Starfire physiology under the engaged brake, then establish the typed authenticated Yggdrasil-to-Starfire Bifrost feedback crossing before any cognition release.
 
 active_subgoals:
-  - Start authenticated Starfire heartbeat and resident Self while the canonical brake is engaged.
+  - Prove sustained Starfire heartbeat and resident Self freshness, restart behavior, and resource use while the canonical brake is engaged.
   - Install the typed Bifrost Persona-feedback provider on Yggdrasil and cross only authenticated deliveries.
   - Measure Starfire resident memory to size a future Yggdrasil upgrade.
 
