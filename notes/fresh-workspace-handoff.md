@@ -14,13 +14,17 @@ Current host authority:
 - The bare-metal replacement is retired and must not steer deployment.
 - The small Yggdrasil at `94.130.75.184` is canonical for Bifrost, DNS, SSH,
   WireGuard, and public applications.
-- Starfire is authorized to host Epiphany cognition while resource demand is
-  measured.
+- Starfire is the temporary Epiphany cognition body while the resident footprint
+  is measured. Yggdrasil retains Bifrost and public crossing authority.
+- Live Yggdrasil has two EPYC vCPUs, 1.9 GiB RAM, 2 GiB swap, and a 38 GiB
+  root disk with about 15 GiB free. Base Bifrost is active. Docker, Epiphany,
+  Idunn, and the typed Bifrost Persona-feedback sidecar are absent. Building the
+  complete governed stack there would consume the constrained body before a
+  useful runtime measurement exists.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
   bootstrapped and its canonical swarm brake is engaged.
-- Native status completes and reports a cold runtime that needs source regather.
-- Resident physiology and the governed Starfire-to-Yggdrasil crossing remain
-  to be started and proved.
+- Native Starfire status completes and reports a cold runtime that needs source
+  regather. An exact Windows release is being packaged as the temporary body.
 
 No cognition release, broad Wake, or host reboot is authorized during the
 braked startup proof.
@@ -42,10 +46,10 @@ braked startup proof.
 
 ## Next action
 
-Package the exact clean Starfire source, initialize heartbeat and resident Self
-stores beneath the engaged brake, start supervised resident physiology, and
-prove stable readiness. Then connect the existing Yggdrasil Bifrost transport
-without moving cognition or state-admission authority off Starfire.
+Finish and authenticate the Starfire package. Start heartbeat and resident Self
+under the engaged brake, prove stable physiology, then install the typed
+Bifrost Persona-feedback provider on Yggdrasil and establish an authenticated
+delivery crossing before any cognition release.
 
 ## Immediate Re-entry Instruction
 

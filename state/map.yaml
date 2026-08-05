@@ -4,7 +4,7 @@ experiment:
   purpose: Native, inspectable agent organism with typed state and explicit organ authority.
 
 objective:
-  current: Run Epiphany's cognition body on Starfire, keep Bifrost crossings on the adopted small Yggdrasil, and prove sustained braked readiness before one bounded Persona conversation.
+  current: Run Epiphany cognition on Starfire under the canonical brake, retain Bifrost and public crossing authority on the small Yggdrasil, and measure the resident footprint before deciding how much Yggdrasil must grow.
 
 architecture:
   body: Repository, runtime, service processes, stores, interfaces, and deployment substrate.
@@ -34,29 +34,32 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: The retired bare-metal host is gone. The small Yggdrasil at 94.130.75.184 is the canonical public/crossing body and continues to own Bifrost, DNS, SSH, WireGuard, and public applications. Starfire is the authorized cognition/runtime body while Epiphany's RAM needs are measured. Starfire now has runtime identity epiphany-starfire, a bootstrapped local Verse, and an engaged canonical swarm brake. Native status completes against the cold runtime and correctly requests source regather before work. Resident physiology and the Yggdrasil Bifrost crossing are not yet running end to end.
+  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host. Live inspection proves Ubuntu 24.04, two EPYC vCPUs, 1.9 GiB RAM, 2 GiB swap, a 38 GiB disk with 15 GiB free, active base Bifrost, PostgreSQL, Redis, nginx, and WireGuard. Epiphany, Idunn, Docker, and the typed Bifrost Persona-feedback sidecar are absent there. Building the complete governed stack locally would consume the constrained body before runtime demand can be measured, so Starfire is the adopted temporary cognition body. Its local Verse and runtime identity exist, its canonical brake is engaged, and its exact Windows package is building.
   operational_state:
     local_worktree: deployment_changes_in_progress
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
-    starfire: authorized_epiphany_cognition_body
+    starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: canonical_engaged
     starfire_native_status: cold_needs_regather
-    bifrost: active_on_yggdrasil
+    bifrost: base_application_active_on_yggdrasil
+    bifrost_persona_feedback: absent_on_yggdrasil
+    yggdrasil_epiphany_services: absent
     resident_physiology: not_started
-  unresolved_authority: Define and prove the split-host provider/health boundary so Starfire cognition and Yggdrasil Bifrost transport remain separate owners.
-  next_action: Package the exact clean Starfire release, initialize heartbeat and resident Self stores under the engaged brake, start supervised physiology, and verify sustained readiness before wiring Bifrost transport.
+  unresolved_authority: Establish a typed authenticated delivery crossing from Yggdrasil Bifrost to Starfire before releasing cognition.
+  next_action: Finish and authenticate the Starfire package, run heartbeat and resident Self under the engaged brake, then build the typed Yggdrasil feedback crossing and measure sustained Starfire resident memory.
 
 active_subgoals:
-  - Start Starfire resident physiology from an authenticated packaged release under the engaged brake.
-  - Connect Yggdrasil Bifrost as a governed crossing without moving Persona cognition authority.
+  - Start authenticated Starfire heartbeat and resident Self while the canonical brake is engaged.
+  - Install the typed Bifrost Persona-feedback provider on Yggdrasil and cross only authenticated deliveries.
+  - Measure Starfire resident memory to size a future Yggdrasil upgrade.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
   - Do not broadly Wake the swarm.
   - Do not reboot Yggdrasil as part of diagnosis.
-  - Do not move RAM-heavy cognition onto the small Yggdrasil until measured demand justifies growing it.
+  - Do not build the complete governed stack on constrained Yggdrasil until its disk and memory budget has been deliberately increased.
   - Do not treat stored status, process liveness, or an old receipt as current authority.
 
 memory_policy:

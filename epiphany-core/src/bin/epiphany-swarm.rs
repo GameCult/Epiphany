@@ -12,8 +12,7 @@ use epiphany_core::{
     load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
     prepare_resident_self_launch, publish_resident_provider_readiness, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
-    validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
-    validate_resident_self_store_separation,
+    validate_persona_feedback_store_separation, validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -61,21 +60,6 @@ fn main() -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&projection)?);
         return Ok(());
     }
-    // Status is non-actuating sight. In particular it must not open the
-    // provider-owned delivery store: CultCache read locking can create or
-    // rewrite the sibling lock file, which would let a root-run verifier
-    // poison the service identity's later access. The resident importer owns
-    // source authentication immediately before it can consume deliveries.
-    validate_feedback_source_for_command(&args.command, || {
-        validate_bifrost_persona_feedback_source(
-            &args.persona_feedback_source_store,
-            &args.bifrost_feedback_trust_anchor,
-            &args.policy.release_runtime_id,
-            &args.feedback_target_repository,
-            &args.feedback_target_persona,
-        )
-        .map(|_| ())
-    })?;
     if let Some(pressure) = args.pressure.as_ref() {
         enqueue_resident_self_pressure(&args.state_store, pressure)?;
     }
@@ -106,16 +90,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn validate_feedback_source_for_command(
-    command: &CommandKind,
-    validate: impl FnOnce() -> Result<()>,
-) -> Result<()> {
-    if matches!(command, CommandKind::Status) {
-        return Ok(());
-    }
-    validate()
-}
-
 fn publish_self_readiness(args: &Args) -> Result<()> {
     let process = capture_process_instance(std::process::id())?;
     publish_resident_provider_readiness(
@@ -139,21 +113,32 @@ fn publish_self_readiness(args: &Args) -> Result<()> {
     Ok(())
 }
 
+fn run_feedback_import_if_released(
+    brake_engaged: bool,
+    import: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    if brake_engaged {
+        return Ok(());
+    }
+    import()
+}
+
 fn cycle(
     args: &Args,
     state: &mut ResidentSelfState,
     ports: &mut NativePorts,
 ) -> Result<ResidentSelfOutcome> {
     let now = Utc::now().timestamp_millis().max(0) as u64;
-    import_bifrost_persona_feedback_deliveries(
-        &args.persona_feedback_source_store,
-        &args.persona_feedback_store,
-        &args.bifrost_feedback_trust_anchor,
-        &args.policy.release_runtime_id,
-        &args.feedback_target_repository,
-        &args.feedback_target_persona,
-    )?;
-    if !ports.brake_engaged()? {
+    let brake_engaged = ports.brake_engaged()?;
+    run_feedback_import_if_released(brake_engaged, || {
+        import_bifrost_persona_feedback_deliveries(
+            &args.persona_feedback_source_store,
+            &args.persona_feedback_store,
+            &args.bifrost_feedback_trust_anchor,
+            &args.policy.release_runtime_id,
+            &args.feedback_target_repository,
+            &args.feedback_target_persona,
+        )?;
         bridge_admitted_persona_feedback_to_heartbeat(
             &args.persona_feedback_store,
             &args.heartbeat_store,
@@ -161,7 +146,8 @@ fn cycle(
             &args.policy.model_provider,
             &args.persona_model_allowed_data_classifications,
         )?;
-    }
+        Ok(())
+    })?;
     bind_runtime_repository_domain(
         &args.policy.runtime_store,
         &args.feedback_target_repository,
@@ -605,16 +591,16 @@ mod brake_tests {
     }
 
     #[test]
-    fn status_never_opens_or_validates_the_bifrost_provider_store() -> Result<()> {
+    fn engaged_brake_does_not_touch_the_bifrost_provider_store() -> Result<()> {
         let touched = std::cell::Cell::new(false);
-        validate_feedback_source_for_command(&CommandKind::Status, || {
+        run_feedback_import_if_released(true, || {
             touched.set(true);
-            anyhow::bail!("poison Bifrost store was touched")
+            anyhow::bail!("absent Bifrost delivery store was touched")
         })?;
         assert!(!touched.get());
         assert!(
-            validate_feedback_source_for_command(&CommandKind::Once, || {
-                anyhow::bail!("non-status path authenticates provider source")
+            run_feedback_import_if_released(false, || {
+                anyhow::bail!("released cognition requires Bifrost")
             })
             .is_err()
         );
