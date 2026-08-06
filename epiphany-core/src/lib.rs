@@ -890,10 +890,11 @@ pub use persona_discord_crossing::*;
 pub use persona_discord_permit::*;
 pub use persona_feedback_admission::{
     BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
-    BifrostPersonaFeedbackAdmission, LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION,
-    LocalAdmittedPersonaFeedback, PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION,
-    PersonaFeedbackHeartbeatBridgeReceipt, PersonaFeedbackPacket, admit_bifrost_persona_feedback,
-    admitted_persona_feedback, bridge_admitted_persona_feedback_to_heartbeat,
+    BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION, BifrostPersonaFeedbackAdmission,
+    LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION, LocalAdmittedPersonaFeedback,
+    PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION, PersonaFeedbackHeartbeatBridgeReceipt,
+    PersonaFeedbackPacket, admit_bifrost_persona_feedback, admitted_persona_feedback,
+    apply_bifrost_persona_feedback_snapshot, bridge_admitted_persona_feedback_to_heartbeat,
     import_bifrost_persona_feedback_deliveries, persona_feedback_admission_signing_payload,
     persona_feedback_admission_signing_purpose, persona_feedback_packet_sha256,
     validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,

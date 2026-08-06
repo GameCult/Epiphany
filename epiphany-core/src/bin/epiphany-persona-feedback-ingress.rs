@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use epiphany_core::{
-    import_bifrost_persona_feedback_deliveries, validate_bifrost_persona_feedback_source,
-    validate_persona_feedback_store_separation,
+    apply_bifrost_persona_feedback_snapshot, import_bifrost_persona_feedback_deliveries,
+    validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -18,6 +18,19 @@ struct IngressProjection {
     persona_id: String,
     applicable_delivery_count: usize,
     present_pressure_count: usize,
+    authority: &'static str,
+    private_state_exposed: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SnapshotProjection {
+    schema_version: &'static str,
+    status: &'static str,
+    runtime_id: String,
+    repository: String,
+    persona_id: String,
+    applied_delivery_count: usize,
     authority: &'static str,
     private_state_exposed: bool,
 }
@@ -51,6 +64,31 @@ fn main() -> Result<()> {
     let runtime_id = required("--runtime-id")?;
     let repository = required("--repository")?;
     let persona_id = required("--persona-id")?;
+    if command == "apply-snapshot" {
+        let snapshot = PathBuf::from(required("--snapshot")?);
+        let applied_delivery_count = apply_bifrost_persona_feedback_snapshot(
+            &snapshot,
+            &source_store,
+            &trust_anchor,
+            &runtime_id,
+            &repository,
+            &persona_id,
+        )?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&SnapshotProjection {
+                schema_version: "epiphany.persona_feedback.snapshot_projection.v0",
+                status: "applied",
+                runtime_id,
+                repository,
+                persona_id,
+                applied_delivery_count,
+                authority: "transport-only",
+                private_state_exposed: false,
+            })?
+        );
+        return Ok(());
+    }
     let (status, applicable_delivery_count, present_pressure_count) = match command.as_str() {
         "status" => (
             "ready",
@@ -94,7 +132,11 @@ fn main() -> Result<()> {
                 admitted.len(),
             )
         }
-        _ => return Err(anyhow!("unknown command {command:?}; use status or import")),
+        _ => {
+            return Err(anyhow!(
+                "unknown command {command:?}; use status, apply-snapshot, or import"
+            ));
+        }
     };
     println!(
         "{}",
