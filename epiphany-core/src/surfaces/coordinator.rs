@@ -1072,20 +1072,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.modeling_result_accepted
-        && !input.verification_result_allows_implementation
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Modeling/checkpoint guidance is available; run verification before implementation continues.",
-        );
-    }
-
     if role_status(&input.roles, EpiphanyCoordinatorRoleId::Modeling).is_some_and(|status| {
         matches!(
             status,
@@ -1109,26 +1095,31 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if role_status(&input.roles, EpiphanyCoordinatorRoleId::Verification).is_some_and(|status| {
-        matches!(
-            status,
-            EpiphanyCoordinatorRoleStatus::Ready | EpiphanyCoordinatorRoleStatus::Needed
+    if input.implementation_evidence_after_verification
+        && role_status(&input.roles, EpiphanyCoordinatorRoleId::Verification).is_some_and(
+            |status| {
+                matches!(
+                    status,
+                    EpiphanyCoordinatorRoleStatus::Ready | EpiphanyCoordinatorRoleStatus::Needed
+                )
+            },
         )
-    }) && matches!(
-        input.signals.verification_result_status,
-        EpiphanyCoordinatorRoleResultStatus::MissingBinding
-            | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-            | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-            | EpiphanyCoordinatorRoleResultStatus::Cancelled
-            | EpiphanyCoordinatorRoleResultStatus::Failed
-    ) {
+        && matches!(
+            input.signals.verification_result_status,
+            EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                | EpiphanyCoordinatorRoleResultStatus::Failed
+        )
+    {
         return build(
             EpiphanyCoordinatorAction::LaunchVerification,
             Some(EpiphanyCoordinatorRoleId::Verification),
             Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
             false,
             true,
-            "The verification/review lane is ready and no current verification finding is available.",
+            "A complete Hands consequence chain is newer than the last accepted Soul boundary; launch Verification against its typed request and receipts.",
         );
     }
 
@@ -1778,19 +1769,20 @@ mod tests {
                 .contains("rejected by admission")
         );
 
-        let launch_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            ..input()
-        });
+        let reconcile_model_without_hands_frontier =
+            recommend_coordinator_action(EpiphanyCoordinatorInput {
+                signals: EpiphanyCoordinatorSignals {
+                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                },
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                ..input()
+            });
         assert_eq!(
-            launch_verification.action,
-            EpiphanyCoordinatorAction::LaunchVerification
+            reconcile_model_without_hands_frontier.action,
+            EpiphanyCoordinatorAction::LaunchModeling
         );
 
         let review_failed_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
@@ -1958,6 +1950,51 @@ mod tests {
             Some(EpiphanyCoordinatorRoleId::Implementation)
         );
         assert!(decision.reason.contains("admitted current RepoModel"));
+    }
+
+    #[test]
+    fn accepted_model_routes_to_hands_before_post_consequence_soul() {
+        let modeling_done = EpiphanyCoordinatorSignals {
+            research_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+            modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+            verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+        };
+        let ready = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: modeling_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            ready.action,
+            EpiphanyCoordinatorAction::ContinueImplementation
+        );
+
+        let no_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: modeling_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            hands_frontier_ready: false,
+            ..input()
+        });
+        assert_eq!(
+            no_frontier.action,
+            EpiphanyCoordinatorAction::LaunchModeling
+        );
+
+        let consequences_exist = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: modeling_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            implementation_evidence_after_verification: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            consequences_exist.action,
+            EpiphanyCoordinatorAction::LaunchVerification
+        );
     }
 
     #[test]

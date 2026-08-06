@@ -128,13 +128,14 @@ pub fn append_verification_hands_receipt_context(
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
 ) -> Result<String, String> {
-    let Some(accepted_at) = latest_accepted_verification_timestamp(state) else {
-        return Ok(context);
-    };
-    let Ok(Some(chain)) = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
-    else {
-        return Ok(context);
-    };
+    let accepted_at = latest_accepted_modeling_or_verification_timestamp(state).ok_or_else(|| {
+        "Soul launch requires an accepted Modeling or Verification boundary before Hands consequence review".to_string()
+    })?;
+    let chain = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
+        .map_err(|error| format!("failed to load Hands receipt chain for Soul: {error}"))?
+        .ok_or_else(|| {
+            "Soul launch requires a complete Hands patch, command, and commit receipt chain after the latest accepted Modeling or Verification boundary".to_string()
+        })?;
     let verification_request = crate::commit_repo_frontier_verification_request_for_chain(
         runtime_store_path,
         &chain,
@@ -428,6 +429,19 @@ fn latest_accepted_verification_timestamp(state: &EpiphanyThreadState) -> Option
         .iter()
         .filter(|receipt| {
             receipt.role_id == "verification"
+                && receipt.surface == "roleAccept"
+                && receipt.status == "accepted"
+        })
+        .map(|receipt| receipt.accepted_at.as_str())
+        .max()
+}
+
+fn latest_accepted_modeling_or_verification_timestamp(state: &EpiphanyThreadState) -> Option<&str> {
+    state
+        .acceptance_receipts
+        .iter()
+        .filter(|receipt| {
+            matches!(receipt.role_id.as_str(), "modeling" | "verification")
                 && receipt.surface == "roleAccept"
                 && receipt.status == "accepted"
         })
@@ -1443,21 +1457,21 @@ mod tests {
             "2026-06-12T00:00:06Z".to_string(),
         );
         put_hands_commit_receipt(&runtime_store, &commit)?;
-        let state = EpiphanyThreadState {
+        let mut state = EpiphanyThreadState {
             revision: 11,
             objective: Some("Verify Hands receipts.".to_string()),
             acceptance_receipts: vec![EpiphanyAcceptanceReceipt {
-                id: "accept-verification-context".to_string(),
-                result_id: "result-verification-context".to_string(),
-                job_id: "verification-job-context".to_string(),
-                binding_id: "verification-review-worker".to_string(),
+                id: "accept-modeling-context".to_string(),
+                result_id: "result-modeling-context".to_string(),
+                job_id: "modeling-job-context".to_string(),
+                binding_id: "modeling-checkpoint-worker".to_string(),
                 surface: "roleAccept".to_string(),
-                role_id: "verification".to_string(),
+                role_id: "modeling".to_string(),
                 status: "accepted".to_string(),
                 accepted_at: "2026-06-12T00:00:03Z".to_string(),
                 accepted_observation_id: None,
                 accepted_evidence_id: None,
-                summary: Some("accepted prior verification".to_string()),
+                summary: Some("accepted current model".to_string()),
             }],
             ..Default::default()
         };
@@ -1617,6 +1631,19 @@ mod tests {
                 frontier_route_id: verification_request.route_id.clone(),
             },
         )?;
+        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
+            id: "accept-verification-context".to_string(),
+            result_id: "result-verification-context".to_string(),
+            job_id: "verification-job-context".to_string(),
+            binding_id: "verification-review-worker".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "verification".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-06-12T00:00:07Z".to_string(),
+            accepted_observation_id: None,
+            accepted_evidence_id: None,
+            summary: Some("accepted exact verification".to_string()),
+        });
         let mut state_cache = crate::runtime_spine_cache(&runtime_store)?;
         state_cache.put(
             crate::THREAD_STATE_KEY,
@@ -1654,6 +1681,48 @@ mod tests {
         );
 
         fs::remove_dir_all(&temp)?;
+        Ok(())
+    }
+
+    #[test]
+    fn verification_launch_refuses_to_invent_a_pre_hands_request() -> anyhow::Result<()> {
+        let temp = std::env::temp_dir().join(format!(
+            "epiphany-verification-without-hands-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir(&temp)?;
+        let runtime_store = temp.join("runtime-spine.msgpack");
+        initialize_runtime_spine(
+            &runtime_store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-verification-without-hands".to_string(),
+                display_name: "Epiphany Verification Without Hands".to_string(),
+                created_at: "2026-08-06T00:00:00Z".to_string(),
+            },
+        )?;
+        let state = EpiphanyThreadState {
+            acceptance_receipts: vec![EpiphanyAcceptanceReceipt {
+                id: "accept-modeling-without-hands".to_string(),
+                result_id: "result-modeling-without-hands".to_string(),
+                job_id: "job-modeling-without-hands".to_string(),
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                surface: "roleAccept".to_string(),
+                role_id: "modeling".to_string(),
+                status: "accepted".to_string(),
+                accepted_at: "2026-08-06T00:00:01Z".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let error = append_verification_hands_receipt_context(
+            "context".to_string(),
+            &runtime_store,
+            &state,
+        )
+        .expect_err("Soul must not launch before a complete Hands consequence chain exists");
+        assert!(error.contains("complete Hands patch, command, and commit receipt chain"));
+        fs::remove_dir_all(temp)?;
         Ok(())
     }
 }
