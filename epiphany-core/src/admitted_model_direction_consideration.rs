@@ -105,8 +105,9 @@ pub fn commit_request(
     else {
         return Ok(None);
     };
-    let model = crate::runtime_current_repo_model(runtime_store)?
-        .ok_or_else(|| anyhow!("model direction consideration requires admitted Modeling map"))?;
+    let Some(model) = crate::runtime_current_repo_model(runtime_store)? else {
+        return Ok(None);
+    };
     let model_hash = crate::memory_graph_model_hash(&model)?;
     let receipts = cache
         .get_all::<crate::RepoModelAdmissionReceipt>()?
