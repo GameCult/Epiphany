@@ -507,7 +507,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             steps.push(step);
             break;
         }
-        if is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action) {
+        if action == "awaitFrontierProposal"
+            || (is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action))
+        {
             append_operator_step_jsonl(&steps_path, &step)?;
             steps.push(step);
             break;

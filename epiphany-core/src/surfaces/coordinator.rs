@@ -66,6 +66,7 @@ pub enum EpiphanyCoordinatorAction {
     LaunchVerification,
     ReviewVerificationResult,
     ContinueImplementation,
+    AwaitFrontierProposal,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1178,6 +1179,17 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.modeling_result_accepted && !input.hands_frontier_ready {
+        return build(
+            EpiphanyCoordinatorAction::AwaitFrontierProposal,
+            Some(EpiphanyCoordinatorRoleId::Imagination),
+            None,
+            true,
+            false,
+            "Mind accepted the current model, but no actionable Hands frontier exists; await a typed user or Imagination proposal selection instead of relaunching Modeling without mutation authority.",
+        );
+    }
+
     build(
         EpiphanyCoordinatorAction::LaunchModeling,
         Some(EpiphanyCoordinatorRoleId::Modeling),
@@ -1211,7 +1223,8 @@ pub fn coordinator_automation_action(
         | EpiphanyCoordinatorAction::ReviewModelingResult
         | EpiphanyCoordinatorAction::LaunchVerification
         | EpiphanyCoordinatorAction::ReviewVerificationResult
-        | EpiphanyCoordinatorAction::ContinueImplementation => {
+        | EpiphanyCoordinatorAction::ContinueImplementation
+        | EpiphanyCoordinatorAction::AwaitFrontierProposal => {
             EpiphanyCoordinatorAutomationAction::None
         }
     }
@@ -1769,7 +1782,7 @@ mod tests {
                 .contains("rejected by admission")
         );
 
-        let reconcile_model_without_hands_frontier =
+        let await_proposal_without_hands_frontier =
             recommend_coordinator_action(EpiphanyCoordinatorInput {
                 signals: EpiphanyCoordinatorSignals {
                     research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
@@ -1781,8 +1794,8 @@ mod tests {
                 ..input()
             });
         assert_eq!(
-            reconcile_model_without_hands_frontier.action,
-            EpiphanyCoordinatorAction::LaunchModeling
+            await_proposal_without_hands_frontier.action,
+            EpiphanyCoordinatorAction::AwaitFrontierProposal
         );
 
         let review_failed_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
@@ -1980,8 +1993,10 @@ mod tests {
         });
         assert_eq!(
             no_frontier.action,
-            EpiphanyCoordinatorAction::LaunchModeling
+            EpiphanyCoordinatorAction::AwaitFrontierProposal
         );
+        assert!(!no_frontier.can_auto_run);
+        assert!(no_frontier.reason.contains("proposal selection"));
 
         let consequences_exist = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: modeling_done,

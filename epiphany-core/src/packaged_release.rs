@@ -117,6 +117,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             file_name("epiphany-persona-discord-permit-identity"),
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
+        ("frontier-proposal", file_name("epiphany-frontier-proposal")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         ("tool-mcp-runtime", file_name("epiphany-tool-mcp-runtime")),
     ]
@@ -425,6 +426,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
             Ok(("epiphany-core", "epiphany-persona-discord-permit-identity"))
         }
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
+        "frontier-proposal" => Ok(("epiphany-core", "epiphany-frontier-proposal")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
         "tool-mcp-runtime" => Ok(("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")),
         _ => bail!("unknown required release role {role}"),
