@@ -303,11 +303,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let runtime_session_id = format!("coordinator-{thread_id}");
     let runtime_identity = initialize_runtime_spine(
         &runtime_store,
-        RuntimeSpineInitOptions {
-            runtime_id: "epiphany-local".to_string(),
-            display_name: "Epiphany Local".to_string(),
-            created_at: now(),
-        },
+        coordinator_runtime_identity_options(
+            args.runtime_id.as_deref().expect("validated runtime id"),
+            now(),
+        ),
     )?;
     let runtime_session = ensure_runtime_session(
         &runtime_store,
@@ -1731,6 +1730,17 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
+fn coordinator_runtime_identity_options(
+    runtime_id: &str,
+    created_at: String,
+) -> RuntimeSpineInitOptions {
+    RuntimeSpineInitOptions {
+        runtime_id: runtime_id.to_string(),
+        display_name: format!("Epiphany {runtime_id}"),
+        created_at,
+    }
+}
+
 fn reset_artifact_dir(path: &Path) -> Result<()> {
     let cwd = env::current_dir()?;
     let mut roots = Vec::new();
@@ -1836,6 +1846,16 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coordinator_preserves_the_authenticated_runtime_identity() {
+        let options = coordinator_runtime_identity_options(
+            "epiphany-starfire",
+            "2026-08-06T00:00:00Z".into(),
+        );
+        assert_eq!(options.runtime_id, "epiphany-starfire");
+        assert_eq!(options.display_name, "Epiphany epiphany-starfire");
+    }
 
     #[test]
     fn coordinator_binary_has_no_codex_host_or_epiphany_json_rpc_dependency() {
