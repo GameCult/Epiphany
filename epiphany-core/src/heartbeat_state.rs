@@ -235,15 +235,19 @@ pub fn tick_heartbeat_store(
         complete_pending_turn(&mut state, index)?;
         resident_ack_to_consume = Some((resident_store.to_path_buf(), ack.ack_id));
     }
+    let resident_pressure_pending =
+        if let Some(resident_store) = options.resident_self_store.as_deref() {
+            crate::pending_resident_self_pressure(resident_store)?
+        } else {
+            false
+        };
     let mut effective_options = options.clone();
-    if let Some(resident_store) = options.resident_self_store.as_deref()
-        && crate::pending_resident_self_pressure(resident_store)?
-    {
+    if resident_pressure_pending {
         effective_options.coordinator_action = Some("resident-self-pressure".to_string());
         effective_options.target_role = Some("coordinator".to_string());
         effective_options.defer_completion = true;
     }
-    let result = tick_once(&mut state, &effective_options)?;
+    let result = tick_once(&mut state, &effective_options, resident_pressure_pending)?;
     commit_heartbeat_state_transaction(store_path, expected_state, &state)?;
     if result["event"]["selectedRole"] == "coordinator"
         && effective_options.defer_completion
@@ -661,7 +665,7 @@ pub fn pump_heartbeat_store(
             agent_store: options.agent_store.clone(),
             resident_self_store: options.resident_self_store.clone(),
         };
-        match tick_once(&mut state, &tick_options) {
+        match tick_once(&mut state, &tick_options, false) {
             Ok(result) => {
                 write_json_artifact(
                     artifact_dir.join(format!("{}.initiative.json", tick_options.schedule_id)),
@@ -1142,14 +1146,19 @@ pub fn recover_stale_heartbeat_store(
 fn tick_once(
     state: &mut EpiphanyHeartbeatStateEntry,
     options: &HeartbeatTickOptions,
+    force_work_role: bool,
 ) -> Result<Value> {
     let rate = state.target_heartbeat_rate.max(0.001);
     let work_role = work_role_for_action(
         options.coordinator_action.as_deref(),
         options.target_role.as_deref(),
     );
-    let (selected_index, selection_kind, selection_reason) =
-        select_participant(state, work_role.as_deref(), options.urgency)?;
+    let (selected_index, selection_kind, selection_reason) = select_participant(
+        state,
+        work_role.as_deref(),
+        options.urgency,
+        force_work_role,
+    )?;
     let selected = state.participants[selected_index].clone();
     let action = action_for_selection(
         state,
@@ -1570,6 +1579,7 @@ fn select_participant(
     state: &EpiphanyHeartbeatStateEntry,
     work_role: Option<&str>,
     urgency: f64,
+    force_work_role: bool,
 ) -> Result<(usize, &'static str, String)> {
     let active: Vec<usize> = state
         .participants
@@ -1593,6 +1603,15 @@ fn select_participant(
                 pending
                     .map(|item| item.action_id.as_str())
                     .unwrap_or("unknown")
+            ));
+        }
+        if force_work_role && candidate.status == "active" {
+            return Ok((
+                index,
+                "admitted_work",
+                format!(
+                    "Admitted {work_role} work selected its owning role before idle initiative."
+                ),
             ));
         }
         let reaction_readiness = candidate.reaction_bias * urgency - candidate.current_load;
@@ -4254,6 +4273,64 @@ mod tests {
             serde_json::json!(true)
         );
         assert!(artifact_dir.join("native-work.completion.json").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn resident_pressure_selects_self_before_idle_lane_initiative() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let heartbeat_store = temp.path().join("heartbeat.cc");
+        let resident_store = temp.path().join("resident.cc");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&heartbeat_store, 1.0)?;
+        let mut heartbeat = load_heartbeat_state_entry(&heartbeat_store)?.unwrap();
+        heartbeat
+            .participants
+            .iter_mut()
+            .find(|participant| participant.role_id == "coordinator")
+            .unwrap()
+            .next_ready_at = 100.0;
+        write_heartbeat_state_entry(&heartbeat_store, &heartbeat)?;
+        crate::enqueue_resident_self_pressure(
+            &resident_store,
+            &crate::ResidentSelfPressure {
+                schema_version: crate::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "wake-health".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "test://wake-health".into(),
+                objective: "Perform a bounded health check.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+
+        let pulse = pulse_resident_self_heartbeat(
+            &heartbeat_store,
+            &resident_store,
+            &artifact_dir,
+            false,
+            "wake-health",
+            "test://wake-health",
+            None,
+        )?;
+
+        assert_eq!(pulse.status, "granted");
+        assert!(pulse.grant_id.is_some());
+        let heartbeat = load_heartbeat_state_entry(&heartbeat_store)?.unwrap();
+        assert_eq!(
+            heartbeat
+                .participants
+                .iter()
+                .find(|participant| participant.role_id == "coordinator")
+                .and_then(|participant| participant.pending_turn.as_ref())
+                .map(|turn| turn.action_id.as_str()),
+            Some("heartbeat.coordinator.work")
+        );
+        assert!(heartbeat.participants.iter().all(|participant| {
+            participant.role_id == "coordinator" || participant.pending_turn.is_none()
+        }));
         Ok(())
     }
 
