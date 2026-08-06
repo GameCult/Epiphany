@@ -3915,10 +3915,12 @@ pub fn promote_autonomous_direction_options_for_modeling(
     else {
         return Ok(Vec::new());
     };
-    let model = opening
+    let Some(model) = opening
         .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
-        .ok_or_else(|| anyhow!("autonomous proposal promotion requires admitted Modeling map"))?
-        .snapshot()?;
+    else {
+        return Ok(Vec::new());
+    };
+    let model = model.snapshot()?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
     let receipts = opening
         .get_all::<RepoModelAdmissionReceipt>()?
@@ -9718,6 +9720,40 @@ pub(crate) mod tests {
                 display_name: "Cold autonomous runtime".into(),
                 created_at: "2026-07-19T10:00:00Z".into(),
             },
+        )?;
+        let before = std::fs::read(&store)?;
+        assert!(
+            promote_autonomous_direction_options_for_modeling(
+                &store,
+                "GameCult/Epiphany",
+                root.path().to_str().expect("UTF-8 workspace"),
+                "2026-07-19T10:00:01Z",
+            )?
+            .is_empty()
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn autonomous_direction_promotion_waits_for_admitted_model_without_mutation() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = root.path().join("thread-without-model.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "model-wait-runtime".into(),
+                display_name: "Model wait runtime".into(),
+                created_at: "2026-07-19T10:00:00Z".into(),
+            },
+        )?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state(
+                "thread-without-model",
+                &epiphany_state_model::EpiphanyThreadState::default(),
+            )?,
         )?;
         let before = std::fs::read(&store)?;
         assert!(
