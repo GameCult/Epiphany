@@ -674,6 +674,7 @@ pub fn complete_worker_job_from_assistant_text(
                     &document.role_id,
                     &result_id,
                     parsed,
+                    evidence_refs.clone(),
                     artifact_refs.clone(),
                 );
                 put_runtime_role_worker_result(store_path.as_ref(), &typed_result)?;
@@ -1594,6 +1595,7 @@ fn role_worker_result_from_ingress(
     role_id: &str,
     result_id: &str,
     result: &RoleWorkerResultIngress,
+    runtime_evidence_ids: Vec<String>,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeRoleWorkerResult {
     let (state_patch_msgpack, state_patch_error) =
@@ -1762,7 +1764,13 @@ fn role_worker_result_from_ingress(
         scratch_summary: clean_optional_string(result.scratch_summary.as_deref()),
         files_inspected: clean_string_vec(&result.files_inspected),
         frontier_node_ids: clean_string_vec(&result.frontier_node_ids),
-        evidence_ids: clean_string_vec(&result.evidence_ids),
+        evidence_ids: {
+            let mut evidence_ids = clean_string_vec(&result.evidence_ids);
+            evidence_ids.extend(clean_string_vec(&runtime_evidence_ids));
+            evidence_ids.sort();
+            evidence_ids.dedup();
+            evidence_ids
+        },
         artifact_refs,
         open_questions: clean_string_vec(&result.open_questions),
         evidence_gaps: clean_string_vec(&result.evidence_gaps),
@@ -1987,6 +1995,7 @@ mod tests {
             "verification",
             "verification-result-1",
             &parsed,
+            vec!["openai-request:verification-request-1".to_string()],
             Vec::new(),
         );
         assert_eq!(
@@ -1996,6 +2005,10 @@ mod tests {
         assert_eq!(
             result.frontier_route_id.as_deref(),
             Some("frontier-route-1")
+        );
+        assert_eq!(
+            result.evidence_ids,
+            vec!["openai-request:verification-request-1"]
         );
         Ok(())
     }
@@ -2055,6 +2068,7 @@ mod tests {
             "planning-result-1",
             &parsed,
             Vec::new(),
+            Vec::new(),
         );
         assert_eq!(
             result.frontier_planning_request_id.as_deref(),
@@ -2110,6 +2124,7 @@ mod tests {
             "mindAdmissionReview",
             "mind-result-1",
             &parsed,
+            Vec::new(),
             Vec::new(),
         );
         assert_eq!(
@@ -2400,7 +2415,6 @@ mod tests {
             "nextSafeMove": "Review the patch.",
             "filesInspected": ["src/lib.rs"],
             "frontierNodeIds": ["old"],
-            "evidenceIds": ["ev-1"],
             "artifactRefs": ["artifact:model"],
             "repositoryBodyObservationBasis": body_basis,
             "repoModelPatch": {
@@ -2427,11 +2441,13 @@ mod tests {
         assert_eq!(result.verdict, "checkpoint-ready");
         assert_eq!(result.summary, "Mapped.");
         assert_eq!(result.next_safe_move, "Review the patch.");
-        assert!(result.evidence_refs.contains(&"ev-1".to_string()));
+        let runtime_evidence_id = format!("openai-request:{}", model_request.request_id);
+        assert!(result.evidence_refs.contains(&runtime_evidence_id));
         let typed_result = epiphany_core::runtime_role_worker_result(&store, "worker-job-1")?
             .expect("typed role worker result");
         assert_eq!(typed_result.verdict, "checkpoint-ready");
         assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
+        assert_eq!(typed_result.evidence_ids, vec![runtime_evidence_id]);
         assert_eq!(typed_result.artifact_refs, result.artifact_refs);
         assert_eq!(
             typed_result

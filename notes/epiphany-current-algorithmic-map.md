@@ -1,6 +1,6 @@
 # Epiphany Current Algorithmic Map
 
-## Coordinator cold start and source-regather ownership (2026-07-16)
+## Coordinator cold start and source-regather ownership
 
 - Owner: typed `UserObjectiveIntake` owns first objective/state creation. It is
   seed-only, atomic, idempotent for identical input, and refuses replacement.
@@ -13,6 +13,10 @@
 - Mind owns admission. Provider JSON Schema is a formatting projection, not
   authority. Canonical worker-result parsing, exact launch Body-basis replay,
   and Mind review/admission decide whether a RepoModel patch exists.
+- The model may name additional evidence, but it does not own transport
+  provenance. The OpenAI runtime adds the immutable request-chain reference to
+  the typed role result before persistence. Mind still requires the admission
+  review to bind that exact non-empty result evidence set.
 - Derived state: status, role boards, and coordinator decisions read one
   canonical typed role/reorient result path. Display synthesis cannot remember
   a finding that coordinator signals forget, or vice versa.
@@ -22,15 +26,10 @@
 - Failure lifecycle: failed and completed-unreviewable results require an
   explicit supersession receipt before relaunch. Exact repeat is idempotent;
   conflicting acceptance authority is refused.
-- Current live evidence: Eyes produced and Mind accepted a code-grounded result.
-  Modeling subsequently produced a source-grounded Body-bound RepoModel
-  proposal, but Mind refused it because `Evolution` attempted an unrequested
-  frontier upsert. Ordinary evolution owns nodes and edges only; frontier
-  mutation remains request-bound. A second proposal correctly removed frontier
-  operations but invented a domain id and illegal lifecycle because launch
-  context exposed semantic nodes without the canonical aggregate shape.
-  Modeling launch context now includes current model revision/hash, exact
-  existing domains, and legal repo lifecycles. A fresh admission is pending.
+- Live shakedown evidence: the authenticated model runtime completed
+  source-grounded Modeling passes with typed repository reads and emitted a
+  reviewable Body-bound `repoModelPatch`. Admission remains the proof layer;
+  prose summaries and successful model transport do not make the patch true.
 
 ## Observation and bootstrap authority correction (2026-07-12)
 
