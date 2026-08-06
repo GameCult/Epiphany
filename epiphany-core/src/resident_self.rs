@@ -533,6 +533,25 @@ pub fn coordinator_argv(
     argv
 }
 
+pub fn resident_coordinator_thread_id(runtime_id: &str) -> Result<String> {
+    let runtime_id = runtime_id.trim();
+    if runtime_id.is_empty() {
+        return Err(anyhow!("resident coordinator thread requires runtime identity"));
+    }
+    Ok(format!("resident-self-thread-{runtime_id}"))
+}
+
+fn prepared_coordinator_thread_id(argv: &[String]) -> Result<String> {
+    let index = argv
+        .iter()
+        .position(|value| value == "--thread-id")
+        .ok_or_else(|| anyhow!("prepared coordinator argv lost thread identity"))?;
+    argv.get(index + 1)
+        .filter(|value| !value.trim().is_empty())
+        .cloned()
+        .ok_or_else(|| anyhow!("prepared coordinator argv has empty thread identity"))
+}
+
 #[cfg(test)]
 fn reconcile_resident_self(
     state: &mut ResidentSelfState,
@@ -1033,7 +1052,7 @@ pub fn prepare_resident_self_launch(
     let Some(mut grant) = pending_resident_self_grant(path)? else {
         return Ok(None);
     };
-    let turn_id = format!("resident-self-turn-{}", grant.grant_id);
+    let turn_id = resident_coordinator_thread_id(&policy.release_runtime_id)?;
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
@@ -1196,7 +1215,7 @@ pub fn acknowledge_resident_self_launch(
         ));
     }
     let lease = ResidentSelfTurnLease {
-        turn_id: format!("resident-self-turn-{}", prepared.grant.grant_id),
+        turn_id: prepared_coordinator_thread_id(&prepared.argv)?,
         wake: ResidentSelfWake::Explicit {
             objective: prepared.grant.objective.clone(),
         },
