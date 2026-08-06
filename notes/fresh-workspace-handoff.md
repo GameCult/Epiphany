@@ -16,20 +16,22 @@ Current host authority:
 - Starfire is the temporary Epiphany cognition body while the resident footprint
   is measured. Yggdrasil retains Bifrost and public crossing authority.
 - Live Yggdrasil has two EPYC vCPUs, 1.9 GiB RAM, 2 GiB swap, and a 38 GiB
-  root disk with about 15 GiB free. Base Bifrost is active. Docker, Epiphany,
-  Idunn, and the typed Bifrost Persona-feedback sidecar are absent. Building the
-  complete governed stack there would consume the constrained body before a
-  useful runtime measurement exists.
+  root disk with about 15 GiB free. Base Bifrost and the native typed
+  Persona-feedback provider are active; Docker, Epiphany, and Idunn are absent.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
   bootstrapped and its canonical swarm brake is engaged.
-- The authenticated Windows release for source `af37dc9b` is published in the
-  Starfire local Verse. Its repository Body is bound to the canonical worktree
-  and immutable `gamecult.epiphany.main` swarm identity.
+- The authenticated Windows release for the current source generation is
+  published in the Starfire local Verse. Its repository Body is observed at the
+  canonical worktree under immutable `gamecult.epiphany.main` swarm identity.
 - Heartbeat and resident Self are running as detached Starfire processes. Live
   readiness is `active`: both providers are fresh, stores are coherent and
   separate, credentials and workspace are ready, no lease is active, private
   state is not exposed, and the canonical brake remains engaged.
 - Runtime process metadata and logs live under `.epiphany-run/resident/`.
+- Yggdrasil Bifrost has one exact GameCult/Aquarium binding for
+  `epiphany-starfire`. It exports signed immutable CultNet snapshots; Starfire
+  admits them through packaged `apply-snapshot` as transport-only state. The
+  provider is ready with no pending failures and exposes no private state.
 
 No cognition release, broad Wake, or host reboot is authorized during the
 braked startup proof.
@@ -51,10 +53,10 @@ braked startup proof.
 
 ## Next action
 
-Prove sustained Starfire physiology, restart behavior, and resource use under
-the engaged brake. Then install the typed Bifrost Persona-feedback provider on
-Yggdrasil and establish an authenticated delivery crossing before any cognition
-release.
+Keep the clean resident organs and authenticated crossing under the canonical
+brake. When the operator authorizes Wake, release cognition through that brake
+and measure its real Starfire footprint before deciding how much Yggdrasil must
+grow.
 
 ## Immediate Re-entry Instruction
 
