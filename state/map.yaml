@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host; Starfire is the temporary Epiphany cognition body. Yggdrasil runs a native typed Bifrost Persona-feedback provider with one exact GameCult/Aquarium binding, signed immutable exports, no pending failures, and no private state exposure. Starfire runs the authenticated release for the current source generation; its repository Body is observed at the canonical worktree, the signed snapshot crossing is admitted as transport-only, heartbeat and resident Self are fresh after a controlled restart, and the canonical brake remains engaged.
+  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host; Starfire is the temporary Epiphany cognition body. Yggdrasil runs a native typed Bifrost Persona-feedback provider with one exact GameCult/Aquarium binding, signed immutable exports, no pending failures, and no private state exposure. Starfire runs an authenticated release containing the typed snapshot receiver; its repository Body is observed at the canonical worktree, the signed snapshot crossing is admitted as transport-only, heartbeat and resident Self are fresh after a controlled restart, and the canonical brake remains engaged.
   operational_state:
     local_worktree: deployment_changes_in_progress
     operator_wireguard: restored

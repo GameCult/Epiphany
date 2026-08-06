@@ -20,7 +20,7 @@ Current host authority:
   Persona-feedback provider are active; Docker, Epiphany, and Idunn are absent.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
   bootstrapped and its canonical swarm brake is engaged.
-- The authenticated Windows release for the current source generation is
+- The authenticated Windows release containing the typed snapshot receiver is
   published in the Starfire local Verse. Its repository Body is observed at the
   canonical worktree under immutable `gamecult.epiphany.main` swarm identity.
 - Heartbeat and resident Self are running as detached Starfire processes. Live
