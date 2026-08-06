@@ -102,11 +102,11 @@ fn repo_model_node_output_schema() -> serde_json::Value {
             "domain_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "enum": ["repo_architecture", "repo_dataflow", "role_self", "short_term", "incubation", "agency_pressure", "candidate_intervention", "identity", "evidence"]},
             "kind": {"type": "string", "enum": ["domain", "module", "crate", "binary", "schema", "runtime_contract", "adapter", "test_seam", "state_store", "role_memory", "short_term_thought", "incubation_thread", "agency_pressure", "candidate_intervention", "identity", "evidence", "summary", "other"]},
-            "title": {"type": "string"},
-            "claim": {"type": "string"},
+            "title": {"type": "string", "minLength": 1},
+            "claim": {"type": "string", "minLength": 1},
             "question": {"type": "string"},
             "tension": {"type": "string"},
-            "action_implication": {"type": "string"},
+            "action_implication": {"type": "string", "minLength": 1},
             "anchors": {"type": "array", "items": memory_anchor_output_schema()},
             "source_hashes": {"type": "array", "items": {"type": "string"}},
             "lifecycle": {"type": "string"},
@@ -115,6 +115,10 @@ fn repo_model_node_output_schema() -> serde_json::Value {
             "created_at": {"type": "string"},
             "updated_at": {"type": "string"}
         },
+        "anyOf": [
+            {"properties": {"question": {"minLength": 1}}},
+            {"properties": {"tension": {"minLength": 1}}}
+        ],
         "additionalProperties": false
     })
 }
@@ -1536,6 +1540,22 @@ mod tests {
             .expect("typed RepoModel node kinds");
         assert!(node_kinds.iter().any(|kind| kind == "runtime_contract"));
         assert!(!node_kinds.iter().any(|kind| kind == "claim"));
+    }
+
+    #[test]
+    fn modeling_node_schema_matches_mind_nonempty_invariants() {
+        let schema = repo_model_node_output_schema();
+
+        assert_eq!(schema["properties"]["title"]["minLength"], 1);
+        assert_eq!(schema["properties"]["claim"]["minLength"], 1);
+        assert_eq!(schema["properties"]["action_implication"]["minLength"], 1);
+        assert_eq!(
+            schema["anyOf"],
+            serde_json::json!([
+                {"properties": {"question": {"minLength": 1}}},
+                {"properties": {"tension": {"minLength": 1}}}
+            ])
+        );
     }
 
     #[test]
