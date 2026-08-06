@@ -116,6 +116,9 @@ pub fn commit_request(
             receipt.admitted_revision == model.model_revision && receipt.admitted_hash == model_hash
         })
         .collect::<Vec<_>>();
+    if receipts.is_empty() {
+        return Ok(None);
+    }
     if receipts.len() != 1 {
         bail!("model direction consideration requires exactly one current model receipt");
     }
@@ -357,6 +360,48 @@ mod tests {
                 .get_all::<AdmittedModelDirectionConsiderationRequest>()?
                 .is_empty()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn bootstrap_model_without_admission_receipt_has_no_direction_request_yet() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("bootstrap-runtime.ccmp");
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(
+            crate::RUNTIME_IDENTITY_KEY,
+            &crate::EpiphanyRuntimeIdentity {
+                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                runtime_id: "runtime-bootstrap".into(),
+                display_name: "Bootstrap runtime".into(),
+                runtime_kind: "resident".into(),
+                created_at: "2026-07-18T00:00:00Z".into(),
+                updated_at: "2026-07-18T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        cache.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state(
+                "bootstrap-thread",
+                &epiphany_state_model::EpiphanyThreadState::default(),
+            )?,
+        )?;
+        cache.put(
+            crate::MEMORY_GRAPH_KEY,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(
+                &crate::EpiphanyMemoryGraphSnapshot {
+                    schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
+                    graph_id: "bootstrap-model".into(),
+                    ..Default::default()
+                },
+            )?,
+        )?;
+        let before = std::fs::read(&store)?;
+
+        assert!(commit_request(&store, "2026-07-18T00:01:00Z")?.is_none());
+        assert_eq!(std::fs::read(&store)?, before);
         Ok(())
     }
 }
