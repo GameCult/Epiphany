@@ -7,7 +7,8 @@ outside Codex. CultCache persists state, CultNet carries typed messages, and
 CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
-The local `main` branch is clean and synchronized with its upstream.
+The local `codex/epiphany-shakedown-live` branch is clean and synchronized with
+its upstream.
 
 Current host authority:
 
@@ -19,10 +20,10 @@ Current host authority:
   root disk with about 15 GiB free. Base Bifrost and the native typed
   Persona-feedback provider are active; Docker, Epiphany, and Idunn are absent.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
-  bootstrapped and cognition is awake.
-- The authenticated Windows release containing the typed snapshot receiver is
-  published in the Starfire local Verse. Its repository Body is observed at the
-  canonical worktree under immutable `gamecult.epiphany.main` swarm identity.
+  bootstrapped and supervised cognition is available for shakedown.
+- The current authenticated Windows release is published in the Starfire local
+  Verse. Its repository Body is observed at the canonical worktree under
+  immutable `gamecult.epiphany.main` swarm identity.
 - Local Verse topology is explicitly seeded from `repo:F:/Projects/Epiphany`.
   Bootstrap requires a non-empty `repo:` Body domain; compiled workstation paths
   no longer own cluster jurisdiction.
@@ -40,9 +41,24 @@ Current host authority:
   admits them through packaged `apply-snapshot` as transport-only state. The
   provider is ready with no pending failures and exposes no private state.
 
-The authenticated live release is
-`sha256-2a2c4685938639e77d221e3b04a45303f9cc2c371012b92e512bec46098ce2ac`
-from source `6442f379`. Older runtime and resident stores are non-authoritative.
+The authenticated shakedown release is
+`sha256-dfaf8c26b80f458018e1b96134b88dfe09b0382f3c9bae4d3066da3e3cb1e981`.
+Older runtime and resident stores are non-authoritative.
+
+The current live readiness result is mixed:
+
+- Modeling used real model cognition and repository tools, emitted a typed
+  RepoModel patch, and carried immutable runtime-owned request provenance.
+- Mind accepted that Modeling result. The previous exact-evidence admission
+  failure is gone; no retry or supersession occurred on this boundary.
+- Soul inspected the proposed path, but Self's verification launch omitted the
+  required `verificationRequestId` and `frontierRouteId`. Mind correctly
+  rejected the placeholder identifiers.
+- The coordinator spent the remainder of its eight-step budget repeating the
+  unchanged invalid verification result. Retry currently repairs nothing.
+- Resident artifact retention is unbounded. Durable Windows supervision,
+  crash/reboot recovery, session closure, long-duration resource behavior, and
+  Linux/Yggdrasil cognition remain unproven.
 
 ## Authority map
 
@@ -61,10 +77,12 @@ from source `6442f379`. Older runtime and resident stores are non-authoritative.
 
 ## Next action
 
-Continue the idle watch and use the measured Starfire resident baseline when
-sizing a future Yggdrasil upgrade. Repeated resident wakes now share the runtime-
-owned coordinator thread; grant IDs remain execution identities and do not own
-durable objective state.
+Repair the verification launch boundary: Self must supply a real
+`verificationRequestId` and `frontierRouteId` that refer to an admitted route.
+Then rerun the same bounded Modeling-to-Soul campaign and require it to reach
+the Hands action gate without repeating a failed result on unchanged inputs.
+After that, continue the organ matrix, retention, supervised recovery, session
+closure, long-duration resource, and Linux/Yggdrasil proofs.
 
 ## Immediate Re-entry Instruction
 

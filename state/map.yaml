@@ -4,7 +4,7 @@ experiment:
   purpose: Native, inspectable agent organism with typed state and explicit organ authority.
 
 objective:
-  current: Keep Epiphany awake and observable on Starfire while retaining Bifrost and public crossing authority on the small Yggdrasil.
+  current: Prove every Epiphany organ individually and in live coordination on the shakedown branch before treating the organism as deployment-ready.
 
 architecture:
   body: Repository, runtime, service processes, stores, interfaces, and deployment substrate.
@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host; Starfire is the temporary Epiphany cognition body. Yggdrasil runs the ready typed Bifrost Persona-feedback provider. Starfire runs authenticated release sha256-2a2c4685938639e77d221e3b04a45303f9cc2c371012b92e512bec46098ce2ac. Heartbeat-v8 and resident Self-v8 completed two sequential typed wake cycles against resident-runtime-v4.cc. Both runs used canonical thread resident-self-thread-epiphany-starfire, produced distinct terminal receipts, returned sleeping, and emitted no stderr. Idle working sets are about 9.8 MiB and 6.5 MiB. Old runtime and resident stores are non-authoritative. No private state is exposed.
+  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. Authenticated release sha256-dfaf8c26b80f458018e1b96134b88dfe09b0382f3c9bae4d3066da3e3cb1e981 proved a live Modeling-to-runtime-to-Mind path: Modeling inspected repository sources, the runtime bound immutable OpenAI request provenance into the typed result, and Mind accepted it without supersession. The following Soul/Verification launch failed its typed coordination contract because verificationRequestId and frontierRouteId were absent. The coordinator then repeated the same inadmissible review through its step budget without changing the launch inputs. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
   operational_state:
     local_worktree: clean_and_pushed
     operator_wireguard: restored
@@ -45,19 +45,21 @@ current_status:
     starfire_release: authenticated_and_published
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
-    starfire_native_status: awake_idle
+    starfire_native_status: supervised_shakedown_active
     bifrost: base_application_active_on_yggdrasil
     bifrost_persona_feedback: ready_on_yggdrasil
     bifrost_feedback_binding: gamecult_aquarium_to_epiphany_starfire
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: none
-  next_action: Continue the idle watch and size Yggdrasil from the measured resident baseline before moving cognition off Starfire.
+  unresolved_authority: Verification launch identity is not owned coherently; the coordinator launches Soul without the request and frontier route identifiers that Mind requires for admission.
+  next_action: Repair the verification launch boundary so Self supplies a real verificationRequestId and frontierRouteId, then rerun the same Modeling-to-Soul campaign and prove it reaches the Hands action gate without a same-input retry loop.
 
 active_subgoals:
-  - Preserve the ready authenticated Yggdrasil-to-Starfire feedback crossing.
-  - Preserve the measured Starfire resident baseline while sizing a future Yggdrasil upgrade.
+  - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
+  - Prove a live coordinated path from source gathering through the Hands gate and post-action verification.
+  - Bound artifact retention and prove supervised restart, crash recovery, session closure, and long-duration resource behavior.
+  - Keep cognition and release builds on Starfire until measured runtime demand supports a deliberate Yggdrasil size.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
