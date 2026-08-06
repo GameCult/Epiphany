@@ -23,6 +23,9 @@ Current host authority:
 - The authenticated Windows release containing the typed snapshot receiver is
   published in the Starfire local Verse. Its repository Body is observed at the
   canonical worktree under immutable `gamecult.epiphany.main` swarm identity.
+- Local Verse topology is explicitly seeded from `repo:F:/Projects/Epiphany`.
+  Bootstrap requires a non-empty `repo:` Body domain; compiled workstation paths
+  no longer own cluster jurisdiction.
 - Heartbeat and resident Self are running as detached Starfire processes. Live
   readiness is `active`: both providers are fresh, stores are coherent and
   separate, credentials and workspace are ready, no lease is active, private
