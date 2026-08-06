@@ -30,6 +30,7 @@ use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditCheck;
+#[cfg(test)]
 use epiphany_core::default_epiphany_cultmesh_swarm_brake;
 use epiphany_core::engage_epiphany_cultmesh_swarm_brake;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
@@ -77,6 +78,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
+#[cfg(test)]
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
@@ -299,19 +301,29 @@ fn run_cli() -> Result<()> {
     let args = Args::parse()?;
     match args.command.as_str() {
         "seed" => {
+            let body_domain = args
+                .body_domain
+                .as_deref()
+                .context("seed requires --body-domain repo:<authenticated-worktree>")?;
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
                 Utc::now().to_rfc3339(),
+                body_domain,
             )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             println!("{}", serde_json::to_string_pretty(&context)?);
         }
         "seed-compact" | "seed-only" => {
+            let body_domain = args
+                .body_domain
+                .as_deref()
+                .context("seed-compact requires --body-domain repo:<authenticated-worktree>")?;
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
                 Utc::now().to_rfc3339(),
+                body_domain,
             )?;
             println!(
                 "{}",
@@ -1036,6 +1048,7 @@ fn run_cli() -> Result<()> {
                 &args.store,
                 args.runtime_id.clone(),
                 "2026-06-02T00:00:00Z",
+                "repo:C:/fixture/Epiphany",
             )?;
             seed_quarantined_smoke_daemon_statuses(&args)?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;

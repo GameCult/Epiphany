@@ -166,6 +166,11 @@
   and organ contracts only. It does not publish Odin provider
   advertisements, Eve surfaces, or daemon-hosted tools. Those families require
   provider publication; discovery preserves their absence.
+- Bootstrap receives the authenticated repository Body domain explicitly and
+  stamps that exact domain into every cluster declaration. Cluster topology no
+  longer owns a compiled workstation path; seed commands fail closed when the
+  Body domain is absent or is not a non-empty `repo:` domain. Stored topology is
+  the only live source for downstream liveness, policy, Eve, and tool routing.
 - The generic Verse query CLI has no provider-advertisement preview or Odin
   publication command. Provider bodies must publish their own discovery state;
   central declared topology cannot be lowered into `active`/`daemon-live`

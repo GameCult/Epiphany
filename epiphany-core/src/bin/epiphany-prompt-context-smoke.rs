@@ -39,6 +39,7 @@ fn main() -> Result<()> {
         &store,
         "epiphany-prompt-context-smoke",
         "2026-06-02T00:00:00Z",
+        "repo:C:/fixture/Epiphany",
     )?;
     let local_verse = query_epiphany_local_verse_context(&store, "epiphany-prompt-context-smoke")?;
     let memory_context = plan_memory_graph_context_cut(

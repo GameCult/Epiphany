@@ -62,7 +62,12 @@ fn main() -> Result<()> {
     bind_runtime_to_agent_memory_swarm(&runtime, &agents, &chrono::Utc::now().to_rfc3339())?;
     bind_repository_body(&repo, &body, &runtime, &format!("smoke-{smoke_id}"))?;
     observe_repository_body(&repo, &body, &runtime)?;
-    seed_epiphany_local_verse_context(&verse, RUNTIME_ID, chrono::Utc::now().to_rfc3339())?;
+    seed_epiphany_local_verse_context(
+        &verse,
+        RUNTIME_ID,
+        chrono::Utc::now().to_rfc3339(),
+        "repo:C:/fixture/Epiphany",
+    )?;
     let _process_cleanup = ManagedProcessCleanup {
         verse: verse.clone(),
     };

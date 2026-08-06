@@ -425,7 +425,12 @@ mod tests {
     fn prompt_context_renders_verse_and_memory_without_state_authority() -> anyhow::Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-06-02T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let _seeded_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let bifrost_intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
             "bifrost-publication-intent-prompt-test",

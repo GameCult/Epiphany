@@ -271,7 +271,12 @@ mod tests {
     fn heartbeat_writes_liveness_without_minting_provider_truth() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("heartbeat-only.ccmp");
-        seed_epiphany_local_verse_context(&store, "runtime-test", "2026-07-15T12:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "runtime-test",
+            "2026-07-15T12:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let args = Args {
             command: "heartbeat".to_string(),
             store: store.clone(),

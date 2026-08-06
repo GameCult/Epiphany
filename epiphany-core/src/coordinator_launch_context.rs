@@ -1201,6 +1201,7 @@ mod tests {
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
             "2026-07-12T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
         )?;
 
         let rendered = render_launch_dynamic_prompt_context(

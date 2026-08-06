@@ -6174,11 +6174,16 @@ pub fn seed_epiphany_local_verse_context(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
     generated_at_utc: impl Into<String>,
+    body_domain: impl Into<String>,
 ) -> Result<()> {
     let store_path = store_path.as_ref();
     retire_epiphany_cultmesh_legacy_provider_documents(store_path)?;
     let runtime_id = runtime_id.into();
     let generated_at_utc = generated_at_utc.into();
+    let body_domain = body_domain.into();
+    if !body_domain.starts_with("repo:") || body_domain.trim() == "repo:" {
+        anyhow::bail!("local Verse repository topology requires an explicit repo: Body domain");
+    }
     let status = EpiphanyCultMeshStatusEntry {
         schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
         runtime_id: runtime_id.clone(),
@@ -6190,7 +6195,7 @@ pub fn seed_epiphany_local_verse_context(
     write_epiphany_cultmesh_status(store_path, status)?;
     write_epiphany_cultmesh_verse_policies(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_global_room_policies(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone(), body_domain)?;
     {
         let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
         if node
@@ -6786,6 +6791,13 @@ pub fn write_epiphany_cultmesh_global_room_policies(
 }
 
 pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
+    epiphany_cultmesh_cluster_topology_for_body("repo:unbound")
+}
+
+pub fn epiphany_cultmesh_cluster_topology_for_body(
+    body_domain: impl Into<String>,
+) -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
+    let body_domain = body_domain.into();
     [
         ("self", "coordinator", "Self", false),
         ("hands", "implementation", "Hands", false),
@@ -6805,7 +6817,7 @@ pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopolo
                 role_id: role_id.to_string(),
                 display_name: display_name.to_string(),
                 private_verse_id: format!("{cluster_id}.private"),
-                body_domain: "repo:E:/Projects/EpiphanyAgent".to_string(),
+                body_domain: body_domain.clone(),
                 body_kind: "repository".to_string(),
                 daemon_id: format!("epiphany-daemon-{cluster_slug}"),
                 daemon_surface_id: format!("epiphany-daemon-{cluster_slug}/local"),
@@ -6828,10 +6840,11 @@ pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopolo
 pub fn write_epiphany_cultmesh_cluster_topology(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
+    body_domain: impl Into<String>,
 ) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut written = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
+    for cluster in epiphany_cultmesh_cluster_topology_for_body(body_domain) {
         written.push(node.put(cluster.cluster_id.clone(), &cluster)?);
     }
     node.flush()?;
@@ -9621,7 +9634,11 @@ mod tests {
     fn cluster_topology_names_private_verses_body_daemons_and_eve_surfaces() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-cluster-topology.ccmp");
-        let written = write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        let written = write_epiphany_cultmesh_cluster_topology(
+            &store,
+            "epiphany-test",
+            "repo:C:/fixture/Epiphany",
+        )?;
         assert_eq!(written.len(), 7);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
@@ -9631,7 +9648,7 @@ mod tests {
             node.get_required::<EpiphanyCultMeshClusterTopologyEntry>("epiphany.cluster.hands")?;
 
         assert_eq!(persona.private_verse_id, "epiphany.cluster.persona.private");
-        assert_eq!(persona.body_domain, "repo:E:/Projects/EpiphanyAgent");
+        assert_eq!(persona.body_domain, "repo:C:/fixture/Epiphany");
         assert_eq!(persona.daemon_id, "epiphany-daemon-persona");
         assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
         assert!(persona.public_persona_discussion_allowed);
@@ -9682,7 +9699,11 @@ mod tests {
     fn legacy_provider_rows_are_not_live_discovery_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-surface-states.ccmp");
-        write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        write_epiphany_cultmesh_cluster_topology(
+            &store,
+            "epiphany-test",
+            "repo:C:/fixture/Epiphany",
+        )?;
         publish_all_test_provider_state(&store)?;
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert!(context.odin_advertisements.is_empty());
@@ -9717,7 +9738,11 @@ mod tests {
     fn daemon_statuses_cover_every_cluster_without_private_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-statuses.ccmp");
-        write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        write_epiphany_cultmesh_cluster_topology(
+            &store,
+            "epiphany-test",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let statuses = write_epiphany_cultmesh_daemon_statuses(
             &store,
             "epiphany-test",
@@ -9760,7 +9785,11 @@ mod tests {
     fn declared_daemon_targets_do_not_materialize_observed_liveness() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-declared-versus-observed.ccmp");
-        let topology = write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        let topology = write_epiphany_cultmesh_cluster_topology(
+            &store,
+            "epiphany-test",
+            "repo:C:/fixture/Epiphany",
+        )?;
 
         assert_eq!(topology.len(), 7);
         assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
@@ -9959,7 +9988,12 @@ mod tests {
     fn swarm_brake_round_trips_and_projects_status() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-swarm-brake.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-06-17T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
 
         let brake = load_epiphany_cultmesh_swarm_brake(&store, "epiphany-test")?
             .expect("seeded swarm brake exists");
@@ -10007,7 +10041,12 @@ mod tests {
     fn persona_speech_audit_round_trips_and_projects_without_private_content() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-persona-speech-audit.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-06-17T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let audit = EpiphanyCultMeshPersonaSpeechAuditEntry {
             schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
             audit_id: "persona-speech-audit-test".to_string(),
@@ -10095,7 +10134,12 @@ mod tests {
     {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-weksa-lowering.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-21T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-06-21T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let receipt = EpiphanyCultMeshWeksaLoweringReceiptEntry {
             schema_version: EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION.to_string(),
             receipt_id: "weksa-lowering-receipt-test".to_string(),
@@ -10762,7 +10806,12 @@ mod tests {
     fn local_verse_bootstrap_does_not_publish_provider_owned_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-06-02T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
 
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
 
@@ -10808,7 +10857,12 @@ mod tests {
     fn explicit_bootstrap_retires_legacy_provider_forgery() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-provider-boundary.ccmp");
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:00:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-07-12T00:00:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         let sentinel_before =
             open_epiphany_cultmesh_node(&store, "epiphany-test")?
                 .get_required::<EpiphanyCultMeshStatusEntry>(EPIPHANY_CULTMESH_STATUS_KEY)?;
@@ -10835,7 +10889,12 @@ mod tests {
                 .get_required::<EpiphanyCultMeshStatusEntry>(EPIPHANY_CULTMESH_STATUS_KEY)?,
             sentinel_before
         );
-        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:01:00Z")?;
+        seed_epiphany_local_verse_context(
+            &store,
+            "epiphany-test",
+            "2026-07-12T00:01:00Z",
+            "repo:C:/fixture/Epiphany",
+        )?;
         assert!(retire_epiphany_cultmesh_legacy_provider_documents(&store)?.is_empty());
 
         let error =
