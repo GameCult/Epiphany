@@ -28,7 +28,8 @@ use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
 use epiphany_core::validate_agent_memory_store;
 use epiphany_core::{
-    ResidentProviderReadiness, authenticate_epiphany_packaged_release, capture_process_instance,
+    ResidentProviderReadiness, acquire_resident_process_singleton,
+    authenticate_epiphany_packaged_release, capture_process_instance,
     publish_resident_provider_readiness,
 };
 use std::env;
@@ -457,6 +458,7 @@ fn main() -> Result<()> {
                 ));
             }
             let store_path = store_path.ok_or_else(|| anyhow!("serve requires --store"))?;
+            let _singleton = acquire_resident_process_singleton("heartbeat", &store_path)?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("serve requires --artifact-dir"))?;
             let provider_release = if resident_self_store.is_some() {

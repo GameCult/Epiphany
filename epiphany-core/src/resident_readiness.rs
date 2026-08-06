@@ -10,12 +10,103 @@ use cultcache_rs::{
     SingleFileMessagePackBackingStore,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use std::ffi::OsStr;
 use std::fs;
+#[cfg(unix)]
+use std::fs::File;
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
+#[cfg(windows)]
+use windows_sys::Win32::System::Threading::{CreateMutexW, ReleaseMutex};
 
 pub const RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION: &str =
     "epiphany.resident_cognition.provider_readiness.v0";
 const PROVIDER_READINESS_KEY: &str = "provider-readiness";
+
+pub struct ResidentProcessSingletonGuard {
+    #[cfg(windows)]
+    handle: HANDLE,
+    #[cfg(unix)]
+    file: File,
+}
+
+impl Drop for ResidentProcessSingletonGuard {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        unsafe {
+            let _ = ReleaseMutex(self.handle);
+            CloseHandle(self.handle);
+        }
+        #[cfg(unix)]
+        unsafe {
+            let _ = libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
+        }
+    }
+}
+
+pub fn acquire_resident_process_singleton(
+    role: &str,
+    store: impl AsRef<Path>,
+) -> Result<ResidentProcessSingletonGuard> {
+    if !matches!(role, "heartbeat" | "resident-self") {
+        bail!("unsupported resident singleton role: {role}");
+    }
+    let store = canonical_or_absolute(store.as_ref());
+    let identity = format!(
+        "{:x}",
+        Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
+    );
+    #[cfg(windows)]
+    {
+        let name = OsStr::new(&format!("Global\\EpiphanyResident-{role}-{identity}"))
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr()) };
+        if handle.is_null() {
+            bail!(
+                "resident {role} singleton mutex creation failed: {}",
+                unsafe { GetLastError() }
+            );
+        }
+        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+            unsafe { CloseHandle(handle) };
+            bail!(
+                "resident {role} owner already exists for canonical store {}",
+                store.display()
+            );
+        }
+        return Ok(ResidentProcessSingletonGuard { handle });
+    }
+    #[cfg(unix)]
+    {
+        let path = std::env::temp_dir().join(format!("epiphany-resident-{role}-{identity}.lock"));
+        let file = File::options()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)?;
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+            bail!(
+                "resident {role} owner already exists for canonical store {}",
+                store.display()
+            );
+        }
+        return Ok(ResidentProcessSingletonGuard { file });
+    }
+    #[allow(unreachable_code)]
+    Err(anyhow!(
+        "resident process singleton is unsupported on this platform"
+    ))
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -626,6 +717,21 @@ fn credential_file_ready(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resident_process_singleton_excludes_only_the_same_role_and_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident.cc");
+        fs::write(&store, [])?;
+        let owner = acquire_resident_process_singleton("resident-self", &store)?;
+        assert!(acquire_resident_process_singleton("resident-self", &store).is_err());
+        let other_role = acquire_resident_process_singleton("heartbeat", &store)?;
+        let other_store =
+            acquire_resident_process_singleton("resident-self", temp.path().join("other.cc"))?;
+        drop((owner, other_role, other_store));
+        assert!(acquire_resident_process_singleton("resident-self", &store).is_ok());
+        Ok(())
+    }
 
     #[test]
     fn resident_readiness_reads_the_canonical_brake_store_truth() -> Result<()> {
