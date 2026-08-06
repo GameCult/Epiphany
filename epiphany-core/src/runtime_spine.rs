@@ -3929,6 +3929,9 @@ pub fn promote_autonomous_direction_options_for_modeling(
             receipt.admitted_revision == model.model_revision && receipt.admitted_hash == model_hash
         })
         .collect::<Vec<_>>();
+    if receipts.is_empty() {
+        return Ok(Vec::new());
+    }
     if receipts.len() != 1 {
         return Err(anyhow!(
             "autonomous proposal promotion requires one current model receipt"
@@ -9738,7 +9741,7 @@ pub(crate) mod tests {
     #[test]
     fn autonomous_direction_promotion_waits_for_admitted_model_without_mutation() -> Result<()> {
         let root = tempfile::tempdir()?;
-        let store = root.path().join("thread-without-model.cc");
+        let store = root.path().join("bootstrap-model-without-admission.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -9753,6 +9756,16 @@ pub(crate) mod tests {
             &crate::EpiphanyThreadStateEntry::from_state(
                 "thread-without-model",
                 &epiphany_state_model::EpiphanyThreadState::default(),
+            )?,
+        )?;
+        cache.put(
+            crate::MEMORY_GRAPH_KEY,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(
+                &crate::EpiphanyMemoryGraphSnapshot {
+                    schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
+                    graph_id: "bootstrap-model".into(),
+                    ..Default::default()
+                },
             )?,
         )?;
         let before = std::fs::read(&store)?;
