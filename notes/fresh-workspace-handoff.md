@@ -19,25 +19,28 @@ Current host authority:
   root disk with about 15 GiB free. Base Bifrost and the native typed
   Persona-feedback provider are active; Docker, Epiphany, and Idunn are absent.
 - Starfire runtime identity is `epiphany-starfire`; its local Verse is
-  bootstrapped and its canonical swarm brake is engaged.
+  bootstrapped and cognition is awake.
 - The authenticated Windows release containing the typed snapshot receiver is
   published in the Starfire local Verse. Its repository Body is observed at the
   canonical worktree under immutable `gamecult.epiphany.main` swarm identity.
 - Local Verse topology is explicitly seeded from `repo:F:/Projects/Epiphany`.
   Bootstrap requires a non-empty `repo:` Body domain; compiled workstation paths
   no longer own cluster jurisdiction.
-- Heartbeat and resident Self are running as detached Starfire processes. Live
-  readiness is `active`: both providers are fresh, stores are coherent and
-  separate, credentials and workspace are ready, no lease is active, private
-  state is not exposed, and the canonical brake remains engaged.
+- Heartbeat and resident Self are running as detached Starfire processes against
+  fresh `v7` resident stores and
+  `F:\Projects\.epiphany-runtime\starfire\resident-runtime-v3.cc`. One full
+  operator-pressure cycle reached grant, launch, exact terminal completion, and
+  idle physiology. Idle working sets measured about 9.8 MiB for heartbeat and
+  6.6 MiB for Self. Private state is not exposed.
 - Runtime process metadata and logs live under `.epiphany-run/resident/`.
 - Yggdrasil Bifrost has one exact GameCult/Aquarium binding for
   `epiphany-starfire`. It exports signed immutable CultNet snapshots; Starfire
   admits them through packaged `apply-snapshot` as transport-only state. The
   provider is ready with no pending failures and exposes no private state.
 
-No cognition release, broad Wake, or host reboot is authorized during the
-braked startup proof.
+The authenticated live release is
+`sha256-2690a9cfdc653d48a7b4ca3557667156ab3648e0b7333590c0c94ab8ac182367`
+from source `b2330c7c`. Older runtime and resident stores are non-authoritative.
 
 ## Authority map
 
@@ -56,10 +59,12 @@ braked startup proof.
 
 ## Next action
 
-Keep the clean resident organs and authenticated crossing under the canonical
-brake. When the operator authorizes Wake, release cognition through that brake
-and measure its real Starfire footprint before deciding how much Yggdrasil must
-grow.
+Unify resident wake and coordinator-thread ownership. A runtime store owns one
+immutable typed user-objective intake, while current resident grants derive a
+new thread ID per wake. Choose and implement one stable resident coordinator
+thread per runtime, or a typed multi-thread runtime contract, then prove two
+sequential wake cycles against the same store. Do not paper over this by
+weakening objective intake.
 
 ## Immediate Re-entry Instruction
 
