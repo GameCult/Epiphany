@@ -27,11 +27,13 @@ Current host authority:
   Bootstrap requires a non-empty `repo:` Body domain; compiled workstation paths
   no longer own cluster jurisdiction.
 - Heartbeat and resident Self are running as detached Starfire processes against
-  fresh `v7` resident stores and
-  `F:\Projects\.epiphany-runtime\starfire\resident-runtime-v3.cc`. One full
-  operator-pressure cycle reached grant, launch, exact terminal completion, and
-  idle physiology. Idle working sets measured about 9.8 MiB for heartbeat and
-  6.6 MiB for Self. Private state is not exposed.
+  `v8` resident stores and
+  `F:\Projects\.epiphany-runtime\starfire\resident-runtime-v4.cc`. Two
+  sequential operator-pressure cycles reached grant, launch, exact terminal
+  completion, and sleeping on the same canonical coordinator thread
+  `resident-self-thread-epiphany-starfire`. Their receipt IDs are distinct.
+  Idle working sets measured about 9.8 MiB for heartbeat and 6.5 MiB for Self;
+  all three resident stderr logs are empty. Private state is not exposed.
 - Runtime process metadata and logs live under `.epiphany-run/resident/`.
 - Yggdrasil Bifrost has one exact GameCult/Aquarium binding for
   `epiphany-starfire`. It exports signed immutable CultNet snapshots; Starfire
@@ -39,8 +41,8 @@ Current host authority:
   provider is ready with no pending failures and exposes no private state.
 
 The authenticated live release is
-`sha256-2690a9cfdc653d48a7b4ca3557667156ab3648e0b7333590c0c94ab8ac182367`
-from source `b2330c7c`. Older runtime and resident stores are non-authoritative.
+`sha256-2a2c4685938639e77d221e3b04a45303f9cc2c371012b92e512bec46098ce2ac`
+from source `6442f379`. Older runtime and resident stores are non-authoritative.
 
 ## Authority map
 
@@ -59,12 +61,10 @@ from source `b2330c7c`. Older runtime and resident stores are non-authoritative.
 
 ## Next action
 
-Unify resident wake and coordinator-thread ownership. A runtime store owns one
-immutable typed user-objective intake, while current resident grants derive a
-new thread ID per wake. Choose and implement one stable resident coordinator
-thread per runtime, or a typed multi-thread runtime contract, then prove two
-sequential wake cycles against the same store. Do not paper over this by
-weakening objective intake.
+Continue the idle watch and use the measured Starfire resident baseline when
+sizing a future Yggdrasil upgrade. Repeated resident wakes now share the runtime-
+owned coordinator thread; grant IDs remain execution identities and do not own
+durable objective state.
 
 ## Immediate Re-entry Instruction
 

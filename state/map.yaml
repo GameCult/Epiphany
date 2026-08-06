@@ -4,7 +4,7 @@ experiment:
   purpose: Native, inspectable agent organism with typed state and explicit organ authority.
 
 objective:
-  current: Keep Epiphany awake and observable on Starfire, retain Bifrost and public crossing authority on the small Yggdrasil, and make repeated resident wakes share coherent coordinator-thread authority.
+  current: Keep Epiphany awake and observable on Starfire while retaining Bifrost and public crossing authority on the small Yggdrasil.
 
 architecture:
   body: Repository, runtime, service processes, stores, interfaces, and deployment substrate.
@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host; Starfire is the temporary Epiphany cognition body. Yggdrasil runs the ready typed Bifrost Persona-feedback provider. Starfire runs authenticated release sha256-2690a9cfdc653d48a7b4ca3557667156ab3648e0b7333590c0c94ab8ac182367. Fresh heartbeat and resident Self stores completed one full typed wake cycle and remain alive and idle at about 9.8 MiB and 6.6 MiB respectively. The live cognition store is F:/Projects/.epiphany-runtime/starfire/resident-runtime-v3.cc; old runtime and resident stores are non-authoritative. No private state is exposed.
+  summary: The small Yggdrasil at 94.130.75.184 is the canonical public and Bifrost host; Starfire is the temporary Epiphany cognition body. Yggdrasil runs the ready typed Bifrost Persona-feedback provider. Starfire runs authenticated release sha256-2a2c4685938639e77d221e3b04a45303f9cc2c371012b92e512bec46098ce2ac. Heartbeat-v8 and resident Self-v8 completed two sequential typed wake cycles against resident-runtime-v4.cc. Both runs used canonical thread resident-self-thread-epiphany-starfire, produced distinct terminal receipts, returned sleeping, and emitted no stderr. Idle working sets are about 9.8 MiB and 6.5 MiB. Old runtime and resident stores are non-authoritative. No private state is exposed.
   operational_state:
     local_worktree: clean_and_pushed
     operator_wireguard: restored
@@ -52,13 +52,12 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Resident wake grants currently derive a new coordinator thread identity while one runtime store owns one immutable user-objective intake; repeated wake ownership must be unified before admitting a second objective into this runtime.
-  next_action: Make resident Self own one stable coordinator thread per runtime, or define a typed multi-thread runtime contract; then prove two sequential wake cycles against the same live store.
+  unresolved_authority: none
+  next_action: Continue the idle watch and size Yggdrasil from the measured resident baseline before moving cognition off Starfire.
 
 active_subgoals:
   - Preserve the ready authenticated Yggdrasil-to-Starfire feedback crossing.
   - Preserve the measured Starfire resident baseline while sizing a future Yggdrasil upgrade.
-  - Unify repeated resident wake and coordinator-thread authority.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
