@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed b8c76fd0 seals ordinary bounded worker errors and is packaged as sha256-f5a78dc6 with witness sha256-7a0b060f; v28 remains sealed Continuity failure evidence. Exact b86491d8 disproved target-directory sharing by taking 35m46s across three independently resolved Cargo builds. Release assembly now has one root epiphany-release-bundle package, one frozen lock, and exactly 21 binary targets in one Cargo graph without annexing the nested vendored Codex workspace. All 21 targets pass a locked check and all 14 packaged-release tests pass; exact packaging and timing remain to prove. A clean successor generation still must prove the repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact f9dfd93a packages all 21 shipped binaries through one frozen release-bundle graph in 16m38s, versus the 32m36s baseline and rejected 35m46s shared-target run. Authenticated release sha256-435bad66 with witness sha256-396d1489 is published only into clean v29; v28 remains sealed Continuity failure evidence. v29 Repository Body is freshly observed at exact f9dfd93a and only canonical agents.cc crossed generations. The repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition still require live proof.
   operational_state:
-    local_worktree: release_bundle_awaiting_exact_package_proof
+    local_worktree: clean
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_17d4ae47_published_v27_generic_proposal_hands_gate_proven
+    starfire_release: authenticated_f9dfd93a_published_v29_release_bundle_proven
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact b8c76fd0 packages the worker-terminalization repair but has not been published or replayed. The root release bundle removes the three release-resolution owners in source and passes locked checks, but exact detached packaging must prove one invocation, artifact completeness, and elapsed-time improvement. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit and push the verified release-bundle cut, package and time that exact commit, then publish only into clean v29. Replay Modeling-to-Imagination-to-Mind, prove adopted-plan Hands authority, and deliberately prove typed worker failure, restart, and Soul-verifiable closure.
+  unresolved_authority: Exact f9dfd93a and v29 prove release ownership, packaging integrity, and a 49 percent cold-build reduction. The packaged worker-terminalization repair now needs live replay: proposal-bound Modeling, canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, then deliberate typed worker failure, restart, and Soul-verifiable closure. Persona consequence, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Run v29 without routing overrides through Modeling, canonical Imagination, and dedicated Mind adoption; prove exact adopted-plan Hands authority, then deliberately prove typed worker failure, restart, and Soul-verifiable closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

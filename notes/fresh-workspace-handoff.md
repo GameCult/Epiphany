@@ -75,10 +75,24 @@ warm check took 1.22s) and all fourteen packaged-release tests pass. The root
 lock retains the proven compatible `allocative 0.3.4` and `zune-core 0.5.1`
 resolution rather than accepting incompatible current patch drift.
 
+Exact pushed `f9dfd93ac6e01cad092b858f91107c0f07c9e21c` completed the
+single locked release build in 16m38s, 15m58s faster than the 32m36s baseline
+and 19m08s faster than rejected b86491d8. Its authenticated 21-binary release
+is `sha256-435bad663c63140f86a5beacbd6bb7c43f14e85c58e784a287709ddd06a35bcf`
+with witness
+`sha256-396d1489cbcaf768a912bb1efa0a6ea2f14efbc90d34dfabb1df9f9ba2652ecb`.
+It exposes no private state.
+
+Clean v29 lives at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v29`. Only canonical
+`agents.cc` crossed from v28. Packaged Repository Body freshly observed exact
+f9dfd93a, local Verse was seeded for `repo:F:/Projects/Epiphany`, and the exact
+release was published into v29's physically separate `release.ccmp`. v28
+remains unchanged sealed failure evidence.
+
 ## Next action
 
-Commit and push the release-bundle cut, then package and time that exact commit.
-Publish the result only into clean v29. Without overrides, prove:
+Without overrides in clean v29, prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
