@@ -391,6 +391,7 @@ fn verify_cached_worktree_owner(repo: &Path, worktree: &Path) -> Result<()> {
 
 fn git_output(repo: &Path, args: &[&str]) -> Result<String> {
     let output = std::process::Command::new("git")
+        .args(["-c", "core.longpaths=true"])
         .args(args)
         .current_dir(repo)
         .output()?;
