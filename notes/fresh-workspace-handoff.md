@@ -7,8 +7,8 @@ outside Codex. CultCache persists state, CultNet carries typed messages, and
 CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
-The local `codex/epiphany-shakedown-live` branch is clean and synchronized with
-its upstream.
+The local `codex/epiphany-shakedown-live` branch has a focused, tested
+Hands-to-Soul routing repair pending commit and publication.
 
 Current host authority:
 
@@ -41,21 +41,20 @@ Current host authority:
   admits them through packaged `apply-snapshot` as transport-only state. The
   provider is ready with no pending failures and exposes no private state.
 
-The authenticated shakedown release is
-`sha256-dfaf8c26b80f458018e1b96134b88dfe09b0382f3c9bae4d3066da3e3cb1e981`.
+The active authenticated shakedown release contains the native Hands actuator.
 Older runtime and resident stores are non-authoritative.
 
 The current live readiness result is mixed:
 
-- Modeling used real model cognition and repository tools, emitted a typed
-  RepoModel patch, and carried immutable runtime-owned request provenance.
-- Mind accepted that Modeling result. The previous exact-evidence admission
-  failure is gone; no retry or supersession occurred on this boundary.
-- Soul inspected the proposed path, but Self's verification launch omitted the
-  required `verificationRequestId` and `frontierRouteId`. Mind correctly
-  rejected the placeholder identifiers.
-- The coordinator spent the remainder of its eight-step budget repeating the
-  unchanged invalid verification result. Retry currently repairs nothing.
+- A proposal-bound Modeling result grounded its frontier in canonical claims;
+  Mind admitted it and emitted a scoped Hands gate.
+- The packaged Hands actuator recorded native typed patch, command, and commit
+  receipts for a real pushed consequence.
+- Coordinator routing now treats a complete native Hands receipt chain after
+  the latest accepted boundary as implementation evidence. The preserved live
+  state selects `launchVerification`; the legacy thread-state audit is no
+  longer the sole routing signal.
+- Soul has not yet returned an admitted verdict for this receipt chain.
 - Resident artifact retention is unbounded. Durable Windows supervision,
   crash/reboot recovery, session closure, long-duration resource behavior, and
   Linux/Yggdrasil cognition remain unproven.
@@ -77,12 +76,11 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Repair the verification launch boundary: Self must supply a real
-`verificationRequestId` and `frontierRouteId` that refer to an admitted route.
-Then rerun the same bounded Modeling-to-Soul campaign and require it to reach
-the Hands action gate without repeating a failed result on unchanged inputs.
-After that, continue the organ matrix, retention, supervised recovery, session
-closure, long-duration resource, and Linux/Yggdrasil proofs.
+Commit and publish the Hands-to-Soul routing repair, package the exact release,
+then launch Soul against the preserved native Hands consequence and require an
+admitted verdict grounded in its complete receipt chain. After that, continue
+the organ matrix, retention, supervised recovery, session closure,
+long-duration resource, and Linux/Yggdrasil proofs.
 
 ## Immediate Re-entry Instruction
 

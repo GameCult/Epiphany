@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. Authenticated release sha256-dfaf8c26b80f458018e1b96134b88dfe09b0382f3c9bae4d3066da3e3cb1e981 proved a live Modeling-to-runtime-to-Mind path: Modeling inspected repository sources, the runtime bound immutable OpenAI request provenance into the typed result, and Mind accepted it without supersession. The following Soul/Verification launch failed its typed coordination contract because verificationRequestId and frontierRouteId were absent. The coordinator then repeated the same inadmissible review through its step budget without changing the launch inputs. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
+  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. The live typed path has reached proposal-bound Modeling, Mind admission, a scoped Hands gate, and native Hands patch, command, and commit receipts for a real pushed consequence. Coordinator routing now recognizes a complete native Hands receipt chain after the latest accepted Modeling or Verification boundary and selects Soul verification. Soul has not yet returned an admitted verdict for this consequence. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
   operational_state:
-    local_worktree: clean_and_pushed
+    local_worktree: hands_to_soul_routing_repair_under_verification
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Verification launch identity is not owned coherently; the coordinator launches Soul without the request and frontier route identifiers that Mind requires for admission.
-  next_action: Repair the verification launch boundary so Self supplies a real verificationRequestId and frontierRouteId, then rerun the same Modeling-to-Soul campaign and prove it reaches the Hands action gate without a same-input retry loop.
+  unresolved_authority: Soul has not yet verified the complete native Hands consequence chain in the live coordinated run; deployment authority remains absent.
+  next_action: Commit and publish the Hands-to-Soul routing repair, package the exact release, launch Soul against the preserved live consequence, and require an admitted verdict grounded in the complete receipt chain.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

@@ -216,6 +216,7 @@ pub use coordinator_launch_context::EPIPHANY_LOCAL_VERSE_RUNTIME_ID;
 pub use coordinator_launch_context::append_modeling_repo_model_shape_context;
 pub use coordinator_launch_context::append_modeling_work_loop_telemetry_context;
 pub use coordinator_launch_context::append_verification_hands_receipt_context;
+pub use coordinator_launch_context::has_complete_hands_consequence_after_latest_accepted_boundary;
 pub use coordinator_launch_context::local_verse_store_path;
 pub use coordinator_launch_context::memory_graph_store_path;
 pub use coordinator_launch_context::render_launch_dynamic_prompt_context;

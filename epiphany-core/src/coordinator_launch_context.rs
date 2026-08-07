@@ -250,6 +250,18 @@ pub fn append_verification_hands_receipt_context(
     Ok(context)
 }
 
+pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+) -> Result<bool, String> {
+    let Some(accepted_at) = latest_accepted_modeling_or_verification_timestamp(state) else {
+        return Ok(false);
+    };
+    runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
+        .map(|chain| chain.is_some())
+        .map_err(|error| format!("failed to load Hands receipt chain for coordinator routing: {error}"))
+}
+
 pub fn append_modeling_repo_model_shape_context(
     mut context: String,
     runtime_store_path: &Path,
@@ -1585,6 +1597,11 @@ mod tests {
                 created_at: "2026-06-12T00:00:06Z".to_string(),
             },
         )?;
+        assert!(has_complete_hands_consequence_after_latest_accepted_boundary(
+            &runtime_store,
+            &state
+        )
+        .map_err(anyhow::Error::msg)?);
         let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
             repository_body_observation_basis: None,

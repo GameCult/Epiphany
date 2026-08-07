@@ -424,6 +424,14 @@ fn run_native_status(args: &Args) -> Result<Value> {
             .flatten()
     })
     .is_some_and(|result| result.proposal_modeling_request_id.is_some());
+    let native_hands_consequence_after_boundary = match state_ref {
+        Some(state) => epiphany_core::has_complete_hands_consequence_after_latest_accepted_boundary(
+            &runtime_store_path,
+            state,
+        )
+        .map_err(anyhow::Error::msg)?,
+        None => false,
+    };
     let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
@@ -450,7 +458,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
-            .implementation_evidence_after_verification,
+            .implementation_evidence_after_verification
+            || native_hands_consequence_after_boundary,
         verification_result_cites_implementation_evidence: finding_signals
             .verification_result_cites_implementation_evidence,
         verification_result_covers_current_modeling: finding_signals
@@ -542,6 +551,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "modelingResultReviewable": finding_signals.modeling_result_reviewable,
             "modelingResultFailureReviewed": finding_signals.modeling_result_failure_reviewed,
             "modelingResultProposalBound": modeling_result_proposal_bound,
+            "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },
