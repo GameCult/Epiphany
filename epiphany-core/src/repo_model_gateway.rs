@@ -596,6 +596,7 @@ pub struct RepoFrontierPlanningCandidateEligibility {
     pub frontier_item_id: String,
     pub eligible: bool,
     pub status_valid: bool,
+    pub recommended_next_organ_valid: bool,
     pub source_scope_valid: bool,
     pub challenged_target_claim_ids: Vec<String>,
     pub unresolved_dependency_item_ids: Vec<String>,

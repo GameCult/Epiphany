@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 717c649e is authenticated and published as sha256-cec12433. Clean live v24 proved packaged Self derives proposal Modeling without overrides and Mind admits canonical sorted-unique source_scope. It then exposed the next admission/selection split: the worker emitted status proposed, proposal admission accepted it, and Self correctly refused to plan because only active unresolved frontier is routeable. The local repair requires active status at proposal admission, tells Modeling the same contract, and exposes status validity in typed eligibility. Focused rejection, eligibility, launch-context, and MVP status tests pass. v24 is now evidence; a clean next generation must prove Modeling-to-Imagination-to-Mind after this repair is packaged. Persona consequence, Continuity execution, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 872d8ad6 is authenticated and published as sha256-b97f457c with witness sha256-40d6bda4. Clean live v25 proved packaged Self derives proposal Modeling without overrides and Mind admits active canonical sorted-unique source_scope. It then exposed the next admission/selection split: Modeling emitted lowercase recommended_next_organ=imagination, Mind admitted it, and Self's exact canonical Imagination selector correctly found no candidate. The local repair makes exact routeable organ identity a Mind admission invariant, tells Modeling the canonical Hands/Eyes/Imagination vocabulary, and exposes organ validity in typed planning eligibility. Focused hostile-admission, eligibility, launch-context, and MVP status tests pass. v25 is sealed evidence; a clean next generation must prove Modeling-to-Imagination-to-Mind after this repair is packaged. Persona consequence, Continuity execution, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: proposal_frontier_active_status_invariant_repair_uncommitted
+    local_worktree: proposal_frontier_canonical_organ_invariant_repair_uncommitted
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_6f019cf8_published_eyes_modeling_route_proven
+    starfire_release: authenticated_872d8ad6_published_v25_modeling_route_proven
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v24 revision 3 contains one admitted proposed Imagination frontier whose status makes it permanently ineligible for Self selection. Insert-only proposal authority provides no coherent typed repair, so v24 must not be used to prove native Imagination. The local active-status admission/context/eligibility repair is focused-test-proven but unpublished. Native Imagination live proof, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, push, package, and publish the proposal-frontier active-status invariant repair. Seal v24 as evidence, bootstrap a clean next runtime generation, and prove one exact packaged proposal-Modeling result is admitted active with canonical source_scope, selected by Self, launched through Imagination, and decided by dedicated Mind without overrides.
+  unresolved_authority: v25 revision 3 contains one admitted active frontier whose lowercase recommended_next_organ makes it permanently invisible to Self's canonical Imagination selector. Insert-only proposal authority provides no coherent typed repair, so v25 must not be used to prove native Imagination. The local canonical-organ admission/context/eligibility repair is focused-test-proven but unpublished. Native Imagination live proof, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit, push, package, and publish the proposal-frontier canonical-organ invariant repair. Seal v25 as evidence, bootstrap a clean v26 runtime generation, and prove one exact packaged proposal-Modeling result is admitted active with canonical source_scope and recommended_next_organ=Imagination, selected by Self, launched through Imagination, and decided by dedicated Mind without overrides.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,10 +63,10 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, in-process status ownership, and single-use Research-to-Modeling routing are live. Native Imagination orchestration is locally implemented and test-proven; packaged live proof is pending.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, in-process status ownership, and single-use Research-to-Modeling routing are live. Exact 872d8ad6 also proved native proposal-to-Modeling launch and active frontier admission; canonical organ identity still blocks packaged Imagination proof.
   eyes: proven for one bounded challenged-claim circuit; exact 84f00929 launched Research and Mind accepted the first source-gap packet with typed evidence/checkpoint, exact 148d4527 accepted its causal reorientation, and exact 6f019cf8 proved downstream Modeling consumption.
   modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
-  imagination: unproven live in the current campaign; the typed lifecycle and MVP route are locally implemented, while v23 exposed source_scope routeability and v24 exposed active-status routeability at the proposal admission seam.
+  imagination: unproven live in the current campaign; the typed lifecycle and MVP route are locally implemented, while v25 exposed that recommended_next_organ identity was admitted as an arbitrary string even though Self routes exact canonical organ names.
   hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.
   soul: proven for the current bounded consequence; the exact 2dd25341 release launched Soul, produced an accepted pass verdict grounded in focused and full-library receipts, and routed verdict incorporation.
   mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, and first-valid verdict incorporation are live; broader stale or overstated frontier correction remains open.

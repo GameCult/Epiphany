@@ -17,6 +17,15 @@ eligibility projection includes unresolved proposed Imagination frontier as a
 diagnostic candidate with `statusValid=false`, but only active frontier can be
 eligible. This projection observes the wound; admission prevents it.
 
+Proposal Evolution also requires exact canonical routeable organ identity:
+`Hands`, `Eyes`, or `Imagination`. The field remains a string in the portable
+RepoModel, but Mind admission owns the executable subset and refuses lowercase,
+unknown, or merely display-shaped labels. Planning eligibility includes a
+case-mismatched Imagination-shaped legacy document only to project
+`recommendedNextOrganValid=false`; it never case-folds that document into
+authority. v25 proved why: lowercase `imagination` was admitted but invisible to
+Self's exact selector.
+
 Owner: Mind admission owns whether proposal frontier state may enter the model.
 Self only selects admitted routeable state. `source_scope` is no longer assumed
 routeable merely because its individual paths are safe. Invalid ordering is
