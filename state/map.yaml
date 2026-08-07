@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. The live typed path has reached proposal-bound Modeling, Mind admission, a scoped Hands gate, and native Hands patch, command, and commit receipts for a real pushed consequence. Coordinator routing now recognizes a complete native Hands receipt chain after the latest accepted Modeling or Verification boundary and selects Soul verification. Soul has not yet returned an admitted verdict for this consequence. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
+  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. The live typed path reached proposal-bound Modeling, Mind admission, a scoped Hands gate, native Hands receipts, and an admitted Soul needs-evidence verdict. Soul verified the Hands consequence but correctly refused the end-to-end claim because Self's launch packet omitted the Mind admission bodies. Launch assembly is being repaired to carry the exact route-bound RepoModel review and receipt, Modeling acceptance, Mind gateway review, and Mind state commit beside the Hands chain. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
   operational_state:
-    local_worktree: hands_to_soul_routing_repair_under_verification
+    local_worktree: mind_to_soul_context_repair_under_verification
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Soul has not yet verified the complete native Hands consequence chain in the live coordinated run; deployment authority remains absent.
-  next_action: Commit and publish the Hands-to-Soul routing repair, package the exact release, launch Soul against the preserved live consequence, and require an admitted verdict grounded in the complete receipt chain.
+  unresolved_authority: The full route remains unproven until a fresh Soul launch receives and judges both the route-bound Mind admission chain and the native Hands consequence chain; deployment authority remains absent.
+  next_action: Commit and publish the Mind-to-Soul context repair, then run a fresh exact-release proposal-to-Soul circuit and require a verdict grounded in both admission and consequence receipts.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

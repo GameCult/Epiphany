@@ -146,6 +146,49 @@ pub fn append_verification_hands_receipt_context(
         crate::runtime_repo_frontier_route(runtime_store_path, &verification_request.route_id)
             .map_err(|error| format!("failed to reload Soul frontier route: {error}"))?
             .ok_or_else(|| "Soul frontier route disappeared after request commit".to_string())?;
+    let admission_receipt = crate::runtime_repo_model_admission_receipt(
+        runtime_store_path,
+        &route.admission_receipt_id,
+    )
+    .map_err(|error| format!("failed to load Mind RepoModel admission receipt for Soul: {error}"))?
+    .ok_or_else(|| "Soul frontier route has no persisted Mind admission receipt".to_string())?;
+    let admission_review = crate::runtime_repo_model_admission_review(
+        runtime_store_path,
+        &admission_receipt.review_id,
+    )
+    .map_err(|error| format!("failed to load Mind RepoModel admission review for Soul: {error}"))?
+    .ok_or_else(|| "Soul frontier admission receipt has no persisted Mind review".to_string())?;
+    let admission_result_id = admission_receipt
+        .result_id
+        .as_deref()
+        .ok_or_else(|| "Soul frontier admission receipt is not bound to a Modeling result".to_string())?;
+    let modeling_acceptances = state
+        .acceptance_receipts
+        .iter()
+        .filter(|receipt| {
+            receipt.role_id == "modeling"
+                && receipt.surface == "roleAccept"
+                && receipt.status == "accepted"
+                && receipt.result_id == admission_result_id
+        })
+        .collect::<Vec<_>>();
+    if modeling_acceptances.len() != 1 {
+        return Err(
+            "Soul frontier requires exactly one Modeling acceptance bound to its Mind admission"
+                .to_string(),
+        );
+    }
+    let modeling_acceptance = modeling_acceptances[0];
+    let state_commit_id = format!("mind-commit-{}", modeling_acceptance.id);
+    let state_commit = crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
+        .map_err(|error| format!("failed to load Mind state commit receipt for Soul: {error}"))?
+        .ok_or_else(|| "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string())?;
+    let gateway_review = crate::runtime_mind_gateway_review(
+        runtime_store_path,
+        &state_commit.gateway_id,
+    )
+    .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
+    .ok_or_else(|| "Soul frontier Mind state commit has no gateway review".to_string())?;
     let telemetry = work_loop_telemetry_from_hands_chain(
         &chain,
         runtime_store_path,
@@ -170,6 +213,62 @@ pub fn append_verification_hands_receipt_context(
         route.frontier_item_id,
         route.question,
         route.gap,
+    ));
+    context.push_str("mindAdmissionChain:\n");
+    context.push_str(&format!(
+        "- modelingAcceptance: id={} resultId={} jobId={} acceptedAt={}\n",
+        modeling_acceptance.id,
+        modeling_acceptance.result_id,
+        modeling_acceptance.job_id,
+        modeling_acceptance.accepted_at,
+    ));
+    context.push_str(&format!(
+        "- gatewayReview: schemaVersion={} gatewayId={} sourceKind={} sourceRoleId={} decision={:?} allowedEffects={} refusedEffects={}\n",
+        gateway_review.schema_version,
+        gateway_review.gateway_id,
+        gateway_review.source_kind,
+        gateway_review.source_role_id,
+        gateway_review.decision,
+        gateway_review.allowed_effects.join(" | "),
+        gateway_review.refused_effects.join(" | "),
+    ));
+    context.push_str(&format!(
+        "- stateCommit: schemaVersion={} receiptId={} gatewayId={} stateRevision={} changedFields={} committedAt={}\n",
+        state_commit.schema_version,
+        state_commit.receipt_id,
+        state_commit.gateway_id,
+        state_commit.state_revision,
+        state_commit.changed_fields.join(" | "),
+        state_commit.committed_at,
+    ));
+    context.push_str(&format!(
+        "- repoModelAdmissionReview: schemaVersion={} reviewId={} resultId={} jobId={} patchId={} patchSha256={} baseRevision={} baseHash={} decision={:?} evidenceIds={} reviewedAt={}\n",
+        admission_review.schema_version,
+        admission_review.review_id,
+        admission_review.result_id.as_deref().unwrap_or(""),
+        admission_review.job_id.as_deref().unwrap_or(""),
+        admission_review.patch_id,
+        admission_review.patch_sha256,
+        admission_review.base_revision,
+        admission_review.base_hash,
+        admission_review.decision,
+        admission_review.evidence_ids.join(" | "),
+        admission_review.reviewed_at,
+    ));
+    context.push_str(&format!(
+        "- repoModelAdmissionReceipt: schemaVersion={} receiptId={} reviewId={} resultId={} patchId={} patchSha256={} previousRevision={} previousHash={} admittedRevision={} admittedHash={} admittedAt={} proposalModelingRequestId={}\n",
+        admission_receipt.schema_version,
+        admission_receipt.receipt_id,
+        admission_receipt.review_id,
+        admission_receipt.result_id.as_deref().unwrap_or(""),
+        admission_receipt.patch_id,
+        admission_receipt.patch_sha256,
+        admission_receipt.previous_revision,
+        admission_receipt.previous_hash,
+        admission_receipt.admitted_revision,
+        admission_receipt.admitted_hash,
+        admission_receipt.admitted_at,
+        admission_receipt.proposal_modeling_request_id,
     ));
     if let Some(plan) = route.adopted_plan.as_ref() {
         context.push_str(&format!(
@@ -1483,8 +1582,8 @@ mod tests {
             objective: Some("Verify Hands receipts.".to_string()),
             acceptance_receipts: vec![EpiphanyAcceptanceReceipt {
                 id: "accept-modeling-context".to_string(),
-                result_id: "result-modeling-context".to_string(),
-                job_id: "modeling-job-context".to_string(),
+                result_id: "context-route-result".to_string(),
+                job_id: "context-route-job".to_string(),
                 binding_id: "modeling-checkpoint-worker".to_string(),
                 surface: "roleAccept".to_string(),
                 role_id: "modeling".to_string(),
@@ -1496,6 +1595,28 @@ mod tests {
             }],
             ..Default::default()
         };
+        let gateway_review = crate::MindGatewayReview {
+            schema_version: crate::MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "mind-context-route-admission".to_string(),
+            source_kind: "modelingFinding".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: crate::MindGatewayDecision::Accept,
+            allowed_effects: vec!["acceptanceReceipts".to_string()],
+            refused_effects: Vec::new(),
+            reasons: vec!["Fixture Mind admission".to_string()],
+            contract: "Fixture Mind gateway review".to_string(),
+        };
+        crate::put_mind_gateway_review(&runtime_store, &gateway_review)?;
+        crate::put_mind_state_commit_receipt(
+            &runtime_store,
+            &crate::mind_state_commit_receipt(
+                "mind-commit-accept-modeling-context".to_string(),
+                &gateway_review,
+                state.revision,
+                vec!["AcceptanceReceipts".to_string()],
+                "2026-06-12T00:00:03Z".to_string(),
+            ),
+        )?;
         let context = append_verification_hands_receipt_context(
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
             &runtime_store,
@@ -1509,6 +1630,10 @@ mod tests {
         assert!(context.contains("hands-commit-context"));
         assert!(context.contains("verificationRequestId:"));
         assert!(context.contains("frontierRouteId:"));
+        assert!(context.contains("mindAdmissionChain:"));
+        assert!(context.contains("mind-commit-accept-modeling-context"));
+        assert!(context.contains("context-route-admission"));
+        assert!(context.contains("context-route-proposal"));
         assert!(context.contains("Does verification see the exact receipts?"));
         assert!(context.contains("Unrouted consequences are invalid."));
         assert!(context.contains("resolvedReceiptPayloads"));

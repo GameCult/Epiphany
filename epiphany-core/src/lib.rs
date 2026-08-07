@@ -1061,6 +1061,8 @@ pub use runtime_spine::runtime_job_snapshot;
 pub use runtime_spine::runtime_latest_hands_receipt_chain_after;
 pub use runtime_spine::runtime_mind_gateway_review;
 pub use runtime_spine::runtime_mind_state_commit_receipt;
+pub use runtime_spine::runtime_repo_model_admission_receipt;
+pub use runtime_spine::runtime_repo_model_admission_review;
 pub use runtime_spine::runtime_modeling_semantic_projection_input;
 pub use runtime_spine::runtime_registered_document_types;
 pub use runtime_spine::runtime_reorient_worker_result;

@@ -3504,6 +3504,26 @@ pub fn commit_repo_model_admission(
     Ok(receipt)
 }
 
+pub fn runtime_repo_model_admission_review(
+    runtime_store: impl AsRef<Path>,
+    review_id: &str,
+) -> Result<Option<RepoModelAdmissionReview>> {
+    validate_non_empty(review_id, "repo model admission review id")?;
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoModelAdmissionReview>(review_id)
+}
+
+pub fn runtime_repo_model_admission_receipt(
+    runtime_store: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<RepoModelAdmissionReceipt>> {
+    validate_non_empty(receipt_id, "repo model admission receipt id")?;
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoModelAdmissionReceipt>(receipt_id)
+}
+
 fn put_immutable_planning_entry<T: cultcache_rs::DatabaseEntry + PartialEq + Clone>(
     store_path: &Path,
     key: &str,

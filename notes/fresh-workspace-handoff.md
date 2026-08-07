@@ -8,7 +8,7 @@ CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
 The local `codex/epiphany-shakedown-live` branch has a focused, tested
-Hands-to-Soul routing repair pending commit and publication.
+Mind-to-Soul launch-context repair pending commit and publication.
 
 Current host authority:
 
@@ -41,7 +41,8 @@ Current host authority:
   admits them through packaged `apply-snapshot` as transport-only state. The
   provider is ready with no pending failures and exposes no private state.
 
-The active authenticated shakedown release contains the native Hands actuator.
+The active authenticated shakedown release contains the native Hands actuator
+and native Hands-to-Soul routing.
 Older runtime and resident stores are non-authoritative.
 
 The current live readiness result is mixed:
@@ -50,11 +51,15 @@ The current live readiness result is mixed:
   Mind admitted it and emitted a scoped Hands gate.
 - The packaged Hands actuator recorded native typed patch, command, and commit
   receipts for a real pushed consequence.
-- Coordinator routing now treats a complete native Hands receipt chain after
-  the latest accepted boundary as implementation evidence. The preserved live
-  state selects `launchVerification`; the legacy thread-state audit is no
-  longer the sole routing signal.
-- Soul has not yet returned an admitted verdict for this receipt chain.
+- Coordinator routing treats a complete native Hands receipt chain after the
+  latest accepted boundary as implementation evidence. The legacy thread-state
+  audit is no longer the sole routing signal.
+- Soul inspected the live Hands chain and returned an admitted
+  `needs-evidence` verdict: the consequence is concrete, but Self omitted the
+  actual Mind proposal/admission/state-commit bodies from the launch packet.
+- Launch assembly now resolves the route's exact RepoModel admission receipt,
+  its Mind review, the bound Modeling acceptance, its Mind gateway review, and
+  its Mind state commit. Soul launch fails closed if that chain is incomplete.
 - Resident artifact retention is unbounded. Durable Windows supervision,
   crash/reboot recovery, session closure, long-duration resource behavior, and
   Linux/Yggdrasil cognition remain unproven.
@@ -76,11 +81,11 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Commit and publish the Hands-to-Soul routing repair, package the exact release,
-then launch Soul against the preserved native Hands consequence and require an
-admitted verdict grounded in its complete receipt chain. After that, continue
-the organ matrix, retention, supervised recovery, session closure,
-long-duration resource, and Linux/Yggdrasil proofs.
+Commit and publish the Mind-to-Soul context repair, package the exact release,
+then run a fresh proposal-to-Modeling-to-Mind-to-Hands-to-Soul circuit and
+require Soul to judge both the admission and consequence receipt bodies. After
+that, continue the organ matrix, retention, supervised recovery, session
+closure, long-duration resource, and Linux/Yggdrasil proofs.
 
 ## Immediate Re-entry Instruction
 
