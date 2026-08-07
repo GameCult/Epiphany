@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v20 proved failed proposal-attempt supersession and same-request relaunch, three successive corrective Modeling proposals, Mind model revision 2 admission, a scoped Hands consequence at pushed commit 0eff8506, and publication of its authenticated 21-binary release. Self now routes a Soul rejection of the current model through corrective Modeling, accepted explicit proposals are not replayed, and Soul context names the existing supersession owner. The exact live consequence then exposed a new contract mismatch before Soul launch: Hands correctly permits actual changed paths to be a subset of its approved path ceiling, while verification-request admission incorrectly requires equality with the entire approved set. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The exact b635ca2f release completed a live Modeling-to-Mind-to-Hands-to-Soul circuit and Soul accepted the consequence. Verdict-incorporation Modeling still fails admission because its launch contract does not require preservation of the routed frontier item's identity-bearing anatomy. The Modeling lane is blocked against retry churn pending a fresh typed proposal. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_0eff8506_before_state_refresh
+    local_worktree: clean_at_pushed_b635ca2f_before_state_refresh
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_0eff8506_published
+    starfire_release: authenticated_b635ca2f_published
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Hands treats requested paths as an authority ceiling and accepts an actual changed-path subset, but verification-request admission demands that the consequence equal the whole ceiling, preventing legitimate bounded work from reaching Soul.
-  next_action: Through a fresh typed Modeling proposal and Hands gate, make verification bind the exact patch/commit receipt paths while proving they are a non-empty subset of the approved Hands authority; preserve equality between patch and commit receipts and reject any path outside authority. Then rerun the 0eff consequence into Soul.
+  unresolved_authority: Verdict-incorporation Modeling is told the exact evidence, disposition, and mutation ceiling, but not that every identity-bearing field of the current routed frontier item must remain byte-for-byte equivalent. The worker therefore rewrites descriptive anatomy and Mind rejects the revision.
+  next_action: Create a fresh typed Modeling proposal for the verdict-incorporation launch contract. Through Mind and a one-file Hands gate, require preservation of migration_body, question, target_claim_ids, source_scope, dependency_item_ids, created_at, recommended_next_organ, retired_at, and superseded_by while allowing only the verdict-owned status, evidence, gap, and timestamp changes. Prove the first semantically valid worker result admits without retry churn.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,12 +63,12 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; failed-attempt recovery, explicit proposal consumption, corrective Modeling routing after Soul rejection, Mind admission, and Hands routing are live; the post-Hands Soul launch is blocked by a verification/authority path-set mismatch.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict-incorporation routing, and retry blocking are live; the incorporation launch contract is incomplete.
   eyes: unproven in the current live circuit; no accepted Research result yet grounds a coordinated consequence.
-  modeling: partial; proposal-bound source inspection, failed-attempt recovery, revise-frontier correction, and Mind revision 2 admission are live; acceptance still allowed an unsorted inert frontier before a corrective proposal repaired it.
+  modeling: partial; proposal-bound source inspection, failed-attempt recovery, Mind admission, and verdict-incorporation launch are live; the routed revision still lacks a complete identity-preservation contract.
   imagination: unproven in the current campaign; the planning substrate is empty.
-  hands: proven for the current bounded consequence; native patch, command, commit, push, and typed receipts bind the 0eff8506 commit to a reviewed path ceiling and exact three-path consequence.
-  soul: partial; canonical live output and failure verdict admission work on the prior exact release, and the new launch context names the supersession owner, but verification-request admission blocks the 0eff8506 consequence before Soul can judge it.
+  hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.
+  soul: proven for the current bounded consequence; the exact b635ca2f release launched Soul, produced a canonical pass verdict, and admitted it before routing verdict incorporation.
   mind: partial; RepoModel admission, thread-state admission, gateway review, and state commit are live; stale or overstated frontier correction remains open.
   continuity: partial; heartbeat and resident Self survive sequential cycles, while restart, crash, reboot, closure, and retention remain open.
   nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work; long-duration pressure and resource plateau remain open. Exact release packaging took about seventeen minutes and observed more than 3 GiB compiler working set, so Yggdrasil is not a release forge at its current 1.9 GiB RAM.
