@@ -1,0 +1,140 @@
+[package]
+name = "epiphany-release-bundle"
+version = "0.1.0"
+edition = "2024"
+publish = false
+autobins = false
+license-file = "LICENSE"
+
+[dependencies]
+anyhow = "1"
+bm25 = "2.3.2"
+chrono = "0.4.44"
+cultcache-rs = { path = "vendor/cultcache-rs" }
+cultmesh-rs = { path = "vendor/cultmesh-rs" }
+cultnet-rs = { path = "vendor/cultnet-rs" }
+ed25519-dalek = "2"
+epiphany-core = { path = "epiphany-core" }
+epiphany-model-adapter = { path = "epiphany-model-adapter" }
+epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
+epiphany-openai-runtime = { path = "epiphany-openai-runtime" }
+epiphany-state-model = { path = "epiphany-state-model" }
+epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
+epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime" }
+http = "1"
+ignore = "0.4.23"
+postgres = "0.19"
+rand_core = { version = "0.6", features = ["getrandom"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
+rmp-serde = "1"
+rmcp = { version = "2.2.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10.6"
+sha2 = "0.10"
+tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "rt-multi-thread", "time"] }
+toml = "0.9"
+tracing = "0.1.44"
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+
+[features]
+semantic-recovery-smoke = []
+workspace-coverage-recovery-smoke = []
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[patch.crates-io]
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "132f5b39c862e3a970f731d709608b3e6276d5f6" }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "9200079d3b54a1ff51072e24d81fd354f085156f" }
+
+[patch."ssh://git@github.com/openai-oss-forks/tungstenite-rs.git"]
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "9200079d3b54a1ff51072e24d81fd354f085156f" }
+
+[[bin]]
+name = "epiphany-daemon-supervisor"
+path = "epiphany-core/src/bin/epiphany-daemon-supervisor.rs"
+
+[[bin]]
+name = "epiphany-release"
+path = "epiphany-core/src/bin/epiphany-release.rs"
+
+[[bin]]
+name = "epiphany-memory-semantic-projector"
+path = "epiphany-core/src/bin/epiphany-memory-semantic-projector.rs"
+
+[[bin]]
+name = "epiphany-workspace-coverage-projector"
+path = "epiphany-core/src/bin/epiphany-workspace-coverage-projector.rs"
+
+[[bin]]
+name = "epiphany-memory-semantic"
+path = "epiphany-core/src/bin/epiphany-memory-semantic.rs"
+
+[[bin]]
+name = "epiphany-verse-query"
+path = "epiphany-core/src/bin/epiphany-verse-query.rs"
+
+[[bin]]
+name = "epiphany-repository-body"
+path = "epiphany-core/src/bin/epiphany-repository-body.rs"
+
+[[bin]]
+name = "epiphany-host-identity"
+path = "epiphany-core/src/bin/epiphany-host-identity.rs"
+
+[[bin]]
+name = "epiphany-swarm"
+path = "epiphany-core/src/bin/epiphany-swarm.rs"
+
+[[bin]]
+name = "epiphany-operator-command"
+path = "epiphany-core/src/bin/epiphany-operator-command.rs"
+
+[[bin]]
+name = "epiphany-heartbeat-store"
+path = "epiphany-core/src/bin/epiphany-heartbeat-store.rs"
+
+[[bin]]
+name = "epiphany-persona-feedback-ingress"
+path = "epiphany-core/src/bin/epiphany-persona-feedback-ingress.rs"
+
+[[bin]]
+name = "epiphany-persona-service"
+path = "epiphany-openai-runtime/src/bin/epiphany-persona-service.rs"
+
+[[bin]]
+name = "epiphany-persona-mouth-identity"
+path = "epiphany-core/src/bin/epiphany-persona-mouth-identity.rs"
+
+[[bin]]
+name = "epiphany-persona-discord-permit"
+path = "epiphany-core/src/bin/epiphany-persona-discord-permit.rs"
+
+[[bin]]
+name = "epiphany-persona-discord-permit-identity"
+path = "epiphany-core/src/bin/epiphany-persona-discord-permit-identity.rs"
+
+[[bin]]
+name = "epiphany-mvp-coordinator"
+path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
+
+[[bin]]
+name = "epiphany-frontier-proposal"
+path = "epiphany-core/src/bin/epiphany-frontier-proposal.rs"
+
+[[bin]]
+name = "epiphany-hands-action"
+path = "epiphany-core/src/bin/epiphany-hands-action.rs"
+
+[[bin]]
+name = "epiphany-model-runtime"
+path = "epiphany-openai-runtime/src/bin/epiphany-model-runtime.rs"
+
+[[bin]]
+name = "epiphany-tool-mcp-runtime"
+path = "epiphany-tool-mcp-runtime/src/main.rs"

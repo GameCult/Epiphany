@@ -60,19 +60,25 @@ split across manifest-specific Cargo target directories, so `epiphany-core`,
 dependency graphs independently. The third manifest alone took 8m45s. The
 first cut gave the exact commit one shared target root while retaining separate
 lockfile validation, sequential builds, detached clean source, and byte-level
-release witnessing. All fourteen packaged-release tests passed, but the exact
-timed b86491d8 run disproved the real hypothesis: after the first owner finished,
-the second manifest immediately rebuilt common crates because the repository has
-no root workspace and its independent lock/resolution graph changes Cargo
-fingerprints. The shared-target mechanism is rejected and is being removed.
+release witnessing. Exact b86491d8 disproved the hypothesis: the three Cargo
+owners took 11m41s, 17m20s, and 6m45s, 35m46s total, slower than the 32m36s
+baseline because their independent resolutions changed Cargo fingerprints.
+That mechanism was reverted in pushed commit `41c91785`.
+
+A literal root workspace was also rejected: it annexed nested vendored Codex
+crates and rebound their inherited package/dependency catalog to Epiphany's
+root. The coherent owner is instead the root `epiphany-release-bundle` package.
+Its frozen lock resolves the complete shipped graph while vendored Codex keeps
+its own workspace authority; its 21 explicit binary targets compile in one
+`cargo build --bins` invocation. All targets pass `cargo check --locked` (a
+warm check took 1.22s) and all fourteen packaged-release tests pass. The root
+lock retains the proven compatible `allocative 0.3.4` and `zune-core 0.5.1`
+resolution rather than accepting incompatible current patch drift.
 
 ## Next action
 
-Finish recording the b86491d8 rejected-path timing, then replace the nine
-independent Epiphany package roots with one root workspace, one lockfile,
-root-owned patches, and one Cargo invocation for the required release binaries.
-Package and time that exact replacement. Publish the result only into a clean
-successor generation. Without overrides, prove:
+Commit and push the release-bundle cut, then package and time that exact commit.
+Publish the result only into clean v29. Without overrides, prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
