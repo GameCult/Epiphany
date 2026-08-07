@@ -476,6 +476,8 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         research_result_accepted: finding_signals.research_result_accepted,
         research_result_reviewable: finding_signals.research_result_reviewable,
         research_result_failure_reviewed: finding_signals.research_result_failure_reviewed,
+        modeling_result_accepted_after_research: finding_signals
+            .modeling_result_accepted_after_research,
         modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
@@ -578,6 +580,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "researchResultAccepted": finding_signals.research_result_accepted,
             "researchResultReviewable": finding_signals.research_result_reviewable,
             "researchResultFailureReviewed": finding_signals.research_result_failure_reviewed,
+            "modelingResultAcceptedAfterResearch": finding_signals.modeling_result_accepted_after_research,
             "modelingResultAccepted": finding_signals.modeling_result_accepted,
             "modelingResultReviewable": finding_signals.modeling_result_reviewable,
             "modelingResultFailureReviewed": finding_signals.modeling_result_failure_reviewed,

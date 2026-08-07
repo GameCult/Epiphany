@@ -135,6 +135,7 @@ pub struct EpiphanyCoordinatorInput {
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
     pub research_result_failure_reviewed: bool,
+    pub modeling_result_accepted_after_research: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -183,6 +184,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
     pub research_result_failure_reviewed: bool,
+    pub modeling_result_accepted_after_research: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -214,6 +216,7 @@ pub struct EpiphanyCoordinatorFindingSignals {
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
     pub research_result_failure_reviewed: bool,
+    pub modeling_result_accepted_after_research: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -280,6 +283,7 @@ pub fn derive_coordinator_status(
         research_result_accepted: input.research_result_accepted,
         research_result_reviewable: input.research_result_reviewable,
         research_result_failure_reviewed: input.research_result_failure_reviewed,
+        modeling_result_accepted_after_research: input.modeling_result_accepted_after_research,
         modeling_result_requests_regather: input.modeling_result_requests_regather,
         modeling_result_accepted: input.modeling_result_accepted,
         modeling_result_reviewable: input.modeling_result_reviewable,
@@ -378,6 +382,15 @@ pub fn derive_coordinator_finding_signals(
             verification_finding,
         )
     });
+    let modeling_result_accepted_after_research = state.is_some_and(|state| {
+        role_finding_accepted_after(
+            state,
+            EpiphanyCoordinatorRoleId::Modeling,
+            modeling_finding,
+            EpiphanyCoordinatorRoleId::Research,
+            research_finding,
+        )
+    });
     let implementation_evidence_after_verification = state.is_some_and(|state| {
         implementation_evidence_after_role_finding(
             state,
@@ -397,6 +410,7 @@ pub fn derive_coordinator_finding_signals(
         research_result_accepted,
         research_result_reviewable,
         research_result_failure_reviewed,
+        modeling_result_accepted_after_research,
         modeling_result_requests_regather,
         modeling_result_accepted,
         modeling_result_reviewable,
@@ -1000,6 +1014,16 @@ pub fn recommend_coordinator_action(
         && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
             == Some(EpiphanyCoordinatorRoleStatus::Blocked)
     {
+        if input.research_result_accepted && !input.modeling_result_accepted_after_research {
+            return build(
+                EpiphanyCoordinatorAction::LaunchModeling,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "Accepted Eyes evidence is newer than the current Modeling boundary; route Modeling once to reconcile the RepoModel before further regather or implementation.",
+            );
+        }
         if !input.research_result_accepted
             && matches!(
                 input.signals.research_result_status,
@@ -1339,6 +1363,7 @@ mod tests {
             research_result_accepted: false,
             research_result_reviewable: false,
             research_result_failure_reviewed: false,
+            modeling_result_accepted_after_research: false,
             modeling_result_requests_regather: false,
             modeling_result_accepted: false,
             modeling_result_reviewable: false,
@@ -1713,6 +1738,39 @@ mod tests {
             blocked_regather.action,
             EpiphanyCoordinatorAction::LaunchResearch
         );
+    }
+
+    #[test]
+    fn accepted_eyes_routes_one_causal_modeling_pass_before_manual_regather() {
+        let base = EpiphanyCoordinatorInput {
+            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+            roles: vec![role(
+                EpiphanyCoordinatorRoleId::Implementation,
+                EpiphanyCoordinatorRoleStatus::Blocked,
+            )],
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            research_result_accepted: true,
+            modeling_result_accepted: true,
+            reorient_finding_accepted: true,
+            ..input()
+        };
+        let launch = recommend_coordinator_action(base.clone());
+        assert_eq!(launch.action, EpiphanyCoordinatorAction::LaunchModeling);
+        assert_eq!(
+            launch.target_role,
+            Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(launch.reason.contains("Eyes evidence is newer"));
+
+        let consumed = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            modeling_result_accepted_after_research: true,
+            ..base
+        });
+        assert_eq!(consumed.action, EpiphanyCoordinatorAction::RegatherManually);
     }
 
     #[test]
