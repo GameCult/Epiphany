@@ -1090,7 +1090,8 @@ mod tests {
                 "evidenceIds": ["ev-1"],
                 "artifactRefs": ["artifact:role"],
                 "runtimeResultId": "result-1",
-                "runtimeJobId": "job-1"
+                "runtimeJobId": "job-1",
+                "proposalModelingRequestId": "proposal-request-1"
             }),
             None,
             None,
@@ -1100,6 +1101,14 @@ mod tests {
         assert_eq!(finding.verdict.as_deref(), Some("pass"));
         assert_eq!(finding.files_inspected, vec!["src/lib.rs"]);
         assert_eq!(finding.runtime_result_id.as_deref(), Some("result-1"));
+        assert_eq!(
+            finding.proposal_modeling_request_id.as_deref(),
+            Some("proposal-request-1")
+        );
+        assert_eq!(
+            serde_json::to_value(&finding).unwrap()["proposalModelingRequestId"],
+            "proposal-request-1"
+        );
     }
 
     #[test]

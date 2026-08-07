@@ -414,6 +414,16 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_finding.as_ref(),
         reorient_finding.as_ref(),
     );
+    let modeling_result_proposal_bound = latest_runtime_job_id_for_binding(
+        state_ref,
+        MODELING_BINDING_ID,
+    )
+    .and_then(|job_id| {
+        epiphany_core::runtime_role_worker_result(&runtime_store_path, job_id)
+            .ok()
+            .flatten()
+    })
+    .is_some_and(|result| result.proposal_modeling_request_id.is_some());
     let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
@@ -436,7 +446,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
         modeling_result_failure_reviewed: finding_signals.modeling_result_failure_reviewed,
-        modeling_result_proposal_bound: finding_signals.modeling_result_proposal_bound,
+        modeling_result_proposal_bound,
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
@@ -531,6 +541,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "modelingResultAccepted": finding_signals.modeling_result_accepted,
             "modelingResultReviewable": finding_signals.modeling_result_reviewable,
             "modelingResultFailureReviewed": finding_signals.modeling_result_failure_reviewed,
+            "modelingResultProposalBound": modeling_result_proposal_bound,
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },

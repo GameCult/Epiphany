@@ -75,13 +75,13 @@ pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
 fn repo_frontier_item_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
-        "required": ["id", "migration_body", "question", "gap", "recommended_next_organ", "status"],
+        "required": ["id", "migration_body", "question", "gap", "target_claim_ids", "recommended_next_organ", "status"],
         "properties": {
             "id": {"type": "string", "minLength": 1},
             "migration_body": {"type": "string", "minLength": 1},
             "question": {"type": "string", "minLength": 1},
             "gap": {"type": "string", "minLength": 1},
-            "target_claim_ids": {"type": "array", "items": {"type": "string"}},
+            "target_claim_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
             "source_scope": {"type": "array", "items": {"type": "string"}},
             "recommended_next_organ": {"type": "string", "minLength": 1},
             "dependency_item_ids": {"type": "array", "items": {"type": "string"}},
@@ -1529,6 +1529,16 @@ mod tests {
             schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
             false
         );
+        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]
+            ["items"]["anyOf"][6]["properties"]["item"];
+        assert!(
+            frontier_item["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "target_claim_ids")
+        );
+        assert_eq!(frontier_item["properties"]["target_claim_ids"]["minItems"], 1);
         let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
             .as_array()
             .expect("typed Modeling purpose alternatives");
