@@ -6652,7 +6652,10 @@ pub fn put_repo_frontier_verification_request(
         || command.runtime_job_id != intent.runtime_job_id
         || commit.runtime_job_id != intent.runtime_job_id
         || patch.changed_paths != commit.changed_paths
-        || patch.changed_paths != authority.requested_paths
+        || !consequence_paths_within_authority(
+            &patch.changed_paths,
+            &authority.requested_paths,
+        )
         || !adopted_plan_consequence_is_exact
     {
         return Err(anyhow!(
@@ -6877,6 +6880,19 @@ pub fn commit_repo_frontier_modeling_request(
             "frontier Modeling request deterministic identity collision"
         )),
     }
+}
+
+fn consequence_paths_within_authority(
+    changed_paths: &[String],
+    authority_paths: &[String],
+) -> bool {
+    !changed_paths.is_empty()
+        && changed_paths.iter().all(|path| {
+            authority_paths.iter().any(|scope| {
+                path == scope
+                    || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+            })
+        })
 }
 
 pub fn commit_repo_frontier_verification_request_for_chain(
@@ -12371,7 +12387,7 @@ pub(crate) mod tests {
         let hands_grant = crate::substrate_gate_coordinator_implementation_grant(
             "substrate-grant-hands-1".to_string(),
             "job-implementation-1".to_string(),
-            vec!["src/lib.rs".to_string()],
+            vec!["src/lib.rs".to_string(), "src/unused.rs".to_string()],
             "2026-05-06T00:06:20Z".to_string(),
         );
         put_substrate_gate_repo_access_grant_receipt(&store, &hands_grant)?;
@@ -12383,7 +12399,7 @@ pub(crate) mod tests {
             role: "epiphany-hands".to_string(),
             authority_scope: "epiphany.role.implementation".to_string(),
             requested_action: "patch".to_string(),
-            requested_paths: vec!["src/lib.rs".to_string()],
+            requested_paths: vec!["src/lib.rs".to_string(), "src/unused.rs".to_string()],
             substrate_gate_grant_receipt_id: "substrate-grant-hands-1".to_string(),
             requested_at: "2026-05-06T00:06:30Z".to_string(),
             contract: "Hands action intent persists as runtime-spine proof.".to_string(),
@@ -12559,6 +12575,24 @@ pub(crate) mod tests {
             .expect("Continuity recovery should persist");
         assert_eq!(stored_recovery, continuity_recovery);
         Ok(())
+    }
+
+    #[test]
+    fn verification_consequence_paths_are_a_non_empty_authority_subset() {
+        let authority = vec![
+            "epiphany-core/src/runtime_spine.rs".to_string(),
+            "epiphany-core/src/surfaces/coordinator.rs".to_string(),
+        ];
+
+        assert!(consequence_paths_within_authority(
+            &["epiphany-core/src/runtime_spine.rs".to_string()],
+            &authority,
+        ));
+        assert!(!consequence_paths_within_authority(&[], &authority));
+        assert!(!consequence_paths_within_authority(
+            &["epiphany-core/src/lib.rs".to_string()],
+            &authority,
+        ));
     }
 
     #[test]
