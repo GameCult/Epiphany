@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The authenticated 1cb3e764 release is published with 21 exact binaries. Live v19 proved ordinary Windows workspace-store identity, proposal-bound Modeling and Mind admission, scoped Hands consequence receipts, idempotent reconstruction of one immutable verification request, and a canonical Soul result using the repaired typed self-patch schema. Soul correctly rejected the adopted frontier because its launch evidence omitted the existing coordinator supersession owner in surfaces/coordinator.rs; the next repair is evidence assembly and model correction, not another retry gate. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The authenticated 1cb3e764 release is published with 21 exact binaries. Live v19 proved ordinary Windows workspace-store identity, proposal-bound Modeling and Mind admission, scoped Hands consequence receipts, idempotent reconstruction of one immutable verification request, and a canonical Soul result using the repaired typed self-patch schema. Soul correctly rejected the adopted frontier because its launch evidence omitted the existing coordinator supersession owner in surfaces/coordinator.rs. Self then reopened Hands from the rejected model and ignored an explicitly selected corrective proposal because proposal override exists only at awaitFrontierProposal. The next repair is Self routing and evidence assembly, not another retry gate. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: clean_at_pushed_1cb3e764
     operator_wireguard: restored
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Soul launch evidence can omit an existing authority owner outside the Hands-changed path set, causing a coherent verifier to reject a true cross-organ invariant from incomplete Body context.
-  next_action: Correct the live RepoModel and Soul evidence assembly so verification receives the existing failure-review and supersession routing owner in epiphany-core/src/surfaces/coordinator.rs, then rerun the exact Hands consequence through Soul without adding duplicate retry authority.
+  unresolved_authority: Soul launch evidence can omit an existing authority owner outside the Hands-changed path set, then Self can reopen Hands from the rejected model while preventing an explicitly selected corrective proposal from reaching Modeling.
+  next_action: Repair Self so a Soul-rejected model premise routes through corrective Modeling or an explicit typed proposal before another Hands gate; include the existing failure-review and supersession owner in Soul evidence assembly, then rerun the consequence without adding duplicate retry authority.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

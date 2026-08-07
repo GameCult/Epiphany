@@ -76,6 +76,12 @@ The current live readiness result is mixed:
   The machine already separates immutable request identity from worker attempt
   lifecycle. Repair evidence assembly and the live RepoModel; do not add a
   duplicate supersession gate to the request document.
+- The corrective proposal `shakedown-v19-soul-context-owner-r1` is persisted and
+  selected, but Self still emits `continueImplementation` from the Soul-rejected
+  frontier. Explicit proposal routing only overrides `awaitFrontierProposal`,
+  and no typed operator command can refuse or supersede the adopted frontier.
+  Treat v19 as a preserved deadlock witness; do not counterfeit another Hands
+  grant or edit outside its path set.
 - Exact release packaging took about seventeen minutes and observed more than
   3 GiB aggregate rustc working set. Current Yggdrasil cannot act as the release
   forge with 1.9 GiB RAM; Starfire retains that work until capacity changes.
@@ -100,12 +106,13 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Correct the live RepoModel and Soul evidence assembly so the verifier receives
-the existing coordinator supersession owner alongside the immutable request and
-Hands chain. Rerun the exact v19 consequence through Soul without adding a second
-retry authority. Then continue with accepted Eyes and Imagination work, Persona
-consequence, retention, supervised recovery, session closure, long-duration
-resource behavior, and Linux/Yggdrasil cognition.
+Repair Self routing so a Soul-rejected model premise reaches corrective Modeling
+or an explicitly selected proposal before another Hands gate. Extend Soul's
+evidence assembly with the existing coordinator supersession owner, then rerun
+the consequence without adding a second retry authority. Preserve v19 as the
+deadlock witness. Afterward continue with accepted Eyes and Imagination work,
+Persona consequence, retention, supervised recovery, session closure,
+long-duration resource behavior, and Linux/Yggdrasil cognition.
 
 ## Immediate Re-entry Instruction
 
