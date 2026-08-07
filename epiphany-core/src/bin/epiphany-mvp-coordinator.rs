@@ -88,6 +88,7 @@ struct Args {
     ephemeral: bool,
     auto_review: bool,
     supersede_failed_results: bool,
+    approve_manual_regather: bool,
     auto_tools: bool,
     proposal_modeling_request_id: Option<String>,
     imagination_consideration_request_id: Option<String>,
@@ -128,6 +129,7 @@ impl Args {
             ephemeral: true,
             auto_review: false,
             supersede_failed_results: false,
+            approve_manual_regather: false,
             auto_tools: true,
             proposal_modeling_request_id: None,
             imagination_consideration_request_id: None,
@@ -223,6 +225,7 @@ impl Args {
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--auto-review" => parsed.auto_review = true,
                 "--supersede-failed-results" => parsed.supersede_failed_results = true,
+                "--approve-manual-regather" => parsed.approve_manual_regather = true,
                 "--auto-tools" => parsed.auto_tools = true,
                 "--no-auto-tools" => parsed.auto_tools = false,
                 "--test-complete-backend" => {
@@ -475,16 +478,21 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         }));
     }
 
+    let mut manual_regather_approval = args.approve_manual_regather;
     for index in 0..args.max_steps {
         let status = collect_coordinator_status(&runtime_store, &thread_id)?;
         let mut coordinator = status
             .get("coordinator")
             .cloned()
             .unwrap_or_else(|| json!({"action": "regatherManually"}));
-        let action = coordinator["action"]
+        let mut action = coordinator["action"]
             .as_str()
             .unwrap_or("regatherManually")
             .to_string();
+        if manual_regather_approval {
+            action = apply_manual_regather_approval(&action, &mut coordinator)?;
+            manual_regather_approval = false;
+        }
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
         fs::write(
@@ -1912,6 +1920,23 @@ fn first_string_at(value: &Value, paths: &[&[&str]]) -> Option<String> {
     None
 }
 
+fn apply_manual_regather_approval(action: &str, coordinator: &mut Value) -> Result<String> {
+    if action != "regatherManually" {
+        return Err(anyhow!(
+            "--approve-manual-regather requires Self to derive regatherManually, got {action}"
+        ));
+    }
+    coordinator["action"] = Value::String("launchResearch".to_string());
+    coordinator["canAutoRun"] = Value::Bool(true);
+    coordinator["requiresReview"] = Value::Bool(false);
+    coordinator["recommendedSceneAction"] = Value::String("roleLaunch".to_string());
+    coordinator["reason"] = Value::String(
+        "Operator approved the Self-derived manual regather boundary; launch Eyes once through the typed Research lane."
+            .to_string(),
+    );
+    Ok("launchResearch".to_string())
+}
+
 fn coordinator_receipt_status(mode: &str, final_action: &Value) -> String {
     if mode == "plan" {
         return "planned".to_string();
@@ -2363,7 +2388,10 @@ mod tests {
             gate["routeId"].as_str()
         );
         assert_eq!(intent.plan_candidate_sha256, "coordinator-plan-hash-test");
-        assert_eq!(intent.plan_action, "Implement the bounded coordinator gate test.");
+        assert_eq!(
+            intent.plan_action,
+            "Implement the bounded coordinator gate test."
+        );
         assert_eq!(
             gate.pointer("/recordPassCommand/executable")
                 .and_then(serde_json::Value::as_str),
@@ -2377,6 +2405,35 @@ mod tests {
                 HANDS_COMMIT_RECEIPT_TYPE.to_string(),
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn operator_can_approve_only_a_self_derived_manual_regather() -> Result<()> {
+        let mut coordinator = json!({
+            "action": "regatherManually",
+            "canAutoRun": false,
+            "requiresReview": true,
+            "recommendedSceneAction": "roleResult",
+        });
+        assert_eq!(
+            apply_manual_regather_approval("regatherManually", &mut coordinator)?,
+            "launchResearch"
+        );
+        assert_eq!(coordinator["action"], "launchResearch");
+        assert_eq!(coordinator["canAutoRun"], true);
+        assert_eq!(coordinator["requiresReview"], false);
+        assert_eq!(coordinator["recommendedSceneAction"], "roleLaunch");
+
+        let mut unrelated = json!({"action": "launchModeling"});
+        let error = apply_manual_regather_approval("launchModeling", &mut unrelated)
+            .expect_err("operator approval must not override another Self decision");
+        assert!(
+            error
+                .to_string()
+                .contains("requires Self to derive regatherManually")
+        );
+        assert_eq!(unrelated["action"], "launchModeling");
         Ok(())
     }
 

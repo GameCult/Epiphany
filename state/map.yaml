@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact f9dfd93a packages all 21 shipped binaries through one frozen release-bundle graph in 16m38s, versus the 32m36s baseline and rejected 35m46s shared-target run. Authenticated release sha256-435bad66 with witness sha256-396d1489 is published only into clean v29; v28 remains sealed Continuity failure evidence. v29 Repository Body is freshly observed at exact f9dfd93a and only canonical agents.cc crossed generations. The repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition still require live proof.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact f9dfd93a packages all 21 shipped binaries through one frozen release-bundle graph in 16m38s and is published only into clean v29; v28 remains sealed Continuity failure evidence. v29 natively proved proposal-bound Modeling, Eyes, Reorientation, the single-use Research-to-Modeling route, and typed acceptance boundaries. After causal Modeling acceptance, Self correctly derived regatherManually because the concrete failure-to-continuity-receipt-to-restart seam remained uninspected, but the coordinator exposed no typed operator control to enact that manual Eyes handoff. The worktree now adds a single-use --approve-manual-regather consent surface valid only over Self-derived regatherManually; all 15 coordinator tests pass. Exact packaging/replay, Imagination-to-Mind, Hands, failure/restart closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean
+    local_worktree: manual_regather_consent_awaiting_package
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact f9dfd93a and v29 prove release ownership, packaging integrity, and a 49 percent cold-build reduction. The packaged worker-terminalization repair now needs live replay: proposal-bound Modeling, canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, then deliberate typed worker failure, restart, and Soul-verifiable closure. Persona consequence, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Run v29 without routing overrides through Modeling, canonical Imagination, and dedicated Mind adoption; prove exact adopted-plan Hands authority, then deliberately prove typed worker failure, restart, and Soul-verifiable closure.
+  unresolved_authority: v29 proved native proposal Modeling, Eyes regather, Reorientation, and causal Modeling, then exposed a missing operator actuator at the intentional regatherManually boundary. The bounded consent surface passes tests but needs exact package/replay. Canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit, package, and publish the manual-regather consent surface into a clean successor generation; approve the Self-derived boundary once, accept targeted Eyes evidence, and continue through Modeling, canonical Imagination, Mind adoption, Hands, and deliberate failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

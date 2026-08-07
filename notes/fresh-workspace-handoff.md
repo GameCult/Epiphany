@@ -90,9 +90,22 @@ f9dfd93a, local Verse was seeded for `repo:F:/Projects/Epiphany`, and the exact
 release was published into v29's physically separate `release.ccmp`. v28
 remains unchanged sealed failure evidence.
 
+Live v29 then proved native initial and proposal-bound Modeling, accepted Eyes,
+accepted Reorientation, and the single-use Research-to-Modeling route. After
+causal Modeling acceptance, Self derived `regatherManually`: accepted evidence
+grounds the Hands authority shape but still lacks the concrete deliberate
+worker-failure to continuity-receipt to restart-consumption path. This exposed
+a control-plane gap: the coordinator had no typed operator actuator for its
+intentional manual Eyes boundary. The current worktree adds
+`--approve-manual-regather`. It is single-use, valid only when Self already
+derived `regatherManually`, and launches only the fixed Research lane; it fails
+closed for any other Self action. All fifteen coordinator tests pass. It is not
+yet packaged or replayed.
+
 ## Next action
 
-Without overrides in clean v29, prove:
+Package the bounded manual-regather consent surface into a clean successor,
+approve the current Self-derived boundary once, then prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
