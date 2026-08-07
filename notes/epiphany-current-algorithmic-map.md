@@ -1140,9 +1140,18 @@ persists its launch binding. `commit_repo_frontier_plan_mind_request` binds the
 immutable Imagination result and candidate to a dedicated Mind request;
 `EPIPHANY_MIND_ROLE_BINDING_ID` owns that review launch.
 `commit_repo_frontier_plan_decision` then revalidates the entire causal chain and
-atomically adopts or refuses it against the current model. The MVP coordinator
-does not yet route these stages. Therefore the missing authority is Self
-orchestration, not another planning store, generic role patch, or adapter.
+atomically adopts or refuses it against the current model.
+
+Self now observes this chain through
+`runtime_repo_frontier_planning_lifecycle`, a read-only projection whose stages
+are derived from the canonical request, launch bindings, immutable worker
+results, Mind request, and decision receipt. The MVP coordinator advances each
+stage only through the established commit primitive: select planning, launch
+exclusive Imagination, request Mind review, launch the dedicated reviewer, and
+commit Mind's decision. Failed Imagination or Mind jobs become explicit review
+stages rather than remaining indistinguishable from running jobs. A terminal
+Hold or Refuse suppresses immediate replanning of the same current authority.
+This code path is locally proven but still requires exact packaged live proof.
 
 The autonomous proposal crossing is source-grounded in
 `runtime_spine.rs`, `admitted_model_direction_consideration.rs`,

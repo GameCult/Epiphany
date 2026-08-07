@@ -79,7 +79,8 @@ use crate::repo_model_gateway::{
     RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
     RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
     RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
-    RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningRequest,
+    RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningLifecycle,
+    RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
     RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
@@ -6078,6 +6079,225 @@ pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> 
     runtime_has_actionable_frontier_for_organ(runtime_store, "Eyes")
 }
 
+/// Read-only Self signal for proposal planning. It uses the same eligibility
+/// predicate as the planning-request committer, including unchallenged target
+/// claims, so status cannot advertise authority that the commit path rejects.
+pub fn runtime_has_actionable_imagination_frontier(
+    runtime_store: impl AsRef<Path>,
+) -> Result<bool> {
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let Some(entry) = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)? else {
+        return Ok(false);
+    };
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let admission_count = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .count();
+    let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
+    Ok(admission_count == 1 && actionable_imagination_frontier_item(&model, &challenges).is_some())
+}
+
+/// Read-only Self projection over the existing typed frontier-planning chain.
+/// It never creates a request or decision; each mutating stage remains owned by
+/// its established commit primitive.
+pub fn runtime_repo_frontier_planning_lifecycle(
+    runtime_store: impl AsRef<Path>,
+) -> Result<RepoFrontierPlanningLifecycle> {
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let empty = |stage| RepoFrontierPlanningLifecycle {
+        stage,
+        planning_request_id: None,
+        imagination_job_id: None,
+        imagination_result_id: None,
+        mind_request_id: None,
+        mind_job_id: None,
+        mind_result_id: None,
+        decision_id: None,
+    };
+    let decisions = cache.get_all::<RepoFrontierPlanDecisionReceipt>()?;
+    let mut active_requests = Vec::new();
+    let mut terminal_current_requests = Vec::new();
+    for request in cache.get_all::<RepoFrontierPlanningRequest>()? {
+        if validate_current_repo_frontier_planning_request(&cache, &request).is_ok() {
+            if let Some(decision) = decisions
+                .iter()
+                .find(|decision| decision.planning_request_id == request.request_id)
+            {
+                terminal_current_requests.push((request, decision));
+            } else {
+                active_requests.push(request);
+            }
+        }
+    }
+    active_requests.sort_by(|a, b| {
+        a.requested_at
+            .cmp(&b.requested_at)
+            .then_with(|| a.request_id.cmp(&b.request_id))
+    });
+    if active_requests.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple nonterminal current frontier planning requests"
+        ));
+    }
+    if terminal_current_requests.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple terminal decisions for current frontier planning authority"
+        ));
+    }
+    let Some(request) = active_requests.pop() else {
+        if let Some((request, decision)) = terminal_current_requests.pop() {
+            return Ok(RepoFrontierPlanningLifecycle {
+                decision_id: Some(decision.decision_id.clone()),
+                planning_request_id: Some(request.request_id),
+                ..empty(RepoFrontierPlanningLifecycleStage::Terminal)
+            });
+        }
+        if runtime_has_actionable_imagination_frontier(runtime_store)? {
+            return Ok(empty(RepoFrontierPlanningLifecycleStage::Ready));
+        }
+        let latest_terminal = decisions.iter().max_by(|a, b| {
+            a.decided_at
+                .cmp(&b.decided_at)
+                .then_with(|| a.decision_id.cmp(&b.decision_id))
+        });
+        return Ok(if let Some(decision) = latest_terminal {
+            RepoFrontierPlanningLifecycle {
+                decision_id: Some(decision.decision_id.clone()),
+                planning_request_id: Some(decision.planning_request_id.clone()),
+                ..empty(RepoFrontierPlanningLifecycleStage::Terminal)
+            }
+        } else {
+            empty(RepoFrontierPlanningLifecycleStage::Unavailable)
+        });
+    };
+    let mut lifecycle = RepoFrontierPlanningLifecycle {
+        stage: RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady,
+        planning_request_id: Some(request.request_id.clone()),
+        imagination_job_id: None,
+        imagination_result_id: None,
+        mind_request_id: None,
+        mind_job_id: None,
+        mind_result_id: None,
+        decision_id: None,
+    };
+    let imagination_launches = cache
+        .get_all::<RepoFrontierPlanningLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.planning_request_id == request.request_id)
+        .collect::<Vec<_>>();
+    if imagination_launches.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple Imagination launches for one planning request"
+        ));
+    }
+    if let Some(binding) = imagination_launches.first() {
+        lifecycle.imagination_job_id = Some(binding.job_id.clone());
+    }
+    let imagination_results = cache
+        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+        .into_iter()
+        .filter(|result| {
+            result.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
+                || lifecycle.imagination_job_id.as_deref() == Some(result.job_id.as_str())
+        })
+        .collect::<Vec<_>>();
+    if imagination_results.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple immutable Imagination results for one planning request"
+        ));
+    }
+    let Some(imagination_result) = imagination_results.first() else {
+        if lifecycle.imagination_job_id.is_some() {
+            lifecycle.stage = RepoFrontierPlanningLifecycleStage::ImaginationRunning;
+        }
+        return Ok(lifecycle);
+    };
+    lifecycle.imagination_job_id = Some(imagination_result.job_id.clone());
+    lifecycle.imagination_result_id = Some(imagination_result.result_id.clone());
+    if imagination_result.frontier_planning_request_id.as_deref()
+        != Some(request.request_id.as_str())
+    {
+        lifecycle.stage = RepoFrontierPlanningLifecycleStage::ImaginationFailed;
+        return Ok(lifecycle);
+    }
+    let mind_requests = cache
+        .get_all::<RepoFrontierPlanMindRequest>()?
+        .into_iter()
+        .filter(|mind| mind.imagination_result_id == imagination_result.result_id)
+        .collect::<Vec<_>>();
+    if mind_requests.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple Mind requests for one Imagination result"
+        ));
+    }
+    let Some(mind_request) = mind_requests.first() else {
+        lifecycle.stage = RepoFrontierPlanningLifecycleStage::ImaginationResultReady;
+        return Ok(lifecycle);
+    };
+    validate_repo_frontier_plan_mind_request(&cache, mind_request)?;
+    lifecycle.mind_request_id = Some(mind_request.request_id.clone());
+    lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindLaunchReady;
+    let mind_launches = cache
+        .get_all::<RepoFrontierPlanMindLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.mind_request_id == mind_request.request_id)
+        .collect::<Vec<_>>();
+    if mind_launches.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple Mind launches for one planning request"
+        ));
+    }
+    if let Some(binding) = mind_launches.first() {
+        lifecycle.mind_job_id = Some(binding.job_id.clone());
+    }
+    let mind_results = cache
+        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+        .into_iter()
+        .filter(|result| {
+            result.frontier_plan_mind_request_id.as_deref()
+                == Some(mind_request.request_id.as_str())
+                || lifecycle.mind_job_id.as_deref() == Some(result.job_id.as_str())
+        })
+        .collect::<Vec<_>>();
+    if mind_results.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple immutable Mind results for one planning request"
+        ));
+    }
+    let Some(mind_result) = mind_results.first() else {
+        if lifecycle.mind_job_id.is_some() {
+            lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindRunning;
+        }
+        return Ok(lifecycle);
+    };
+    lifecycle.mind_job_id = Some(mind_result.job_id.clone());
+    lifecycle.mind_result_id = Some(mind_result.result_id.clone());
+    if mind_result.frontier_plan_mind_request_id.as_deref()
+        != Some(mind_request.request_id.as_str())
+    {
+        lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindFailed;
+        return Ok(lifecycle);
+    }
+    lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindResultReady;
+    Ok(lifecycle)
+}
+
 fn runtime_has_actionable_frontier_for_organ(
     runtime_store: impl AsRef<Path>,
     organ: &str,
@@ -6105,13 +6325,8 @@ fn runtime_has_actionable_frontier_for_organ(
         .count();
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
     Ok(admission_count == 1
-        && actionable_frontier_item_for_organ(
-            &model,
-            &challenges,
-            organ,
-            organ == "Hands",
-        )
-        .is_some())
+        && actionable_frontier_item_for_organ(&model, &challenges, organ, organ == "Hands")
+            .is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -6683,10 +6898,7 @@ pub fn put_repo_frontier_verification_request(
         || command.runtime_job_id != intent.runtime_job_id
         || commit.runtime_job_id != intent.runtime_job_id
         || patch.changed_paths != commit.changed_paths
-        || !consequence_paths_within_authority(
-            &patch.changed_paths,
-            &authority.requested_paths,
-        )
+        || !consequence_paths_within_authority(&patch.changed_paths, &authority.requested_paths)
         || !adopted_plan_consequence_is_exact
     {
         return Err(anyhow!(

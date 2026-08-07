@@ -7,6 +7,7 @@ use super::EpiphanyReorientAction;
 use super::EpiphanyReorientFindingInterpretation;
 use super::EpiphanyRoleBoardLane;
 use super::EpiphanyRoleFindingInterpretation;
+use crate::RepoFrontierPlanningLifecycleStage;
 use epiphany_state_model::EpiphanyThreadState;
 use serde::Deserialize;
 use serde::Serialize;
@@ -67,6 +68,14 @@ pub enum EpiphanyCoordinatorAction {
     ReviewVerificationResult,
     ContinueImplementation,
     AwaitFrontierProposal,
+    StartFrontierPlanning,
+    LaunchImagination,
+    WaitForImaginationResult,
+    RequestMindPlanReview,
+    LaunchMindPlanReview,
+    WaitForMindPlanResult,
+    CommitFrontierPlanDecision,
+    ReviewFrontierPlanningFailure,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,6 +165,9 @@ pub struct EpiphanyCoordinatorInput {
     /// True only when the canonical runtime RepoModel has exactly one current
     /// admission and an Active, dependency-ready Eyes frontier item.
     pub eyes_frontier_ready: bool,
+    /// Read-only projection of the single typed Imagination -> Mind planning
+    /// lifecycle. Self may advance it, but only Mind's result can decide adoption.
+    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +213,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub reorient_finding_accepted: bool,
     pub hands_frontier_ready: bool,
     pub eyes_frontier_ready: bool,
+    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,6 +317,7 @@ pub fn derive_coordinator_status(
         reorient_finding_accepted: input.reorient_finding_accepted,
         hands_frontier_ready: input.hands_frontier_ready,
         eyes_frontier_ready: input.eyes_frontier_ready,
+        frontier_planning_stage: input.frontier_planning_stage,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -784,6 +798,101 @@ pub fn recommend_coordinator_action(
             true,
             "CRRC says continuity needs a bounded reorient worker before safe continuation.",
         );
+    }
+
+    match input.frontier_planning_stage {
+        RepoFrontierPlanningLifecycleStage::Ready => {
+            return build(
+                EpiphanyCoordinatorAction::StartFrontierPlanning,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                None,
+                false,
+                true,
+                "Mind has admitted one actionable Imagination frontier; commit its typed planning request before launching a worker.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady => {
+            return build(
+                EpiphanyCoordinatorAction::LaunchImagination,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "A current frontier planning request is committed; launch Imagination against that exact authority.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::ImaginationRunning => {
+            return build(
+                EpiphanyCoordinatorAction::WaitForImaginationResult,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                false,
+                false,
+                "The frontier-bound Imagination worker is running; wait for its typed result.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::ImaginationFailed => {
+            return build(
+                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The frontier-bound Imagination worker terminated without a valid typed candidate; review the immutable failure before creating new authority.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::ImaginationResultReady => {
+            return build(
+                EpiphanyCoordinatorAction::RequestMindPlanReview,
+                None,
+                None,
+                false,
+                true,
+                "Imagination produced a typed frontier plan; commit the dedicated Mind review request without adopting it.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::MindLaunchReady => {
+            return build(
+                EpiphanyCoordinatorAction::LaunchMindPlanReview,
+                None,
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The typed Mind review request is committed; launch the dedicated admission reviewer.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::MindRunning => {
+            return build(
+                EpiphanyCoordinatorAction::WaitForMindPlanResult,
+                None,
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                false,
+                false,
+                "Mind is reviewing the proposed frontier plan; wait for its typed decision result.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::MindFailed => {
+            return build(
+                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+                None,
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The dedicated Mind reviewer terminated without a valid typed judgment; review the immutable failure before any plan decision.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::MindResultReady => {
+            return build(
+                EpiphanyCoordinatorAction::CommitFrontierPlanDecision,
+                None,
+                None,
+                false,
+                true,
+                "Mind returned a typed frontier-plan judgment; atomically commit that decision as the sole adoption authority.",
+            );
+        }
+        RepoFrontierPlanningLifecycleStage::Unavailable
+        | RepoFrontierPlanningLifecycleStage::Terminal => {}
     }
 
     if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
@@ -1273,7 +1382,15 @@ pub fn coordinator_automation_action(
         | EpiphanyCoordinatorAction::LaunchVerification
         | EpiphanyCoordinatorAction::ReviewVerificationResult
         | EpiphanyCoordinatorAction::ContinueImplementation
-        | EpiphanyCoordinatorAction::AwaitFrontierProposal => {
+        | EpiphanyCoordinatorAction::AwaitFrontierProposal
+        | EpiphanyCoordinatorAction::StartFrontierPlanning
+        | EpiphanyCoordinatorAction::LaunchImagination
+        | EpiphanyCoordinatorAction::WaitForImaginationResult
+        | EpiphanyCoordinatorAction::RequestMindPlanReview
+        | EpiphanyCoordinatorAction::LaunchMindPlanReview
+        | EpiphanyCoordinatorAction::WaitForMindPlanResult
+        | EpiphanyCoordinatorAction::CommitFrontierPlanDecision
+        | EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure => {
             EpiphanyCoordinatorAutomationAction::None
         }
     }
@@ -1380,6 +1497,78 @@ mod tests {
             reorient_finding_accepted: false,
             hands_frontier_ready: false,
             eyes_frontier_ready: false,
+            frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
+        }
+    }
+
+    #[test]
+    fn typed_frontier_planning_lifecycle_preempts_generic_regather() {
+        let cases = [
+            (
+                RepoFrontierPlanningLifecycleStage::Ready,
+                EpiphanyCoordinatorAction::StartFrontierPlanning,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                true,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady,
+                EpiphanyCoordinatorAction::LaunchImagination,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                true,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::ImaginationRunning,
+                EpiphanyCoordinatorAction::WaitForImaginationResult,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                false,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::ImaginationFailed,
+                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+                Some(EpiphanyCoordinatorRoleId::Imagination),
+                false,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::ImaginationResultReady,
+                EpiphanyCoordinatorAction::RequestMindPlanReview,
+                None,
+                true,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::MindLaunchReady,
+                EpiphanyCoordinatorAction::LaunchMindPlanReview,
+                None,
+                true,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::MindRunning,
+                EpiphanyCoordinatorAction::WaitForMindPlanResult,
+                None,
+                false,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::MindFailed,
+                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+                None,
+                false,
+            ),
+            (
+                RepoFrontierPlanningLifecycleStage::MindResultReady,
+                EpiphanyCoordinatorAction::CommitFrontierPlanDecision,
+                None,
+                true,
+            ),
+        ];
+
+        for (stage, expected_action, expected_role, can_auto_run) in cases {
+            let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+                recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+                frontier_planning_stage: stage,
+                ..input()
+            });
+            assert_eq!(decision.action, expected_action);
+            assert_eq!(decision.target_role, expected_role);
+            assert_eq!(decision.can_auto_run, can_auto_run);
         }
     }
 

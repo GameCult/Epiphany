@@ -158,22 +158,28 @@ v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
 or mutate v22.
 
-Eyes, Imagination, Persona consequence, Continuity crash/restart/closure,
+Eyes, live packaged Imagination, Persona consequence, Continuity crash/restart/closure,
 retention, long-duration resource behavior, and Linux/Yggdrasil cognition are
 still unproven.
 
 ## Next action
 
-Keep v23 live and v22 sealed as the deadlock witness. Wire native packaged Self
-through the existing typed Imagination lifecycle: frontier planning selection,
-exclusive Imagination launch, result review, dedicated Mind decision launch,
-and atomic adoption/refusal. Do not create a second planning substrate.
+Keep v23 live and v22 sealed as the deadlock witness. The local implementation
+now gives packaged Self a read-only typed lifecycle projection plus explicit MVP
+actions for planning selection, exclusive Imagination launch, Mind review
+request/launch, and atomic decision commit. The full adoption timeline,
+Hold/Refuse terminal behavior, worker failure projection, all 19 coordinator
+tests, and all 14 MVP coordinator tests pass. Commit and package this pass, then
+create legitimate live Imagination pressure through the existing proposal and
+proposal-Modeling path. Prove the exact package advances v23 through Imagination
+and dedicated Mind without overrides or a second planning substrate.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD and the exact 6f019cf8 published witness above.
+3. Confirm git HEAD, the exact 6f019cf8 published witness above, and whether the
+   native Imagination implementation has been committed and packaged.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and

@@ -41,6 +41,7 @@ use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_has_actionable_eyes_frontier;
 use epiphany_core::runtime_has_actionable_hands_frontier;
+use epiphany_core::runtime_has_actionable_imagination_frontier;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
@@ -460,6 +461,12 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let eyes_frontier_ready = runtime_has_actionable_eyes_frontier(&runtime_store_path)
         .context("failed to derive actionable Eyes frontier from runtime-spine state")?;
+    let imagination_frontier_ready =
+        runtime_has_actionable_imagination_frontier(&runtime_store_path)
+            .context("failed to derive actionable Imagination frontier from runtime-spine state")?;
+    let frontier_planning =
+        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
+            .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -500,6 +507,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
         hands_frontier_ready,
         eyes_frontier_ready,
+        frontier_planning_stage: frontier_planning.stage,
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
@@ -586,6 +594,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "modelingResultFailureReviewed": finding_signals.modeling_result_failure_reviewed,
             "modelingResultProposalBound": modeling_result_proposal_bound,
             "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
+            "imaginationFrontierReady": imagination_frontier_ready,
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },

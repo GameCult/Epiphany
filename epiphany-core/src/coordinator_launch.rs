@@ -1219,6 +1219,10 @@ pub(crate) mod tests {
     )> {
         let (store, _) =
             crate::runtime_spine::tests::claim_challenge_fixture(root, suffix, "Imagination")?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::Ready
+        );
         let planning = crate::select_and_commit_repo_frontier_planning_request(
             &store,
             "2026-07-15T09:00:02Z",
@@ -1347,6 +1351,10 @@ pub(crate) mod tests {
             &result.result_id,
             "2026-07-15T09:00:05Z",
         )?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::MindLaunchReady
+        );
         Ok((store, planning, result, request))
     }
 
@@ -1484,6 +1492,10 @@ pub(crate) mod tests {
             "2026-07-15T09:00:05Z",
         )
         .map_err(|error| anyhow!("commit frontier Mind request: {error}"))?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::MindLaunchReady
+        );
         let mut cache = coordinator_acceptance_cache(store)?;
         cache.pull_all_backing_stores()?;
         let state = cache
@@ -2293,6 +2305,10 @@ pub(crate) mod tests {
         let (store, state, launch, planning) =
             frontier_planning_launch_fixture(root.path(), "mind-adopt")
                 .map_err(|error| anyhow!("build frontier planning launch fixture: {error}"))?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady
+        );
         let plan = plan_coordinator_job_launch(
             &state,
             &launch,
@@ -2309,13 +2325,25 @@ pub(crate) mod tests {
             "2026-07-15T09:00:03Z".into(),
         )
         .map_err(|error| anyhow!("commit frontier Imagination launch: {error}"))?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::ImaginationRunning
+        );
         let result =
             frontier_planning_result(&planning, "backend-mind-adopt", "2026-07-15T09:00:04Z")?;
         put_runtime_role_worker_result(&store, &result)
             .map_err(|error| anyhow!("persist frontier Imagination result: {error}"))?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::ImaginationResultReady
+        );
         let mind_result =
             launch_frontier_mind_result(&store, &result, RepoFrontierPlanDecision::Adopt, "adopt")
                 .map_err(|error| anyhow!("launch frontier Mind result: {error}"))?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::MindResultReady
+        );
 
         let before = runtime_current_repo_model(&store)?.expect("pre-Adopt model");
         let mut illicit_item = before
@@ -2337,6 +2365,15 @@ pub(crate) mod tests {
 
         let decision = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)
             .map_err(|error| anyhow!("commit frontier plan decision: {error}"))?;
+        let terminal = crate::runtime_repo_frontier_planning_lifecycle(&store)?;
+        assert_eq!(
+            terminal.stage,
+            crate::RepoFrontierPlanningLifecycleStage::Terminal
+        );
+        assert_eq!(
+            terminal.decision_id.as_deref(),
+            Some(decision.decision_id.as_str())
+        );
         let retry = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)
             .map_err(|error| anyhow!("replay frontier plan decision: {error}"))?;
         assert_eq!(retry, decision);
@@ -2802,6 +2839,15 @@ pub(crate) mod tests {
             let before = std::fs::read(&store)?;
             let before_model = runtime_current_repo_model(&store)?.unwrap();
             let receipt = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
+            let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(&store)?;
+            assert_eq!(
+                lifecycle.stage,
+                crate::RepoFrontierPlanningLifecycleStage::Terminal
+            );
+            assert_eq!(
+                lifecycle.decision_id.as_deref(),
+                Some(receipt.decision_id.as_str())
+            );
             assert!(receipt.model_admission_receipt_id.is_empty());
             assert_eq!(runtime_current_repo_model(&store)?.unwrap(), before_model);
             assert!(select_and_commit_repo_frontier_route(&store, "2026-07-15T09:00:06Z").is_err());
@@ -2811,6 +2857,45 @@ pub(crate) mod tests {
                     .is_err()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_worker_failure_is_not_mistaken_for_running() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "worker-failure")?;
+        let job_id = "backend-frontier-worker-failure";
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-frontier-worker-failure".into(),
+            job_id.into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let mut failed = frontier_planning_result(&planning, job_id, "2026-07-15T09:00:04Z")?;
+        failed.frontier_planning_request_id = None;
+        failed.frontier_plan_candidate_msgpack = None;
+        failed.item_error = Some("model runtime failed before producing a candidate".into());
+        put_runtime_role_worker_result(&store, &failed)?;
+
+        let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(&store)?;
+        assert_eq!(
+            lifecycle.stage,
+            crate::RepoFrontierPlanningLifecycleStage::ImaginationFailed
+        );
+        assert_eq!(
+            lifecycle.imagination_result_id.as_deref(),
+            Some(failed.result_id.as_str())
+        );
         Ok(())
     }
 

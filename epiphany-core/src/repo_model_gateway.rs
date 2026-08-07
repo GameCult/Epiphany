@@ -558,6 +558,35 @@ pub enum RepoFrontierPlanDecision {
     Hold,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepoFrontierPlanningLifecycleStage {
+    Unavailable,
+    Ready,
+    ImaginationLaunchReady,
+    ImaginationRunning,
+    ImaginationFailed,
+    ImaginationResultReady,
+    MindLaunchReady,
+    MindRunning,
+    MindFailed,
+    MindResultReady,
+    Terminal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierPlanningLifecycle {
+    pub stage: RepoFrontierPlanningLifecycleStage,
+    pub planning_request_id: Option<String>,
+    pub imagination_job_id: Option<String>,
+    pub imagination_result_id: Option<String>,
+    pub mind_request_id: Option<String>,
+    pub mind_job_id: Option<String>,
+    pub mind_result_id: Option<String>,
+    pub decision_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.self.repo_frontier_plan_mind_request",
