@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 4338b033 is authenticated and published as sha256-1023d71c with witness sha256-0d351a70. Clean v26 proved the native proposal chain through dedicated Mind without routing overrides: Self launched Modeling, Mind admitted its exact canonical Imagination frontier, Self launched Imagination, and dedicated Mind returned adopt. The subsequent Hands gate exposed a coordinator authority-binding defect: the persisted route carried an adopted plan, but record_hands_implementation_gate emitted empty route/plan fields, so the correct runtime validator refused the chain. The local cut derives the Hands intent's route id, candidate digest, and action from the adopted route; all 14 coordinator tests pass. v26 is preserved as failure evidence until the fixed commit is packaged and replayed in a clean generation. Persona consequence, Continuity execution, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 17d4ae47 is authenticated and published as sha256-0afab25c with witness sha256-2e9e8a53. Clean v27 proved local-Verse fail-closure, exact release publication, native proposal-bound Modeling launch, and first-valid Mind acceptance without routing overrides. The accepted generic user proposal legitimately produced a direct Hands frontier, so Self emitted a ready no-plan Hands gate. That proves generic proposal-to-Hands routing but does not prove the repaired adopted-plan binding. v27 is preserved as a test-design boundary: only the autonomous Imagination-origin proposal path structurally requires Modeling to emit an unadopted Imagination frontier, followed by canonical Imagination and dedicated Mind adoption. The next clean generation must use that owner-aligned path. Persona consequence, Continuity execution, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: adopted_plan_hands_authority_binding_repair_uncommitted
+    local_worktree: clean_exact_17d4ae47
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_4338b033_published_v26_native_mind_chain_proven
+    starfire_release: authenticated_17d4ae47_published_v27_generic_proposal_hands_gate_proven
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v26 committed the adopted plan and selected its Hands route, then failed before persisting RepoFrontierHandsAuthority because the coordinator's intent did not echo the route's adopted-plan identity. The local owner-aligned repair is test-proven but unpublished. A clean generation must prove the repaired route-to-intent-to-review-to-grant chain and then execute the bounded Continuity proof. Persona consequence, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, push, package, and publish the adopted-plan Hands binding repair. Preserve v26 as evidence, cold-start a clean generation, replay native Modeling-to-Imagination-to-Mind, and prove the resulting Hands authority exactly binds route, model, adopted plan, intent, review, grant, and scope before executing the Continuity crash/restart/closure plan.
+  unresolved_authority: Exact 17d4ae47 contains the test-proven adopted-plan Hands binding repair, but v27 exercised the generic user-proposal contract and therefore created a direct no-plan Hands route. The live package has not yet proved route-to-adopted-plan-to-intent-to-review-to-grant identity. A clean generation must enter through the autonomous Imagination-origin proposal crossing, whose admission contract makes the required Imagination and Mind stages structurally unavoidable, then execute the bounded Continuity proof. Persona consequence, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Preserve v27 as generic proposal-to-Hands evidence. Cold-start a clean generation through the autonomous Imagination-origin proposal path and prove native proposal Modeling, canonical Imagination, dedicated Mind adoption, and exact adopted-plan Hands authority without overrides. Then execute the Continuity crash/restart/closure plan and capture Soul evidence.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,7 +63,7 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, in-process status ownership, and single-use Research-to-Modeling routing are live. Exact 4338b033 proved native proposal Modeling, canonical Imagination selection, Imagination launch, and dedicated Mind decision without overrides; the downstream coordinator Hands binding still needs packaged proof.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, in-process status ownership, and single-use Research-to-Modeling routing are live. Exact 17d4ae47 additionally proved native generic proposal Modeling and direct no-plan Hands gate derivation without overrides; the packaged adopted-plan binding still needs proof through the autonomous Imagination-origin path.
   eyes: proven for one bounded challenged-claim circuit; exact 84f00929 launched Research and Mind accepted the first source-gap packet with typed evidence/checkpoint, exact 148d4527 accepted its causal reorientation, and exact 6f019cf8 proved downstream Modeling consumption.
   modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
   imagination: proven for one bounded live circuit; exact 4338b033 selected the admitted canonical frontier, launched Imagination, persisted its typed candidate, and handed it to dedicated Mind without overrides. Broader option generation remains open.
