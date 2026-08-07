@@ -15,6 +15,8 @@ use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::create_runtime_session;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::runtime_has_actionable_eyes_frontier;
+use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_core::write_runtime_hello_frame;
@@ -70,6 +72,11 @@ fn main() -> Result<()> {
             println!("jobs: {} open: {}", status.jobs, status.open_jobs);
             println!("job results: {}", status.job_results);
             println!("events: {}", status.events);
+            println!(
+                "actionable frontiers: Hands={} Eyes={}",
+                runtime_has_actionable_hands_frontier(&args.store)?,
+                runtime_has_actionable_eyes_frontier(&args.store)?
+            );
             println!(
                 "tool invocations: {} pending: {} receipts: {}",
                 status.tool_invocation_intents,

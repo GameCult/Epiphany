@@ -161,6 +161,7 @@ pub fn package_epiphany_release(
     let built_binaries = build_required_release_siblings(
         &source_guard.path,
         &build_root,
+        &source_commit_sha,
         request.target_triple,
         &toolchain.cargo,
     )?;
@@ -315,9 +316,11 @@ impl Drop for GitWorktreeGuard {
 fn build_required_release_siblings(
     repo: &Path,
     target_root: &Path,
+    source_commit_sha: &str,
     target: &str,
     cargo: &std::ffi::OsStr,
 ) -> Result<BTreeMap<&'static str, PathBuf>> {
+    validate_commit(source_commit_sha)?;
     let mut manifests = BTreeSet::new();
     for (role, _) in required_packaged_release_binaries(target) {
         manifests.insert(required_release_build_target(role)?.0);
@@ -337,7 +340,7 @@ fn build_required_release_siblings(
                 manifest.display()
             );
         }
-        let target_dir = release_manifest_target_dir(target_root, manifest_dir);
+        let target_dir = release_manifest_target_dir(target_root, source_commit_sha, manifest_dir);
         let mut command = std::process::Command::new(cargo);
         command
             .arg("build")
@@ -400,8 +403,12 @@ fn verify_owned_release_lock(
     Ok(())
 }
 
-fn release_manifest_target_dir(target_root: &Path, manifest_dir: &str) -> PathBuf {
-    target_root.join(manifest_dir)
+fn release_manifest_target_dir(
+    target_root: &Path,
+    source_commit_sha: &str,
+    manifest_dir: &str,
+) -> PathBuf {
+    target_root.join(source_commit_sha).join(manifest_dir)
 }
 
 fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
@@ -865,13 +872,30 @@ mod tests {
     #[test]
     fn owning_manifests_have_isolated_build_roots() {
         let root = Path::new("isolated-release-build");
-        let core = release_manifest_target_dir(root, "epiphany-core");
-        let model = release_manifest_target_dir(root, "epiphany-openai-runtime");
-        let tools = release_manifest_target_dir(root, "epiphany-tool-mcp-runtime");
+        let commit = "0123456789abcdef0123456789abcdef01234567";
+        let core = release_manifest_target_dir(root, commit, "epiphany-core");
+        let model = release_manifest_target_dir(root, commit, "epiphany-openai-runtime");
+        let tools = release_manifest_target_dir(root, commit, "epiphany-tool-mcp-runtime");
         assert_ne!(core, model);
         assert_ne!(core, tools);
         assert_ne!(model, tools);
         assert!(core.starts_with(root) && model.starts_with(root) && tools.starts_with(root));
+    }
+
+    #[test]
+    fn source_commits_have_isolated_build_roots() {
+        let root = Path::new("isolated-release-build");
+        let first = release_manifest_target_dir(
+            root,
+            "0123456789abcdef0123456789abcdef01234567",
+            "epiphany-core",
+        );
+        let second = release_manifest_target_dir(
+            root,
+            "89abcdef0123456789abcdef0123456789abcdef",
+            "epiphany-core",
+        );
+        assert_ne!(first, second);
     }
 
     #[test]
