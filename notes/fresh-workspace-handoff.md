@@ -7,9 +7,9 @@ outside Codex. CultCache persists state, CultNet carries typed messages, and
 CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
-The local `codex/epiphany-shakedown-live` branch is clean at pushed commit
-`1cb3e764`. Its authenticated release is published in the Starfire local Verse
-with 21 exact binaries.
+The local `codex/epiphany-shakedown-live` branch contains pushed implementation
+commit `0eff8506`. Its authenticated release is published in the Starfire local
+Verse with 21 exact binaries; this handoff refresh is the only later local diff.
 
 Current host authority:
 
@@ -43,8 +43,10 @@ Current host authority:
   provider is ready with no pending failures and exposes no private state.
 
 The active authenticated shakedown release contains the native Hands actuator,
-native Hands-to-Soul routing, typed worker self-patch schema, explicitly
-superseded proposal-attempt reuse, and idempotent verification-request creation.
+corrective Modeling routing after Soul rejects the current model, one-shot
+explicit proposal consumption, typed worker self-patch schema, explicitly
+superseded proposal-attempt reuse, enriched Soul evidence, and idempotent
+verification-request creation.
 Older runtime and resident stores are non-authoritative.
 
 The current live readiness result is mixed:
@@ -82,6 +84,17 @@ The current live readiness result is mixed:
   and no typed operator command can refuse or supersede the adopted frontier.
   Treat v19 as a preserved deadlock witness; do not counterfeit another Hands
   grant or edit outside its path set.
+- Fresh v20 proved same-request Modeling recovery after an invalid provider
+  result, two further corrective proposal rounds, Mind revision 2 admission,
+  and a legitimate Hands gate. Commit `0eff8506` removed the stale Self route,
+  prevents replay of an already accepted explicit proposal request, and exposes
+  `coordinator_launch.rs` plus `surfaces/coordinator.rs` to Soul.
+- The exact `0eff8506` release routed the complete Hands chain toward Soul, then
+  failed closed before worker launch because the approved gate named four paths
+  while the legitimate consequence changed three. Hands admission treats the
+  requested paths as an authority ceiling; verification-request admission
+  currently demands equality. Repair that ownership mismatch through a new
+  typed Modeling proposal and gate. Do not mutate v20 outside admitted authority.
 - Exact release packaging took about seventeen minutes and observed more than
   3 GiB aggregate rustc working set. Current Yggdrasil cannot act as the release
   forge with 1.9 GiB RAM; Starfire retains that work until capacity changes.
@@ -106,11 +119,11 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Repair Self routing so a Soul-rejected model premise reaches corrective Modeling
-or an explicitly selected proposal before another Hands gate. Extend Soul's
-evidence assembly with the existing coordinator supersession owner, then rerun
-the consequence without adding a second retry authority. Preserve v19 as the
-deadlock witness. Afterward continue with accepted Eyes and Imagination work,
+Through a fresh typed Modeling proposal and Hands gate, make verification bind
+the exact patch/commit paths while proving they form a non-empty subset of the
+approved Hands authority. Preserve equality between patch and commit receipts,
+reject paths outside authority, and rerun the `0eff8506` consequence into Soul.
+Preserve v19 as the deadlock witness. Afterward continue with accepted Eyes and Imagination work,
 Persona consequence, retention, supervised recovery, session closure,
 long-duration resource behavior, and Linux/Yggdrasil cognition.
 
