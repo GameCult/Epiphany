@@ -432,13 +432,28 @@ pub fn append_modeling_work_loop_telemetry_context(
     let route = crate::runtime_repo_frontier_route(runtime_store_path, &modeling_request.route_id)
         .map_err(|error| format!("failed to reload Modeling frontier route: {error}"))?
         .ok_or_else(|| "Modeling frontier route disappeared after request commit".to_string())?;
+    let current_model = crate::runtime_spine_cache(runtime_store_path)
+        .and_then(|mut cache| {
+            cache.pull_all_backing_stores()?;
+            cache
+                .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+                .map(|entry| entry.snapshot())
+                .transpose()
+        })
+        .map_err(|error| format!("failed to load current RepoModel for Modeling: {error}"))?
+        .ok_or_else(|| "current RepoModel disappeared before Modeling launch".to_string())?;
+    let current_item = current_model
+        .frontier
+        .iter()
+        .find(|item| item.id == modeling_request.frontier_item_id)
+        .ok_or_else(|| "routed frontier item disappeared before Modeling launch".to_string())?;
     let disposition = match modeling_request.allowed_disposition {
         crate::RepoFrontierVerdictDisposition::Resolved => "resolved",
         crate::RepoFrontierVerdictDisposition::Blocked => "blocked",
     };
     context.push_str("\n\n<repo_frontier_modeling_request>\n");
     context.push_str(&format!(
-        "modelingRequestId: {}\nmodelRevision: {}\nmodelHash: {}\nfrontierRouteId: {}\nfrontierItemId: {}\nfrontierItemHash: {}\nverificationRequestId: {}\nsoulVerdictReceiptId: {}\nverificationResultId: {}\nverificationJobId: {}\nverificationAcceptanceReceiptId: {}\nallowedDisposition: {}\nrouteQuestion: {}\nrouteGap: {}\n",
+        "modelingRequestId: {}\nmodelRevision: {}\nmodelHash: {}\nfrontierRouteId: {}\nfrontierItemId: {}\nfrontierItemHash: {}\nverificationRequestId: {}\nsoulVerdictReceiptId: {}\nverificationResultId: {}\nverificationJobId: {}\nverificationAcceptanceReceiptId: {}\nallowedDisposition: {}\nrouteQuestion: {}\nrouteGap: {}\nidentityMigrationBody: {}\nidentityQuestion: {}\nidentityTargetClaimIds: [{}]\nidentitySourceScope: [{}]\nidentityDependencyItemIds: [{}]\nidentityCreatedAt: {}\nidentityRecommendedNextOrgan: {}\nidentityRetiredAt: {}\nidentitySupersededBy: {}\n",
         modeling_request.request_id,
         modeling_request.model_revision,
         modeling_request.model_hash,
@@ -453,9 +468,19 @@ pub fn append_modeling_work_loop_telemetry_context(
         disposition,
         route.question,
         route.gap,
+        current_item.migration_body,
+        current_item.question,
+        current_item.target_claim_ids.join(" | "),
+        current_item.source_scope.join(" | "),
+        current_item.dependency_item_ids.join(" | "),
+        current_item.created_at.as_deref().unwrap_or("<none>"),
+        current_item.recommended_next_organ,
+        current_item.retired_at.as_deref().unwrap_or("<none>"),
+        current_item.superseded_by.as_deref().unwrap_or("<none>"),
     ));
     context.push_str("Echo repoFrontierModelingRequestId exactly. Use purpose kind incorporate_frontier_verdict with the exact frontierRouteId and soulVerdictReceiptId. Revise only the routed frontier item to allowedDisposition; this request grants no other model mutation.\n");
     context.push_str("Include the exact soulVerdictReceiptId in the top-level evidenceIds. Include both verificationRequestId and soulVerdictReceiptId in the revised frontier item's evidence_refs. Set the revised frontier status exactly to allowedDisposition. Set statePatch to null: this routed request owns only the single RepoModel frontier revision and grants no generic thread-state evidence or observation mutation.\n");
+    context.push_str("Copy every identity field exactly from the identity-prefixed values above: migration_body, question, target_claim_ids, source_scope, dependency_item_ids, created_at, recommended_next_organ, retired_at, and superseded_by. `<none>` means the optional field must remain absent. Only status, evidence_refs, gap, and updated_at are verdict-owned changes; do not reinterpret, summarize, reorder, add to, or omit identity-bearing anatomy.\n");
     context.push_str("</repo_frontier_modeling_request>");
 
     let store = local_verse_store_path(runtime_store_path);
@@ -1838,6 +1863,24 @@ mod tests {
             "Include both verificationRequestId and soulVerdictReceiptId"
         ));
         assert!(modeling_context.contains("Set statePatch to null"));
+        assert!(modeling_context.contains("identityMigrationBody:"));
+        assert!(
+            modeling_context
+                .contains("identityQuestion: Does verification see the exact receipts?")
+        );
+        assert!(modeling_context.contains("identityCreatedAt:"));
+        assert!(modeling_context.contains("identityRetiredAt: <none>"));
+        assert!(modeling_context.contains("identitySupersededBy: <none>"));
+        assert!(
+            modeling_context.contains(
+                "Copy every identity field exactly from the identity-prefixed values above"
+            )
+        );
+        assert!(
+            modeling_context.contains(
+                "Only status, evidence_refs, gap, and updated_at are verdict-owned changes"
+            )
+        );
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
