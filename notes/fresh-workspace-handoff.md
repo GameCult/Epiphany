@@ -7,8 +7,8 @@ outside Codex. CultCache persists state, CultNet carries typed messages, and
 CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
-The local `codex/epiphany-shakedown-live` branch has a focused, tested
-Mind-to-Soul launch-context repair pending commit and publication.
+The local `codex/epiphany-shakedown-live` branch has a focused, tested explicit
+proposal-routing repair pending commit and publication.
 
 Current host authority:
 
@@ -60,6 +60,12 @@ The current live readiness result is mixed:
 - Launch assembly now resolves the route's exact RepoModel admission receipt,
   its Mind review, the bound Modeling acceptance, its Mind gateway review, and
   its Mind state commit. Soul launch fails closed if that chain is incomplete.
+- Fresh v18 cold bootstrap and ordinary Modeling/Mind admission succeeded on the
+  current exact release. Its selected typed proposal then exposed a Self fault:
+  `awaitFrontierProposal` exits before consulting the explicit proposal request.
+- Fresh Windows bootstrap also requires the extended-length spelling of the
+  external workspace-coverage path; the equivalent ordinary absolute path is
+  incorrectly rejected as noncanonical.
 - Resident artifact retention is unbounded. Durable Windows supervision,
   crash/reboot recovery, session closure, long-duration resource behavior, and
   Linux/Yggdrasil cognition remain unproven.
@@ -81,11 +87,11 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Commit and publish the Mind-to-Soul context repair, package the exact release,
-then run a fresh proposal-to-Modeling-to-Mind-to-Hands-to-Soul circuit and
-require Soul to judge both the admission and consequence receipt bodies. After
-that, continue the organ matrix, retention, supervised recovery, session
-closure, long-duration resource, and Linux/Yggdrasil proofs.
+Commit and publish explicit proposal routing, then resume v18 using its existing
+selected proposal and require Modeling, Mind, Hands, and Soul to consume one
+exact typed chain. After that, continue the organ matrix, Windows cold-start
+path repair, retention, supervised recovery, session closure, long-duration
+resource, and Linux/Yggdrasil proofs.
 
 ## Immediate Re-entry Instruction
 

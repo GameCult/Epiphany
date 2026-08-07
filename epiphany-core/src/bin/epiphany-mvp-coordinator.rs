@@ -481,10 +481,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             .get("coordinator")
             .cloned()
             .unwrap_or_else(|| json!({"action": "regatherManually"}));
-        let action = coordinator["action"]
-            .as_str()
-            .unwrap_or("regatherManually")
-            .to_string();
+        let action = apply_explicit_proposal_routing(
+            &mut coordinator,
+            args.proposal_modeling_request_id.as_deref(),
+        );
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
         fs::write(
@@ -1732,6 +1732,28 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
+fn apply_explicit_proposal_routing(
+    coordinator: &mut Value,
+    proposal_modeling_request_id: Option<&str>,
+) -> String {
+    let action = coordinator["action"]
+        .as_str()
+        .unwrap_or("regatherManually");
+    if action == "awaitFrontierProposal"
+        && proposal_modeling_request_id.is_some_and(|value| !value.trim().is_empty())
+    {
+        coordinator["action"] = json!("launchModeling");
+        coordinator["targetRole"] = json!("modeling");
+        coordinator["canAutoRun"] = json!(true);
+        coordinator["requiresReview"] = json!(false);
+        coordinator["reason"] = json!(
+            "A typed proposal Modeling request was supplied explicitly; launch Modeling through that request authority."
+        );
+        return "launchModeling".to_string();
+    }
+    action.to_string()
+}
+
 fn coordinator_runtime_identity_options(
     runtime_id: &str,
     created_at: String,
@@ -1848,6 +1870,34 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_typed_proposal_turns_await_into_modeling_launch() {
+        let mut coordinator = json!({
+            "action": "awaitFrontierProposal",
+            "targetRole": "imagination",
+            "canAutoRun": false,
+            "requiresReview": true,
+            "reason": "Await a proposal."
+        });
+        assert_eq!(
+            apply_explicit_proposal_routing(
+                &mut coordinator,
+                Some("repo-frontier-proposal-modeling-request")
+            ),
+            "launchModeling"
+        );
+        assert_eq!(coordinator["action"], "launchModeling");
+        assert_eq!(coordinator["targetRole"], "modeling");
+        assert_eq!(coordinator["canAutoRun"], true);
+        assert_eq!(coordinator["requiresReview"], false);
+
+        let mut idle = json!({"action": "awaitFrontierProposal"});
+        assert_eq!(
+            apply_explicit_proposal_routing(&mut idle, None),
+            "awaitFrontierProposal"
+        );
+    }
 
     #[test]
     fn coordinator_preserves_the_authenticated_runtime_identity() {

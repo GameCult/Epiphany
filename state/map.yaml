@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. The live typed path reached proposal-bound Modeling, Mind admission, a scoped Hands gate, native Hands receipts, and an admitted Soul needs-evidence verdict. Soul verified the Hands consequence but correctly refused the end-to-end claim because Self's launch packet omitted the Mind admission bodies. Launch assembly is being repaired to carry the exact route-bound RepoModel review and receipt, Modeling acceptance, Mind gateway review, and Mind state commit beside the Hands chain. Resident artifact growth remains unbounded, durable Windows supervision and crash/reboot recovery are unproven, and no Linux or Yggdrasil cognition run has been performed.
+  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. A fresh v18 Body proved authenticated cold bootstrap, canonical Mind seeding, repository observation, ordinary Modeling, and Mind admission on the current exact release. The next typed proposal exposed a Self routing fault: `awaitFrontierProposal` stopped before consulting an explicitly supplied proposal Modeling request. That boundary is under repair. The earlier live path reached scoped Hands receipts and an admitted Soul needs-evidence verdict; the repaired admission-plus-consequence Soul packet still needs a fresh circuit. Resident artifact growth, ordinary Windows path ergonomics, durable supervision/recovery, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: mind_to_soul_context_repair_under_verification
+    local_worktree: explicit_proposal_routing_repair_under_verification
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: The full route remains unproven until a fresh Soul launch receives and judges both the route-bound Mind admission chain and the native Hands consequence chain; deployment authority remains absent.
-  next_action: Commit and publish the Mind-to-Soul context repair, then run a fresh exact-release proposal-to-Soul circuit and require a verdict grounded in both admission and consequence receipts.
+  unresolved_authority: Self currently stops at awaitFrontierProposal before using an explicit typed proposal request; the full route and deployment authority remain unproven.
+  next_action: Commit and publish explicit proposal routing, then resume v18 with its already-selected proposal and require Modeling, Mind, Hands, and Soul to consume one exact typed chain.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,7 +63,7 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; resident routing and the live frontier route work, but the repaired admission-to-Soul packet needs a fresh exact-release run.
+  self: partial; resident routing and the live frontier route work, while explicit proposal selection currently needs a repaired transition from waiting to Modeling launch.
   eyes: unproven in the current live circuit; coordinator status still reports no accepted Research result.
   modeling: partial; real source-grounded proposal-bound Modeling and Mind admission are proven, including canonical claim grounding.
   imagination: unproven in the current campaign; the planning substrate is empty.
@@ -71,7 +71,7 @@ organ_readiness:
   soul: partial; a live needs-evidence refusal is proven, but no complete admission-plus-consequence verdict exists yet.
   mind: partial; RepoModel and thread-state admission work, while complete receipt projection into Soul is awaiting a fresh live proof.
   continuity: partial; heartbeat and resident Self survive sequential cycles, while restart, crash, reboot, closure, and retention remain open.
-  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, and operator projection work, while long-duration pressure and resource plateau remain open.
+  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, and operator projection work, while ordinary Windows coverage-store paths, long-duration pressure, and resource plateau remain open.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
