@@ -1180,6 +1180,7 @@ fn launch_role(
             context,
             runtime_store,
             &state,
+            proposal_modeling_request_id,
         )
         .map_err(anyhow::Error::msg)?;
     }

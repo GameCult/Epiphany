@@ -420,7 +420,11 @@ pub fn append_modeling_work_loop_telemetry_context(
     mut context: String,
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
+    proposal_modeling_request_id: Option<&str>,
 ) -> Result<String, String> {
+    if proposal_modeling_request_id.is_some() {
+        return Ok(context);
+    }
     let Some(accepted_verification) = latest_unique_accepted_verification(state)? else {
         return Ok(context);
     };
@@ -1483,6 +1487,7 @@ mod tests {
                 "ordinary".to_string(),
                 missing_store,
                 &ordinary,
+                None,
             )
             .expect("ordinary Modeling does not touch verdict authority"),
             "ordinary"
@@ -1510,9 +1515,21 @@ mod tests {
             "ambiguous".to_string(),
             missing_store,
             &ambiguous,
+            None,
         )
         .expect_err("equal-time accepted results must not be selected by adjacency");
         assert!(error.contains("temporally ambiguous"));
+
+        assert_eq!(
+            append_modeling_work_loop_telemetry_context(
+                "proposal".to_string(),
+                missing_store,
+                &ambiguous,
+                Some("repo-frontier-proposal-modeling-request"),
+            )
+            .expect("explicit proposal authority excludes historical verdict incorporation"),
+            "proposal"
+        );
     }
 
     #[test]
@@ -1849,6 +1866,7 @@ mod tests {
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
             &runtime_store,
             &state,
+            None,
         )
         .map_err(anyhow::Error::msg)?;
         assert!(modeling_context.contains("<modeling_work_loop_telemetry>"));
