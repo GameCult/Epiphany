@@ -1178,9 +1178,21 @@ fn record_hands_implementation_gate(
         requested_at: requested_at.clone(),
         contract: "Coordinator continuation becomes a typed Hands action intent before any file edit, command, or commit may count as implementation evidence."
             .to_string(),
-        frontier_route_id: String::new(),
-        plan_candidate_sha256: String::new(),
-        plan_action: String::new(),
+        frontier_route_id: route
+            .adopted_plan
+            .as_ref()
+            .map(|_| route.route_id.clone())
+            .unwrap_or_default(),
+        plan_candidate_sha256: route
+            .adopted_plan
+            .as_ref()
+            .map(|plan| plan.candidate_sha256.clone())
+            .unwrap_or_default(),
+        plan_action: route
+            .adopted_plan
+            .as_ref()
+            .map(|plan| plan.action.clone())
+            .unwrap_or_default(),
     };
     put_hands_action_intent(runtime_store, &intent)?;
 
@@ -2347,6 +2359,12 @@ mod tests {
         assert_eq!(intent.intent_id, review.intent_id);
         assert_eq!(intent.requested_action, "continueImplementation");
         assert_eq!(
+            Some(intent.frontier_route_id.as_str()),
+            gate["routeId"].as_str()
+        );
+        assert_eq!(intent.plan_candidate_sha256, "coordinator-plan-hash-test");
+        assert_eq!(intent.plan_action, "Implement the bounded coordinator gate test.");
+        assert_eq!(
             gate.pointer("/recordPassCommand/executable")
                 .and_then(serde_json::Value::as_str),
             Some("epiphany-hands-action")
@@ -2363,7 +2381,7 @@ mod tests {
     }
 
     fn seed_hands_frontier(store: &Path) -> Result<()> {
-        let item = epiphany_core::RepoFrontierItem {
+        let mut item = epiphany_core::RepoFrontierItem {
             id: "coordinator-hands-frontier-test".to_string(),
             migration_body: "Exercise the coordinator-owned Hands gate.".to_string(),
             question: "Does Self route the admitted implementation frontier?".to_string(),
@@ -2375,6 +2393,20 @@ mod tests {
             status: epiphany_core::RepoFrontierStatus::Active,
             ..Default::default()
         };
+        item.adopted_plan = Some(epiphany_core::RepoFrontierAdoptedPlan {
+            planning_request_id: "coordinator-planning-request-test".to_string(),
+            result_id: "coordinator-imagination-result-test".to_string(),
+            job_id: "coordinator-imagination-job-test".to_string(),
+            candidate_id: "coordinator-plan-candidate-test".to_string(),
+            candidate_sha256: "coordinator-plan-hash-test".to_string(),
+            safe_paths: item.source_scope.clone(),
+            action: "Implement the bounded coordinator gate test.".to_string(),
+            command: "cargo test --bin epiphany-mvp-coordinator".to_string(),
+            checks: vec!["focused coordinator test passes".to_string()],
+            stop_conditions: vec!["authority scope changes".to_string()],
+            rollback_steps: vec!["revert the bounded change".to_string()],
+            commit_message: "Bind Hands intent to adopted plan".to_string(),
+        });
         let mut model = epiphany_core::EpiphanyMemoryGraphSnapshot {
             schema_version: Some(epiphany_core::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
             graph_id: "mvp-coordinator-test-model".to_string(),
