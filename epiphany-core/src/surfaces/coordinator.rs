@@ -152,6 +152,9 @@ pub struct EpiphanyCoordinatorInput {
     /// True only when the canonical runtime RepoModel has exactly one current
     /// admission and an Active, dependency-ready Hands frontier item.
     pub hands_frontier_ready: bool,
+    /// True only when the canonical runtime RepoModel has exactly one current
+    /// admission and an Active, dependency-ready Eyes frontier item.
+    pub eyes_frontier_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,6 +198,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
     pub hands_frontier_ready: bool,
+    pub eyes_frontier_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -295,6 +299,7 @@ pub fn derive_coordinator_status(
         verification_result_needs_evidence: input.verification_result_needs_evidence,
         reorient_finding_accepted: input.reorient_finding_accepted,
         hands_frontier_ready: input.hands_frontier_ready,
+        eyes_frontier_ready: input.eyes_frontier_ready,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -1159,6 +1164,27 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.eyes_frontier_ready
+        && !input.research_result_accepted
+        && matches!(
+            input.signals.research_result_status,
+            EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                | EpiphanyCoordinatorRoleResultStatus::Failed
+        )
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchResearch,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "Mind has admitted an actionable Eyes frontier; launch Research against that source-gathering authority.",
+        );
+    }
+
     if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && input.verification_result_accepted
         && !input.verification_result_allows_implementation
@@ -1328,6 +1354,7 @@ mod tests {
             verification_result_needs_evidence: false,
             reorient_finding_accepted: false,
             hands_frontier_ready: false,
+            eyes_frontier_ready: false,
         }
     }
 
@@ -2052,6 +2079,25 @@ mod tests {
         );
         assert!(!no_frontier.can_auto_run);
         assert!(no_frontier.reason.contains("proposal selection"));
+
+        let eyes_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: modeling_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            hands_frontier_ready: false,
+            eyes_frontier_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            eyes_frontier.action,
+            EpiphanyCoordinatorAction::LaunchResearch
+        );
+        assert_eq!(
+            eyes_frontier.target_role,
+            Some(EpiphanyCoordinatorRoleId::Research)
+        );
+        assert!(eyes_frontier.can_auto_run);
+        assert!(eyes_frontier.reason.contains("Eyes frontier"));
 
         let consequences_exist = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: modeling_done,

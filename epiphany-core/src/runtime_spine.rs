@@ -6029,6 +6029,14 @@ fn actionable_hands_frontier_item<'a>(
     model: &'a crate::EpiphanyMemoryGraphSnapshot,
     challenges: &[RepoModelClaimChallenge],
 ) -> Option<&'a crate::RepoFrontierItem> {
+    actionable_frontier_item_for_organ(model, challenges, "Hands")
+}
+
+fn actionable_frontier_item_for_organ<'a>(
+    model: &'a crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+    organ: &str,
+) -> Option<&'a crate::RepoFrontierItem> {
     let terminal = |status: crate::RepoFrontierStatus| {
         matches!(
             status,
@@ -6039,7 +6047,7 @@ fn actionable_hands_frontier_item<'a>(
     };
     model.frontier.iter().find(|item| {
         item.status == crate::RepoFrontierStatus::Active
-            && item.recommended_next_organ == "Hands"
+            && item.recommended_next_organ == organ
             && !item.source_scope.is_empty()
             && safe_sorted_unique_paths(&item.source_scope)
             && frontier_target_claims_unchallenged(item, challenges)
@@ -6058,6 +6066,20 @@ fn actionable_hands_frontier_item<'a>(
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
 pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
+    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
+}
+
+/// Read-only Self signal for source gathering. It is true only when the
+/// canonical runtime model is admitted exactly once and contains an Active,
+/// dependency-ready Eyes frontier item.
+pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
+    runtime_has_actionable_frontier_for_organ(runtime_store, "Eyes")
+}
+
+fn runtime_has_actionable_frontier_for_organ(
+    runtime_store: impl AsRef<Path>,
+    organ: &str,
+) -> Result<bool> {
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
@@ -6080,7 +6102,8 @@ pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) ->
         })
         .count();
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
-    Ok(admission_count == 1 && actionable_hands_frontier_item(&model, &challenges).is_some())
+    Ok(admission_count == 1
+        && actionable_frontier_item_for_organ(&model, &challenges, organ).is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -11830,6 +11853,7 @@ pub(crate) mod tests {
             }],
         )?;
         assert!(runtime_has_actionable_hands_frontier(&active_store)?);
+        assert!(!runtime_has_actionable_eyes_frontier(&active_store)?);
         assert!(
             select_and_commit_repo_frontier_route(&active_store, "2026-07-13T05:00:02Z").is_ok()
         );
@@ -11875,6 +11899,7 @@ pub(crate) mod tests {
         )?;
         assert!(select_and_commit_repo_frontier_route(&store, "2026-07-13T05:00:02Z").is_err());
         assert!(!runtime_has_actionable_hands_frontier(&store)?);
+        assert!(runtime_has_actionable_eyes_frontier(&store)?);
         Ok(())
     }
 
