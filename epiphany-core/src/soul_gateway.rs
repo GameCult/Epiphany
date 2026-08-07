@@ -257,6 +257,7 @@ mod tests {
             item_error: None,
             verification_request_id: Some("verification-request-1".to_string()),
             frontier_route_id: Some("frontier-route-1".to_string()),
+            proposal_modeling_request_id: None,
         };
         let receipt = soul_verdict_receipt_from_verification_finding(
             "soul-verdict-1".to_string(),

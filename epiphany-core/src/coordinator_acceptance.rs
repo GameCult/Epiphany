@@ -902,6 +902,7 @@ mod tests {
             item_error: None,
             verification_request_id: Some(request.request_id.clone()),
             frontier_route_id: Some(request.route_id.clone()),
+            proposal_modeling_request_id: None,
         };
         validate_verification_finding_binding(&finding, &request).expect("exact binding");
 

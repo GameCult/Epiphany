@@ -436,6 +436,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
         modeling_result_failure_reviewed: finding_signals.modeling_result_failure_reviewed,
+        modeling_result_proposal_bound: finding_signals.modeling_result_proposal_bound,
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals

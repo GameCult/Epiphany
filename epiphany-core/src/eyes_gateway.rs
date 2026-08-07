@@ -253,6 +253,7 @@ mod tests {
             item_error: None,
             verification_request_id: None,
             frontier_route_id: None,
+            proposal_modeling_request_id: None,
         };
         let mut patch = EpiphanyRoleStatePatchDocument::default();
         patch

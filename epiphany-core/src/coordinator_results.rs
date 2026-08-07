@@ -307,6 +307,7 @@ fn interpret_role_lifecycle_failure(
         item_error: None,
         verification_request_id: None,
         frontier_route_id: None,
+        proposal_modeling_request_id: None,
     }
 }
 

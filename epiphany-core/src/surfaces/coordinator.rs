@@ -139,6 +139,7 @@ pub struct EpiphanyCoordinatorInput {
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_failure_reviewed: bool,
+    pub modeling_result_proposal_bound: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -183,6 +184,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_failure_reviewed: bool,
+    pub modeling_result_proposal_bound: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -212,6 +214,7 @@ pub struct EpiphanyCoordinatorFindingSignals {
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_failure_reviewed: bool,
+    pub modeling_result_proposal_bound: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -277,6 +280,7 @@ pub fn derive_coordinator_status(
         modeling_result_accepted: input.modeling_result_accepted,
         modeling_result_reviewable: input.modeling_result_reviewable,
         modeling_result_failure_reviewed: input.modeling_result_failure_reviewed,
+        modeling_result_proposal_bound: input.modeling_result_proposal_bound,
         modeling_result_accepted_after_verification: input
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: input
@@ -332,6 +336,8 @@ pub fn derive_coordinator_finding_signals(
             role_finding_failure_reviewed(state, EpiphanyCoordinatorRoleId::Modeling, finding)
         })
     });
+    let modeling_result_proposal_bound =
+        modeling_finding.is_some_and(|finding| finding.proposal_modeling_request_id.is_some());
     let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| {
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
@@ -390,6 +396,7 @@ pub fn derive_coordinator_finding_signals(
         modeling_result_accepted,
         modeling_result_reviewable,
         modeling_result_failure_reviewed,
+        modeling_result_proposal_bound,
         modeling_result_accepted_after_verification,
         implementation_evidence_after_verification,
         verification_result_cites_implementation_evidence,
@@ -824,6 +831,16 @@ pub fn recommend_coordinator_action(
         && !input.modeling_result_accepted
     {
         if input.modeling_result_failure_reviewed {
+            if input.modeling_result_proposal_bound {
+                return build(
+                    EpiphanyCoordinatorAction::AwaitFrontierProposal,
+                    Some(EpiphanyCoordinatorRoleId::Imagination),
+                    None,
+                    true,
+                    false,
+                    "The proposal-bound Modeling result was rejected and its immutable selection request is consumed; await a fresh typed proposal instead of replaying old authority.",
+                );
+            }
             return build(
                 EpiphanyCoordinatorAction::LaunchModeling,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
@@ -1318,6 +1335,7 @@ mod tests {
             modeling_result_accepted: false,
             modeling_result_reviewable: false,
             modeling_result_failure_reviewed: false,
+            modeling_result_proposal_bound: false,
             modeling_result_accepted_after_verification: false,
             implementation_evidence_after_verification: false,
             verification_result_cites_implementation_evidence: false,
@@ -1359,7 +1377,24 @@ mod tests {
             item_error: None,
             verification_request_id: None,
             frontier_route_id: None,
+            proposal_modeling_request_id: None,
         }
+    }
+
+    #[test]
+    fn finding_signals_preserve_proposal_modeling_authority() {
+        let mut modeling = finding("result-modeling", "job-modeling", Vec::new());
+        modeling.proposal_modeling_request_id = Some("proposal-request-1".to_string());
+
+        let signals = derive_coordinator_finding_signals(
+            Some(&EpiphanyThreadState::default()),
+            None,
+            Some(&modeling),
+            None,
+            None,
+        );
+
+        assert!(signals.modeling_result_proposal_bound);
     }
 
     #[test]
@@ -1780,6 +1815,29 @@ mod tests {
             relaunch_superseded_modeling
                 .reason
                 .contains("rejected by admission")
+        );
+
+        let await_fresh_proposal_after_rejected_selection =
+            recommend_coordinator_action(EpiphanyCoordinatorInput {
+                signals: EpiphanyCoordinatorSignals {
+                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                },
+                modeling_result_failure_reviewed: true,
+                modeling_result_reviewable: true,
+                modeling_result_proposal_bound: true,
+                ..input()
+            });
+        assert_eq!(
+            await_fresh_proposal_after_rejected_selection.action,
+            EpiphanyCoordinatorAction::AwaitFrontierProposal
+        );
+        assert!(!await_fresh_proposal_after_rejected_selection.can_auto_run);
+        assert!(
+            await_fresh_proposal_after_rejected_selection
+                .reason
+                .contains("selection request is consumed")
         );
 
         let await_proposal_without_hands_frontier =

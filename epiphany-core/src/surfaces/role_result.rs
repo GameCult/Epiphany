@@ -53,6 +53,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub item_error: Option<String>,
     pub verification_request_id: Option<String>,
     pub frontier_route_id: Option<String>,
+    pub proposal_modeling_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -208,6 +209,7 @@ fn interpret_role_finding(
         item_error,
         verification_request_id: json_string_field(raw_result, "verificationRequestId"),
         frontier_route_id: json_string_field(raw_result, "frontierRouteId"),
+        proposal_modeling_request_id: json_string_field(raw_result, "proposalModelingRequestId"),
     }
 }
 
@@ -322,6 +324,7 @@ pub fn interpret_runtime_role_worker_result(
         },
         verification_request_id: result.verification_request_id.clone(),
         frontier_route_id: result.frontier_route_id.clone(),
+        proposal_modeling_request_id: result.proposal_modeling_request_id.clone(),
     }
 }
 

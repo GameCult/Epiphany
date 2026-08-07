@@ -621,6 +621,33 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                     "required": ["repoModelPatch"]
                 },
                 "then": {"required": ["claimRepairRequestId"]}
+            },
+            {
+                "if": {"required": ["proposalModelingRequestId"]},
+                "then": {
+                    "properties": {
+                        "evidenceIds": {"type": "array", "minItems": 1},
+                        "repoModelPatch": {
+                            "properties": {
+                                "purpose": {
+                                    "properties": {"kind": {"const": "evolution"}},
+                                    "required": ["kind"]
+                                },
+                                "operations": {
+                                    "contains": {
+                                        "type": "object",
+                                        "properties": {"operation": {"const": "upsert_frontier"}},
+                                        "required": ["operation"]
+                                    },
+                                    "minContains": 1,
+                                    "maxContains": 1
+                                }
+                            },
+                            "required": ["purpose", "operations"]
+                        }
+                    },
+                    "required": ["evidenceIds", "repoModelPatch"]
+                }
             }
         ]);
     }
@@ -1530,6 +1557,11 @@ mod tests {
         assert_eq!(
             schema["allOf"][1]["then"]["required"][0],
             "claimRepairRequestId"
+        );
+        assert_eq!(
+            schema["allOf"][2]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
+                ["maxContains"],
+            1
         );
         let operations =
             schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
