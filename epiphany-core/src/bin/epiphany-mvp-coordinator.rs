@@ -481,9 +481,19 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             .get("coordinator")
             .cloned()
             .unwrap_or_else(|| json!({"action": "regatherManually"}));
+        let explicit_proposal_launchable = args
+            .proposal_modeling_request_id
+            .as_deref()
+            .is_some_and(|request_id| {
+                status["findingSignals"]["modelingResultAccepted"].as_bool() != Some(true)
+                    || status["roleResults"]["modeling"]["finding"]["proposalModelingRequestId"]
+                        .as_str()
+                        != Some(request_id)
+            });
         let action = apply_explicit_proposal_routing(
             &mut coordinator,
             args.proposal_modeling_request_id.as_deref(),
+            explicit_proposal_launchable,
         );
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
@@ -1735,12 +1745,14 @@ fn now() -> String {
 fn apply_explicit_proposal_routing(
     coordinator: &mut Value,
     proposal_modeling_request_id: Option<&str>,
+    proposal_request_launchable: bool,
 ) -> String {
     let action = coordinator["action"]
         .as_str()
         .unwrap_or("regatherManually");
     if action == "awaitFrontierProposal"
         && proposal_modeling_request_id.is_some_and(|value| !value.trim().is_empty())
+        && proposal_request_launchable
     {
         coordinator["action"] = json!("launchModeling");
         coordinator["targetRole"] = json!("modeling");
@@ -1883,7 +1895,8 @@ mod tests {
         assert_eq!(
             apply_explicit_proposal_routing(
                 &mut coordinator,
-                Some("repo-frontier-proposal-modeling-request")
+                Some("repo-frontier-proposal-modeling-request"),
+                true,
             ),
             "launchModeling"
         );
@@ -1894,7 +1907,17 @@ mod tests {
 
         let mut idle = json!({"action": "awaitFrontierProposal"});
         assert_eq!(
-            apply_explicit_proposal_routing(&mut idle, None),
+            apply_explicit_proposal_routing(&mut idle, None, false),
+            "awaitFrontierProposal"
+        );
+
+        let mut consumed = json!({"action": "awaitFrontierProposal"});
+        assert_eq!(
+            apply_explicit_proposal_routing(
+                &mut consumed,
+                Some("repo-frontier-proposal-modeling-request"),
+                false,
+            ),
             "awaitFrontierProposal"
         );
     }

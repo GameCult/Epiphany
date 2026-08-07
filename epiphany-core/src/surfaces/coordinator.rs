@@ -1045,24 +1045,6 @@ pub fn recommend_coordinator_action(
     if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && input.verification_result_accepted
         && !input.verification_result_allows_implementation
-        && input.verification_result_cites_implementation_evidence
-        && input.modeling_result_accepted
-        && input.verification_result_covers_current_modeling
-        && input.hands_frontier_ready
-    {
-        return build(
-            EpiphanyCoordinatorAction::ContinueImplementation,
-            Some(EpiphanyCoordinatorRoleId::Implementation),
-            None,
-            false,
-            false,
-            "The accepted verification/review finding failed against concrete implementation evidence from the current model; continue only the bounded repair step before re-verification.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
         && !input.modeling_result_accepted_after_verification
     {
         return build(
@@ -1957,6 +1939,21 @@ mod tests {
         assert_eq!(
             needs_evidence.action,
             EpiphanyCoordinatorAction::ContinueImplementation
+        );
+
+        let rejected_current_model = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: verification_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            verification_result_accepted: true,
+            verification_result_cites_implementation_evidence: true,
+            verification_result_covers_current_modeling: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            rejected_current_model.action,
+            EpiphanyCoordinatorAction::LaunchModeling
         );
 
         let implementation_after_verification =

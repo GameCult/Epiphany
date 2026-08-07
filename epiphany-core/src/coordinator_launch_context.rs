@@ -328,7 +328,9 @@ pub fn append_verification_hands_receipt_context(
     context.push_str("  - epiphany-core/src/hands_gateway.rs\n");
     context.push_str("  - epiphany-core/src/runtime_spine.rs\n");
     context.push_str("  - epiphany-core/src/bin/epiphany-mvp-coordinator.rs\n");
+    context.push_str("  - epiphany-core/src/coordinator_launch.rs\n");
     context.push_str("  - epiphany-core/src/coordinator_launch_context.rs\n");
+    context.push_str("  - epiphany-core/src/surfaces/coordinator.rs\n");
     context.push_str("- sourcePathProof:\n");
     context.push_str(
         "  - epiphany-hands-action `record-pass` records patch, command, and commit receipts through runtime-spine put functions.\n",
@@ -341,6 +343,9 @@ pub fn append_verification_hands_receipt_context(
     );
     context.push_str(
         "  - coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.\n",
+    );
+    context.push_str(
+        "  - coordinator routing requires a failed Verification result to receive an exact failure-review supersession receipt before launching a fresh Soul attempt; immutable verification-request identity remains separate from worker-attempt lifecycle.\n",
     );
     context.push_str(
         "Use these typed internal Verse receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
@@ -628,13 +633,16 @@ fn work_loop_telemetry_from_hands_chain(
             "epiphany-core/src/hands_gateway.rs".to_string(),
             "epiphany-core/src/runtime_spine.rs".to_string(),
             "epiphany-core/src/bin/epiphany-mvp-coordinator.rs".to_string(),
+            "epiphany-core/src/coordinator_launch.rs".to_string(),
             "epiphany-core/src/coordinator_launch_context.rs".to_string(),
+            "epiphany-core/src/surfaces/coordinator.rs".to_string(),
         ],
         source_path_proof: vec![
             "epiphany-hands-action `record-pass` records patch, command, and commit receipts through runtime-spine put functions.".to_string(),
             "runtime_spine registers Hands receipt document types, persists/rereads them through the shared CultCache runtime-spine store, and exposes latest-chain readback.".to_string(),
             "native coordinator launch context writes this typed packet to the internal CultMesh Verse before Soul receives the rendered projection.".to_string(),
             "coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.".to_string(),
+            "coordinator routing requires exact failed-Verification review and supersession before a fresh Soul attempt while immutable request identity remains separate from attempt lifecycle.".to_string(),
         ],
         soul_receipt_ids,
         summary: chain.summary.clone(),
@@ -1640,6 +1648,9 @@ mod tests {
         assert!(context.contains("resolvedReceiptPayloadPreviews"));
         assert!(context.contains("test result: ok"));
         assert!(context.contains("sourcePathProof"));
+        assert!(context.contains("epiphany-core/src/coordinator_launch.rs"));
+        assert!(context.contains("epiphany-core/src/surfaces/coordinator.rs"));
+        assert!(context.contains("exact failure-review supersession receipt"));
         assert!(context.contains("verificationAssertions"));
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
