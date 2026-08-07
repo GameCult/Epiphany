@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 completed the typed proposal-to-Mind-to-Hands-to-Soul-to-Modeling circuit and admitted a bounded Eyes frontier. Exact ea475aac source logic correctly reports the challenged Eyes frontier actionable, but its authenticated package emitted the predecessor decision. The shakedown exposed a release-integrity fault: shared manifest-only Cargo target roots could reuse artifacts across temporary exact-source worktrees. Commit 84f00929 makes build targets source-commit-owned and exposes canonical Hands/Eyes readiness in native status. Its exact replacement release is packaging on Starfire. Eyes acceptance, native Imagination intake, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 completed the typed proposal-to-Mind-to-Hands-to-Soul-to-Modeling circuit and now has an accepted Eyes packet from a challenged frontier. Exact 84f00929 proved challenge-aware launchResearch and first-result acceptance, but also exposed the actual release-integrity fault behind the earlier decision mismatch: packaged Self spawned an unpackaged ambient debug epiphany-mvp-status executable for every routing decision. Commit 148d4527 makes coordinator status derivation in-process and demotes heartbeat, Persona, and Void projections to omitted display state. Its exact package is building on Starfire. Eyes grounded the local Verse topology boundary and authenticated commit receipt; the non-bypass repository-body binding seam remains open for Modeling. Native Imagination routing, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_84f00929_before_state_refresh
+    local_worktree: clean_at_pushed_148d4527_before_state_refresh
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_ea475aac_published_but_release_integrity_falsified_84f00929_packaging
+    starfire_release: authenticated_84f00929_published_eyes_accepted_but_self_status_external_148d4527_packaging
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v23 contains one Mind-admitted read-only Eyes frontier whose target claim is challenged by newer repository-body evidence. Current-tree native status proves Hands=false and Eyes=true, but the authenticated ea475aac package returned awaitFrontierProposal. That package is a release-integrity counterexample and cannot prove the source fix. Commit 84f00929 isolates build targets by source commit; Eyes remains unproven until its exact replacement release launches Research and Mind accepts the evidence packet. Native Imagination intake, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Poll PID 25548 and package-84f00929 logs without starting another build. Publish the authenticated 84f00929 release into the v23 local Verse, run its coordinator with no proposal override, and require both the native actionable-frontier diagnostic and the coordinator action to agree on launchResearch. Accept the first valid Eyes result, then inspect the next typed route. Preserve v22 and treat ea475aac as a release-integrity witness, not successful live proof.
+  unresolved_authority: v23 holds accepted Eyes evidence and a regather checkpoint. The packet grounds topology fail-closure and the authenticated 2dd25341 Hands receipt, but not the current-body enforcement path that makes release authentication non-bypassable. The 84f00929 route/acceptance run is useful organ evidence but not final exact-release proof because packaged Self borrowed an ambient debug status executable. Commit 148d4527 removes that authority leak and is packaging. Native Imagination routing, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Poll PID 7176 and package-148d4527 logs without starting another build. Publish the authenticated 148d4527 release, replay v23 with no overrides, and prove in-process Self sees the accepted Eyes/regather state without spawning epiphany-mvp-status. Review the existing typed reorient result only if it is causally bound to the accepted Eyes checkpoint; otherwise supersede it. Then route Modeling to the real repository-body authentication seam. Preserve v22 and retain ea475aac/84f00929 as release-integrity witnesses.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,8 +63,8 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, and new-proposal preemption are live. Eyes challenge-aware routing is correct in current-tree status derivation, but cross-commit release-cache contamination invalidated the ea475aac packaged proof; exact 84f00929 proof is pending.
-  eyes: unproven in the current live circuit; Mind admitted a bounded read-only frontier over a challenged claim and current-tree status reports Eyes=true. A commit-isolated authenticated package must still launch Research and accept its evidence.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, and challenge-aware Eyes routing are live. Exact 84f00929 exposed an ambient-debug status authority leak; 148d4527 in-process proof is pending.
+  eyes: proven for one bounded challenged-claim circuit; exact 84f00929 launched Research and Mind accepted the first source-gap packet with typed evidence/checkpoint. Full coordinated proof remains contingent on replay through in-process Self at 148d4527 and downstream use by Modeling.
   modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
   imagination: unproven in the current campaign; the planning substrate is empty.
   hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.

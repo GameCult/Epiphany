@@ -96,18 +96,29 @@ with witness
 The package returned `awaitFrontierProposal`, while the same current-tree status
 derivation over v23 reports `Hands=false Eyes=true` and `launchResearch`.
 
-This falsified release integrity rather than the Eyes predicate. Package builds
-shared manifest-only Cargo target roots across changing temporary Git worktrees,
-allowing an exact-source witness to copy cross-commit artifacts. Commit
-`84f00929` makes every target root source-commit-owned and adds the canonical
-Hands/Eyes readiness signal to native runtime status. Focused packaging and
-coordinator tests pass.
+Commit `84f00929` conservatively made every target root source-commit-owned and
+added canonical Hands/Eyes readiness to native runtime status. Its exact release
+`sha256-dc1967df0a6bed550d7fc8c6eb35853dd8f66431b1413174e5d44535b84b36bc`
+launched Research from the challenged frontier. Mind accepted the first packet
+as `accept-research-result-worker-70e89ac9-b09d-4de6-8524-25891c13d38b`.
 
-The exact `84f00929` replacement release is packaging on Starfire:
+The packet grounds the local Verse topology fail-closed boundary and authenticated
+commit `2dd25341` via typed Hands receipt. It honestly leaves the non-bypass
+repository-body authentication seam open because the hinted `cultmesh.rs` and
+`release.rs` paths do not exist. Modeling must locate the actual current owner.
 
-- PID: `25548`
-- stdout: `F:\Projects\Epiphany\.epiphany-run\package-84f00929.stdout.log`
-- stderr: `F:\Projects\Epiphany\.epiphany-run\package-84f00929.stderr.log`
+The run also exposed the actual cause of the earlier package/source decision
+mismatch: packaged coordinator status called `native_json("epiphany-mvp-status")`,
+but that binary is absent from packaged siblings, so Self silently spawned the
+ambient debug executable. Commit `148d4527` replaces this with in-process status
+derivation and omits auxiliary heartbeat/Persona/Void projections from routing.
+Focused tests and a local executable smoke pass.
+
+The exact `148d4527` release is packaging on Starfire:
+
+- PID: `7176`
+- stdout: `F:\Projects\Epiphany\.epiphany-run\package-148d4527.stdout.log`
+- stderr: `F:\Projects\Epiphany\.epiphany-run\package-148d4527.stderr.log`
 
 v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
@@ -119,17 +130,17 @@ still unproven.
 
 ## Next action
 
-Keep v23 live and v22 sealed as the deadlock witness. Poll PID `25548`; do not
-start another Cargo build. Publish the authenticated `84f00929` release into
-the v23 local Verse, run its native actionable-frontier diagnostic and then its
-coordinator with no proposal override, and require both to agree on Research.
-Accept the first valid Eyes packet before choosing another consequence.
+Keep v23 live and v22 sealed as the deadlock witness. Poll PID `7176`; do not
+start another Cargo build. Publish the authenticated `148d4527` release and
+replay v23 without overrides. Prove Self derives status in-process, then review
+the existing reorient result only if it is causally bound to the accepted Eyes
+checkpoint. Route Modeling to the real repository-body authentication seam.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD, PID `25548`, and the 84f00929 package logs.
+3. Confirm git HEAD, PID `7176`, and the 148d4527 package logs.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and
