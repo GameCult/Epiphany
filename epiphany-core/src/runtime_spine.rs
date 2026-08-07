@@ -6029,13 +6029,14 @@ fn actionable_hands_frontier_item<'a>(
     model: &'a crate::EpiphanyMemoryGraphSnapshot,
     challenges: &[RepoModelClaimChallenge],
 ) -> Option<&'a crate::RepoFrontierItem> {
-    actionable_frontier_item_for_organ(model, challenges, "Hands")
+    actionable_frontier_item_for_organ(model, challenges, "Hands", true)
 }
 
 fn actionable_frontier_item_for_organ<'a>(
     model: &'a crate::EpiphanyMemoryGraphSnapshot,
     challenges: &[RepoModelClaimChallenge],
     organ: &str,
+    require_unchallenged_targets: bool,
 ) -> Option<&'a crate::RepoFrontierItem> {
     let terminal = |status: crate::RepoFrontierStatus| {
         matches!(
@@ -6050,7 +6051,8 @@ fn actionable_frontier_item_for_organ<'a>(
             && item.recommended_next_organ == organ
             && !item.source_scope.is_empty()
             && safe_sorted_unique_paths(&item.source_scope)
-            && frontier_target_claims_unchallenged(item, challenges)
+            && (!require_unchallenged_targets
+                || frontier_target_claims_unchallenged(item, challenges))
             && item.dependency_item_ids.iter().all(|dependency_id| {
                 model
                     .frontier
@@ -6103,7 +6105,13 @@ fn runtime_has_actionable_frontier_for_organ(
         .count();
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
     Ok(admission_count == 1
-        && actionable_frontier_item_for_organ(&model, &challenges, organ).is_some())
+        && actionable_frontier_item_for_organ(
+            &model,
+            &challenges,
+            organ,
+            organ == "Hands",
+        )
+        .is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -10732,6 +10740,11 @@ pub(crate) mod tests {
         assert!(
             select_and_commit_repo_frontier_route(&hands_store, "2026-07-13T04:02:00Z").is_err()
         );
+
+        let (eyes_store, eyes_challenge) =
+            claim_challenge_fixture(root.path(), "eyes-regather", "Eyes")?;
+        commit_repo_model_claim_challenge(&eyes_store, &eyes_challenge)?;
+        assert!(runtime_has_actionable_eyes_frontier(&eyes_store)?);
 
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;
