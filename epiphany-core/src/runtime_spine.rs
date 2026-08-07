@@ -79,6 +79,7 @@ use crate::repo_model_gateway::{
     RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
     RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
     RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
+    RepoFrontierPlanningCandidateEligibility, RepoFrontierPlanningEligibility,
     RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningLifecycle,
     RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
@@ -3129,6 +3130,13 @@ pub fn commit_repo_model_admission(
                         "proposal Evolution requires one proposal-citing frontier upsert and exact evidence"
                     ));
                 }
+                if upserts[0].source_scope.is_empty()
+                    || !safe_sorted_unique_paths(&upserts[0].source_scope)
+                {
+                    return Err(anyhow!(
+                        "proposal Evolution frontier source_scope must be non-empty, safe relative paths in strict lexicographic order with no duplicates"
+                    ));
+                }
                 if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
                     && (upserts[0].recommended_next_organ != "Imagination"
                         || upserts[0].adopted_plan.is_some())
@@ -6085,12 +6093,30 @@ pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> 
 pub fn runtime_has_actionable_imagination_frontier(
     runtime_store: impl AsRef<Path>,
 ) -> Result<bool> {
+    let eligibility = runtime_repo_frontier_planning_eligibility(runtime_store)?;
+    Ok(eligibility.current_admission_count == 1
+        && eligibility
+            .candidates
+            .iter()
+            .any(|candidate| candidate.eligible))
+}
+
+/// Read-only Self signal explaining the exact canonical blockers on every
+/// active Imagination frontier. It derives from the same admitted RepoModel,
+/// current claim-challenge set, source-scope predicate, and dependency rule as
+/// planning selection; it neither creates nor repairs authority.
+pub fn runtime_repo_frontier_planning_eligibility(
+    runtime_store: impl AsRef<Path>,
+) -> Result<RepoFrontierPlanningEligibility> {
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     let Some(entry) = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)? else {
-        return Ok(false);
+        return Ok(RepoFrontierPlanningEligibility {
+            current_admission_count: 0,
+            candidates: Vec::new(),
+        });
     };
     crate::validate_memory_graph_entry(&entry)?;
     let model = entry.snapshot()?;
@@ -6107,7 +6133,62 @@ pub fn runtime_has_actionable_imagination_frontier(
         })
         .count();
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
-    Ok(admission_count == 1 && actionable_imagination_frontier_item(&model, &challenges).is_some())
+    let terminal = |status: crate::RepoFrontierStatus| {
+        matches!(
+            status,
+            crate::RepoFrontierStatus::Resolved
+                | crate::RepoFrontierStatus::Retired
+                | crate::RepoFrontierStatus::Superseded
+        )
+    };
+    let mut candidates = model
+        .frontier
+        .iter()
+        .filter(|item| {
+            item.status == crate::RepoFrontierStatus::Active
+                && item.recommended_next_organ == "Imagination"
+        })
+        .map(|item| {
+            let source_scope_valid =
+                !item.source_scope.is_empty() && safe_sorted_unique_paths(&item.source_scope);
+            let mut challenged_target_claim_ids = challenges
+                .iter()
+                .filter(|challenge| item.target_claim_ids.contains(&challenge.target_claim_id))
+                .map(|challenge| challenge.target_claim_id.clone())
+                .collect::<Vec<_>>();
+            challenged_target_claim_ids.sort();
+            challenged_target_claim_ids.dedup();
+            let mut unresolved_dependency_item_ids = item
+                .dependency_item_ids
+                .iter()
+                .filter(|dependency_id| {
+                    !model
+                        .frontier
+                        .iter()
+                        .find(|candidate| candidate.id.as_str() == dependency_id.as_str())
+                        .is_some_and(|dependency| terminal(dependency.status))
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            unresolved_dependency_item_ids.sort();
+            unresolved_dependency_item_ids.dedup();
+            RepoFrontierPlanningCandidateEligibility {
+                frontier_item_id: item.id.clone(),
+                eligible: admission_count == 1
+                    && source_scope_valid
+                    && challenged_target_claim_ids.is_empty()
+                    && unresolved_dependency_item_ids.is_empty(),
+                source_scope_valid,
+                challenged_target_claim_ids,
+                unresolved_dependency_item_ids,
+            }
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|a, b| a.frontier_item_id.cmp(&b.frontier_item_id));
+    Ok(RepoFrontierPlanningEligibility {
+        current_admission_count: admission_count,
+        candidates,
+    })
 }
 
 /// Returns the single selected user proposal that has not yet been claimed by
@@ -10518,6 +10599,7 @@ pub(crate) mod tests {
             ("ordinary-bypass", 5),
             ("dual-echo", 6),
             ("unrelated-job", 7),
+            ("unsorted-source-scope", 8),
         ] {
             let (store, mut result, mut review) = proposal_admission_fixture(root.path(), suffix)?;
             match mutate {
@@ -10546,6 +10628,19 @@ pub(crate) mod tests {
                 5 => result.proposal_modeling_request_id = None,
                 6 => result.repo_frontier_modeling_request_id = Some("dual-authority".into()),
                 7 => result.job_id = "unrelated-modeling-job".into(),
+                8 => {
+                    let mut patch: crate::RepoModelPatch =
+                        rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+                    let crate::RepoModelPatchOperation::UpsertFrontier { item } =
+                        &mut patch.operations[0]
+                    else {
+                        unreachable!()
+                    };
+                    item.source_scope = vec!["z.rs".into(), "a.rs".into()];
+                    let bytes = rmp_serde::to_vec_named(&patch)?;
+                    result.repo_model_patch_msgpack = Some(bytes.clone());
+                    review.patch_sha256 = format!("{:x}", Sha256::digest(bytes));
+                }
                 _ => unreachable!(),
             }
             if matches!(mutate, 6 | 7) {
@@ -11000,6 +11095,20 @@ pub(crate) mod tests {
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;
         commit_repo_model_claim_challenge(&planning_store, &planning_challenge)?;
+        let eligibility = runtime_repo_frontier_planning_eligibility(&planning_store)?;
+        assert_eq!(eligibility.current_admission_count, 1);
+        assert_eq!(eligibility.candidates.len(), 1);
+        assert!(!eligibility.candidates[0].eligible);
+        assert!(eligibility.candidates[0].source_scope_valid);
+        assert_eq!(
+            eligibility.candidates[0].challenged_target_claim_ids,
+            vec![planning_challenge.target_claim_id.clone()]
+        );
+        assert!(
+            eligibility.candidates[0]
+                .unresolved_dependency_item_ids
+                .is_empty()
+        );
         assert!(
             select_and_commit_repo_frontier_planning_request(
                 &planning_store,

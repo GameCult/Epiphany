@@ -587,6 +587,26 @@ pub struct RepoFrontierPlanningLifecycle {
     pub decision_id: Option<String>,
 }
 
+/// Read-only Self projection explaining why an active Imagination frontier is
+/// or is not eligible for the canonical planning-request commit primitive.
+/// This carries no planning authority and persists no substitute state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierPlanningCandidateEligibility {
+    pub frontier_item_id: String,
+    pub eligible: bool,
+    pub source_scope_valid: bool,
+    pub challenged_target_claim_ids: Vec<String>,
+    pub unresolved_dependency_item_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierPlanningEligibility {
+    pub current_admission_count: usize,
+    pub candidates: Vec<RepoFrontierPlanningCandidateEligibility>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.self.repo_frontier_plan_mind_request",

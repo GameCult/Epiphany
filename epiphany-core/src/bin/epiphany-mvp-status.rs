@@ -41,7 +41,6 @@ use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_has_actionable_eyes_frontier;
 use epiphany_core::runtime_has_actionable_hands_frontier;
-use epiphany_core::runtime_has_actionable_imagination_frontier;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
@@ -461,9 +460,15 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let eyes_frontier_ready = runtime_has_actionable_eyes_frontier(&runtime_store_path)
         .context("failed to derive actionable Eyes frontier from runtime-spine state")?;
-    let imagination_frontier_ready =
-        runtime_has_actionable_imagination_frontier(&runtime_store_path)
-            .context("failed to derive actionable Imagination frontier from runtime-spine state")?;
+    let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
+        &runtime_store_path,
+    )
+    .context("failed to derive Imagination frontier eligibility from runtime-spine state")?;
+    let imagination_frontier_ready = frontier_planning_eligibility.current_admission_count == 1
+        && frontier_planning_eligibility
+            .candidates
+            .iter()
+            .any(|candidate| candidate.eligible);
     let frontier_planning =
         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
             .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
@@ -582,6 +587,10 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "roles": roles,
         },
         "planning": planning,
+        "frontierPlanning": {
+            "lifecycle": frontier_planning,
+            "eligibility": frontier_planning_eligibility,
+        },
         "roleResults": {
             "imagination": native_role_result(state_ref, &runtime_store_path, IMAGINATION_BINDING_ID, EpiphanyRoleResultRoleId::Imagination),
             "research": native_role_result(state_ref, &runtime_store_path, RESEARCH_BINDING_ID, EpiphanyRoleResultRoleId::Research),

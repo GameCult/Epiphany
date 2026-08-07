@@ -1,5 +1,20 @@
 # Epiphany Current Algorithmic Map
 
+## Proposal frontier routeability invariant
+
+Proposal Modeling admission and Self planning selection now share one boundary:
+an admitted frontier `source_scope` must be non-empty safe relative paths in
+strict lexicographic ascending order with no duplicates. Modeling may normalize
+proposal scope hints into that canonical form; it must not preserve arbitrary
+serialization order. `runtime_repo_frontier_planning_eligibility` projects the
+same predicate per active Imagination frontier, alongside challenge and
+dependency blockers, so operator status describes the exact selector reality.
+
+Owner: Mind admission owns whether proposal frontier state may enter the model.
+Self only selects admitted routeable state. `source_scope` is no longer assumed
+routeable merely because its individual paths are safe. Invalid ordering is
+rejected before mutation; no repair loop or selector exception may launder it.
+
 ## Coordinator cold start and source-regather ownership
 
 - Owner: typed `UserObjectiveIntake` owns first objective/state creation. It is

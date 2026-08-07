@@ -1,5 +1,32 @@
 # Fresh Workspace Handoff
 
+## Current authority — 2026-08-07 routeability cut
+
+Exact `58cf8984975c9ae524690ff2032eaa76abf5d0d4` is published as
+`sha256-6c2524f1a21fce91f658ee92eb53bbe553719295fa99d7bbe5571651ce5c3c72`
+with witness
+`sha256-3a674c41e7560239b4437090a950def43331649995b3d51704e1687370e340e9`.
+On live v23, packaged Self launched and Mind accepted fresh Modeling results for
+the release-auth and Continuity proposals. They created
+`frontier-imagination-release-auth-nonbypass-trace-r1` and
+`frontier-imagination-continuity-crash-restart-proof-r1`; v23 reached revision
+23. Self did not select either for Imagination.
+
+The typed eligibility projection proved the exact blocker: both source scopes
+are safe but not in strict lexicographic order. Planning selection already
+requires non-empty safe sorted-unique paths. Proposal admission did not, so Mind
+accepted state that Self can never route. The local repair adds the same
+invariant to proposal admission, publishes per-frontier eligibility in MVP
+status, and tells Modeling to normalize proposal scope hints into canonical
+sorted-unique scope. The focused negative admission test proves rejection is
+byte-preserving; the launch-context test proves the worker sees the contract.
+
+Do not weaken the selector or add retry state. Proposal Evolution is insert-only,
+so v23 has no honest typed repair for its two invalid admitted frontiers. Seal it
+as evidence after the repair lands. Next: commit and push this pass, package and
+publish its exact commit, bootstrap v24, then prove native
+Modeling -> Imagination -> dedicated Mind without routing overrides.
+
 ## Present condition
 
 Epiphany remains a supervised engineering alpha running cognition and release
