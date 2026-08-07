@@ -40,14 +40,23 @@ bindings, idempotent replay to the same receipt, final frontier disposition,
 and no remaining actionable Hands frontier. The targeted test, launch-context
 test, and full library suite all pass; full result is 631 passed, 1 ignored.
 
-The exact `2dd25341` release is currently packaging:
+The exact `2dd25341` release is published at:
 
-- PID: `29392`
-- stdout: `F:\Projects\Epiphany\.epiphany-run\package-2dd25341.stdout.log`
-- stderr: `F:\Projects\Epiphany\.epiphany-run\package-2dd25341.stderr.log`
+`F:\Projects\Epiphany\.epiphany-run\releases\2dd2534197b38df764b790bd9377374420e01d97\sha256-125e80991b94d8ac06c973bce434c3a996ce93bf44c03505be28e702f6132a0e`
 
-Poll the PID and log tails. Do not start a parallel Cargo build against the
-same cache.
+Its witness SHA-256 is
+`sha256-6e9fe9fa34fe7b442b8b0f7e9ffdc1f914ebaa5accf32154fc23bcd58dc1891e`.
+Soul returned `pass` and the coordinator accepted it. The following exact
+release Modeling worker produced the first semantically valid incorporation
+result; Mind admitted it immediately as `checkpoint-ready`. The review emitted
+`roleAccept:modeling`, no `roleAdmissionRejected`, no retry, and no actionable
+Hands frontier.
+
+The v23 local Verse required its `epiphany-local` topology to be reseeded after
+the ephemeral launch boundary while retaining the authenticated
+`epiphany-starfire` release witness. That split advertisement is now repaired
+in the v23 store and should be treated as a lifecycle shakedown finding, not as
+permission to bypass release authentication.
 
 v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
@@ -59,17 +68,16 @@ still unproven.
 
 ## Next action
 
-When the `2dd25341` package completes, publish its authenticated witness to the
-Starfire local Verse. Route the second v23 Hands consequence through Soul and
-accept the verdict. Then launch exactly one verdict-incorporation Modeling
-worker. The phase closes only if its first semantically valid result passes Mind
-admission without retry churn. After closure, advance Eyes and Imagination.
+The verdict-incorporation phase is closed. Keep v23 live and v22 sealed as the
+deadlock witness. Admit a bounded Imagination proposal selecting the next
+shakedown frontier, then require an accepted Eyes evidence packet before the
+next consequence. Do not route another Hands turn from the resolved frontier.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD, PID `29392`, and the package logs.
+3. Confirm git HEAD and the v23 coordinator status `awaitFrontierProposal`.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and

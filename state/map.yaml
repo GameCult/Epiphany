@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 accepted a typed Modeling proposal, Mind admission, and two bounded Hands consequences. Commit 6730e395 renders the current routed frontier identity into verdict-incorporation Modeling context. Soul accepted that implementation as material but required direct proof of first-valid-result admission. Commit 2dd25341 now projects the existing causal admission test into Soul evidence; its exact release is packaging on Starfire. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 completed the typed proposal-to-Mind-to-Hands-to-Soul-to-Modeling circuit. The exact 2dd25341 release produced an accepted Soul pass, and the first semantically valid verdict-incorporation Modeling result admitted immediately with checkpoint-ready, preserved routed identity, no admission rejection, no retry churn, and no remaining actionable Hands frontier. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: clean_at_pushed_2dd25341_before_state_refresh
     operator_wireguard: restored
@@ -42,7 +42,7 @@ current_status:
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_6730e395_published_2dd25341_packaging
+    starfire_release: authenticated_2dd25341_published_and_live_proven
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: The identity-preservation launch contract and causal admission test exist, but the exact 2dd25341 release has not yet completed packaging and live Soul verification. Verdict incorporation remains unproven until that release yields a passing Soul verdict and the first semantically valid Modeling result admits without retry churn.
-  next_action: Poll PID 29392 and package-2dd25341 logs. When packaging succeeds, publish the authenticated release, run the second v23 Hands consequence through Soul, accept the verdict, then launch exactly one verdict-incorporation Modeling worker and prove its first semantically valid result admits. Preserve v22 as the corrective-proposal routing-deadlock witness.
+  unresolved_authority: The verdict-incorporation wound is closed in v23. Current readiness is instead bounded by missing accepted Eyes and Imagination results, an unproven public Persona consequence, incomplete Continuity crash/restart/closure and retention proof, and absent long-duration and Linux/Yggdrasil cognition evidence.
+  next_action: Keep v23 as the live Body and v22 as the deadlock witness. Admit a bounded Imagination proposal that selects the next shakedown frontier, then route Eyes through an accepted evidence packet before the next consequence. Do not reopen the resolved verdict-incorporation frontier.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,13 +63,13 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict-incorporation routing, and retry blocking are live; the incorporation launch contract is incomplete.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict-incorporation routing, and retry blocking are live; the v23 incorporation route completed without retry churn, while broader organ scheduling and recovery remain open.
   eyes: unproven in the current live circuit; no accepted Research result yet grounds a coordinated consequence.
-  modeling: partial; proposal-bound source inspection, failed-attempt recovery, Mind admission, and verdict-incorporation launch are live; the routed revision still lacks a complete identity-preservation contract.
+  modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
   imagination: unproven in the current campaign; the planning substrate is empty.
   hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.
-  soul: proven for the current bounded consequence; the exact b635ca2f release launched Soul, produced a canonical pass verdict, and admitted it before routing verdict incorporation.
-  mind: partial; RepoModel admission, thread-state admission, gateway review, and state commit are live; stale or overstated frontier correction remains open.
+  soul: proven for the current bounded consequence; the exact 2dd25341 release launched Soul, produced an accepted pass verdict grounded in focused and full-library receipts, and routed verdict incorporation.
+  mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, and first-valid verdict incorporation are live; broader stale or overstated frontier correction remains open.
   continuity: partial; heartbeat and resident Self survive sequential cycles, while restart, crash, reboot, closure, and retention remain open.
   nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work; long-duration pressure and resource plateau remain open. Exact release packaging took about seventeen minutes and observed more than 3 GiB compiler working set, so Yggdrasil is not a release forge at its current 1.9 GiB RAM.
 
