@@ -25,9 +25,14 @@ Measured build boundaries:
 - Reusing dependencies across a random checkout path took 8m53s because every
   local/path crate received a new absolute source path.
 - The persistent exact-source checkout populated those local artifacts in
-  9m17s. This is setup cost, not yet the steady-state result.
-- The next non-code commit must package through the same source and graph cache.
-  That cross-commit timing is the acceptance proof for the optimization.
+  9m17s.
+- Exact `8bb8b7d3` then crossed a documentation/state-only commit through the
+  same checkout and graph. Cargo completed in 29.92s; independent inspection
+  authenticated all 21 binaries, release
+  `sha256-b300b3e729767929f938c0f70b3b20241c4fa6b94cfff116b4932c270e64f738`,
+  witness
+  `sha256-b09403ff3e48fd3387dd4fa31b6c8f9921edab1e1ec7f97bb661f0de74c881b9`,
+  and absence of private state. Steady-state cross-commit reuse is proven.
 
 The prior live runtime is sealed at `live-20260807-v30`. Its model-only thread
 proved the source gap: job opening and failed/cancelled snapshot interpretation
@@ -37,9 +42,9 @@ authority and must not receive another manual-regather consent.
 
 ## Next action
 
-1. Package the current boundary successor through the existing stable caches;
-   authenticate its release and record the steady-state timing.
-2. Publish only that exact authenticated release into a fresh v31 runtime with
+1. Package this current-Mind successor through the proven stable caches and
+   authenticate it.
+2. Publish only that exact authenticated successor into a fresh v31 runtime with
    physically separate runtime, Verse, coverage, repository-Body, and release
    stores. Carry only canonical `agents.cc` forward.
 3. Open a new typed implementation objective for rupture-to-closure. Prove

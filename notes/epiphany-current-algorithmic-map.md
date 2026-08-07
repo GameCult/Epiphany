@@ -1246,3 +1246,10 @@ or graph outputs during that interval.
 The release witness remains the only packaged-output authority: exact commit,
 runtime, target, toolchain, sorted binary roles, lengths, and byte digests.
 Caches accelerate reconstruction; they cannot certify it.
+
+Exact `8bb8b7d3` is the steady-state acceptance proof. After the stable source
+cache's one-time local population, a documentation/state-only successor kept
+the same graph and checkout identity; Cargo completed the exact release build
+in 29.92 seconds. Independent witness inspection still authenticated all 21
+binaries and rejected any notion that cache reuse could substitute for release
+identity.
