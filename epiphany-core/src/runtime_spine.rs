@@ -6110,6 +6110,45 @@ pub fn runtime_has_actionable_imagination_frontier(
     Ok(admission_count == 1 && actionable_imagination_frontier_item(&model, &challenges).is_some())
 }
 
+/// Returns the single selected user proposal that has not yet been claimed by
+/// a Modeling launch. Selection is already an explicit Self authority; this
+/// projection prevents the CLI from becoming a second routing owner.
+pub fn runtime_pending_repo_frontier_proposal_modeling_request(
+    runtime_store: impl AsRef<Path>,
+) -> Result<Option<RepoFrontierProposalModelingRequest>> {
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let launches = cache.get_all::<RepoFrontierProposalModelingLaunchBinding>()?;
+    let mut pending = cache
+        .get_all::<RepoFrontierProposalModelingRequest>()?
+        .into_iter()
+        .filter_map(|request| {
+            if validate_repo_frontier_proposal_modeling_request(&request).is_err()
+                || launches
+                    .iter()
+                    .any(|launch| launch.proposal_modeling_request_id == request.request_id)
+            {
+                None
+            } else {
+                Some(request)
+            }
+        })
+        .collect::<Vec<_>>();
+    pending.sort_by(|a, b| {
+        a.selected_at
+            .cmp(&b.selected_at)
+            .then_with(|| a.request_id.cmp(&b.request_id))
+    });
+    if pending.len() > 1 {
+        return Err(anyhow!(
+            "Self found multiple unclaimed proposal Modeling requests"
+        ));
+    }
+    Ok(pending.pop())
+}
+
 /// Read-only Self projection over the existing typed frontier-planning chain.
 /// It never creates a request or decision; each mutating stage remains owned by
 /// its established commit primitive.

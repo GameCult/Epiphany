@@ -481,20 +481,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             .get("coordinator")
             .cloned()
             .unwrap_or_else(|| json!({"action": "regatherManually"}));
-        let explicit_proposal_launchable = args
-            .proposal_modeling_request_id
-            .as_deref()
-            .is_some_and(|request_id| {
-                status["findingSignals"]["modelingResultAccepted"].as_bool() != Some(true)
-                    || status["roleResults"]["modeling"]["finding"]["proposalModelingRequestId"]
-                        .as_str()
-                        != Some(request_id)
-            });
-        let action = apply_explicit_proposal_routing(
-            &mut coordinator,
-            args.proposal_modeling_request_id.as_deref(),
-            explicit_proposal_launchable,
-        );
+        let action = coordinator["action"]
+            .as_str()
+            .unwrap_or("regatherManually")
+            .to_string();
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
         fs::write(
@@ -810,6 +800,19 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "launchResearch" | "launchModeling" | "launchVerification" => {
                 let role_id = role_id_for_coordinator_action(&action)
                     .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
+                let pending_proposal_request_id = if role_id == "modeling" {
+                    status["findingSignals"]["pendingProposalModelingRequestId"].as_str()
+                } else {
+                    None
+                };
+                let proposal_modeling_request_id = if role_id == "modeling" {
+                    resolve_proposal_modeling_request_hint(
+                        args.proposal_modeling_request_id.as_deref(),
+                        pending_proposal_request_id,
+                    )?
+                } else {
+                    None
+                };
                 let launch = launch_role(
                     &runtime_store,
                     &local_verse_store,
@@ -818,7 +821,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     revision,
                     args.max_runtime_seconds,
                     if role_id == "modeling" {
-                        args.proposal_modeling_request_id.as_deref()
+                        proposal_modeling_request_id
                     } else {
                         None
                     },
@@ -1925,6 +1928,22 @@ fn final_action_reason(final_action: &Value) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn resolve_proposal_modeling_request_hint<'a>(
+    explicit: Option<&'a str>,
+    derived: Option<&'a str>,
+) -> Result<Option<&'a str>> {
+    match (explicit, derived) {
+        (Some(explicit), Some(derived)) if explicit == derived => Ok(Some(derived)),
+        (None, derived) => Ok(derived),
+        (Some(_), Some(_)) => Err(anyhow!(
+            "explicit proposal Modeling request does not match Self-derived pending authority"
+        )),
+        (Some(_), None) => Err(anyhow!(
+            "explicit proposal Modeling request has no Self-derived pending authority"
+        )),
+    }
+}
+
 fn sanitize_id(value: &str) -> String {
     value
         .chars()
@@ -1942,28 +1961,6 @@ fn sanitize_id(value: &str) -> String {
 
 fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
-}
-
-fn apply_explicit_proposal_routing(
-    coordinator: &mut Value,
-    proposal_modeling_request_id: Option<&str>,
-    proposal_request_launchable: bool,
-) -> String {
-    let action = coordinator["action"].as_str().unwrap_or("regatherManually");
-    if action == "awaitFrontierProposal"
-        && proposal_modeling_request_id.is_some_and(|value| !value.trim().is_empty())
-        && proposal_request_launchable
-    {
-        coordinator["action"] = json!("launchModeling");
-        coordinator["targetRole"] = json!("modeling");
-        coordinator["canAutoRun"] = json!(true);
-        coordinator["requiresReview"] = json!(false);
-        coordinator["reason"] = json!(
-            "A typed proposal Modeling request was supplied explicitly; launch Modeling through that request authority."
-        );
-        return "launchModeling".to_string();
-    }
-    action.to_string()
 }
 
 fn coordinator_runtime_identity_options(
@@ -2087,41 +2084,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_typed_proposal_turns_await_into_modeling_launch() {
-        let mut coordinator = json!({
-            "action": "awaitFrontierProposal",
-            "targetRole": "imagination",
-            "canAutoRun": false,
-            "requiresReview": true,
-            "reason": "Await a proposal."
-        });
+    fn proposal_cli_argument_is_only_an_assertion_over_self_derived_authority() {
+        let request = "repo-frontier-proposal-modeling-request";
         assert_eq!(
-            apply_explicit_proposal_routing(
-                &mut coordinator,
-                Some("repo-frontier-proposal-modeling-request"),
-                true,
-            ),
-            "launchModeling"
+            resolve_proposal_modeling_request_hint(None, Some(request)).unwrap(),
+            Some(request)
         );
-        assert_eq!(coordinator["action"], "launchModeling");
-        assert_eq!(coordinator["targetRole"], "modeling");
-        assert_eq!(coordinator["canAutoRun"], true);
-        assert_eq!(coordinator["requiresReview"], false);
-
-        let mut idle = json!({"action": "awaitFrontierProposal"});
         assert_eq!(
-            apply_explicit_proposal_routing(&mut idle, None, false),
-            "awaitFrontierProposal"
+            resolve_proposal_modeling_request_hint(Some(request), Some(request)).unwrap(),
+            Some(request)
         );
-
-        let mut consumed = json!({"action": "awaitFrontierProposal"});
-        assert_eq!(
-            apply_explicit_proposal_routing(
-                &mut consumed,
-                Some("repo-frontier-proposal-modeling-request"),
-                false,
-            ),
-            "awaitFrontierProposal"
+        assert!(resolve_proposal_modeling_request_hint(Some(request), None).is_err());
+        assert!(
+            resolve_proposal_modeling_request_hint(Some("wrong-request"), Some(request)).is_err()
         );
     }
 

@@ -467,6 +467,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let frontier_planning =
         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
             .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
+    let pending_proposal =
+        epiphany_core::runtime_pending_repo_frontier_proposal_modeling_request(&runtime_store_path)
+            .context("failed to derive pending proposal Modeling authority")?;
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -508,6 +511,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         hands_frontier_ready,
         eyes_frontier_ready,
         frontier_planning_stage: frontier_planning.stage,
+        proposal_modeling_request_ready: pending_proposal.is_some(),
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
@@ -595,6 +599,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "modelingResultProposalBound": modeling_result_proposal_bound,
             "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "imaginationFrontierReady": imagination_frontier_ready,
+            "pendingProposalModelingRequestId": pending_proposal.as_ref().map(|request| request.request_id.as_str()),
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },

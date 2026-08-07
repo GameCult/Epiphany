@@ -168,6 +168,8 @@ pub struct EpiphanyCoordinatorInput {
     /// Read-only projection of the single typed Imagination -> Mind planning
     /// lifecycle. Self may advance it, but only Mind's result can decide adoption.
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
+    /// True when an explicitly selected user proposal has no Modeling launch.
+    pub proposal_modeling_request_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,6 +216,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub hands_frontier_ready: bool,
     pub eyes_frontier_ready: bool,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
+    pub proposal_modeling_request_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -318,6 +321,7 @@ pub fn derive_coordinator_status(
         hands_frontier_ready: input.hands_frontier_ready,
         eyes_frontier_ready: input.eyes_frontier_ready,
         frontier_planning_stage: input.frontier_planning_stage,
+        proposal_modeling_request_ready: input.proposal_modeling_request_ready,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -893,6 +897,17 @@ pub fn recommend_coordinator_action(
         }
         RepoFrontierPlanningLifecycleStage::Unavailable
         | RepoFrontierPlanningLifecycleStage::Terminal => {}
+    }
+
+    if input.proposal_modeling_request_ready {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "An explicitly selected typed user proposal is waiting for its single Modeling launch; route that authority before generic regather or stale lane repair.",
+        );
     }
 
     if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
@@ -1498,6 +1513,7 @@ mod tests {
             hands_frontier_ready: false,
             eyes_frontier_ready: false,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
+            proposal_modeling_request_ready: false,
         }
     }
 
@@ -1570,6 +1586,21 @@ mod tests {
             assert_eq!(decision.target_role, expected_role);
             assert_eq!(decision.can_auto_run, can_auto_run);
         }
+    }
+
+    #[test]
+    fn selected_user_proposal_preempts_generic_regather() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+            proposal_modeling_request_ready: true,
+            ..input()
+        });
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(decision.can_auto_run);
     }
 
     fn finding(

@@ -1153,6 +1153,15 @@ stages rather than remaining indistinguishable from running jobs. A terminal
 Hold or Refuse suppresses immediate replanning of the same current authority.
 This code path is locally proven but still requires exact packaged live proof.
 
+Selected user proposals are also native Self input. The runtime projection
+`runtime_pending_repo_frontier_proposal_modeling_request` returns the single
+validated selection with no launch binding. Coordinator status routes that
+authority before generic regather. The MVP no longer rewrites an
+`awaitFrontierProposal` action from a CLI flag; an optional request ID is only
+an equality assertion over Self's derived request. This cuts the split owner
+exposed when exact `881b2b1a` saw the live v23 proposal but remained in manual
+regather.
+
 The autonomous proposal crossing is source-grounded in
 `runtime_spine.rs`, `admitted_model_direction_consideration.rs`,
 `coordinator_launch.rs`, and `repo_model_gateway.rs`. A deployment-configured

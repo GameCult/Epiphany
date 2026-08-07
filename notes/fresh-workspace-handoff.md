@@ -174,6 +174,21 @@ create legitimate live Imagination pressure through the existing proposal and
 proposal-Modeling path. Prove the exact package advances v23 through Imagination
 and dedicated Mind without overrides or a second planning substrate.
 
+Exact `881b2b1a` was packaged and published as
+`sha256-e41a428b97a9e67c18425cf0862f15cb9f1de87d03fd15c641dec7f835f0707c`
+with witness
+`sha256-56ecec1ce5f23256a25dd6d341f6ff73dcf931fcd590de208d3ab3f220bce365`.
+Packaged proposal intake created `shakedown-v23-release-auth-seam-r1` and
+selection `repo-frontier-proposal-modeling-2a98b0ad0d4f54bc72618ee8b75e20f347bfe3bdf898d3d7247ba9b89bc244c8`.
+The first packaged Self pass exposed a surviving split owner: canonical status
+returned manual regather, while the CLI could only rewrite
+`awaitFrontierProposal`. No worker launched and v23 remained revision 17.
+The current local repair makes pending proposal selection a native status
+signal, routes it before regather, and demotes the CLI ID to an equality check.
+Debug status over live v23 now derives `launchModeling` and that exact request.
+Package and publish the repair before retrying; do not use `881b2b1a` to bypass
+its own finding.
+
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
