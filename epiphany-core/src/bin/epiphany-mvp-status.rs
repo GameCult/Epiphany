@@ -39,8 +39,8 @@ use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
-use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_has_actionable_eyes_frontier;
+use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
@@ -213,7 +213,7 @@ fn run_status(args: &Args) -> Result<Value> {
     if args.interrupt_binding.is_some() {
         return run_native_interrupt(args);
     }
-    run_native_status(args)
+    run_native_status(args, true)
 }
 
 fn run_native_interrupt(args: &Args) -> Result<Value> {
@@ -250,7 +250,30 @@ fn run_native_interrupt(args: &Args) -> Result<Value> {
     }))
 }
 
-fn run_native_status(args: &Args) -> Result<Value> {
+pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<Value> {
+    let root = env::current_dir().context("failed to resolve current directory")?;
+    run_native_status(
+        &Args {
+            thread_id: Some(thread_id.to_string()),
+            cwd: root.clone(),
+            store: runtime_store.to_path_buf(),
+            ephemeral: true,
+            json: true,
+            result: None,
+            transcript: root
+                .join(".epiphany-status")
+                .join("epiphany-mvp-status-transcript.jsonl"),
+            stderr: root
+                .join(".epiphany-status")
+                .join("epiphany-mvp-status-server.stderr.log"),
+            interrupt_binding: None,
+            interrupt_reason: None,
+        },
+        false,
+    )
+}
+
+fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Value> {
     let cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.store)?;
     let runtime_store_path = store_path.clone();
@@ -415,22 +438,22 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_finding.as_ref(),
         reorient_finding.as_ref(),
     );
-    let modeling_result_proposal_bound = latest_runtime_job_id_for_binding(
-        state_ref,
-        MODELING_BINDING_ID,
-    )
-    .and_then(|job_id| {
-        epiphany_core::runtime_role_worker_result(&runtime_store_path, job_id)
-            .ok()
-            .flatten()
-    })
-    .is_some_and(|result| result.proposal_modeling_request_id.is_some());
+    let modeling_result_proposal_bound =
+        latest_runtime_job_id_for_binding(state_ref, MODELING_BINDING_ID)
+            .and_then(|job_id| {
+                epiphany_core::runtime_role_worker_result(&runtime_store_path, job_id)
+                    .ok()
+                    .flatten()
+            })
+            .is_some_and(|result| result.proposal_modeling_request_id.is_some());
     let native_hands_consequence_after_boundary = match state_ref {
-        Some(state) => epiphany_core::has_complete_hands_consequence_after_latest_accepted_boundary(
-            &runtime_store_path,
-            state,
-        )
-        .map_err(anyhow::Error::msg)?,
+        Some(state) => {
+            epiphany_core::has_complete_hands_consequence_after_latest_accepted_boundary(
+                &runtime_store_path,
+                state,
+            )
+            .map_err(anyhow::Error::msg)?
+        }
         None => false,
     };
     let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
@@ -480,7 +503,11 @@ fn run_native_status(args: &Args) -> Result<Value> {
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
 
     let root = env::current_dir().context("failed to resolve current directory")?;
-    let native_aux = native_auxiliary_status(&root)?;
+    let native_aux = if include_auxiliary_status {
+        native_auxiliary_status(&root)?
+    } else {
+        NativeAuxiliaryStatus::omitted_for_coordinator()
+    };
     let status = json!({
         "threadId": thread_id,
         "read": {
@@ -578,6 +605,22 @@ struct NativeAuxiliaryStatus {
     heartbeat: Value,
     persona: Value,
     void_memory: Value,
+}
+
+impl NativeAuxiliaryStatus {
+    fn omitted_for_coordinator() -> Self {
+        let omitted = || {
+            json!({
+                "status": "omitted",
+                "reason": "Auxiliary operator projection is not a coordinator routing input."
+            })
+        };
+        Self {
+            heartbeat: omitted(),
+            persona: omitted(),
+            void_memory: omitted(),
+        }
+    }
 }
 
 fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {

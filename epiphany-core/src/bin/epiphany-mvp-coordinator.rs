@@ -979,11 +979,7 @@ fn assert_local_verse_brake_released(
 }
 
 fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<Value> {
-    let store = runtime_store.to_string_lossy();
-    status_cli::native_json(
-        "epiphany-mvp-status",
-        &["--json", "--thread-id", thread_id, "--store", &store],
-    )
+    status_cli::native_coordinator_json(runtime_store, thread_id)
 }
 
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
@@ -1748,9 +1744,7 @@ fn apply_explicit_proposal_routing(
     proposal_modeling_request_id: Option<&str>,
     proposal_request_launchable: bool,
 ) -> String {
-    let action = coordinator["action"]
-        .as_str()
-        .unwrap_or("regatherManually");
+    let action = coordinator["action"].as_str().unwrap_or("regatherManually");
     if action == "awaitFrontierProposal"
         && proposal_modeling_request_id.is_some_and(|value| !value.trim().is_empty())
         && proposal_request_launchable
@@ -1954,7 +1948,9 @@ mod tests {
         let status_start = source.find("fn collect_coordinator_status").unwrap();
         let status_end = source.find("fn resolve_model_runtime_bin").unwrap();
         let status = &source[status_start..status_end];
-        assert!(status.contains("epiphany-mvp-status"));
+        assert!(status.contains("native_coordinator_json"));
+        assert!(!status.contains("native_json("));
+        assert!(!status.contains("Command::new"));
         assert!(!status.contains("--native"));
         assert!(!status.contains("AppServerClient"));
         assert!(!status.contains("thread/epiphany/"));
