@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed b8c76fd0 seals ordinary bounded worker errors and is packaged as sha256-f5a78dc6 with witness sha256-7a0b060f; v28 remains sealed Continuity failure evidence and has not been mutated by publication. Packaging exposed a build-graph fault: three manifest-specific target directories rebuilt shared dependencies three times, with the third compile alone taking 8m45s. The tested cut makes the exact source commit the single target-cache owner while preserving separate lock validation, sequential Cargo invocations, clean detached source, and byte-level witnessing. A clean successor generation still must prove the repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed b8c76fd0 seals ordinary bounded worker errors and is packaged as sha256-f5a78dc6 with witness sha256-7a0b060f; v28 remains sealed Continuity failure evidence and has not been mutated by publication. Packaging exposed the actual build-graph fault: nine Epiphany crates have no root workspace, five lockfiles and three duplicated patch surfaces create independent resolution universes, and the three release-owner manifests rebuild common crates. Exact b86491d8 tested one shared target directory, but its timed run proved the second manifest still recompiles shared dependencies; that rejected mechanism is being removed. A clean successor generation still must prove the repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition.
   operational_state:
-    local_worktree: release_build_graph_cache_collapse
+    local_worktree: rejected_shared_target_cut
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact b8c76fd0 packages the worker-terminalization repair but has not been published or replayed. The release forge also partitions one exact commit into three redundant dependency graphs; the shared commit-root cut is test-proven but still needs an exact timed package. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit and push the tested release build-graph collapse, package that exact commit, and compare its elapsed time with the three-root b8c76fd0 baseline. Publish only into a clean successor generation, then replay Modeling-to-Imagination-to-Mind, prove adopted-plan Hands authority, and deliberately prove typed worker failure, restart, and Soul-verifiable closure.
+  unresolved_authority: Exact b8c76fd0 packages the worker-terminalization repair but has not been published or replayed. Sharing only a target directory did not collapse the three dependency-resolution owners. One root workspace, one lockfile, root-owned patches, and one release Cargo invocation still need implementation and timed proof. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Finish recording the exact b86491d8 rejected-path benchmark, remove its shared-target mechanism, then establish one root Cargo workspace and one locked release build invocation. Package and time the exact replacement, publish only into a clean successor generation, replay Modeling-to-Imagination-to-Mind, prove adopted-plan Hands authority, and deliberately prove typed worker failure, restart, and Soul-verifiable closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

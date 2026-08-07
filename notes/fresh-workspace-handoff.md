@@ -58,15 +58,21 @@ That package run exposed a release-forge ownership fault. One exact commit was
 split across manifest-specific Cargo target directories, so `epiphany-core`,
 `epiphany-openai-runtime`, and `epiphany-tool-mcp-runtime` rebuilt overlapping
 dependency graphs independently. The third manifest alone took 8m45s. The
-working cut gives the exact commit one shared target root while retaining
-separate lockfile validation, sequential builds, detached clean source, and
-byte-level release witnessing. All fourteen packaged-release tests pass.
+first cut gave the exact commit one shared target root while retaining separate
+lockfile validation, sequential builds, detached clean source, and byte-level
+release witnessing. All fourteen packaged-release tests passed, but the exact
+timed b86491d8 run disproved the real hypothesis: after the first owner finished,
+the second manifest immediately rebuilt common crates because the repository has
+no root workspace and its independent lock/resolution graph changes Cargo
+fingerprints. The shared-target mechanism is rejected and is being removed.
 
 ## Next action
 
-Commit and push the release build-graph collapse, package that exact commit,
-and compare elapsed time against the three-root b8c76fd0 baseline. Publish the
-result only into a clean successor generation. Without overrides, prove:
+Finish recording the b86491d8 rejected-path timing, then replace the nine
+independent Epiphany package roots with one root workspace, one lockfile,
+root-owned patches, and one Cargo invocation for the required release binaries.
+Package and time that exact replacement. Publish the result only into a clean
+successor generation. Without overrides, prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
