@@ -124,16 +124,22 @@ reorient result cited the accepted evidence and frontier exactly and was accepte
 as `accept-reorient-result-worker-c8c27852-71ba-4e65-8a34-68396ff7d5f6`.
 
 After acceptance, Self returned manual regather even though Eyes evidence was
-newer than the last Modeling boundary. Commit `4e95c42c` adds the missing causal
-edge: route one Modeling pass when accepted Research is newer; consume the signal
-once a newer Modeling acceptance exists. All 18 coordinator tests pass and live
-debug status over v23 derives `launchModeling`.
+newer than the last Modeling boundary. Commit `4e95c42c` added the missing
+single-use route. Its exact packaged replay selected `launchModeling`, then
+failed before worker launch because generic Modeling context tried to commit an
+older Soul frontier request whose model identity no longer matched v23. That is
+an authority collision, not a bad Eyes result.
 
-The exact `4e95c42c` release is packaging on Starfire:
+Commit `6f019cf8` separates the causes: accepted Research newer than the last
+Modeling boundary receives an explicit Eyes-to-Modeling handoff and cannot enter
+historical Soul-verdict incorporation. The focused context test, all 18
+coordinator tests, and all 14 packaged coordinator tests pass.
 
-- PID: `19004`
-- stdout: `F:\Projects\Epiphany\.epiphany-run\package-4e95c42c.stdout.log`
-- stderr: `F:\Projects\Epiphany\.epiphany-run\package-4e95c42c.stderr.log`
+The exact `6f019cf8` release is packaging on Starfire:
+
+- PID: `5628`
+- stdout: `F:\Projects\Epiphany\.epiphany-run\package-6f019cf8.stdout.log`
+- stderr: `F:\Projects\Epiphany\.epiphany-run\package-6f019cf8.stderr.log`
 
 v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
@@ -145,17 +151,17 @@ still unproven.
 
 ## Next action
 
-Keep v23 live and v22 sealed as the deadlock witness. Poll PID `19004`; do not
-start another Cargo build. Publish the authenticated `4e95c42c` release and
+Keep v23 live and v22 sealed as the deadlock witness. Poll PID `5628`; do not
+start another Cargo build. Publish the authenticated `6f019cf8` release and
 replay v23 without overrides. Prove Self launches Modeling once from the newer
-accepted Eyes evidence, accept the first valid result, and verify the causal
-signal is consumed.
+accepted Eyes evidence without borrowing the older Soul route, accept the first
+valid result, and verify the causal signal is consumed.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD, PID `19004`, and the 4e95c42c package logs.
+3. Confirm git HEAD, PID `5628`, and the 6f019cf8 package logs.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and

@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 completed the typed proposal-to-Mind-to-Hands-to-Soul-to-Modeling circuit and accepted an Eyes packet from a challenged frontier. Exact 148d4527 proved packaged Self derives routing status in-process with heartbeat, Persona, and Void projections omitted. The Eyes-bound reorient result was causally valid and accepted. That exposed the next missing edge: accepted Eyes evidence newer than the last Modeling boundary fell into manual regather. Commit 4e95c42c adds a single-use causal Research-to-Modeling route; its exact package is building on Starfire. Eyes grounded the local Verse topology boundary and authenticated commit receipt; Modeling must now locate the non-bypass repository-body binding seam. Native Imagination routing, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 completed the typed proposal-to-Mind-to-Hands-to-Soul-to-Modeling circuit and accepted an Eyes packet from a challenged frontier. Exact 148d4527 proved packaged Self derives routing status in-process with heartbeat, Persona, and Void projections omitted. Commit 4e95c42c added a single-use causal Research-to-Modeling route, but its exact replay exposed an authority collision before worker launch: generic Modeling context tried to bind an older Soul frontier route to the current Eyes-caused turn. Commit 6f019cf8 separates those causes; its exact package is building on Starfire. Eyes grounded the local Verse topology boundary and authenticated commit receipt; Modeling must now locate the non-bypass repository-body binding seam. Native Imagination routing, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_4e95c42c_before_state_refresh
+    local_worktree: state_refresh_after_pushed_6f019cf8
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_148d4527_published_inprocess_self_proven_4e95c42c_packaging
+    starfire_release: authenticated_148d4527_published_inprocess_self_proven_6f019cf8_packaging
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v23 holds accepted Eyes evidence, an accepted causally bound reorientation, and a regather checkpoint. The packet grounds topology fail-closure and the authenticated 2dd25341 Hands receipt, but not the current-body enforcement path that makes release authentication non-bypassable. Exact 148d4527 closes the ambient-status authority leak. Commit 4e95c42c must still prove Self routes the newer Eyes acceptance into exactly one Modeling pass. Native Imagination routing, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Poll PID 19004 and package-4e95c42c logs without starting another build. Publish the authenticated 4e95c42c release, replay v23 without overrides, and prove in-process Self launches Modeling because accepted Eyes evidence is newer than the last Modeling boundary. Accept the first valid Modeling result and verify the causal signal is consumed. Preserve v22 and retain ea475aac/84f00929 as release-integrity witnesses.
+  unresolved_authority: v23 holds accepted Eyes evidence, an accepted causally bound reorientation, and a regather checkpoint. The packet grounds topology fail-closure and the authenticated 2dd25341 Hands receipt, but not the current-body enforcement path that makes release authentication non-bypassable. Exact 148d4527 closes the ambient-status authority leak. Commit 6f019cf8 must still prove Self routes the newer Eyes acceptance into exactly one Modeling pass without borrowing historical Soul authority. Native Imagination routing, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Poll PID 5628 and package-6f019cf8 logs without starting another build. Publish the authenticated 6f019cf8 release, replay v23 without overrides, and prove in-process Self launches Modeling from accepted Eyes context rather than an older Soul route. Accept the first valid Modeling result and verify the causal signal is consumed without relaunch. Preserve v22 and retain ea475aac/84f00929 as release-integrity witnesses.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,7 +63,7 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, and in-process status ownership are live. Exact Research-to-Modeling causal routing at 4e95c42c is pending.
+  self: partial; proposal recovery, Mind admission, Hands routing, Soul routing, verdict incorporation, proposal preemption, challenge-aware Eyes routing, and in-process status ownership are live. Exact Research-to-Modeling causal routing at 6f019cf8 is pending.
   eyes: proven for one bounded challenged-claim circuit; exact 84f00929 launched Research and Mind accepted the first source-gap packet with typed evidence/checkpoint, while exact 148d4527 accepted its causal reorientation. Downstream Modeling consumption is pending.
   modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
   imagination: unproven in the current campaign; the planning substrate is empty.
