@@ -2,77 +2,75 @@
 
 ## Present condition
 
-Epiphany is a supervised engineering alpha running cognition on Starfire. The
-small Yggdrasil remains the canonical public crossing body for Bifrost, DNS,
-SSH, WireGuard, and public applications. It does not run Epiphany cognition and
-is not the release forge.
+Epiphany remains a supervised engineering alpha running cognition and release
+builds on Starfire. Yggdrasil remains the small canonical public crossing body;
+its current 1.9 GiB RAM does not make it a release forge.
 
-The current pushed source commit is `b635ca2f20e224ca7bf4fad70683eec6e1f92603`.
-Its authenticated 21-binary package is published in Starfire's local Verse at:
+The active pushed branch head is `2dd2534197b38df764b790bd9377374420e01d97`.
+The worktree was clean before this state refresh.
 
-`F:\Projects\Epiphany\.epiphany-run\releases\b635ca2f20e224ca7bf4fad70683eec6e1f92603\sha256-f36974b956ee541ba693eb2878a8e64c3514e6e0056b500687ea7e44be644337`
+Fresh v23 is the current live shakedown Body:
 
-The package exposes no private state. Packaging took about seventeen minutes
-across two release-build waves and rustc peaked around 3.9 GiB, confirming that
-Yggdrasil's current 1.9 GiB RAM cannot support release builds.
+`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v23\runtime.cc`
 
-The live v22 store is:
+v23 was bootstrapped from canonical agent state plus a fresh observation of the
+current repository Body. It accepted proposal
+`shakedown-v23-verdict-identity-preservation-r1`, admitted RepoModel revision 1,
+and granted a one-file Hands route for
+`epiphany-core/src/coordinator_launch_context.rs`.
 
-`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v22\runtime.cc`
+Commit `6730e395` now loads the exact current routed frontier item and renders
+its identity-bearing fields into verdict-incorporation Modeling context:
+`migration_body`, `question`, `target_claim_ids`, `source_scope`,
+`dependency_item_ids`, `created_at`, `recommended_next_organ`, `retired_at`,
+and `superseded_by`. The worker is told to preserve these exactly while only
+status, evidence, gap, and update time remain verdict-owned.
 
-It proves a typed Modeling -> Mind -> Hands -> Soul circuit. Hands recorded the
-bounded one-file consequence at `b635ca2f`; the exact package launched Soul;
-Soul returned pass; and the verdict was accepted. Self then routed the accepted
-verdict into Modeling.
+The authenticated `6730e395` release is published at:
 
-That incorporation result failed admission for one remaining contract wound.
-The worker included the exact Soul receipt in top-level evidence, included the
-verification request and Soul receipt in frontier evidence, used the allowed
-resolved disposition, and emitted no state patch. It nevertheless rewrote
-identity-bearing fields of the routed frontier item. Mind rejected it with:
+`F:\Projects\Epiphany\.epiphany-run\releases\6730e395a32c81b236cfe665f5abe70e4e89ff05\sha256-c75e33e0cf609e0dca5ba7e9a67a68bab0a71d9ff063bc52f41e92d0c6fa59d4`
 
-`frontier verdict incorporation requires the exact current routed item and preserves its identity-bearing anatomy`
+Soul accepted that consequence with verdict `needs-review`: the implementation
+materially closes identity preservation, but the evidence packet did not name
+the existing admission-path proof. A second one-file Hands gate therefore
+produced commit `2dd25341`. Soul telemetry now names
+`runtime_spine::tests::repo_model_incorporates_pass_and_nonpass_soul_verdicts_causally`,
+which proves first valid admission, exact route/request/verdict/Modeling-request
+bindings, idempotent replay to the same receipt, final frontier disposition,
+and no remaining actionable Hands frontier. The targeted test, launch-context
+test, and full library suite all pass; full result is 631 passed, 1 ignored.
 
-The missing launch requirements are preservation of `migration_body`,
-`question`, `target_claim_ids`, `source_scope`, `dependency_item_ids`,
-`created_at`, `recommended_next_organ`, `retired_at`, and `superseded_by`.
-The Modeling lane is explicitly blocked to prevent retry churn. Do not relaunch
-it until a fresh typed proposal has passed Modeling and Mind.
+The exact `2dd25341` release is currently packaging:
+
+- PID: `29392`
+- stdout: `F:\Projects\Epiphany\.epiphany-run\package-2dd25341.stdout.log`
+- stderr: `F:\Projects\Epiphany\.epiphany-run\package-2dd25341.stderr.log`
+
+Poll the PID and log tails. Do not start a parallel Cargo build against the
+same cache.
+
+v22 is a preserved routing-deadlock witness: an explicitly selected corrective
+proposal could not preempt the failed verdict-incorporation route. Do not grind
+or mutate v22.
 
 Eyes, Imagination, Persona consequence, Continuity crash/restart/closure,
 retention, long-duration resource behavior, and Linux/Yggdrasil cognition are
 still unproven.
 
-## Authority map
-
-- Mind alone admits durable Epiphany state.
-- Self routes pressure and work.
-- Eyes establishes provenance.
-- Modeling maintains the Body map.
-- Imagination proposes futures without adopting them.
-- Hands changes the Body through scoped authority.
-- Soul verifies resulting reality.
-- Persona owns public cognition and speech eligibility.
-- Continuity owns recovery, compaction, sleep, and restart protocol.
-- Bifrost owns governed external transport.
-- Idunn owns deployment observation and actuation.
-- CultMesh and Eve project state; they do not own it.
-
 ## Next action
 
-Create a fresh typed Modeling proposal for the verdict-incorporation launch
-contract. Through Mind and a one-file Hands gate, require the worker to preserve
-all identity-bearing fields of the current routed frontier item while changing
-only the verdict-owned status, evidence, gap, and update timestamp. Publish the
-exact release and prove that the first semantically valid incorporation result
-admits without retry churn. Then continue Eyes and Imagination.
+When the `2dd25341` package completes, publish its authenticated witness to the
+Starfire local Verse. Route the second v23 Hands consequence through Soul and
+accept the verdict. Then launch exactly one verdict-incorporation Modeling
+worker. The phase closes only if its first semantically valid result passes Mind
+admission without retry churn. After closure, advance Eyes and Imagination.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD and the v22 Modeling-lane block.
-4. Treat git and the evidence ledger as provenance, not active state.
+3. Confirm git HEAD, PID `29392`, and the package logs.
+4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and
 git, not in the living handoff.

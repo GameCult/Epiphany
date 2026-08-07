@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The exact b635ca2f release completed a live Modeling-to-Mind-to-Hands-to-Soul circuit and Soul accepted the consequence. Verdict-incorporation Modeling still fails admission because its launch contract does not require preservation of the routed frontier item's identity-bearing anatomy. The Modeling lane is blocked against retry churn pending a fresh typed proposal. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh v23 accepted a typed Modeling proposal, Mind admission, and two bounded Hands consequences. Commit 6730e395 renders the current routed frontier identity into verdict-incorporation Modeling context. Soul accepted that implementation as material but required direct proof of first-valid-result admission. Commit 2dd25341 now projects the existing causal admission test into Soul evidence; its exact release is packaging on Starfire. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_b635ca2f_before_state_refresh
+    local_worktree: clean_at_pushed_2dd25341_before_state_refresh
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_b635ca2f_published
+    starfire_release: authenticated_6730e395_published_2dd25341_packaging
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Verdict-incorporation Modeling is told the exact evidence, disposition, and mutation ceiling, but not that every identity-bearing field of the current routed frontier item must remain byte-for-byte equivalent. The worker therefore rewrites descriptive anatomy and Mind rejects the revision.
-  next_action: Create a fresh typed Modeling proposal for the verdict-incorporation launch contract. Through Mind and a one-file Hands gate, require preservation of migration_body, question, target_claim_ids, source_scope, dependency_item_ids, created_at, recommended_next_organ, retired_at, and superseded_by while allowing only the verdict-owned status, evidence, gap, and timestamp changes. Prove the first semantically valid worker result admits without retry churn.
+  unresolved_authority: The identity-preservation launch contract and causal admission test exist, but the exact 2dd25341 release has not yet completed packaging and live Soul verification. Verdict incorporation remains unproven until that release yields a passing Soul verdict and the first semantically valid Modeling result admits without retry churn.
+  next_action: Poll PID 29392 and package-2dd25341 logs. When packaging succeeds, publish the authenticated release, run the second v23 Hands consequence through Soul, accept the verdict, then launch exactly one verdict-incorporation Modeling worker and prove its first semantically valid result admits. Preserve v22 as the corrective-proposal routing-deadlock witness.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
