@@ -118,6 +118,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("frontier-proposal", file_name("epiphany-frontier-proposal")),
+        ("hands-action", file_name("epiphany-hands-action")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         ("tool-mcp-runtime", file_name("epiphany-tool-mcp-runtime")),
     ]
@@ -427,6 +428,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         }
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
         "frontier-proposal" => Ok(("epiphany-core", "epiphany-frontier-proposal")),
+        "hands-action" => Ok(("epiphany-core", "epiphany-hands-action")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
         "tool-mcp-runtime" => Ok(("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")),
         _ => bail!("unknown required release role {role}"),
@@ -900,6 +902,7 @@ mod tests {
             "operator-command",
             "heartbeat",
             "coordinator",
+            "hands-action",
             "model-runtime",
             "persona-service",
             "persona-mouth-identity",
@@ -924,6 +927,10 @@ mod tests {
         assert_eq!(
             required_release_build_target("coordinator").unwrap(),
             ("epiphany-core", "epiphany-mvp-coordinator")
+        );
+        assert_eq!(
+            required_release_build_target("hands-action").unwrap(),
+            ("epiphany-core", "epiphany-hands-action")
         );
         assert_eq!(
             required_release_build_target("model-runtime").unwrap(),
