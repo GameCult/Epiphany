@@ -1132,6 +1132,18 @@ Idunn separately own release and deployment. Operator silence permits bounded
 observation, map maintenance, rumination, and proposals. It grants none of the
 later consequences.
 
+The frontier-planning substrate is already complete below the MVP mouth.
+`runtime_spine.rs::select_and_commit_repo_frontier_planning_request` selects one
+admitted, unchallenged active Imagination frontier. `coordinator_launch.rs`
+transports that exact request only through an exclusive Imagination launch and
+persists its launch binding. `commit_repo_frontier_plan_mind_request` binds the
+immutable Imagination result and candidate to a dedicated Mind request;
+`EPIPHANY_MIND_ROLE_BINDING_ID` owns that review launch.
+`commit_repo_frontier_plan_decision` then revalidates the entire causal chain and
+atomically adopts or refuses it against the current model. The MVP coordinator
+does not yet route these stages. Therefore the missing authority is Self
+orchestration, not another planning store, generic role patch, or adapter.
+
 The autonomous proposal crossing is source-grounded in
 `runtime_spine.rs`, `admitted_model_direction_consideration.rs`,
 `coordinator_launch.rs`, and `repo_model_gateway.rs`. A deployment-configured

@@ -135,11 +135,24 @@ Modeling boundary receives an explicit Eyes-to-Modeling handoff and cannot enter
 historical Soul-verdict incorporation. The focused context test, all 18
 coordinator tests, and all 14 packaged coordinator tests pass.
 
-The exact `6f019cf8` release is packaging on Starfire:
+Exact `6f019cf8` was published as
+`sha256-e33317e552aef8ed175c768da96e52952da5962f78b030ced50ad064bf1d8adf`
+with witness
+`sha256-94bc14b1cb6a6d2cb78cd7c7498964448e80a16f562b341f64175b02b55e40ea`.
+Packaged Self launched Modeling as runtime job
+`4619ec7a-d9af-4b20-8910-bb5eb371b803` from the accepted Eyes handoff without
+touching the obsolete Soul frontier request. Mind accepted the first valid
+result as
+`accept-modeling-result-worker-4619ec7a-d9af-4b20-8910-bb5eb371b803` at state
+revision 17 with evidence
+`ev-modeling-eb5aa53a-e679-4993-836a-3ac332b467ef`.
+`modelingResultAcceptedAfterResearch` is true, and three later coordinator
+steps returned manual regather without relaunching Modeling. The single-use
+route is consumed.
 
-- PID: `5628`
-- stdout: `F:\Projects\Epiphany\.epiphany-run\package-6f019cf8.stdout.log`
-- stderr: `F:\Projects\Epiphany\.epiphany-run\package-6f019cf8.stderr.log`
+The accepted result preserved the remaining honest wound: current source still
+does not ground a non-bypass release-authentication enforcement seam. Do not
+relaunch the sealed Eyes packet merely to repeat that conclusion.
 
 v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
@@ -151,17 +164,16 @@ still unproven.
 
 ## Next action
 
-Keep v23 live and v22 sealed as the deadlock witness. Poll PID `5628`; do not
-start another Cargo build. Publish the authenticated `6f019cf8` release and
-replay v23 without overrides. Prove Self launches Modeling once from the newer
-accepted Eyes evidence without borrowing the older Soul route, accept the first
-valid result, and verify the causal signal is consumed.
+Keep v23 live and v22 sealed as the deadlock witness. Wire native packaged Self
+through the existing typed Imagination lifecycle: frontier planning selection,
+exclusive Imagination launch, result review, dedicated Mind decision launch,
+and atomic adoption/refusal. Do not create a second planning substrate.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD, PID `5628`, and the 6f019cf8 package logs.
+3. Confirm git HEAD and the exact 6f019cf8 published witness above.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and
