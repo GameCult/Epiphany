@@ -89,16 +89,25 @@ correct for Hands and Imagination, but incoherent for Eyes, whose work is to
 investigate challenged claims.
 
 Commit `ea475aac` splits the invariant: Hands and Imagination remain blocked by
-challenged targets; Eyes remains routeable when the model is uniquely admitted,
-the frontier is active, scope is safe, and dependencies are terminal. Focused
-challenge/routing tests and full library tests pass; full result is 631 passed,
-1 ignored.
+challenged targets while Eyes remains routeable. Its exact package was published
+as `sha256-873027895a81cec207b23002e3902a796e5d1b7c3a11b7c0195412ece258fe63`
+with witness
+`sha256-e85d92fd1217e6c9837284919c1cee8e1a6a1c59d82ff7c1df3e8b38a4e3307f`.
+The package returned `awaitFrontierProposal`, while the same current-tree status
+derivation over v23 reports `Hands=false Eyes=true` and `launchResearch`.
 
-The exact `ea475aac` release is packaging on Starfire:
+This falsified release integrity rather than the Eyes predicate. Package builds
+shared manifest-only Cargo target roots across changing temporary Git worktrees,
+allowing an exact-source witness to copy cross-commit artifacts. Commit
+`84f00929` makes every target root source-commit-owned and adds the canonical
+Hands/Eyes readiness signal to native runtime status. Focused packaging and
+coordinator tests pass.
 
-- PID: `30096`
-- stdout: `F:\Projects\Epiphany\.epiphany-run\package-ea475aac.stdout.log`
-- stderr: `F:\Projects\Epiphany\.epiphany-run\package-ea475aac.stderr.log`
+The exact `84f00929` replacement release is packaging on Starfire:
+
+- PID: `25548`
+- stdout: `F:\Projects\Epiphany\.epiphany-run\package-84f00929.stdout.log`
+- stderr: `F:\Projects\Epiphany\.epiphany-run\package-84f00929.stderr.log`
 
 v22 is a preserved routing-deadlock witness: an explicitly selected corrective
 proposal could not preempt the failed verdict-incorporation route. Do not grind
@@ -110,17 +119,17 @@ still unproven.
 
 ## Next action
 
-Keep v23 live and v22 sealed as the deadlock witness. Poll PID `30096`; do not
-start another Cargo build. Publish the authenticated `ea475aac` release into
-the v23 local Verse, run its coordinator with no proposal override, and prove
-the already-admitted challenged Eyes frontier launches Research. Accept the
-first valid Eyes packet before choosing another consequence.
+Keep v23 live and v22 sealed as the deadlock witness. Poll PID `25548`; do not
+start another Cargo build. Publish the authenticated `84f00929` release into
+the v23 local Verse, run its native actionable-frontier diagnostic and then its
+coordinator with no proposal override, and require both to agree on Research.
+Accept the first valid Eyes packet before choosing another consequence.
 
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
 2. Read `state/map.yaml` and this handoff.
-3. Confirm git HEAD, PID `30096`, and the ea475aac package logs.
+3. Confirm git HEAD, PID `25548`, and the 84f00929 package logs.
 4. Treat v22 as evidence, not active authority.
 
 Replace this document when state changes. Old attempts belong in evidence and
