@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 47689dfa packages all 21 shipped binaries through one frozen release-bundle graph in 16m00s and is published only into clean v30; v28 and v29 remain sealed evidence. v30 natively proved malformed RepoModel rejection and supersession, valid Modeling admission, typed frontier selection, proposal-bound Modeling, Eyes, Reorientation, causal Research-to-Modeling routing, and the packaged single-use manual-regather consent. After the one consented Eyes turn and its causal Modeling acceptance, Self again derived regatherManually because source inspection still found no concrete terminal worker writer or rupture-to-Reorientation/Verification closure path. The model-only objective has reached its authority boundary; another Eyes loop is not warranted. Canonical Imagination, dedicated Mind adoption, Hands, deliberate failure/restart closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The complete 21-binary release now builds through one frozen graph cache and one repository-bound persistent exact-source checkout. Exact 49233e9c authenticated as release sha256-d24a05f98b3f653f904b425d87f93668e944db8e7975ce1c0564f5ef55ace7db with witness sha256-46181cce86b725a237eb1c82e5b68be2f9d01e3afa9c5e82cef67dfe3053b751 after the stable checkout's one-time 9m17s population. A successor package must still prove steady-state cross-commit reuse. The completed model-only v30 circuit established the rupture-to-closure source gap and exhausted its authority. The next live runtime must route a fresh implementation objective through canonical Imagination, dedicated Mind, adopted-plan Hands, deliberate failure/restart, and Soul closure. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_47689dfa
+    local_worktree: clean_at_pushed_49233e9c
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_47689dfa_published_v30_release_bundle_proven
+    starfire_release: authenticated_49233e9c_ready_for_v31_after_warm_successor_benchmark
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -71,7 +71,7 @@ organ_readiness:
   soul: proven for the current bounded consequence; the exact 2dd25341 release launched Soul, produced an accepted pass verdict grounded in focused and full-library receipts, and routed verdict incorporation.
   mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, first-valid verdict incorporation, and dedicated frontier-plan adoption are live; broader stale or overstated frontier correction remains open.
   continuity: partial; heartbeat and resident Self survive sequential cycles. v28 proved an ordinary bounded worker error could leave a runtime job falsely running after process death; the owner-local terminalization repair passes focused tests but still needs packaged crash/restart/closure proof.
-  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work; long-duration pressure and resource plateau remain open. Exact release packaging took about seventeen minutes and observed more than 3 GiB compiler working set, so Yggdrasil is not a release forge at its current 1.9 GiB RAM.
+  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work. Release packaging fell from a 15m43s cold graph to 8m53s with dependency reuse; the repository-bound stable source cache then populated its local crates in 9m17s. Steady-state cross-commit timing, long-duration pressure, and resource plateau remain open. Yggdrasil is not a release forge at its current 1.9 GiB RAM.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.

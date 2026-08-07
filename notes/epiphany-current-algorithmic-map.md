@@ -1225,3 +1225,24 @@ Hands consumes.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.
+
+## Exact release build cache ownership
+
+Release construction has two serialized cache authorities. The graph cache is
+identified only by the frozen root `Cargo.lock`, target triple, and installed
+toolchain fingerprint. It owns Cargo outputs and holds an exclusive graph lock
+through compilation and binary copying. Source commit identity does not
+partition this cache and never becomes derived build authority.
+
+The source cache is identified by canonical repository identity. It owns one
+persistent detached worktree so unchanged tracked files retain stable paths and
+timestamps across commits. Before every build it exclusively locks that source,
+force-checks out the exact clean commit, cleans the main tree and recursive
+submodules, and verifies repository ownership, HEAD, status, and submodule
+identity with long-path-aware Git commands. It remains locked until the release
+has copied and witnessed every binary. No concurrent packager can mutate source
+or graph outputs during that interval.
+
+The release witness remains the only packaged-output authority: exact commit,
+runtime, target, toolchain, sorted binary roles, lengths, and byte digests.
+Caches accelerate reconstruction; they cannot certify it.

@@ -1,160 +1,53 @@
 # Fresh Workspace Handoff
 
-## Current authority — 2026-08-07 v28 Continuity fault
+## Current authority — 2026-08-07
 
 The active branch is `codex/epiphany-shakedown-live`. Exact pushed commit
-`17d4ae47ca6faa1613707010d19261a75a6b74ee` is authenticated and published as
-`sha256-0afab25ce4a30895f8183966a709786c51230c11acc35dd6eb3e83ae0bb79fe4`
+`49233e9c155199355f1729e0a19a9778e947e9f2` packages all 21 shipped binaries as
+`sha256-d24a05f98b3f653f904b425d87f93668e944db8e7975ce1c0564f5ef55ace7db`
 with witness
-`sha256-2e9e8a53659e7351ca6d9b297908a35c54dde3047a654fe61f2d7a8b3d8b186c`.
-The package contains 21 binaries and exposes no private state. Starfire remains
-the release forge; Yggdrasil remains the small runtime target.
+`sha256-46181cce86b725a237eb1c82e5b68be2f9d01e3afa9c5e82cef67dfe3053b751`.
+Independent inspection accepts the exact commit, runtime, binary set, bytes,
+release identity, and witness; private state is absent.
 
-Fresh v27 lives at
-`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v27`. It was cold-started
-from the packaged repository-body tool; only canonical `agents.cc` crossed from
-v26. Its local Verse first proved fail-closure while unseeded, then was seeded
-for `repo:F:/Projects/Epiphany` and received the exact release publication.
+Release construction has one Cargo graph owner. Its cache identity is the root
+`Cargo.lock` bytes, target triple, and toolchain fingerprint. One exclusive
+graph lock covers build through binary copy. Source materialization has a
+separate repository-bound persistent detached worktree and exclusive lock.
+Each package run force-checks the exact commit, cleans the main worktree and
+recursive submodules, and verifies owner, HEAD, status, and submodule identity
+with Windows long-path support before Cargo starts. Commit identity remains
+release authority; neither cache is allowed to claim it.
 
-Generic user proposal `shakedown-v27-hands-continuity-r1` was selected without a
-routing override. Packaged Self derived `launchModeling`; job
-`ee6cdaf1-28d4-4ffa-8c9e-171f822524c8` completed and the first result was
-accepted as `accept-modeling-result-worker-ee6cdaf1-28d4-4ffa-8c9e-171f822524c8`.
-The result was source-grounded in the repaired coordinator seam but inspected
-only `epiphany-mvp-coordinator.rs`. It created an active frontier recommending
-Hands. Self therefore emitted ready route
-`repo-frontier-route-2a6f1480b9fa431e26dee6db5290b3b234d7bbb541947737d08dcb2e9f0cb48e`.
+Measured build boundaries:
 
-v27 remains the generic proposal contract boundary. Fresh v28 lives at
-`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v28`. It cold-started
-through the packaged repository-body surface, with physically separate local
-Verse and release stores. Resident Self started only after receiving the raw
-Bifrost trust-anchor format expected by feedback ingress.
+- A cold unified graph built in 15m43s.
+- Reusing dependencies across a random checkout path took 8m53s because every
+  local/path crate received a new absolute source path.
+- The persistent exact-source checkout populated those local artifacts in
+  9m17s. This is setup cost, not yet the steady-state result.
+- The next non-code commit must package through the same source and graph cache.
+  That cross-commit timing is the acceptance proof for the optimization.
 
-Proposal `shakedown-v28-live-model-admission-r1` launched Modeling job
-`8b35ea3f-55dc-4dd2-8c4a-420b5da374e3`; Mind accepted its first result as
-`accept-modeling-result-worker-8b35ea3f-55dc-4dd2-8c4a-420b5da374e3`. Self
-selected canonical Imagination and launched job
-`b34d21de-6788-4935-8910-75275c257444`, PID `11132`.
-
-PID `11132` exited without a typed result. Repeated coordinator passes continue
-to project `imaginationRunning`. The source cause is in
-`epiphany-openai-runtime/src/bin/epiphany-openai-runtime.rs`: with
-`--max-runtime-seconds` present, `Ok(result) => result?` propagated ordinary
-worker errors out of the process without calling `fail_worker_for_runtime_error`.
-The unbounded branch already sealed the same error correctly.
-
-Exact pushed commit `b8c76fd0d955e4d540e9caf2b73a2abbf784dc14` routes bounded
-and unbounded completion through `seal_worker_runtime_result`. Success remains
-success; every ordinary error
-writes the typed failed outer worker and inner OpenAI job before exit. All six
-model-runtime tests and all fourteen coordinator tests pass. It packaged 21
-binaries as `sha256-f5a78dc6153edadb25b00717cee0c42df58663cdf7dde1fcd21354e87cb6b763`
-with witness `sha256-7a0b060f3351cdb9dc0be09a903fd09d9e437fda89eea51ab88d8bafcb91f9e5`.
-It has not been published into v28; v28 is sealed failure evidence and must not
-be repaired or mutated manually.
-
-That package run exposed a release-forge ownership fault. One exact commit was
-split across manifest-specific Cargo target directories, so `epiphany-core`,
-`epiphany-openai-runtime`, and `epiphany-tool-mcp-runtime` rebuilt overlapping
-dependency graphs independently. The third manifest alone took 8m45s. The
-first cut gave the exact commit one shared target root while retaining separate
-lockfile validation, sequential builds, detached clean source, and byte-level
-release witnessing. Exact b86491d8 disproved the hypothesis: the three Cargo
-owners took 11m41s, 17m20s, and 6m45s, 35m46s total, slower than the 32m36s
-baseline because their independent resolutions changed Cargo fingerprints.
-That mechanism was reverted in pushed commit `41c91785`.
-
-A literal root workspace was also rejected: it annexed nested vendored Codex
-crates and rebound their inherited package/dependency catalog to Epiphany's
-root. The coherent owner is instead the root `epiphany-release-bundle` package.
-Its frozen lock resolves the complete shipped graph while vendored Codex keeps
-its own workspace authority; its 21 explicit binary targets compile in one
-`cargo build --bins` invocation. All targets pass `cargo check --locked` (a
-warm check took 1.22s) and all fourteen packaged-release tests pass. The root
-lock retains the proven compatible `allocative 0.3.4` and `zune-core 0.5.1`
-resolution rather than accepting incompatible current patch drift.
-
-Exact pushed `f9dfd93ac6e01cad092b858f91107c0f07c9e21c` completed the
-single locked release build in 16m38s, 15m58s faster than the 32m36s baseline
-and 19m08s faster than rejected b86491d8. Its authenticated 21-binary release
-is `sha256-435bad663c63140f86a5beacbd6bb7c43f14e85c58e784a287709ddd06a35bcf`
-with witness
-`sha256-396d1489cbcaf768a912bb1efa0a6ea2f14efbc90d34dfabb1df9f9ba2652ecb`.
-It exposes no private state.
-
-Clean v29 lives at
-`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v29`. Only canonical
-`agents.cc` crossed from v28. Packaged Repository Body freshly observed exact
-f9dfd93a, local Verse was seeded for `repo:F:/Projects/Epiphany`, and the exact
-release was published into v29's physically separate `release.ccmp`. v28
-remains unchanged sealed failure evidence.
-
-Live v29 then proved native initial and proposal-bound Modeling, accepted Eyes,
-accepted Reorientation, and the single-use Research-to-Modeling route. After
-causal Modeling acceptance, Self derived `regatherManually`: accepted evidence
-grounds the Hands authority shape but still lacks the concrete deliberate
-worker-failure to continuity-receipt to restart-consumption path. This exposed
-a control-plane gap: the coordinator had no typed operator actuator for its
-intentional manual Eyes boundary. The current worktree adds
-`--approve-manual-regather`. It is single-use, valid only when Self already
-derived `regatherManually`, and launches only the fixed Research lane; it fails
-closed for any other Self action. All fifteen coordinator tests pass. It is not
-yet packaged or replayed.
-
-Exact pushed `47689dfa1e72e41d89477daf34c57b39fcc114cb` packaged all
-21 binaries in 16m00s as
-`sha256-6a133ffda55cb92710fe5ac7798e70b0ac44faf2670282c524dde76655b81060`
-with witness
-`sha256-22d0828dcc5bf0bdf61389f96e8e21ea1a20087c768d8c006b8aa5bf5c04e7b7`.
-Clean v30 lives at
-`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v30`; only canonical
-`agents.cc` crossed from v29. Repository Body, runtime, coverage, local Verse,
-and release stores were freshly bootstrapped and physically separated.
-
-The v30 model-only thread is `shakedown-v30-native-chain-r1`. It proved a
-malformed native RepoModel patch cannot cross Mind: the first result omitted
-three required anchors and was durably superseded. A second result was accepted.
-Typed proposal `shakedown-v30-continuity-seam-proposal-2` then bound exact
-payload `2d4cc6d6328b6abd036cf5b4fb3f5f932040ff4ce49b6e1ef5e0d397d6ffb2e8`
-to Modeling request
-`repo-frontier-proposal-modeling-765bd382828d753aa08ec347038c89a0f2a01c9fc1b34780ef62bf90872cda4b`.
-The live chain accepted proposal-bound Modeling, Eyes, Reorientation, and
-causal Modeling. Self derived `regatherManually` at revision 13. The packaged
-`--approve-manual-regather` surface converted that exact action into one fixed
-Eyes launch, which was accepted and causally consumed by Modeling. The consent
-was not reused and did not become persistent routing authority.
-
-After post-consent Modeling acceptance at revision 17, Self again derived
-`regatherManually`. Both accepted source passes agree on the same missing Body
-path: the repository proves job opening, failed/cancelled snapshot
-interpretation, and acceptance prerequisites, but not the concrete terminal
-worker writer or an automatic rupture-to-completed-Reorientation/Verification
-closure. The authoritative thread objective is explicitly model-only and
-forbids repository changes, so this is its proper stopping boundary, not a
-reason for another Eyes loop.
+The prior live runtime is sealed at `live-20260807-v30`. Its model-only thread
+proved the source gap: job opening and failed/cancelled snapshot interpretation
+exist, but the live Body still lacks a proven automatic terminal-worker writer
+to completed Reorientation/Verification closure. That thread exhausted its
+authority and must not receive another manual-regather consent.
 
 ## Next action
 
-Open a new typed implementation objective for the admitted rupture-to-closure
-gap. Do not approve manual regather again on the completed model-only thread.
-Route the gap through canonical Imagination and dedicated Mind, then prove:
+1. Package the current boundary successor through the existing stable caches;
+   authenticate its release and record the steady-state timing.
+2. Publish only that exact authenticated release into a fresh v31 runtime with
+   physically separate runtime, Verse, coverage, repository-Body, and release
+   stores. Carry only canonical `agents.cc` forward.
+3. Open a new typed implementation objective for rupture-to-closure. Prove
+   proposal-bound Modeling, canonical Imagination, dedicated Mind adoption,
+   exact adopted-plan Hands authority, one deliberate bounded-worker failure,
+   typed terminalization, restart/recovery, and Soul-verifiable closure.
+4. Continue the readiness campaign through Persona public consequence,
+   retention bounds, endurance/resource plateau, and Linux/Yggdrasil cognition.
 
-1. Self derives proposal-bound Modeling and canonical Imagination.
-2. Self selects and launches canonical Imagination.
-3. Dedicated Mind adopts the typed candidate.
-4. Hands intent exactly echoes route id, candidate digest, and plan action.
-5. RepoFrontierHandsAuthority binds route, model, plan, intent, review, grant,
-   and sorted scope.
-6. Deliberately fail one bounded worker and prove typed terminal failure,
-   restart, and Soul-verifiable closure rather than a permanent running state.
-
-Do not add a global rule forcing generic user proposals through Imagination;
-that would destroy their valid direct Hands/Eyes semantics to repair a test
-fixture. Use the existing owner-aligned autonomous crossing.
-
-After that, continue the actual readiness campaign. Persona public consequence,
-retention bounds, long-duration resource behavior, and Linux/Yggdrasil cognition
-remain open. Yggdrasil is the small canonical public crossing Body; Starfire
-remains the temporary cognition and release forge until measured runtime demand
-justifies resizing Yggdrasil.
+Do not read raw worker transcripts, mutate sealed runtimes, approve manual
+regather on v30, or start concurrent Cargo against the release cache.
