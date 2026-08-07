@@ -669,6 +669,7 @@ fn work_loop_telemetry_from_hands_chain(
             "native coordinator launch context writes this typed packet to the internal CultMesh Verse before Soul receives the rendered projection.".to_string(),
             "coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.".to_string(),
             "coordinator routing requires exact failed-Verification review and supersession before a fresh Soul attempt while immutable request identity remains separate from attempt lifecycle.".to_string(),
+            "runtime_spine admission causally binds one verdict-incorporation result to its exact route, verification request, Soul verdict, Modeling request, and final frontier disposition; idempotent replay returns the same receipt and leaves no actionable Hands frontier.".to_string(),
         ],
         soul_receipt_ids,
         summary: chain.summary.clone(),
@@ -677,6 +678,7 @@ fn work_loop_telemetry_from_hands_chain(
         verification_assertions: vec![
             "cultmesh_integration::tests::work_loop_telemetry_round_trips_as_internal_cultmesh_document asserts the typed internal Verse document round-trips and is registered.".to_string(),
             "launch_context::tests::verification_launch_context_includes_hands_receipt_chain seeds real runtime-spine Hands receipts, asserts Soul launch renders the packet, and asserts Modeling launch enriches the typed packet with Soul receipt ids.".to_string(),
+            "runtime_spine::tests::repo_model_incorporates_pass_and_nonpass_soul_verdicts_causally admits the first valid result, replays it idempotently to the same receipt, verifies exact causal ids and final frontier state, and proves no actionable Hands frontier remains.".to_string(),
             "epiphany-mvp-coordinator binary tests keep the Hands gate and coordinator routing surface compiling under the executable coordinator harness.".to_string(),
         ],
     }
@@ -1715,6 +1717,11 @@ mod tests {
         assert!(!telemetry.commit_diff_preview.trim().is_empty());
         assert!(telemetry.verification_assertions.iter().any(|assertion| {
             assertion.contains("verification_launch_context_includes_hands_receipt_chain")
+        }));
+        assert!(telemetry.verification_assertions.iter().any(|assertion| {
+            assertion.contains("repo_model_incorporates_pass_and_nonpass_soul_verdicts_causally")
+                && assertion.contains("same receipt")
+                && assertion.contains("no actionable Hands frontier")
         }));
 
         let verification_request_id = context
