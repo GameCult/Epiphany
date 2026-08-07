@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact f9dfd93a packages all 21 shipped binaries through one frozen release-bundle graph in 16m38s and is published only into clean v29; v28 remains sealed Continuity failure evidence. v29 natively proved proposal-bound Modeling, Eyes, Reorientation, the single-use Research-to-Modeling route, and typed acceptance boundaries. After causal Modeling acceptance, Self correctly derived regatherManually because the concrete failure-to-continuity-receipt-to-restart seam remained uninspected, but the coordinator exposed no typed operator control to enact that manual Eyes handoff. The worktree now adds a single-use --approve-manual-regather consent surface valid only over Self-derived regatherManually; all 15 coordinator tests pass. Exact packaging/replay, Imagination-to-Mind, Hands, failure/restart closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 47689dfa packages all 21 shipped binaries through one frozen release-bundle graph in 16m00s and is published only into clean v30; v28 and v29 remain sealed evidence. v30 natively proved malformed RepoModel rejection and supersession, valid Modeling admission, typed frontier selection, proposal-bound Modeling, Eyes, Reorientation, causal Research-to-Modeling routing, and the packaged single-use manual-regather consent. After the one consented Eyes turn and its causal Modeling acceptance, Self again derived regatherManually because source inspection still found no concrete terminal worker writer or rupture-to-Reorientation/Verification closure path. The model-only objective has reached its authority boundary; another Eyes loop is not warranted. Canonical Imagination, dedicated Mind adoption, Hands, deliberate failure/restart closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: manual_regather_consent_awaiting_package
+    local_worktree: clean_at_pushed_47689dfa
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_f9dfd93a_published_v29_release_bundle_proven
+    starfire_release: authenticated_47689dfa_published_v30_release_bundle_proven
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v29 proved native proposal Modeling, Eyes regather, Reorientation, and causal Modeling, then exposed a missing operator actuator at the intentional regatherManually boundary. The bounded consent surface passes tests but needs exact package/replay. Canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, package, and publish the manual-regather consent surface into a clean successor generation; approve the Self-derived boundary once, accept targeted Eyes evidence, and continue through Modeling, canonical Imagination, Mind adoption, Hands, and deliberate failure/restart/Soul closure.
+  unresolved_authority: v30 proved the manual-regather actuator exactly once and proved it does not persist as ambient routing authority. The consented Eyes-to-Modeling pass still found no source-proven terminal worker writer or automatic rupture-to-continuity/Soul closure path, and Self returned to regatherManually. The current model-only thread cannot lawfully enter Imagination or Hands. Canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Open a new typed implementation objective for the missing rupture-to-closure path. Route the admitted absence through canonical Imagination and dedicated Mind before Hands; then deliberately fail one bounded worker and prove terminal failure, restart/recovery, and Soul-verifiable closure. Do not approve manual regather again on the completed model-only thread.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

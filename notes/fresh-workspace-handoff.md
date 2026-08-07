@@ -102,10 +102,43 @@ derived `regatherManually`, and launches only the fixed Research lane; it fails
 closed for any other Self action. All fifteen coordinator tests pass. It is not
 yet packaged or replayed.
 
+Exact pushed `47689dfa1e72e41d89477daf34c57b39fcc114cb` packaged all
+21 binaries in 16m00s as
+`sha256-6a133ffda55cb92710fe5ac7798e70b0ac44faf2670282c524dde76655b81060`
+with witness
+`sha256-22d0828dcc5bf0bdf61389f96e8e21ea1a20087c768d8c006b8aa5bf5c04e7b7`.
+Clean v30 lives at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v30`; only canonical
+`agents.cc` crossed from v29. Repository Body, runtime, coverage, local Verse,
+and release stores were freshly bootstrapped and physically separated.
+
+The v30 model-only thread is `shakedown-v30-native-chain-r1`. It proved a
+malformed native RepoModel patch cannot cross Mind: the first result omitted
+three required anchors and was durably superseded. A second result was accepted.
+Typed proposal `shakedown-v30-continuity-seam-proposal-2` then bound exact
+payload `2d4cc6d6328b6abd036cf5b4fb3f5f932040ff4ce49b6e1ef5e0d397d6ffb2e8`
+to Modeling request
+`repo-frontier-proposal-modeling-765bd382828d753aa08ec347038c89a0f2a01c9fc1b34780ef62bf90872cda4b`.
+The live chain accepted proposal-bound Modeling, Eyes, Reorientation, and
+causal Modeling. Self derived `regatherManually` at revision 13. The packaged
+`--approve-manual-regather` surface converted that exact action into one fixed
+Eyes launch, which was accepted and causally consumed by Modeling. The consent
+was not reused and did not become persistent routing authority.
+
+After post-consent Modeling acceptance at revision 17, Self again derived
+`regatherManually`. Both accepted source passes agree on the same missing Body
+path: the repository proves job opening, failed/cancelled snapshot
+interpretation, and acceptance prerequisites, but not the concrete terminal
+worker writer or an automatic rupture-to-completed-Reorientation/Verification
+closure. The authoritative thread objective is explicitly model-only and
+forbids repository changes, so this is its proper stopping boundary, not a
+reason for another Eyes loop.
+
 ## Next action
 
-Package the bounded manual-regather consent surface into a clean successor,
-approve the current Self-derived boundary once, then prove:
+Open a new typed implementation objective for the admitted rupture-to-closure
+gap. Do not approve manual regather again on the completed model-only thread.
+Route the gap through canonical Imagination and dedicated Mind, then prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
