@@ -425,6 +425,12 @@ pub fn append_modeling_work_loop_telemetry_context(
     if proposal_modeling_request_id.is_some() {
         return Ok(context);
     }
+    if accepted_research_is_newer_than_modeling(state) {
+        context.push_str("\n\n<accepted_eyes_modeling_handoff>\n");
+        context.push_str("The current Modeling turn is caused by accepted Eyes evidence newer than the last accepted Modeling boundary. Use the accepted Research finding already present in coordinator context to update the body model. This is not a historical Soul-verdict incorporation turn; do not substitute an older frontier verification route.\n");
+        context.push_str("</accepted_eyes_modeling_handoff>");
+        return Ok(context);
+    }
     let Some(accepted_verification) = latest_unique_accepted_verification(state)? else {
         return Ok(context);
     };
@@ -545,6 +551,25 @@ pub fn append_modeling_work_loop_telemetry_context(
     );
     context.push_str("</modeling_work_loop_telemetry>");
     Ok(context)
+}
+
+fn accepted_research_is_newer_than_modeling(state: &EpiphanyThreadState) -> bool {
+    let latest_accepted_at = |role_id: &str| {
+        state
+            .acceptance_receipts
+            .iter()
+            .filter(|receipt| {
+                receipt.role_id == role_id
+                    && receipt.surface == "roleAccept"
+                    && receipt.status == "accepted"
+            })
+            .map(|receipt| receipt.accepted_at.as_str())
+            .max()
+    };
+    let Some(research_at) = latest_accepted_at("research") else {
+        return false;
+    };
+    latest_accepted_at("modeling").is_none_or(|modeling_at| research_at > modeling_at)
 }
 
 fn latest_unique_accepted_verification(
@@ -1530,6 +1555,35 @@ mod tests {
             .expect("explicit proposal authority excludes historical verdict incorporation"),
             "proposal"
         );
+
+        let accepted = |role_id: &str, accepted_at: &str| EpiphanyAcceptanceReceipt {
+            id: format!("accept-{role_id}"),
+            result_id: format!("result-{role_id}"),
+            job_id: format!("job-{role_id}"),
+            binding_id: format!("{role_id}-worker"),
+            surface: "roleAccept".to_string(),
+            role_id: role_id.to_string(),
+            status: "accepted".to_string(),
+            accepted_at: accepted_at.to_string(),
+            ..Default::default()
+        };
+        let eyes_handoff = EpiphanyThreadState {
+            acceptance_receipts: vec![
+                accepted("verification", "2026-07-13T07:00:00Z"),
+                accepted("modeling", "2026-07-13T08:00:00Z"),
+                accepted("research", "2026-07-13T09:00:00Z"),
+            ],
+            ..Default::default()
+        };
+        let context = append_modeling_work_loop_telemetry_context(
+            "eyes".to_string(),
+            missing_store,
+            &eyes_handoff,
+            None,
+        )
+        .expect("accepted Eyes handoff must not bind an older Soul route");
+        assert!(context.contains("accepted_eyes_modeling_handoff"));
+        assert!(context.contains("not a historical Soul-verdict incorporation turn"));
     }
 
     #[test]
