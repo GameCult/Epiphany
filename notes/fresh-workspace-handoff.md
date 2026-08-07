@@ -1,5 +1,31 @@
 # Fresh Workspace Handoff
 
+## Current authority — 2026-08-07 active-status cut
+
+Exact `717c649e403d53b12d53b4fbfabb0ecb8d49ee2d` is published as
+`sha256-cec12433e99526ab8ed4795812b0bc3d91ef89d80cff324357055273733db453`
+with witness
+`sha256-819d0141dcd20b767d0005243f884845ad1f21e95d2df188baf859bc1fbd6ae5`.
+Fresh v24 was cold-started from its packaged repository-body tool at exact Git
+head 717c649e; only canonical `agents.cc` crossed from v23. Its local Verse was
+freshly seeded and the exact release published into it.
+
+Packaged Self derived `launchModeling` without a proposal request override for
+`repo-frontier-proposal-modeling-8b1ab2b553b7d4e37756d4cc9169a2febf68a46b5b1d8c7e15e8dd6eaf467664`.
+Modeling worker `c6997b20-2978-4bac-9b7e-dccdd59ebcd7` emitted canonical sorted
+scope and Mind accepted it at thread revision 3. The frontier status was
+`proposed`, however, so Self returned `awaitFrontierProposal`: planning selection
+only owns active unresolved frontier. Proposal admission had again accepted
+state its downstream selector cannot consume.
+
+The local repair requires `status=active` for every proposal Evolution frontier
+upsert, tells Modeling that Mind acceptance is already the admission decision,
+and projects `statusValid` alongside scope, challenge, and dependency validity.
+Focused negative admission, eligibility, launch-context, and MVP status tests
+pass. v24 is insert-only contaminated evidence; do not mutate or replay it.
+Commit/package/publish the repair, cold-start the next generation, and repeat the
+native Modeling -> Imagination -> dedicated Mind proof without overrides.
+
 ## Current authority — 2026-08-07 routeability cut
 
 Exact `58cf8984975c9ae524690ff2032eaa76abf5d0d4` is published as

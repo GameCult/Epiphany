@@ -3137,6 +3137,11 @@ pub fn commit_repo_model_admission(
                         "proposal Evolution frontier source_scope must be non-empty, safe relative paths in strict lexicographic order with no duplicates"
                     ));
                 }
+                if upserts[0].status != crate::RepoFrontierStatus::Active {
+                    return Err(anyhow!(
+                        "proposal Evolution frontier must be active so accepted unresolved work is immediately routeable"
+                    ));
+                }
                 if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
                     && (upserts[0].recommended_next_organ != "Imagination"
                         || upserts[0].adopted_plan.is_some())
@@ -6145,10 +6150,13 @@ pub fn runtime_repo_frontier_planning_eligibility(
         .frontier
         .iter()
         .filter(|item| {
-            item.status == crate::RepoFrontierStatus::Active
-                && item.recommended_next_organ == "Imagination"
+            matches!(
+                item.status,
+                crate::RepoFrontierStatus::Active | crate::RepoFrontierStatus::Proposed
+            ) && item.recommended_next_organ == "Imagination"
         })
         .map(|item| {
+            let status_valid = item.status == crate::RepoFrontierStatus::Active;
             let source_scope_valid =
                 !item.source_scope.is_empty() && safe_sorted_unique_paths(&item.source_scope);
             let mut challenged_target_claim_ids = challenges
@@ -6175,9 +6183,11 @@ pub fn runtime_repo_frontier_planning_eligibility(
             RepoFrontierPlanningCandidateEligibility {
                 frontier_item_id: item.id.clone(),
                 eligible: admission_count == 1
+                    && status_valid
                     && source_scope_valid
                     && challenged_target_claim_ids.is_empty()
                     && unresolved_dependency_item_ids.is_empty(),
+                status_valid,
                 source_scope_valid,
                 challenged_target_claim_ids,
                 unresolved_dependency_item_ids,
@@ -10600,6 +10610,7 @@ pub(crate) mod tests {
             ("dual-echo", 6),
             ("unrelated-job", 7),
             ("unsorted-source-scope", 8),
+            ("proposed-status", 9),
         ] {
             let (store, mut result, mut review) = proposal_admission_fixture(root.path(), suffix)?;
             match mutate {
@@ -10637,6 +10648,19 @@ pub(crate) mod tests {
                         unreachable!()
                     };
                     item.source_scope = vec!["z.rs".into(), "a.rs".into()];
+                    let bytes = rmp_serde::to_vec_named(&patch)?;
+                    result.repo_model_patch_msgpack = Some(bytes.clone());
+                    review.patch_sha256 = format!("{:x}", Sha256::digest(bytes));
+                }
+                9 => {
+                    let mut patch: crate::RepoModelPatch =
+                        rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+                    let crate::RepoModelPatchOperation::UpsertFrontier { item } =
+                        &mut patch.operations[0]
+                    else {
+                        unreachable!()
+                    };
+                    item.status = crate::RepoFrontierStatus::Proposed;
                     let bytes = rmp_serde::to_vec_named(&patch)?;
                     result.repo_model_patch_msgpack = Some(bytes.clone());
                     review.patch_sha256 = format!("{:x}", Sha256::digest(bytes));
@@ -11099,6 +11123,7 @@ pub(crate) mod tests {
         assert_eq!(eligibility.current_admission_count, 1);
         assert_eq!(eligibility.candidates.len(), 1);
         assert!(!eligibility.candidates[0].eligible);
+        assert!(eligibility.candidates[0].status_valid);
         assert!(eligibility.candidates[0].source_scope_valid);
         assert_eq!(
             eligibility.candidates[0].challenged_target_claim_ids,

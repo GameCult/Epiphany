@@ -10,6 +10,13 @@ serialization order. `runtime_repo_frontier_planning_eligibility` projects the
 same predicate per active Imagination frontier, alongside challenge and
 dependency blockers, so operator status describes the exact selector reality.
 
+Proposal Evolution also requires `status=active`. Mind acceptance is the
+proposal's admission decision; persisting it as merely proposed creates a dead
+document that Self cannot select and proposal Evolution cannot revise. The
+eligibility projection includes unresolved proposed Imagination frontier as a
+diagnostic candidate with `statusValid=false`, but only active frontier can be
+eligible. This projection observes the wound; admission prevents it.
+
 Owner: Mind admission owns whether proposal frontier state may enter the model.
 Self only selects admitted routeable state. `source_scope` is no longer assumed
 routeable merely because its individual paths are safe. Invalid ordering is
