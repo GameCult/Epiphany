@@ -1242,6 +1242,15 @@ admitted-model direction, autonomous proposal Modeling, and Imagination
 consideration pressure. Verification replays after timestamp change and after
 heartbeat consumption, and retains a hostile changed-objective collision.
 
+Resident cancellation owns retry admission for a failed bounded coordinator
+turn. In the same CAS that clears the exact active lease and writes its typed
+terminal acknowledgement, cancellation verifies the grant still owns the
+source pressure and returns that pressure from `consumed` to `pending`. It does
+not mint the retry grant. The standard heartbeat remains the sole scheduler and
+may issue a new grant with a new identity for the same exact pressure after it
+has reconciled the terminal turn. A failed launch can therefore recover without
+operator pressure duplication or an authority-bypassing coordinator call.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is

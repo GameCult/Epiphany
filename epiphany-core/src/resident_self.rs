@@ -1413,6 +1413,16 @@ pub fn cancel_resident_self_turn(
     let grant = cache
         .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
         .ok_or_else(|| anyhow!("resident Self cancellation grant missing"))?;
+    let mut pressure = cache
+        .get::<ResidentSelfPressure>(&grant.pressure_id)?
+        .ok_or_else(|| anyhow!("resident Self cancellation pressure missing"))?;
+    if pressure.status != "consumed"
+        || pressure.consumed_by_grant_id.as_deref() != Some(&grant.grant_id)
+    {
+        return Err(anyhow!(
+            "resident Self cancellation pressure authority changed"
+        ));
+    }
     let ack = ResidentSelfTerminalAck {
         schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
         ack_id: format!("resident-self-cancel-{}-{status}", lease.grant_id),
@@ -1426,22 +1436,35 @@ pub fn cancel_resident_self_turn(
         consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
     };
-    let expected = cache
-        .snapshot_envelopes()
-        .into_iter()
+    let envelopes = cache.snapshot_envelopes();
+    let expected_state = envelopes
+        .iter()
         .find(|entry| {
             entry.r#type == <ResidentSelfState as DatabaseEntry>::TYPE
                 && entry.key == RESIDENT_SELF_STATE_KEY
         })
+        .cloned()
         .ok_or_else(|| anyhow!("resident Self cancellation state envelope missing"))?;
+    let expected_pressure = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfPressure as DatabaseEntry>::TYPE
+                && entry.key == pressure.pressure_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("resident Self cancellation pressure envelope missing"))?;
     state.active_turn = None;
     state.revision += 1;
     state.consecutive_failures += u64::from(status != "brake-cancelled");
+    pressure.status = "pending".into();
+    pressure.consumed_by_grant_id = None;
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
+    let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
     let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
-    if !SingleFileMessagePackBackingStore::new(path)
-        .compare_and_swap_batch(&[expected], vec![state_entry, ack_entry])?
-    {
+    if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
+        &[expected_state, expected_pressure],
+        vec![state_entry, pressure_entry, ack_entry],
+    )? {
         return Err(anyhow!("resident Self lost cancellation CAS"));
     }
     Ok(ack)
@@ -1875,6 +1898,62 @@ mod tests {
         assert!(complete_resident_self_turn(&store, &lease, &wrong, 8).is_err());
         let ack = complete_resident_self_turn(&store, &lease, &receipt, 9)?;
         assert_eq!(ack.coordinator_receipt_id, receipt.receipt_id);
+        Ok(())
+    }
+
+    #[test]
+    fn failed_resident_turn_atomically_returns_exact_pressure_to_heartbeat() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-retry-1".into(),
+                kind: "admitted-model-direction-consideration".into(),
+                provenance_ref:
+                    "cultcache://admitted-model-direction-consideration/request-retry-1".into(),
+                objective: "Launch exact typed model direction request.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let first_grant =
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 2)?
+                .expect("first grant");
+        let prepared = prepare_resident_self_launch(&store, &policy, 3)?.expect("preparation");
+        let process = LaunchedCoordinator {
+            process_id: 44,
+            process_creation_token: 55,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
+        let lease =
+            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
+        let ack = cancel_resident_self_turn(
+            &store,
+            &lease,
+            "process-failed",
+            "coordinator rejected its startup configuration",
+            6,
+        )?;
+        assert_eq!(ack.grant_id, first_grant.grant_id);
+        let pressure = state_cache(&store)?
+            .get::<ResidentSelfPressure>("pressure-retry-1")?
+            .expect("requeued pressure");
+        assert_eq!(pressure.status, "pending");
+        assert_eq!(pressure.consumed_by_grant_id, None);
+        let retry_grant =
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 7)?
+                .expect("retry grant");
+        assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
+        assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         Ok(())
     }
 
