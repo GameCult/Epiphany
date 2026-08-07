@@ -149,9 +149,6 @@ pub fn package_epiphany_release(
             request.destination.display()
         )
     })?;
-    let destination = canonical_path(request.destination)?;
-    let source_root = short_temporary_path("ep-src");
-    let source_guard = GitWorktreeGuard::create(request.repo, &source_root, &source_commit_sha)?;
     let build_root = request.build_cache_root.to_path_buf();
     fs::create_dir_all(&build_root).with_context(|| {
         format!(
@@ -159,6 +156,8 @@ pub fn package_epiphany_release(
             build_root.display()
         )
     })?;
+    let destination = canonical_path(request.destination)?;
+    let source_guard = ReleaseSourceGuard::prepare(request.repo, &build_root, &source_commit_sha)?;
     let built_binaries = build_required_release_siblings(
         &source_guard.path,
         &build_root,
@@ -245,74 +244,169 @@ pub fn package_epiphany_release(
     result
 }
 
-fn short_temporary_path(prefix: &str) -> PathBuf {
-    let id = Uuid::new_v4().simple().to_string();
-    std::env::temp_dir().join(format!("{prefix}-{}", &id[..12]))
+fn release_source_cache_identity(repo: &Path) -> Result<String> {
+    let canonical_repo = canonical_path(repo)?;
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany.release_source_cache.v0\0");
+    digest.update(canonical_repo.to_string_lossy().as_bytes());
+    Ok(format!("{:x}", digest.finalize()))
 }
 
-struct GitWorktreeGuard {
-    repo: PathBuf,
+struct ReleaseSourceGuard {
     path: PathBuf,
+    _source_lock: fs::File,
 }
 
-impl GitWorktreeGuard {
-    fn create(repo: &Path, path: &Path, commit: &str) -> Result<Self> {
-        let output = std::process::Command::new("git")
-            .args(["-c", "core.longpaths=true", "worktree", "add", "--detach"])
-            .arg(path)
-            .arg(commit)
-            .current_dir(repo)
-            .output()?;
-        if !output.status.success() {
-            if path.exists() {
-                let _ = fs::remove_dir_all(path);
-            }
-            let _ = std::process::Command::new("git")
-                .args(["worktree", "prune"])
+impl ReleaseSourceGuard {
+    fn prepare(repo: &Path, build_root: &Path, commit: &str) -> Result<Self> {
+        validate_commit(commit)?;
+        let identity = release_source_cache_identity(repo)?;
+        let path = build_root.join(format!("source-{identity}"));
+        let lock_path = build_root.join(format!(".epiphany-release-source-{identity}.lock"));
+        let source_lock = fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .with_context(|| {
+                format!("failed to open release source lock {}", lock_path.display())
+            })?;
+        source_lock.lock_exclusive().with_context(|| {
+            format!(
+                "failed to acquire release source lock {}",
+                lock_path.display()
+            )
+        })?;
+
+        if path.exists() {
+            verify_cached_worktree_owner(repo, &path)?;
+            run_git_checked(
+                &path,
+                &["-c", "core.longpaths=true", "clean", "-ffdx"],
+                "failed to pre-clean cached release worktree",
+            )?;
+            run_git_checked(
+                &path,
+                &[
+                    "-c",
+                    "core.longpaths=true",
+                    "checkout",
+                    "--detach",
+                    "--force",
+                    commit,
+                ],
+                "failed to move cached release worktree to exact commit",
+            )?;
+            run_git_checked(
+                &path,
+                &["-c", "core.longpaths=true", "clean", "-ffdx"],
+                "failed to clean cached release worktree",
+            )?;
+        } else {
+            let output = std::process::Command::new("git")
+                .args(["-c", "core.longpaths=true", "worktree", "add", "--detach"])
+                .arg(&path)
+                .arg(commit)
                 .current_dir(repo)
-                .status();
-            bail!(
-                "failed to create exact-source release worktree: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+                .output()?;
+            if !output.status.success() {
+                bail!(
+                    "failed to create cached exact-source release worktree: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
         }
-        let guard = Self {
-            repo: repo.to_path_buf(),
-            path: path.to_path_buf(),
-        };
-        let submodules = std::process::Command::new("git")
-            .args([
+
+        run_git_checked(
+            &path,
+            &[
                 "-c",
                 "core.longpaths=true",
                 "submodule",
                 "update",
                 "--init",
                 "--recursive",
-            ])
-            .current_dir(&guard.path)
-            .output()?;
-        if !submodules.status.success() {
-            bail!(
-                "failed to initialize exact release submodules: {}",
-                String::from_utf8_lossy(&submodules.stderr)
-            );
+                "--force",
+            ],
+            "failed to initialize exact release submodules",
+        )?;
+        run_git_checked(
+            &path,
+            &["submodule", "foreach", "--recursive", "git reset --hard"],
+            "failed to reset exact release submodules",
+        )?;
+        run_git_checked(
+            &path,
+            &["submodule", "foreach", "--recursive", "git clean -ffdx"],
+            "failed to clean exact release submodules",
+        )?;
+        let head = git_output(&path, &["rev-parse", "HEAD"])?;
+        if head.trim() != commit {
+            bail!("cached release worktree resolved {head:?}, expected {commit}");
         }
-        Ok(guard)
+        let status = git_output(
+            &path,
+            &["status", "--porcelain=v1", "--untracked-files=all"],
+        )?;
+        if !status.trim().is_empty() {
+            bail!("cached release worktree is not clean after preparation: {status}");
+        }
+        let submodule_status = git_output(&path, &["submodule", "status", "--recursive"])?;
+        if submodule_status
+            .lines()
+            .any(|line| matches!(line.as_bytes().first(), Some(b'-' | b'+' | b'U')))
+        {
+            bail!("cached release worktree has inexact submodules: {submodule_status}");
+        }
+        Ok(Self {
+            path,
+            _source_lock: source_lock,
+        })
     }
 }
 
-impl Drop for GitWorktreeGuard {
-    fn drop(&mut self) {
-        let removed = std::process::Command::new("git")
-            .args(["worktree", "remove", "--force"])
-            .arg(&self.path)
-            .current_dir(&self.repo)
-            .status()
-            .is_ok_and(|status| status.success());
-        if !removed && self.path.exists() {
-            let _ = fs::remove_dir_all(&self.path);
-        }
+fn verify_cached_worktree_owner(repo: &Path, worktree: &Path) -> Result<()> {
+    let expected = PathBuf::from(git_output(repo, &["rev-parse", "--git-common-dir"])?.trim());
+    let expected = if expected.is_absolute() {
+        canonical_path(&expected)?
+    } else {
+        canonical_path(&repo.join(expected))?
+    };
+    let common = PathBuf::from(git_output(worktree, &["rev-parse", "--git-common-dir"])?.trim());
+    let common = if common.is_absolute() {
+        canonical_path(&common)?
+    } else {
+        canonical_path(&worktree.join(common))?
+    };
+    if common != expected {
+        bail!(
+            "cached release worktree {} belongs to {}, expected {}",
+            worktree.display(),
+            common.display(),
+            expected.display()
+        );
     }
+    Ok(())
+}
+
+fn git_output(repo: &Path, args: &[&str]) -> Result<String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(String::from_utf8(output.stdout)?)
+}
+
+fn run_git_checked(repo: &Path, args: &[&str], context: &str) -> Result<()> {
+    git_output(repo, args).with_context(|| context.to_string())?;
+    Ok(())
 }
 
 struct BuiltReleaseSiblings {
@@ -922,6 +1016,24 @@ mod tests {
         assert_ne!(
             baseline,
             release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-b")
+        );
+    }
+
+    #[test]
+    fn release_source_cache_is_stable_per_repository() {
+        let root = TempDir::new().expect("temporary root");
+        let first = root.path().join("first");
+        let second = root.path().join("second");
+        fs::create_dir_all(&first).expect("first repository path");
+        fs::create_dir_all(&second).expect("second repository path");
+
+        assert_eq!(
+            release_source_cache_identity(&first).expect("first identity"),
+            release_source_cache_identity(&first).expect("stable first identity")
+        );
+        assert_ne!(
+            release_source_cache_identity(&first).expect("first identity"),
+            release_source_cache_identity(&second).expect("second identity")
         );
     }
 
