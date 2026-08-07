@@ -455,6 +455,7 @@ pub fn append_modeling_work_loop_telemetry_context(
         route.gap,
     ));
     context.push_str("Echo repoFrontierModelingRequestId exactly. Use purpose kind incorporate_frontier_verdict with the exact frontierRouteId and soulVerdictReceiptId. Revise only the routed frontier item to allowedDisposition; this request grants no other model mutation.\n");
+    context.push_str("Include the exact soulVerdictReceiptId in the top-level evidenceIds. Include both verificationRequestId and soulVerdictReceiptId in the revised frontier item's evidence_refs. Set the revised frontier status exactly to allowedDisposition. Set statePatch to null: this routed request owns only the single RepoModel frontier revision and grants no generic thread-state evidence or observation mutation.\n");
     context.push_str("</repo_frontier_modeling_request>");
 
     let store = local_verse_store_path(runtime_store_path);
@@ -1830,6 +1831,13 @@ mod tests {
                 .contains("verificationAcceptanceReceiptId: accept-verification-context")
         );
         assert!(modeling_context.contains("allowedDisposition: resolved"));
+        assert!(modeling_context.contains(
+            "Include the exact soulVerdictReceiptId in the top-level evidenceIds"
+        ));
+        assert!(modeling_context.contains(
+            "Include both verificationRequestId and soulVerdictReceiptId"
+        ));
+        assert!(modeling_context.contains("Set statePatch to null"));
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
