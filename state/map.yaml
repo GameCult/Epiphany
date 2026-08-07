@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 881b2b1a packaged and published the native Imagination lifecycle, then live v23 exposed a remaining split owner: a legitimate selected user proposal existed, but Self status stayed in manual regather because proposal routing lived in a narrow CLI rewrite. No worker launched. The local repair now derives the single unclaimed proposal Modeling request from CultCache, routes it before regather, and makes the CLI request ID assertion-only. Live debug status derives launchModeling for the exact pending request; 20 coordinator and 14 MVP tests pass. A new exact package and live proof remain open. Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 737f2b94 is authenticated and published; live v23 proved Self derives and launches a selected proposal without a CLI routing override. Soul then correctly rejected the proposal-bound Modeling patch because it tried to upsert an existing frontier id. Diagnosis found that canonical launch context exposed domains and claims but omitted the current frontier inventory, so the invalid operation was locally reasonable. The local repair now exposes existing frontier identity and makes the upsert-new/revise-existing contract explicit. Its focused context test passes; exact packaging and a fresh legitimate proposal remain open. Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: pending_proposal_native_status_repair_uncommitted
+    local_worktree: proposal_modeling_frontier_context_repair_uncommitted
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v23 holds accepted Eyes, reorientation, causal Modeling evidence, and one legitimate unclaimed proposal Modeling request. Exact 881b2b1a is authenticated but cannot route that proposal from manual regather. The local native-status repair is test-proven but unpublished. Native Imagination live proof, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, package, and publish the native pending-proposal routing repair. Retry packaged Self on v23 without using the CLI ID as a routing override; prove status itself launches the exact proposal-bound Modeling request, then continue through admitted Imagination and dedicated Mind decision. Do not recreate the proposal, inject a frontier, or mutate v22.
+  unresolved_authority: v23 revision 19 holds the consumed proposal request and a superseded Modeling admission after Soul rejected an upsert of existing frontier-eyes-release-topology-evidence-r1. Exact 737f2b94 proved native Self routing. The local frontier-context repair is focused-test-proven but unpublished. Native Imagination live proof, Persona consequence, Continuity crash/restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit, package, and publish the proposal-Modeling frontier-context repair. Then create one fresh legitimate typed proposal for the still-open release-auth ownership seam, let Self derive its Modeling launch without overrides, and prove a valid revise-or-new-frontier admission before continuing through Imagination and dedicated Mind. Do not replay the consumed request or mutate v22.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

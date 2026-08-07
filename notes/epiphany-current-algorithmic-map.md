@@ -1162,6 +1162,14 @@ an equality assertion over Self's derived request. This cuts the split owner
 exposed when exact `881b2b1a` saw the live v23 proposal but remained in manual
 regather.
 
+Proposal Modeling receives the canonical RepoModel shape, including current
+domain, claim, and frontier identity. `existingFrontier` is the operation
+boundary: `upsert_frontier` creates only a genuinely new id, while
+`revise_frontier` changes an id already owned by Modeling. Admission still
+fail-closes both mistakes. This context is required because exact `737f2b94`
+correctly routed a live proposal but the worker, deprived of the frontier
+inventory, attempted to upsert an existing item and was rejected.
+
 The autonomous proposal crossing is source-grounded in
 `runtime_spine.rs`, `admitted_model_direction_consideration.rs`,
 `coordinator_launch.rs`, and `repo_model_gateway.rs`. A deployment-configured

@@ -399,7 +399,19 @@ pub fn append_modeling_repo_model_shape_context(
             node.id, node.domain_id, node.title
         ));
     }
-    context.push_str("New nodes must reference one exact existing domain id. Every unresolved frontier item must target at least one exact existing claim id from existingClaims, or a claim id created by the same patch. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
+    context.push_str("existingFrontier:\n");
+    for item in &snapshot.frontier {
+        let status = debug_variant_snake_case(item.status);
+        context.push_str(&format!(
+            "- id={} status={} recommendedNextOrgan={} targetClaims={} sourceScope={}\n",
+            item.id,
+            status,
+            item.recommended_next_organ,
+            item.target_claim_ids.join(" | "),
+            item.source_scope.join(" | "),
+        ));
+    }
+    context.push_str("New nodes must reference one exact existing domain id. Every unresolved frontier item must target at least one exact existing claim id from existingClaims, or a claim id created by the same patch. Use upsert_frontier only for a genuinely new frontier id not listed in existingFrontier. Use revise_frontier when changing an id listed in existingFrontier; an existing frontier id cannot be upserted again. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
     context.push_str("</canonical_repo_model_shape>");
     Ok(context)
 }
@@ -1361,6 +1373,9 @@ mod tests {
         assert!(shape.contains("id=repo"));
         assert!(shape.contains("existingClaims:"));
         assert!(shape.contains("id=claim-modeling-authority domain=repo"));
+        assert!(shape.contains("existingFrontier:"));
+        assert!(shape.contains("id=frontier-modeling-handoff status=active"));
+        assert!(shape.contains("Use revise_frontier when changing an id listed in existingFrontier"));
         assert!(shape.contains("Prefer accepted"));
         fs::remove_dir_all(&temp)?;
         Ok(())

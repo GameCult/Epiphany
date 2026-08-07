@@ -189,6 +189,24 @@ Debug status over live v23 now derives `launchModeling` and that exact request.
 Package and publish the repair before retrying; do not use `881b2b1a` to bypass
 its own finding.
 
+Exact `737f2b94` was subsequently packaged and published as
+`sha256-b6dfa923a10cab369d56bcbf5d87c2b2da76bc5c3a7f3007ba228f4a63a3564f`
+with witness
+`sha256-185bd9a3a8657bd9f6cf6a4d158d6368db73363e57ee900ad9cdee265ed6cf82`.
+Live v23 proved canonical Self selected `launchModeling` without
+`--proposal-modeling-request-id`. The proposal-bound result was not admitted:
+it attempted `upsert_frontier` for the already-present
+`frontier-eyes-release-topology-evidence-r1`, and Soul superseded the result.
+The request is consumed and v23 is revision 19. Do not replay it.
+
+The cause was missing Body context, not weak rejection. Modeling launch context
+listed current domains and claims but omitted current frontier items, so the
+worker could not know whether a frontier id required insert or revision. The
+local repair adds `existingFrontier` to the canonical RepoModel shape and states
+the typed contract: upsert only new ids, revise existing ids. The focused
+canonical-model launch-context test passes. Commit/package/publish this repair,
+then use one fresh legitimate proposal to continue the native lifecycle.
+
 ## Immediate re-entry
 
 1. Run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`.
