@@ -374,7 +374,7 @@ fn canonical_new_store_path(path: &Path, body: &RepositoryBodyBinding) -> Result
         bail!("workspace coverage store path must be absolute");
     }
     if path.exists() {
-        return require_canonical_existing_outside(path, body).map(|_| path.to_path_buf());
+        return canonical_existing_outside(path, body);
     }
     let parent = path
         .parent()
@@ -385,20 +385,19 @@ fn canonical_new_store_path(path: &Path, body: &RepositoryBodyBinding) -> Result
         .file_name()
         .ok_or_else(|| anyhow!("workspace coverage store path has no filename"))?;
     let canonical = canonical_parent.join(file_name);
-    if canonical != path {
-        bail!("workspace coverage store path is not canonical");
-    }
     require_outside_worktree(&canonical, body)?;
     Ok(canonical)
 }
 
 fn require_canonical_existing_outside(path: &Path, body: &RepositoryBodyBinding) -> Result<()> {
+    canonical_existing_outside(path, body).map(|_| ())
+}
+
+fn canonical_existing_outside(path: &Path, body: &RepositoryBodyBinding) -> Result<PathBuf> {
     let canonical =
         std::fs::canonicalize(path).context("bound workspace coverage store is missing")?;
-    if canonical != path {
-        bail!("workspace coverage store path is not canonical");
-    }
-    require_outside_worktree(path, body)
+    require_outside_worktree(&canonical, body)?;
+    Ok(canonical)
 }
 
 fn require_outside_worktree(path: &Path, body: &RepositoryBodyBinding) -> Result<()> {
@@ -411,6 +410,10 @@ fn require_outside_worktree(path: &Path, body: &RepositoryBodyBinding) -> Result
 }
 
 fn require_same_path(requested: &Path, bound: &Path) -> Result<()> {
+    let requested = std::fs::canonicalize(requested)
+        .context("requested workspace coverage store is missing")?;
+    let bound =
+        std::fs::canonicalize(bound).context("bound workspace coverage store is missing")?;
     if requested != bound {
         bail!("runtime workspace coverage-store immutable path collision");
     }
@@ -606,6 +609,35 @@ mod tests {
             "2026-07-17T09:00:00Z",
         )?;
         assert_eq!(rebound, bound);
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn ordinary_windows_spelling_binds_and_rebinds_the_canonical_store() -> Result<()> {
+        let fixture = fixture()?;
+        let canonical = fixture.projection_store.clone();
+        let ordinary = PathBuf::from(
+            canonical
+                .to_string_lossy()
+                .strip_prefix(r"\\?\")
+                .expect("Windows canonical test path should use extended-length spelling"),
+        );
+
+        let bound = bind_runtime_workspace_coverage_store(&fixture.runtime_store, &ordinary, NOW)?;
+        assert_eq!(PathBuf::from(&bound.projection_store_path), canonical);
+        assert_eq!(
+            bind_runtime_workspace_coverage_store(
+                &fixture.runtime_store,
+                &ordinary,
+                "2026-07-17T09:00:00Z",
+            )?,
+            bound
+        );
+        assert_eq!(
+            open_workspace_coverage_authority(&fixture.runtime_store)?.runtime_coverage_route,
+            bound
+        );
         Ok(())
     }
 
