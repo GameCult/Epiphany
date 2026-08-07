@@ -204,6 +204,53 @@ fn evidence_output_schema() -> serde_json::Value {
     })
 }
 
+fn self_patch_memory_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["memoryId", "summary", "salience", "confidence"],
+        "properties": {
+            "memoryId": {"type": "string"},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 600},
+            "salience": {"type": "number", "minimum": 0, "maximum": 1},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "linkedEventIds": {"type": "array", "items": {"type": "string"}},
+            "linkedRelationshipId": {"type": "string"}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn self_patch_goal_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["goalId", "description", "scope", "priority", "emotionalStake", "status"],
+        "properties": {
+            "goalId": {"type": "string"},
+            "description": {"type": "string", "minLength": 1, "maxLength": 700},
+            "scope": {"type": "string", "enum": ["immediate", "scene", "case", "arc", "life"]},
+            "priority": {"type": "number", "minimum": 0, "maximum": 1},
+            "emotionalStake": {"type": "string", "minLength": 1, "maxLength": 400},
+            "blockers": {"type": "array", "items": {"type": "string"}},
+            "status": {"type": "string", "enum": ["active", "blocked", "dormant", "resolved", "abandoned"]}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn self_patch_value_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["valueId", "label", "priority", "unforgivableIfBetrayed"],
+        "properties": {
+            "valueId": {"type": "string"},
+            "label": {"type": "string", "minLength": 1, "maxLength": 240},
+            "priority": {"type": "number", "minimum": 0, "maximum": 1},
+            "unforgivableIfBetrayed": {"type": "boolean"}
+        },
+        "additionalProperties": false
+    })
+}
+
 pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
         EpiphanyRoleResultRoleId::Imagination => {
@@ -283,47 +330,33 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 },
                 "semanticMemories": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["memoryId", "summary", "salience", "confidence"],
-                        "additionalProperties": true
-                    }
+                    "maxItems": 8,
+                    "items": self_patch_memory_output_schema()
                 },
                 "episodicMemories": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["memoryId", "summary", "salience", "confidence"],
-                        "additionalProperties": true
-                    }
+                    "maxItems": 8,
+                    "items": self_patch_memory_output_schema()
                 },
                 "relationshipMemories": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["memoryId", "summary", "salience", "confidence"],
-                        "additionalProperties": true
-                    }
+                    "maxItems": 8,
+                    "items": self_patch_memory_output_schema()
                 },
                 "goals": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["goalId", "description", "scope", "priority", "emotionalStake", "status"],
-                        "additionalProperties": true
-                    }
+                    "maxItems": 6,
+                    "items": self_patch_goal_output_schema()
                 },
                 "values": {
                     "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["valueId", "label", "priority", "unforgivableIfBetrayed"],
-                        "additionalProperties": true
-                    }
+                    "maxItems": 6,
+                    "items": self_patch_value_output_schema()
                 },
                 "privateNotes": {
                     "type": "array",
-                    "items": {"type": "string"}
+                    "maxItems": 6,
+                    "items": {"type": "string", "minLength": 1, "maxLength": 600}
                 }
             },
             "additionalProperties": false
@@ -1529,8 +1562,8 @@ mod tests {
             schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
             false
         );
-        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]
-            ["items"]["anyOf"][6]["properties"]["item"];
+        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
+            ["anyOf"][6]["properties"]["item"];
         assert!(
             frontier_item["required"]
                 .as_array()
@@ -1538,7 +1571,10 @@ mod tests {
                 .iter()
                 .any(|value| value == "target_claim_ids")
         );
-        assert_eq!(frontier_item["properties"]["target_claim_ids"]["minItems"], 1);
+        assert_eq!(
+            frontier_item["properties"]["target_claim_ids"]["minItems"],
+            1
+        );
         let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
             .as_array()
             .expect("typed Modeling purpose alternatives");
@@ -1597,6 +1633,30 @@ mod tests {
                 {"properties": {"question": {"minLength": 1}}},
                 {"properties": {"tension": {"minLength": 1}}}
             ])
+        );
+    }
+
+    #[test]
+    fn role_self_patch_schema_matches_canonical_numeric_memory_contract() {
+        let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Verification);
+        let self_patch = &schema["properties"]["selfPatch"];
+        for bundle in [
+            "semanticMemories",
+            "episodicMemories",
+            "relationshipMemories",
+        ] {
+            let item = &self_patch["properties"][bundle]["items"];
+            assert_eq!(item["properties"]["salience"]["type"], "number");
+            assert_eq!(item["properties"]["confidence"]["type"], "number");
+            assert_eq!(item["additionalProperties"], false);
+        }
+        assert_eq!(
+            self_patch["properties"]["goals"]["items"]["properties"]["priority"]["type"],
+            "number"
+        );
+        assert_eq!(
+            self_patch["properties"]["values"]["items"]["properties"]["priority"]["type"],
+            "number"
         );
     }
 

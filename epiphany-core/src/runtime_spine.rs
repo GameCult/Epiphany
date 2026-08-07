@@ -3935,8 +3935,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
     else {
         return Ok(Vec::new());
     };
-    let Some(model) = opening
-        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+    let Some(model) = opening.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
     else {
         return Ok(Vec::new());
     };
@@ -6900,12 +6899,17 @@ pub fn commit_repo_frontier_verification_request_for_chain(
         ));
     }
     let authority = &authorities[0];
+    let request_id = format!(
+        "frontier-verification-{}-{}",
+        authority.route_id, chain.commit_receipt_id
+    );
+    let requested_at = cache
+        .get::<RepoFrontierVerificationRequest>(&request_id)?
+        .map(|existing| existing.requested_at)
+        .unwrap_or_else(|| requested_at.to_string());
     let request = RepoFrontierVerificationRequest {
         schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
-        request_id: format!(
-            "frontier-verification-{}-{}",
-            authority.route_id, chain.commit_receipt_id
-        ),
+        request_id,
         route_id: authority.route_id.clone(),
         model_revision: authority.model_revision,
         model_hash: authority.model_hash.clone(),
@@ -6916,7 +6920,7 @@ pub fn commit_repo_frontier_verification_request_for_chain(
         hands_patch_receipt_id: chain.patch_receipt_id.clone(),
         hands_command_receipt_id: chain.command_receipt_id.clone(),
         hands_commit_receipt_id: chain.commit_receipt_id.clone(),
-        requested_at: requested_at.to_string(),
+        requested_at,
         contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
     };
     put_repo_frontier_verification_request(store_path, &request)?;
@@ -9780,13 +9784,11 @@ pub(crate) mod tests {
         )?;
         cache.put(
             crate::MEMORY_GRAPH_KEY,
-            &crate::EpiphanyMemoryGraphEntry::from_snapshot(
-                &crate::EpiphanyMemoryGraphSnapshot {
-                    schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
-                    graph_id: "bootstrap-model".into(),
-                    ..Default::default()
-                },
-            )?,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&crate::EpiphanyMemoryGraphSnapshot {
+                schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
+                graph_id: "bootstrap-model".into(),
+                ..Default::default()
+            })?,
         )?;
         let before = std::fs::read(&store)?;
         assert!(
@@ -12511,6 +12513,16 @@ pub(crate) mod tests {
             &hands_chain,
             "2026-05-06T00:07:11Z",
         )?;
+        let retried_verification_request = commit_repo_frontier_verification_request_for_chain(
+            &store,
+            &hands_chain,
+            "2026-05-06T00:08:11Z",
+        )?;
+        assert_eq!(retried_verification_request, verification_request);
+        assert_eq!(
+            retried_verification_request.requested_at,
+            "2026-05-06T00:07:11Z"
+        );
         assert_eq!(verification_request.route_id, frontier_route.route_id);
         assert_eq!(verification_request.hands_patch_receipt_id, "hands-patch-1");
         assert_eq!(

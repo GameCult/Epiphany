@@ -971,10 +971,11 @@ fn validate_proposal_modeling_launch(
     if cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
         .iter()
-        .any(|binding| binding.proposal_modeling_request_id == request_id)
+        .filter(|binding| binding.proposal_modeling_request_id == request_id)
+        .any(|binding| !proposal_modeling_launch_was_superseded(state, binding))
     {
         return Err(anyhow!(
-            "proposal Modeling selection request is already bound to a launch"
+            "proposal Modeling selection request already has an unsuperseded launch"
         ));
     }
     let identity = cache
@@ -1010,6 +1011,20 @@ fn validate_proposal_modeling_launch(
         ));
     }
     Ok((selection, proposal, identity))
+}
+
+fn proposal_modeling_launch_was_superseded(
+    state: &EpiphanyThreadState,
+    binding: &RepoFrontierProposalModelingLaunchBinding,
+) -> bool {
+    state.acceptance_receipts.iter().any(|receipt| {
+        receipt.job_id == binding.job_id
+            && receipt.binding_id == binding.binding_id
+            && receipt.surface == "roleFailureReview"
+            && receipt.role_id == "modeling"
+            && receipt.status == "superseded"
+            && !receipt.result_id.trim().is_empty()
+    })
 }
 
 fn terminal_runtime_link_for_binding(
@@ -1804,6 +1819,44 @@ pub(crate) mod tests {
         );
         assert_eq!(std::fs::read(&store)?, before);
         Ok(())
+    }
+
+    #[test]
+    fn proposal_launch_binding_is_reusable_only_after_exact_failure_supersession() {
+        let binding = RepoFrontierProposalModelingLaunchBinding {
+            schema_version: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: "proposal-launch-1".into(),
+            proposal_modeling_request_id: "proposal-request-1".into(),
+            proposal_id: "proposal-1".into(),
+            proposal_payload_sha256: "a".repeat(64),
+            job_id: "job-1".into(),
+            binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            runtime_id: "runtime-1".into(),
+            thread_id: "thread-1".into(),
+            launched_at: "2026-07-13T05:00:03Z".into(),
+            worker_launch_document_sha256: "b".repeat(64),
+            contract: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        let mut state = EpiphanyThreadState::default();
+        assert!(!proposal_modeling_launch_was_superseded(&state, &binding));
+
+        state
+            .acceptance_receipts
+            .push(epiphany_state_model::EpiphanyAcceptanceReceipt {
+                id: "failure-review-1".into(),
+                result_id: "failed-result-1".into(),
+                job_id: binding.job_id.clone(),
+                binding_id: binding.binding_id.clone(),
+                surface: "roleFailureReview".into(),
+                role_id: "modeling".into(),
+                status: "superseded".into(),
+                accepted_at: "2026-07-13T05:01:00Z".into(),
+                ..Default::default()
+            });
+        assert!(proposal_modeling_launch_was_superseded(&state, &binding));
+
+        state.acceptance_receipts[0].job_id = "other-job".into();
+        assert!(!proposal_modeling_launch_was_superseded(&state, &binding));
     }
 
     #[test]
