@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 17d4ae47 is authenticated and published as sha256-0afab25c with witness sha256-2e9e8a53. Clean v27 proved local-Verse fail-closure, exact release publication, native proposal-bound Modeling launch, and first-valid Mind acceptance without routing overrides. The accepted generic user proposal legitimately produced a direct Hands frontier, so Self emitted a ready no-plan Hands gate. That proves generic proposal-to-Hands routing but does not prove the repaired adopted-plan binding. v27 is preserved as a test-design boundary: only the autonomous Imagination-origin proposal path structurally requires Modeling to emit an unadopted Imagination frontier, followed by canonical Imagination and dedicated Mind adoption. The next clean generation must use that owner-aligned path. Persona consequence, Continuity execution, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 17d4ae47 is authenticated and published as sha256-0afab25c with witness sha256-2e9e8a53. v27 proved generic proposal-to-Hands routing but not the repaired adopted-plan binding. Clean v28 then proved resident release-store separation, raw Bifrost trust-anchor startup, live proposal-bound Modeling admission, canonical Imagination selection, and native Imagination launch without overrides. Imagination PID 11132 exited, but the runtime remained permanently imaginationRunning with no result or failure. The cause is exact: the bounded run-worker branch propagated ordinary runtime errors through `Ok(result) => result?`, bypassing the failure commit used by the unbounded branch. The local cut gives both branches one terminalization primitive; all 6 model-runtime tests and all 14 coordinator tests pass. v28 is sealed Continuity failure evidence until the fixed commit is packaged and replayed. Persona consequence, Continuity recovery/closure, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_exact_17d4ae47
+    local_worktree: bounded_worker_runtime_terminalization_repair
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact 17d4ae47 contains the test-proven adopted-plan Hands binding repair, but v27 exercised the generic user-proposal contract and therefore created a direct no-plan Hands route. The live package has not yet proved route-to-adopted-plan-to-intent-to-review-to-grant identity. A clean generation must enter through the autonomous Imagination-origin proposal crossing, whose admission contract makes the required Imagination and Mind stages structurally unavoidable, then execute the bounded Continuity proof. Persona consequence, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Preserve v27 as generic proposal-to-Hands evidence. Cold-start a clean generation through the autonomous Imagination-origin proposal path and prove native proposal Modeling, canonical Imagination, dedicated Mind adoption, and exact adopted-plan Hands authority without overrides. Then execute the Continuity crash/restart/closure plan and capture Soul evidence.
+  unresolved_authority: Exact 17d4ae47 still has not proved adopted-plan Hands identity live. v28 reached native Imagination but exposed a stronger prerequisite: bounded worker errors could exit without terminalizing their runtime jobs, leaving Self in an endless wait. The owner-aligned repair is test-proven but unpublished. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit, push, package, and publish the bounded worker terminalization repair. Preserve v28 as failure evidence. Cold-start a clean generation, replay Modeling-to-Imagination-to-Mind without overrides, prove exact adopted-plan Hands authority, then kill one bounded worker path deliberately and prove typed failure, restart, and Soul-verifiable closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -70,7 +70,7 @@ organ_readiness:
   hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.
   soul: proven for the current bounded consequence; the exact 2dd25341 release launched Soul, produced an accepted pass verdict grounded in focused and full-library receipts, and routed verdict incorporation.
   mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, first-valid verdict incorporation, and dedicated frontier-plan adoption are live; broader stale or overstated frontier correction remains open.
-  continuity: partial; heartbeat and resident Self survive sequential cycles, while restart, crash, reboot, closure, and retention remain open.
+  continuity: partial; heartbeat and resident Self survive sequential cycles. v28 proved an ordinary bounded worker error could leave a runtime job falsely running after process death; the owner-local terminalization repair passes focused tests but still needs packaged crash/restart/closure proof.
   nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work; long-duration pressure and resource plateau remain open. Exact release packaging took about seventeen minutes and observed more than 3 GiB compiler working set, so Yggdrasil is not a release forge at its current 1.9 GiB RAM.
 
 forbidden_actions:

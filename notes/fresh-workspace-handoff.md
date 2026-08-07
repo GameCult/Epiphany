@@ -1,6 +1,6 @@
 # Fresh Workspace Handoff
 
-## Current authority — 2026-08-07 v27 contract boundary
+## Current authority — 2026-08-07 v28 Continuity fault
 
 The active branch is `codex/epiphany-shakedown-live`. Exact pushed commit
 `17d4ae47ca6faa1613707010d19261a75a6b74ee` is authenticated and published as
@@ -25,28 +25,44 @@ only `epiphany-mvp-coordinator.rs`. It created an active frontier recommending
 Hands. Self therefore emitted ready route
 `repo-frontier-route-2a6f1480b9fa431e26dee6db5290b3b234d7bbb541947737d08dcb2e9f0cb48e`.
 
-This is not the required adopted-plan proof. Generic user proposals may
-legitimately recommend Hands; only autonomous Imagination-origin proposals are
-structurally restricted to an unadopted Imagination frontier. v27 therefore
-proved generic proposal-to-Hands routing and the no-plan Hands gate, not native
-Modeling-to-Imagination-to-Mind or the repaired adopted-plan identity. Preserve
-v27 as evidence. Do not execute its Hands command as if it proved the requested
-chain.
+v27 remains the generic proposal contract boundary. Fresh v28 lives at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v28`. It cold-started
+through the packaged repository-body surface, with physically separate local
+Verse and release stores. Resident Self started only after receiving the raw
+Bifrost trust-anchor format expected by feedback ingress.
+
+Proposal `shakedown-v28-live-model-admission-r1` launched Modeling job
+`8b35ea3f-55dc-4dd2-8c4a-420b5da374e3`; Mind accepted its first result as
+`accept-modeling-result-worker-8b35ea3f-55dc-4dd2-8c4a-420b5da374e3`. Self
+selected canonical Imagination and launched job
+`b34d21de-6788-4935-8910-75275c257444`, PID `11132`.
+
+PID `11132` exited without a typed result. Repeated coordinator passes continue
+to project `imaginationRunning`. The source cause is in
+`epiphany-openai-runtime/src/bin/epiphany-openai-runtime.rs`: with
+`--max-runtime-seconds` present, `Ok(result) => result?` propagated ordinary
+worker errors out of the process without calling `fail_worker_for_runtime_error`.
+The unbounded branch already sealed the same error correctly.
+
+The local cut routes bounded and unbounded completion through
+`seal_worker_runtime_result`. Success remains success; every ordinary error
+writes the typed failed outer worker and inner OpenAI job before exit. All six
+model-runtime tests and all fourteen coordinator tests pass. v28 is sealed
+failure evidence; do not repair its runtime state manually.
 
 ## Next action
 
-Cold-start a clean generation using the autonomous Imagination-origin proposal
-crossing rather than generic intake. Without overrides, prove:
+Commit and push the terminalization cut, then package and publish that exact
+commit. Cold-start a clean generation. Without overrides, prove:
 
-1. Self derives proposal-bound Modeling and the admission contract requires a
-   canonical unadopted Imagination frontier.
+1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
 3. Dedicated Mind adopts the typed candidate.
 4. Hands intent exactly echoes route id, candidate digest, and plan action.
 5. RepoFrontierHandsAuthority binds route, model, plan, intent, review, grant,
    and sorted scope.
-6. Execute the bounded Continuity crash/restart/closure proof and capture Soul
-   evidence rather than treating the gate as completion.
+6. Deliberately fail one bounded worker and prove typed terminal failure,
+   restart, and Soul-verifiable closure rather than a permanent running state.
 
 Do not add a global rule forcing generic user proposals through Imagination;
 that would destroy their valid direct Hands/Eyes semantics to repair a test

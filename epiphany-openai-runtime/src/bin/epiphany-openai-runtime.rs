@@ -155,7 +155,9 @@ async fn main() -> Result<()> {
                 )
                 .await
                 {
-                    Ok(result) => result?,
+                    Ok(result) => {
+                        seal_worker_runtime_result(&timeout_store, &timeout_job_id, result)?
+                    }
                     Err(_) => {
                         let summary = format!("Worker runtime timed out after {seconds} seconds.");
                         let result = fail_worker_and_openai_jobs(
@@ -176,14 +178,11 @@ async fn main() -> Result<()> {
                     }
                 }
             } else {
-                match run_worker_options(options).await {
-                    Ok(summary) => summary,
-                    Err(err) => fail_worker_for_runtime_error(
-                        &timeout_store,
-                        &timeout_job_id,
-                        err.to_string(),
-                    )?,
-                }
+                seal_worker_runtime_result(
+                    &timeout_store,
+                    &timeout_job_id,
+                    run_worker_options(options).await,
+                )?
             };
             timeout_guard.store(true, Ordering::SeqCst);
             print_json(&summary)?;
@@ -612,6 +611,17 @@ fn fail_worker_for_runtime_error(
         "summary": summary,
         "nextSafeMove": result.next_safe_move,
     }))
+}
+
+fn seal_worker_runtime_result(
+    store_path: &Path,
+    job_id: &str,
+    result: Result<serde_json::Value>,
+) -> Result<serde_json::Value> {
+    match result {
+        Ok(summary) => Ok(summary),
+        Err(error) => fail_worker_for_runtime_error(store_path, job_id, error.to_string()),
+    }
 }
 
 fn fail_worker_job_with_retry(
@@ -1047,7 +1057,7 @@ mod tests {
     }
 
     #[test]
-    fn runtime_error_seals_outer_worker_job() -> Result<()> {
+    fn bounded_runtime_error_seals_outer_worker_job() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         open_runtime_spine_heartbeat_job(
@@ -1108,10 +1118,10 @@ mod tests {
             },
         )?;
 
-        let status = fail_worker_for_runtime_error(
+        let status = seal_worker_runtime_result(
             &store,
             "worker-job-runtime-error",
-            "tool adapter exploded".to_string(),
+            Err(anyhow!("tool adapter exploded")),
         )?;
 
         assert_eq!(status["status"], "runtime-error");
