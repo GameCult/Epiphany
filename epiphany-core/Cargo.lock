@@ -648,6 +648,7 @@ dependencies = [
  "epiphany-openai-adapter",
  "epiphany-state-model",
  "epiphany-tool-adapter",
+ "fs2",
  "ignore",
  "libc",
  "postgres",

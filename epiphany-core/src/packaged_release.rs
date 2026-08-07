@@ -2,6 +2,7 @@ use crate::open_epiphany_cultmesh_node;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
+use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -161,8 +162,8 @@ pub fn package_epiphany_release(
     let built_binaries = build_required_release_siblings(
         &source_guard.path,
         &build_root,
-        &source_commit_sha,
         request.target_triple,
+        &toolchain.fingerprint,
         &toolchain.cargo,
     )?;
     // Construction authority is scoped to one exact source generation. The
@@ -182,6 +183,7 @@ pub fn package_epiphany_release(
         let mut binaries = Vec::new();
         for (role, file_name) in required_packaged_release_binaries(request.target_triple) {
             let source = built_binaries
+                .binaries
                 .get(role)
                 .with_context(|| format!("required packaged sibling was not built: {role}"))?;
             if !source.is_file() {
@@ -313,17 +315,50 @@ impl Drop for GitWorktreeGuard {
     }
 }
 
+struct BuiltReleaseSiblings {
+    binaries: BTreeMap<&'static str, PathBuf>,
+    _graph_lock: fs::File,
+}
+
 fn build_required_release_siblings(
     repo: &Path,
     target_root: &Path,
-    source_commit_sha: &str,
     target: &str,
+    toolchain_fingerprint: &str,
     cargo: &std::ffi::OsStr,
-) -> Result<BTreeMap<&'static str, PathBuf>> {
-    validate_commit(source_commit_sha)?;
+) -> Result<BuiltReleaseSiblings> {
     verify_release_bundle_lock(repo, cargo)?;
     let manifest = repo.join("Cargo.toml");
-    let target_dir = release_bundle_target_dir(target_root, source_commit_sha);
+    let target_dir = release_bundle_target_dir(
+        target_root,
+        &fs::read(repo.join("Cargo.lock")).context("failed to read release bundle lockfile")?,
+        target,
+        toolchain_fingerprint,
+    );
+    fs::create_dir_all(&target_dir).with_context(|| {
+        format!(
+            "failed to create release graph cache {}",
+            target_dir.display()
+        )
+    })?;
+    let graph_lock_path = target_dir.join(".epiphany-release-graph.lock");
+    let graph_lock = fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(&graph_lock_path)
+        .with_context(|| {
+            format!(
+                "failed to open release graph lock {}",
+                graph_lock_path.display()
+            )
+        })?;
+    graph_lock.lock_exclusive().with_context(|| {
+        format!(
+            "failed to acquire release graph lock {}",
+            graph_lock_path.display()
+        )
+    })?;
     let mut outputs = BTreeMap::new();
     let required = required_packaged_release_binaries(target);
     for (role, file_name) in &required {
@@ -351,7 +386,10 @@ fn build_required_release_siblings(
     if !status.success() {
         bail!("Epiphany release bundle build failed");
     }
-    Ok(outputs)
+    Ok(BuiltReleaseSiblings {
+        binaries: outputs,
+        _graph_lock: graph_lock,
+    })
 }
 
 fn verify_release_bundle_lock(repo: &Path, cargo: &std::ffi::OsStr) -> Result<()> {
@@ -381,8 +419,20 @@ fn verify_release_bundle_lock(repo: &Path, cargo: &std::ffi::OsStr) -> Result<()
     Ok(())
 }
 
-fn release_bundle_target_dir(target_root: &Path, source_commit_sha: &str) -> PathBuf {
-    target_root.join(source_commit_sha)
+fn release_bundle_target_dir(
+    target_root: &Path,
+    lockfile: &[u8],
+    target: &str,
+    toolchain_fingerprint: &str,
+) -> PathBuf {
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany.release_bundle_build_graph.v0\0");
+    digest.update(target.as_bytes());
+    digest.update(b"\0");
+    digest.update(toolchain_fingerprint.as_bytes());
+    digest.update(b"\0");
+    digest.update(lockfile);
+    target_root.join(format!("graph-{:x}", digest.finalize()))
 }
 
 fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
@@ -844,18 +894,35 @@ mod tests {
     }
 
     #[test]
-    fn release_bundle_has_one_exact_commit_build_root() {
+    fn release_bundle_cache_is_owned_by_build_graph() {
         let root = Path::new("release-build-cache");
-        let commit = "0123456789abcdef0123456789abcdef01234567";
-        assert_eq!(release_bundle_target_dir(root, commit), root.join(commit));
+        let first = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
+        let second = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
+        assert_eq!(first, second);
+        assert!(
+            first
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("graph-"))
+        );
     }
 
     #[test]
-    fn source_commits_have_isolated_build_roots() {
-        let root = Path::new("isolated-release-build");
-        let first = release_bundle_target_dir(root, "0123456789abcdef0123456789abcdef01234567");
-        let second = release_bundle_target_dir(root, "89abcdef0123456789abcdef0123456789abcdef");
-        assert_ne!(first, second);
+    fn release_bundle_cache_separates_incompatible_graphs() {
+        let root = Path::new("release-build-cache");
+        let baseline = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
+        assert_ne!(
+            baseline,
+            release_bundle_target_dir(root, b"lock-v2", "target-a", "toolchain-a")
+        );
+        assert_ne!(
+            baseline,
+            release_bundle_target_dir(root, b"lock-v1", "target-b", "toolchain-a")
+        );
+        assert_ne!(
+            baseline,
+            release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-b")
+        );
     }
 
     #[test]
