@@ -158,10 +158,9 @@ pub fn append_verification_hands_receipt_context(
     )
     .map_err(|error| format!("failed to load Mind RepoModel admission review for Soul: {error}"))?
     .ok_or_else(|| "Soul frontier admission receipt has no persisted Mind review".to_string())?;
-    let admission_result_id = admission_receipt
-        .result_id
-        .as_deref()
-        .ok_or_else(|| "Soul frontier admission receipt is not bound to a Modeling result".to_string())?;
+    let admission_result_id = admission_receipt.result_id.as_deref().ok_or_else(|| {
+        "Soul frontier admission receipt is not bound to a Modeling result".to_string()
+    })?;
     let modeling_acceptances = state
         .acceptance_receipts
         .iter()
@@ -180,15 +179,16 @@ pub fn append_verification_hands_receipt_context(
     }
     let modeling_acceptance = modeling_acceptances[0];
     let state_commit_id = format!("mind-commit-{}", modeling_acceptance.id);
-    let state_commit = crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
-        .map_err(|error| format!("failed to load Mind state commit receipt for Soul: {error}"))?
-        .ok_or_else(|| "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string())?;
-    let gateway_review = crate::runtime_mind_gateway_review(
-        runtime_store_path,
-        &state_commit.gateway_id,
-    )
-    .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
-    .ok_or_else(|| "Soul frontier Mind state commit has no gateway review".to_string())?;
+    let state_commit =
+        crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
+            .map_err(|error| format!("failed to load Mind state commit receipt for Soul: {error}"))?
+            .ok_or_else(|| {
+                "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string()
+            })?;
+    let gateway_review =
+        crate::runtime_mind_gateway_review(runtime_store_path, &state_commit.gateway_id)
+            .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
+            .ok_or_else(|| "Soul frontier Mind state commit has no gateway review".to_string())?;
     let telemetry = work_loop_telemetry_from_hands_chain(
         &chain,
         runtime_store_path,
@@ -363,7 +363,9 @@ pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
     };
     runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
         .map(|chain| chain.is_some())
-        .map_err(|error| format!("failed to load Hands receipt chain for coordinator routing: {error}"))
+        .map_err(|error| {
+            format!("failed to load Hands receipt chain for coordinator routing: {error}")
+        })
 }
 
 pub fn append_modeling_repo_model_shape_context(
@@ -1380,7 +1382,9 @@ mod tests {
         );
         assert!(shape.contains("strict lexicographic ascending order with no duplicates"));
         assert!(shape.contains("proposal Evolution upsert must use status active"));
-        assert!(shape.contains("recommended_next_organ must be exactly one routeable canonical value"));
+        assert!(
+            shape.contains("recommended_next_organ must be exactly one routeable canonical value")
+        );
         assert!(shape.contains("Prefer accepted"));
         fs::remove_dir_all(&temp)?;
         Ok(())
@@ -1857,11 +1861,10 @@ mod tests {
                 created_at: "2026-06-12T00:00:06Z".to_string(),
             },
         )?;
-        assert!(has_complete_hands_consequence_after_latest_accepted_boundary(
-            &runtime_store,
-            &state
-        )
-        .map_err(anyhow::Error::msg)?);
+        assert!(
+            has_complete_hands_consequence_after_latest_accepted_boundary(&runtime_store, &state)
+                .map_err(anyhow::Error::msg)?
+        );
         let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
             repository_body_observation_basis: None,
@@ -1955,12 +1958,14 @@ mod tests {
                 .contains("verificationAcceptanceReceiptId: accept-verification-context")
         );
         assert!(modeling_context.contains("allowedDisposition: resolved"));
-        assert!(modeling_context.contains(
-            "Include the exact soulVerdictReceiptId in the top-level evidenceIds"
-        ));
-        assert!(modeling_context.contains(
-            "Include both verificationRequestId and soulVerdictReceiptId"
-        ));
+        assert!(
+            modeling_context
+                .contains("Include the exact soulVerdictReceiptId in the top-level evidenceIds")
+        );
+        assert!(
+            modeling_context
+                .contains("Include both verificationRequestId and soulVerdictReceiptId")
+        );
         assert!(modeling_context.contains("Set statePatch to null"));
         assert!(modeling_context.contains("identityMigrationBody:"));
         assert!(

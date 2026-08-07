@@ -390,13 +390,11 @@ mod tests {
         )?;
         cache.put(
             crate::MEMORY_GRAPH_KEY,
-            &crate::EpiphanyMemoryGraphEntry::from_snapshot(
-                &crate::EpiphanyMemoryGraphSnapshot {
-                    schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
-                    graph_id: "bootstrap-model".into(),
-                    ..Default::default()
-                },
-            )?,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&crate::EpiphanyMemoryGraphSnapshot {
+                schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
+                graph_id: "bootstrap-model".into(),
+                ..Default::default()
+            })?,
         )?;
         let before = std::fs::read(&store)?;
 

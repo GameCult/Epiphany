@@ -536,7 +536,9 @@ pub fn coordinator_argv(
 pub fn resident_coordinator_thread_id(runtime_id: &str) -> Result<String> {
     let runtime_id = runtime_id.trim();
     if runtime_id.is_empty() {
-        return Err(anyhow!("resident coordinator thread requires runtime identity"));
+        return Err(anyhow!(
+            "resident coordinator thread requires runtime identity"
+        ));
     }
     Ok(format!("resident-self-thread-{runtime_id}"))
 }

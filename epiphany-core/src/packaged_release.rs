@@ -853,10 +853,8 @@ mod tests {
     #[test]
     fn source_commits_have_isolated_build_roots() {
         let root = Path::new("isolated-release-build");
-        let first =
-            release_bundle_target_dir(root, "0123456789abcdef0123456789abcdef01234567");
-        let second =
-            release_bundle_target_dir(root, "89abcdef0123456789abcdef0123456789abcdef");
+        let first = release_bundle_target_dir(root, "0123456789abcdef0123456789abcdef01234567");
+        let second = release_bundle_target_dir(root, "89abcdef0123456789abcdef0123456789abcdef");
         assert_ne!(first, second);
     }
 
