@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 17d4ae47 is authenticated and published as sha256-0afab25c with witness sha256-2e9e8a53. v27 proved generic proposal-to-Hands routing but not the repaired adopted-plan binding. Clean v28 then proved resident release-store separation, raw Bifrost trust-anchor startup, live proposal-bound Modeling admission, canonical Imagination selection, and native Imagination launch without overrides. Imagination PID 11132 exited, but the runtime remained permanently imaginationRunning with no result or failure. The cause is exact: the bounded run-worker branch propagated ordinary runtime errors through `Ok(result) => result?`, bypassing the failure commit used by the unbounded branch. The local cut gives both branches one terminalization primitive; all 6 model-runtime tests and all 14 coordinator tests pass. v28 is sealed Continuity failure evidence until the fixed commit is packaged and replayed. Persona consequence, Continuity recovery/closure, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed b8c76fd0 seals ordinary bounded worker errors and is packaged as sha256-f5a78dc6 with witness sha256-7a0b060f; v28 remains sealed Continuity failure evidence and has not been mutated by publication. Packaging exposed a build-graph fault: three manifest-specific target directories rebuilt shared dependencies three times, with the third compile alone taking 8m45s. The tested cut makes the exact source commit the single target-cache owner while preserving separate lock validation, sequential Cargo invocations, clean detached source, and byte-level witnessing. A clean successor generation still must prove the repaired Modeling-to-Imagination-to-Mind path, adopted-plan Hands authority, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition.
   operational_state:
-    local_worktree: bounded_worker_runtime_terminalization_repair
+    local_worktree: release_build_graph_cache_collapse
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact 17d4ae47 still has not proved adopted-plan Hands identity live. v28 reached native Imagination but exposed a stronger prerequisite: bounded worker errors could exit without terminalizing their runtime jobs, leaving Self in an endless wait. The owner-aligned repair is test-proven but unpublished. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, push, package, and publish the bounded worker terminalization repair. Preserve v28 as failure evidence. Cold-start a clean generation, replay Modeling-to-Imagination-to-Mind without overrides, prove exact adopted-plan Hands authority, then kill one bounded worker path deliberately and prove typed failure, restart, and Soul-verifiable closure.
+  unresolved_authority: Exact b8c76fd0 packages the worker-terminalization repair but has not been published or replayed. The release forge also partitions one exact commit into three redundant dependency graphs; the shared commit-root cut is test-proven but still needs an exact timed package. Persona consequence, restart/closure, retention, long-duration behavior, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit and push the tested release build-graph collapse, package that exact commit, and compare its elapsed time with the three-root b8c76fd0 baseline. Publish only into a clean successor generation, then replay Modeling-to-Imagination-to-Mind, prove adopted-plan Hands authority, and deliberately prove typed worker failure, restart, and Soul-verifiable closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

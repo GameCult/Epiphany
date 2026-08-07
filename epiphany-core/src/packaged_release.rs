@@ -340,7 +340,7 @@ fn build_required_release_siblings(
                 manifest.display()
             );
         }
-        let target_dir = release_manifest_target_dir(target_root, source_commit_sha, manifest_dir);
+        let target_dir = release_commit_target_dir(target_root, source_commit_sha);
         let mut command = std::process::Command::new(cargo);
         command
             .arg("build")
@@ -403,12 +403,8 @@ fn verify_owned_release_lock(
     Ok(())
 }
 
-fn release_manifest_target_dir(
-    target_root: &Path,
-    source_commit_sha: &str,
-    manifest_dir: &str,
-) -> PathBuf {
-    target_root.join(source_commit_sha).join(manifest_dir)
+fn release_commit_target_dir(target_root: &Path, source_commit_sha: &str) -> PathBuf {
+    target_root.join(source_commit_sha)
 }
 
 fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
@@ -870,31 +866,22 @@ mod tests {
     }
 
     #[test]
-    fn owning_manifests_have_isolated_build_roots() {
-        let root = Path::new("isolated-release-build");
+    fn owning_manifests_share_the_exact_commit_build_root() {
+        let root = Path::new("release-build-cache");
         let commit = "0123456789abcdef0123456789abcdef01234567";
-        let core = release_manifest_target_dir(root, commit, "epiphany-core");
-        let model = release_manifest_target_dir(root, commit, "epiphany-openai-runtime");
-        let tools = release_manifest_target_dir(root, commit, "epiphany-tool-mcp-runtime");
-        assert_ne!(core, model);
-        assert_ne!(core, tools);
-        assert_ne!(model, tools);
-        assert!(core.starts_with(root) && model.starts_with(root) && tools.starts_with(root));
+        let core = release_commit_target_dir(root, commit);
+        let model = release_commit_target_dir(root, commit);
+        let tools = release_commit_target_dir(root, commit);
+        assert_eq!(core, model);
+        assert_eq!(core, tools);
+        assert_eq!(core, root.join(commit));
     }
 
     #[test]
     fn source_commits_have_isolated_build_roots() {
         let root = Path::new("isolated-release-build");
-        let first = release_manifest_target_dir(
-            root,
-            "0123456789abcdef0123456789abcdef01234567",
-            "epiphany-core",
-        );
-        let second = release_manifest_target_dir(
-            root,
-            "89abcdef0123456789abcdef0123456789abcdef",
-            "epiphany-core",
-        );
+        let first = release_commit_target_dir(root, "0123456789abcdef0123456789abcdef01234567");
+        let second = release_commit_target_dir(root, "89abcdef0123456789abcdef0123456789abcdef");
         assert_ne!(first, second);
     }
 

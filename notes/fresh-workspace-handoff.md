@@ -44,16 +44,29 @@ to project `imaginationRunning`. The source cause is in
 worker errors out of the process without calling `fail_worker_for_runtime_error`.
 The unbounded branch already sealed the same error correctly.
 
-The local cut routes bounded and unbounded completion through
-`seal_worker_runtime_result`. Success remains success; every ordinary error
+Exact pushed commit `b8c76fd0d955e4d540e9caf2b73a2abbf784dc14` routes bounded
+and unbounded completion through `seal_worker_runtime_result`. Success remains
+success; every ordinary error
 writes the typed failed outer worker and inner OpenAI job before exit. All six
-model-runtime tests and all fourteen coordinator tests pass. v28 is sealed
-failure evidence; do not repair its runtime state manually.
+model-runtime tests and all fourteen coordinator tests pass. It packaged 21
+binaries as `sha256-f5a78dc6153edadb25b00717cee0c42df58663cdf7dde1fcd21354e87cb6b763`
+with witness `sha256-7a0b060f3351cdb9dc0be09a903fd09d9e437fda89eea51ab88d8bafcb91f9e5`.
+It has not been published into v28; v28 is sealed failure evidence and must not
+be repaired or mutated manually.
+
+That package run exposed a release-forge ownership fault. One exact commit was
+split across manifest-specific Cargo target directories, so `epiphany-core`,
+`epiphany-openai-runtime`, and `epiphany-tool-mcp-runtime` rebuilt overlapping
+dependency graphs independently. The third manifest alone took 8m45s. The
+working cut gives the exact commit one shared target root while retaining
+separate lockfile validation, sequential builds, detached clean source, and
+byte-level release witnessing. All fourteen packaged-release tests pass.
 
 ## Next action
 
-Commit and push the terminalization cut, then package and publish that exact
-commit. Cold-start a clean generation. Without overrides, prove:
+Commit and push the release build-graph collapse, package that exact commit,
+and compare elapsed time against the three-root b8c76fd0 baseline. Publish the
+result only into a clean successor generation. Without overrides, prove:
 
 1. Self derives proposal-bound Modeling and canonical Imagination.
 2. Self selects and launches canonical Imagination.
