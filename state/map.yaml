@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The complete 21-binary release builds through one frozen graph cache and one repository-bound persistent exact-source checkout. Exact 8bb8b7d3 proved steady-state cross-commit packaging: Cargo completed in 29.92s after a documentation/state-only commit, down from 8m53s with random checkout paths and 15m43s cold. Its independently authenticated release is sha256-b300b3e729767929f938c0f70b3b20241c4fa6b94cfff116b4932c270e64f738 with witness sha256-b09403ff3e48fd3387dd4fa31b6c8f9921edab1e1ec7f97bb661f0de74c881b9. The completed model-only v30 circuit established the rupture-to-closure source gap and exhausted its authority. The next live runtime must route a fresh implementation objective through canonical Imagination, dedicated Mind, adopted-plan Hands, deliberate failure/restart, and Soul closure. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 15a740f2 packages 21 independently authenticated binaries as sha256-c3dbcc6bc2f4dced43253e517415548cf87d1a131b4bf3441d07fec89e444ccd with witness sha256-42ed5d0bfb652520290c868a0dfd13271a1743adf53c1ed7fa95d0117fff509d. Stable graph and exact-source caches reduce a documentation/state-only successor package to 1.24 seconds. Fresh v31 proved initial and proposal-bound Modeling, then exposed a resident-Self replay defect before autonomous Imagination launch: producer pressure identity incorrectly included mutable timestamp and lifecycle state. The current worktree repairs replay identity and passes all 15 resident-Self tests plus the autonomous promotion integration. Exact packaging and a fresh v32 live replay remain required before resuming the implementation chain. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: pending_current_mind_boundary_commit_after_8bb8b7d3_cache_proof
+    local_worktree: resident_pressure_replay_repair_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_8bb8b7d3_steady_state_cache_proven_pending_current_mind_successor
+    starfire_release: authenticated_15a740f2_v31_release; replay_repair_successor_pending
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v30 proved the manual-regather actuator exactly once and proved it does not persist as ambient routing authority. The consented Eyes-to-Modeling pass still found no source-proven terminal worker writer or automatic rupture-to-continuity/Soul closure path, and Self returned to regatherManually. The current model-only thread cannot lawfully enter Imagination or Hands. Canonical Imagination, dedicated Mind adoption, exact adopted-plan Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Open a new typed implementation objective for the missing rupture-to-closure path. Route the admitted absence through canonical Imagination and dedicated Mind before Hands; then deliberately fail one bounded worker and prove terminal failure, restart/recovery, and Soul-verifiable closure. Do not approve manual regather again on the completed model-only thread.
+  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. Resident ingestion committed the correct admitted-model direction request and heartbeat selected its pressure, but the next resident cycle failed because replay compared a newly observed timestamp and mutable lifecycle as producer identity. The repair is locally verified but not yet packaged or proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit and package the resident-pressure replay repair, preserve v31 as failure evidence, and prove repeated ingestion plus heartbeat-to-resident launch in fresh v32. Then continue the autonomous Imagination-to-Modeling-to-Mind-to-Hands chain and deliberate failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

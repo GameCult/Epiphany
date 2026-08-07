@@ -66,6 +66,15 @@ impl ResidentSelfPressure {
         }
         Ok(())
     }
+
+    fn has_same_producer_identity(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.pressure_id == other.pressure_id
+            && self.kind == other.kind
+            && self.provenance_ref == other.provenance_ref
+            && self.objective == other.objective
+            && self.private_state_exposed == other.private_state_exposed
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -821,7 +830,7 @@ fn enqueue_resident_self_pressure_idempotent(
 ) -> Result<bool> {
     let cache = state_cache(path)?;
     if let Some(existing) = cache.get::<ResidentSelfPressure>(&pressure.pressure_id)? {
-        if existing == *pressure {
+        if existing.has_same_producer_identity(pressure) {
             return Ok(false);
         }
         return Err(anyhow!(
@@ -1542,6 +1551,66 @@ mod tests {
             },
         )?;
         assert!(backing.pull_all()?.contains(&foreign));
+        Ok(())
+    }
+
+    #[test]
+    fn producer_pressure_replay_ignores_observation_time() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let mut pressure = ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "admitted-model-direction-consideration-request-1".into(),
+            kind: "admitted-model-direction-consideration".into(),
+            provenance_ref: "cultcache://admitted-model-direction-consideration/request-1".into(),
+            objective: "Launch the exact typed request.".into(),
+            created_at_millis: 1,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        };
+        assert!(enqueue_resident_self_pressure_idempotent(
+            &store, &pressure
+        )?);
+        pressure.created_at_millis = 2;
+        assert!(!enqueue_resident_self_pressure_idempotent(
+            &store, &pressure
+        )?);
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 3)?.is_some()
+        );
+        pressure.created_at_millis = 4;
+        assert!(!enqueue_resident_self_pressure_idempotent(
+            &store, &pressure
+        )?);
+        Ok(())
+    }
+
+    #[test]
+    fn producer_pressure_replay_rejects_changed_authority() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let mut pressure = ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "admitted-model-direction-consideration-request-1".into(),
+            kind: "admitted-model-direction-consideration".into(),
+            provenance_ref: "cultcache://admitted-model-direction-consideration/request-1".into(),
+            objective: "Launch the exact typed request.".into(),
+            created_at_millis: 1,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        };
+        assert!(enqueue_resident_self_pressure_idempotent(
+            &store, &pressure
+        )?);
+        pressure.objective = "Substitute different work.".into();
+        assert_eq!(
+            enqueue_resident_self_pressure_idempotent(&store, &pressure)
+                .unwrap_err()
+                .to_string(),
+            "resident Self producer pressure identity collision"
+        );
         Ok(())
     }
 

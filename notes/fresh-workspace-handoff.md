@@ -1,58 +1,47 @@
 # Fresh Workspace Handoff
 
-## Current authority — 2026-08-07
+## Current authority — 2026-08-08
 
-The active branch is `codex/epiphany-shakedown-live`. Exact pushed commit
-`49233e9c155199355f1729e0a19a9778e947e9f2` packages all 21 shipped binaries as
-`sha256-d24a05f98b3f653f904b425d87f93668e944db8e7975ce1c0564f5ef55ace7db`
+The active branch is `codex/epiphany-shakedown-live`. Exact pushed release
+`15a740f261d24484f9bc4da7454a021b732ad548` is authenticated as
+`sha256-c3dbcc6bc2f4dced43253e517415548cf87d1a131b4bf3441d07fec89e444ccd`
 with witness
-`sha256-46181cce86b725a237eb1c82e5b68be2f9d01e3afa9c5e82cef67dfe3053b751`.
-Independent inspection accepts the exact commit, runtime, binary set, bytes,
-release identity, and witness; private state is absent.
+`sha256-42ed5d0bfb652520290c868a0dfd13271a1743adf53c1ed7fa95d0117fff509d`.
+Its 21 binaries contain no private state. The stable graph and exact-source
+caches reduce a documentation/state-only successor package to 1.24 seconds.
 
-Release construction has one Cargo graph owner. Its cache identity is the root
-`Cargo.lock` bytes, target triple, and toolchain fingerprint. One exclusive
-graph lock covers build through binary copy. Source materialization has a
-separate repository-bound persistent detached worktree and exclusive lock.
-Each package run force-checks the exact commit, cleans the main worktree and
-recursive submodules, and verifies owner, HEAD, status, and submodule identity
-with Windows long-path support before Cargo starts. Commit identity remains
-release authority; neither cache is allowed to claim it.
+Fresh runtime `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v31`
+accepted initial and proposal-bound Modeling for thread
+`shakedown-v31-rupture-closure-implementation-r1`. The generic user proposal
+lawfully derived a direct Hands gate, but that gate remains inert because this
+objective requires the autonomous Imagination-origin path and dedicated Mind
+adoption before Hands.
 
-Measured build boundaries:
+Resident ingestion then committed the admitted-model direction request and
+pressure. A standard heartbeat selected that pressure. The next resident cycle
+failed before launch because replay recreated the same producer pressure ID
+with a later `created_at_millis`; full document equality misclassified that
+ordinary replay as an identity collision.
 
-- A cold unified graph built in 15m43s.
-- Reusing dependencies across a random checkout path took 8m53s because every
-  local/path crate received a new absolute source path.
-- The persistent exact-source checkout populated those local artifacts in
-  9m17s.
-- Exact `8bb8b7d3` then crossed a documentation/state-only commit through the
-  same checkout and graph. Cargo completed in 29.92s; independent inspection
-  authenticated all 21 binaries, release
-  `sha256-b300b3e729767929f938c0f70b3b20241c4fa6b94cfff116b4932c270e64f738`,
-  witness
-  `sha256-b09403ff3e48fd3387dd4fa31b6c8f9921edab1e1ec7f97bb661f0de74c881b9`,
-  and absence of private state. Steady-state cross-commit reuse is proven.
-
-The prior live runtime is sealed at `live-20260807-v30`. Its model-only thread
-proved the source gap: job opening and failed/cancelled snapshot interpretation
-exist, but the live Body still lacks a proven automatic terminal-worker writer
-to completed Reorientation/Verification closure. That thread exhausted its
-authority and must not receive another manual-regather consent.
+The current worktree repairs ownership in `resident_self.rs`: producer replay
+compares immutable producer identity, while timestamp and pressure lifecycle
+remain derived/mutable. Changed objective, provenance, kind, schema, identity,
+or privacy authority still collide. All 15 resident-Self tests pass, and the
+autonomous promotion integration proves ingestion after heartbeat consumption
+returns zero without recreating work.
 
 ## Next action
 
-1. Package this current-Mind successor through the proven stable caches and
-   authenticate it.
-2. Publish only that exact authenticated successor into a fresh v31 runtime with
-   physically separate runtime, Verse, coverage, repository-Body, and release
-   stores. Carry only canonical `agents.cc` forward.
-3. Open a new typed implementation objective for rupture-to-closure. Prove
-   proposal-bound Modeling, canonical Imagination, dedicated Mind adoption,
-   exact adopted-plan Hands authority, one deliberate bounded-worker failure,
-   typed terminalization, restart/recovery, and Soul-verifiable closure.
-4. Continue the readiness campaign through Persona public consequence,
-   retention bounds, endurance/resource plateau, and Linux/Yggdrasil cognition.
+1. Commit and push the resident-pressure replay repair.
+2. Package and independently authenticate the exact commit through the stable
+   caches; preserve v31 as failure evidence and publish into fresh v32.
+3. Re-run pressure ingestion twice, heartbeat selection, and resident launch.
+   Prove autonomous direction consideration, proposal-bound Modeling,
+   canonical Imagination, dedicated Mind adoption, and exact Hands authority.
+4. Deliberately fail one bounded worker and prove typed terminalization,
+   restart/recovery, Reorientation, and Soul-verifiable closure.
+5. Continue through Persona consequence, retention, endurance/resource
+   plateau, and Linux/Yggdrasil cognition.
 
-Do not read raw worker transcripts, mutate sealed runtimes, approve manual
-regather on v30, or start concurrent Cargo against the release cache.
+Do not execute v31's direct Hands gate, read raw worker transcripts, mutate
+sealed runtimes, or start concurrent Cargo against the release cache.

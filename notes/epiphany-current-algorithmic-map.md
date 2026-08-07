@@ -1226,6 +1226,22 @@ Hands consumes.
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.
 
+### Resident producer replay identity
+
+Resident domain ingestion is an at-least-once producer. The source request ID,
+kind, provenance, objective, schema, and privacy boundary own pressure identity.
+`created_at_millis` records the first observation; `status` and
+`consumed_by_grant_id` belong to the heartbeat lifecycle. They are not producer
+identity and cannot make an identical later ingestion conflict or recreate work.
+
+`enqueue_resident_self_pressure_idempotent` therefore accepts an existing row
+only when its immutable producer fields match, regardless of later observation
+time or grant consumption. It still rejects any same-ID substitution of kind,
+provenance, objective, schema, or privacy authority. The shared path applies to
+admitted-model direction, autonomous proposal Modeling, and Imagination
+consideration pressure. Verification replays after timestamp change and after
+heartbeat consumption, and retains a hostile changed-objective collision.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is

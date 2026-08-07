@@ -10545,6 +10545,18 @@ pub(crate) mod tests {
         .expect("autonomous Modeling grant");
         assert_eq!(grant.pressure_kind, "repo-frontier-proposal-modeling");
         assert!(grant.provenance_ref.ends_with(&selection.request_id));
+        assert_eq!(
+            crate::ingest_resident_self_domain_pressure(
+                &resident_store,
+                &store,
+                &feedback_store,
+                "proposal-runtime-autonomous-bridge",
+                "GameCult/Epiphany",
+                &workspace,
+                1_752_796_804_000,
+            )?,
+            0
+        );
 
         let before = std::fs::read(&store)?;
         let mut forged = proposal;
