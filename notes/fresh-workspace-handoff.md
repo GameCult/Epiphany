@@ -7,8 +7,9 @@ outside Codex. CultCache persists state, CultNet carries typed messages, and
 CultMesh projects inspectable surfaces. Codex remains only as the retained
 OpenAI-compatible authentication and model-transport boundary.
 
-The local `codex/epiphany-shakedown-live` branch has a focused, tested explicit
-proposal-routing repair pending commit and publication.
+The local `codex/epiphany-shakedown-live` branch is clean at pushed commit
+`1cb3e764`. Its authenticated release is published in the Starfire local Verse
+with 21 exact binaries.
 
 Current host authority:
 
@@ -41,8 +42,9 @@ Current host authority:
   admits them through packaged `apply-snapshot` as transport-only state. The
   provider is ready with no pending failures and exposes no private state.
 
-The active authenticated shakedown release contains the native Hands actuator
-and native Hands-to-Soul routing.
+The active authenticated shakedown release contains the native Hands actuator,
+native Hands-to-Soul routing, typed worker self-patch schema, explicitly
+superseded proposal-attempt reuse, and idempotent verification-request creation.
 Older runtime and resident stores are non-authoritative.
 
 The current live readiness result is mixed:
@@ -60,12 +62,23 @@ The current live readiness result is mixed:
 - Launch assembly now resolves the route's exact RepoModel admission receipt,
   its Mind review, the bound Modeling acceptance, its Mind gateway review, and
   its Mind state commit. Soul launch fails closed if that chain is incomplete.
-- Fresh v18 cold bootstrap and ordinary Modeling/Mind admission succeeded on the
-  current exact release. Its selected typed proposal then exposed a Self fault:
-  `awaitFrontierProposal` exits before consulting the explicit proposal request.
-- Fresh Windows bootstrap also requires the extended-length spelling of the
-  external workspace-coverage path; the equivalent ordinary absolute path is
-  incorrectly rejected as noncanonical.
+- Fresh v19 cold bootstrap accepted the ordinary Windows spelling of the
+  external workspace-coverage path and proved canonical rebinding.
+- Proposal-bound Modeling, Mind admission, scoped Hands receipts, and Soul launch
+  consumed one typed v19 chain. Reconstructing the same immutable verification
+  request reused its original timestamp and no longer collided with request
+  identity.
+- The exact packaged Soul worker produced a canonical result; the previous
+  string-valued confidence decoder failure is closed.
+- Soul rejected the adopted frontier on substance: the three-file Hands evidence
+  slice showed request idempotency but omitted the existing failed-Soul review,
+  supersession, and relaunch owner in `epiphany-core/src/surfaces/coordinator.rs`.
+  The machine already separates immutable request identity from worker attempt
+  lifecycle. Repair evidence assembly and the live RepoModel; do not add a
+  duplicate supersession gate to the request document.
+- Exact release packaging took about seventeen minutes and observed more than
+  3 GiB aggregate rustc working set. Current Yggdrasil cannot act as the release
+  forge with 1.9 GiB RAM; Starfire retains that work until capacity changes.
 - Resident artifact retention is unbounded. Durable Windows supervision,
   crash/reboot recovery, session closure, long-duration resource behavior, and
   Linux/Yggdrasil cognition remain unproven.
@@ -87,11 +100,12 @@ The current live readiness result is mixed:
 
 ## Next action
 
-Commit and publish explicit proposal routing, then resume v18 using its existing
-selected proposal and require Modeling, Mind, Hands, and Soul to consume one
-exact typed chain. After that, continue the organ matrix, Windows cold-start
-path repair, retention, supervised recovery, session closure, long-duration
-resource, and Linux/Yggdrasil proofs.
+Correct the live RepoModel and Soul evidence assembly so the verifier receives
+the existing coordinator supersession owner alongside the immutable request and
+Hands chain. Rerun the exact v19 consequence through Soul without adding a second
+retry authority. Then continue with accepted Eyes and Imagination work, Persona
+consequence, retention, supervised recovery, session closure, long-duration
+resource behavior, and Linux/Yggdrasil cognition.
 
 ## Immediate Re-entry Instruction
 

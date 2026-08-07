@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is awake enough for supervised Starfire shakedown, not deployment-ready. A fresh v18 Body proved authenticated cold bootstrap, canonical Mind seeding, repository observation, ordinary Modeling, and Mind admission on the current exact release. The next typed proposal exposed a Self routing fault: `awaitFrontierProposal` stopped before consulting an explicitly supplied proposal Modeling request. That boundary is under repair. The earlier live path reached scoped Hands receipts and an admitted Soul needs-evidence verdict; the repaired admission-plus-consequence Soul packet still needs a fresh circuit. Resident artifact growth, ordinary Windows path ergonomics, durable supervision/recovery, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. The authenticated 1cb3e764 release is published with 21 exact binaries. Live v19 proved ordinary Windows workspace-store identity, proposal-bound Modeling and Mind admission, scoped Hands consequence receipts, idempotent reconstruction of one immutable verification request, and a canonical Soul result using the repaired typed self-patch schema. Soul correctly rejected the adopted frontier because its launch evidence omitted the existing coordinator supersession owner in surfaces/coordinator.rs; the next repair is evidence assembly and model correction, not another retry gate. Eyes, Imagination, Persona consequence, Continuity recovery, retention, long-duration pacing, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: explicit_proposal_routing_repair_under_verification
+    local_worktree: clean_at_pushed_1cb3e764
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_and_published
+    starfire_release: authenticated_1cb3e764_published
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Self currently stops at awaitFrontierProposal before using an explicit typed proposal request; the full route and deployment authority remain unproven.
-  next_action: Commit and publish explicit proposal routing, then resume v18 with its already-selected proposal and require Modeling, Mind, Hands, and Soul to consume one exact typed chain.
+  unresolved_authority: Soul launch evidence can omit an existing authority owner outside the Hands-changed path set, causing a coherent verifier to reject a true cross-organ invariant from incomplete Body context.
+  next_action: Correct the live RepoModel and Soul evidence assembly so verification receives the existing failure-review and supersession routing owner in epiphany-core/src/surfaces/coordinator.rs, then rerun the exact Hands consequence through Soul without adding duplicate retry authority.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -63,15 +63,15 @@ active_subgoals:
 
 organ_readiness:
   persona: partial; authenticated feedback transport is live, but public cognition and speech consequence still need a fresh end-to-end proof.
-  self: partial; resident routing and the live frontier route work, while explicit proposal selection currently needs a repaired transition from waiting to Modeling launch.
-  eyes: unproven in the current live circuit; coordinator status still reports no accepted Research result.
-  modeling: partial; real source-grounded proposal-bound Modeling and Mind admission are proven, including canonical claim grounding.
+  self: partial; explicit proposal routing, accepted failure supersession, Hands routing, and Soul launch are live; cross-organ evidence assembly still omits an existing owner outside the changed-path slice.
+  eyes: unproven in the current live circuit; no accepted Research result yet grounds a coordinated consequence.
+  modeling: partial; proposal-bound source inspection and Mind admission are live, but the current model overstates one shared retry rule and needs correction.
   imagination: unproven in the current campaign; the planning substrate is empty.
-  hands: partial; scoped native patch, command, and commit receipts are proven and Soul confirmed their internal consistency.
-  soul: partial; a live needs-evidence refusal is proven, but no complete admission-plus-consequence verdict exists yet.
-  mind: partial; RepoModel and thread-state admission work, while complete receipt projection into Soul is awaiting a fresh live proof.
+  hands: proven for the current bounded consequence; native patch, command, commit, push, and typed receipts bind one exact gate and commit.
+  soul: partial; canonical live output and failure verdict admission work on the exact 1cb release, but a passing cross-organ consequence verdict remains unproven.
+  mind: partial; RepoModel admission, thread-state admission, gateway review, and state commit are live; stale or overstated frontier correction remains open.
   continuity: partial; heartbeat and resident Self survive sequential cycles, while restart, crash, reboot, closure, and retention remain open.
-  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, and operator projection work, while ordinary Windows coverage-store paths, long-duration pressure, and resource plateau remain open.
+  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work; long-duration pressure and resource plateau remain open. Exact release packaging took about seventeen minutes and observed more than 3 GiB compiler working set, so Yggdrasil is not a release forge at its current 1.9 GiB RAM.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.
