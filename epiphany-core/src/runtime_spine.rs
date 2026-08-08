@@ -7298,7 +7298,8 @@ pub fn amend_repo_frontier_execution(
     if chrono::DateTime::parse_from_rfc3339(&amendment.amended_at).is_err() {
         return Err(anyhow!("execution amendment amended_at must be RFC3339"));
     }
-    let cache = runtime_spine_cache(store_path)?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
     if cache
         .get::<RepoFrontierExecutionAmendmentReceipt>(&amendment.amendment_id)?
         .is_some()

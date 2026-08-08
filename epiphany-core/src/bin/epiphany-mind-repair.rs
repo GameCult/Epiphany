@@ -30,7 +30,9 @@ fn main() -> Result<()> {
     let store = PathBuf::from(take("--store")?);
     let route_id = take("--route-id")?;
     if command == "inspect-frontier-execution" {
-        let routes = runtime_spine_cache(&store)?.get_all::<RepoFrontierRoute>()?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let routes = cache.get_all::<RepoFrontierRoute>()?;
         let available = routes
             .iter()
             .map(|route| route.route_id.as_str())

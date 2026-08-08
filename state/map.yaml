@@ -36,7 +36,7 @@ invariants:
 current_status:
   summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 completed the adopted RepoModel revision 5 Hands consequence through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Soul correctly failed closed on a substituted plan command. The repair pass now prevents a mismatched Hands command receipt, projects the exact effective command in the gate, and adds a Mind-owned single-use execution amendment that preserves the original plan and route while atomically emitting review, admission, amendment, and Modeling-projection receipts. Live v53 migration and renewed Soul proof remain next. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: live_route_persistence_diagnostic
+    local_worktree: live_route_read_restored_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: The active v53 route still contains the original non-executable plan command and remains fail-closed. Commit 12c8241b provides a locally verified typed repair, but its read-only inspector sees zero persisted RepoFrontierRoute entries in the live store even though operator-safe coordinator state still derives launchVerification and historical gate artifacts cite route fb206aaa. No live mutation was attempted. Determine whether route authority was only captured in coordinator state, lost from the CultCache schema catalog, or made invisible by schema evolution before repairing v53. Exact HEAD packaging remains required. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
-  next_action: Trace RepoFrontierRoute persistence from select_and_commit_repo_frontier_route through the runtime store and schema catalog. Restore a typed current-route read path without reconstructing authority from display artifacts. Only then use the Mind repair CLI, derive a fresh route, replay exact Hands evidence, and retry Soul. Separately map and split the monolithic epiphany-core runtime spine/build graph; focused tests for this pass each required 64-73 seconds of compilation while execution took under one second.
+  unresolved_authority: The active v53 route still contains the original non-executable plan command and remains fail-closed. The apparent missing-route discrepancy was an inspector/amendment defect: both registered the runtime store but omitted pull_all_backing_stores before typed reads. With the load restored, exact route fb206aaa decodes and proves the original action and command are both planning prose, not an executable consequence. No live mutation has yet occurred. Exact HEAD packaging remains required. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
+  next_action: Commit and push the runtime-store load correction, then use the typed Mind repair CLI to amend live route fb206aaa with authenticated supervisor provenance and the exact successful verification command. Derive a fresh route, replay exact Hands evidence, and retry Soul. Separately map and split the monolithic epiphany-core runtime spine/build graph.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
