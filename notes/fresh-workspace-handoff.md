@@ -428,6 +428,48 @@ is retained beside the success receipt at SHA-256
 This proves Linux typed physiology and Continuity portability, not Linux model
 cognition or resident readiness.
 
+Basic Linux model cognition is now proven on Starfire. Exact pushed Mind
+`a0d56f94` produced a 27,767,120-byte `epiphany-model-runtime` in the same
+digest-pinned Rust image. Its SHA-256 and native preflight witness are
+`c72f33ed3b429c201eadd9a82b70a71ebce0a6d49901e13bfbefb533e3a972f1`
+and `openai-runtime-preflight-c72f33ed3b429c20`. The first real request
+completed through `epiphany_direct_responses_http` in 2.60 seconds, emitted two
+typed events, returned exactly `Linux cognition is awake.`, and recorded no
+tool intent. A fresh measured request completed in 2.26 seconds, returned
+exactly `Measured Linux cognition is awake.`, and reached 20,480 KiB peak RSS
+across 141 `/proc` samples at 10 ms cadence. Its typed store is 19,574 bytes,
+SHA-256 `582b85cbf3c25c4bd23c6583bf43dcca1e2cda8a6956b9294fb441204d8869c2`.
+Native preflight reread that store and proved the model request, stream event,
+model receipt, and OpenAI receipt document types with no private state exposed.
+The auth file was mounted read-only from Starfire and was not copied into the
+smoke artifact root.
+
+The model build exposed a separate iteration defect. The root workspace and
+`epiphany-core` manifests resolve version-skewed lock graphs, so the warm core
+target did not prevent a second cold dependency compilation. Model-runtime took
+10m57s cold and exceeded 4 GiB during parallel compilation. Once that root graph
+was populated, the exact warm build took 6.04s. The immediate operational cure
+is to preserve both explicit Starfire caches; the architectural cure is one
+workspace/lock owner and organ crates small enough that a model-transport change
+does not relink the whole organism. Do not hide this split with another cache
+alias.
+
+Receipts live under `.epiphany-run/linux-model-a0d56f94/`. Important hashes:
+
+- measured summary:
+  `sha256-fa4b4fc15238fdcf50b2f88430017a0a54430ce6eb905410129aa8f4ff966168`;
+- measured assistant text:
+  `sha256-dfa5ba74b9b51b324847383f8c64e38963439847c32ecce621f1262333503d13`;
+- process metrics:
+  `sha256-702e68b03355a8a8cfeb32bcbebe7154ab7ad3c50ee0c5c0698f30eb70090a71`;
+- the rejected object-shaped request failed before opening transport or creating
+  a store and is retained as
+  `sha256-0c48d6546e3aad1c13f581ece988fcbdeefd4123023433bfabd11b94590f7f59`.
+
+This proves individual Linux model transport and cognition. It does not prove
+resident Self/heartbeat coordination, aggregate resident footprint, restart,
+or Yggdrasil residency.
+
 Do not recreate prior Eyes, Hands, Soul, or Modeling work. Do not feed the old
 manual-regather loop. Use coordinator projections and receipts; raw worker
 thought remains sealed.
