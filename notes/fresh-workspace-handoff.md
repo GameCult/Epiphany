@@ -7,16 +7,35 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD: `d3bfbda0c55a2295672d2c7b45c6388cc9ca9c84`
-- Authenticated cognition commit: `d3bfbda0c55a2295672d2c7b45c6388cc9ca9c84`
-- Release: `sha256-4bb5f67287f49d85fbc819c3c63a861cda41415d7fc8449386816cf9c59e503b`
-- Witness: `sha256-e7f6c5f97b270c324b0d6109768226fd0c15415784993cb497abe6b841c36d58`
+- Latest Persona source implementation: `052d5b1ec194b9466d33858d2d7de9ec5c1acec3`
+- Authenticated cognition commit: `9d671aeef0526858747ae6e20a05025dccc6fbd7`
+- Release: `sha256-6de91b234bdfda1149e48b9fef6710bdd8c4e3274981e4aa88fc46ec109a2e56`
+- Witness: `sha256-f2c0e464b1523b1a14fb500afa747f0dd95166ebd068752bf639a43827c6b9ba`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Thread-state revision: `59`
 - Sealed evidence: v49 through v52. Do not mutate it.
 
 ## Live causal boundary
+
+Source phase `052d5b1e` (Epiphany), `b8deaa9a` (Bifrost), and `2d0988ba`
+(`cultnet-rs`) implements the missing Starfire-to-Yggdrasil Persona nerve. An
+already-durable signed `epiphany.persona_discord_delivery_request.v0` now
+travels over a Starfire-initiated CultNet/RUDP session; Bifrost admits it to
+its endpoint store, retains permit/journal/Discord authority, and returns its
+signed terminal `bifrost.persona_discord_delivery_receipt.v0` on the same
+session. Epiphany verifies and durably stores that receipt before terminalizing
+the Persona turn. A real Rust-to-Node socket smoke passes, as do all nine
+focused Bifrost delivery tests. The shared transport fault was an old Rust ACK
+spending an ordered data sequence; CultNet commit `2d0988ba` ports the upstream
+sequence-neutral ACK correction. Runtime identity is now deployment-bound to
+`epiphany-starfire`, not hardcoded as `epiphany-yggdrasil`.
+
+This is source and local wire proof, not live Persona proof. Next package and
+authenticate Epiphany `052d5b1e`, deploy Bifrost `b8deaa9a` on Yggdrasil with
+the Persona RUDP listener, bind Starfire to the WireGuard endpoint, and obtain
+one real signed Discord consequence receipt. Do not copy live `.cc` stores or
+relocate Bifrost actuation onto Starfire.
 
 The operator expects proactive operator-enginseer intervention in corrupted
 Epiphany runtime state; corruption is not a permission boundary. Repairs must
