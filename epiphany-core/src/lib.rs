@@ -1080,6 +1080,7 @@ pub use runtime_spine::runtime_pending_repo_frontier_proposal_modeling_request;
 pub use runtime_spine::runtime_registered_document_types;
 pub use runtime_spine::runtime_reorient_worker_result;
 pub use runtime_spine::runtime_repo_frontier_execution_amendment_for_admission;
+pub use runtime_spine::runtime_repo_frontier_plan_decision;
 pub use runtime_spine::runtime_repo_frontier_planning_eligibility;
 pub use runtime_spine::runtime_repo_frontier_planning_lifecycle;
 pub use runtime_spine::runtime_repo_frontier_proposal_modeling_request;

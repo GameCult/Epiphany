@@ -193,8 +193,43 @@ pub fn append_verification_hands_receipt_context(
     .map_err(|error| format!("failed to load Mind RepoModel admission review for Soul: {error}"))?
     .ok_or_else(|| "Soul frontier admission receipt has no persisted Mind review".to_string())?;
     let mut modeling_chain = None;
+    let mut plan_decision_chain = None;
     let mut execution_amendment = None;
-    if let Some(admission_result_id) = admission_receipt.result_id.as_deref() {
+    if !admission_receipt.frontier_plan_decision_id.is_empty() {
+        let decision = crate::runtime_repo_frontier_plan_decision(
+            runtime_store_path,
+            &admission_receipt.frontier_plan_decision_id,
+        )
+        .map_err(|error| format!("failed to load Soul frontier plan decision: {error}"))?
+        .ok_or_else(|| "Soul frontier admission has no persisted plan decision".to_string())?;
+        let source_matches = match decision.decision_source.as_ref() {
+            Some(crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }) => {
+                admission_receipt.result_id.as_deref() == Some(result_id.as_str())
+                    && admission_review.result_id.as_deref() == Some(result_id.as_str())
+                    && admission_review.job_id.as_deref() == Some(job_id.as_str())
+            }
+            Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. }) => {
+                admission_receipt.result_id.is_none()
+                    && admission_review.result_id.is_none()
+                    && admission_review.job_id.is_none()
+            }
+            None => false,
+        };
+        if decision.decision != crate::RepoFrontierPlanDecision::Adopt
+            || decision.model_admission_receipt_id != admission_receipt.receipt_id
+            || decision.model_revision != admission_receipt.previous_revision
+            || decision.model_hash != admission_receipt.previous_hash
+            || decision.frontier_item_id != route.frontier_item_id
+            || decision.frontier_item_hash != route.frontier_item_hash
+            || !source_matches
+        {
+            return Err(
+                "Soul frontier plan decision does not exactly bind admission, route, and decision source"
+                    .to_string(),
+            );
+        }
+        plan_decision_chain = Some(decision);
+    } else if let Some(admission_result_id) = admission_receipt.result_id.as_deref() {
         let modeling_acceptances = state
             .acceptance_receipts
             .iter()
@@ -318,6 +353,22 @@ pub fn append_verification_hands_receipt_context(
             state_commit.state_revision,
             state_commit.changed_fields.join(" | "),
             state_commit.committed_at,
+        ));
+    } else if let Some(decision) = plan_decision_chain {
+        context.push_str(&format!(
+            "- frontierPlanDecision: schemaVersion={} decisionId={} planningRequestId={} candidateId={} candidateSha256={} modelRevision={} modelHash={} frontierItemId={} frontierItemHash={} decision={:?} modelAdmissionReceiptId={} decidedAt={}\n",
+            decision.schema_version,
+            decision.decision_id,
+            decision.planning_request_id,
+            decision.candidate_id,
+            decision.candidate_sha256,
+            decision.model_revision,
+            decision.model_hash,
+            decision.frontier_item_id,
+            decision.frontier_item_hash,
+            decision.decision,
+            decision.model_admission_receipt_id,
+            decision.decided_at,
         ));
     } else if let Some(amendment) = execution_amendment {
         context.push_str(&format!(

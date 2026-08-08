@@ -7,7 +7,7 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD: `d910158fd05fb78825dabda40b2147217c012c30`
+- Pushed HEAD before the active Soul provenance repair: `29797ab85a9025ee024a4485bb8b4cb043507056`
 - Authenticated cognition commit: `d910158fd05fb78825dabda40b2147217c012c30`
 - Release: `sha256-2d6672958cd59cae43bbbc17c8218eaf3d50f3acab3b7d6550cb6dfad5f72020`
 - Witness: `sha256-23d3f44ef0f632dfc52a607585469b7242ac77a489e1406d7b3e2f578979462d`
@@ -51,7 +51,26 @@ recommendation:
 2. completed Imagination job `2a5701fe-7fbe-4f29-b3a5-51d6e790acbd` and typed candidate `repo-frontier-plan-candidate-02c089eb385c27560252d1915b998efc7c800324971a7b915b6e9ff3d33e4646` at revision 54;
 3. dedicated Mind request `repo-frontier-plan-mind-7c8f086d050fe458a298ea4d9f5202e446530e5e14fa10129f52b4ae72238bc3` at revision 55, without adoption or Hands authority.
 
-The next live typed action is `launchMindPlanReview`.
+Mind adopted the candidate, Self materialized the exact route and scoped Hands
+authority, and Hands committed `29797ab8` with typed patch, command, and commit
+receipts. The next live typed action is `launchVerification`.
+
+The first Soul launch failed before worker creation because
+`append_verification_hands_receipt_context` treated every admission with a
+`result_id` as Modeling. The route admission actually binds Mind plan result
+`result-worker-c0815013-7c61-4872-8549-4b666ceb015a` and explicit decision
+`repo-frontier-plan-decision-22de32456ea73d63f613e69e8fdca876f5068f06febdc04d9f847da18af65a6e`.
+The fresh Modeling acceptance remains present exactly once; the runtime did not
+need correction. Pre-repair snapshots are
+`.epiphany-run/v53-live-thread-acceptances-pre-repair.json` (SHA-256
+`7f22d49b5b06fa84e5fdfce6066403fab88de6526cc82e4726e9d1343f400b46`)
+and `.epiphany-run/v53-live-route-admission-pre-repair.json` (SHA-256
+`df9002fd97d0ecfaf0750c41f397b0f560062132564b8b677d51ca70344518ac`).
+
+The active source repair types all new plan admissions as
+`FrontierPlanDecision`, makes Soul validate the immutable decision receipt, and
+uses the already-persisted `frontier_plan_decision_id` as the compatibility
+discriminator for v53. It does not rewrite evidence or weaken Soul.
 
 ## Build-time finding
 
@@ -105,7 +124,7 @@ probe reported `Removed 0 files` and is rejected, not evidence.
 
 ## Open readiness work
 
-- launch and adjudicate the committed Mind plan review;
+- package the Soul provenance fix, replay `launchVerification`, and adjudicate the first valid result;
 - prove native Persona cognition and external speech consequence;
 - prove Continuity crash, restart, session closure, and bounded retention;
 - measure long-duration resource plateau;

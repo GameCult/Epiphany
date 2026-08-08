@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. A bounded receipted supervisor correction removed one obsolete Modeling acceptance while preserving immutable evidence. Fresh Modeling minted exactly one typed active Imagination frontier; Self routed it through completed Imagination and committed a dedicated Mind review request without granting Hands authority despite stale CRRC regather display state. The live typed Modeling-to-Imagination-to-Mind route is proven. Separate owner lock universes were rejected. The single-root-graph Self-policy split is authenticated and published; a real warm policy invalidation rebuilt only policy and coordinator in 6.02 seconds while all 20 stable packaged executables remained unchanged. Persona consequence, retention, endurance, restart closure, whole-store launch latency, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh Modeling, Imagination, and Mind produced one adopted frontier plan; typed Hands then committed the bounded route-chain specification with exact patch, command, and commit receipts. Soul launch exposed a provenance-classification defect: a Mind-worker frontier-plan admission carried a result ID and Soul inferred Modeling from that incidental field. The repair makes FrontierPlanDecision the admission source for every plan decision and validates the immutable plan-decision receipt directly, while retaining compatibility with the already-persisted live admission through its explicit frontier_plan_decision_id. No live state rewrite is required. Persona consequence, retention, endurance, restart closure, whole-store launch latency, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: clean_at_authenticated_d910158f_policy_split
     operator_wireguard: restored
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Persona consequence, Continuity closure, retention, endurance, and Linux cognition remain unproven.
-  next_action: Resume the committed live Mind review request at revision 55 with launchMindPlanReview and adjudicate the first valid result. Then profile the Modeling whole-store commit transaction before proceeding to Persona consequence and Continuity crash/restart/closure.
+  next_action: Package and authenticate the Soul provenance fix, replay the existing v53 launchVerification action without overrides, accept the first valid Soul result, and inspect the next typed action. Then profile the Modeling whole-store commit transaction before Persona consequence and Continuity crash/restart/closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

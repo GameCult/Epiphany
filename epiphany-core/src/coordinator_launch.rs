@@ -2542,6 +2542,17 @@ pub(crate) mod tests {
             .map_err(|error| anyhow!("replay frontier plan decision: {error}"))?;
         assert_eq!(retry, decision);
         assert!(!decision.model_admission_receipt_id.is_empty());
+        let admission = crate::runtime_repo_model_admission_receipt(
+            &store,
+            &decision.model_admission_receipt_id,
+        )?
+        .expect("plan decision admission");
+        assert_eq!(
+            admission.admission_source,
+            Some(crate::RepoModelAdmissionSource::FrontierPlanDecision {
+                decision_id: decision.decision_id.clone(),
+            })
+        );
         let current = runtime_current_repo_model(&store)?.expect("admitted Adopt model");
         assert_eq!(current.model_revision, before.model_revision + 1);
         let item = current

@@ -6056,21 +6056,11 @@ fn decision_evidence_reference<'a>(
 }
 
 fn repo_model_admission_source(
-    source: &crate::RepoFrontierPlanDecisionSource,
+    _source: &crate::RepoFrontierPlanDecisionSource,
     decision_id: &str,
 ) -> crate::RepoModelAdmissionSource {
-    match source {
-        crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id } => {
-            crate::RepoModelAdmissionSource::WorkerResult {
-                result_id: result_id.clone(),
-                job_id: job_id.clone(),
-            }
-        }
-        crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. } => {
-            crate::RepoModelAdmissionSource::FrontierPlanDecision {
-                decision_id: decision_id.to_string(),
-            }
-        }
+    crate::RepoModelAdmissionSource::FrontierPlanDecision {
+        decision_id: decision_id.to_string(),
     }
 }
 
@@ -7729,6 +7719,18 @@ pub fn runtime_repo_frontier_route(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<RepoFrontierRoute>(route_id)
+}
+
+pub fn runtime_repo_frontier_plan_decision(
+    runtime_store: impl AsRef<Path>,
+    decision_id: &str,
+) -> Result<Option<RepoFrontierPlanDecisionReceipt>> {
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    Ok(cache
+        .get_all::<RepoFrontierPlanDecisionReceipt>()?
+        .into_iter()
+        .find(|receipt| receipt.decision_id == decision_id))
 }
 
 pub fn runtime_repo_frontier_execution_amendment_for_admission(

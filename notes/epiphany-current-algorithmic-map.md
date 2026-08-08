@@ -1487,6 +1487,32 @@ may return to Hands, while an accepted pass or non-pass awaiting model
 incorporation routes Modeling. CRRC cannot mint a replacement Hands gate while
 Soul is running or after Soul has established the newer causal boundary.
 
+## Soul provenance classification for adopted frontier plans
+
+Owner: the immutable `RepoFrontierPlanDecisionReceipt` owns the provenance of
+an adopted plan. Its Mind-worker result ID is an audit reference, not an organ
+classifier. All new plan-decision RepoModel admissions therefore carry
+`RepoModelAdmissionSource::FrontierPlanDecision`, regardless of whether Mind or
+an authenticated operator supplied the decision.
+
+Soul selects and verifies provenance by typed route anatomy. A non-empty
+`frontier_plan_decision_id` requires the exact decision receipt, Adopt verdict,
+admission receipt binding, base model revision/hash, frontier identity/hash,
+and exact Mind-worker result/job or authenticated-operator source. Only an
+ordinary worker-result admission may require the Modeling acceptance,
+Mind-state-commit, and gateway-review chain. Execution amendments retain their
+separate exact receipt chain.
+
+Derived state: `RepoModelAdmissionReceipt.result_id` remains inspectable but no
+longer decides which organ admitted the model. Existing v53 evidence is not
+rewritten: its explicit `frontier_plan_decision_id` selects the correct typed
+validation path despite the legacy generic `WorkerResult` source tag.
+
+Forbidden writer: Soul cannot infer Modeling from result presence, and a plan
+decision cannot bypass provenance merely because its admission and review
+contain a model-produced result. Missing, substituted, non-Adopt, or
+route-mismatched decisions fail closed before worker launch.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the
