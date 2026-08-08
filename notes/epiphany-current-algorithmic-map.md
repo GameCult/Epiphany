@@ -1671,6 +1671,25 @@ collision refusal, migration equivalence for every envelope, absence of writes
 to the sealed source, crash-safe destination recovery, and a live-sized job
 commit that no longer scales with total historical store bytes.
 
+Historical transaction benchmarking after implementation corrected the causal
+map. Exact surviving batches around live job `972f4e31` take roughly
+0.8-1.0s through the legacy snapshot backend and 0.02-0.03s through keyed redb.
+Keyed CAS is a valid secondary optimization, but it cannot explain or remove a
+51.482s coordinator bucket by itself. Live migration is therefore not yet
+authorized by performance evidence.
+
+The Modeling-only pre-transaction owner is Repository Body observation. It
+builds two isolated Git indexes/trees and two complete raw SHA-256 manifests,
+then admits only exact equality. On the current 3,994-file Body, an authenticated
+release observation took 92.30s. The isolated Git add/write-tree portion takes
+about 1.62s; serial raw file reads and metadata dominate. Manifest entries are
+independent after typed index parsing, so bounded parallel construction changes
+only execution order. Per-file before/after metadata checks, raw hashes,
+deterministic sorting, manifest-root derivation, the second full scan, and exact
+equality remain owners. The measured parallel observation is 49.52s. A future
+cut that reuses hashes or weakens the second scan requires a new explicit
+freshness authority; it must not be smuggled in as a cache.
+
 ## Verdict-bound Modeling output authority
 
 Live v53 exposed a missing typed boundary after Soul acceptance. The

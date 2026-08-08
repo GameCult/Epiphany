@@ -150,7 +150,7 @@ probe reported `Removed 0 files` and is rejected, not evidence.
 - Fresh Modeling job commit: 51.637s; coordinator total 51.865s.
 - The launch wound is the whole-store transaction, not context assembly.
 
-## Keyed runtime and packaging cut in progress
+## Keyed runtime and packaging cut
 
 The current uncommitted pass after `b070e121` introduces one runtime-spine
 backend owner selected by explicit extension: `.cc`/`.msgpack` retain the
@@ -177,6 +177,27 @@ Release-mode live-sized measurements are mixed but promising: legacy full read
 363.61ms. Debug redb timings were misleadingly slow and are rejected for
 production judgment. Do not migrate live from this proxy alone. Measure the
 exact coordinator launch replacement set against the keyed v53 copy next.
+
+That next probe changed the diagnosis. The durable
+`epiphany-runtime-store-benchmark` selects typed historical transaction
+envelopes by exact job identity and emits identity/digest/timing receipts on
+disposable stores. The surviving launch-request batch for job `972f4e31` was
+legacy 785-1,012ms versus keyed 23-32ms; its completion batch was legacy
+784-1,567ms versus keyed 21-34ms. Those receipts prove keyed CAS is faster, but
+also falsify the claim that snapshot CAS owned the measured 51.482s launch
+bucket. Do not migrate live on that old causal story.
+
+`commit_coordinator_job_launch` performs Modeling-only
+`observe_runtime_repository_body_basis` before opening the state transaction.
+That observer constructs two isolated Git trees and raw SHA-256 manifests over
+3,994 files, then requires exact equality. Direct authenticated release timing
+was 92.30s and created Body generation 2. The fresh-index Git phase was only
+1.62s; raw file reads and metadata were the wound. Bounded parallel manifest
+construction keeps the same per-file before/after metadata checks, raw hashes,
+sorted root, isolated trees, and second full equality pass. All 24 observer
+tests pass. Direct release observation fell to 49.52s and created generation 3.
+This is material but not final; package it and measure a real launch before
+claiming the original 51s path is cured.
 
 Packaging no longer requests Cargo `--bins`, which linked every diagnostic and
 smoke executable after core edits. It now requests only the authenticated

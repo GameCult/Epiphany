@@ -908,7 +908,14 @@ fn git_bytes(repo: &Path, envs: &[(&str, &str)], args: &[&str]) -> Result<Vec<u8
     Ok(output.stdout)
 }
 fn raw_manifest_entries(repo: &Path, index: &[u8]) -> Result<Vec<RepositoryBodyManifestEntry>> {
-    let mut entries = Vec::new();
+    #[derive(Clone)]
+    struct IndexRecord {
+        mode: String,
+        oid: String,
+        path: String,
+    }
+
+    let mut records = Vec::new();
     for raw in index.split(|byte| *byte == 0).filter(|raw| !raw.is_empty()) {
         let tab = raw
             .iter()
@@ -930,22 +937,58 @@ fn raw_manifest_entries(repo: &Path, index: &[u8]) -> Result<Vec<RepositoryBodyM
         if fields.next().is_some() || stage != "0" {
             bail!("Git index contains an unresolved or malformed staged entry");
         }
-        let path_buf = safe_worktree_path(repo, path)?;
-        let entry = match mode {
-            "100644" | "100755" => raw_regular_entry(&path_buf, path, mode)?,
-            "120000" => raw_symlink_entry(&path_buf, path, mode)?,
-            "160000" => RepositoryBodyManifestEntry {
-                path: path.into(),
-                git_mode: mode.into(),
-                kind: "gitlink_nonrecursive".into(),
-                raw_byte_length: 0,
-                raw_sha256: String::new(),
-                gitlink_oid: Some(oid.into()),
-            },
-            _ => bail!("unsupported Git index mode {mode:?} at {path:?}"),
-        };
-        entries.push(entry);
+        records.push(IndexRecord {
+            mode: mode.to_string(),
+            oid: oid.to_string(),
+            path: path.to_string(),
+        });
     }
+
+    let available = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+    let worker_count = records.len().min((available * 4).clamp(1, 16));
+    let chunk_size = records.len().div_ceil(worker_count.max(1));
+    let mut entries = std::thread::scope(|scope| -> Result<Vec<_>> {
+        let mut workers = Vec::new();
+        for chunk in records.chunks(chunk_size.max(1)) {
+            workers.push(scope.spawn(move || -> Result<Vec<RepositoryBodyManifestEntry>> {
+                let mut local = Vec::with_capacity(chunk.len());
+                for record in chunk {
+                    let path_buf = safe_worktree_path(repo, &record.path)?;
+                    let entry = match record.mode.as_str() {
+                        "100644" | "100755" => {
+                            raw_regular_entry(&path_buf, &record.path, &record.mode)?
+                        }
+                        "120000" => raw_symlink_entry(&path_buf, &record.path, &record.mode)?,
+                        "160000" => RepositoryBodyManifestEntry {
+                            path: record.path.clone(),
+                            git_mode: record.mode.clone(),
+                            kind: "gitlink_nonrecursive".into(),
+                            raw_byte_length: 0,
+                            raw_sha256: String::new(),
+                            gitlink_oid: Some(record.oid.clone()),
+                        },
+                        mode => bail!(
+                            "unsupported Git index mode {mode:?} at {:?}",
+                            record.path
+                        ),
+                    };
+                    local.push(entry);
+                }
+                Ok(local)
+            }));
+        }
+        let mut joined = Vec::with_capacity(records.len());
+        for worker in workers {
+            joined.extend(
+                worker
+                    .join()
+                    .map_err(|_| anyhow!("repository Body manifest worker panicked"))??,
+            );
+        }
+        Ok(joined)
+    })?;
     entries.sort_by(|a, b| a.path.as_bytes().cmp(b.path.as_bytes()));
     if entries.windows(2).any(|pair| pair[0].path == pair[1].path) {
         bail!("duplicate path in repository Body manifest");
