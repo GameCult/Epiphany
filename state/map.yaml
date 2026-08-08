@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Verdict-bound Modeling now persists one typed request-plus-frontier-item authority and derives a schema that const-binds all execution identity, including adopted_plan; only verdict-owned fields may vary. Focused schema, context, model-runtime, and coordinator tests pass. Job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 remains immutable invalid evidence and must be explicitly superseded after this exact repair is packaged. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 proved the full amended Hands-to-Soul-to-Modeling consequence circuit. Authenticated release 5a3532b9 carried exact typed verdict-Modeling authority; invalid job a89fe1ea and timed-out corrected job ede197eb were superseded with receipts. Retry 6362b698 completed under a 600-second envelope and Mind accepted its exact frontier verdict at thread revision 45. Self reports modelingResultAcceptedAfterResearch and no longer routes Modeling; its next typed action is manual Eyes regather. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: verified_typed_verdict_modeling_authority_pending_commit
+    local_worktree: canonical_mind_phase_boundary_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_61e8be38_release_sha256_67ed6c8d
+    starfire_release: authenticated_5a3532b9_release_sha256_7d1040b8
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: The local execution amendment is user-authorized and packet-hash bound, not Bifrost-signed. Soul passed the amended consequence but reported that derived reorientation checkpoints carry empty evidence_ids; Modeling must preserve that limitation rather than overstate source provenance. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Exact packaging still takes 6m59s after core changes. Removing one redundant RepoModel pull left worker appearance near 48s and full coordinator launch near 83s, so repeated whole-store transactions remain the dominant 40 MiB launch-path defect.
-  next_action: Commit and package the verified typed verdict-Modeling authority repair. Then explicitly supersede invalid completed job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 and launch exactly one corrected attempt under the authenticated release. Preserve the 45.77-second jobCommit timing as the launch-store optimization receipt.
+  next_action: Review Self's regatherManually request at revision 45 and, if approved, route a bounded Eyes pass from the accepted frontier/model boundary without recreating the completed Hands/Soul/Modeling circuit. Preserve the 43.5-44.5-second jobCommit timings and 5m57s package time as receipts for the next build/store iteration-cost cut.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

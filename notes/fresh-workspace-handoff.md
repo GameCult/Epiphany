@@ -7,13 +7,13 @@ machine at its present memory budget.
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed source boundary: `b290d511` (typed verdict-Modeling authority repair verified locally and pending commit)
+- Pushed source release commit: `5a3532b996af4aecb1ed00de3747dd1ac7a1e053`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Current release: `sha256-67ed6c8dbce5dee81dfaf44effb8f499c61ae98bbdff4d997a665f91deeef8a5`
-- Release witness: `sha256-c98e36f35057f902c518167db3f036edb4994b02f15f432510f7e6fde1263853`
-- Thread-state revision: `39`
-- Current action: schema-aware retry job `a89fe1ea-a88b-4108-a299-c99ca9b65fb7` is completed but invalid and unreviewed. The typed authority repair is locally verified. Commit, package, explicitly supersede this result, then launch exactly one corrected attempt.
+- Current release: `sha256-7d1040b8cc01429d12d30780af3ac43f46e23382fff6a3267369b403d16e4387`
+- Release witness: `sha256-48202410ca55be72e0444f0d29501644608fb4b94953c9f901763dc7f6547aa6`
+- Thread-state revision: `45`
+- Current action: Self consumed the accepted verdict-Modeling boundary and now derives `regatherManually`, targeting Eyes. Review that typed request before granting manual regather; do not recreate the completed Hands, Soul, or Modeling work.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -101,6 +101,18 @@ authority. The focused schema and Soul-to-Modeling context tests pass, as do all
 15 model-runtime and all 15 coordinator tests. The completed retry remains
 immutable invalid evidence; commit and package this exact repair, supersede the
 old result explicitly, then pay for one corrected model turn.
+
+Exact commit `5a3532b9` packaged 21 binaries in 5m57s as release
+`sha256-7d1040b8...` with witness `sha256-48202410...`. Invalid result `a89fe1ea...`
+was superseded by `role-failure-review-1d365571...`. Corrected job
+`ede197eb...` proved the typed live launch but timed out at 300 seconds and was
+superseded by `role-failure-review-d8e10919...`. Retry
+`6362b698-0566-4377-9c14-2d6580436a92` completed under a 600-second envelope.
+Mind accepted it as `accept-modeling-result-worker-6362b698-0566-4377-9c14-2d6580436a92`
+with evidence `ev-modeling-cb536bd5-eca9-465f-af33-4f0c46080ab6`, advancing
+thread state to revision 45. Coordinator projection r69 proves
+`modelingResultAcceptedAfterResearch: true` and derives `regatherManually` for
+Eyes; the causal Modeling route is consumed.
 
 After the Modeling boundary lands, continue attacking the iteration path:
 
