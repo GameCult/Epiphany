@@ -1272,8 +1272,11 @@ proposal-Modeling request. These are selected work items, not candidates still
 awaiting preference. `runtime_pending_repo_frontier_proposal_modeling_request`
 therefore schedules the oldest unclaimed request by `selected_at`, then stable
 request ID. A launch binding removes only its exact request from the pending
-queue, exposing the next. Self owns queue order; it does not silently discard
-or rank Imagination's already-selected options.
+queue, exposing the next. Resident ingestion queries that same head and emits
+pressure for only that request. It does not mirror every selected request into
+a second independently ordered pressure queue. Self owns queue order; it does
+not silently discard or rank Imagination's already-selected options, and
+heartbeat owns opportunity without acquiring a second scheduling opinion.
 
 ## Exact release build cache ownership
 

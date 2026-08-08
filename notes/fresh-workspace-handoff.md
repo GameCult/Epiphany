@@ -24,10 +24,21 @@ proposal-Modeling work, but status then failed because the pending projection
 required exactly one unclaimed request.
 
 The current worktree treats selected proposal-Modeling requests as an
-oldest-first execution queue. A launch binding consumes only its exact request
-and exposes the next. The focused queue test proves both ordering and
-single-request consumption; both native status tests also pass. v35 is sealed
-at the cardinality failure boundary.
+oldest-first execution queue. Exact `16be92f4` packages as
+`sha256-998dbac0877ee2249f723796501f4f82c50cc9dcb8ae205117a50cde04bab3e6`
+with witness
+`sha256-4975a3b043012f62eecfd9c9b6c9f431bbf66a48ff1f46117bd1532c8b0dba28`.
+v36 proved status derives `launchModeling` instead of rejecting cardinality and
+completed one proposal Modeling turn. The oldest request nevertheless remained
+pending because v35 had emitted pressure for every option and heartbeat had
+selected a later pressure first. This falsified the partial repair: runtime and
+resident pressure were still separate schedulers.
+
+The current worktree emits resident pressure only for the runtime-owned pending
+head. Its exact launch binding exposes the next request on a later ingestion
+cycle. All 17 resident-Self tests pass; focused tests prove runtime ordering,
+single-request launch consumption, and head-only pressure emission. v35 and v36
+are sealed failure boundaries.
 
 Fresh runtime `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v31`
 accepted initial and proposal-bound Modeling for thread
@@ -98,12 +109,12 @@ thread.
 
 ## Next action
 
-1. Commit, push, package, and authenticate the proposal-Modeling queue repair.
-2. Preserve v31 through v35 as failure evidence; clone v35 into v36 and publish
-   the exact successor release.
+1. Commit, push, package, and authenticate the single-owner ingestion repair.
+2. Preserve v31 through v36 as failure evidence; replay from a boundary before
+   duplicate proposal pressures were created.
 3. Run persistent resident supervision from an approved `.epiphany-dogfood`
-   root and prove the selected Imagination options launch Modeling one at a
-   time in stable request order.
+   root and prove selected Imagination options launch Modeling one at a time in
+   runtime request order.
 4. In a fresh runtime, re-run pressure ingestion twice and resident launch.
    Prove autonomous direction consideration, proposal-bound Modeling,
    canonical Imagination, dedicated Mind adoption, and exact Hands authority.

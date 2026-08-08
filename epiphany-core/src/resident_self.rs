@@ -929,12 +929,19 @@ pub fn ingest_resident_self_domain_pressure(
             created_at_millis: now_millis, status: "pending".into(), consumed_by_grant_id: None, private_state_exposed: false,
         })?);
     }
-    for selection in crate::promote_autonomous_direction_options_for_modeling(
+    crate::promote_autonomous_direction_options_for_modeling(
         runtime_store,
         repository,
         workspace,
         &requested_at,
-    )? {
+    )?;
+    // Autonomous promotion may select several Imagination options at once.
+    // Runtime request order is the single scheduler: expose pressure only for
+    // its current head, then let that request's exact launch binding reveal
+    // the next one on a later ingestion cycle.
+    if let Some(selection) =
+        crate::runtime_pending_repo_frontier_proposal_modeling_request(runtime_store)?
+    {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
             &ResidentSelfPressure {
@@ -1791,20 +1798,22 @@ mod tests {
     fn seed_proposal_modeling_request(
         store: &Path,
         request_id: &str,
+        proposal_id: &str,
         runtime_id: &str,
         thread_id: &str,
+        selected_at: &str,
     ) -> Result<()> {
         let cache = crate::runtime_spine_cache(store)?;
         let request = crate::RepoFrontierProposalModelingRequest {
             schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
             request_id: request_id.into(),
-            proposal_id: "proposal-1".into(),
+            proposal_id: proposal_id.into(),
             proposal_payload_sha256: "sha256:proposal-1".into(),
             runtime_id: runtime_id.into(),
             thread_id: thread_id.into(),
             repository: "GameCult/Epiphany".into(),
             workspace: absolute("workspace").display().to_string(),
-            selected_at: "2026-07-18T00:00:00Z".into(),
+            selected_at: selected_at.into(),
             contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
         };
         let (entry, _) = cache.prepare_entry(request_id, &request)?;
@@ -2082,8 +2091,10 @@ mod tests {
         seed_proposal_modeling_request(
             &policy.runtime_store,
             "selection-1",
+            "proposal-1",
             &policy.release_runtime_id,
             "implementation-thread-proposal",
+            "2026-07-18T00:00:00Z",
         )?;
         enqueue_resident_self_pressure(
             &store,
@@ -2113,6 +2124,97 @@ mod tests {
         assert_eq!(
             resident_prepared_launch_thread_id(&prepared)?,
             "implementation-thread-proposal"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ingestion_exposes_only_the_runtime_owned_proposal_modeling_queue_head() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident_store = temp.path().join("resident.cc");
+        let runtime_store = temp.path().join("runtime.cc");
+        let persona_store = temp.path().join("persona.cc");
+        crate::initialize_runtime_spine(
+            &runtime_store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "test-runtime".into(),
+                display_name: "Test runtime".into(),
+                created_at: "2026-07-18T00:00:00Z".into(),
+            },
+        )?;
+        seed_proposal_modeling_request(
+            &runtime_store,
+            "selection-1",
+            "proposal-1",
+            "test-runtime",
+            "implementation-thread-proposal",
+            "2026-07-18T00:00:01Z",
+        )?;
+        seed_proposal_modeling_request(
+            &runtime_store,
+            "selection-2",
+            "proposal-2",
+            "test-runtime",
+            "implementation-thread-proposal",
+            "2026-07-18T00:00:02Z",
+        )?;
+
+        assert_eq!(
+            ingest_resident_self_domain_pressure(
+                &resident_store,
+                &runtime_store,
+                &persona_store,
+                "test-runtime",
+                "GameCult/Epiphany",
+                absolute("workspace").to_str().expect("UTF-8 workspace"),
+                1,
+            )?,
+            1
+        );
+        let pressures = state_cache(&resident_store)?.get_all::<ResidentSelfPressure>()?;
+        assert_eq!(pressures.len(), 1);
+        assert_eq!(
+            pressures[0].provenance_ref,
+            "cultcache://repo-frontier-proposal-modeling/selection-1"
+        );
+
+        let runtime_cache = crate::runtime_spine_cache(&runtime_store)?;
+        let launch = crate::RepoFrontierProposalModelingLaunchBinding {
+            schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION
+                .into(),
+            binding_record_id: "selection-1-launch".into(),
+            proposal_modeling_request_id: "selection-1".into(),
+            proposal_id: "proposal-1".into(),
+            proposal_payload_sha256: "sha256:proposal-1".into(),
+            job_id: "modeling-job-1".into(),
+            binding_id: "modeling-checkpoint-worker".into(),
+            runtime_id: "test-runtime".into(),
+            thread_id: "implementation-thread-proposal".into(),
+            launched_at: "2026-07-18T00:00:03Z".into(),
+            worker_launch_document_sha256: "33".repeat(32),
+            contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        let (entry, _) = runtime_cache.prepare_entry(&launch.binding_record_id, &launch)?;
+        SingleFileMessagePackBackingStore::new(&runtime_store).push(&entry)?;
+
+        assert_eq!(
+            ingest_resident_self_domain_pressure(
+                &resident_store,
+                &runtime_store,
+                &persona_store,
+                "test-runtime",
+                "GameCult/Epiphany",
+                absolute("workspace").to_str().expect("UTF-8 workspace"),
+                2,
+            )?,
+            1
+        );
+        let mut pressures = state_cache(&resident_store)?.get_all::<ResidentSelfPressure>()?;
+        pressures.sort_by(|left, right| left.pressure_id.cmp(&right.pressure_id));
+        assert_eq!(pressures.len(), 2);
+        assert_eq!(
+            pressures[1].provenance_ref,
+            "cultcache://repo-frontier-proposal-modeling/selection-2"
         );
         Ok(())
     }
