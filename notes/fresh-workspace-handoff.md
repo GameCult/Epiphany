@@ -1,5 +1,37 @@
 # Fresh workspace handoff
 
+## Retention and release-bootstrap pass — 2026-08-08
+
+The first exact `339d5a6f` build completed its Rust 1.95 graph in 17m07s but
+failed because the isolated coordinator artifact was absent. Rebuilding that
+single target restored the cache. A detached clean-worktree retry then exposed
+the actual iteration defect: release source-cache identity was checkout-path
+owned, so identical source under another worktree invalidated Cargo's absolute
+path fingerprints and repaid 11m12s of workspace compilation and linking.
+Current source keys exact-source cache ownership to Git's common repository
+while preserving the original main-worktree identity; a linked-worktree test
+proves the two views share one cache.
+
+The resulting `sha256-cb91f60e...` package and published witness are sealed but
+rejected as Continuity evidence. They were assembled by the pre-correction
+debug publisher and contain the old 21-role body without
+`epiphany-runtime-spine`. Inspection then found the deeper bootstrap omission:
+`339d5a6f` added the role mapping but did not expose the actuator in the root
+release-bundle manifest. Current source adds that binary and makes the release
+test prove root-manifest presence. The current publisher, runtime-spine, and
+heartbeat binaries compile from source; all 17 release tests and all four
+retention tests pass. Package only after committing this corrected body.
+
+Heartbeat pulse artifacts now have a Continuity-owned typed retention route.
+Above a 256+64 hysteresis boundary it plans exactly 64 oldest pulse directories
+with recursive SHA-256 manifests, writes the plan through exact CAS, deletes
+only byte-identical planned members, and writes a typed completion receipt.
+Pending plans recover after crashes. Unknown directories, symlinks, changed
+members, root escapes, and the latest cognition artifact fail closed. The same
+primitive serves the explicit command and resident heartbeat loop. No live
+artifact has yet been deleted; stdout/stderr rotation remains a separate
+supervisor-owned front.
+
 ## Continuity closure pass — 2026-08-08
 
 Sealed v28 remains immutable at
@@ -46,7 +78,7 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Latest pushed Epiphany commit: `55660d78486f22795d29d620f261d33a613cdc18`
+- Latest pushed Epiphany commit: `339d5a6f7ba6cc11a39226f1eb6608da0339e25e`
 - Authenticated release: `sha256-2f4a17126d12935088189c32caadef202a1e9b698ec2cfc8fd4aec08c0763696`
 - Witness: `sha256-c0788bda36aa28b8025979378968a2c48cbbcc607a1a538351756831c2b287f4`
 - Live Bifrost/CultLib runtime: `cb3239aaac963995ad012e648f9a455463a54ea2` / `f67f5122ed1bd11da016e7b820ed60145ccd0299`

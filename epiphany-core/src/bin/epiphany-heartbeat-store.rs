@@ -23,6 +23,7 @@ use epiphany_core::pulse_resident_self_heartbeat;
 use epiphany_core::pump_heartbeat_store;
 use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::recover_stale_heartbeat_store;
+use epiphany_core::retain_heartbeat_pulse_artifacts;
 use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
@@ -96,6 +97,8 @@ fn main() -> Result<()> {
     let mut now_utc: Option<String> = None;
     let mut interval_seconds = 120_u64;
     let mut max_iterations = 0_u64;
+    let mut retain_pulse_artifacts = 256_usize;
+    let mut retention_batch_size = 64_usize;
     let mut release_store: Option<PathBuf> = None;
     let mut release_runtime_id: Option<String> = None;
     let mut release_id: Option<String> = None;
@@ -189,6 +192,13 @@ fn main() -> Result<()> {
             }
             "--max-iterations" => {
                 max_iterations = next_value(&mut args, "--max-iterations")?.parse()?
+            }
+            "--retain-pulse-artifacts" => {
+                retain_pulse_artifacts =
+                    next_value(&mut args, "--retain-pulse-artifacts")?.parse()?
+            }
+            "--retention-batch-size" => {
+                retention_batch_size = next_value(&mut args, "--retention-batch-size")?.parse()?
             }
             "--release-store" => release_store = Some(next_path(&mut args, "--release-store")?),
             "--release-runtime-id" => {
@@ -298,6 +308,28 @@ fn main() -> Result<()> {
                 },
             )?;
             println!("{}", result);
+        }
+        "retain-artifacts" => {
+            let store_path =
+                store_path.ok_or_else(|| anyhow!("retain-artifacts requires --store"))?;
+            let artifact_dir =
+                artifact_dir.ok_or_else(|| anyhow!("retain-artifacts requires --artifact-dir"))?;
+            let receipt = retain_heartbeat_pulse_artifacts(
+                &store_path,
+                &artifact_dir,
+                retain_pulse_artifacts,
+                retention_batch_size,
+                &chrono::Utc::now().to_rfc3339(),
+            )?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "schemaVersion": "epiphany.heartbeat.artifact_retention_command.v0",
+                    "status": if receipt.is_some() { "completed" } else { "within-bound" },
+                    "receipt": receipt,
+                    "privateStateExposed": false
+                })
+            );
         }
         "pump" => {
             assert_swarm_brake_allows_heartbeat(
@@ -559,13 +591,21 @@ fn main() -> Result<()> {
                     if pulse.status != "idle" {
                         completed_iterations = iteration;
                         refused_pulses += u64::from(brake.is_some());
+                        let retention = retain_heartbeat_pulse_artifacts(
+                            &store_path,
+                            &artifact_dir,
+                            retain_pulse_artifacts,
+                            retention_batch_size,
+                            &chrono::Utc::now().to_rfc3339(),
+                        )?;
                         println!(
                             "{}",
                             serde_json::json!({
                                 "schemaVersion":"epiphany.heartbeat.serve_pulse.v0", "status":pulse.status,
                                 "owner":"heartbeat", "iteration":iteration, "artifactDir":iteration_dir,
                                 "acknowledgedTerminalId":pulse.acknowledged_terminal_id, "grantId":pulse.grant_id,
-                                "brakeId":brake.as_ref().map(|value| &value.brake_id), "privateStateExposed":false
+                                "brakeId":brake.as_ref().map(|value| &value.brake_id), "retention":retention,
+                                "privateStateExposed":false
                             })
                         );
                         if max_iterations > 0 && completed_iterations >= max_iterations {
@@ -578,6 +618,13 @@ fn main() -> Result<()> {
                 if let Some(brake) = brake {
                     completed_iterations = iteration;
                     refused_pulses += 1;
+                    let retention = retain_heartbeat_pulse_artifacts(
+                        &store_path,
+                        &artifact_dir,
+                        retain_pulse_artifacts,
+                        retention_batch_size,
+                        &chrono::Utc::now().to_rfc3339(),
+                    )?;
                     println!(
                         "{}",
                         serde_json::json!({
@@ -589,7 +636,7 @@ fn main() -> Result<()> {
                             "artifactDir": iteration_dir,
                             "brakeId": brake.brake_id,
                             "brakeScope": brake.scope,
-                            "reason": brake.reason,
+                            "reason": brake.reason, "retention": retention,
                             "privateStateExposed": false
                         })
                     );
@@ -609,7 +656,20 @@ fn main() -> Result<()> {
                 )?;
                 if persona_pulse["status"] != "idle" {
                     completed_iterations = iteration;
-                    println!("{}", persona_pulse);
+                    let retention = retain_heartbeat_pulse_artifacts(
+                        &store_path,
+                        &artifact_dir,
+                        retain_pulse_artifacts,
+                        retention_batch_size,
+                        &chrono::Utc::now().to_rfc3339(),
+                    )?;
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "pulse": persona_pulse, "retention": retention,
+                            "privateStateExposed": false
+                        })
+                    );
                     if max_iterations > 0 && completed_iterations >= max_iterations {
                         break;
                     }
@@ -627,6 +687,13 @@ fn main() -> Result<()> {
                 )?;
                 completed_iterations = iteration;
                 completed_routines += 1;
+                let retention = retain_heartbeat_pulse_artifacts(
+                    &store_path,
+                    &artifact_dir,
+                    retain_pulse_artifacts,
+                    retention_batch_size,
+                    &chrono::Utc::now().to_rfc3339(),
+                )?;
                 println!(
                     "{}",
                     serde_json::json!({
@@ -637,7 +704,7 @@ fn main() -> Result<()> {
                         "iteration": iteration,
                         "artifactDir": iteration_dir,
                         "routineOk": result["ok"],
-                        "routineArtifact": result["artifactPath"],
+                        "routineArtifact": result["artifactPath"], "retention": retention,
                         "privateStateExposed": false
                     })
                 );
@@ -696,6 +763,7 @@ fn usage() -> Result<()> {
         "       epiphany-heartbeat-store heat --store <path> [options]\n",
         "       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n",
         "       epiphany-heartbeat-store repair-stale --store <path> --artifact-dir <path> [options]\n",
+        "       epiphany-heartbeat-store retain-artifacts --store <path> --artifact-dir <path> [--retain-pulse-artifacts <n>] [--retention-batch-size <n>]\n",
         "       epiphany-heartbeat-store queue-mention --store <path> [options]\n",
         "       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n",
         "       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [options]\n",

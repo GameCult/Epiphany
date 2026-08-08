@@ -1,3 +1,5 @@
+use super::EpiphanyHeartbeatArtifactRetentionPlan;
+use super::EpiphanyHeartbeatArtifactRetentionReceipt;
 use super::EpiphanyHeartbeatCognitionEntry;
 use super::EpiphanyHeartbeatStaleTurnRepairReceipt;
 use super::EpiphanyHeartbeatStateEntry;
@@ -30,6 +32,8 @@ pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> 
     cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionPlan>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionReceipt>()?;
     import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), false)?;
     Ok(cache)
 }
@@ -39,6 +43,8 @@ fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCach
     cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionPlan>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionReceipt>()?;
     import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), true)?;
     Ok(cache)
 }
@@ -59,6 +65,10 @@ fn import_owned_heartbeat_envelopes(
             || (envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE
                 && envelope.key == HEARTBEAT_COGNITION_KEY)
             || envelope.r#type == <EpiphanyHeartbeatStaleTurnRepairReceipt as DatabaseEntry>::TYPE;
+        let owned = owned
+            || envelope.r#type == <EpiphanyHeartbeatArtifactRetentionPlan as DatabaseEntry>::TYPE
+            || envelope.r#type
+                == <EpiphanyHeartbeatArtifactRetentionReceipt as DatabaseEntry>::TYPE;
         if !owned {
             continue;
         }
@@ -79,6 +89,13 @@ fn import_owned_heartbeat_envelopes(
             }
         } else if envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE {
             cache.load_envelope::<EpiphanyHeartbeatCognitionEntry>(envelope)?;
+        } else if envelope.r#type == <EpiphanyHeartbeatArtifactRetentionPlan as DatabaseEntry>::TYPE
+        {
+            cache.load_envelope::<EpiphanyHeartbeatArtifactRetentionPlan>(envelope)?;
+        } else if envelope.r#type
+            == <EpiphanyHeartbeatArtifactRetentionReceipt as DatabaseEntry>::TYPE
+        {
+            cache.load_envelope::<EpiphanyHeartbeatArtifactRetentionReceipt>(envelope)?;
         } else {
             cache.load_envelope::<EpiphanyHeartbeatStaleTurnRepairReceipt>(envelope)?;
         }

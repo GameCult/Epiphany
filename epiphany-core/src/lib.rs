@@ -619,10 +619,18 @@ pub use eyes_gateway::EyesEvidencePacket;
 pub use eyes_gateway::default_eyes_cultnet_contracts;
 pub use eyes_gateway::eyes_evidence_packet_from_research_finding;
 pub use hands_gateway::*;
+pub use heartbeat_state::EpiphanyHeartbeatArtifactRetentionPlan;
+pub use heartbeat_state::EpiphanyHeartbeatArtifactRetentionReceipt;
 pub use heartbeat_state::EpiphanyHeartbeatCognitionEntry;
 pub use heartbeat_state::EpiphanyHeartbeatStaleTurnRepairReceipt;
 pub use heartbeat_state::EpiphanyHeartbeatStateEntry;
 pub use heartbeat_state::GhostlightSceneParticipantSeed;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_PLAN_LATEST_KEY;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_PLAN_SCHEMA_VERSION;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_PLAN_TYPE;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_LATEST_KEY;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_SCHEMA_VERSION;
+pub use heartbeat_state::HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_TYPE;
 pub use heartbeat_state::HEARTBEAT_COGNITION_KEY;
 pub use heartbeat_state::HEARTBEAT_COGNITION_SCHEMA_VERSION;
 pub use heartbeat_state::HEARTBEAT_COGNITION_TYPE;
@@ -635,6 +643,7 @@ pub use heartbeat_state::HEARTBEAT_STATE_TYPE;
 pub use heartbeat_state::HeartbeatAgentReaction;
 pub use heartbeat_state::HeartbeatAgentThoughtAppraisal;
 pub use heartbeat_state::HeartbeatAppraisalReview;
+pub use heartbeat_state::HeartbeatArtifactRetentionMember;
 pub use heartbeat_state::HeartbeatBirthPersonalitySeed;
 pub use heartbeat_state::HeartbeatCandidateImplications;
 pub use heartbeat_state::HeartbeatCompleteOptions;
@@ -680,6 +689,7 @@ pub use heartbeat_state::pump_heartbeat_store;
 pub use heartbeat_state::queue_heartbeat_pending_mention_store;
 pub use heartbeat_state::reconcile_resident_self_heartbeat_ack;
 pub use heartbeat_state::recover_stale_heartbeat_store;
+pub use heartbeat_state::retain_heartbeat_pulse_artifacts;
 pub use heartbeat_state::run_void_routine_store;
 pub use heartbeat_state::tick_heartbeat_store;
 pub use heartbeat_state::update_heartbeat_heat_store;
@@ -1110,8 +1120,8 @@ pub use runtime_spine::validate_hands_action_authority;
 pub use runtime_spine::write_runtime_hello_frame;
 pub use runtime_spine::write_runtime_schema_catalog_json;
 pub use runtime_store_migration::{
-    RuntimeStoreMigrationReceipt, RUNTIME_STORE_MIGRATION_RECEIPT_SCHEMA_VERSION,
-    RUNTIME_STORE_MIGRATION_RECEIPT_TYPE, migrate_runtime_store_to_redb,
+    RUNTIME_STORE_MIGRATION_RECEIPT_SCHEMA_VERSION, RUNTIME_STORE_MIGRATION_RECEIPT_TYPE,
+    RuntimeStoreMigrationReceipt, migrate_runtime_store_to_redb,
 };
 pub use semantic_projector_service::SemanticProjectorServiceBody;
 pub use semantic_projector_service::SemanticProjectorServicePulse;

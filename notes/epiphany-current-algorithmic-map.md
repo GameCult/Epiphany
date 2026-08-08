@@ -1,5 +1,16 @@
 # Epiphany Current Algorithmic Map
 
+## Heartbeat pulse-artifact retention ownership
+
+- Owner: heartbeat Continuity owns retirement of its own closed `pulse-NNNNNN` artifact directories. Status display limits and Idunn process supervision own no deletion authority.
+- Inputs: the canonical heartbeat artifact root, direct pulse directory sequences, exact recursive file manifests, the latest cognition artifact reference, a recent-pulse count, and a bounded retirement batch size.
+- Outputs: a typed retention plan committed before deletion and a typed completion receipt after every planned directory is absent. Plans and receipts retain exact directory names, manifest roots, file counts, and byte counts without retaining private artifact bodies.
+- Derived state: the active artifact count is bounded by recent count plus one hysteresis batch. The default 256 recent pulses and 64-pulse batch keep at most 320 active directories between retention runs.
+- Forbidden writers: projection limits cannot masquerade as retention. Unknown directory names, symlinks, paths outside the canonical root, post-plan manifest changes, and the pulse containing the latest cognition artifact all fail closed before deletion.
+- Shared paths: explicit `retain-artifacts` and every resident heartbeat serve outcome call the same plan/reconcile primitive. A crash after plan commitment resumes that exact plan; already absent members are accepted, while surviving members must still match their planned manifests.
+- Cut line: the permanent one-directory-per-15-second growth path is removed. Process stdout/stderr logs remain a separate supervisor-owned rotation problem and are not deleted by heartbeat retention.
+- Verification layer: synthetic CultCache-backed tests prove hysteresis bounding and idempotence, changed-plan refusal with preservation, unknown-directory refusal before deletion, and protection of the latest cognition artifact. Live backlog reduction waits for exact packaging.
+
 ## Runtime job and session closure ownership
 
 - Owner: the worker runtime terminalizes its own outer role job and inner model job. Continuity owns runtime-session completion after every job in that session is terminal.

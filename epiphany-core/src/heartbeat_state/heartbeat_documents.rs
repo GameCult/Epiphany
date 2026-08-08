@@ -17,6 +17,18 @@ pub const HEARTBEAT_STALE_TURN_REPAIR_TYPE: &str = "epiphany.heartbeat.stale_tur
 pub const HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
     "epiphany.heartbeat.stale_turn_repair.v0";
 pub const HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY: &str = "heartbeat/stale-turn-repair/latest";
+pub const HEARTBEAT_ARTIFACT_RETENTION_PLAN_TYPE: &str =
+    "epiphany.heartbeat.artifact_retention_plan";
+pub const HEARTBEAT_ARTIFACT_RETENTION_PLAN_SCHEMA_VERSION: &str =
+    "epiphany.heartbeat.artifact_retention_plan.v0";
+pub const HEARTBEAT_ARTIFACT_RETENTION_PLAN_LATEST_KEY: &str =
+    "heartbeat/artifact-retention-plan/latest";
+pub const HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_TYPE: &str =
+    "epiphany.heartbeat.artifact_retention_receipt";
+pub const HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.heartbeat.artifact_retention_receipt.v0";
+pub const HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_LATEST_KEY: &str =
+    "heartbeat/artifact-retention-receipt/latest";
 pub const PERSONA_TURN_REQUEST_SCHEMA_VERSION: &str = "epiphany.persona_turn_request.v0";
 pub const PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.persona_turn_terminal_receipt.v0";
@@ -123,6 +135,64 @@ pub struct EpiphanyHeartbeatStaleTurnRepairReceipt {
     pub private_state_exposed: bool,
     #[cultcache(key = 13)]
     pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HeartbeatArtifactRetentionMember {
+    pub directory_name: String,
+    pub manifest_sha256: String,
+    pub file_count: u64,
+    pub byte_count: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.heartbeat.artifact_retention_plan",
+    schema = "EpiphanyHeartbeatArtifactRetentionPlan"
+)]
+pub struct EpiphanyHeartbeatArtifactRetentionPlan {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub plan_id: String,
+    #[cultcache(key = 2)]
+    pub artifact_root: String,
+    #[cultcache(key = 3)]
+    pub retain_pulse_count: u64,
+    #[cultcache(key = 4)]
+    pub batch_size: u64,
+    #[cultcache(key = 5)]
+    pub members: Vec<HeartbeatArtifactRetentionMember>,
+    #[cultcache(key = 6)]
+    pub planned_at_utc: String,
+    #[cultcache(key = 7)]
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.heartbeat.artifact_retention_receipt",
+    schema = "EpiphanyHeartbeatArtifactRetentionReceipt"
+)]
+pub struct EpiphanyHeartbeatArtifactRetentionReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub plan_id: String,
+    #[cultcache(key = 3)]
+    pub status: String,
+    #[cultcache(key = 4)]
+    pub deleted_directories: Vec<String>,
+    #[cultcache(key = 5)]
+    pub deleted_file_count: u64,
+    #[cultcache(key = 6)]
+    pub deleted_byte_count: u64,
+    #[cultcache(key = 7)]
+    pub completed_at_utc: String,
+    #[cultcache(key = 8)]
+    pub private_state_exposed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]

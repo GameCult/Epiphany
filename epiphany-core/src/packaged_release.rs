@@ -246,10 +246,25 @@ pub fn package_epiphany_release(
 }
 
 fn release_source_cache_identity(repo: &Path) -> Result<String> {
-    let canonical_repo = canonical_path(repo)?;
+    let common_dir = PathBuf::from(git_output(repo, &["rev-parse", "--git-common-dir"])?.trim());
+    let common_dir = if common_dir.is_absolute() {
+        canonical_path(&common_dir)?
+    } else {
+        canonical_path(&repo.join(common_dir))?
+    };
+    // Linked worktrees are views of one repository and must share one exact-source
+    // cache. For ordinary non-bare repositories, hashing the common `.git` parent
+    // also preserves the cache identity used before worktree-aware ownership.
+    let cache_owner = if common_dir.file_name().is_some_and(|name| name == ".git") {
+        common_dir
+            .parent()
+            .ok_or_else(|| anyhow!("repository common directory has no owner"))?
+    } else {
+        common_dir.as_path()
+    };
     let mut digest = Sha256::new();
     digest.update(b"epiphany.release_source_cache.v0\0");
-    digest.update(canonical_repo.to_string_lossy().as_bytes());
+    digest.update(cache_owner.to_string_lossy().as_bytes());
     Ok(format!("{:x}", digest.finalize()))
 }
 
@@ -1050,12 +1065,46 @@ mod tests {
         let root = TempDir::new().expect("temporary root");
         let first = root.path().join("first");
         let second = root.path().join("second");
-        fs::create_dir_all(&first).expect("first repository path");
-        fs::create_dir_all(&second).expect("second repository path");
+        let linked = root.path().join("linked");
+        for repo in [&first, &second] {
+            fs::create_dir_all(repo).expect("repository path");
+            run_git_checked(repo, &["init"], "initialize test repository")
+                .expect("initialized repository");
+            run_git_checked(
+                repo,
+                &[
+                    "-c",
+                    "user.name=Epiphany Test",
+                    "-c",
+                    "user.email=epiphany-test@invalid",
+                    "commit",
+                    "--allow-empty",
+                    "-m",
+                    "cache identity fixture",
+                ],
+                "commit test repository",
+            )
+            .expect("committed repository");
+        }
+        run_git_checked(
+            &first,
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                linked.to_str().expect("UTF-8 path"),
+            ],
+            "create linked test worktree",
+        )
+        .expect("linked worktree");
 
         assert_eq!(
             release_source_cache_identity(&first).expect("first identity"),
             release_source_cache_identity(&first).expect("stable first identity")
+        );
+        assert_eq!(
+            release_source_cache_identity(&first).expect("main identity"),
+            release_source_cache_identity(&linked).expect("linked identity")
         );
         assert_ne!(
             release_source_cache_identity(&first).expect("first identity"),
@@ -1076,6 +1125,13 @@ mod tests {
 
     #[test]
     fn resident_cognition_roles_keep_their_owning_manifests() {
+        let root_manifest = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .expect("epiphany-core has a repository parent")
+                .join("Cargo.toml"),
+        )
+        .expect("root release manifest");
         let packaged_roles = required_packaged_release_binaries("x86_64-unknown-linux-gnu")
             .into_iter()
             .map(|(role, _)| role)
@@ -1112,6 +1168,7 @@ mod tests {
             required_release_build_target("runtime-spine").unwrap(),
             ("epiphany-core", "epiphany-runtime-spine")
         );
+        assert!(root_manifest.contains("name = \"epiphany-runtime-spine\""));
         assert_eq!(
             required_release_build_target("coordinator").unwrap(),
             (".", "epiphany-mvp-coordinator")
@@ -1151,15 +1208,10 @@ mod tests {
         let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo = core.parent().expect("epiphany-core repository parent");
         let root_manifest = fs::read_to_string(repo.join("Cargo.toml")).expect("root manifest");
-        let core_manifest =
-            fs::read_to_string(core.join("Cargo.toml")).expect("core manifest");
+        let core_manifest = fs::read_to_string(core.join("Cargo.toml")).expect("core manifest");
 
-        assert!(root_manifest.contains(
-            "coordinator-runtime = [\"dep:epiphany-self-policy\"]"
-        ));
-        assert!(root_manifest.contains(
-            "required-features = [\"coordinator-runtime\"]"
-        ));
+        assert!(root_manifest.contains("coordinator-runtime = [\"dep:epiphany-self-policy\"]"));
+        assert!(root_manifest.contains("required-features = [\"coordinator-runtime\"]"));
         assert!(core_manifest.contains("autobins = false"));
         assert!(!core_manifest.contains("name = \"epiphany-mvp-coordinator\""));
         assert!(!core_manifest.contains("name = \"epiphany-mvp-status\""));
