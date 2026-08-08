@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
+use epiphany_core::EpiphanyHeartbeatArtifactRetentionReceipt;
 use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatHeatUpdateOptions;
@@ -326,7 +327,7 @@ fn main() -> Result<()> {
                 serde_json::json!({
                     "schemaVersion": "epiphany.heartbeat.artifact_retention_command.v0",
                     "status": if receipt.is_some() { "completed" } else { "within-bound" },
-                    "receipt": receipt,
+                    "receipt": receipt.as_ref().map(retention_receipt_projection),
                     "privateStateExposed": false
                 })
             );
@@ -535,7 +536,7 @@ fn main() -> Result<()> {
                     artifact_dir.display()
                 )
             })?;
-            let mut completed_iterations = 0_u64;
+            let mut completed_iterations = highest_pulse_artifact_sequence(&artifact_dir)?;
             let mut completed_routines = 0_u64;
             let mut refused_pulses = 0_u64;
             loop {
@@ -604,7 +605,8 @@ fn main() -> Result<()> {
                                 "schemaVersion":"epiphany.heartbeat.serve_pulse.v0", "status":pulse.status,
                                 "owner":"heartbeat", "iteration":iteration, "artifactDir":iteration_dir,
                                 "acknowledgedTerminalId":pulse.acknowledged_terminal_id, "grantId":pulse.grant_id,
-                                "brakeId":brake.as_ref().map(|value| &value.brake_id), "retention":retention,
+                                "brakeId":brake.as_ref().map(|value| &value.brake_id),
+                                "retention":retention.as_ref().map(retention_receipt_projection),
                                 "privateStateExposed":false
                             })
                         );
@@ -636,7 +638,8 @@ fn main() -> Result<()> {
                             "artifactDir": iteration_dir,
                             "brakeId": brake.brake_id,
                             "brakeScope": brake.scope,
-                            "reason": brake.reason, "retention": retention,
+                            "reason": brake.reason,
+                            "retention": retention.as_ref().map(retention_receipt_projection),
                             "privateStateExposed": false
                         })
                     );
@@ -666,7 +669,8 @@ fn main() -> Result<()> {
                     println!(
                         "{}",
                         serde_json::json!({
-                            "pulse": persona_pulse, "retention": retention,
+                            "pulse": persona_pulse,
+                            "retention": retention.as_ref().map(retention_receipt_projection),
                             "privateStateExposed": false
                         })
                     );
@@ -704,7 +708,8 @@ fn main() -> Result<()> {
                         "iteration": iteration,
                         "artifactDir": iteration_dir,
                         "routineOk": result["ok"],
-                        "routineArtifact": result["artifactPath"], "retention": retention,
+                        "routineArtifact": result["artifactPath"],
+                        "retention": retention.as_ref().map(retention_receipt_projection),
                         "privateStateExposed": false
                     })
                 );
@@ -748,6 +753,51 @@ fn main() -> Result<()> {
 
 fn next_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(next_value(args, name)?))
+}
+
+fn retention_receipt_projection(
+    receipt: &EpiphanyHeartbeatArtifactRetentionReceipt,
+) -> serde_json::Value {
+    serde_json::json!({
+        "schemaVersion": receipt.schema_version,
+        "receiptId": receipt.receipt_id,
+        "planId": receipt.plan_id,
+        "status": receipt.status,
+        "deletedDirectories": receipt.deleted_directories,
+        "deletedFileCount": receipt.deleted_file_count,
+        "deletedByteCount": receipt.deleted_byte_count,
+        "completedAtUtc": receipt.completed_at_utc,
+        "privateStateExposed": receipt.private_state_exposed,
+    })
+}
+
+fn highest_pulse_artifact_sequence(artifact_root: &Path) -> Result<u64> {
+    let mut highest = 0_u64;
+    for entry in fs::read_dir(artifact_root)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(anyhow!("heartbeat artifact root contains a symlink"));
+        }
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| anyhow!("heartbeat artifact directory name is not UTF-8"))?;
+        let digits = name
+            .strip_prefix("pulse-")
+            .filter(|digits| digits.len() == 6 && digits.bytes().all(|byte| byte.is_ascii_digit()))
+            .ok_or_else(|| {
+                anyhow!("heartbeat artifact root contains unknown directory {name:?}")
+            })?;
+        highest = highest.max(digits.parse()?);
+    }
+    if highest >= 999_999 {
+        return Err(anyhow!("heartbeat pulse artifact sequence is exhausted"));
+    }
+    Ok(highest)
 }
 
 fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
@@ -830,6 +880,36 @@ mod brake_tests {
         assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_none());
         epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
         assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn retention_receipt_projection_names_operator_fields() {
+        let projection = retention_receipt_projection(&EpiphanyHeartbeatArtifactRetentionReceipt {
+            schema_version: "epiphany.heartbeat.artifact_retention_receipt.v0".into(),
+            receipt_id: "receipt-1".into(),
+            plan_id: "plan-1".into(),
+            status: "completed".into(),
+            deleted_directories: vec!["pulse-000001".into()],
+            deleted_file_count: 2,
+            deleted_byte_count: 3,
+            completed_at_utc: "2026-08-08T21:00:00Z".into(),
+            private_state_exposed: false,
+        });
+        assert_eq!(projection["receiptId"], "receipt-1");
+        assert_eq!(projection["deletedDirectories"][0], "pulse-000001");
+        assert_eq!(projection["deletedFileCount"], 2);
+        assert!(projection.as_array().is_none());
+    }
+
+    #[test]
+    fn resident_heartbeat_resumes_after_highest_artifact_sequence() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        fs::create_dir(temp.path().join("pulse-000003"))?;
+        fs::create_dir(temp.path().join("pulse-012557"))?;
+        assert_eq!(highest_pulse_artifact_sequence(temp.path())?, 12_557);
+        fs::create_dir(temp.path().join("alien"))?;
+        assert!(highest_pulse_artifact_sequence(temp.path()).is_err());
         Ok(())
     }
 }

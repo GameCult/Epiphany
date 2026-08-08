@@ -53,17 +53,15 @@ pub fn retain_heartbeat_pulse_artifacts(
         return Ok(None);
     }
     let retire_count = batch_size.min(pulses.len() - retain_pulse_count);
+    let protected = protected_latest_cognition_pulse(store_path.as_ref(), &artifact_root)?;
     let members = pulses
         .iter()
+        .filter(|(_, path)| protected.as_deref() != path.file_name().and_then(|name| name.to_str()))
         .take(retire_count)
         .map(|(_, path)| artifact_member(&artifact_root, path))
         .collect::<Result<Vec<_>>>()?;
-    if let Some(protected) = protected_latest_cognition_pulse(store_path.as_ref(), &artifact_root)?
-        && members
-            .iter()
-            .any(|member| member.directory_name == protected)
-    {
-        bail!("heartbeat artifact retention refuses the latest cognition artifact pulse");
+    if members.len() != retire_count {
+        bail!("heartbeat artifact retention cannot fill a batch without current cognition");
     }
     let plan_id = retention_plan_id(&artifact_root, retain_pulse_count, batch_size, &members);
     let plan = EpiphanyHeartbeatArtifactRetentionPlan {
@@ -540,10 +538,10 @@ mod tests {
             },
         )?;
 
-        assert!(
-            retain_heartbeat_pulse_artifacts(&store, &artifacts, 2, 2, "2026-08-08T21:03:01Z",)
-                .is_err()
-        );
+        let receipt =
+            retain_heartbeat_pulse_artifacts(&store, &artifacts, 2, 2, "2026-08-08T21:03:01Z")?
+                .expect("retention should skip protected current cognition");
+        assert!(!receipt.deleted_directories.contains(&"pulse-000001".into()));
         assert!(protected.exists());
         Ok(())
     }

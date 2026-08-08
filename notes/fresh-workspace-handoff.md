@@ -2,6 +2,28 @@
 
 ## Retention and release-bootstrap pass — 2026-08-08
 
+Exact corrected release `100d8854` packaged 22 binaries as
+`sha256-da8be22948c6eb958edb2e7f7e03c5cc77d17463659fa14127402392194460d3`
+with witness
+`sha256-6a95957f7e7b2b47b42d2154ed8232d68ffe68d3b6bdf67bee6397fa6aab2027`.
+Its packaged runtime-spine closed all four sessions in a fresh byte-identical
+v28 copy, replayed closure idempotently, and refused post-close work. A bounded
+live retention drain then reduced heartbeat artifacts from 12,511 directories
+and 706.5 MB to 312 directories and 17.6 MB. The latest cognition pulse
+survived; 191 deletion receipts are in the heartbeat store and the drain log
+SHA-256 is `8280dd7567f839b0b038d69deb45bfb219c42092a231a2d331e0e3620a293003`.
+
+Restarting the resident under `100d8854` exposed another Continuity fault:
+serve iteration restarted at `pulse-000001` instead of recovering the highest
+surviving sequence. The process was stopped after three pulses; its stdout
+SHA-256 is `4a104e39d81e0766261fff815a7d4350de31a9d5b956634a9cb39a9e5ad40b22`.
+Current source resumes from the highest exact pulse directory, refuses alien
+directories and exhausted sequence space, skips protected current cognition
+when forming retirement batches, and emits named operator receipt fields. Four
+retention and three heartbeat-binary tests pass. The resident heartbeat remains
+stopped pending an authenticated package of this correction; do not restart the
+old binary.
+
 The first exact `339d5a6f` build completed its Rust 1.95 graph in 17m07s but
 failed because the isolated coordinator artifact was absent. Rebuilding that
 single target restored the cache. A detached clean-worktree retry then exposed
