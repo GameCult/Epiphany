@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 has completed the adopted RepoModel revision 5 Hands route through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Final typed Hands receipts are present. The Mind-admitted RepoModel now supplies one shared continuity checkpoint to status, CRRC, Reorientation launch, and atomic Reorientation acceptance. Accepted Reorientation found retrieval and graph freshness unknown, so Self correctly routed Eyes regather. Mind accepted the source-grounded Eyes packet at revision 26; its route narrative was advisory, not Eyes authority. Self then derived the causal single-use Modeling reconciliation, which is active under model-runtime PID 31656. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 completed the adopted RepoModel revision 5 Hands consequence through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Reorientation and Eyes regather were accepted; the resulting causal Modeling attempt was correctly rejected because Evolution cannot bypass the active route. HEAD 189091bf routes the still-unverified Hands consequence to Soul ahead of that rejected Modeling result. Soul now fails closed because the adopted plan command does not match the complete Hands command receipt, exposing an Imagination/Mind admission defect rather than a Soul defect. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: stale_proposal_precedence_fix_verified_commit_next
+    local_worktree: soul_binding_diagnostic_mid_pass
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Eyes result result-worker-437e5b05-9e8c-4596-b517-84a7a75d2b4f owns source observations, not runtime routing. Its evidence was accepted; Self retained routing authority and launched Modeling because accepted Research is newer than the last Modeling boundary. Exact HEAD packaging is still required because the currently published 253ef340 release predates the final atomic-acceptance corrections. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
-  next_action: Poll the single active Modeling worker PID 31656; do not relaunch. Review and accept the first valid causal RepoModel result, verify modelingResultAcceptedAfterResearch consumes the route, then let Self route Soul over the existing Hands consequence. Package and publish exact HEAD once without duplicate builds, replay the closed continuity chain, and inspect the next typed action.
+  unresolved_authority: The active route admitted a plan whose command cannot bind the completed Hands consequence. Soul reports only command.plan.command after supervisor-supplied exact receipt-chain retries, so the live state is fail-closed and must not be bypassed. Prevent empty or non-executable plan commands from reaching Mind adoption, then migrate the live route through a labeled typed supervisor repair. Exact HEAD packaging remains required. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
+  next_action: Finish and commit the Soul mismatch diagnostic, add admission coverage that rejects a non-executable adopted-plan command before Hands authority exists, then design one typed supervisor migration that repairs the live route and emits receipts without erasing the rejected state. Retry Soul only after the repaired route and current Hands consequence bind exactly. Separately map and split the monolithic epiphany-core runtime spine/build graph; tiny runtime-spine edits currently force 18-29 second debug rebuilds and multi-minute exact packages.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

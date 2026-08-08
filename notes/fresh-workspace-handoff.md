@@ -7,11 +7,11 @@ growth.
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD: `0763fcbe94257eb9adbe92ab814b5a487f65551d`
+- Pushed HEAD: `189091bf` (`Keep rejected Modeling behind pending Soul`)
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Sealed evidence: v49 through v52. Do not mutate them.
 - Current published release: commit `253ef34084c7b450e587c1938a68cd3e983ed79b`, release `sha256-e0a4fd22df335401d56295453e009f31aa2e82253634614426bfba298dd2d3f0`, witness `sha256-65cbc2f21f0774c4da00a60537c959d130e970a4b860de5629a7b929b8185b2c`.
-- Exact HEAD still needs one package/publish pass after the active Eyes worker completes.
+- Exact HEAD still needs one package/publish pass; do not start a duplicate build.
 
 ## What is true now
 
@@ -39,8 +39,20 @@ The Eyes worker completed as
 were valid and Mind accepted them at revision 26. Its suggestion to return to
 Imagination was advisory prose outside Eyes authority; Self retained runtime
 routing authority and derived one causal Modeling reconciliation because the
-accepted Research boundary is newer than Modeling. That single worker is active
-under model-runtime PID 31656. Poll it; do not relaunch.
+accepted Research boundary was newer than Modeling. Modeling result
+`result-worker-8772d5af-8df9-42da-a1c4-dee13eb1d959` proposed an Evolution
+patch and was correctly rejected because Evolution cannot bypass the active
+route. Commits `fbea0e22` and `189091bf` now keep that reviewed rejection behind
+Soul verification while a complete Hands consequence exists.
+
+Soul launch remains fail-closed. Supervisor retries supplied complete typed
+Hands chains for both plausible historical test-command spellings, with fresh
+passing logs, but verification-request admission still reports
+`command.plan.command`. Inspection of the typed route payload indicates that
+Imagination/Mind admitted a non-executable or empty plan command while later
+granting Hands authority. Do not weaken Soul and do not forge an empty command
+receipt. Preserve the failed launches (`v53-soul-r24`, `r25`, `r27`, diagnostic
+`r28`/`r29`) as receipts of the corrupted seam.
 
 ## Receipts
 
@@ -53,11 +65,17 @@ under model-runtime PID 31656. Poll it; do not relaunch.
 
 ## Next action
 
-Poll Modeling PID 31656. Review and accept the first valid causal RepoModel
-result, prove `modelingResultAcceptedAfterResearch` consumes the route, then
-follow Self into Soul verification of the completed Hands consequence. After that,
-package and publish exact `0763fcbe` once, replay v53 with no overrides, and
-inspect the next typed action.
+Finish the operator-safe mismatch diagnostic in `runtime_spine.rs` and commit
+it. Add fail-closed admission coverage so a non-executable adopted-plan command
+cannot produce Hands authority. Then implement one labeled typed supervisor
+migration for the live route, preserving the original route and every failed
+Soul launch as evidence, and retry Soul against the repaired binding.
+
+Build iteration is also an active architectural defect: a tiny
+`runtime_spine.rs` diagnostic edit forced 18-29 second debug rebuilds, while
+exact packages remain multi-minute. Map the crate/module dependency fan-out and
+extract the volatile coordinator/runtime-spine seam into narrower compilation
+units before the remaining shakedown passes.
 
 Keep separate the pending provenance audit: the adopted Mind decision serialized
 a model-supplied 2025 `decided_at`; coordinator commit-time ownership must be

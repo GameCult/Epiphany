@@ -7332,18 +7332,29 @@ pub fn put_repo_frontier_verification_request(
     let commit = cache
         .get::<HandsCommitReceipt>(&request.hands_commit_receipt_id)?
         .ok_or_else(|| anyhow!("verification request requires its exact commit receipt"))?;
-    let adopted_plan_consequence_is_exact = route.adopted_plan.as_ref().is_none_or(|plan| {
-        intent.frontier_route_id == route.route_id
-            && intent.plan_candidate_sha256 == plan.candidate_sha256
-            && intent.plan_action == plan.action
-            && command.command == plan.command
+    let current_model_hash = crate::memory_graph_model_hash(&model)?;
+    let adopted_plan_mismatches = route.adopted_plan.as_ref().map_or_else(Vec::new, |plan| {
+        let mut mismatches = Vec::new();
+        if intent.frontier_route_id != route.route_id {
+            mismatches.push("intent.plan.route");
+        }
+        if intent.plan_candidate_sha256 != plan.candidate_sha256 {
+            mismatches.push("intent.plan.candidate");
+        }
+        if intent.plan_action != plan.action {
+            mismatches.push("intent.plan.action");
+        }
+        if command.command != plan.command {
+            mismatches.push("command.plan.command");
+        }
+        mismatches
     });
     if request.model_revision != route.model_revision
         || request.model_hash != route.model_hash
         || request.frontier_item_id != route.frontier_item_id
         || request.frontier_item_hash != route.frontier_item_hash
         || model.model_revision != route.model_revision
-        || crate::memory_graph_model_hash(&model)? != route.model_hash
+        || current_model_hash != route.model_hash
         || authority.hands_review_id != request.hands_review_id
         || authority.model_revision != request.model_revision
         || authority.model_hash != request.model_hash
@@ -7364,10 +7375,15 @@ pub fn put_repo_frontier_verification_request(
         || commit.runtime_job_id != intent.runtime_job_id
         || patch.changed_paths != commit.changed_paths
         || !consequence_paths_within_authority(&patch.changed_paths, &authority.requested_paths)
-        || !adopted_plan_consequence_is_exact
+        || !adopted_plan_mismatches.is_empty()
     {
         return Err(anyhow!(
-            "verification request does not exactly bind route, model, Hands authority, and complete receipts"
+            "verification request does not exactly bind route, model, Hands authority, and complete receipts{}",
+            if adopted_plan_mismatches.is_empty() {
+                String::new()
+            } else {
+                format!("; mismatches: {}", adopted_plan_mismatches.join(", "))
+            }
         ));
     }
     let (envelope, _) = cache.prepare_entry(&request.request_id, request)?;
