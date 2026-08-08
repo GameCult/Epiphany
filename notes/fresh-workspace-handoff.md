@@ -1,5 +1,21 @@
 # Fresh Workspace Handoff
 
+Fresh v41 exhausted the selected proposal queue, then exercised failure and
+recovery. Two Modeling runs launched with resident `--no-auto-tools` failed
+immediately because the assistant payload was empty/non-typed JSON. Supervised
+failure review wrote exact supersession receipts and relaunched through the
+packaged coordinator. A tool-enabled retry completed with source-grounded
+findings, proving the missing input. Mind nevertheless rejected two successive
+completed patches because ordinary `evolution` attempted to mutate the current
+verdict-owned frontier: `Evolution cannot bypass a current route or own
+verdict-driven frontier lifecycle`. The runtime stayed unchanged.
+
+The current worktree removes resident's blanket tool disable and makes ordinary
+Modeling's JSON schema expose only node/edge operations unless a typed proposal,
+claim-repair, or verdict authority field is present. Focused schema and
+resident-launch tests pass. v41 is sealed as the missing-tools and overbroad
+output-contract boundary.
+
 Exact pushed `5f09d35a` packages as
 `sha256-39a81a35d847fd6b459379d5bf3ef4fa57a3142745a10f13f4b033eea85ca45a`
 with witness

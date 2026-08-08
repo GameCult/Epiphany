@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 5f09d35a packages as sha256-39a81a35d847fd6b459379d5bf3ef4fa57a3142745a10f13f4b033eea85ca45a with witness sha256-9cf82d9c1bdf018c36d199838598f5476acbc43818beb9fdb68840dc00be7f9b. v40 proved proposal Modeling creates its exact launch binding before resident success: resident stayed running through worker life, completed afterward, and typed queue ownership advanced from request 4b9414 to e75b60 only after that binding. The worker result failed and remains unaccepted, so proposal result review/recovery is the next live boundary. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 5f09d35a packages as sha256-39a81a35d847fd6b459379d5bf3ef4fa57a3142745a10f13f4b033eea85ca45a with witness sha256-9cf82d9c1bdf018c36d199838598f5476acbc43818beb9fdb68840dc00be7f9b. v40 proved proposal binding-before-success and ordered queue consumption. v41 proved failed Modeling results can be supervised, superseded, and relaunched, but resident's blanket no-tools flag starved Modeling and the generic output schema offered frontier mutations ordinary evolution could never admit. Tool-enabled retries produced grounded results; Mind correctly rejected both forbidden frontier patches. The current worktree restores role-scoped tools and structurally restricts ordinary Modeling to node/edge evolution. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_after_live_v40_binding_proof
+    local_worktree: modeling_tool_and_output_authority_repair_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v37 proved single-owner pressure ordering but exposed that generic coordinator completion could consume a typed pressure without its requested launch consequence. The fulfillment repair is locally verified but not packaged/live. Canonical proposal Modeling, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Record and push the v40 binding-before-success proof, then drive the failed proposal Modeling result through typed failure review/recovery without accepting it. Continue the remaining proposal queue into canonical Imagination planning, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
+  next_action: Commit, package, and authenticate the Modeling tool/output-authority repair; replay the sealed v41 recovery and prove ordinary Modeling emits an admissible node/edge-only patch, then follow CRRC into Reorientation acceptance and Continuity recovery receipt before Soul closure. Continue canonical Imagination planning, dedicated Mind, Hands, Persona, endurance, and Linux/Yggdrasil.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

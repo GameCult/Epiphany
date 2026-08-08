@@ -1302,6 +1302,21 @@ intentionally stops before that loop actuates. Its startup handler creates the
 exact `RepoFrontierProposalModelingLaunchBinding` that resident fulfillment
 then verifies.
 
+Role tool authority belongs to the role-scoped adapter, not to resident Self.
+Resident preparation therefore does not append a blanket `--no-auto-tools`:
+Modeling and Eyes must be able to inspect their Body through the adapter's
+read-only grants, while the adapter still refuses tools outside the launched
+organ contract. Live v41 proved the distinction: tool-starved Modeling twice
+returned an empty non-typed payload; the same bounded recovery with native
+tools produced a grounded typed result.
+
+Output shape must also match launch authority. Ordinary Modeling with no typed
+proposal, claim-repair, or verdict request exposes only node/edge evolution in
+its output schema. Frontier operations remain available only behind the typed
+authority fields whose exact identities Mind validates. This moves the first
+line of defense from a prose warning plus downstream rejection into the model's
+declared output contract; Mind remains the final admission owner.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is

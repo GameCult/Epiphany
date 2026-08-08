@@ -535,7 +535,6 @@ pub fn coordinator_argv(
         policy.max_steps.to_string(),
         "--max-runtime-seconds".into(),
         policy.turn_timeout_seconds.to_string(),
-        "--no-auto-tools".into(),
     ];
     let ResidentSelfWake::Explicit { objective } = wake;
     argv.extend(["--objective".into(), objective.clone()]);
@@ -1987,6 +1986,10 @@ mod tests {
         let prepared = prepare_resident_self_launch(&store, &policy, 4)?.expect("prepared launch");
         assert_eq!(prepared.grant.grant_id, grant.grant_id);
         assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
+        assert!(
+            !prepared.argv.iter().any(|arg| arg == "--no-auto-tools"),
+            "role-scoped tool policy, not resident argv, owns Modeling inspection authority"
+        );
         assert!(prepared.argv.windows(2).any(|pair| pair
             == [
                 "--admitted-model-direction-consideration-request-id",

@@ -681,6 +681,45 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                     },
                     "required": ["evidenceIds", "repoModelPatch"]
                 }
+            },
+            {
+                "if": {
+                    "not": {
+                        "anyOf": [
+                            {"required": ["repoFrontierModelingRequestId"]},
+                            {"required": ["proposalModelingRequestId"]},
+                            {"required": ["claimRepairRequestId"]}
+                        ]
+                    }
+                },
+                "then": {
+                    "properties": {
+                        "repoModelPatch": {
+                            "properties": {
+                                "purpose": {
+                                    "type": "object",
+                                    "required": ["kind"],
+                                    "properties": {"kind": {"const": "evolution"}},
+                                    "additionalProperties": false
+                                },
+                                "operations": {
+                                    "items": {
+                                        "anyOf": [
+                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
+                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
+                                            {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
+                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
+                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
+                                            {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}}
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": ["purpose", "operations"]
+                        }
+                    },
+                    "required": ["repoModelPatch"]
+                }
             }
         ]);
     }
@@ -1609,6 +1648,16 @@ mod tests {
                 ["maxContains"],
             1
         );
+        let ordinary_operations = schema["allOf"][3]["then"]["properties"]["repoModelPatch"]
+            ["properties"]["operations"]["items"]["anyOf"]
+            .as_array()
+            .expect("ordinary Modeling operations");
+        assert_eq!(ordinary_operations.len(), 6);
+        assert!(ordinary_operations.iter().all(|operation| {
+            !operation["properties"]["operation"]["const"]
+                .as_str()
+                .is_some_and(|kind| kind.contains("frontier"))
+        }));
         let operations =
             schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
                 .as_array()
