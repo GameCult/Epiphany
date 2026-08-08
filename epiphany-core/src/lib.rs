@@ -1060,6 +1060,7 @@ pub use runtime_spine::runtime_hands_pr_receipt;
 pub use runtime_spine::runtime_hands_receipt_chain_after;
 pub use runtime_spine::runtime_has_actionable_eyes_frontier;
 pub use runtime_spine::runtime_has_actionable_hands_frontier;
+pub use runtime_spine::runtime_hands_receipt_chain_matches_current_model;
 pub use runtime_spine::runtime_has_actionable_imagination_frontier;
 pub use runtime_spine::runtime_hello_frame;
 pub use runtime_spine::runtime_job_snapshot;

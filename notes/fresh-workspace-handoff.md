@@ -90,6 +90,21 @@ original command is the planning sentence beginning `Draft one reviewable
 frontier-route plan candidate...`, proving the plan-to-Hands authority defect.
 No amendment has yet been attempted.
 
+The amendment has now landed as
+`repo-frontier-execution-amendment-d0d1a164c03f1298681a70b332ac3ddee423f8ab3e07b91d8dc3d74833a65875`,
+advancing RepoModel revision 5 to 6 and hash
+`e024e2ab2580f4006533d8a8f1f38fbd3aa5189b5307ac824854247e018abefd`.
+The packet and emitted receipt are preserved under
+`.epiphany-dogfood/v53-execution-amend-r31`. This is a user-authorized local
+supervisor admission, explicitly not a Bifrost-signed remote command.
+
+Post-amendment status exposed two stale-history precedence faults. A complete
+Hands chain now counts for Soul routing only when its immutable authority route
+matches the current RepoModel. A current Hands frontier also preempts a reviewed
+stale Modeling result and the otherwise-causal Research-to-Modeling route. Focused
+coordinator tests pass, and current live status now derives
+`continueImplementation` with `nativeHandsConsequenceAfterBoundary=false`.
+
 Build iteration is also an active architectural defect: a tiny
 `runtime_spine.rs` diagnostic edit forced 18-29 second debug rebuilds, while
 exact packages remain multi-minute. Map the crate/module dependency fan-out and

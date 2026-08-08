@@ -361,11 +361,16 @@ pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
     let Some(accepted_at) = latest_accepted_modeling_or_verification_timestamp(state) else {
         return Ok(false);
     };
-    runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
-        .map(|chain| chain.is_some())
+    let chain = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
         .map_err(|error| {
             format!("failed to load Hands receipt chain for coordinator routing: {error}")
-        })
+        })?;
+    let Some(chain) = chain else {
+        return Ok(false);
+    };
+    crate::runtime_hands_receipt_chain_matches_current_model(runtime_store_path, &chain).map_err(
+        |error| format!("failed to validate Hands receipt route against current model: {error}"),
+    )
 }
 
 pub fn append_modeling_repo_model_shape_context(

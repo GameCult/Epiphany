@@ -8281,6 +8281,45 @@ pub fn runtime_latest_hands_receipt_chain_after(
     Ok(summaries.pop())
 }
 
+/// A complete historical receipt chain becomes notification-only when its
+/// route no longer describes the current RepoModel. Self uses this predicate
+/// before routing the chain to Soul.
+pub fn runtime_hands_receipt_chain_matches_current_model(
+    store_path: impl AsRef<Path>,
+    chain: &RuntimeHandsReceiptChainSummary,
+) -> Result<bool> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|authority| authority.hands_intent_id == chain.intent_id)
+        .collect::<Vec<_>>();
+    if authorities.len() != 1 {
+        return Err(anyhow!(
+            "Hands receipt chain requires exactly one persisted frontier authority"
+        ));
+    }
+    let authority = &authorities[0];
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("Hands receipt chain lost its persisted route"))?;
+    let model_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("Hands receipt chain requires current RepoModel"))?;
+    crate::validate_memory_graph_entry(&model_entry)?;
+    let model = model_entry.snapshot()?;
+    Ok(authority.hands_review_id == chain.review_id
+        && authority.substrate_grant_receipt_id == chain.substrate_gate_grant_receipt_id
+        && authority.route_id == route.route_id
+        && authority.model_revision == route.model_revision
+        && authority.model_hash == route.model_hash
+        && authority.frontier_item_id == route.frontier_item_id
+        && authority.frontier_item_hash == route.frontier_item_hash
+        && model.model_revision == route.model_revision
+        && crate::memory_graph_model_hash(&model)? == route.model_hash)
+}
+
 pub fn put_soul_verdict_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SoulVerdictReceipt,

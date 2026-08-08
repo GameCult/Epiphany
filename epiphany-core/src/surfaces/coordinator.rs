@@ -972,9 +972,7 @@ pub fn recommend_coordinator_action(
 
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.modeling_result_accepted
-        && !(input.modeling_result_failure_reviewed
-            && input.modeling_result_proposal_bound
-            && input.hands_frontier_ready)
+        && !(input.modeling_result_failure_reviewed && input.hands_frontier_ready)
         && !(input.modeling_result_failure_reviewed
             && input.research_result_accepted
             && input.implementation_evidence_after_verification)
@@ -1164,6 +1162,16 @@ pub fn recommend_coordinator_action(
                 false,
                 true,
                 "Eyes refreshed source after CRRC regather and a complete Hands consequence still awaits Soul; verify that exact consequence before Modeling evolves its active route.",
+            );
+        }
+        if input.research_result_accepted && input.hands_frontier_ready {
+            return build(
+                EpiphanyCoordinatorAction::ContinueImplementation,
+                Some(EpiphanyCoordinatorRoleId::Implementation),
+                None,
+                false,
+                false,
+                "Mind has admitted a current Hands frontier after source regather; execute that exact route before launching unrelated Modeling.",
             );
         }
         if input.research_result_accepted && !input.modeling_result_accepted_after_research {
@@ -2014,6 +2022,15 @@ mod tests {
         );
         assert!(launch.reason.contains("Eyes evidence is newer"));
 
+        let current_hands_route = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            hands_frontier_ready: true,
+            ..base.clone()
+        });
+        assert_eq!(
+            current_hands_route.action,
+            EpiphanyCoordinatorAction::ContinueImplementation
+        );
+
         let consumed = recommend_coordinator_action(EpiphanyCoordinatorInput {
             modeling_result_accepted_after_research: true,
             ..base
@@ -2418,6 +2435,19 @@ mod tests {
         });
         assert_eq!(
             ready.action,
+            EpiphanyCoordinatorAction::ContinueImplementation
+        );
+
+        let stale_rejected_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: modeling_done,
+            modeling_result_accepted: false,
+            modeling_result_reviewable: true,
+            modeling_result_failure_reviewed: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            stale_rejected_modeling.action,
             EpiphanyCoordinatorAction::ContinueImplementation
         );
 
