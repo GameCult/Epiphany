@@ -1400,6 +1400,17 @@ mutation of the old launch receipt.
   failed attempts cannot later supply a candidate or override the successful
   attempt.
 
+Live v50 exposed a missing-context fault at the Imagination boundary. Runtime
+spine already enforces that every candidate `safe_paths` entry equals an
+immutable planning `source_scope` entry or descends from one. The model-facing
+schema described only a non-empty string array, and the runtime output contract
+asked for identity echo without stating the ceiling. Two consecutive canonical
+Imagination attempts therefore expanded scope and failed closed with no
+candidate cargo. The repair belongs at context ownership: the schema and
+runtime contract now state that safe paths are a sorted, duplicate-free
+narrowing of source scope, and adjacent useful files belong in stop conditions.
+The validator remains unchanged and Mind retains final admission authority.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

@@ -756,7 +756,12 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
                 "model_hash": {"type": "string", "minLength": 1},
                 "frontier_item_id": {"type": "string", "minLength": 1},
                 "frontier_item_hash": {"type": "string", "minLength": 1},
-                "safe_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "safe_paths": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "A strict lexicographically sorted, duplicate-free narrowing of the immutable planning context source_scope. Every path must equal one source_scope entry or be a descendant of one; never add an adjacent or otherwise unscoped path.",
+                    "items": {"type": "string", "minLength": 1}
+                },
                 "action": {"type": "string", "minLength": 1},
                 "command": {"type": "string", "minLength": 1},
                 "checks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
@@ -1721,6 +1726,12 @@ mod tests {
         assert!(schema["properties"].get("statePatch").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
         assert!(schema["properties"].get("repoModelPatch").is_none());
+        assert!(
+            schema["properties"]["frontierPlanCandidate"]["properties"]["safe_paths"]
+                ["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("never add an adjacent"))
+        );
         assert_eq!(schema["additionalProperties"], false);
     }
 

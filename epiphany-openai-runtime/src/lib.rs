@@ -1377,7 +1377,7 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.frontier_planning_context.is_some() =>
         {
-            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanningRequestId, frontierPlanCandidate. Echo the exact request and candidate identity from the typed launch context. Do not emit statePatch, selfPatch, or repoModelPatch."
+            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanningRequestId, frontierPlanCandidate. Echo the exact request and candidate identity from the typed launch context. frontierPlanCandidate.safe_paths may narrow but must never expand the immutable source_scope: every safe path must exactly equal a source_scope entry or be a descendant of one, in strict lexicographic order without duplicates. Do not include adjacent files merely because the plan would benefit from them; identify them as a stop condition instead. Do not emit statePatch, selfPatch, or repoModelPatch."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document

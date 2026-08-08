@@ -211,3 +211,34 @@ worktrees. The evidence write caught the damage immediately. Both were restored
 with `git submodule update --init --checkout` to pinned SHAs `7676a4c2` and
 `fab5b31d`, and `git submodule status` is clean. Do not reuse junctioned live
 submodule targets for future baseline archives.
+
+Exact relinquishment commit `182a591369131d621461947723e7fb71637fa386`
+is pushed and packaged as
+`sha256-b194a1850071739d62f1dd820529a511d2e7d07286d451506f1021e05e796143`
+with witness
+`sha256-455e715919444c98528986ee3a88aeb6daffd187d57d5202a15d7e9e688c1979`.
+Sealed v50 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v50-hands-relinquishment`
+proved `record-refusal`, atomic frontier retirement, native
+`frontierRelinquishment`, and structural invalidation of the historical v49
+route. Corrected proposal Modeling eventually admitted RepoModel revision 4
+after two invalid patches were rejected and a transient provider HTTP 503 was
+recorded as typed failure
+`role-failure-review-497e06aa-663d-4b1d-b55f-1e46629f6227`.
+
+The resulting planning request
+`repo-frontier-planning-d3f0f49859819409fcc7453c33039feee0a3c29f636c4b216ef241a98d5bdce4`
+correctly targeted eight source owners. Both canonical Imagination attempts
+failed closed with `frontier planning candidate exceeds exact frontier
+authority`; receipts are
+`frontier-planning-failure-review-1fff4758-7f85-4800-9dda-4f0bcc35ccf6`
+and worker result `result-worker-030c6e8e-50b9-482c-9c28-613a0360bbe9`.
+Source diagnosis found the validator correct but the model context incomplete:
+neither `epiphany_frontier_planning_output_schema` nor the OpenAI runtime output
+contract said that `safe_paths` must equal or descend from immutable
+`source_scope`. A local focused repair states that invariant and tells
+Imagination to put useful adjacent paths in stop conditions instead of silently
+expanding authority. Focused core and OpenAI-runtime tests pass. Commit and
+push, package once, clone v50 into a fresh runtime, and replay a fresh proposal
+through Modeling, canonical Imagination, and dedicated Mind. Do not retry the
+consumed v50 request again.

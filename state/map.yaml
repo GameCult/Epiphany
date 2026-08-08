@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact a6c23872 packages as sha256-5605ff00ffea1fce8f679868ae1081215707ef881cc5795172385aae27f96f0c with witness sha256-d9ed1d70a3e1db42b23761991a961f8e9c60531bd480ba01db7e8669a8bfd0e2. v46/v47 remain sealed negative evidence. Fresh route-free v49 proves proposal Modeling, canonical Imagination, dedicated Mind adoption, terminal planning lifecycle, and exact Hands gate without overrides. The historical v49 route remains immutable and cannot authorize the new relinquishment implementation. A labeled supervisor pass now gives Hands a typed refusal and Mind one atomic route-retirement admission; focused tests prove replay, collision, insufficient-gap, old-authority, and existing-consequence negatives. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 182a5913 packages as sha256-b194a1850071739d62f1dd820529a511d2e7d07286d451506f1021e05e796143 with witness sha256-455e715919444c98528986ee3a88aeb6daffd187d57d5202a15d7e9e688c1979. Sealed v50 proves the typed Hands refusal and atomic Mind relinquishment against the historical v49 route, then proves corrected proposal-bound Modeling through RepoModel revision 4. Its canonical Imagination attempts both failed closed because the model-facing planning contract omitted the enforced safe-path ceiling; no candidate or Hands authority was admitted. A focused local repair now states that invariant in both schema and runtime output contract. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: supervisor_relinquishment_implemented_verification_and_commit_next
+    local_worktree: imagination_safe_path_context_fix_verified_commit_next
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: The supervisor implementation is local and verified but not yet committed, pushed, packaged, or exercised against a live coordinator-created route. The broad 645-test library run passed 642 with one ignored. Its two failures (`autonomous_direction_option_is_atomically_bound_and_selected_for_modeling` and `repo_frontier_route_refuses_unadmitted_and_ineligible_models`) reproduce unchanged against isolated pushed HEAD d1d9cd10, so they are pre-existing suite corrosion rather than relinquishment regressions. Focused relinquishment, Hands CLI, status, and state-model checks pass.
-  next_action: Commit and push the completed supervisor relinquishment pass with the isolated d1d9cd10 baseline comparison as its failure receipt. Package the exact source once, exercise `record-refusal` against a fresh incomplete coordinator route, prove native status and the retired model authority in-process, then replan and continue CRRC, accepted Reorientation, Continuity recovery, and Soul closure.
+  unresolved_authority: v50 consumed both immutable Imagination attempts under the old release after producing the same bounded rejection, `frontier planning candidate exceeds exact frontier authority`. Source inspection shows the validator already owns the correct ceiling, but neither the output schema nor the runtime contract told Imagination that safe_paths must equal or descend from source_scope. The local context repair is focused-test green but is not yet committed, pushed, packaged, or replayed on a fresh runtime.
+  next_action: Commit and push the Imagination safe-path context repair, package its exact source once, clone sealed v50 into a fresh runtime, issue a fresh typed proposal, and prove Modeling -> Imagination -> dedicated Mind adoption without overrides. Record the transient v4 HTTP 503 and both v50 authority failures as endurance and context receipts. Then continue the adopted CRRC/Reorientation/Continuity/Soul implementation route.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
