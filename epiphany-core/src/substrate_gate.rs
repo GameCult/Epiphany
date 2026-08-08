@@ -284,6 +284,7 @@ mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let grant = substrate_gate_repo_access_grant_for_launch(
             "grant-1".to_string(),

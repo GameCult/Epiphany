@@ -1564,3 +1564,22 @@ construct and pull the append-only CultCache store. The next launch-path cut is
 one transaction-scoped typed read view plus explicit write boundaries, with
 phase timings at the same owner seams. A cache wrapper that leaves repeated
 whole-store pulls authoritative would merely hide the smell.
+
+## Verdict-bound Modeling output authority
+
+Live v53 exposed a missing typed boundary after Soul acceptance. The
+coordinator committed an exact `RepoFrontierModelingRequest` and rendered it in
+dynamic context, but the persisted worker launch did not carry that identity.
+The model runtime therefore exposed the generic Modeling schema, and a worker
+could choose ordinary Evolution before Mind rejected it. Context was correct;
+schema authority was not.
+
+Owner: the typed worker launch carries the exact
+`repo_frontier_modeling_request_id` returned by the request-commit boundary.
+The model runtime specializes its provider schema from that field: exact ID
+echo, verdict-incorporation purpose, non-empty evidence, and exactly one
+`revise_frontier` operation. Prompt text is derived explanation, not authority.
+Ordinary Modeling retains its generic schema. Mind still validates route,
+verdict receipt, frontier identity, hashes, evidence, and mutation content at
+admission. The old path can no longer spend a model turn producing Evolution
+under verdict authority and rely on a later rejection to discover the mismatch.

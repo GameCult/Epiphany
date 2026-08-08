@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Self correctly derives post-Soul Modeling after repairing verification precedence over generic CRRC/regather routing. One timeout and one miscontextualized Evolution patch were reviewed and superseded. Causal Modeling job 9d7cd7d8-2d43-4165-b3c5-54381126579e now runs from the newer Soul boundary at thread-state revision 36. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Self correctly derives post-Soul Modeling after repairing verification precedence over generic CRRC/regather routing. Three post-Soul Modeling attempts are superseded: one timeout, one stale Eyes handoff, and one correctly contextualized worker that still escaped through the generic output schema as unauthorized Evolution. The repair now carries exact verdict-request authority in the typed worker launch and specializes the provider schema before inference. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: soul_precedence_verified_pending_commit
+    local_worktree: verdict_bound_modeling_schema_repair_verified_pending_release
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: The local execution amendment is user-authorized and packet-hash bound, not Bifrost-signed. Soul passed the amended consequence but reported that derived reorientation checkpoints carry empty evidence_ids; Modeling must preserve that limitation rather than overstate source provenance. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Exact packaging still takes 6m59s after core changes. Removing one redundant RepoModel pull left worker appearance near 48s and full coordinator launch near 83s, so repeated whole-store transactions remain the dominant 40 MiB launch-path defect.
-  next_action: Poll Modeling job 9d7cd7d8-2d43-4165-b3c5-54381126579e through operator-safe coordinator projection, accept its first valid verdict-incorporation result, and inspect Self's next typed action. Continue collapsing launch context onto one transaction-scoped typed read view and split volatile Self policy from the release mega-package without weakening provenance.
+  next_action: Finish focused verification and publish the verdict-bound Modeling schema repair. Build one authenticated release, relaunch the superseded post-Soul Modeling request without overrides, accept the first valid frontier-verdict result, and inspect Self's next typed action. Continue collapsing launch context onto one transaction-scoped typed read view and split volatile Self policy from the release mega-package without weakening provenance.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

@@ -726,6 +726,45 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     schema
 }
 
+pub fn epiphany_frontier_verdict_modeling_output_schema(request_id: &str) -> serde_json::Value {
+    let mut schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
+    schema["properties"]["repoFrontierModelingRequestId"] = serde_json::json!({
+        "type": "string",
+        "const": request_id
+    });
+    schema["properties"]["repoModelPatch"]["properties"]["purpose"] = serde_json::json!({
+        "type": "object",
+        "required": ["kind", "route_id", "soul_verdict_receipt_id"],
+        "properties": {
+            "kind": {"const": "incorporate_frontier_verdict"},
+            "route_id": {"type": "string", "minLength": 1},
+            "soul_verdict_receipt_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+    });
+    schema["properties"]["repoModelPatch"]["properties"]["operations"] = serde_json::json!({
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 1,
+        "items": {
+            "type": "object",
+            "required": ["operation", "item"],
+            "properties": {
+                "operation": {"const": "revise_frontier"},
+                "item": repo_frontier_item_output_schema()
+            },
+            "additionalProperties": false
+        }
+    });
+    schema["properties"]["evidenceIds"]["minItems"] = serde_json::json!(1);
+    schema["required"]
+        .as_array_mut()
+        .expect("role schema required must be an array")
+        .push(serde_json::json!("repoFrontierModelingRequestId"));
+    schema["allOf"] = serde_json::json!([]);
+    schema
+}
+
 pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
     let mut schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Imagination);
     let properties = schema["properties"]
@@ -1118,6 +1157,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         frontier_plan_mind_request_id: Some(mind_request_id),
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
+        repo_frontier_modeling_request_id: None,
     })
 }
 
@@ -1217,6 +1257,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
+        repo_frontier_modeling_request_id: None,
     })
 }
 
@@ -1380,6 +1421,7 @@ pub fn build_epiphany_job_launch_request(
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
+        repo_frontier_modeling_request_id: None,
     }
 }
 
@@ -1653,10 +1695,11 @@ mod tests {
                 ["maxContains"],
             1
         );
-        let ordinary_operations = schema["allOf"][3]["then"]["properties"]["repoModelPatch"]
-            ["properties"]["operations"]["items"]["anyOf"]
-            .as_array()
-            .expect("ordinary Modeling operations");
+        let ordinary_operations =
+            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
+                ["items"]["anyOf"]
+                .as_array()
+                .expect("ordinary Modeling operations");
         assert_eq!(ordinary_operations.len(), 6);
         assert!(ordinary_operations.iter().all(|operation| {
             !operation["properties"]["operation"]["const"]
@@ -1672,6 +1715,34 @@ mod tests {
             .expect("typed RepoModel node kinds");
         assert!(node_kinds.iter().any(|kind| kind == "runtime_contract"));
         assert!(!node_kinds.iter().any(|kind| kind == "claim"));
+    }
+
+    #[test]
+    fn verdict_bound_modeling_schema_exposes_only_exact_frontier_revision_authority() {
+        let schema = epiphany_frontier_verdict_modeling_output_schema("modeling-request-exact");
+        assert_eq!(
+            schema["properties"]["repoFrontierModelingRequestId"]["const"],
+            "modeling-request-exact"
+        );
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "repoFrontierModelingRequestId")
+        );
+        assert_eq!(
+            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]["const"],
+            "incorporate_frontier_verdict"
+        );
+        let operations = &schema["properties"]["repoModelPatch"]["properties"]["operations"];
+        assert_eq!(operations["minItems"], 1);
+        assert_eq!(operations["maxItems"], 1);
+        assert_eq!(
+            operations["items"]["properties"]["operation"]["const"],
+            "revise_frontier"
+        );
+        assert_eq!(schema["properties"]["evidenceIds"]["minItems"], 1);
     }
 
     #[test]

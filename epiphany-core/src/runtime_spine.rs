@@ -352,6 +352,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub imagination_consideration_request_id: Option<String>,
     #[cultcache(key = 16, default)]
     pub admitted_model_direction_consideration_request_id: Option<String>,
+    #[cultcache(key = 17, default)]
+    pub repo_frontier_modeling_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -789,6 +791,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub frontier_plan_mind_request_id: Option<String>,
     pub imagination_consideration_request_id: Option<String>,
     pub admitted_model_direction_consideration_request_id: Option<String>,
+    pub repo_frontier_modeling_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -842,6 +845,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub frontier_plan_mind_request_id: Option<String>,
     pub imagination_consideration_request_id: Option<String>,
     pub admitted_model_direction_consideration_request_id: Option<String>,
+    pub repo_frontier_modeling_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1440,6 +1444,7 @@ pub fn open_runtime_spine_heartbeat_job(
         imagination_consideration_request_id: options.imagination_consideration_request_id,
         admitted_model_direction_consideration_request_id: options
             .admitted_model_direction_consideration_request_id,
+        repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1596,6 +1601,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
         imagination_consideration_request_id: options.imagination_consideration_request_id,
         admitted_model_direction_consideration_request_id: options
             .admitted_model_direction_consideration_request_id,
+        repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -10076,6 +10082,7 @@ pub(crate) mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let mut cache = runtime_spine_cache(store)?;
         cache.put(job_id, &request)?;
@@ -14120,6 +14127,7 @@ pub(crate) mod tests {
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;

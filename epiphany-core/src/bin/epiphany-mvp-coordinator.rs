@@ -1409,6 +1409,7 @@ fn launch_role(
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
     let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
+    let mut repo_frontier_modeling_request_id = None;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
@@ -1437,13 +1438,16 @@ fn launch_role(
         )
         .map_err(anyhow::Error::msg)?;
     } else if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
-        context = epiphany_core::append_modeling_work_loop_telemetry_context(
+        let modeling_launch_context = epiphany_core::append_modeling_work_loop_telemetry_context(
             context,
             runtime_store,
             &state,
             proposal_modeling_request_id,
         )
         .map_err(anyhow::Error::msg)?;
+        context = modeling_launch_context.context;
+        repo_frontier_modeling_request_id =
+            modeling_launch_context.repo_frontier_modeling_request_id;
     }
     let role_context_augmented_ms = started.elapsed().as_millis();
     let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
@@ -1456,6 +1460,7 @@ fn launch_role(
     )
     .map_err(anyhow::Error::msg)?;
     request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
+    request.repo_frontier_modeling_request_id = repo_frontier_modeling_request_id;
     let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(
         thread_id,

@@ -440,6 +440,7 @@ pub fn build_reorient_job_launch_request(
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
+        repo_frontier_modeling_request_id: None,
     }
 }
 

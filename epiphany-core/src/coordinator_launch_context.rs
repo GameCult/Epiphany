@@ -223,9 +223,7 @@ pub fn append_verification_hands_receipt_context(
                 })?;
         let gateway_review =
             crate::runtime_mind_gateway_review(runtime_store_path, &state_commit.gateway_id)
-                .map_err(|error| {
-                    format!("failed to load Mind gateway review for Soul: {error}")
-                })?
+                .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
                 .ok_or_else(|| {
                     "Soul frontier Mind state commit has no gateway review".to_string()
                 })?;
@@ -467,10 +465,9 @@ pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
     let Some(accepted_at) = latest_accepted_modeling_or_verification_timestamp(state) else {
         return Ok(false);
     };
-    let chain = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
-        .map_err(|error| {
-            format!("failed to load Hands receipt chain for coordinator routing: {error}")
-        })?;
+    let chain = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at).map_err(
+        |error| format!("failed to load Hands receipt chain for coordinator routing: {error}"),
+    )?;
     let Some(chain) = chain else {
         return Ok(false);
     };
@@ -550,23 +547,52 @@ fn debug_variant_snake_case(value: impl std::fmt::Debug) -> String {
     output
 }
 
+#[derive(Debug)]
+pub struct ModelingWorkLoopLaunchContext {
+    pub context: String,
+    pub repo_frontier_modeling_request_id: Option<String>,
+}
+
+impl std::ops::Deref for ModelingWorkLoopLaunchContext {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+impl PartialEq<&str> for ModelingWorkLoopLaunchContext {
+    fn eq(&self, other: &&str) -> bool {
+        self.context == *other
+    }
+}
+
 pub fn append_modeling_work_loop_telemetry_context(
     mut context: String,
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
     proposal_modeling_request_id: Option<&str>,
-) -> Result<String, String> {
+) -> Result<ModelingWorkLoopLaunchContext, String> {
     if proposal_modeling_request_id.is_some() {
-        return Ok(context);
+        return Ok(ModelingWorkLoopLaunchContext {
+            context,
+            repo_frontier_modeling_request_id: None,
+        });
     }
     if accepted_research_is_newest_unmodeled_boundary(state) {
         context.push_str("\n\n<accepted_eyes_modeling_handoff>\n");
         context.push_str("The current Modeling turn is caused by accepted Eyes evidence newer than the last accepted Modeling boundary. Use the accepted Research finding already present in coordinator context to update the body model. This is not a historical Soul-verdict incorporation turn; do not substitute an older frontier verification route.\n");
         context.push_str("</accepted_eyes_modeling_handoff>");
-        return Ok(context);
+        return Ok(ModelingWorkLoopLaunchContext {
+            context,
+            repo_frontier_modeling_request_id: None,
+        });
     }
     let Some(accepted_verification) = latest_unique_accepted_verification(state)? else {
-        return Ok(context);
+        return Ok(ModelingWorkLoopLaunchContext {
+            context,
+            repo_frontier_modeling_request_id: None,
+        });
     };
     let modeling_request =
         crate::commit_repo_frontier_modeling_request(runtime_store_path, &accepted_verification)
@@ -637,7 +663,10 @@ pub fn append_modeling_work_loop_telemetry_context(
                 )
             })?
     else {
-        return Ok(context);
+        return Ok(ModelingWorkLoopLaunchContext {
+            context,
+            repo_frontier_modeling_request_id: Some(modeling_request.request_id),
+        });
     };
     let soul_receipts = latest_accepted_soul_receipts(state);
     if !soul_receipts.is_empty() {
@@ -684,7 +713,10 @@ pub fn append_modeling_work_loop_telemetry_context(
         "Update the machine model from this verified consequence before another Hands turn. Do not request a new Eyes step merely to rediscover this already-typed telemetry.\n",
     );
     context.push_str("</modeling_work_loop_telemetry>");
-    Ok(context)
+    Ok(ModelingWorkLoopLaunchContext {
+        context,
+        repo_frontier_modeling_request_id: Some(modeling_request.request_id),
+    })
 }
 
 fn accepted_research_is_newest_unmodeled_boundary(state: &EpiphanyThreadState) -> bool {
@@ -1608,6 +1640,7 @@ mod tests {
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
@@ -1999,6 +2032,7 @@ mod tests {
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: None,
                 created_at: "2026-06-12T00:00:06Z".to_string(),
             },
         )?;
@@ -2092,6 +2126,11 @@ mod tests {
         assert!(modeling_context.contains("accept-verification-context"));
         assert!(modeling_context.contains("Soul acceptance telemetry"));
         assert!(modeling_context.contains("<repo_frontier_modeling_request>"));
+        let modeling_request_id = modeling_context
+            .repo_frontier_modeling_request_id
+            .as_deref()
+            .expect("Soul-bound Modeling context must return typed launch authority");
+        assert!(modeling_context.contains(modeling_request_id));
         assert!(modeling_context.contains("soulVerdictReceiptId: soul-verdict-context"));
         assert!(modeling_context.contains("verificationResultId: result-verification-context"));
         assert!(

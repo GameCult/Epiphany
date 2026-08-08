@@ -340,6 +340,7 @@ fn commit_coordinator_job_launch_in_cache(
             admitted_model_direction_consideration_request_id: request
                 .admitted_model_direction_consideration_request_id
                 .clone(),
+            repo_frontier_modeling_request_id: request.repo_frontier_modeling_request_id.clone(),
             created_at: created_at.clone(),
         },
     )?;
@@ -2732,6 +2733,7 @@ pub(crate) mod tests {
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: None,
                 created_at: "2026-07-15T09:00:17Z".into(),
             },
         )?;

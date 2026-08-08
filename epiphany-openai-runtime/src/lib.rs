@@ -563,7 +563,7 @@ pub fn build_worker_model_request(
     model: &str,
 ) -> Result<EpiphanyModelRequest> {
     let launch_document = launch_request.launch_document()?;
-    let output_schema_json = worker_output_schema_json(&launch_document)?;
+    let output_schema_json = worker_output_schema_json(launch_request, &launch_document)?;
     let request_id = format!(
         "worker-{}-{}",
         sanitize_request_id(&launch_request.job_id),
@@ -1322,7 +1322,10 @@ fn worker_instructions(
     )
 }
 
-fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<String> {
+fn worker_output_schema_json(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    document: &EpiphanyWorkerLaunchDocument,
+) -> Result<String> {
     let schema = match document {
         EpiphanyWorkerLaunchDocument::Role(document) => {
             if document.frontier_plan_mind_context.is_some() {
@@ -1342,6 +1345,14 @@ fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<
                 epiphany_core::epiphany_admitted_model_direction_consideration_output_schema()
             } else if document.imagination_consideration_context.is_some() {
                 epiphany_core::epiphany_imagination_consideration_output_schema()
+            } else if role_id == epiphany_core::EpiphanyRoleResultRoleId::Modeling
+                && launch_request.repo_frontier_modeling_request_id.is_some()
+            {
+                let request_id = launch_request
+                    .repo_frontier_modeling_request_id
+                    .as_deref()
+                    .expect("checked verdict-bound Modeling request identity");
+                epiphany_core::epiphany_frontier_verdict_modeling_output_schema(request_id)
             } else {
                 epiphany_core::epiphany_role_launch_output_schema(role_id)
             }
@@ -2052,6 +2063,7 @@ mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2124,6 +2136,7 @@ mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2207,6 +2220,7 @@ mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
             .expect("typed planning failure");
@@ -2247,6 +2261,7 @@ mod tests {
             frontier_plan_mind_request_id: Some("mind-request-1".into()),
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2492,6 +2507,9 @@ mod tests {
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: Some(
+                    "frontier-modeling-request-1".to_string(),
+                ),
                 created_at: now(),
             },
         )?;
@@ -2508,6 +2526,9 @@ mod tests {
             .expect("worker model request should carry role output schema");
         assert!(output_schema.contains("\"repoModelPatch\""));
         assert!(output_schema.contains("\"frontierNodeIds\""));
+        assert!(output_schema.contains("\"const\": \"frontier-modeling-request-1\""));
+        assert!(output_schema.contains("\"const\": \"incorporate_frontier_verdict\""));
+        assert!(!output_schema.contains("\"const\": \"evolution\""));
         assert!(model_request.instructions.contains("Output schema JSON"));
         assert!(model_request.instructions.contains("\"repoModelPatch\""));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
@@ -2659,6 +2680,7 @@ mod tests {
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: None,
                 created_at: now(),
             },
         )?;

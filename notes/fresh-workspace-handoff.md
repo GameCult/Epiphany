@@ -12,8 +12,8 @@ machine at its present memory budget.
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Current release: `sha256-d2e7205a2b714c89892ba623b26c3cc4c98ac6b4f54dfb9a0a2a623f0d92402d`
 - Release witness: `sha256-399d952e5944450775516e612d447be8b2a106e83399f35e2fb6ffb166d17876`
-- Thread-state revision: `36`
-- Current action: causal Modeling job `9d7cd7d8-2d43-4165-b3c5-54381126579e` is running with a 600-second budget under PID `29792`.
+- Thread-state revision: `56`
+- Current action: causal Modeling job `9d7cd7d8-2d43-4165-b3c5-54381126579e` completed, but Mind rejected and superseded its unauthorized Evolution patch. A typed launch/schema repair is under focused verification; do not relaunch on the old runtime.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -64,13 +64,25 @@ brief. It also reuses the RepoModel snapshot already loaded for dynamic memory
 context instead of reopening the whole runtime store to render model shape.
 All seven launch-context tests and the native coordinator seam test pass.
 
-Poll job `9d7cd7d8-2d43-4165-b3c5-54381126579e` only through an operator-safe
-coordinator projection. Accept its first valid verdict-incorporation result,
-then inspect Self's next typed action. Do not recreate Eyes, Imagination, Hands,
-or Soul work from this circuit.
+Job `9d7cd7d8-2d43-4165-b3c5-54381126579e` completed from the correct Soul
+boundary, but the static worker-output schema still allowed it to omit the
+frontier request identity and emit ordinary Evolution. Mind rejected it with
+`Evolution cannot bypass a current route or own verdict-driven frontier
+lifecycle` and the coordinator superseded it through
+`role-failure-review-962c3f59-fdce-4558-8d40-1448230554d5` at revision 56.
+This repeated the prior semantic failure despite corrected context, proving
+that prompt context was not the owning seam.
 
-Commit and push the Soul-precedence repair and this Mind refresh. After the
-current Modeling boundary lands, attack the iteration path:
+The live repair carries `repo_frontier_modeling_request_id` in the typed worker
+launch request. The model runtime uses that field to expose a specialized
+schema requiring the exact request id, `incorporate_frontier_verdict`, non-empty
+evidence, and exactly one `revise_frontier` operation. Generic Evolution is no
+longer representable for that launch; Mind remains final admission authority.
+Finish focused tests, commit and push, package one authenticated release, then
+relaunch the superseded post-Soul Modeling request without overrides. Do not
+recreate Eyes, Imagination, Hands, or Soul work from this circuit.
+
+After the Modeling boundary lands, continue attacking the iteration path:
 
 - exact `6f3cdc61` packaging rebuilt 21 first-party release binaries in 6m59s;
 - Modeling launch-context assembly against the roughly 40 MiB runtime store
