@@ -3,7 +3,7 @@
 ## Live boundary — 2026-08-08
 
 The active branch is `codex/epiphany-shakedown-live`; pushed state is
-`dae006a0`. Exact cognition source `ecfff489fe7e46f6ddcc9d58f0723411e8d94c13`
+`ced86e7e`. Exact cognition source `ecfff489fe7e46f6ddcc9d58f0723411e8d94c13`
 is packaged as
 `sha256-6e5cd9827ab6a659c8a29f1147daf8ebec52ea3d148a16905a1401c539059d79`
 with witness
@@ -38,13 +38,19 @@ by hand.
 
 ## Active work
 
-A detached release-incremental benchmark runs under PID `8368`. It writes cold
-and invalidated-core timings to
-`.epiphany-run/build-benchmarks/incremental-20260808/result.json`, with Cargo
-logs beside it. Poll that artifact; do not launch another Cargo process. After
-it completes, benchmark `rust-lld` independently in a different target
-directory. The baseline core-change package took 7m04s; a warm unchanged
-package took 1.48s of Cargo work.
+The exact root release bundle has now proved release incremental compilation:
+its fresh-target build took 1226.69 seconds, then a touched-core rebuild took
+31.47 seconds versus the 7m04s baseline (about 13.5x faster). Evidence is in
+`.epiphany-run/build-benchmarks/incremental-root-20260808/result.json`.
+
+The independent incremental-plus-`rust-lld` trial completed at 1097.14 seconds
+cold and 29.34 seconds after touching core. Its evidence is under
+`.epiphany-run/build-benchmarks/lld-incremental-root-20260808`. The linker saved
+only 2.13 seconds (about 6.8 percent) on the iteration path and required a
+toolchain-specific Windows linker location, so it is not repository policy.
+Root `[profile.release] incremental = true` is the adopted portable change.
+This build-configuration edit is an explicit operator-requested supervisor
+intervention, not evidence that the sealed v44 Hands route performed it.
 
 After the build benchmark, first give adopted Hands work a typed
 refusal/relinquish path that preserves Mind's plan authority, records why Hands

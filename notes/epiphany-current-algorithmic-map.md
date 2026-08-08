@@ -1342,7 +1342,30 @@ after a complete mutation, verification, Soul verdict, and Modeling
 incorporation chain. Hands must gain a typed refusal/relinquish consequence
 before the checkpoint repair can continue without fabricating work.
 
+The repair boundary is split deliberately. Hands owns an immutable refusal
+receipt bound to the exact route, action intent, review, adopted-plan digest,
+and current model/frontier hashes; it may state that inspection proved the
+authorized path ceiling insufficient, but it may not revise RepoModel. Mind
+owns the companion frontier transition: after validating exactly one matching
+Hands refusal against the still-current route and model, it may retire or
+supersede that frontier item and admit the revised model through the normal
+model CAS. The route remains historical selection evidence and is not mutated
+into a second lifecycle owner. Evolution remains forbidden from bypassing a
+current route, and the full consequence/Soul path remains the only route to a
+`Resolved` frontier. The old route can neither authorize edits after
+relinquishment nor be hidden by a later repair loop.
+
 ## Exact release build cache ownership
+
+The root release-bundle manifest owns release profile policy. Measured on the
+exact 21-binary bundle after touching `epiphany-core/src/lib.rs`, release
+incremental reduced rebuild time from 7m04s to 31.47 seconds and is therefore
+enabled in `[profile.release]`. An independent `rust-lld` trial reached 29.34
+seconds, only 2.13 seconds faster, while depending on host-specific Windows
+linker discovery; it remains an experiment rather than repository policy.
+Fresh-target timings (1226.69 seconds with the default linker, 1097.14 with
+`rust-lld`) calibrate clean-build cost but do not override the iteration-path
+decision.
 
 Release construction has two serialized cache authorities. The graph cache is
 identified only by the frozen root `Cargo.lock`, target triple, and installed
