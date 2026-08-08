@@ -478,6 +478,55 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         }));
     }
 
+    if let Some(request_id) = args.proposal_modeling_request_id.as_deref() {
+        if args.objective.is_some()
+            || args.imagination_consideration_request_id.is_some()
+            || args
+                .admitted_model_direction_consideration_request_id
+                .is_some()
+        {
+            return Err(anyhow!(
+                "typed proposal Modeling requires exclusive objective-free intake"
+            ));
+        }
+        let state = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store)
+            .state()?
+            .ok_or_else(|| anyhow!("proposal Modeling launch requires coordinator state"))?;
+        let launched = launch_role(
+            &runtime_store,
+            &local_verse_store,
+            &thread_id,
+            "modeling",
+            Some(state.revision as i64),
+            args.max_runtime_seconds,
+            Some(request_id),
+        )?;
+        let worker_job_id = worker_job_id_from_launch(&launched)?;
+        let worker_run = launch_worker_runtime_detached(
+            &model_runtime_bin,
+            &tool_adapter_bin,
+            &args.model_provider,
+            &runtime_store,
+            &codex_home,
+            &mcp_config,
+            &cwd,
+            &worker_job_id,
+            "modeling",
+            0,
+            &artifact_dir,
+            args.max_runtime_seconds,
+            args.auto_tools,
+        )?;
+        startup_events.push(json!({
+            "type": "proposalModelingLaunch",
+            "requestId": request_id,
+            "runtimeJobId": worker_job_id,
+            "launch": status_cli::sanitize_for_operator(launched),
+            "worker": worker_run,
+            "authority": "proposal-modeling-only"
+        }));
+    }
+
     let mut manual_regather_approval = args.approve_manual_regather;
     for index in 0..args.max_steps {
         let status = collect_coordinator_status(&runtime_store, &thread_id)?;

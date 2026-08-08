@@ -1,5 +1,21 @@
 # Fresh Workspace Handoff
 
+Exact `58f42b6a` packages as
+`sha256-562aeb2bf246e27f2b63ed094633b63daff7ca07d5eb5f14dfcb12d47fca6daf`
+with witness
+`sha256-8d5ad5e2b734679c8b788445f6ad91d31468cc56d001f3d975fa34f373faf0c2`;
+its stable-cache core build took 6m50s. Fresh v39 proved `unfulfilled`
+cancellation and heartbeat retry repeatedly preserve the exact proposal
+pressure. It also exposed why no retry could succeed: resident coordinators run
+in safe `plan` mode, and proposal Modeling alone lacked a typed startup launch
+handler. Operator-safe coordinator evidence showed `launchModeling`,
+`canAutoRun=true`, one planning step, and zero launch events. Raising the step
+budget from four to eight did not change the result and is rejected as a fix.
+The current worktree gives proposal Modeling the same exclusive objective-free
+startup ownership already used by typed Imagination and direction requests.
+All 15 coordinator binary tests pass. v39 is sealed at this missing-actuator
+boundary.
+
 Exact pushed `88a38987` packages as
 `sha256-76ed147f0ce86f26bab210534e623ed0a67030c2d8a03a7ad7e5226ffa934059`
 with witness

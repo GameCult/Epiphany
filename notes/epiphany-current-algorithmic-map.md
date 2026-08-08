@@ -1291,6 +1291,17 @@ class and the cancellation contract must evolve together; otherwise the
 runtime errors before the requeue CAS and leaves physiology split across an
 active resident lease and an uncompleted heartbeat turn.
 
+Typed resident launches run the bounded coordinator in planning mode so an
+ordinary operator objective cannot silently become actuation. Request-owned
+lanes that already carry their own authority therefore act through exclusive
+startup handlers before the generic planning loop: Imagination consideration,
+admitted model-direction consideration, and proposal-bound Modeling each load
+their exact request and launch only that request's worker. Proposal Modeling
+must not depend on the later generic `launchModeling` action loop; planning mode
+intentionally stops before that loop actuates. Its startup handler creates the
+exact `RepoFrontierProposalModelingLaunchBinding` that resident fulfillment
+then verifies.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is
