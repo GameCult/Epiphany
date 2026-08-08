@@ -143,3 +143,20 @@ including symmetric Imagination and Mind failure/review/retry proofs. The next
 move is commit/push, one exact incremental authenticated package, and a fresh
 route-free live proof. v46 and v47 remain sealed and must not be repaired in
 place.
+
+Exact repair commit `a6c238721363462712a2f6a1b0df0b3d9cfc072c` is packaged
+as `sha256-5605ff00ffea1fce8f679868ae1081215707ef881cc5795172385aae27f96f0c`
+with witness
+`sha256-d9ed1d70a3e1db42b23761991a961f8e9c60531bd480ba01db7e8669a8bfd0e2`.
+Fresh v48 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v48-planning-recovery`
+proved authenticated cold bootstrap from the repository Body and canonical
+`state/agents.msgpack`, proposal-bound Modeling job
+`7fe64b71-7cfc-4738-bbf0-5247605f4afa`, and Mind RepoModel admission. The
+reconstructed operator proposal used implementation wording, so Modeling
+lawfully admitted a direct `Hands` frontier. Operator proposals intentionally
+permit Hands, Eyes, or Imagination; only autonomous Imagination proposals are
+forced back through Imagination. Preserve v48 as a valid direct-Hands proof,
+not as planning-retry evidence. The next run must explicitly request an
+unadopted Imagination-planning frontier so canonical Imagination and dedicated
+Mind exercise the repaired seam.
