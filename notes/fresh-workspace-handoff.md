@@ -35,12 +35,12 @@ typed verdict was `checkpointStillValid=false` because retrieval and graph
 freshness are unknown. Self therefore derived `launchResearch`.
 
 The Eyes worker completed as
-`result-worker-437e5b05-9e8c-4596-b517-84a7a75d2b4f`, but its state patch is not
-admissible. It correctly reconfirmed several source ownership seams, then
-incorrectly concluded that the already-completed active frontier and Hands route
-still need Imagination. Do not accept it. Preserve it as a stale-context failure,
-then issue one bounded Eyes retry explicitly grounded in current HEAD, RepoModel
-revision 5, and the final Hands receipt IDs.
+`result-worker-437e5b05-9e8c-4596-b517-84a7a75d2b4f`. Its source observations
+were valid and Mind accepted them at revision 26. Its suggestion to return to
+Imagination was advisory prose outside Eyes authority; Self retained runtime
+routing authority and derived one causal Modeling reconciliation because the
+accepted Research boundary is newer than Modeling. That single worker is active
+under model-runtime PID 31656. Poll it; do not relaunch.
 
 ## Receipts
 
@@ -53,9 +53,9 @@ revision 5, and the final Hands receipt IDs.
 
 ## Next action
 
-Refuse or supersede the stale Eyes packet with a receipt. Launch one bounded Eyes
-retry that authenticates the post-Hands body and accept only a current packet;
-then follow Self into Soul verification of the completed Hands consequence. After that,
+Poll Modeling PID 31656. Review and accept the first valid causal RepoModel
+result, prove `modelingResultAcceptedAfterResearch` consumes the route, then
+follow Self into Soul verification of the completed Hands consequence. After that,
 package and publish exact `0763fcbe` once, replay v53 with no overrides, and
 inspect the next typed action.
 
