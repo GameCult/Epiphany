@@ -1533,3 +1533,34 @@ all 21 binaries. Release incremental compilation and `rust-lld` therefore have
 separate measurable hypotheses; an authority-based core crate split remains the
 larger structural option if those two changes do not materially reduce edits to
 the current monolith.
+
+Exact `6f3cdc61` sharpened the remaining ownership defect. The stable source and
+graph caches were active and third-party dependencies stayed warm, yet one core
+schema/routing change rebuilt the four first-party libraries and all 21 root
+release binaries in 6m59s. The root `epiphany-release-bundle` is one Cargo
+package whose package-wide dependency list includes `epiphany-core` and every
+adapter/runtime crate; 19 of its 21 binary sources directly import
+`epiphany_core`. A changed core artifact therefore invalidates almost the whole
+release bundle even when the changed authority belongs only to coordinator
+routing.
+
+The intended split follows authority rather than file size. Stable coordinator
+state/view contracts must live below a volatile Self policy leaf. Runtime-spine
+persistence, Persona/transport, repository observation, and release tooling
+must not depend on that leaf. Only status/coordinator consumers should relink
+when Self policy changes. Removing the root mega-package eventually requires
+the release packager to build and witness binaries from their owning packages;
+the witness remains the cross-package release authority. A compatibility
+re-export from `epiphany-core` would preserve the invalidation edge and is not a
+completed split.
+
+Launch latency is a separate whole-store-read wound. The live runtime store was
+about 40 MiB, and post-Soul Modeling launch took roughly 50-90 seconds before
+the detached model process appeared. `launch_role` currently reads coordinator
+state, assembles memory context, reloads RepoModel shape, commits/reloads the
+Soul-to-Modeling request and route, reads telemetry, writes telemetry, and then
+commits the job through path-based helpers. Each helper may independently
+construct and pull the append-only CultCache store. The next launch-path cut is
+one transaction-scoped typed read view plus explicit write boundaries, with
+phase timings at the same owner seams. A cache wrapper that leaves repeated
+whole-store pulls authoritative would merely hide the smell.

@@ -3,6 +3,7 @@ use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use crate::EpiphanyMemoryContextPacket;
 use crate::EpiphanyMemoryContextQuery;
+use crate::EpiphanyMemoryGraphSnapshot;
 use crate::EpiphanyMemoryProfile;
 use crate::EpiphanyPromptContextInput;
 use crate::RuntimeHandsReceiptChainSummary;
@@ -72,6 +73,38 @@ pub fn render_launch_dynamic_prompt_context(
     state: &EpiphanyThreadState,
     focus: String,
 ) -> Result<String, String> {
+    render_launch_dynamic_prompt_context_with_snapshot(
+        runtime_store_path,
+        local_verse_store,
+        state,
+        focus,
+    )
+    .map(|(context, _)| context)
+}
+
+pub fn render_modeling_launch_dynamic_prompt_context(
+    runtime_store_path: &Path,
+    local_verse_store: &Path,
+    state: &EpiphanyThreadState,
+    focus: String,
+) -> Result<String, String> {
+    let (context, snapshot) = render_launch_dynamic_prompt_context_with_snapshot(
+        runtime_store_path,
+        local_verse_store,
+        state,
+        focus,
+    )?;
+    Ok(append_modeling_repo_model_shape_snapshot(
+        context, &snapshot,
+    ))
+}
+
+fn render_launch_dynamic_prompt_context_with_snapshot(
+    runtime_store_path: &Path,
+    local_verse_store: &Path,
+    state: &EpiphanyThreadState,
+    focus: String,
+) -> Result<(String, EpiphanyMemoryGraphSnapshot), String> {
     load_epiphany_cultmesh_status(local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
         .map_err(|error| {
             format!(
@@ -107,19 +140,20 @@ pub fn render_launch_dynamic_prompt_context(
                     local_verse_store.display()
                 )
             })?;
-    let memory_context =
+    let (memory_context, snapshot) =
         launch_memory_context(runtime_store_path, state, focus.as_str()).map_err(|error| {
             format!(
                 "failed to build launch memory context beside {}: {error}",
                 runtime_store_path.display()
             )
         })?;
-    Ok(render_epiphany_prompt_context(
-        &EpiphanyPromptContextInput {
+    Ok((
+        render_epiphany_prompt_context(&EpiphanyPromptContextInput {
             focus,
             local_verse,
             memory_context,
-        },
+        }),
+        snapshot,
     ))
 }
 
@@ -446,7 +480,7 @@ pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
 }
 
 pub fn append_modeling_repo_model_shape_context(
-    mut context: String,
+    context: String,
     runtime_store_path: &Path,
 ) -> Result<String, String> {
     let snapshot = crate::runtime_current_repo_model(runtime_store_path)
@@ -457,6 +491,15 @@ pub fn append_modeling_repo_model_shape_context(
                 runtime_store_path.display()
             )
         })?;
+    Ok(append_modeling_repo_model_shape_snapshot(
+        context, &snapshot,
+    ))
+}
+
+fn append_modeling_repo_model_shape_snapshot(
+    mut context: String,
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+) -> String {
     context.push_str("\n\n<canonical_repo_model_shape>\n");
     context.push_str(&format!(
         "modelRevision: {}\nmodelHash: {}\n",
@@ -492,7 +535,7 @@ pub fn append_modeling_repo_model_shape_context(
     }
     context.push_str("New nodes must reference one exact existing domain id. Every unresolved frontier item must target at least one exact existing claim id from existingClaims, or a claim id created by the same patch. Every frontier source_scope must be non-empty and contain safe relative paths in strict lexicographic ascending order with no duplicates; proposal scope hints are evidence to normalize into that canonical order, not an instruction to preserve unsafe or unsorted serialization. A proposal Evolution upsert must use status active: Mind acceptance is the admission decision, and proposed state is not routeable by Self. Its recommended_next_organ must be exactly one routeable canonical value with exact case: Hands, Eyes, or Imagination; lowercase labels are dead documents and Mind will refuse them. Use upsert_frontier only for a genuinely new frontier id not listed in existingFrontier. Use revise_frontier when changing an id listed in existingFrontier; an existing frontier id cannot be upserted again. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
     context.push_str("</canonical_repo_model_shape>");
-    Ok(context)
+    context
 }
 
 fn debug_variant_snake_case(value: impl std::fmt::Debug) -> String {
@@ -516,7 +559,7 @@ pub fn append_modeling_work_loop_telemetry_context(
     if proposal_modeling_request_id.is_some() {
         return Ok(context);
     }
-    if accepted_research_is_newer_than_modeling(state) {
+    if accepted_research_is_newest_unmodeled_boundary(state) {
         context.push_str("\n\n<accepted_eyes_modeling_handoff>\n");
         context.push_str("The current Modeling turn is caused by accepted Eyes evidence newer than the last accepted Modeling boundary. Use the accepted Research finding already present in coordinator context to update the body model. This is not a historical Soul-verdict incorporation turn; do not substitute an older frontier verification route.\n");
         context.push_str("</accepted_eyes_modeling_handoff>");
@@ -644,7 +687,7 @@ pub fn append_modeling_work_loop_telemetry_context(
     Ok(context)
 }
 
-fn accepted_research_is_newer_than_modeling(state: &EpiphanyThreadState) -> bool {
+fn accepted_research_is_newest_unmodeled_boundary(state: &EpiphanyThreadState) -> bool {
     let latest_accepted_at = |role_id: &str| {
         state
             .acceptance_receipts
@@ -661,6 +704,8 @@ fn accepted_research_is_newer_than_modeling(state: &EpiphanyThreadState) -> bool
         return false;
     };
     latest_accepted_at("modeling").is_none_or(|modeling_at| research_at > modeling_at)
+        && latest_accepted_at("verification")
+            .is_none_or(|verification_at| research_at > verification_at)
 }
 
 fn latest_unique_accepted_verification(
@@ -1053,7 +1098,7 @@ fn launch_memory_context(
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
     focus: &str,
-) -> Result<EpiphanyMemoryContextPacket, String> {
+) -> Result<(EpiphanyMemoryContextPacket, EpiphanyMemoryGraphSnapshot), String> {
     let memory_graph_store = memory_graph_store_path(runtime_store_path);
     let repo_root = runtime_store_path
         .parent()
@@ -1098,7 +1143,7 @@ fn launch_memory_context(
             "Memory graph context is empty for this launch focus; the accepted repo graph may be thin or stale.".to_string(),
         );
     }
-    Ok(packet)
+    Ok((packet, snapshot))
 }
 
 #[cfg(test)]
@@ -1429,7 +1474,7 @@ mod tests {
             ..Default::default()
         };
 
-        let packet = launch_memory_context(
+        let (packet, _) = launch_memory_context(
             &runtime_store,
             &newer_thread_state,
             "irrelevant weather bananas",
@@ -1448,6 +1493,10 @@ mod tests {
         assert_eq!(preserved.frontier, snapshot.frontier);
         let shape = append_modeling_repo_model_shape_context("base".to_string(), &runtime_store)
             .map_err(anyhow::Error::msg)?;
+        assert_eq!(
+            shape,
+            append_modeling_repo_model_shape_snapshot("base".to_string(), &preserved)
+        );
         assert!(shape.contains("<canonical_repo_model_shape>"));
         assert!(shape.contains("id=repo"));
         assert!(shape.contains("existingClaims:"));
@@ -1676,6 +1725,9 @@ mod tests {
             ],
             ..Default::default()
         };
+        assert!(accepted_research_is_newest_unmodeled_boundary(
+            &eyes_handoff
+        ));
         let context = append_modeling_work_loop_telemetry_context(
             "eyes".to_string(),
             missing_store,
@@ -1685,6 +1737,18 @@ mod tests {
         .expect("accepted Eyes handoff must not bind an older Soul route");
         assert!(context.contains("accepted_eyes_modeling_handoff"));
         assert!(context.contains("not a historical Soul-verdict incorporation turn"));
+
+        let soul_handoff = EpiphanyThreadState {
+            acceptance_receipts: vec![
+                accepted("modeling", "2026-07-13T08:00:00Z"),
+                accepted("research", "2026-07-13T09:00:00Z"),
+                accepted("verification", "2026-07-13T10:00:00Z"),
+            ],
+            ..Default::default()
+        };
+        assert!(!accepted_research_is_newest_unmodeled_boundary(
+            &soul_handoff
+        ));
     }
 
     #[test]

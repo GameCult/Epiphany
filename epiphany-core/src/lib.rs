@@ -220,6 +220,7 @@ pub use coordinator_launch_context::has_complete_hands_consequence_after_latest_
 pub use coordinator_launch_context::local_verse_store_path;
 pub use coordinator_launch_context::memory_graph_store_path;
 pub use coordinator_launch_context::render_launch_dynamic_prompt_context;
+pub use coordinator_launch_context::render_modeling_launch_dynamic_prompt_context;
 pub use coordinator_launch_context::reorient_launch_context_focus;
 pub use coordinator_launch_context::role_launch_context_focus;
 pub use coordinator_objective_intake::USER_OBJECTIVE_INTAKE_CONTRACT;

@@ -12,8 +12,8 @@ machine at its present memory budget.
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Current release: `sha256-d2e7205a2b714c89892ba623b26c3cc4c98ac6b4f54dfb9a0a2a623f0d92402d`
 - Release witness: `sha256-399d952e5944450775516e612d447be8b2a106e83399f35e2fb6ffb166d17876`
-- Thread-state revision: `34`
-- Current action: Modeling retry job `07cdae28-8f11-4cba-a19a-b847d2a4792c` is running with a 600-second budget under PID `17784`.
+- Thread-state revision: `36`
+- Current action: causal Modeling job `9d7cd7d8-2d43-4165-b3c5-54381126579e` is running with a 600-second budget under PID `29792`.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -53,18 +53,30 @@ projections above as authoritative evidence.
 ## Next action
 
 The first post-Soul Modeling job `8851bbcc-d013-4e5a-95bf-d69b4833dc29`
-timed out at its 300-second boundary and was reviewed/superseded at revision 33.
-Poll retry job `07cdae28-8f11-4cba-a19a-b847d2a4792c` only through an
-operator-safe coordinator projection. Accept its first valid result, then
-inspect Self's next typed action. Do not recreate Eyes, Imagination, Hands, or
-Soul work from this circuit.
+timed out at its 300-second boundary and was reviewed/superseded. Its retry
+completed but received the older Eyes handoff because launch-context selection
+checked Research freshness before the newer accepted Soul boundary. Mind
+correctly rejected its resulting Evolution patch and the coordinator superseded
+it at revision 35.
+
+Launch context now lets the newest accepted organ boundary own the Modeling
+brief. It also reuses the RepoModel snapshot already loaded for dynamic memory
+context instead of reopening the whole runtime store to render model shape.
+All seven launch-context tests and the native coordinator seam test pass.
+
+Poll job `9d7cd7d8-2d43-4165-b3c5-54381126579e` only through an operator-safe
+coordinator projection. Accept its first valid verdict-incorporation result,
+then inspect Self's next typed action. Do not recreate Eyes, Imagination, Hands,
+or Soul work from this circuit.
 
 Commit and push the Soul-precedence repair and this Mind refresh. After the
 current Modeling boundary lands, attack the iteration path:
 
 - exact `6f3cdc61` packaging rebuilt 21 first-party release binaries in 6m59s;
-- Modeling launch-context assembly against the roughly 40 MiB runtime store took
-  about 90 seconds before the detached worker appeared;
+- Modeling launch-context assembly against the roughly 40 MiB runtime store
+  still took about 48 seconds before the detached worker appeared and about 83
+  seconds before the coordinator finished, even after removing one redundant
+  RepoModel pull;
 - the stable source/graph cache already exists, so the next cut is first-party
   crate/module fan-out plus projection cost, not another cache wrapper.
 

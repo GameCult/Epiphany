@@ -1407,12 +1407,23 @@ fn launch_role(
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
     let role = parse_role_id(role_id)?;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
-    let mut context = epiphany_core::render_launch_dynamic_prompt_context(
-        runtime_store,
-        local_verse_store,
-        &state,
-        epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role)),
-    )
+    let focus =
+        epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
+    let mut context = if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
+        epiphany_core::render_modeling_launch_dynamic_prompt_context(
+            runtime_store,
+            local_verse_store,
+            &state,
+            focus,
+        )
+    } else {
+        epiphany_core::render_launch_dynamic_prompt_context(
+            runtime_store,
+            local_verse_store,
+            &state,
+            focus,
+        )
+    }
     .map_err(anyhow::Error::msg)?;
     if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
         context = epiphany_core::append_verification_hands_receipt_context(
@@ -1422,8 +1433,6 @@ fn launch_role(
         )
         .map_err(anyhow::Error::msg)?;
     } else if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
-        context = epiphany_core::append_modeling_repo_model_shape_context(context, runtime_store)
-            .map_err(anyhow::Error::msg)?;
         context = epiphany_core::append_modeling_work_loop_telemetry_context(
             context,
             runtime_store,
@@ -2360,6 +2369,7 @@ mod tests {
         let native_roles = &source[start..end];
         for required in [
             "render_launch_dynamic_prompt_context",
+            "render_modeling_launch_dynamic_prompt_context",
             "append_verification_hands_receipt_context",
             "append_modeling_work_loop_telemetry_context",
             ".launch_job(",
@@ -2370,6 +2380,7 @@ mod tests {
                 "missing native role seam {required:?}"
             );
         }
+        assert!(!native_roles.contains("append_modeling_repo_model_shape_context("));
         assert!(!native_roles.contains("AppServerClient"));
         assert!(!native_roles.contains("thread/epiphany/"));
     }
