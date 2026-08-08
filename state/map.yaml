@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Fresh Modeling, Imagination, and Mind produced one adopted frontier plan; typed Hands then committed the bounded route-chain specification with exact patch, command, and commit receipts. Soul launch exposed a provenance-classification defect: a Mind-worker frontier-plan admission carried a result ID and Soul inferred Modeling from that incidental field. The repair makes FrontierPlanDecision the admission source for every plan decision and validates the immutable plan-decision receipt directly, while retaining compatibility with the already-persisted live admission through its explicit frontier_plan_decision_id. No live state rewrite is required. Persona consequence, retention, endurance, restart closure, whole-store launch latency, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 now proves a complete typed Modeling-to-Imagination-to-Mind-to-Hands-to-Soul circuit. Mind adopted one bounded route-chain specification, Hands committed it with exact patch/command/commit receipts, and Soul accepted the consequence at revision 57. The authenticated provenance repair validates the pre-adoption decision through Mind admission into the post-adoption route without rewriting evidence. Self now causally derives launchModeling from the accepted Soul boundary. Persona consequence, retention, endurance, restart closure, whole-store launch latency, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: clean_at_authenticated_d910158f_policy_split
     operator_wireguard: restored
@@ -42,7 +42,7 @@ current_status:
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_d910158f_release_sha256_2d667295
+    starfire_release: authenticated_d3bfbda0_release_sha256_4bb5f672
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Persona consequence, Continuity closure, retention, endurance, and Linux cognition remain unproven.
-  next_action: Package and authenticate the Soul provenance fix, replay the existing v53 launchVerification action without overrides, accept the first valid Soul result, and inspect the next typed action. Then profile the Modeling whole-store commit transaction before Persona consequence and Continuity crash/restart/closure.
+  next_action: Launch the causally derived post-Soul Modeling turn from revision 57, accept the first valid result, and verify verdict incorporation consumes the route. Then profile the Modeling whole-store commit transaction before Persona consequence and Continuity crash/restart/closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -68,7 +68,7 @@ organ_readiness:
   modeling: proven for the current bounded circuit; proposal-bound source inspection, Mind admission, exact routed identity preservation, and first-valid verdict incorporation completed without retry churn. Broader Body-map coverage remains open.
   imagination: proven for two bounded live circuits; the current c35272c9 circuit was caused by fresh Modeling, selected the typed frontier over stale manual-regather display state, completed Imagination job 2a5701fe, and committed a dedicated Mind request without adopting the candidate. Broader option generation remains open.
   hands: proven for bounded consequences; native patch, command, commit, push, and typed receipts bind reviewed path ceilings to exact changed-path subsets.
-  soul: proven for the current bounded amended consequence; exact release sha256-d2e7205a resumed the immutable verification job, produced a valid result, and coordinator acceptance advanced thread state to revision 31. Self then derived Modeling before any repeated Hands authority.
+  soul: proven for the current bounded route-chain consequence; exact d3bfbda0 launched Verification through typed plan-decision provenance, result f23fe2b6 was accepted at revision 57, and Self then derived Modeling before any repeated Hands authority.
   mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, first-valid verdict incorporation, bounded supervisor acceptance correction, and dedicated frontier-plan review requests are live. The current plan candidate awaits Mind adjudication.
   continuity: partial; heartbeat and resident Self survive sequential cycles. v28 proved an ordinary bounded worker error could leave a runtime job falsely running after process death; the owner-local terminalization repair passes focused tests but still needs packaged crash/restart/closure proof.
   nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work. Fresh Modeling context assembly was below 250ms, but whole-store job commit cost 51.637s against a 76 MiB runtime store. Separate owner builds were rejected. Authenticated d910158f isolates Self policy behind one root-graph optional coordinator feature while core explicitly owns 74 non-coordinator binaries. Its cold stable phase took 17m38s, isolated coordinator phase 30.31s, and a real warm policy-source invalidation rebuilt only policy plus coordinator in 6.02s with all 20 stable packaged executables unchanged. Transaction cost, long-duration pressure, and resource plateau remain open. Yggdrasil is not a release forge at its current memory budget.

@@ -7,13 +7,13 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD before the active Soul provenance repair: `29797ab85a9025ee024a4485bb8b4cb043507056`
-- Authenticated cognition commit: `d910158fd05fb78825dabda40b2147217c012c30`
-- Release: `sha256-2d6672958cd59cae43bbbc17c8218eaf3d50f3acab3b7d6550cb6dfad5f72020`
-- Witness: `sha256-23d3f44ef0f632dfc52a607585469b7242ac77a489e1406d7b3e2f578979462d`
+- Pushed HEAD: `d3bfbda0c55a2295672d2c7b45c6388cc9ca9c84`
+- Authenticated cognition commit: `d3bfbda0c55a2295672d2c7b45c6388cc9ca9c84`
+- Release: `sha256-4bb5f67287f49d85fbc819c3c63a861cda41415d7fc8449386816cf9c59e503b`
+- Witness: `sha256-e7f6c5f97b270c324b0d6109768226fd0c15415784993cb497abe6b841c36d58`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Thread-state revision: `55`
+- Thread-state revision: `57`
 - Sealed evidence: v49 through v52. Do not mutate it.
 
 ## Live causal boundary
@@ -81,6 +81,16 @@ planning request and candidate, and the route to the admitted model. A focused
 positive/negative test proves the real transition passes and a substituted
 admitted route hash fails.
 
+Exact `d3bfbda0` packaged in 29.84s for the stable phase and 5.43s for the
+isolated Self/coordinator phase, then authenticated and published. Live
+Verification job `f23fe2b6-ad39-41e7-a2c9-4c26d9f5f26c` launched without
+overrides, completed in roughly 700 seconds, and was accepted as
+`accept-verification-result-worker-f23fe2b6-ad39-41e7-a2c9-4c26d9f5f26c`
+at thread revision 57. Soul verified exact Hands commit `29797ab8` and bounded
+the claim to the documentation-only route-chain specification. A read-only
+coordinator planning pass now derives `launchModeling` because Soul accepted
+the Hands consequence.
+
 ## Build-time finding
 
 Commit `0f0b006d` made the three named owner manifests drive separate locked Cargo
@@ -133,7 +143,7 @@ probe reported `Removed 0 files` and is rejected, not evidence.
 
 ## Open readiness work
 
-- package the Soul provenance fix, replay `launchVerification`, and adjudicate the first valid result;
+- launch and adjudicate the causally derived post-Soul Modeling turn;
 - prove native Persona cognition and external speech consequence;
 - prove Continuity crash, restart, session closure, and bounded retention;
 - measure long-duration resource plateau;
