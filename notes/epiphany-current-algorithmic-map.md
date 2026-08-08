@@ -1293,3 +1293,14 @@ the same graph and checkout identity; Cargo completed the exact release build
 in 29.92 seconds. Independent witness inspection still authenticated all 21
 binaries and rejected any notion that cache reuse could substitute for release
 identity.
+
+The release publisher executable is part of this mechanism and must be
+bootstrapped after its cache implementation changes. On 2026-08-08 an older
+publisher was still launching an ephemeral `ep-src-*` checkout and a
+commit-partitioned target directory; it was terminated after 12.8 minutes while
+still compiling. Rebuilding the publisher from exact `8a9439ca` took 3m49s.
+The current publisher then reused the persistent source/graph authorities and
+packaged the 21-binary core-change release in 6m46s of Cargo work. An identical
+warm package completed Cargo in 1.48s and the full hash/copy/witness path in
+18.669s. Benchmark command lines and resolved cache paths are therefore part of
+release-cache evidence; source code alone does not prove the active packager.

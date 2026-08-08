@@ -3,12 +3,16 @@
 ## Current authority — 2026-08-08
 
 The active branch is `codex/epiphany-shakedown-live`. Exact pushed release
-`15a740f261d24484f9bc4da7454a021b732ad548` is authenticated as
-`sha256-c3dbcc6bc2f4dced43253e517415548cf87d1a131b4bf3441d07fec89e444ccd`
+`8a9439ca2e0dddaec832a5e9285735b4d5a109cd` is authenticated as
+`sha256-39e12132f829fbb782cc4ba33308e44c641f6bd4a1136850ce9246b1179c3cbd`
 with witness
-`sha256-42ed5d0bfb652520290c868a0dfd13271a1743adf53c1ed7fa95d0117fff509d`.
-Its 21 binaries contain no private state. The stable graph and exact-source
-caches reduce a documentation/state-only successor package to 1.24 seconds.
+`sha256-d57bdeb6e6b14cc3b7500d461fa7ea26455d319b4f1d904cda2fa6e0317407be`.
+Its 21 binaries contain no private state. The active stable-cache publisher
+completed this core-change Cargo pass in 6m46s; an identical warm pass took
+1.48s of Cargo work and 18.669s end to end. An older publisher using ephemeral
+source plus a commit-local target was terminated after 12.8 minutes. Rebuild
+the publisher itself after changing release-cache machinery; otherwise the
+benchmark measures an obsolete body.
 
 Fresh runtime `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v31`
 accepted initial and proposal-bound Modeling for thread
@@ -79,11 +83,11 @@ thread.
 
 ## Next action
 
-1. Commit, push, package, and authenticate request-owned resident threads.
+1. Commit and push this build-evidence/Mind refresh.
 2. Preserve v31 through v34 as failure evidence; clone the recovered boundary
    into a new replay runtime using an approved `.epiphany-dogfood` artifact root.
-3. Re-run heartbeat selection and resident launch, including exact retry after
-   one deliberate failed launch.
+3. Publish exact `8a9439ca`, re-run heartbeat selection and resident launch,
+   including exact retry after one deliberate failed launch.
 4. In a fresh runtime, re-run pressure ingestion twice and resident launch.
    Prove autonomous direction consideration, proposal-bound Modeling,
    canonical Imagination, dedicated Mind adoption, and exact Hands authority.
