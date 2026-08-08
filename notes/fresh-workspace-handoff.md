@@ -160,3 +160,23 @@ forced back through Imagination. Preserve v48 as a valid direct-Hands proof,
 not as planning-retry evidence. The next run must explicitly request an
 unadopted Imagination-planning frontier so canonical Imagination and dedicated
 Mind exercise the repaired seam.
+
+Fresh v49 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v49-imagination-planning-recovery`
+then proved that exact circuit. Proposal Modeling job
+`f5569a90-6a74-4e54-888d-dee5a8d6ebd7` was accepted; Self committed planning
+request `repo-frontier-planning-d6a08a211c0aa7fa5e86662a8dc19615ce8a400c291364ab172979bc0b9df680`;
+canonical Imagination job `f3c85838-7fa8-4863-8f6b-baa47cfad8db`
+produced a valid candidate; dedicated Mind job
+`c2931b60-f981-4f28-a6f6-af2e77156a53` returned its judgment; and Mind
+committed terminal decision
+`repo-frontier-plan-decision-42a250a3af0dc17fea3074ec0321b4eadf674b197ee04c67515ffcb5783a9b1f`.
+Self derived exact Hands route
+`repo-frontier-route-d4d595821804c3f5bbe24d06084762ed19c3185a945827dfa6b10c53df798e2e`.
+The operator-safe gate is
+`.epiphany-dogfood/v49-hands-gate-r7/coordinator-summary.json`. Its six paths
+include `epiphany-mvp-status.rs` but omit the app-server projection owner after
+the proposal Modeling worker's only failed source read. Do not mutate source
+under this incomplete gate. Preserve v49 and implement the missing typed
+relinquishment path as a labeled supervisor intervention across all mapped
+owners, then exercise it against a fresh incomplete route.
