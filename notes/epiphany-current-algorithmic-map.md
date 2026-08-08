@@ -1331,29 +1331,30 @@ the continuity checkpoint deterministically from accepted RepoModel evidence,
 or CRRC consumes canonical RepoModel admission directly. Canonical Imagination
 and dedicated Mind must adopt the choice before Hands changes the seam.
 
-Fresh v44 then proved that planning path through canonical Imagination and
-dedicated Mind adoption. Inspection at the Hands boundary found the adopted
-safe-path set omitted `epiphany-core/src/bin/epiphany-mvp-status.rs`, the actual
-composition owner. The gate correctly forbids editing it. The route cannot yet
-return this falsified plan to planning authority: the Hands contract catalogs
-an action-refusal receipt, but no typed record, writer, CLI transition, or
-frontier lifecycle effect implements it. A route currently terminates only
-after a complete mutation, verification, Soul verdict, and Modeling
-incorporation chain. Hands must gain a typed refusal/relinquish consequence
-before the checkpoint repair can continue without fabricating work.
+Fresh v49 proves the current planning path through canonical Imagination and
+dedicated Mind adoption. Its six safe paths are the complete implementation
+owner set at that revision; the previously named vendored app-server owner does
+not exist. The route is nevertheless preserved as incomplete evidence because
+the machine itself lacked the newly required relinquishment transaction when
+Mind adopted that plan. Historical route authority is never widened after the
+fact.
 
-The repair boundary is split deliberately. Hands owns an immutable refusal
-receipt bound to the exact route, action intent, review, adopted-plan digest,
-and current model/frontier hashes; it may state that inspection proved the
-authorized path ceiling insufficient, but it may not revise RepoModel. Mind
-owns the companion frontier transition: after validating exactly one matching
-Hands refusal against the still-current route and model, it may retire or
-supersede that frontier item and admit the revised model through the normal
-model CAS. The route remains historical selection evidence and is not mutated
-into a second lifecycle owner. Evolution remains forbidden from bypassing a
-current route, and the full consequence/Soul path remains the only route to a
-`Resolved` frontier. The old route can neither authorize edits after
-relinquishment nor be hidden by a later repair loop.
+The live repair boundary is split deliberately. `hands_gateway.rs` defines the
+immutable refusal receipt. `runtime_spine.rs::relinquish_repo_frontier_hands_route`
+requires exactly one still-current route/authority/intent/review/grant chain,
+requires at least one safe missing path outside the adopted scope, and refuses
+to run after patch, command, commit, or PR consequences exist. Hands attests
+inability; it does not revise RepoModel. In the same compare-and-swap, Mind
+writes its review and admission receipts, retires the exact frontier through
+`RepoModelPatchPurpose::RelinquishFrontierRoute`, emits the next Modeling
+projection obligation, and records the companion relinquishment receipt. The
+route and authority remain immutable historical evidence. Their old
+model revision/hash can no longer validate after the retirement admission, so
+they are structurally unable to authorize edits. Native status projects the
+latest relinquishment; `epiphany-hands-action record-refusal` is the operator
+mouth. Generic Modeling admission explicitly rejects this Mind-owned purpose,
+and the full consequence/Soul path remains the only route to a `Resolved`
+frontier.
 
 Planning failure has two adjacent authorities. The generic runtime job owns
 process and transport terminal status. The typed role result owns what Self may

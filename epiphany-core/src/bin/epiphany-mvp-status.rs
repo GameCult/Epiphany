@@ -472,6 +472,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let frontier_planning =
         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
             .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
+    let frontier_relinquishment =
+        epiphany_core::runtime_latest_repo_frontier_relinquishment(&runtime_store_path)
+            .context("failed to derive latest frontier relinquishment from runtime-spine state")?;
     let pending_proposal =
         epiphany_core::runtime_pending_repo_frontier_proposal_modeling_request(&runtime_store_path)
             .context("failed to derive pending proposal Modeling authority")?;
@@ -591,6 +594,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "lifecycle": frontier_planning,
             "eligibility": frontier_planning_eligibility,
         },
+        "frontierRelinquishment": frontier_relinquishment,
         "roleResults": {
             "imagination": native_role_result(state_ref, &runtime_store_path, IMAGINATION_BINDING_ID, EpiphanyRoleResultRoleId::Imagination),
             "research": native_role_result(state_ref, &runtime_store_path, RESEARCH_BINDING_ID, EpiphanyRoleResultRoleId::Research),

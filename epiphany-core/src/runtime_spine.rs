@@ -83,9 +83,9 @@ use crate::repo_model_gateway::{
     RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningLifecycle,
     RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
-    RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
-    RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
-    RepoModelClaimRepairFrontierRef, RepoModelClaimRepairLaunchBinding,
+    RepoFrontierRelinquishmentReceipt, RepoFrontierRoute, RepoFrontierVerdictDisposition,
+    RepoFrontierWorkProposal, RepoModelAdmissionReceipt, RepoModelAdmissionReview,
+    RepoModelClaimChallenge, RepoModelClaimRepairFrontierRef, RepoModelClaimRepairLaunchBinding,
     RepoModelClaimRepairRequest, RepoModelMigrationReceipt, RuntimeRepositoryDomainBinding,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
@@ -900,6 +900,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoModelClaimRepairLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
+    cache.register_entry_type::<HandsActionRefusalReceipt>()?;
+    cache.register_entry_type::<RepoFrontierRelinquishmentReceipt>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierWorkProposal>()?;
     cache.register_entry_type::<RepoFrontierAutonomousProposalBinding>()?;
@@ -2723,6 +2725,11 @@ pub fn commit_repo_model_admission(
         crate::RepoModelPatchPurpose::AdoptFrontierPlan { .. } => {
             return Err(anyhow!(
                 "frontier plan adoption is Mind-owned and cannot enter through generic repo model admission"
+            ));
+        }
+        crate::RepoModelPatchPurpose::RelinquishFrontierRoute { .. } => {
+            return Err(anyhow!(
+                "frontier route relinquishment is a Mind-owned transaction and cannot enter through generic repo model admission"
             ));
         }
         crate::RepoModelPatchPurpose::RepairClaim => {
@@ -7019,6 +7026,251 @@ pub fn put_repo_frontier_hands_authority(
     }
 }
 
+/// Atomically records Hands' inability to act under an exact route and lets
+/// Mind retire that route's frontier. The historical route and authority stay
+/// immutable, while the admitted model revision makes them structurally stale.
+pub fn relinquish_repo_frontier_hands_route(
+    store_path: impl AsRef<Path>,
+    intent_id: &str,
+    review_id: &str,
+    refusal_receipt_id: &str,
+    missing_required_paths: Vec<String>,
+    summary: String,
+    relinquished_at: String,
+) -> Result<RepoFrontierRelinquishmentReceipt> {
+    let store_path = store_path.as_ref();
+    validate_non_empty(intent_id, "Hands intent id")?;
+    validate_non_empty(review_id, "Hands review id")?;
+    validate_non_empty(refusal_receipt_id, "Hands refusal receipt id")?;
+    validate_non_empty(&summary, "Hands refusal summary")?;
+    if !safe_sorted_unique_paths(&missing_required_paths) || missing_required_paths.is_empty() {
+        return Err(anyhow!(
+            "Hands refusal requires non-empty safe missing paths in strict sorted order"
+        ));
+    }
+    chrono::DateTime::parse_from_rfc3339(&relinquished_at)
+        .map_err(|_| anyhow!("Hands refusal timestamp must be RFC3339"))?;
+
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<HandsActionRefusalReceipt>(refusal_receipt_id)? {
+        if existing.intent_id != intent_id
+            || existing.review_id != review_id
+            || existing.missing_required_paths != missing_required_paths
+            || existing.summary != summary
+            || existing.refused_at != relinquished_at
+        {
+            return Err(anyhow!("Hands refusal receipt ids are immutable"));
+        }
+        let matches = cache
+            .get_all::<RepoFrontierRelinquishmentReceipt>()?
+            .into_iter()
+            .filter(|receipt| receipt.hands_refusal_receipt_id == existing.receipt_id)
+            .collect::<Vec<_>>();
+        return match matches.as_slice() {
+            [receipt] => Ok(receipt.clone()),
+            _ => Err(anyhow!(
+                "Hands refusal replay lost its unique Mind relinquishment receipt"
+            )),
+        };
+    }
+
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|authority| {
+            authority.hands_intent_id == intent_id && authority.hands_review_id == review_id
+        })
+        .collect::<Vec<_>>();
+    let [authority] = authorities.as_slice() else {
+        return Err(anyhow!(
+            "Hands refusal requires exactly one current route authority"
+        ));
+    };
+    validate_repo_frontier_hands_authority_chain(&cache, authority)?;
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("Hands refusal lost its route"))?;
+    if missing_required_paths.iter().all(|path| {
+        route.source_scope.iter().any(|scope| {
+            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+        })
+    }) {
+        return Err(anyhow!(
+            "Hands refusal must identify at least one required path outside the adopted route scope"
+        ));
+    }
+    let has_consequence = cache
+        .get_all::<HandsPatchReceipt>()?
+        .iter()
+        .any(|receipt| receipt.intent_id == intent_id)
+        || cache
+            .get_all::<HandsCommandReceipt>()?
+            .iter()
+            .any(|receipt| receipt.intent_id == intent_id)
+        || cache
+            .get_all::<HandsCommitReceipt>()?
+            .iter()
+            .any(|receipt| receipt.intent_id == intent_id)
+        || cache
+            .get_all::<HandsPrReceipt>()?
+            .iter()
+            .any(|receipt| receipt.intent_id == intent_id);
+    if has_consequence {
+        return Err(anyhow!(
+            "Hands cannot relinquish a route after mutation consequences exist"
+        ));
+    }
+
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let current_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("Hands refusal requires canonical RepoModel"))?;
+    let current_entry: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&current_envelope.payload)?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    let current_hash = crate::memory_graph_model_hash(&current)?;
+    if current.model_revision != route.model_revision || current_hash != route.model_hash {
+        return Err(anyhow!("Hands refusal route is no longer current"));
+    }
+
+    let refusal = HandsActionRefusalReceipt {
+        schema_version: HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: refusal_receipt_id.to_string(),
+        route_id: route.route_id.clone(),
+        authority_id: authority.authority_id.clone(),
+        intent_id: intent_id.to_string(),
+        review_id: review_id.to_string(),
+        substrate_gate_grant_receipt_id: authority.substrate_grant_receipt_id.clone(),
+        model_revision: route.model_revision,
+        model_hash: route.model_hash.clone(),
+        frontier_item_id: route.frontier_item_id.clone(),
+        frontier_item_hash: route.frontier_item_hash.clone(),
+        missing_required_paths: missing_required_paths.clone(),
+        summary: summary.clone(),
+        refused_at: relinquished_at.clone(),
+        contract: HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT.into(),
+    };
+    let relinquishment_id = format!(
+        "repo-frontier-relinquishment-{:x}",
+        Sha256::digest(format!("{}:{}", route.route_id, refusal.receipt_id).as_bytes())
+    );
+    let patch = crate::RepoModelPatch {
+        patch_id: format!("repo-frontier-relinquishment-patch-{}", refusal.receipt_id),
+        base_revision: current.model_revision,
+        base_hash: current_hash.clone(),
+        applied_at: relinquished_at.clone(),
+        purpose: crate::RepoModelPatchPurpose::RelinquishFrontierRoute {
+            route_id: route.route_id.clone(),
+            hands_refusal_receipt_id: refusal.receipt_id.clone(),
+        },
+        operations: vec![crate::RepoModelPatchOperation::RetireFrontier {
+            item_id: route.frontier_item_id.clone(),
+            retired_at: Some(relinquished_at.clone()),
+            superseded_by: None,
+        }],
+    };
+    let patch_bytes = rmp_serde::to_vec_named(&patch)?;
+    let patch_sha256 = format!("{:x}", Sha256::digest(&patch_bytes));
+    let next = crate::derive_repo_model_patch(&current, &patch)?;
+    let next_entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&next)?;
+    let review_id_value = format!("repo-model-review-{relinquishment_id}");
+    let admission_id = format!("repo-model-admission-{relinquishment_id}");
+    let source = crate::RepoModelAdmissionSource::HandsRelinquishment {
+        receipt_id: refusal.receipt_id.clone(),
+    };
+    let review = RepoModelAdmissionReview {
+        schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
+        review_id: review_id_value.clone(),
+        result_id: None,
+        job_id: None,
+        patch_id: patch.patch_id.clone(),
+        patch_sha256: patch_sha256.clone(),
+        base_revision: current.model_revision,
+        base_hash: current_hash.clone(),
+        decision: MindGatewayDecision::Accept,
+        evidence_ids: vec![route.route_id.clone(), refusal.receipt_id.clone()],
+        reviewed_at: relinquished_at.clone(),
+        contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+        repository_body_observation_basis: None,
+        admission_source: Some(source.clone()),
+    };
+    let admission = RepoModelAdmissionReceipt {
+        schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: admission_id.clone(),
+        review_id: review_id_value,
+        result_id: None,
+        patch_id: patch.patch_id,
+        patch_sha256,
+        previous_revision: current.model_revision,
+        previous_hash: current_hash,
+        admitted_revision: next.model_revision,
+        admitted_hash: next.model_hash.clone(),
+        admitted_at: relinquished_at.clone(),
+        contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+        purpose: patch.purpose,
+        frontier_route_id: route.route_id.clone(),
+        verification_request_id: String::new(),
+        soul_verdict_receipt_id: String::new(),
+        frontier_modeling_request_id: String::new(),
+        proposal_modeling_request_id: String::new(),
+        claim_repair_request_id: String::new(),
+        frontier_plan_decision_id: String::new(),
+        repository_body_observation_basis: None,
+        admission_source: Some(source),
+    };
+    let relinquishment = RepoFrontierRelinquishmentReceipt {
+        schema_version: crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: relinquishment_id,
+        hands_refusal_receipt_id: refusal.receipt_id.clone(),
+        route_id: route.route_id,
+        frontier_item_id: route.frontier_item_id,
+        previous_model_revision: current.model_revision,
+        previous_model_hash: admission.previous_hash.clone(),
+        admitted_model_revision: next.model_revision,
+        admitted_model_hash: next.model_hash.clone(),
+        model_admission_receipt_id: admission_id,
+        relinquished_at: relinquished_at.clone(),
+        contract: crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT.into(),
+    };
+    let obligation = modeling_projection_obligation(
+        &cache,
+        &next,
+        &admission.receipt_id,
+        &admission.admitted_at,
+    )?;
+    let writes = vec![
+        cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?.0,
+        cache.prepare_entry(&refusal.receipt_id, &refusal)?.0,
+        cache.prepare_entry(&review.review_id, &review)?.0,
+        cache.prepare_entry(&admission.receipt_id, &admission)?.0,
+        cache
+            .prepare_entry(&relinquishment.receipt_id, &relinquishment)?
+            .0,
+        cache
+            .prepare_entry(&obligation.obligation_id, &obligation)?
+            .0,
+    ];
+    if !backing.compare_and_swap_batch(&[current_envelope], writes)? {
+        return relinquish_repo_frontier_hands_route(
+            store_path,
+            intent_id,
+            review_id,
+            refusal_receipt_id,
+            missing_required_paths,
+            summary,
+            relinquished_at,
+        );
+    }
+    Ok(relinquishment)
+}
+
 pub fn put_repo_frontier_verification_request(
     store_path: impl AsRef<Path>,
     request: &RepoFrontierVerificationRequest,
@@ -7155,6 +7407,20 @@ pub fn runtime_repo_frontier_route(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<RepoFrontierRoute>(route_id)
+}
+
+pub fn runtime_latest_repo_frontier_relinquishment(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<RepoFrontierRelinquishmentReceipt>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut receipts = cache.get_all::<RepoFrontierRelinquishmentReceipt>()?;
+    receipts.sort_by(|left, right| {
+        left.relinquished_at
+            .cmp(&right.relinquished_at)
+            .then_with(|| left.receipt_id.cmp(&right.receipt_id))
+    });
+    Ok(receipts.pop())
 }
 
 pub fn commit_repo_frontier_modeling_request(
@@ -8781,6 +9047,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Hands refusal receipts preserve why an action intent was denied."],
+        ),
+        mutation_contract(
+            crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_TYPE,
+            crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Mind relinquishment receipts prove that an exact Hands refusal retired route authority without a repository consequence."],
         ),
         mutation_contract(
             SOUL_VERIFICATION_REQUEST_TYPE,
@@ -11457,6 +11735,122 @@ pub(crate) mod tests {
         Ok((route, authority))
     }
 
+    #[test]
+    fn hands_relinquishment_atomically_retires_route_authority_without_consequences() -> Result<()>
+    {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "relinquishment-runtime".to_string(),
+                display_name: "Relinquishment".to_string(),
+                created_at: "2026-08-08T12:00:00Z".to_string(),
+            },
+        )?;
+        let paths = vec!["epiphany-core/src/runtime_spine.rs".to_string()];
+        let grant = crate::substrate_gate_coordinator_implementation_grant(
+            "relinquishment-grant".to_string(),
+            "relinquishment-job".to_string(),
+            paths.clone(),
+            "2026-08-08T12:00:01Z".to_string(),
+        );
+        put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        let intent = HandsActionIntent {
+            schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "relinquishment-intent".to_string(),
+            runtime_job_id: grant.runtime_job_id.clone(),
+            binding_id: grant.binding_id.clone(),
+            role: grant.role.clone(),
+            authority_scope: grant.authority_scope.clone(),
+            requested_action: "patch".to_string(),
+            requested_paths: paths,
+            substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_at: "2026-08-08T12:00:02Z".to_string(),
+            contract: "test".to_string(),
+            frontier_route_id: String::new(),
+            plan_candidate_sha256: String::new(),
+            plan_action: String::new(),
+        };
+        put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            "relinquishment-review".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec!["patch".to_string()],
+            vec!["bounded route".to_string()],
+            "2026-08-08T12:00:03Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+        let (route, authority) =
+            admit_route_and_authorize_hands(&store, &intent, &review, "relinquishment")?;
+        let before = runtime_current_repo_model(&store)?.expect("current model");
+        assert!(
+            relinquish_repo_frontier_hands_route(
+                &store,
+                &intent.intent_id,
+                &review.review_id,
+                "hands-refusal-not-a-gap",
+                vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+                "This path was already authorized.".to_string(),
+                "2026-08-08T12:00:04Z".to_string(),
+            )
+            .is_err()
+        );
+        assert_eq!(runtime_current_repo_model(&store)?.unwrap(), before);
+        let receipt = relinquish_repo_frontier_hands_route(
+            &store,
+            &intent.intent_id,
+            &review.review_id,
+            "hands-refusal-relinquishment",
+            vec!["epiphany-state-model/src/lib.rs".to_string()],
+            "The adopted path ceiling cannot express the required authority transfer.".to_string(),
+            "2026-08-08T12:00:04Z".to_string(),
+        )?;
+        let after = runtime_current_repo_model(&store)?.expect("current model");
+        assert_eq!(receipt.route_id, route.route_id);
+        assert_eq!(receipt.previous_model_revision, before.model_revision);
+        assert_eq!(receipt.admitted_model_revision, before.model_revision + 1);
+        assert_eq!(after.model_revision, receipt.admitted_model_revision);
+        assert_eq!(
+            after
+                .frontier
+                .iter()
+                .find(|item| item.id == route.frontier_item_id)
+                .expect("retained frontier")
+                .status,
+            crate::RepoFrontierStatus::Retired
+        );
+        assert!(!runtime_has_actionable_hands_frontier(&store)?);
+        assert!(put_repo_frontier_hands_authority(&store, &authority).is_err());
+        assert_eq!(
+            relinquish_repo_frontier_hands_route(
+                &store,
+                &intent.intent_id,
+                &review.review_id,
+                "hands-refusal-relinquishment",
+                vec!["epiphany-state-model/src/lib.rs".to_string()],
+                "The adopted path ceiling cannot express the required authority transfer."
+                    .to_string(),
+                "2026-08-08T12:00:04Z".to_string(),
+            )?,
+            receipt
+        );
+        assert!(
+            relinquish_repo_frontier_hands_route(
+                &store,
+                &intent.intent_id,
+                &review.review_id,
+                "hands-refusal-relinquishment",
+                vec!["epiphany-state-model/src/lib.rs".to_string()],
+                "collision".to_string(),
+                "2026-08-08T12:00:04Z".to_string(),
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
     struct FrontierVerdictFixture {
         store: std::path::PathBuf,
         route: RepoFrontierRoute,
@@ -11648,6 +12042,34 @@ pub(crate) mod tests {
             modeling_request,
             current,
         })
+    }
+
+    #[test]
+    fn hands_relinquishment_refuses_to_erase_existing_consequences() -> Result<()> {
+        let temp = tempdir()?;
+        let fixture = frontier_verdict_fixture(temp.path(), "relinquish-after-work", "pass")?;
+        let mut cache = runtime_spine_cache(&fixture.store)?;
+        cache.pull_all_backing_stores()?;
+        let authority = cache
+            .get_all::<RepoFrontierHandsAuthority>()?
+            .into_iter()
+            .find(|authority| authority.route_id == fixture.route.route_id)
+            .expect("route authority");
+        let before = fs::read(&fixture.store)?;
+        assert!(
+            relinquish_repo_frontier_hands_route(
+                &fixture.store,
+                &authority.hands_intent_id,
+                &authority.hands_review_id,
+                "hands-refusal-after-consequence",
+                vec!["epiphany-state-model/src/lib.rs".to_string()],
+                "Too late to claim no consequence.".to_string(),
+                "2026-08-08T12:00:09Z".to_string(),
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(&fixture.store)?, before);
+        Ok(())
     }
 
     fn incorporation_result_and_review(
@@ -12169,6 +12591,9 @@ pub(crate) mod tests {
                 crate::RepoModelPatchPurpose::RepairClaim => vec!["repair".to_string()],
                 crate::RepoModelPatchPurpose::AdoptFrontierPlan { .. } => {
                     vec!["adopt".to_string()]
+                }
+                crate::RepoModelPatchPurpose::RelinquishFrontierRoute { .. } => {
+                    vec!["relinquish".to_string()]
                 }
             };
             review.patch_id = patch.patch_id.clone();

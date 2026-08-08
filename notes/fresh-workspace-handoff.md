@@ -175,8 +175,39 @@ Self derived exact Hands route
 `repo-frontier-route-d4d595821804c3f5bbe24d06084762ed19c3185a945827dfa6b10c53df798e2e`.
 The operator-safe gate is
 `.epiphany-dogfood/v49-hands-gate-r7/coordinator-summary.json`. Its six paths
-include `epiphany-mvp-status.rs` but omit the app-server projection owner after
-the proposal Modeling worker's only failed source read. Do not mutate source
-under this incomplete gate. Preserve v49 and implement the missing typed
-relinquishment path as a labeled supervisor intervention across all mapped
-owners, then exercise it against a fresh incomplete route.
+are the complete implementation owner set at that revision. The earlier claim
+that `vendor/codex/codex-rs/app-server/src/epiphany.rs` was an omitted owner was
+stale archaeology: that source does not exist and the vendored app-server has
+no Epiphany projection. Do not mutate source under the historical v49 route,
+because the newly discovered relinquishment transaction was never part of its
+adopted plan. Preserve v49 and implement the missing typed relinquishment path
+as a labeled supervisor intervention across the state model and real six-file
+owner set, then exercise it against a fresh incomplete route.
+
+The labeled supervisor implementation is now local. Hands persists
+`HandsActionRefusalReceipt`; Mind atomically retires the exact frontier and
+writes review, admission, projection-obligation, and
+`RepoFrontierRelinquishmentReceipt` companions through
+`relinquish_repo_frontier_hands_route`. The transaction requires one current
+route authority, at least one missing safe path outside route scope, and zero
+patch/command/commit/PR consequences. Exact replay is idempotent; collision,
+already-authorized paths, existing consequences, and reuse of the stale route
+fail closed. `epiphany-hands-action record-refusal` is the operator mouth and
+native status projects `frontierRelinquishment`.
+
+Focused proof is green: two relinquishment tests, all five existing Hands CLI
+tests, both native status tests, and the state-model test pass. A broad
+645-test library run passed 642 with one ignored and found two failures in
+unchanged test bodies: autonomous direction ingestion expected one pressure
+but observed zero, and the route eligibility test attempted to admit a
+non-active proposal frontier that current admission already forbids. Both
+failures reproduce unchanged in an isolated worktree at pushed HEAD
+`d1d9cd10`; they are pre-existing suite corrosion, not regressions from the new
+patch-purpose enum. The temporary baseline worktree was removed after the
+comparison. Commit and push this pass, then package its exact source once.
+The baseline worktree used temporary junctions for gitlink dependencies; its
+forced removal cleared the live `cultcache-rs` and `cultnet-rs` submodule
+worktrees. The evidence write caught the damage immediately. Both were restored
+with `git submodule update --init --checkout` to pinned SHAs `7676a4c2` and
+`fab5b31d`, and `git submodule status` is clean. Do not reuse junctioned live
+submodule targets for future baseline archives.

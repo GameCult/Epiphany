@@ -10,6 +10,7 @@ use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
+use epiphany_core::relinquish_repo_frontier_hands_route;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use serde_json::json;
@@ -26,6 +27,7 @@ fn main() -> Result<()> {
         Command::RecordCommand(command) => record_command(&args.store, command)?,
         Command::RecordCommit(command) => record_commit(&args.store, command)?,
         Command::RecordPass(command) => record_pass(&args.store, command)?,
+        Command::RecordRefusal(command) => record_refusal(&args.store, command)?,
     };
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
@@ -43,6 +45,7 @@ enum Command {
     RecordCommand(RecordCommandArgs),
     RecordCommit(RecordCommitArgs),
     RecordPass(RecordPassArgs),
+    RecordRefusal(RecordRefusalArgs),
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +94,12 @@ struct RecordPassArgs {
     validate_commit_sha: bool,
 }
 
+#[derive(Debug)]
+struct RecordRefusalArgs {
+    gate: GateArgs,
+    missing_required_paths: Vec<String>,
+}
+
 impl Args {
     fn parse() -> Result<Self> {
         let mut tokens = env::args().skip(1).peekable();
@@ -105,10 +114,27 @@ impl Args {
             "record-command" => Command::RecordCommand(parse_record_command(tokens)?),
             "record-commit" => Command::RecordCommit(parse_record_commit(tokens)?),
             "record-pass" => Command::RecordPass(parse_record_pass(tokens)?),
+            "record-refusal" => Command::RecordRefusal(parse_record_refusal(tokens)?),
             _ => return Err(anyhow!("unknown command {command_name}\n{}", usage())),
         };
         Ok(Self { store, command })
     }
+}
+
+fn parse_record_refusal(tokens: impl Iterator<Item = String>) -> Result<RecordRefusalArgs> {
+    let mut options = ParsedOptions::parse(tokens)?;
+    let gate = options.take_gate()?;
+    let missing_required_paths = options.take_many("--missing-required-path");
+    options.finish()?;
+    if missing_required_paths.is_empty() {
+        return Err(anyhow!(
+            "record-refusal requires at least one --missing-required-path"
+        ));
+    }
+    Ok(RecordRefusalArgs {
+        gate,
+        missing_required_paths,
+    })
 }
 
 fn parse_record_patch(tokens: impl Iterator<Item = String>) -> Result<RecordPatchArgs> {
@@ -399,6 +425,35 @@ fn record_pass(store: &PathBuf, args: RecordPassArgs) -> Result<serde_json::Valu
     }))
 }
 
+fn record_refusal(store: &PathBuf, args: RecordRefusalArgs) -> Result<serde_json::Value> {
+    let resolved = resolve_gate(&args.gate)?;
+    let receipt_id = args
+        .gate
+        .receipt_id
+        .unwrap_or_else(|| generated_receipt_id("hands-refusal"));
+    let receipt = relinquish_repo_frontier_hands_route(
+        store,
+        &resolved.intent_id,
+        &resolved.review_id,
+        &receipt_id,
+        normalize_paths(args.missing_required_paths),
+        args.gate.summary,
+        now(),
+    )?;
+    Ok(json!({
+        "status": "ok",
+        "type": "epiphany.mind.repo_frontier_relinquishment_receipt",
+        "receiptId": receipt.receipt_id,
+        "handsRefusalReceiptId": receipt.hands_refusal_receipt_id,
+        "routeId": receipt.route_id,
+        "frontierItemId": receipt.frontier_item_id,
+        "admittedModelRevision": receipt.admitted_model_revision,
+        "admittedModelHash": receipt.admitted_model_hash,
+        "modelAdmissionReceiptId": receipt.model_admission_receipt_id,
+        "store": store,
+    }))
+}
+
 fn pass_gate(gate: &GateArgs, operation: &str) -> GateArgs {
     let mut gate = gate.clone();
     gate.receipt_id = None;
@@ -570,7 +625,7 @@ fn take_value(tokens: &mut impl Iterator<Item = String>, name: &str) -> Result<S
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
+    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass|record-refusal> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
 }
 
 #[cfg(test)]

@@ -867,6 +867,10 @@ pub enum RepoModelPatchPurpose {
         result_id: String,
         candidate_id: String,
     },
+    RelinquishFrontierRoute {
+        route_id: String,
+        hands_refusal_receipt_id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]

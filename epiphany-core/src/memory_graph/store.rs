@@ -249,6 +249,18 @@ pub fn derive_repo_model_patch(
                 ));
             }
         }
+        epiphany_state_model::RepoModelPatchPurpose::RelinquishFrontierRoute { .. } => {
+            if patch.operations.len() != 1
+                || !matches!(
+                    patch.operations[0],
+                    RepoModelPatchOperation::RetireFrontier { .. }
+                )
+            {
+                return Err(anyhow!(
+                    "RelinquishFrontierRoute purpose requires exactly one frontier retirement"
+                ));
+            }
+        }
         _ if patch.operations.iter().any(|operation| {
             matches!(operation, RepoModelPatchOperation::AdoptFrontierPlan { .. })
         }) =>
@@ -417,6 +429,19 @@ fn apply_operation(
                 .iter_mut()
                 .find(|item| &item.id == item_id)
                 .ok_or_else(|| anyhow!("cannot retire missing frontier item {item_id}"))?;
+            if item.adopted_plan.is_some()
+                && !matches!(
+                    purpose,
+                    epiphany_state_model::RepoModelPatchPurpose::RelinquishFrontierRoute {
+                        route_id: _,
+                        hands_refusal_receipt_id: _
+                    }
+                )
+            {
+                return Err(anyhow!(
+                    "only route relinquishment may retire an adopted frontier without a Soul verdict"
+                ));
+            }
             item.status = if superseded_by.is_some() {
                 RepoFrontierStatus::Superseded
             } else {

@@ -40,6 +40,12 @@ pub const REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_ROUTE_CONTRACT: &str = "epiphany.repo_frontier_route.v1";
 pub const REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT: &str =
     "epiphany.repo_frontier_hands_authority.v0";
+pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_TYPE: &str =
+    "epiphany.mind.repo_frontier_relinquishment_receipt";
+pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_frontier_relinquishment_receipt.v0";
+pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT: &str =
+    "epiphany.repo_frontier_relinquishment.v0";
 pub const REPO_FRONTIER_MODELING_REQUEST_TYPE: &str =
     "epiphany.modeling.repo_frontier_verdict_request";
 pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
@@ -902,6 +908,38 @@ pub struct RepoFrontierHandsAuthority {
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "epiphany.mind.repo_frontier_relinquishment_receipt",
+    schema = "RepoFrontierRelinquishmentReceipt"
+)]
+pub struct RepoFrontierRelinquishmentReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub hands_refusal_receipt_id: String,
+    #[cultcache(key = 3)]
+    pub route_id: String,
+    #[cultcache(key = 4)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 5)]
+    pub previous_model_revision: u64,
+    #[cultcache(key = 6)]
+    pub previous_model_hash: String,
+    #[cultcache(key = 7)]
+    pub admitted_model_revision: u64,
+    #[cultcache(key = 8)]
+    pub admitted_model_hash: String,
+    #[cultcache(key = 9)]
+    pub model_admission_receipt_id: String,
+    #[cultcache(key = 10)]
+    pub relinquished_at: String,
+    #[cultcache(key = 11)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "epiphany.mind.repo_model_admission_review",
     schema = "RepoModelAdmissionReview"
 )]
@@ -941,6 +979,7 @@ pub struct RepoModelAdmissionReview {
 pub enum RepoModelAdmissionSource {
     WorkerResult { result_id: String, job_id: String },
     FrontierPlanDecision { decision_id: String },
+    HandsRelinquishment { receipt_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
