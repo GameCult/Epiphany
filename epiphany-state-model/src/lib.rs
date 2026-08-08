@@ -824,6 +824,41 @@ pub struct RepoFrontierAdoptedPlan {
     #[ts(type = "Array<string>")]
     pub rollback_steps: Vec<String>,
     pub commit_message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "RepoFrontierExecutionAmendment | null")]
+    pub execution_amendment: Option<RepoFrontierExecutionAmendment>,
+}
+
+impl RepoFrontierAdoptedPlan {
+    pub fn effective_action(&self) -> &str {
+        self.execution_amendment
+            .as_ref()
+            .map_or(self.action.as_str(), |amendment| amendment.action.as_str())
+    }
+
+    pub fn effective_command(&self) -> &str {
+        self.execution_amendment
+            .as_ref()
+            .map_or(self.command.as_str(), |amendment| {
+                amendment.command.as_str()
+            })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct RepoFrontierExecutionAmendment {
+    pub amendment_id: String,
+    pub replaces_route_id: String,
+    pub source_actor_id: String,
+    pub command_id: String,
+    pub admission_id: String,
+    pub packet_sha256: String,
+    pub previous_action_sha256: String,
+    pub previous_command_sha256: String,
+    pub action: String,
+    pub command: String,
+    pub rationale: String,
+    pub amended_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -871,6 +906,10 @@ pub enum RepoModelPatchPurpose {
         route_id: String,
         hands_refusal_receipt_id: String,
     },
+    AmendFrontierExecution {
+        route_id: String,
+        amendment_id: String,
+    },
 }
 
 pub fn reorient_checkpoint_from_admitted_repo_model(
@@ -885,9 +924,7 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
         summary: Some(
             "Derived from the authenticated current RepoModel semantic projection.".to_string(),
         ),
-        next_action: Some(
-            "Resume from the current Mind-admitted RepoModel frontier.".to_string(),
-        ),
+        next_action: Some("Resume from the current Mind-admitted RepoModel frontier.".to_string()),
         captured_at_turn_id: None,
         open_questions: Vec::new(),
         code_refs: snapshot
@@ -946,6 +983,11 @@ pub enum RepoModelPatchOperation {
         frontier_item_id: String,
         expected_frontier_item_hash: String,
         adopted_plan: RepoFrontierAdoptedPlan,
+    },
+    AmendFrontierExecution {
+        frontier_item_id: String,
+        expected_frontier_item_hash: String,
+        amendment: RepoFrontierExecutionAmendment,
     },
 }
 

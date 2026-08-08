@@ -2,6 +2,7 @@ use super::*;
 use anyhow::Result;
 use epiphany_state_model::EpiphanyMemoryEdgeKind;
 use epiphany_state_model::EpiphanyMemoryNodeKind;
+use sha2::Digest;
 
 fn anchor(id: &str, hash: &str) -> EpiphanyMemoryAnchor {
     EpiphanyMemoryAnchor {
@@ -733,6 +734,7 @@ fn verdict_incorporation_closes_adopted_frontier_without_rewriting_execution_pla
         stop_conditions: vec!["scope changes".into()],
         rollback_steps: vec!["revert commit".into()],
         commit_message: "Implement exact bounded change".into(),
+        execution_amendment: None,
     });
     snapshot.frontier = vec![item.clone()];
     make_canonical(&mut snapshot, 1);
@@ -765,6 +767,78 @@ fn verdict_incorporation_closes_adopted_frontier_without_rewriting_execution_pla
         ..patch
     };
     assert!(derive_repo_model_patch(&snapshot, &hostile).is_err());
+    Ok(())
+}
+
+#[test]
+fn execution_amendment_is_exact_single_use_and_mind_owned() -> Result<()> {
+    let mut snapshot = fixture_snapshot();
+    let claim = snapshot.nodes[0].id.clone();
+    let mut item = frontier_item("amended-work", &claim);
+    item.recommended_next_organ = "Hands".into();
+    item.adopted_plan = Some(epiphany_state_model::RepoFrontierAdoptedPlan {
+        planning_request_id: "planning-1".into(),
+        result_id: "result-1".into(),
+        job_id: "job-1".into(),
+        candidate_id: "candidate-1".into(),
+        candidate_sha256: "candidate-hash".into(),
+        safe_paths: item.source_scope.clone(),
+        action: "Draft a plan".into(),
+        command: "Describe the checks".into(),
+        checks: vec!["focused tests pass".into()],
+        stop_conditions: vec!["scope changes".into()],
+        rollback_steps: vec!["revert commit".into()],
+        commit_message: "Implement bounded change".into(),
+        execution_amendment: None,
+    });
+    snapshot.frontier = vec![item.clone()];
+    make_canonical(&mut snapshot, 5);
+    let item_hash = format!(
+        "{:x}",
+        sha2::Sha256::digest(rmp_serde::to_vec_named(&item)?)
+    );
+    let amendment = epiphany_state_model::RepoFrontierExecutionAmendment {
+        amendment_id: "amendment-1".into(),
+        replaces_route_id: "route-1".into(),
+        source_actor_id: "supervisor-1".into(),
+        command_id: "command-1".into(),
+        admission_id: "admission-1".into(),
+        packet_sha256: "a".repeat(64),
+        previous_action_sha256: format!("{:x}", sha2::Sha256::digest(b"Draft a plan")),
+        previous_command_sha256: format!("{:x}", sha2::Sha256::digest(b"Describe the checks")),
+        action: "Verify the admitted implementation".into(),
+        command: "cargo test --lib".into(),
+        rationale: "Repair a non-executable adopted command without erasing it.".into(),
+        amended_at: "2026-08-08T12:30:00Z".into(),
+    };
+    let patch = RepoModelPatch {
+        patch_id: "amend-execution-1".into(),
+        base_revision: snapshot.model_revision,
+        base_hash: memory_graph_model_hash(&snapshot)?,
+        applied_at: amendment.amended_at.clone(),
+        purpose: RepoModelPatchPurpose::AmendFrontierExecution {
+            route_id: amendment.replaces_route_id.clone(),
+            amendment_id: amendment.amendment_id.clone(),
+        },
+        operations: vec![RepoModelPatchOperation::AmendFrontierExecution {
+            frontier_item_id: item.id.clone(),
+            expected_frontier_item_hash: item_hash,
+            amendment: amendment.clone(),
+        }],
+    };
+    let next = derive_repo_model_patch(&snapshot, &patch)?;
+    let plan = next.frontier[0].adopted_plan.as_ref().unwrap();
+    assert_eq!(plan.command, "Describe the checks");
+    assert_eq!(plan.effective_command(), "cargo test --lib");
+
+    let mut repeated = patch.clone();
+    repeated.base_revision = next.model_revision;
+    repeated.base_hash = memory_graph_model_hash(&next)?;
+    assert!(derive_repo_model_patch(&next, &repeated).is_err());
+
+    let mut generic = patch;
+    generic.purpose = RepoModelPatchPurpose::Evolution;
+    assert!(derive_repo_model_patch(&snapshot, &generic).is_err());
     Ok(())
 }
 

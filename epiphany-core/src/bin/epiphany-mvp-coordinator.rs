@@ -1286,7 +1286,7 @@ fn record_hands_implementation_gate(
         plan_action: route
             .adopted_plan
             .as_ref()
-            .map(|plan| plan.action.clone())
+            .map(|plan| plan.effective_action().to_string())
             .unwrap_or_default(),
     };
     put_hands_action_intent(runtime_store, &intent)?;
@@ -1343,12 +1343,25 @@ fn record_hands_implementation_gate(
         "frontierItemId": route.frontier_item_id,
         "requestedPaths": requested_paths,
         "requiredReceipts": review.required_receipts,
-        "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir),
+        "plannedAction": route.adopted_plan.as_ref().map(|plan| plan.effective_action()),
+        "plannedCommand": route.adopted_plan.as_ref().map(|plan| plan.effective_command()),
+        "originalPlannedAction": route.adopted_plan.as_ref().map(|plan| plan.action.as_str()),
+        "originalPlannedCommand": route.adopted_plan.as_ref().map(|plan| plan.command.as_str()),
+        "executionAmendmentId": route.adopted_plan.as_ref().and_then(|plan| plan.execution_amendment.as_ref()).map(|amendment| amendment.amendment_id.as_str()),
+        "plannedChecks": route.adopted_plan.as_ref().map(|plan| plan.checks.as_slice()),
+        "plannedStopConditions": route.adopted_plan.as_ref().map(|plan| plan.stop_conditions.as_slice()),
+        "plannedRollbackSteps": route.adopted_plan.as_ref().map(|plan| plan.rollback_steps.as_slice()),
+        "plannedCommitMessage": route.adopted_plan.as_ref().map(|plan| plan.commit_message.as_str()),
+        "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir, route.adopted_plan.as_ref()),
         "store": runtime_store,
     }))
 }
 
-fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value {
+fn hands_record_pass_command(
+    runtime_store: &Path,
+    artifact_dir: &Path,
+    adopted_plan: Option<&epiphany_core::RepoFrontierAdoptedPlan>,
+) -> Value {
     json!({
         "executable": "epiphany-hands-action",
         "args": [
@@ -1362,7 +1375,9 @@ fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value
             "--changed-path",
             "<changed path>",
             "--command",
-            "<verification command>",
+            adopted_plan
+                .map(|plan| plan.effective_command())
+                .unwrap_or("<verification command>"),
             "--exit-code",
             "<exit code>",
             "--stdout-artifact",
@@ -1851,8 +1866,10 @@ fn launch_reorient(
     let checkpoint = match state.investigation_checkpoint.clone() {
         Some(checkpoint) => checkpoint,
         None => {
-            let projection = epiphany_core::runtime_modeling_semantic_projection_input(runtime_store)
-                .context("cannot launch reorientation without a valid admitted RepoModel checkpoint")?;
+            let projection = epiphany_core::runtime_modeling_semantic_projection_input(
+                runtime_store,
+            )
+            .context("cannot launch reorientation without a valid admitted RepoModel checkpoint")?;
             epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
                 projection.snapshot(),
                 &projection.obligation().obligation_id,
@@ -2550,6 +2567,16 @@ mod tests {
             Some("epiphany-hands-action")
         );
         assert_eq!(
+            gate["plannedCommand"].as_str(),
+            Some("cargo test --bin epiphany-mvp-coordinator")
+        );
+        assert_eq!(
+            gate.pointer("/recordPassCommand/args/10")
+                .and_then(serde_json::Value::as_str),
+            Some("cargo test --bin epiphany-mvp-coordinator"),
+            "the operator command surface must carry the exact Mind-admitted command"
+        );
+        assert_eq!(
             review.required_receipts,
             vec![
                 HANDS_PATCH_RECEIPT_TYPE.to_string(),
@@ -2615,6 +2642,7 @@ mod tests {
             stop_conditions: vec!["authority scope changes".to_string()],
             rollback_steps: vec!["revert the bounded change".to_string()],
             commit_message: "Bind Hands intent to adopted plan".to_string(),
+            execution_amendment: None,
         });
         let mut model = epiphany_core::EpiphanyMemoryGraphSnapshot {
             schema_version: Some(epiphany_core::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),

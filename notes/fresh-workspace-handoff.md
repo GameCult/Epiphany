@@ -7,7 +7,7 @@ growth.
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD: `189091bf` (`Keep rejected Modeling behind pending Soul`)
+- Pushed HEAD before the current verified repair pass: `583c09c3` (`Expose Soul binding mismatch`)
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Sealed evidence: v49 through v52. Do not mutate them.
 - Current published release: commit `253ef34084c7b450e587c1938a68cd3e983ed79b`, release `sha256-e0a4fd22df335401d56295453e009f31aa2e82253634614426bfba298dd2d3f0`, witness `sha256-65cbc2f21f0774c4da00a60537c959d130e970a4b860de5629a7b929b8185b2c`.
@@ -54,6 +54,16 @@ granting Hands authority. Do not weaken Soul and do not forge an empty command
 receipt. Preserve the failed launches (`v53-soul-r24`, `r25`, `r27`, diagnostic
 `r28`/`r29`) as receipts of the corrupted seam.
 
+The current verified repair pass makes command substitution fail before a Hands
+command receipt can persist. Hands gates expose the exact effective command.
+RepoModel now supports one Mind-owned, single-use execution amendment whose
+authenticated provenance and hashes preserve the original adopted plan while
+atomically committing a new model revision, Mind review, admission receipt,
+amendment receipt, and Modeling projection. The narrow operator mouth is
+`epiphany-mind-repair amend-frontier-execution`. Focused amendment and Hands-gate
+tests pass; their builds took 73 and 64 seconds respectively while test execution
+was sub-second, strengthening the case for the pending core crate split.
+
 ## Receipts
 
 - Final Hands patch: `hands-patch-34b421a7-867f-4414-8265-36f2eb191afb`
@@ -65,11 +75,10 @@ receipt. Preserve the failed launches (`v53-soul-r24`, `r25`, `r27`, diagnostic
 
 ## Next action
 
-Finish the operator-safe mismatch diagnostic in `runtime_spine.rs` and commit
-it. Add fail-closed admission coverage so a non-executable adopted-plan command
-cannot produce Hands authority. Then implement one labeled typed supervisor
-migration for the live route, preserving the original route and every failed
-Soul launch as evidence, and retry Soul against the repaired binding.
+Commit and push the typed repair pass. Then use the Mind repair CLI to amend the
+live v53 plan with explicit supervisor command/admission provenance, derive a
+fresh route, replay the exact Hands receipts against that amended route, and
+retry Soul. Preserve the original route and every failed Soul launch.
 
 Build iteration is also an active architectural defect: a tiny
 `runtime_spine.rs` diagnostic edit forced 18-29 second debug rebuilds, while

@@ -1436,6 +1436,34 @@ to own the decision. Without a Hands frontier, the consumed proposal still
 fails closed at `awaitFrontierProposal`; ordinary non-proposal failures still
 route back to Modeling.
 
+## Supervisor execution-amendment authority
+
+Owner: Mind owns a single-use repair when an immutable adopted plan contains a
+non-executable command that cannot bind an already-observed Hands consequence.
+The original Imagination plan and Self route remain immutable evidence.
+
+Inputs: one exact current route, the exact current frontier-item hash, hashes of
+the original action and command, authenticated supervisor actor/command/admission
+and packet provenance, one replacement action and command, rationale, and an
+operator-owned timestamp.
+
+Outputs: one new RepoModel revision plus Mind review, admission, execution-
+amendment, and Modeling-projection receipts in one compare-and-swap. Self must
+derive a fresh route from the amended model; the old route cannot become current
+again. Hands command receipts bind `effective_command`, and the gate projects
+both original and effective values for inspection.
+
+Forbidden writers: generic Modeling admission cannot carry the amendment
+operation; Hands cannot substitute a command; a stale route cannot be amended;
+and an already-amended plan cannot be amended again. The amendment is not a
+repair loop and does not erase failed Soul launches or historical Hands receipts.
+
+Verification layer: focused derivation tests prove exact success, original-plan
+preservation, single-use refusal, and generic-purpose refusal. The Hands receipt
+test proves a mismatched stated command leaves the store byte-identical before
+the exact command succeeds. Live v53 migration and renewed Soul verification are
+the remaining end-to-end proof.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

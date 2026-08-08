@@ -261,12 +261,38 @@ pub fn derive_repo_model_patch(
                 ));
             }
         }
+        epiphany_state_model::RepoModelPatchPurpose::AmendFrontierExecution {
+            route_id,
+            amendment_id,
+        } => {
+            if patch.operations.len() != 1 {
+                return Err(anyhow!(
+                    "AmendFrontierExecution purpose requires exactly one dedicated operation"
+                ));
+            }
+            let RepoModelPatchOperation::AmendFrontierExecution { amendment, .. } =
+                &patch.operations[0]
+            else {
+                return Err(anyhow!(
+                    "AmendFrontierExecution purpose requires its dedicated operation"
+                ));
+            };
+            if amendment.replaces_route_id != *route_id || amendment.amendment_id != *amendment_id {
+                return Err(anyhow!(
+                    "AmendFrontierExecution purpose and operation provenance mismatch"
+                ));
+            }
+        }
         _ if patch.operations.iter().any(|operation| {
-            matches!(operation, RepoModelPatchOperation::AdoptFrontierPlan { .. })
+            matches!(
+                operation,
+                RepoModelPatchOperation::AdoptFrontierPlan { .. }
+                    | RepoModelPatchOperation::AmendFrontierExecution { .. }
+            )
         }) =>
         {
             return Err(anyhow!(
-                "only AdoptFrontierPlan purpose may carry the dedicated adoption operation"
+                "only its Mind-owned purpose may carry a dedicated plan operation"
             ));
         }
         _ => {}
@@ -499,6 +525,49 @@ fn apply_operation(
             }
             item.adopted_plan = Some(adopted_plan.clone());
             item.recommended_next_organ = "Hands".to_string();
+            item.updated_at = Some(applied_at.to_string());
+        }
+        RepoModelPatchOperation::AmendFrontierExecution {
+            frontier_item_id,
+            expected_frontier_item_hash,
+            amendment,
+        } => {
+            let item = snapshot
+                .frontier
+                .iter_mut()
+                .find(|item| &item.id == frontier_item_id)
+                .ok_or_else(|| {
+                    anyhow!("cannot amend execution for missing frontier item {frontier_item_id}")
+                })?;
+            let current_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&*item)?));
+            let plan = item
+                .adopted_plan
+                .as_mut()
+                .ok_or_else(|| anyhow!("frontier execution amendment requires an adopted plan"))?;
+            let previous_action_sha256 = format!("{:x}", Sha256::digest(plan.action.as_bytes()));
+            let previous_command_sha256 = format!("{:x}", Sha256::digest(plan.command.as_bytes()));
+            if current_hash != *expected_frontier_item_hash
+                || item.status != RepoFrontierStatus::Active
+                || item.recommended_next_organ != "Hands"
+                || plan.execution_amendment.is_some()
+                || amendment.amendment_id.trim().is_empty()
+                || amendment.replaces_route_id.trim().is_empty()
+                || amendment.source_actor_id.trim().is_empty()
+                || amendment.command_id.trim().is_empty()
+                || amendment.admission_id.trim().is_empty()
+                || amendment.packet_sha256.trim().is_empty()
+                || amendment.action.trim().is_empty()
+                || amendment.command.trim().is_empty()
+                || amendment.rationale.trim().is_empty()
+                || amendment.previous_action_sha256 != previous_action_sha256
+                || amendment.previous_command_sha256 != previous_command_sha256
+                || chrono::DateTime::parse_from_rfc3339(&amendment.amended_at).is_err()
+            {
+                return Err(anyhow!(
+                    "frontier execution amendment requires the exact current Hands plan and complete authenticated provenance"
+                ));
+            }
+            plan.execution_amendment = Some(amendment.clone());
             item.updated_at = Some(applied_at.to_string());
         }
     }

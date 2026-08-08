@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 completed the adopted RepoModel revision 5 Hands consequence through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Reorientation and Eyes regather were accepted; the resulting causal Modeling attempt was correctly rejected because Evolution cannot bypass the active route. HEAD 189091bf routes the still-unverified Hands consequence to Soul ahead of that rejected Modeling result. Soul now fails closed because the adopted plan command does not match the complete Hands command receipt, exposing an Imagination/Mind admission defect rather than a Soul defect. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 completed the adopted RepoModel revision 5 Hands consequence through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Soul correctly failed closed on a substituted plan command. The repair pass now prevents a mismatched Hands command receipt, projects the exact effective command in the gate, and adds a Mind-owned single-use execution amendment that preserves the original plan and route while atomically emitting review, admission, amendment, and Modeling-projection receipts. Live v53 migration and renewed Soul proof remain next. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: soul_binding_diagnostic_mid_pass
+    local_worktree: typed_execution_amendment_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: The active route admitted a plan whose command cannot bind the completed Hands consequence. Soul reports only command.plan.command after supervisor-supplied exact receipt-chain retries, so the live state is fail-closed and must not be bypassed. Prevent empty or non-executable plan commands from reaching Mind adoption, then migrate the live route through a labeled typed supervisor repair. Exact HEAD packaging remains required. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
-  next_action: Finish and commit the Soul mismatch diagnostic, add admission coverage that rejects a non-executable adopted-plan command before Hands authority exists, then design one typed supervisor migration that repairs the live route and emits receipts without erasing the rejected state. Retry Soul only after the repaired route and current Hands consequence bind exactly. Separately map and split the monolithic epiphany-core runtime spine/build graph; tiny runtime-spine edits currently force 18-29 second debug rebuilds and multi-minute exact packages.
+  unresolved_authority: The active v53 route still contains the original non-executable plan command and remains fail-closed. The typed repair mechanism is locally verified but has not yet migrated live state or produced a fresh route. Exact HEAD packaging remains required. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
+  next_action: Commit and push the verified command-binding and typed execution-amendment pass. Use the narrow Mind repair CLI to migrate live v53 with authenticated supervisor provenance, derive a fresh route, replay exact Hands evidence against the amended command, then launch and accept Soul. Separately map and split the monolithic epiphany-core runtime spine/build graph; focused tests for this pass each required 64-73 seconds of compilation while execution took under one second.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

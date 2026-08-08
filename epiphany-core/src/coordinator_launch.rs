@@ -2637,6 +2637,13 @@ pub(crate) mod tests {
             "wrong command".into(),
             "2026-07-15T09:00:13Z".into(),
         );
+        let before_substituted_command = std::fs::read(&store)?;
+        assert!(crate::put_hands_command_receipt(&store, &wrong_command).is_err());
+        assert!(
+            crate::runtime_hands_command_receipt(&store, &wrong_command.receipt_id)?.is_none(),
+            "a command substituted after Mind adoption must never become consequence evidence"
+        );
+        assert_eq!(std::fs::read(&store)?, before_substituted_command);
         let commit_receipt = crate::hands_commit_receipt_for_review(
             "adopt-hands-commit".into(),
             &intent,

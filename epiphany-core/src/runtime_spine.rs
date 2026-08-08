@@ -52,6 +52,8 @@ use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION,
+    REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT,
+    REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION,
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION, REPO_FRONTIER_PLAN_DECISION_CONTRACT,
@@ -75,10 +77,10 @@ use crate::repo_model_gateway::{
     REPO_MODEL_MIGRATION_CONTRACT, REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_RECEIPT_TYPE, RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION,
-    RepoFrontierAutonomousProposalBinding, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
-    RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
-    RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
-    RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
+    RepoFrontierAutonomousProposalBinding, RepoFrontierExecutionAmendmentReceipt,
+    RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
+    RepoFrontierPlanCandidate, RepoFrontierPlanDecision, RepoFrontierPlanDecisionReceipt,
+    RepoFrontierPlanMindDecision, RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
     RepoFrontierPlanningCandidateEligibility, RepoFrontierPlanningEligibility,
     RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningLifecycle,
     RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
@@ -902,6 +904,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<HandsActionRefusalReceipt>()?;
     cache.register_entry_type::<RepoFrontierRelinquishmentReceipt>()?;
+    cache.register_entry_type::<RepoFrontierExecutionAmendmentReceipt>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierWorkProposal>()?;
     cache.register_entry_type::<RepoFrontierAutonomousProposalBinding>()?;
@@ -2737,6 +2740,11 @@ pub fn commit_repo_model_admission(
         crate::RepoModelPatchPurpose::RelinquishFrontierRoute { .. } => {
             return Err(anyhow!(
                 "frontier route relinquishment is a Mind-owned transaction and cannot enter through generic repo model admission"
+            ));
+        }
+        crate::RepoModelPatchPurpose::AmendFrontierExecution { .. } => {
+            return Err(anyhow!(
+                "frontier execution amendment is a Mind-owned supervisor transaction and cannot enter through generic repo model admission"
             ));
         }
         crate::RepoModelPatchPurpose::RepairClaim => {
@@ -5784,6 +5792,7 @@ fn commit_repo_frontier_plan_decision_inner(
             stop_conditions: candidate.stop_conditions.clone(),
             rollback_steps: candidate.rollback_steps.clone(),
             commit_message: candidate.commit_message.clone(),
+            execution_amendment: None,
         };
         let patch = crate::RepoModelPatch {
             patch_id: format!("repo-frontier-plan-adopt-patch-{}", request.request_id),
@@ -6875,7 +6884,7 @@ fn validate_repo_frontier_hands_authority_chain(
         Some(plan) => {
             intent.frontier_route_id == route.route_id
                 && intent.plan_candidate_sha256 == plan.candidate_sha256
-                && intent.plan_action == plan.action
+                && intent.plan_action == plan.effective_action()
         }
         None => {
             intent.frontier_route_id.is_empty()
@@ -7278,6 +7287,165 @@ pub fn relinquish_repo_frontier_hands_route(
     Ok(relinquishment)
 }
 
+/// Mind-owned repair for a route whose immutable adopted plan cannot bind the
+/// already-observed consequence. The original plan and route remain intact;
+/// only an authenticated, single-use execution amendment enters RepoModel.
+pub fn amend_repo_frontier_execution(
+    store_path: impl AsRef<Path>,
+    amendment: crate::RepoFrontierExecutionAmendment,
+) -> Result<RepoFrontierExecutionAmendmentReceipt> {
+    let store_path = store_path.as_ref();
+    if chrono::DateTime::parse_from_rfc3339(&amendment.amended_at).is_err() {
+        return Err(anyhow!("execution amendment amended_at must be RFC3339"));
+    }
+    let cache = runtime_spine_cache(store_path)?;
+    if cache
+        .get::<RepoFrontierExecutionAmendmentReceipt>(&amendment.amendment_id)?
+        .is_some()
+    {
+        return Err(anyhow!("execution amendment has already been consumed"));
+    }
+    let route = cache
+        .get::<RepoFrontierRoute>(&amendment.replaces_route_id)?
+        .ok_or_else(|| anyhow!("execution amendment requires the exact replaced route"))?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let current_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("execution amendment requires canonical RepoModel"))?;
+    let current_entry: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&current_envelope.payload)?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    let current_hash = crate::memory_graph_model_hash(&current)?;
+    if current.model_revision != route.model_revision || current_hash != route.model_hash {
+        return Err(anyhow!(
+            "execution amendment replaced route is no longer current"
+        ));
+    }
+    let item = current
+        .frontier
+        .iter()
+        .find(|item| item.id == route.frontier_item_id)
+        .ok_or_else(|| anyhow!("execution amendment frontier item disappeared"))?;
+    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    if item_hash != route.frontier_item_hash {
+        return Err(anyhow!("execution amendment route frontier hash is stale"));
+    }
+    let patch = crate::RepoModelPatch {
+        patch_id: format!(
+            "repo-frontier-execution-amendment-patch-{}",
+            amendment.amendment_id
+        ),
+        base_revision: current.model_revision,
+        base_hash: current_hash.clone(),
+        applied_at: amendment.amended_at.clone(),
+        purpose: crate::RepoModelPatchPurpose::AmendFrontierExecution {
+            route_id: route.route_id.clone(),
+            amendment_id: amendment.amendment_id.clone(),
+        },
+        operations: vec![crate::RepoModelPatchOperation::AmendFrontierExecution {
+            frontier_item_id: route.frontier_item_id.clone(),
+            expected_frontier_item_hash: route.frontier_item_hash.clone(),
+            amendment: amendment.clone(),
+        }],
+    };
+    let patch_bytes = rmp_serde::to_vec_named(&patch)?;
+    let patch_sha256 = format!("{:x}", Sha256::digest(&patch_bytes));
+    let next = crate::derive_repo_model_patch(&current, &patch)?;
+    let next_entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&next)?;
+    let review = RepoModelAdmissionReview {
+        schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
+        review_id: format!("repo-model-review-{}", amendment.amendment_id),
+        result_id: None,
+        job_id: None,
+        patch_id: patch.patch_id.clone(),
+        patch_sha256: patch_sha256.clone(),
+        base_revision: current.model_revision,
+        base_hash: current_hash.clone(),
+        decision: MindGatewayDecision::Accept,
+        evidence_ids: vec![
+            route.route_id.clone(),
+            amendment.command_id.clone(),
+            amendment.admission_id.clone(),
+        ],
+        reviewed_at: amendment.amended_at.clone(),
+        contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+        repository_body_observation_basis: None,
+        admission_source: None,
+    };
+    let admission = RepoModelAdmissionReceipt {
+        schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("repo-model-admission-{}", amendment.amendment_id),
+        review_id: review.review_id.clone(),
+        result_id: None,
+        patch_id: patch.patch_id.clone(),
+        patch_sha256,
+        previous_revision: current.model_revision,
+        previous_hash: current_hash,
+        admitted_revision: next.model_revision,
+        admitted_hash: next.model_hash.clone(),
+        admitted_at: amendment.amended_at.clone(),
+        contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+        purpose: patch.purpose,
+        frontier_route_id: route.route_id.clone(),
+        verification_request_id: String::new(),
+        soul_verdict_receipt_id: String::new(),
+        frontier_modeling_request_id: String::new(),
+        proposal_modeling_request_id: String::new(),
+        claim_repair_request_id: String::new(),
+        frontier_plan_decision_id: String::new(),
+        repository_body_observation_basis: None,
+        admission_source: None,
+    };
+    let receipt = RepoFrontierExecutionAmendmentReceipt {
+        schema_version: REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: amendment.amendment_id.clone(),
+        amendment_id: amendment.amendment_id.clone(),
+        replaced_route_id: route.route_id,
+        frontier_item_id: route.frontier_item_id,
+        previous_frontier_item_hash: item_hash,
+        previous_model_revision: current.model_revision,
+        previous_model_hash: admission.previous_hash.clone(),
+        admitted_model_revision: next.model_revision,
+        admitted_model_hash: next.model_hash.clone(),
+        model_admission_receipt_id: admission.receipt_id.clone(),
+        source_actor_id: amendment.source_actor_id,
+        command_id: amendment.command_id,
+        admission_id: amendment.admission_id,
+        packet_sha256: amendment.packet_sha256,
+        replacement_action: amendment.action,
+        replacement_command: amendment.command,
+        rationale: amendment.rationale,
+        amended_at: amendment.amended_at.clone(),
+        contract: REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT.into(),
+    };
+    let obligation = modeling_projection_obligation(
+        &cache,
+        &next,
+        &admission.receipt_id,
+        &admission.admitted_at,
+    )?;
+    let writes = vec![
+        cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?.0,
+        cache.prepare_entry(&review.review_id, &review)?.0,
+        cache.prepare_entry(&admission.receipt_id, &admission)?.0,
+        cache.prepare_entry(&receipt.receipt_id, &receipt)?.0,
+        cache
+            .prepare_entry(&obligation.obligation_id, &obligation)?
+            .0,
+    ];
+    if !backing.compare_and_swap_batch(&[current_envelope], writes)? {
+        return Err(anyhow!(
+            "execution amendment lost the RepoModel compare-and-swap"
+        ));
+    }
+    Ok(receipt)
+}
+
 pub fn put_repo_frontier_verification_request(
     store_path: impl AsRef<Path>,
     request: &RepoFrontierVerificationRequest,
@@ -7341,10 +7509,10 @@ pub fn put_repo_frontier_verification_request(
         if intent.plan_candidate_sha256 != plan.candidate_sha256 {
             mismatches.push("intent.plan.candidate");
         }
-        if intent.plan_action != plan.action {
+        if intent.plan_action != plan.effective_action() {
             mismatches.push("intent.plan.action");
         }
-        if command.command != plan.command {
+        if command.command != plan.effective_command() {
             mismatches.push("command.plan.command");
         }
         mismatches
@@ -7700,6 +7868,7 @@ fn validate_hands_consequence_grant(
     operation: &str,
     changed_paths: &[String],
     stated_grant_id: Option<&str>,
+    stated_command: Option<&str>,
 ) -> Result<()> {
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -7755,6 +7924,12 @@ fn validate_hands_consequence_grant(
             .iter()
             .any(|allowed| allowed == operation)
         || stated_grant_id.is_some_and(|id| id != grant.receipt_id)
+        || stated_command.is_some_and(|command| {
+            route
+                .adopted_plan
+                .as_ref()
+                .is_some_and(|plan| command != plan.effective_command())
+        })
         || !paths_covered
         || authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
         || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
@@ -7803,6 +7978,7 @@ pub fn validate_hands_action_authority(
         operation,
         changed_paths,
         Some(stated_grant_id),
+        None,
     )
 }
 
@@ -7832,6 +8008,7 @@ pub fn put_hands_patch_receipt(
         "patch",
         &receipt.changed_paths,
         Some(&receipt.substrate_gate_grant_receipt_id),
+        None,
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -7884,6 +8061,7 @@ pub fn put_hands_command_receipt(
         "command",
         &[],
         Some(&receipt.substrate_gate_grant_receipt_id),
+        Some(&receipt.command),
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -7935,6 +8113,7 @@ pub fn put_hands_commit_receipt(
         &receipt.runtime_job_id,
         "commit",
         &receipt.changed_paths,
+        None,
         None,
     )?;
     let mut cache = runtime_spine_cache(store_path)?;
@@ -9081,7 +9260,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Mind relinquishment receipts prove that an exact Hands refusal retired route authority without a repository consequence."],
+            vec![
+                "Mind relinquishment receipts prove that an exact Hands refusal retired route authority without a repository consequence.",
+            ],
         ),
         mutation_contract(
             SOUL_VERIFICATION_REQUEST_TYPE,
@@ -12617,6 +12798,9 @@ pub(crate) mod tests {
                 }
                 crate::RepoModelPatchPurpose::RelinquishFrontierRoute { .. } => {
                     vec!["relinquish".to_string()]
+                }
+                crate::RepoModelPatchPurpose::AmendFrontierExecution { .. } => {
+                    vec!["amend".to_string()]
                 }
             };
             review.patch_id = patch.patch_id.clone();

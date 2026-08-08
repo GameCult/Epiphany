@@ -46,6 +46,10 @@ pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_relinquishment_receipt.v0";
 pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT: &str =
     "epiphany.repo_frontier_relinquishment.v0";
+pub const REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_frontier_execution_amendment_receipt.v0";
+pub const REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT: &str =
+    "epiphany.repo_frontier_execution_amendment.v0";
 pub const REPO_FRONTIER_MODELING_REQUEST_TYPE: &str =
     "epiphany.modeling.repo_frontier_verdict_request";
 pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
@@ -935,6 +939,54 @@ pub struct RepoFrontierRelinquishmentReceipt {
     #[cultcache(key = 10)]
     pub relinquished_at: String,
     #[cultcache(key = 11)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.repo_frontier_execution_amendment_receipt",
+    schema = "RepoFrontierExecutionAmendmentReceipt"
+)]
+pub struct RepoFrontierExecutionAmendmentReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub amendment_id: String,
+    #[cultcache(key = 3)]
+    pub replaced_route_id: String,
+    #[cultcache(key = 4)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 5)]
+    pub previous_frontier_item_hash: String,
+    #[cultcache(key = 6)]
+    pub previous_model_revision: u64,
+    #[cultcache(key = 7)]
+    pub previous_model_hash: String,
+    #[cultcache(key = 8)]
+    pub admitted_model_revision: u64,
+    #[cultcache(key = 9)]
+    pub admitted_model_hash: String,
+    #[cultcache(key = 10)]
+    pub model_admission_receipt_id: String,
+    #[cultcache(key = 11)]
+    pub source_actor_id: String,
+    #[cultcache(key = 12)]
+    pub command_id: String,
+    #[cultcache(key = 13)]
+    pub admission_id: String,
+    #[cultcache(key = 14)]
+    pub packet_sha256: String,
+    #[cultcache(key = 15)]
+    pub replacement_action: String,
+    #[cultcache(key = 16)]
+    pub replacement_command: String,
+    #[cultcache(key = 17)]
+    pub rationale: String,
+    #[cultcache(key = 18)]
+    pub amended_at: String,
+    #[cultcache(key = 19)]
     pub contract: String,
 }
 
