@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact a1d80d40 packages as sha256-1ef95f24e9d0bfb5e88ded9391c261d3b4cdc37276f4a6a0f2479cb57a8c9760 with witness sha256-1fde6a1cd73747393631ac50de02c5e404a48c263f48386232b01ae288ab0024. v37 proved request-owned Imagination and head-only proposal pressure, but the coordinator exited zero without creating that request's Modeling launch binding; resident Self accepted the generic run receipt and consumed unfulfilled work. The current worktree requires exact proposal launch binding before terminal success and converts missing fulfillment into failed-turn requeue. Focused fulfillment and both swarm tests pass. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 88a38987 packages as sha256-76ed147f0ce86f26bab210534e623ed0a67030c2d8a03a7ad7e5226ffa934059 with witness sha256-d7f6551dda188dbd3abe4ccbd73ce97825bc3d77f1467968f8d56c1fdd40437f. v38 crossed autonomous Imagination into proposal Modeling, then proved the new `unfulfilled` terminal class was rejected by the older cancellation contract before atomic requeue. The current worktree admits that class at the sole cancellation authority; its exact atomic requeue test passes. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: proposal_pressure_fulfillment_verified_pending_commit
+    local_worktree: unfulfilled_cancellation_contract_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_a1d80d40_single_owner_queue; fulfillment_successor_pending
+    starfire_release: authenticated_88a38987_fulfillment_check; cancellation_contract_successor_pending
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v37 proved single-owner pressure ordering but exposed that generic coordinator completion could consume a typed pressure without its requested launch consequence. The fulfillment repair is locally verified but not packaged/live. Canonical proposal Modeling, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, package, and authenticate proposal-pressure fulfillment; replay the sealed v37 boundary and prove zero-exit without binding requeues, retry creates the exact Modeling launch binding, and only then does the next request become pressure. Then continue canonical Imagination planning, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
+  next_action: Commit, package, and authenticate the unfulfilled cancellation-contract repair; replay from the pre-proposal v31 boundary and prove zero-exit without binding requeues, heartbeat retries, the exact Modeling launch binding appears before success, and only then the next request becomes pressure. Then continue canonical Imagination planning, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

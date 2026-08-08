@@ -1478,7 +1478,10 @@ pub fn cancel_resident_self_turn(
     reason: &str,
     now_millis: u64,
 ) -> Result<ResidentSelfTerminalAck> {
-    if !matches!(status, "brake-cancelled" | "timed-out" | "process-failed")
+    if !matches!(
+        status,
+        "brake-cancelled" | "timed-out" | "process-failed" | "unfulfilled"
+    )
         || reason.trim().is_empty()
     {
         return Err(anyhow!(
@@ -2089,8 +2092,8 @@ mod tests {
         let ack = cancel_resident_self_turn(
             &store,
             &lease,
-            "process-failed",
-            "coordinator rejected its startup configuration",
+            "unfulfilled",
+            "coordinator exited without the pressure's required consequence",
             6,
         )?;
         assert_eq!(ack.grant_id, first_grant.grant_id);

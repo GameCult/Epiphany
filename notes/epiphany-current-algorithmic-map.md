@@ -1284,7 +1284,12 @@ only that the bounded coordinator process ended cleanly; it does not prove the
 requested Modeling launch occurred. Before acknowledging that pressure,
 resident Self now requires the runtime spine to contain the exact
 `RepoFrontierProposalModelingLaunchBinding`. Missing fulfillment is a typed
-failed turn: cancellation requeues the same pressure for heartbeat retry.
+failed turn: the same cancellation authority used by process failure, timeout,
+and brake cancellation admits the `unfulfilled` terminal class and atomically
+requeues the same pressure for heartbeat retry. The producer of a terminal
+class and the cancellation contract must evolve together; otherwise the
+runtime errors before the requeue CAS and leaves physiology split across an
+active resident lease and an uncompleted heartbeat turn.
 
 ## Exact release build cache ownership
 

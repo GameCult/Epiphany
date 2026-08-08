@@ -1,5 +1,18 @@
 # Fresh Workspace Handoff
 
+Exact pushed `88a38987` packages as
+`sha256-76ed147f0ce86f26bab210534e623ed0a67030c2d8a03a7ad7e5226ffa934059`
+with witness
+`sha256-d7f6551dda188dbd3abe4ccbd73ce97825bc3d77f1467968f8d56c1fdd40437f`.
+Fresh v38 replay from the pre-proposal v31 boundary crossed autonomous
+Imagination and derived proposal Modeling request `673ab...`. The replay then
+falsified the fulfillment repair before its intended assertion: swarm emitted
+typed cancellation status `unfulfilled`, but the sole cancellation primitive
+rejected that new terminal class, so it could not perform its atomic pressure
+requeue. The current worktree aligns that contract and the focused atomic
+requeue test now exercises `unfulfilled`; it passes. v38 is sealed as the
+terminal-contract failure boundary.
+
 ## Current authority — 2026-08-08
 
 The active branch is `codex/epiphany-shakedown-live`. Exact pushed release
