@@ -1331,6 +1331,17 @@ the continuity checkpoint deterministically from accepted RepoModel evidence,
 or CRRC consumes canonical RepoModel admission directly. Canonical Imagination
 and dedicated Mind must adopt the choice before Hands changes the seam.
 
+Fresh v44 then proved that planning path through canonical Imagination and
+dedicated Mind adoption. Inspection at the Hands boundary found the adopted
+safe-path set omitted `epiphany-core/src/bin/epiphany-mvp-status.rs`, the actual
+composition owner. The gate correctly forbids editing it. The route cannot yet
+return this falsified plan to planning authority: the Hands contract catalogs
+an action-refusal receipt, but no typed record, writer, CLI transition, or
+frontier lifecycle effect implements it. A route currently terminates only
+after a complete mutation, verification, Soul verdict, and Modeling
+incorporation chain. Hands must gain a typed refusal/relinquish consequence
+before the checkpoint repair can continue without fabricating work.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is
