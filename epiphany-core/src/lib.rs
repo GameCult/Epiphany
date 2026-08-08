@@ -41,6 +41,8 @@ mod repository_readiness;
 mod resident_readiness;
 mod resident_self;
 mod runtime_spine;
+mod runtime_store_backend;
+mod runtime_store_migration;
 mod semantic_backend;
 mod semantic_projector_service;
 mod soul_gateway;
@@ -1105,6 +1107,10 @@ pub use runtime_spine::select_repo_frontier_work_proposal_for_modeling;
 pub use runtime_spine::validate_hands_action_authority;
 pub use runtime_spine::write_runtime_hello_frame;
 pub use runtime_spine::write_runtime_schema_catalog_json;
+pub use runtime_store_migration::{
+    RuntimeStoreMigrationReceipt, RUNTIME_STORE_MIGRATION_RECEIPT_SCHEMA_VERSION,
+    RUNTIME_STORE_MIGRATION_RECEIPT_TYPE, migrate_runtime_store_to_redb,
+};
 pub use semantic_projector_service::SemanticProjectorServiceBody;
 pub use semantic_projector_service::SemanticProjectorServicePulse;
 pub use semantic_projector_service::validate_semantic_projector_source_pair;

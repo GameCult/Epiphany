@@ -273,6 +273,10 @@ name = "epiphany-runtime-spine"
 path = "src/bin/epiphany-runtime-spine.rs"
 
 [[bin]]
+name = "epiphany-runtime-store-migrate"
+path = "src/bin/epiphany-runtime-store-migrate.rs"
+
+[[bin]]
 name = "epiphany-state"
 path = "src/bin/epiphany-state.rs"
 

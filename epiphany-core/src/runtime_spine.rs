@@ -1,5 +1,9 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::RepoFrontierPlanMindContextProjection;
+use crate::runtime_store_backend::{
+    RuntimeSpineBackingStore as SingleFileMessagePackBackingStore,
+    runtime_spine_backing_store,
+};
 use crate::agent_launch::{
     EPIPHANY_IMAGINATION_OWNER_ROLE, EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
@@ -116,7 +120,6 @@ use cultcache_rs::CacheBackingStore;
 use cultcache_rs::CultCache;
 use cultcache_rs::CultCacheEnvelope;
 use cultcache_rs::DatabaseEntry;
-use cultcache_rs::SingleFileMessagePackBackingStore;
 use cultnet_rs::CultNetDocumentMutationContract;
 use cultnet_rs::CultNetDocumentOperation;
 use cultnet_rs::CultNetMessage;
@@ -905,6 +908,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
+    cache.register_entry_type::<crate::RuntimeStoreMigrationReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
@@ -983,9 +987,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyToolCapability>()?;
     cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
     cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(
-        store_path.to_path_buf(),
-    ));
+    cache.add_generic_backing_store(runtime_spine_backing_store(store_path)?);
     Ok(cache)
 }
 

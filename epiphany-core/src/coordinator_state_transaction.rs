@@ -1,10 +1,13 @@
 use crate::{
     EpiphanyThreadStateEntry, THREAD_STATE_KEY, THREAD_STATE_TYPE, coordinator_acceptance_cache,
 };
+use crate::runtime_store_backend::runtime_spine_backing_store;
+#[cfg(test)]
+use crate::runtime_store_backend::RuntimeSpineBackingStore as SingleFileMessagePackBackingStore;
 use anyhow::{Result, anyhow};
 #[cfg(test)]
 use cultcache_rs::CacheBackingStore;
-use cultcache_rs::{CultCache, CultCacheEnvelope, SingleFileMessagePackBackingStore};
+use cultcache_rs::{CultCache, CultCacheEnvelope};
 use epiphany_state_model::EpiphanyThreadState;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
@@ -126,7 +129,7 @@ pub(crate) fn commit_coordinator_state_transaction(
         replacements.push(replacement);
     }
 
-    let backing = SingleFileMessagePackBackingStore::new(&transaction.store);
+    let backing = runtime_spine_backing_store(&transaction.store)?;
     if !backing.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
             "coordinator state transaction lost its exact atomic compare-and-swap"

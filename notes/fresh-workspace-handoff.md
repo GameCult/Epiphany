@@ -150,6 +150,42 @@ probe reported `Removed 0 files` and is rejected, not evidence.
 - Fresh Modeling job commit: 51.637s; coordinator total 51.865s.
 - The launch wound is the whole-store transaction, not context assembly.
 
+## Keyed runtime and packaging cut in progress
+
+The current uncommitted pass after `b070e121` introduces one runtime-spine
+backend owner selected by explicit extension: `.cc`/`.msgpack` retain the
+sealed legacy snapshot implementation and `.redb` selects CultCache's keyed
+redb implementation. All 29 runtime-spine CAS construction sites and the
+coordinator state transaction now resolve through that owner; unrelated stores
+retain their existing authorities. Focused backend parity proves successful and
+stale CAS on both formats. All eight coordinator transaction tests pass.
+
+The one-time migration refuses an existing destination, verifies unique typed
+identities, writes source envelopes plus a typed in-store migration receipt in
+one empty-destination CAS, reads back exact envelope equivalence, and rehashes
+the source bytes to prove the legacy evidence was not changed. A disposable
+migration of live v53 copied 9,376 envelopes from source SHA-256
+`78eb340a028c88d42770345518d810841029411510a2abab233d9a89761dd5e4`; the
+sorted envelope-set SHA-256 is
+`bbe288e348ab3a6c8af6d64d205fe818a59218988a493f9751ed65588f2b338e`.
+Artifacts and the receipt are under
+`.epiphany-run/storage-benchmark-20260808-2/`; authoritative v53 was not
+mutated.
+
+Release-mode live-sized measurements are mixed but promising: legacy full read
+563.70ms versus keyed 718.18ms; legacy event mutation 896.91ms versus keyed
+363.61ms. Debug redb timings were misleadingly slow and are rejected for
+production judgment. Do not migrate live from this proxy alone. Measure the
+exact coordinator launch replacement set against the keyed v53 copy next.
+
+Packaging no longer requests Cargo `--bins`, which linked every diagnostic and
+smoke executable after core edits. It now requests only the authenticated
+release sibling binaries, leaving the feature-gated coordinator in its existing
+second phase. The focused 17 packaging tests pass. A deliberately detached
+release benchmark that missed the shared target directory took 4m41s, proving
+that target-cache location must remain tool-owned rather than operator memory;
+the authenticated packager already owns a stable graph cache explicitly.
+
 ## Open readiness work
 
 - cut the measured 51.482s whole-store Modeling job-commit seam;

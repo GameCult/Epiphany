@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 proves a complete typed Modeling-to-Imagination-to-Mind-to-Hands-to-Soul-to-Modeling circuit. Soul accepted the bounded consequence at revision 57; causal Modeling accepted result 972f4e31 at revision 59 and resolved the exact frontier without reopening or mutating other RepoModel anatomy. Self no longer derives Hands or Modeling and falls back to the legacy CRRC regather projection. The route is consumed. Persona consequence, retention, endurance, restart closure, whole-store launch cost, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 proves a complete typed Modeling-to-Imagination-to-Mind-to-Hands-to-Soul-to-Modeling circuit. Soul accepted the bounded consequence at revision 57; causal Modeling accepted result 972f4e31 at revision 59 and resolved the exact frontier without reopening or mutating other RepoModel anatomy. Self no longer derives Hands or Modeling and falls back to the legacy CRRC regather projection. The route is consumed. A keyed redb runtime backend and authenticated one-time migration are implemented locally and pass focused parity, stale-CAS, source-sealing, and coordinator transaction tests, but live migration is withheld until a coordinator-shaped benchmark proves the 51.482s commit seam. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_authenticated_d910158f_policy_split
+    local_worktree: storage_backend_and_packaging_cut_uncommitted_after_b070e121
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Persona consequence, Continuity closure, retention, endurance, and Linux cognition remain unproven.
-  next_action: Treat v53 as a closed circuit and do not reopen its resolved frontier through the legacy regather projection. Use the fresh 51.482s job-commit profile to cut the whole-store transaction seam, then begin a separate native Persona consequence circuit followed by Continuity crash/restart/closure.
+  unresolved_authority: Modeling job commit still costs about 52 seconds against the 84 MiB runtime store. Release benchmarking shows keyed reads at 718ms versus 564ms legacy and keyed event mutation at 364ms versus 897ms legacy, but that is not yet the coordinator transaction shape. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Persona consequence, Continuity closure, retention, endurance, and Linux cognition remain unproven.
+  next_action: Treat v53 as a closed circuit and do not reopen its resolved frontier through the legacy regather projection. Benchmark the exact coordinator job-commit replacement set against the migrated v53 copy; switch live only if that receipt proves the keyed backend removes the 51.482s seam without unacceptable read pressure. Then package the narrowed authenticated binary set and begin a separate native Persona consequence circuit followed by Continuity crash/restart/closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
