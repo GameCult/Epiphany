@@ -399,6 +399,35 @@ build host, and the apparent available memory is not residency evidence while
 the host already carries swap pressure. Build on Starfire and measure the
 actual Linux process footprint before proposing a permanent Yggdrasil body.
 
+Linux physiology is now proven without installing the Epiphany service body.
+Starfire built only `epiphany-runtime-spine` from exact commit `b5140288` in
+the deployment actuator's digest-pinned Rust image
+`sha256:4c2fd73ef19c5ef9d54bee03b06b2839a392604fbfcd578ed948b71b37c1d7fb`.
+The cold build took 4m25s and peaked near 1.77 GiB inside Docker, confirming
+that Yggdrasil must not compile this crate. The dedicated Starfire Cargo volumes
+then produced an unchanged warm rebuild in 1.18s. The 6,181,968-byte Linux
+binary is
+`sha256-14143382fdfb5eb40919facd4bc681613d1a2563e18af08b522d0e5a097880f3`.
+
+The exact binary ran on Yggdrasil only from `/tmp` against a new disposable
+CultCache store. It initialized the typed runtime catalog at 3,968 KiB peak
+RSS, refused session closure while a job was open, admitted one terminal
+Continuity result, closed the session, repeated closure idempotently, refused a
+post-close job, and reported one completed session/job/result with three events
+at 4,352 KiB peak RSS. The store was 5,465 bytes with SHA-256
+`f9cccce0b64bb4b282a1fda208d346177cf1a5f91f0e02bbf4f6520c985115cc`.
+The script removed the binary, store, root, and itself; a follow-up assertion
+proved all four paths absent and the three Bifrost services remained active.
+The retained successful receipt is
+`.epiphany-run/linux-spine-b514/yggdrasil-success.receipt`, SHA-256
+`5dbf03cbb2e4633464055de888f8417fbd7ad5cfdb4f04ebef34ab53790f5c00`.
+The first invocation failed before CultCache initialization because the host
+lacks the optional `file` utility; that decorative probe was cut. Its receipt
+is retained beside the success receipt at SHA-256
+`b5a55ec37c258ead9ecc745e77c16bb4fa83373b8462e15ff04fd4d8ff659ebe`.
+This proves Linux typed physiology and Continuity portability, not Linux model
+cognition or resident readiness.
+
 Do not recreate prior Eyes, Hands, Soul, or Modeling work. Do not feed the old
 manual-regather loop. Use coordinator projections and receipts; raw worker
 thought remains sealed.
