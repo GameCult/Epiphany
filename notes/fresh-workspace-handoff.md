@@ -12,8 +12,8 @@ machine at its present memory budget.
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Current release: `sha256-7d1040b8cc01429d12d30780af3ac43f46e23382fff6a3267369b403d16e4387`
 - Release witness: `sha256-48202410ca55be72e0444f0d29501644608fb4b94953c9f901763dc7f6547aa6`
-- Thread-state revision: `45`
-- Current action: Self consumed the accepted verdict-Modeling boundary and now derives `regatherManually`, targeting Eyes. Review that typed request before granting manual regather; do not recreate the completed Hands, Soul, or Modeling work.
+- Thread-state revision: `49`
+- Current action: do not approve another `regatherManually` loop. The approved Eyes pass and its causal Modeling reconciliation are accepted, but their prose recommendation for Imagination has no typed active frontier for Self to route. Design the native Modeling-to-Imagination authority seam first.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -113,6 +113,32 @@ with evidence `ev-modeling-cb536bd5-eca9-465f-af33-4f0c46080ab6`, advancing
 thread state to revision 45. Coordinator projection r69 proves
 `modelingResultAcceptedAfterResearch: true` and derives `regatherManually` for
 Eyes; the causal Modeling route is consumed.
+
+The manual regather was reviewed as a bounded read-only Eyes action and approved
+explicitly. Eyes job `9687af12-9c20-4f86-a949-5c6fe3a73de0` launched at revision
+46, completed, and was accepted as
+`accept-research-result-worker-9687af12-9c20-4f86-a949-5c6fe3a73de0` with
+evidence `ev-research-7d07b100-bec4-4664-9ad9-b62e77fcf103` at revision 47.
+Self correctly routed the newer Research boundary once to Modeling. Modeling job
+`4e6b6022-73ab-49f1-81c8-03dddfceb29f` completed and was accepted as
+`accept-modeling-result-worker-4e6b6022-73ab-49f1-81c8-03dddfceb29f` with
+evidence `ev-modeling-aa0076a4-affd-4e98-a4a1-15bad24da0a3` at revision 49.
+
+Both accepted organs say the existing `repo_frontier` family should route one
+minimal Imagination design chain. Modeling emitted only generic node/edge
+Evolution, however, so no active Imagination frontier exists; the previous
+planning lifecycle is terminal. Self therefore falls back to
+`regatherManually` again. Do not feed that loop. The architectural cut is a
+typed Modeling-to-Imagination handoff: Modeling owns the future gap in RepoModel,
+and Self may route only inspectable typed frontier authority, never prose
+`nextSafeMove` interpretation.
+
+Iteration-cost evidence also narrowed. The approved Eyes launch committed in
+719ms and completed coordinator launch in 839ms against the same live store.
+Generic post-regather Modeling committed in 38.5s; verdict Modeling commits were
+43.5-44.5s. The launch defect follows the Modeling carrier/persistence path,
+not runtime-store size alone. Model/tool turns also needed roughly 6-10 minutes
+under the widened 600-second envelope, separate from package and launch costs.
 
 After the Modeling boundary lands, continue attacking the iteration path:
 
