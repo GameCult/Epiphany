@@ -55,15 +55,21 @@ ChatGPT account identifier as model-transport identity metadata; no artifact or
 workspace file contains it. Do not describe the store as credential-free
 without this classification.
 
+GameCult ops commit `812b427` repairs the uninstalled Yggdrasil resident service
+contract: it provisions a root-owned empty MCP policy, supplies the required MCP
+and Persona-classification arguments, moves coordinator artifacts beneath the
+workspace's ignored `.epiphany-dogfood` root, and replaces the removed
+`epiphany-tool-codex-mcp-spine` name with packaged
+`epiphany-tool-mcp-runtime`. The normalized Linux wiring test and shell syntax
+checks pass. Nothing was deployed or started.
+
 Next: preserve this zero-tool circuit as sealed evidence. Create a fresh typed
 objective/adoption boundary for a Linux Eyes circuit that explicitly permits
 native read-only source tools, run it inside the persistent resident body,
 prove tool receipts plus a valid typed role result, review/accept it, and inspect
 the next routed organ. Do not rewrite the existing authoritative objective; the
-coordinator correctly refuses that. Also repair the uninstalled Yggdrasil
-systemd unit in `F:\Projects\gamecult-ops`: current `epiphany-swarm.service`
-omits required `--mcp-config` and
-`--persona-model-allowed-data-classifications` arguments.
+coordinator correctly refuses that. Do not reinstall or start the Yggdrasil
+service body merely because its static contract is now coherent.
 
 ## Retention and release-bootstrap pass — 2026-08-08
 
