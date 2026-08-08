@@ -10,10 +10,10 @@ machine at its present memory budget.
 - Pushed source release commit: `6f3cdc6168e5bf8b680e141582152b56ef10debe`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Current release: `sha256-d2e7205a2b714c89892ba623b26c3cc4c98ac6b4f54dfb9a0a2a623f0d92402d`
-- Release witness: `sha256-399d952e5944450775516e612d447be8b2a106e83399f35e2fb6ffb166d17876`
-- Thread-state revision: `56`
-- Current action: causal Modeling job `9d7cd7d8-2d43-4165-b3c5-54381126579e` completed, but Mind rejected and superseded its unauthorized Evolution patch. A typed launch/schema repair is under focused verification; do not relaunch on the old runtime.
+- Current release: `sha256-67ed6c8dbce5dee81dfaf44effb8f499c61ae98bbdff4d997a665f91deeef8a5`
+- Release witness: `sha256-c98e36f35057f902c518167db3f036edb4994b02f15f432510f7e6fde1263853`
+- Thread-state revision: `39`
+- Current action: schema-aware retry job `a89fe1ea-a88b-4108-a299-c99ca9b65fb7` is completed but invalid and unreviewed. Do not launch another worker. Repair exact frontier-item identity binding first, explicitly supersede this result, then launch one corrected attempt.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -81,6 +81,23 @@ longer representable for that launch; Mind remains final admission authority.
 Finish focused tests, commit and push, package one authenticated release, then
 relaunch the superseded post-Soul Modeling request without overrides. Do not
 recreate Eyes, Imagination, Hands, or Soul work from this circuit.
+
+Exact commit `61e8be38a3d194b70a4f469e7524653ecab590a8` packaged in 6m50s as
+release `sha256-67ed6c8d...` with witness `sha256-c98e36f3...`. Live launch
+`57272b34-8148-4668-903e-00cfe5fabfdd` proved that Evolution was no longer
+representable, but Mind rejected its frontier revision because the specialized
+schema still inherited an item shape that omitted `adopted_plan`; output thus
+altered adopted execution anatomy. The coordinator superseded it and launched
+retry `a89fe1ea-a88b-4108-a299-c99ca9b65fb7`, which completed. Review without
+automatic supersession failed closed with `generic frontier revision cannot
+alter adopted execution anatomy or own plan adoption`.
+
+Next cut: persist one typed verdict-Modeling launch authority containing the
+exact `RepoFrontierModelingRequest` and routed `RepoFrontierItem`. Generate
+provider `const` constraints for every identity-bearing field, especially the
+full adopted plan. Only verdict-owned status, evidence refs, gap, and updated_at
+may vary. The completed retry is immutable invalid evidence; supersede it only
+after the repair is ready, then pay for one corrected model turn.
 
 After the Modeling boundary lands, continue attacking the iteration path:
 

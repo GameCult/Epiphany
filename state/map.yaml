@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Self correctly derives post-Soul Modeling after repairing verification precedence over generic CRRC/regather routing. Three post-Soul Modeling attempts are superseded: one timeout, one stale Eyes handoff, and one correctly contextualized worker that still escaped through the generic output schema as unauthorized Evolution. The repair now carries exact verdict-request authority in the typed worker launch and specializes the provider schema before inference. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Exact release 61e8be38 now prevents verdict-bound Modeling from escaping into generic Evolution. Live retry proved the remaining schema wound: revise_frontier did not expose or const-bind the adopted plan, so model output implicitly removed execution anatomy and Mind rejected it. Job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 is completed and awaits a coherent typed-authority repair before review. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: verdict_bound_modeling_schema_repair_verified_pending_release
+    local_worktree: clean_after_partial_verdict_schema_proof
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_6f3cdc61_release_sha256_d2e7205a
+    starfire_release: authenticated_61e8be38_release_sha256_67ed6c8d
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: The local execution amendment is user-authorized and packet-hash bound, not Bifrost-signed. Soul passed the amended consequence but reported that derived reorientation checkpoints carry empty evidence_ids; Modeling must preserve that limitation rather than overstate source provenance. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Exact packaging still takes 6m59s after core changes. Removing one redundant RepoModel pull left worker appearance near 48s and full coordinator launch near 83s, so repeated whole-store transactions remain the dominant 40 MiB launch-path defect.
-  next_action: Finish focused verification and publish the verdict-bound Modeling schema repair. Build one authenticated release, relaunch the superseded post-Soul Modeling request without overrides, accept the first valid frontier-verdict result, and inspect Self's next typed action. Continue collapsing launch context onto one transaction-scoped typed read view and split volatile Self policy from the release mega-package without weakening provenance.
+  next_action: Carry the exact routed RepoFrontierItem plus RepoFrontierModelingRequest as one typed verdict-modeling launch authority. Specialize the worker schema so every identity-bearing frontier field, including adopted_plan, is const-bound; only status, evidence_refs, gap, and updated_at may vary. Then explicitly supersede invalid completed job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 and launch one corrected attempt. Preserve the 45.77-second jobCommit timing as the launch-store optimization receipt.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

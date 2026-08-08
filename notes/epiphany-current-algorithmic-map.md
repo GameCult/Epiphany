@@ -1583,3 +1583,15 @@ Ordinary Modeling retains its generic schema. Mind still validates route,
 verdict receipt, frontier identity, hashes, evidence, and mutation content at
 admission. The old path can no longer spend a model turn producing Evolution
 under verdict authority and rely on a later rejection to discover the mismatch.
+
+Exact `61e8be38` proved that operation-level restriction is necessary but not
+sufficient. The inherited frontier-item output schema omitted `adopted_plan`.
+A schema-conforming `revise_frontier` therefore implicitly replaced an adopted
+plan with absence, and Mind correctly rejected it as alteration of execution
+anatomy. Verdict Modeling launch authority must carry both the exact request
+and exact routed item, not merely request identity. The provider schema must
+const-bind all identity anatomy, including the complete adopted plan, while
+leaving only status, evidence references, gap, and update timestamp writable.
+The completed worker result is immutable invalid evidence and cannot be made
+valid by changing admission after the fact. Supersede it only when the corrected
+launch/schema boundary is ready, then run one new inference.
