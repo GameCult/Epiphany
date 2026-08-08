@@ -66,7 +66,7 @@ pub enum EpiphanyReorientFreshnessStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyReorientInput<'a> {
-    pub checkpoint: Option<&'a EpiphanyInvestigationCheckpoint>,
+    pub checkpoint: Option<EpiphanyReorientCheckpoint<'a>>,
     pub state_present: bool,
     pub pressure_level: EpiphanyReorientPressureLevel,
     pub retrieval_status: EpiphanyReorientFreshnessStatus,
@@ -78,6 +78,25 @@ pub struct EpiphanyReorientInput<'a> {
     pub watcher_graph_node_ids: Vec<String>,
     pub active_frontier_node_ids: Vec<String>,
     pub watched_root: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyReorientCheckpoint<'a> {
+    pub checkpoint_id: &'a str,
+    pub disposition: EpiphanyInvestigationDisposition,
+    pub next_action: Option<&'a str>,
+    pub code_refs: &'a [epiphany_state_model::EpiphanyCodeRef],
+}
+
+impl<'a> From<&'a EpiphanyInvestigationCheckpoint> for EpiphanyReorientCheckpoint<'a> {
+    fn from(checkpoint: &'a EpiphanyInvestigationCheckpoint) -> Self {
+        Self {
+            checkpoint_id: &checkpoint.checkpoint_id,
+            disposition: checkpoint.disposition,
+            next_action: checkpoint.next_action.as_deref(),
+            code_refs: &checkpoint.code_refs,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -196,7 +215,7 @@ pub fn recommend_reorientation(
     };
     let workspace_root = input.watched_root.as_deref();
     let checkpoint_dirty_paths = overlapping_checkpoint_paths(
-        checkpoint,
+        &checkpoint,
         input
             .retrieval_dirty_paths
             .iter()
@@ -204,7 +223,7 @@ pub fn recommend_reorientation(
         workspace_root,
     );
     let checkpoint_changed_paths = overlapping_checkpoint_paths(
-        checkpoint,
+        &checkpoint,
         input.watcher_changed_paths.iter(),
         workspace_root,
     );
@@ -266,12 +285,12 @@ pub fn recommend_reorientation(
             build_decision(
                 EpiphanyReorientAction::Resume,
                 checkpoint_status,
-                Some(checkpoint.checkpoint_id.clone()),
+                Some(checkpoint.checkpoint_id.to_string()),
                 reasons,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
-                checkpoint.next_action.clone().unwrap_or_else(|| {
+                checkpoint.next_action.map(str::to_string).unwrap_or_else(|| {
                     "Resume from the durable checkpoint focus and verify the seam before broad edits."
                         .to_string()
                 }),
@@ -333,14 +352,14 @@ pub fn recommend_reorientation(
         build_decision(
             EpiphanyReorientAction::Regather,
             checkpoint_status,
-            Some(checkpoint.checkpoint_id.clone()),
+            Some(checkpoint.checkpoint_id.to_string()),
             reasons,
             checkpoint_dirty_paths,
             checkpoint_changed_paths,
             input.active_frontier_node_ids,
             checkpoint
                 .next_action
-                .clone()
+                .map(str::to_string)
                 .unwrap_or_else(|| "Re-gather source context before editing.".to_string()),
             format!("Re-gather before editing: {}.", note_fragments.join("; ")),
         ),
@@ -348,7 +367,7 @@ pub fn recommend_reorientation(
 }
 
 fn overlapping_checkpoint_paths<'a>(
-    checkpoint: &EpiphanyInvestigationCheckpoint,
+    checkpoint: &EpiphanyReorientCheckpoint<'_>,
     candidate_paths: impl IntoIterator<Item = &'a PathBuf>,
     workspace_root: Option<&Path>,
 ) -> Vec<PathBuf> {
@@ -416,7 +435,7 @@ mod tests {
 
     fn input(checkpoint: Option<&EpiphanyInvestigationCheckpoint>) -> EpiphanyReorientInput<'_> {
         EpiphanyReorientInput {
-            checkpoint,
+            checkpoint: checkpoint.map(EpiphanyReorientCheckpoint::from),
             state_present: true,
             pressure_level: EpiphanyReorientPressureLevel::Low,
             retrieval_status: EpiphanyReorientFreshnessStatus::Clean,

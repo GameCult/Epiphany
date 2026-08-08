@@ -1183,6 +1183,7 @@ pub use surfaces::EpiphanyPressureStatus;
 pub use surfaces::EpiphanyReorientAcceptanceBundle;
 pub use surfaces::EpiphanyReorientAcceptanceFinding;
 pub use surfaces::EpiphanyReorientAction;
+pub use surfaces::EpiphanyReorientCheckpoint;
 pub use surfaces::EpiphanyReorientCheckpointStatus;
 pub use surfaces::EpiphanyReorientDecision;
 pub use surfaces::EpiphanyReorientFindingInterpretation;
