@@ -80,6 +80,15 @@ live v53 plan with explicit supervisor command/admission provenance, derive a
 fresh route, replay the exact Hands receipts against that amended route, and
 retry Soul. Preserve the original route and every failed Soul launch.
 
+The repair pass is pushed at `12c8241b`. Its read-only route inspection then
+found a new live discrepancy before mutation: current source enumerates zero
+persisted `RepoFrontierRoute` entries in v53, although coordinator status still
+derives `launchVerification` and the accepted gate artifact cites route
+`repo-frontier-route-fb206aaa609246becc17243c0ac5d98d2e70e30fd1dd3351467885ea6ca88dc2`.
+No amendment was attempted. Trace the route write/schema-catalog path and restore
+typed route visibility before using the repair command; do not reconstruct
+authority from the old JSON artifact.
+
 Build iteration is also an active architectural defect: a tiny
 `runtime_spine.rs` diagnostic edit forced 18-29 second debug rebuilds, while
 exact packages remain multi-minute. Map the crate/module dependency fan-out and

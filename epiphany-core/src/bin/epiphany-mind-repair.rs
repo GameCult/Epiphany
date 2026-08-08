@@ -1,5 +1,8 @@
 use anyhow::{Result, anyhow};
-use epiphany_core::{RepoFrontierExecutionAmendment, amend_repo_frontier_execution};
+use epiphany_core::{
+    RepoFrontierExecutionAmendment, RepoFrontierRoute, amend_repo_frontier_execution,
+    runtime_spine_cache,
+};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, path::PathBuf};
 
@@ -7,7 +10,7 @@ fn main() -> Result<()> {
     let mut values = BTreeMap::new();
     let mut args = env::args().skip(1);
     let command = args.next().ok_or_else(|| anyhow!(usage()))?;
-    if command != "amend-frontier-execution" {
+    if command != "amend-frontier-execution" && command != "inspect-frontier-execution" {
         return Err(anyhow!("unknown command {command}\n{}", usage()));
     }
     while let Some(flag) = args.next() {
@@ -26,6 +29,37 @@ fn main() -> Result<()> {
     };
     let store = PathBuf::from(take("--store")?);
     let route_id = take("--route-id")?;
+    if command == "inspect-frontier-execution" {
+        let routes = runtime_spine_cache(&store)?.get_all::<RepoFrontierRoute>()?;
+        let available = routes
+            .iter()
+            .map(|route| route.route_id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let route = routes
+            .into_iter()
+            .find(|route| route.route_id == route_id)
+            .ok_or_else(|| anyhow!("route {route_id} does not exist; available: {available}"))?;
+        let plan = route
+            .adopted_plan
+            .ok_or_else(|| anyhow!("route {route_id} has no adopted plan"))?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "routeId": route.route_id,
+                "modelRevision": route.model_revision,
+                "modelHash": route.model_hash,
+                "frontierItemId": route.frontier_item_id,
+                "frontierItemHash": route.frontier_item_hash,
+                "originalAction": plan.action,
+                "originalCommand": plan.command,
+                "effectiveAction": plan.effective_action(),
+                "effectiveCommand": plan.effective_command(),
+                "executionAmendment": plan.execution_amendment,
+            }))?
+        );
+        return Ok(());
+    }
     let source_actor_id = take("--source-actor-id")?;
     let command_id = take("--command-id")?;
     let admission_id = take("--admission-id")?;
@@ -65,5 +99,5 @@ fn main() -> Result<()> {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-mind-repair amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339"
+    "usage: epiphany-mind-repair inspect-frontier-execution --store PATH --route-id ID\n       epiphany-mind-repair amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339"
 }
