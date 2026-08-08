@@ -34,8 +34,13 @@ launched, returned a typed finding, and was accepted at state revision 24. Its
 typed verdict was `checkpointStillValid=false` because retrieval and graph
 freshness are unknown. Self therefore derived `launchResearch`.
 
-One Eyes worker is active under model-runtime PID 20524. Poll it; do not launch a
-second worker. Consume only the structured operator-safe finding.
+The Eyes worker completed as
+`result-worker-437e5b05-9e8c-4596-b517-84a7a75d2b4f`, but its state patch is not
+admissible. It correctly reconfirmed several source ownership seams, then
+incorrectly concluded that the already-completed active frontier and Hands route
+still need Imagination. Do not accept it. Preserve it as a stale-context failure,
+then issue one bounded Eyes retry explicitly grounded in current HEAD, RepoModel
+revision 5, and the final Hands receipt IDs.
 
 ## Receipts
 
@@ -48,8 +53,9 @@ second worker. Consume only the structured operator-safe finding.
 
 ## Next action
 
-Poll Eyes PID 20524. Review and accept the first valid source packet, then follow
-Self into Soul verification of the completed Hands consequence. After that,
+Refuse or supersede the stale Eyes packet with a receipt. Launch one bounded Eyes
+retry that authenticates the post-Hands body and accept only a current packet;
+then follow Self into Soul verification of the completed Hands consequence. After that,
 package and publish exact `0763fcbe` once, replay v53 with no overrides, and
 inspect the next typed action.
 
