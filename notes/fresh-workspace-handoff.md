@@ -74,9 +74,14 @@ request
 with payload digest
 `01e6bdc556e7cad6dbfcae93ad5f82fd57794af11b3dafb39ecb3747a19f6dfb`.
 One bounded active-release coordinator step launched the proposal-bound
-Modeling worker, now running under PID `5740`; operator-safe artifacts are in
-`.epiphany-dogfood/v45-hands-relinquishment-r2`. Poll it and do not launch a
-duplicate or read sealed worker output.
+Modeling worker. Its typed result completed reviewable and proposal-bound, but
+Mind correctly refused acceptance with `Evolution cannot bypass a current
+route or own verdict-driven frontier lifecycle`. Copying v42 was therefore not
+a route-free planning boundary: it retained a current-model route even though
+its operator action was `awaitFrontierProposal`. Preserve v45 and artifacts in
+`.epiphany-dogfood/v45-hands-relinquishment-r2`/`r3` as negative evidence; do
+not weaken the guard or replay the consumed result. Reconstruct the genuinely
+clean boundary used before v44, then resubmit the same typed proposal.
 
 Persona consequence, bounded retention, crash/restart closure, endurance and
 resource plateau, and Linux/Yggdrasil cognition remain open. v22 and earlier
