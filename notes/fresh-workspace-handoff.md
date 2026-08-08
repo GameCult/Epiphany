@@ -388,6 +388,17 @@ with witness
 - profile and remove the Modeling whole-store commit path;
 - prove Linux cognition on Starfire, then size Yggdrasil from measured demand.
 
+The current Yggdrasil body was inspected read-only at
+`2026-08-08T22:12:11Z`. It reports 2 vCPUs, 1.9 GiB RAM, 2 GiB swap with
+516 MiB already used, 1.3 GiB memory available, and 14 GiB free on the root
+filesystem. `bifrost.service`, `bifrost-persona-feedback.service`, and
+`bifrost-persona-mouth.service` are active. Epiphany, its heartbeat/swarm, and
+Idunn are absent, matching the current authority map. Yggdrasil may receive a
+prebuilt bounded Linux smoke using isolated disposable state; it is not a Rust
+build host, and the apparent available memory is not residency evidence while
+the host already carries swap pressure. Build on Starfire and measure the
+actual Linux process footprint before proposing a permanent Yggdrasil body.
+
 Do not recreate prior Eyes, Hands, Soul, or Modeling work. Do not feed the old
 manual-regather loop. Use coordinator projections and receipts; raw worker
 thought remains sealed.
