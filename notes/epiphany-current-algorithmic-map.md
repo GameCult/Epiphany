@@ -1580,6 +1580,19 @@ crate split. The viable design must keep one Cargo dependency graph while
 moving volatile coordinator policy and the coordinator/status binary consumers
 out of the stable core compilation unit.
 
+The local replacement implements that single-graph boundary. Stable coordinator
+DTOs live in `surfaces/coordinator_contract.rs` and remain available to core
+state/projection organs. Routing functions live in the separately compiled
+`epiphany-self-policy` leaf and are not re-exported through core. Core disables
+autobin discovery and explicitly declares all 74 retained non-coordinator
+binaries. The root release graph exposes `epiphany-mvp-coordinator` only behind
+optional feature `coordinator-runtime`; that feature alone enables the policy
+dependency. The packager first builds ordinary bins without the feature, then
+builds only coordinator with it under the same root lock and target directory.
+Target-cache identity depends on target and toolchain, not lockfile bytes;
+Cargo fingerprints changed dependencies, while `--locked` and the release
+witness retain build and publication authority.
+
 Launch latency is a separate whole-store-read wound. The live runtime store was
 about 40 MiB, and post-Soul Modeling launch took roughly 50-90 seconds before
 the detached model process appeared. `launch_role` currently reads coordinator

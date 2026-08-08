@@ -1,0 +1,18 @@
+[package]
+name = "epiphany-self-policy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_self_policy"
+path = "../epiphany-core/src/surfaces/coordinator.rs"
+
+[dependencies]
+epiphany-core = { path = "../epiphany-core" }
+epiphany-state-model = { path = "../epiphany-state-model" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

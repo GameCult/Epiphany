@@ -18,6 +18,7 @@ epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime" }
+epiphany-self-policy = { path = "epiphany-self-policy", optional = true }
 epiphany-state-model = { path = "epiphany-state-model" }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime" }
@@ -41,6 +42,7 @@ zeroize = "1"
 [features]
 semantic-recovery-smoke = []
 workspace-coverage-recovery-smoke = []
+coordinator-runtime = ["dep:epiphany-self-policy"]
 
 [profile.release]
 incremental = true
@@ -125,6 +127,7 @@ path = "epiphany-core/src/bin/epiphany-persona-discord-permit-identity.rs"
 [[bin]]
 name = "epiphany-mvp-coordinator"
 path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
+required-features = ["coordinator-runtime"]
 
 [[bin]]
 name = "epiphany-frontier-proposal"

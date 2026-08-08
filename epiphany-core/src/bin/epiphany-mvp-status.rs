@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCoordinatorStatus;
 use epiphany_core::EpiphanyCoordinatorStatusInput;
 use epiphany_core::EpiphanyCrrcInput;
 use epiphany_core::EpiphanyCrrcReorientAction;
@@ -28,8 +29,6 @@ use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
-use epiphany_core::derive_coordinator_finding_signals;
-use epiphany_core::derive_coordinator_status;
 use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
@@ -42,6 +41,10 @@ use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_has_actionable_eyes_frontier;
 use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_self_policy::crrc_scene_action_to_coordinator_scene_action;
+use epiphany_self_policy::derive_coordinator_finding_signals;
+use epiphany_self_policy::derive_coordinator_status;
+use epiphany_self_policy::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
@@ -360,7 +363,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let reorient_finding_accepted = state_ref.is_some_and(|state| {
         reorient_finding
             .as_ref()
-            .is_some_and(|finding| epiphany_core::reorient_finding_already_accepted(state, finding))
+            .is_some_and(|finding| reorient_finding_already_accepted(state, finding))
     });
     let modeling_result_status =
         native_role_result_status(state_ref, &runtime_store_path, MODELING_BINDING_ID);
@@ -409,7 +412,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         crrc_action: recommendation.action,
         crrc_recommended_scene_action: recommendation
             .recommended_scene_action
-            .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
+            .map(crrc_scene_action_to_coordinator_scene_action),
         crrc_reason: recommendation.reason.clone(),
         reorient_decision_action: format!("{:?}", reorient_decision.action),
         pressure_level: format!("{:?}", pressure.level),
@@ -1085,7 +1088,7 @@ fn native_tool_invocation_surface(runtime_store: &Path) -> Result<Value> {
     }))
 }
 
-fn coordinator_status_json(status: &epiphany_core::EpiphanyCoordinatorStatus) -> Result<Value> {
+fn coordinator_status_json(status: &EpiphanyCoordinatorStatus) -> Result<Value> {
     let mut value = serde_json::to_value(status).context("failed to encode coordinator status")?;
     let decision = value
         .get("decision")

@@ -67,11 +67,22 @@ builds. Focused tests passed, but the real benchmark falsified the design:
 - logs are `.epiphany-run/package-0f0b006d-owner-groups-attempt2.*`;
 - pushed commit `a1a43892` reverts the implementation.
 
-Do not resurrect separate owner lock universes. The next design must retain one
-shared Cargo dependency graph while moving volatile Self policy and its
-coordinator/status consumers out of the stable core compilation unit. A policy
-crate re-exported through `epiphany-core` would preserve the invalidation edge
-and is not a split.
+Do not resurrect separate owner lock universes. The local replacement retains
+the one root Cargo graph and moves routing policy into `epiphany-self-policy`.
+Stable coordinator contract types remain in
+`epiphany-core/src/surfaces/coordinator_contract.rs`; core no longer compiles or
+re-exports policy functions. Core explicitly retains all 74 non-coordinator
+binaries. The root coordinator target alone enables optional feature
+`coordinator-runtime`, which pulls the policy crate; ordinary release binaries
+do not see it. Packaging builds ordinary bins under the root lock, then builds
+only the feature-gated coordinator in the same target cache. Cache identity is
+target/toolchain-stable across lock edits; Cargo owns staleness while the frozen
+lock and release witness remain authority.
+
+Proof so far: exact coordinator check passes, all 23 policy tests pass, all 17
+packaged-release tests pass, core library check passes, and manifest inspection
+proves 74 declared/expected retained core binaries with coordinator/status
+absent. Commit, exact package, and localized release-relink timing remain.
 
 ## Current performance evidence
 
@@ -83,7 +94,7 @@ and is not a split.
 
 ## Open readiness work
 
-- design and benchmark the single-Cargo-graph coordinator-policy crate split;
+- commit, package, and benchmark the single-graph coordinator-policy split;
 - launch and adjudicate the committed Mind plan review;
 - prove native Persona cognition and external speech consequence;
 - prove Continuity crash, restart, session closure, and bounded retention;

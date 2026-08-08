@@ -481,6 +481,25 @@ fn build_required_release_siblings(
     if !status.success() {
         bail!("Epiphany release bundle build failed");
     }
+    let coordinator_status = std::process::Command::new(cargo)
+        .arg("build")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .arg("--target")
+        .arg(target)
+        .arg("--locked")
+        .arg("--features")
+        .arg("coordinator-runtime")
+        .arg("--bin")
+        .arg("epiphany-mvp-coordinator")
+        .status()
+        .context("failed to start feature-gated coordinator release build")?;
+    if !coordinator_status.success() {
+        bail!("feature-gated coordinator release build failed");
+    }
     Ok(BuiltReleaseSiblings {
         binaries: outputs,
         _graph_lock: graph_lock,
@@ -516,17 +535,15 @@ fn verify_release_bundle_lock(repo: &Path, cargo: &std::ffi::OsStr) -> Result<()
 
 fn release_bundle_target_dir(
     target_root: &Path,
-    lockfile: &[u8],
+    _lockfile: &[u8],
     target: &str,
     toolchain_fingerprint: &str,
 ) -> PathBuf {
     let mut digest = Sha256::new();
-    digest.update(b"epiphany.release_bundle_build_graph.v0\0");
+    digest.update(b"epiphany.release_bundle_build_cache.v1\0");
     digest.update(target.as_bytes());
     digest.update(b"\0");
     digest.update(toolchain_fingerprint.as_bytes());
-    digest.update(b"\0");
-    digest.update(lockfile);
     target_root.join(format!("graph-{:x}", digest.finalize()))
 }
 
@@ -552,7 +569,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "persona-discord-permit-identity" => {
             Ok(("epiphany-core", "epiphany-persona-discord-permit-identity"))
         }
-        "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
+        "coordinator" => Ok((".", "epiphany-mvp-coordinator")),
         "frontier-proposal" => Ok(("epiphany-core", "epiphany-frontier-proposal")),
         "hands-action" => Ok(("epiphany-core", "epiphany-hands-action")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
@@ -1003,13 +1020,19 @@ mod tests {
     }
 
     #[test]
-    fn release_bundle_cache_separates_incompatible_graphs() {
+    fn release_bundle_cache_is_stable_across_lockfile_edits() {
         let root = Path::new("release-build-cache");
         let baseline = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
-        assert_ne!(
+        assert_eq!(
             baseline,
             release_bundle_target_dir(root, b"lock-v2", "target-a", "toolchain-a")
         );
+    }
+
+    #[test]
+    fn release_bundle_cache_separates_targets_and_toolchains() {
+        let root = Path::new("release-build-cache");
+        let baseline = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
         assert_ne!(
             baseline,
             release_bundle_target_dir(root, b"lock-v1", "target-b", "toolchain-a")
@@ -1084,7 +1107,7 @@ mod tests {
         );
         assert_eq!(
             required_release_build_target("coordinator").unwrap(),
-            ("epiphany-core", "epiphany-mvp-coordinator")
+            (".", "epiphany-mvp-coordinator")
         );
         assert_eq!(
             required_release_build_target("hands-action").unwrap(),
@@ -1114,6 +1137,25 @@ mod tests {
             required_release_build_target("tool-mcp-runtime").unwrap(),
             ("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")
         );
+    }
+
+    #[test]
+    fn coordinator_policy_is_feature_gated_outside_core_binary_ownership() {
+        let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = core.parent().expect("epiphany-core repository parent");
+        let root_manifest = fs::read_to_string(repo.join("Cargo.toml")).expect("root manifest");
+        let core_manifest =
+            fs::read_to_string(core.join("Cargo.toml")).expect("core manifest");
+
+        assert!(root_manifest.contains(
+            "coordinator-runtime = [\"dep:epiphany-self-policy\"]"
+        ));
+        assert!(root_manifest.contains(
+            "required-features = [\"coordinator-runtime\"]"
+        ));
+        assert!(core_manifest.contains("autobins = false"));
+        assert!(!core_manifest.contains("name = \"epiphany-mvp-coordinator\""));
+        assert!(!core_manifest.contains("name = \"epiphany-mvp-status\""));
     }
 
     fn fixture() -> (TempDir, EpiphanyPackagedReleaseEntry) {

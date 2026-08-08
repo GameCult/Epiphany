@@ -3,6 +3,7 @@ name = "epiphany-core"
 version = "0.1.0"
 edition = "2024"
 publish = false
+autobins = false
 license-file = "../LICENSE"
 
 [lib]
@@ -26,6 +27,291 @@ required-features = ["workspace-coverage-recovery-smoke"]
 [[bin]]
 name = "epiphany-release"
 path = "src/bin/epiphany-release.rs"
+
+[[bin]]
+name = "epiphany-agent-memory-store"
+path = "src/bin/epiphany-agent-memory-store.rs"
+
+[[bin]]
+name = "epiphany-agent-telemetry"
+path = "src/bin/epiphany-agent-telemetry.rs"
+
+[[bin]]
+name = "epiphany-character-loop"
+path = "src/bin/epiphany-character-loop.rs"
+
+[[bin]]
+name = "epiphany-cluster-daemon"
+path = "src/bin/epiphany-cluster-daemon.rs"
+
+[[bin]]
+name = "epiphany-cultmesh-smoke"
+path = "src/bin/epiphany-cultmesh-smoke.rs"
+
+[[bin]]
+name = "epiphany-daemon-supervisor"
+path = "src/bin/epiphany-daemon-supervisor.rs"
+
+[[bin]]
+name = "epiphany-daemon-survival-rehearsal-smoke"
+path = "src/bin/epiphany-daemon-survival-rehearsal-smoke.rs"
+
+[[bin]]
+name = "epiphany-frontier-proposal"
+path = "src/bin/epiphany-frontier-proposal.rs"
+
+[[bin]]
+name = "epiphany-hands-action"
+path = "src/bin/epiphany-hands-action.rs"
+
+[[bin]]
+name = "epiphany-hands-action-smoke"
+path = "src/bin/epiphany-hands-action-smoke.rs"
+
+[[bin]]
+name = "epiphany-heartbeat-store"
+path = "src/bin/epiphany-heartbeat-store.rs"
+
+[[bin]]
+name = "epiphany-host-identity"
+path = "src/bin/epiphany-host-identity.rs"
+
+[[bin]]
+name = "epiphany-memory-graph"
+path = "src/bin/epiphany-memory-graph.rs"
+
+[[bin]]
+name = "epiphany-memory-semantic"
+path = "src/bin/epiphany-memory-semantic.rs"
+
+[[bin]]
+name = "epiphany-memory-semantic-projector"
+path = "src/bin/epiphany-memory-semantic-projector.rs"
+
+[[bin]]
+name = "epiphany-mind-repair"
+path = "src/bin/epiphany-mind-repair.rs"
+
+[[bin]]
+name = "epiphany-mvp-coordinator-smoke"
+path = "src/bin/epiphany-mvp-coordinator-smoke.rs"
+
+[[bin]]
+name = "epiphany-operator-command"
+path = "src/bin/epiphany-operator-command.rs"
+
+[[bin]]
+name = "epiphany-operator-command-fixture"
+path = "src/bin/epiphany-operator-command-fixture.rs"
+
+[[bin]]
+name = "epiphany-operator-run"
+path = "src/bin/epiphany-operator-run.rs"
+
+[[bin]]
+name = "epiphany-operator-snapshot"
+path = "src/bin/epiphany-operator-snapshot.rs"
+
+[[bin]]
+name = "epiphany-persona-discord"
+path = "src/bin/epiphany-persona-discord.rs"
+
+[[bin]]
+name = "epiphany-persona-discord-crossing-fixture"
+path = "src/bin/epiphany-persona-discord-crossing-fixture.rs"
+
+[[bin]]
+name = "epiphany-persona-discord-permit"
+path = "src/bin/epiphany-persona-discord-permit.rs"
+
+[[bin]]
+name = "epiphany-persona-discord-permit-identity"
+path = "src/bin/epiphany-persona-discord-permit-identity.rs"
+
+[[bin]]
+name = "epiphany-persona-feedback-causal-smoke"
+path = "src/bin/epiphany-persona-feedback-causal-smoke.rs"
+
+[[bin]]
+name = "epiphany-persona-feedback-ingress"
+path = "src/bin/epiphany-persona-feedback-ingress.rs"
+
+[[bin]]
+name = "epiphany-persona-memory-recall-smoke"
+path = "src/bin/epiphany-persona-memory-recall-smoke.rs"
+
+[[bin]]
+name = "epiphany-persona-mouth-identity"
+path = "src/bin/epiphany-persona-mouth-identity.rs"
+
+[[bin]]
+name = "epiphany-persona-other"
+path = "src/bin/epiphany-persona-other.rs"
+
+[[bin]]
+name = "epiphany-persona-reddit"
+path = "src/bin/epiphany-persona-reddit.rs"
+
+[[bin]]
+name = "epiphany-prepare-compaction"
+path = "src/bin/epiphany-prepare-compaction.rs"
+
+[[bin]]
+name = "epiphany-prompt-context-smoke"
+path = "src/bin/epiphany-prompt-context-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo"
+path = "src/bin/epiphany-repo.rs"
+
+[[bin]]
+name = "epiphany-repo-adoption-request-family-smoke"
+path = "src/bin/epiphany-repo-adoption-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-birth-runner"
+path = "src/bin/epiphany-repo-birth-runner.rs"
+
+[[bin]]
+name = "epiphany-repo-closure-source-grounding-smoke"
+path = "src/bin/epiphany-repo-closure-source-grounding-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-credit-request-family-smoke"
+path = "src/bin/epiphany-repo-credit-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-dependency-policy-family-smoke"
+path = "src/bin/epiphany-repo-dependency-policy-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-deployment-request-family-smoke"
+path = "src/bin/epiphany-repo-deployment-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-interpreter-brief-family-smoke"
+path = "src/bin/epiphany-repo-interpreter-brief-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-livefire-closure-smoke"
+path = "src/bin/epiphany-repo-livefire-closure-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-maintainer-review-request-family-smoke"
+path = "src/bin/epiphany-repo-maintainer-review-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-model-bootstrap"
+path = "src/bin/epiphany-repo-model-bootstrap.rs"
+
+[[bin]]
+name = "epiphany-repo-objective-draft-family-smoke"
+path = "src/bin/epiphany-repo-objective-draft-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-personality"
+path = "src/bin/epiphany-repo-personality.rs"
+
+[[bin]]
+name = "epiphany-repo-personality-smoke"
+path = "src/bin/epiphany-repo-personality-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-pr-request-family-smoke"
+path = "src/bin/epiphany-repo-pr-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-publication-request-family-smoke"
+path = "src/bin/epiphany-repo-publication-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-readiness-review-request-family-smoke"
+path = "src/bin/epiphany-repo-readiness-review-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-scheduling-request-family-smoke"
+path = "src/bin/epiphany-repo-scheduling-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-secret-policy-family-smoke"
+path = "src/bin/epiphany-repo-secret-policy-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repository-body"
+path = "src/bin/epiphany-repository-body.rs"
+
+[[bin]]
+name = "epiphany-repo-sync-request-family-smoke"
+path = "src/bin/epiphany-repo-sync-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-tool-request-family-smoke"
+path = "src/bin/epiphany-repo-tool-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-verification-request-family-smoke"
+path = "src/bin/epiphany-repo-verification-request-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-work-order-family-smoke"
+path = "src/bin/epiphany-repo-work-order-family-smoke.rs"
+
+[[bin]]
+name = "epiphany-repo-work-service-lifecycle-smoke"
+path = "src/bin/epiphany-repo-work-service-lifecycle-smoke.rs"
+
+[[bin]]
+name = "epiphany-rider-bridge"
+path = "src/bin/epiphany-rider-bridge.rs"
+
+[[bin]]
+name = "epiphany-rider-bridge-smoke"
+path = "src/bin/epiphany-rider-bridge-smoke.rs"
+
+[[bin]]
+name = "epiphany-runtime-spine"
+path = "src/bin/epiphany-runtime-spine.rs"
+
+[[bin]]
+name = "epiphany-state"
+path = "src/bin/epiphany-state.rs"
+
+[[bin]]
+name = "epiphany-state-ledger-store"
+path = "src/bin/epiphany-state-ledger-store.rs"
+
+[[bin]]
+name = "epiphany-swarm"
+path = "src/bin/epiphany-swarm.rs"
+
+[[bin]]
+name = "epiphany-unity-bridge"
+path = "src/bin/epiphany-unity-bridge.rs"
+
+[[bin]]
+name = "epiphany-unity-bridge-smoke"
+path = "src/bin/epiphany-unity-bridge-smoke.rs"
+
+[[bin]]
+name = "epiphany-verse-query"
+path = "src/bin/epiphany-verse-query.rs"
+
+[[bin]]
+name = "epiphany-void-memory"
+path = "src/bin/epiphany-void-memory.rs"
+
+[[bin]]
+name = "epiphany-weksa-interlingua-smoke"
+path = "src/bin/epiphany-weksa-interlingua-smoke.rs"
+
+[[bin]]
+name = "epiphany-work"
+path = "src/bin/epiphany-work.rs"
+
+[[bin]]
+name = "epiphany-workspace-coverage-projector"
+path = "src/bin/epiphany-workspace-coverage-projector.rs"
+
 
 [dependencies]
 anyhow = "1"

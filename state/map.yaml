@@ -36,7 +36,7 @@ invariants:
 current_status:
   summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. A bounded receipted supervisor correction removed one obsolete Modeling acceptance while preserving immutable evidence. Fresh Modeling minted exactly one typed active Imagination frontier; Self routed it through completed Imagination and committed a dedicated Mind review request without granting Hands authority despite stale CRRC regather display state. The live typed Modeling-to-Imagination-to-Mind route is proven. A separate-owner-lock build experiment was benchmarked, found to compile core repeatedly, and reverted. Persona consequence, retention, endurance, restart closure, build/launch latency, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: rejected_build_path_record_pending_commit
+    local_worktree: single_graph_self_policy_split_tested_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Volatile coordinator policy remains compiled inside epiphany-core, so unrelated release binaries relink after Self changes. Separate owner lock universes are rejected because they compile shared core once per resolved graph. Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open.
-  next_action: Design a single-Cargo-graph split in which coordinator/status binaries and volatile Self policy leave epiphany-core without a compatibility re-export back through core; benchmark a localized policy edit against the existing warm graph. Preserve the committed live Mind review request at revision 55 and resume with launchMindPlanReview after the build-cost boundary is stable. Then profile the Modeling job commit transaction.
+  unresolved_authority: The local single-graph policy split passes focused checks but has not yet produced an authenticated package or measured a localized release-policy relink. Separate owner lock universes remain rejected. Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open.
+  next_action: Commit and package the single-root-graph Self-policy split, then benchmark one policy-only invalidation and prove stable release binaries do not relink. Preserve the committed live Mind review request at revision 55 and resume with launchMindPlanReview after this build boundary. Then profile the Modeling job commit transaction.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
@@ -71,7 +71,7 @@ organ_readiness:
   soul: proven for the current bounded amended consequence; exact release sha256-d2e7205a resumed the immutable verification job, produced a valid result, and coordinator acceptance advanced thread state to revision 31. Self then derived Modeling before any repeated Hands authority.
   mind: partial; RepoModel admission, thread-state admission, gateway review, state commit, first-valid verdict incorporation, bounded supervisor acceptance correction, and dedicated frontier-plan review requests are live. The current plan candidate awaits Mind adjudication.
   continuity: partial; heartbeat and resident Self survive sequential cycles. v28 proved an ordinary bounded worker error could leave a runtime job falsely running after process death; the owner-local terminalization repair passes focused tests but still needs packaged crash/restart/closure proof.
-  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work. Fresh Modeling context assembly was below 250ms, but whole-store job commit cost 51.637s against a 76 MiB runtime store. Separate owner builds were rejected after core took 8m02s and then began compiling again under the OpenAI owner graph. Compilation fan-out, transaction cost, long-duration pressure, and resource plateau remain open. Yggdrasil is not a release forge at its current memory budget.
+  nervous_system: partial; detached scheduling, runtime jobs, typed feedback, ordinary Windows coverage-store identity, and operator projection work. Fresh Modeling context assembly was below 250ms, but whole-store job commit cost 51.637s against a 76 MiB runtime store. Separate owner builds were rejected; the tested replacement isolates Self policy behind one root-graph optional coordinator feature while core explicitly owns only 74 non-coordinator binaries. Exact package and relink timing remain. Transaction cost, long-duration pressure, and resource plateau remain open. Yggdrasil is not a release forge at its current memory budget.
 
 forbidden_actions:
   - Do not issue a speculative deployment grant.

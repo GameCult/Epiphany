@@ -2159,6 +2159,7 @@ dependencies = [
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
  "epiphany-openai-runtime",
+ "epiphany-self-policy",
  "epiphany-state-model",
  "epiphany-tool-adapter",
  "epiphany-tool-mcp-runtime",
@@ -2180,6 +2181,15 @@ dependencies = [
  "uuid",
  "windows-sys 0.59.0",
  "zeroize",
+]
+
+[[package]]
+name = "epiphany-self-policy"
+version = "0.1.0"
+dependencies = [
+ "epiphany-core",
+ "epiphany-state-model",
+ "serde",
 ]
 
 [[package]]

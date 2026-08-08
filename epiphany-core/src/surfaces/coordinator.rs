@@ -1,254 +1,30 @@
-use super::EpiphanyCrrcAction;
-use super::EpiphanyCrrcSceneAction;
-use super::EpiphanyCrrcStateStatus;
-use super::EpiphanyPressure;
-use super::EpiphanyPressureLevel;
-use super::EpiphanyReorientAction;
-use super::EpiphanyReorientFindingInterpretation;
-use super::EpiphanyRoleBoardLane;
-use super::EpiphanyRoleFindingInterpretation;
-use crate::RepoFrontierPlanningLifecycleStage;
+use epiphany_core::EpiphanyCrrcAction;
+use epiphany_core::EpiphanyCrrcSceneAction;
+use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyReorientFindingInterpretation;
+use epiphany_core::EpiphanyRoleBoardLane;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::RepoFrontierPlanningLifecycleStage;
+use epiphany_core::modeling_role_state_patch_policy_errors;
+use epiphany_core::research_role_state_patch_policy_errors;
 use epiphany_state_model::EpiphanyThreadState;
-use serde::Deserialize;
-use serde::Serialize;
 use std::collections::HashSet;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorRoleId {
-    Implementation,
-    Imagination,
-    Research,
-    Modeling,
-    Verification,
-    Reorientation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorRoleStatus {
-    Ready,
-    Needed,
-    Running,
-    Waiting,
-    Review,
-    Blocked,
-    Unavailable,
-    Completed,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorRoleResultStatus {
-    MissingState,
-    MissingBinding,
-    BackendUnavailable,
-    BackendMissing,
-    Pending,
-    Running,
-    Completed,
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorAction {
-    PrepareCheckpoint,
-    CompactRehydrateReorient,
-    LaunchReorientWorker,
-    WaitForReorientWorker,
-    ReviewReorientResult,
-    RegatherManually,
-    LaunchResearch,
-    ReviewResearchResult,
-    LaunchModeling,
-    ReviewModelingResult,
-    LaunchVerification,
-    ReviewVerificationResult,
-    ContinueImplementation,
-    AwaitFrontierProposal,
-    StartFrontierPlanning,
-    LaunchImagination,
-    WaitForImaginationResult,
-    RequestMindPlanReview,
-    LaunchMindPlanReview,
-    WaitForMindPlanResult,
-    CommitFrontierPlanDecision,
-    ReviewFrontierPlanningFailure,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorSceneAction {
-    Update,
-    Reorient,
-    ReorientLaunch,
-    ReorientResult,
-    ReorientAccept,
-    RoleLaunch,
-    RoleResult,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyCoordinatorAutomationAction {
-    None,
-    CompactRehydrateReorient,
-    LaunchReorientWorker,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorCrrcRecommendation {
-    pub action: EpiphanyCrrcAction,
-    pub recommended_scene_action: Option<EpiphanyCoordinatorSceneAction>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorSignals {
-    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorSourceSignals {
-    pub pressure_level: EpiphanyPressureLevel,
-    pub should_prepare_compaction: bool,
-    pub reorient_action: EpiphanyReorientAction,
-    pub crrc_action: EpiphanyCrrcAction,
-    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub reorient_result_status: super::EpiphanyCrrcResultStatus,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorRoleLane {
-    pub id: EpiphanyCoordinatorRoleId,
-    pub status: EpiphanyCoordinatorRoleStatus,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyCoordinatorInput {
-    pub state_status: EpiphanyCrrcStateStatus,
-    pub checkpoint_present: bool,
-    pub should_prepare_compaction: bool,
-    pub recommendation: EpiphanyCoordinatorCrrcRecommendation,
-    pub roles: Vec<EpiphanyCoordinatorRoleLane>,
-    pub signals: EpiphanyCoordinatorSignals,
-    pub research_result_accepted: bool,
-    pub research_result_reviewable: bool,
-    pub research_result_failure_reviewed: bool,
-    pub modeling_result_accepted_after_research: bool,
-    pub modeling_result_requests_regather: bool,
-    pub modeling_result_accepted: bool,
-    pub modeling_result_reviewable: bool,
-    pub modeling_result_failure_reviewed: bool,
-    pub modeling_result_proposal_bound: bool,
-    pub modeling_result_accepted_after_verification: bool,
-    pub implementation_evidence_after_verification: bool,
-    pub verification_result_cites_implementation_evidence: bool,
-    pub verification_result_covers_current_modeling: bool,
-    pub verification_result_accepted: bool,
-    pub verification_result_failure_reviewed: bool,
-    pub verification_result_allows_implementation: bool,
-    pub verification_result_needs_evidence: bool,
-    pub reorient_finding_accepted: bool,
-    /// True only when the canonical runtime RepoModel has exactly one current
-    /// admission and an Active, dependency-ready Hands frontier item.
-    pub hands_frontier_ready: bool,
-    /// True only when the canonical runtime RepoModel has exactly one current
-    /// admission and an Active, dependency-ready Eyes frontier item.
-    pub eyes_frontier_ready: bool,
-    /// Read-only projection of the single typed Imagination -> Mind planning
-    /// lifecycle. Self may advance it, but only Mind's result can decide adoption.
-    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
-    /// True when an explicitly selected user proposal has no Modeling launch.
-    pub proposal_modeling_request_ready: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorDecision {
-    pub action: EpiphanyCoordinatorAction,
-    pub target_role: Option<EpiphanyCoordinatorRoleId>,
-    pub recommended_scene_action: Option<EpiphanyCoordinatorSceneAction>,
-    pub requires_review: bool,
-    pub can_auto_run: bool,
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyCoordinatorStatusInput {
-    pub state_status: EpiphanyCrrcStateStatus,
-    pub checkpoint_present: bool,
-    pub pressure: EpiphanyPressure,
-    pub recommendation: super::EpiphanyCrrcRecommendation,
-    pub roles: Vec<EpiphanyRoleBoardLane>,
-    pub reorient_action: EpiphanyReorientAction,
-    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
-    pub reorient_result_status: super::EpiphanyCrrcResultStatus,
-    pub research_result_accepted: bool,
-    pub research_result_reviewable: bool,
-    pub research_result_failure_reviewed: bool,
-    pub modeling_result_accepted_after_research: bool,
-    pub modeling_result_requests_regather: bool,
-    pub modeling_result_accepted: bool,
-    pub modeling_result_reviewable: bool,
-    pub modeling_result_failure_reviewed: bool,
-    pub modeling_result_proposal_bound: bool,
-    pub modeling_result_accepted_after_verification: bool,
-    pub implementation_evidence_after_verification: bool,
-    pub verification_result_cites_implementation_evidence: bool,
-    pub verification_result_covers_current_modeling: bool,
-    pub verification_result_accepted: bool,
-    pub verification_result_failure_reviewed: bool,
-    pub verification_result_allows_implementation: bool,
-    pub verification_result_needs_evidence: bool,
-    pub reorient_finding_accepted: bool,
-    pub hands_frontier_ready: bool,
-    pub eyes_frontier_ready: bool,
-    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
-    pub proposal_modeling_request_ready: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyCoordinatorStatus {
-    pub decision: EpiphanyCoordinatorDecision,
-    pub source_signals: EpiphanyCoordinatorSourceSignals,
-    pub roles: Vec<EpiphanyRoleBoardLane>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct EpiphanyCoordinatorFindingSignals {
-    pub research_result_accepted: bool,
-    pub research_result_reviewable: bool,
-    pub research_result_failure_reviewed: bool,
-    pub modeling_result_accepted_after_research: bool,
-    pub modeling_result_requests_regather: bool,
-    pub modeling_result_accepted: bool,
-    pub modeling_result_reviewable: bool,
-    pub modeling_result_failure_reviewed: bool,
-    pub modeling_result_proposal_bound: bool,
-    pub modeling_result_accepted_after_verification: bool,
-    pub implementation_evidence_after_verification: bool,
-    pub verification_result_cites_implementation_evidence: bool,
-    pub verification_result_covers_current_modeling: bool,
-    pub verification_result_accepted: bool,
-    pub verification_result_failure_reviewed: bool,
-    pub verification_result_allows_implementation: bool,
-    pub verification_result_needs_evidence: bool,
-    pub reorient_finding_accepted: bool,
-}
-
+use epiphany_core::EpiphanyCoordinatorAction;
+use epiphany_core::EpiphanyCoordinatorAutomationAction;
+use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
+use epiphany_core::EpiphanyCoordinatorDecision;
+use epiphany_core::EpiphanyCoordinatorFindingSignals;
+use epiphany_core::EpiphanyCoordinatorInput;
+use epiphany_core::EpiphanyCoordinatorRoleId;
+use epiphany_core::EpiphanyCoordinatorRoleLane;
+use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCoordinatorRoleStatus;
+use epiphany_core::EpiphanyCoordinatorSceneAction;
+use epiphany_core::EpiphanyCoordinatorSignals;
+use epiphany_core::EpiphanyCoordinatorSourceSignals;
+use epiphany_core::EpiphanyCoordinatorStatus;
+use epiphany_core::EpiphanyCoordinatorStatusInput;
 pub fn crrc_scene_action_to_coordinator_scene_action(
     action: EpiphanyCrrcSceneAction,
 ) -> EpiphanyCoordinatorSceneAction {
@@ -472,7 +248,7 @@ fn modeling_finding_has_reviewable_repo_model_patch(
         && finding
             .state_patch
             .as_ref()
-            .is_none_or(|patch| super::modeling_role_state_patch_policy_errors(patch).is_empty())
+            .is_none_or(|patch| modeling_role_state_patch_policy_errors(patch).is_empty())
 }
 
 fn research_finding_has_reviewable_state_patch(
@@ -481,7 +257,7 @@ fn research_finding_has_reviewable_state_patch(
     finding
         .state_patch
         .as_ref()
-        .is_some_and(|patch| super::research_role_state_patch_policy_errors(patch).is_empty())
+        .is_some_and(|patch| research_role_state_patch_policy_errors(patch).is_empty())
 }
 
 fn modeling_finding_requests_regather(finding: &EpiphanyRoleFindingInterpretation) -> bool {
