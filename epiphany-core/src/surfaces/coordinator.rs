@@ -1143,6 +1143,26 @@ pub fn recommend_coordinator_action(
         && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
             == Some(EpiphanyCoordinatorRoleStatus::Blocked)
     {
+        if input.research_result_accepted
+            && input.implementation_evidence_after_verification
+            && matches!(
+                input.signals.verification_result_status,
+                EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                    | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                    | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                    | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                    | EpiphanyCoordinatorRoleResultStatus::Failed
+            )
+        {
+            return build(
+                EpiphanyCoordinatorAction::LaunchVerification,
+                Some(EpiphanyCoordinatorRoleId::Verification),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "Eyes refreshed source after CRRC regather and a complete Hands consequence still awaits Soul; verify that exact consequence before Modeling evolves its active route.",
+            );
+        }
         if input.research_result_accepted && !input.modeling_result_accepted_after_research {
             return build(
                 EpiphanyCoordinatorAction::LaunchModeling,
@@ -1996,6 +2016,37 @@ mod tests {
             ..base
         });
         assert_eq!(consumed.action, EpiphanyCoordinatorAction::RegatherManually);
+    }
+
+    #[test]
+    fn accepted_eyes_routes_complete_hands_consequence_to_soul_before_model_evolution() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+            roles: vec![role(
+                EpiphanyCoordinatorRoleId::Implementation,
+                EpiphanyCoordinatorRoleStatus::Blocked,
+            )],
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            research_result_accepted: true,
+            modeling_result_accepted: true,
+            implementation_evidence_after_verification: true,
+            reorient_finding_accepted: true,
+            ..input()
+        });
+
+        assert_eq!(
+            decision.action,
+            EpiphanyCoordinatorAction::LaunchVerification
+        );
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Verification)
+        );
+        assert!(decision.reason.contains("Hands consequence"));
     }
 
     #[test]
