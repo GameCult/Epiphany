@@ -1634,6 +1634,43 @@ one transaction-scoped typed read view plus explicit write boundaries, with
 phase timings at the same owner seams. A cache wrapper that leaves repeated
 whole-store pulls authoritative would merely hide the smell.
 
+## Runtime-spine keyed storage ownership
+
+The live 83 MiB runtime spine still uses
+`SingleFileMessagePackBackingStore`. Every coordinator launch opens a complete
+snapshot and its identity-scoped state/job CAS reads, decodes, sorts, encodes,
+and replaces that whole file. Fresh v53 timings isolate the cost: state load
+79ms, dynamic context 66ms, role augmentation 1.053s, job commit 51.482s,
+total 52.680s. Prompt assembly is not the bottleneck.
+
+CultCache already owns the standard replacement:
+`RedbMessagePackBackingStore` stores each polymorphic `(type, key)` identity as
+an independent MessagePack row and performs the same exact batch-CAS checks in
+one redb transaction. Epiphany must promote that existing backend rather than
+inventing a cache, journal, sidecar, or second persistence protocol.
+
+Owner: one runtime-spine storage binding selects the physical backend for the
+entire store. All runtime state, jobs, results, events, Mind admissions,
+Hands/Soul receipts, and coordinator transactions resolve through that owner.
+
+Migration inputs are an immutable single-file snapshot, its byte digest and
+entry count, an empty destination, and the destination file identity. The
+output is one redb store plus a typed migration receipt binding source hash,
+sorted envelope identities/digests, destination identity, and completion time.
+The old `.cc` file becomes sealed evidence and cannot remain a live fallback.
+
+Forbidden writers: no runtime or coordinator helper may instantiate
+`SingleFileMessagePackBackingStore` directly after a redb binding is selected;
+no path may silently infer a backend from whichever decoder succeeds; and no
+dual-write or reconciliation loop may create two authorities. All direct and
+programmatic launch/result/admission paths use the same backend factory and CAS
+primitive.
+
+Negative verification must prove stale CAS refusal, immutable identity
+collision refusal, migration equivalence for every envelope, absence of writes
+to the sealed source, crash-safe destination recovery, and a live-sized job
+commit that no longer scales with total historical store bytes.
+
 ## Verdict-bound Modeling output authority
 
 Live v53 exposed a missing typed boundary after Soul acceptance. The
