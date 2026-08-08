@@ -1,3 +1,35 @@
+//! Typed repository-frontier authority chain.
+//!
+//! The minimal admitted path is deliberately linear:
+//!
+//! 1. `RepoFrontierWorkProposal` is inert evidence. Modeling may turn it into
+//!    an admitted RepoModel frontier item; the proposal itself grants nothing.
+//! 2. Self selects exactly one eligible Imagination item and commits a
+//!    `RepoFrontierPlanningRequest`. Imagination returns a
+//!    `RepoFrontierPlanCandidate` whose safe paths may only narrow the item's
+//!    source scope.
+//! 3. Self commits a `RepoFrontierPlanMindRequest`. Mind alone adopts, refuses,
+//!    or holds the candidate through `RepoFrontierPlanDecisionReceipt`.
+//! 4. Only an adopted decision may be embedded in `RepoFrontierRoute` by
+//!    `runtime_spine::select_and_commit_repo_frontier_route`. Route selection
+//!    binds the current admitted model revision, admission receipt, frontier
+//!    hash, and source scope in one compare-and-swap operation.
+//! 5. Hands remains powerless until the coordinator pairs that route with a
+//!    reviewed Hands intent, Substrate Gate receipt, and
+//!    `RepoFrontierHandsAuthority`. Hands receipts describe consequences; they
+//!    do not admit durable Mind state.
+//! 6. Soul verifies the exact route and consequence. Coordinator acceptance
+//!    applies reviewed state effects through the atomic coordinator state
+//!    transaction; no worker, Hands receipt, or status projection is a second
+//!    admission owner.
+//! 7. Hands refusal terminates in `RepoFrontierRelinquishmentReceipt`, while
+//!    Continuity receipts preserve recovery facts. `epiphany-mvp-status` and
+//!    CultMesh surfaces only project these admitted outcomes.
+//!
+//! If a required identity or authority is absent at any step, the chain stops.
+//! Do not infer it from display state, repair it after execution, or invent a
+//! parallel route document.
+
 use crate::MindGatewayDecision;
 use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
