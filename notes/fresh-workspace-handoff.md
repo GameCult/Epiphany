@@ -38,6 +38,18 @@ Warm exact packaging after the root target-set transition measured 1m12s stable
 phase plus 6.56s coordinator, confirming the prior 7m19s pass was a one-time
 target-set relink rather than the new steady state.
 
+Endurance baseline
+`.epiphany-run/resident/endurance-baseline-42bc665a.json` was captured at
+2026-08-08T22:08:50Z: heartbeat PID 19928 used 11.8 MB working set / 3.0 MB
+private memory, heartbeat store was 1,507,503 bytes, resident-Self store 7,844
+bytes, artifacts were 269 directories / 15,195,150 bytes, heartbeat stdout was
+8,804 bytes, and stderr was empty. Compare future observations to this exact
+artifact. Do not call direct file truncation log rotation: the current child
+holds stdout/stderr handles and the launcher exits after spawn. Idunn's managed
+service reconciler is the likely owner, but its current policy only opens files
+at launch and has no typed size/segment authority. Map that ownership before
+adding a restart timer or log helper.
+
 The first exact `339d5a6f` build completed its Rust 1.95 graph in 17m07s but
 failed because the isolated coordinator artifact was absent. Rebuilding that
 single target restored the cache. A detached clean-worktree retry then exposed
