@@ -422,11 +422,14 @@ fn build_required_release_siblings(
     toolchain_fingerprint: &str,
     cargo: &std::ffi::OsStr,
 ) -> Result<BuiltReleaseSiblings> {
-    let build_groups = required_release_build_groups(repo, target)?;
-    verify_release_build_locks(&build_groups, cargo)?;
-    let graph_locks = release_build_graph_locks(&build_groups)?;
-    let target_dir =
-        release_bundle_target_dir(target_root, &graph_locks, target, toolchain_fingerprint);
+    verify_release_bundle_lock(repo, cargo)?;
+    let manifest = repo.join("Cargo.toml");
+    let target_dir = release_bundle_target_dir(
+        target_root,
+        &fs::read(repo.join("Cargo.lock")).context("failed to read release bundle lockfile")?,
+        target,
+        toolchain_fingerprint,
+    );
     fs::create_dir_all(&target_dir).with_context(|| {
         format!(
             "failed to create release graph cache {}",
@@ -454,32 +457,29 @@ fn build_required_release_siblings(
     let mut outputs = BTreeMap::new();
     let required = required_packaged_release_binaries(target);
     for (role, file_name) in &required {
+        required_release_build_target(role)?;
         outputs.insert(
             *role,
             target_dir.join(target).join("release").join(file_name),
         );
     }
-    for (manifest, binaries) in build_groups {
-        let mut command = std::process::Command::new(cargo);
-        command
-            .arg("build")
-            .arg("--release")
-            .arg("--manifest-path")
-            .arg(&manifest)
-            .arg("--target-dir")
-            .arg(&target_dir)
-            .arg("--target")
-            .arg(target)
-            .arg("--locked");
-        for binary in binaries {
-            command.arg("--bin").arg(binary);
-        }
-        let status = command
-            .status()
-            .with_context(|| format!("failed to start release build for {}", manifest.display()))?;
-        if !status.success() {
-            bail!("release build failed for {}", manifest.display());
-        }
+    let mut command = std::process::Command::new(cargo);
+    command
+        .arg("build")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .arg("--target")
+        .arg(target)
+        .arg("--locked")
+        .arg("--bins");
+    let status = command
+        .status()
+        .context("failed to start Epiphany release bundle build")?;
+    if !status.success() {
+        bail!("Epiphany release bundle build failed");
     }
     Ok(BuiltReleaseSiblings {
         binaries: outputs,
@@ -487,64 +487,31 @@ fn build_required_release_siblings(
     })
 }
 
-fn verify_release_build_locks(
-    build_groups: &BTreeMap<PathBuf, BTreeSet<&'static str>>,
-    cargo: &std::ffi::OsStr,
-) -> Result<()> {
-    for manifest in build_groups.keys() {
-        let output = std::process::Command::new(cargo)
-            .arg("metadata")
-            .arg("--locked")
-            .arg("--no-deps")
-            .arg("--format-version")
-            .arg("1")
-            .arg("--manifest-path")
-            .arg(manifest)
-            .output()
-            .with_context(|| format!("failed to validate {}", manifest.display()))?;
-        if !output.status.success() {
-            bail!(
-                "release owner lockfile is stale for {}: {}",
-                manifest.display(),
-                String::from_utf8_lossy(&output.stderr).trim()
-            );
-        }
+fn verify_release_bundle_lock(repo: &Path, cargo: &std::ffi::OsStr) -> Result<()> {
+    let manifest = repo.join("Cargo.toml");
+    if !manifest.is_file() {
+        bail!(
+            "Epiphany release bundle manifest is absent: {}",
+            manifest.display()
+        );
+    }
+    let output = std::process::Command::new(cargo)
+        .arg("metadata")
+        .arg("--locked")
+        .arg("--no-deps")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .output()
+        .context("failed to validate Epiphany release bundle lockfile")?;
+    if !output.status.success() {
+        bail!(
+            "Epiphany release bundle lockfile is stale: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
     }
     Ok(())
-}
-
-fn required_release_build_groups(
-    repo: &Path,
-    target: &str,
-) -> Result<BTreeMap<PathBuf, BTreeSet<&'static str>>> {
-    let mut groups = BTreeMap::new();
-    for (role, _) in required_packaged_release_binaries(target) {
-        let (owner, binary) = required_release_build_target(role)?;
-        groups
-            .entry(repo.join(owner).join("Cargo.toml"))
-            .or_insert_with(BTreeSet::new)
-            .insert(binary);
-    }
-    Ok(groups)
-}
-
-fn release_build_graph_locks(
-    build_groups: &BTreeMap<PathBuf, BTreeSet<&'static str>>,
-) -> Result<Vec<u8>> {
-    let mut graph = Vec::new();
-    for manifest in build_groups.keys() {
-        let package_dir = manifest
-            .parent()
-            .context("release owner manifest has no package directory")?;
-        let lock = package_dir.join("Cargo.lock");
-        graph.extend_from_slice(manifest.to_string_lossy().as_bytes());
-        graph.push(0);
-        graph.extend_from_slice(&fs::read(&lock).with_context(|| {
-            format!("failed to read release owner lockfile {}", lock.display())
-        })?);
-        graph.push(0);
-    }
-    Ok(graph)
 }
 
 fn release_bundle_target_dir(
@@ -1072,36 +1039,14 @@ mod tests {
     }
 
     #[test]
-    fn release_owner_lockfiles_are_frozen() {
+    fn release_bundle_lockfile_is_frozen() {
         let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo = core
             .parent()
             .expect("epiphany-core has a repository parent");
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-        let groups = required_release_build_groups(repo, "x86_64-pc-windows-msvc")
-            .expect("release build groups");
-        verify_release_build_locks(&groups, &cargo)
-            .unwrap_or_else(|error| panic!("release owner lockfile is not frozen: {error:#}"));
-    }
-
-    #[test]
-    fn release_builds_are_grouped_by_owning_manifest() {
-        let repo = Path::new("repo");
-        let groups = required_release_build_groups(repo, "x86_64-unknown-linux-gnu")
-            .expect("release build groups");
-        assert_eq!(groups.len(), 3);
-        assert!(
-            groups[&repo.join("epiphany-core").join("Cargo.toml")]
-                .contains("epiphany-mvp-coordinator")
-        );
-        assert!(
-            groups[&repo.join("epiphany-openai-runtime").join("Cargo.toml")]
-                .contains("epiphany-model-runtime")
-        );
-        assert!(
-            groups[&repo.join("epiphany-tool-mcp-runtime").join("Cargo.toml")]
-                .contains("epiphany-tool-mcp-runtime")
-        );
+        verify_release_bundle_lock(repo, &cargo)
+            .unwrap_or_else(|error| panic!("release bundle lockfile is not frozen: {error:#}"));
     }
 
     #[test]

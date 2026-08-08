@@ -1182,13 +1182,7 @@ exclusive Imagination, request Mind review, launch the dedicated reviewer, and
 commit Mind's decision. Failed Imagination or Mind jobs become explicit review
 stages rather than remaining indistinguishable from running jobs. A terminal
 Hold or Refuse suppresses immediate replanning of the same current authority.
-Exact packaged `c35272c9` now proves the live chain through the Mind boundary:
-fresh accepted Modeling minted one active typed Imagination frontier, Self
-selected and committed its planning request despite an older CRRC
-`regatherManually` projection, Imagination completed, and Self committed the
-dedicated Mind request without adopting the candidate or granting Hands
-authority. Mind launch, judgment, and decision commit remain the next live
-stages.
+This code path is locally proven but still requires exact packaged live proof.
 
 Selected user proposals are also native Self input. The runtime projection
 `runtime_pending_repo_frontier_proposal_modeling_request` returns the single
@@ -1491,9 +1485,7 @@ Soul is running or after Soul has established the newer causal boundary.
 
 ## Exact release build cache ownership
 
-Each package owns compilation of the release binaries sourced from that package.
-The packager owns orchestration, authenticated assembly, and the release
-witness; the root release-bundle manifest is no longer build authority. Measured on the
+The root release-bundle manifest owns release profile policy. Measured on the
 exact 21-binary bundle after touching `epiphany-core/src/lib.rs`, release
 incremental reduced rebuild time from 7m04s to 31.47 seconds and is therefore
 enabled in `[profile.release]`. An independent `rust-lld` trial reached 29.34
@@ -1504,15 +1496,10 @@ Fresh-target timings (1226.69 seconds with the default linker, 1097.14 with
 decision.
 
 Release construction has two serialized cache authorities. The graph cache is
-identified by the ordered owning-manifest paths and frozen owner `Cargo.lock`
-contents, target triple, and installed toolchain fingerprint. It owns shared
-Cargo outputs and holds an exclusive graph lock through compilation and binary
-copying. Source commit identity does not partition this cache and never becomes
-derived build authority. The packager groups exact binary names under
-`epiphany-core`, `epiphany-openai-runtime`, and
-`epiphany-tool-mcp-runtime`, validates each owner lock, and invokes one locked
-named-binary build per owner against that shared cache. It no longer invokes
-root `cargo build --bins`.
+identified only by the frozen root `Cargo.lock`, target triple, and installed
+toolchain fingerprint. It owns Cargo outputs and holds an exclusive graph lock
+through compilation and binary copying. Source commit identity does not
+partition this cache and never becomes derived build authority.
 
 The source cache is identified by canonical repository identity. It owns one
 persistent detached worktree so unchanged tracked files retain stable paths and
@@ -1569,14 +1556,13 @@ adapter/runtime crate; 19 of its 21 binary sources directly import
 release bundle even when the changed authority belongs only to coordinator
 routing.
 
-The next split follows authority rather than file size. Stable coordinator
+The intended split follows authority rather than file size. Stable coordinator
 state/view contracts must live below a volatile Self policy leaf. Runtime-spine
 persistence, Persona/transport, repository observation, and release tooling
 must not depend on that leaf. Only status/coordinator consumers should relink
-when Self policy changes. Owner-grouped packaging removes the false root build
-owner, but 18 packaged binaries still depend on `epiphany-core`; it therefore
-creates honest fan-out measurements rather than completing the policy split.
-The witness remains the cross-package release authority. A compatibility
+when Self policy changes. Removing the root mega-package eventually requires
+the release packager to build and witness binaries from their owning packages;
+the witness remains the cross-package release authority. A compatibility
 re-export from `epiphany-core` would preserve the invalidation edge and is not a
 completed split.
 

@@ -1,106 +1,171 @@
 # Fresh workspace handoff
 
-Epiphany remains a supervised engineering alpha. Starfire is the cognition and
-release forge; Yggdrasil is the small live crossing host and is not a build
-machine at its current memory budget.
+Epiphany remains a supervised engineering alpha. Starfire is the current
+cognition and release forge; Yggdrasil is the small live host and is not a build
+machine at its present memory budget.
 
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed source HEAD: `7093a8b978ee53ad213b8e74579ccc64925f1c63`
-- Authenticated cognition commit: `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
-- Release: `sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
-- Witness: `sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
+- Pushed source release commit: `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Thread-state revision: `55`
-- Sealed evidence: v49 through v52. Do not mutate it.
+- Current release: `sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
+- Release witness: `sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
+- Thread-state revision: `49`
+- Current action: do not approve another `regatherManually` loop. Preserve v53 evidence, create a labeled supervisor correction boundary for the legacy accepted Modeling result, then replay one compliant typed Modeling-to-Imagination handoff under the exact current release.
+- Sealed evidence: v49 through v52. Do not mutate them.
 
-## Current causal boundary
+## Live causal boundary
 
-The operator grants standing authority for bounded supervisor repair of
-corrupted Epiphany runtime state. Repairs must be labeled, receipted, preserve
-immutable worker evidence, and use exact compare-and-swap revision authority.
+RepoModel revision 6 owns the active frontier. Mind admitted one local
+supervisor execution amendment as
+`repo-frontier-execution-amendment-d0d1a164c03f1298681a70b332ac3ddee423f8ab3e07b91d8dc3d74833a65875`.
+It preserves the original plan and route while replacing the non-executable
+planning sentence with the exact verification command. The admission is
+user-authorized and packet-hash bound; it is not a Bifrost-signed remote
+command.
 
-Commit `7093a8b9` supplies that narrow primitive for the legacy accepted Modeling
-result which predated the typed future-frontier invariant. Before correction,
-revision 49 was sealed at:
+The amended route produced a complete typed Hands consequence against commit
+`0763fcbe94257eb9adbe92ab814b5a487f65551d`. Exact release `sha256-d2e7205a...`
+resumed the original immutable Soul job
+`8eee52bf-d96e-4609-923d-3080e644ca46`, which the prior release could not decode
+after the amendment schema was introduced. Coordinator acceptance consumed the
+valid Soul result and advanced thread state to revision 31.
 
-- `sealed-evidence/v53-pre-modeling-acceptance-correction/runtime-revision-49.cc`
-- 76,172,850 bytes
-- SHA-256 `5ec47d8da386976dbb8ca1b18f214507de3c14eb4f02d31bdc3aa60d99e612f3`
+Self then exposed two precedence faults and both are repaired locally:
 
-Correction
-`supervisor-acceptance-correction-e2ddbf239ea45081138ad9f10089f6895887fe14130b431aab0fef1d1978004c`
-removed only obsolete acceptance
-`accept-modeling-result-worker-4e6b6022-73ab-49f1-81c8-03dddfceb29f`, retained
-its immutable result and admitted RepoModel, recorded prior receipt hash
-`2f1af810e77997e2bf235e779609da62ec1a5148107d81a342288005e80df510`,
-and advanced state 49 to 50. The coordinator then reviewed the old result under
-the current invariant and superseded it as
-`role-failure-review-a35d6548-ec90-48c6-80d5-84ac6e32c619` at revision 51.
+1. `Pending|Running` Soul now preempts generic CRRC/regather Hands routing.
+2. Accepted Soul consequences now resolve before generic CRRC/regather Hands
+   routing, so a pass launches Modeling rather than minting another Hands gate.
 
-Fresh Modeling job `ca61f378-4998-4911-a565-06d77388bb4a` completed and Mind
-accepted it as
-`accept-modeling-result-worker-ca61f378-4998-4911-a565-06d77388bb4a`, with
-evidence `ev-modeling-4a0caaa3-9172-44eb-a9e9-9ea68c6406fc`, at revision 52.
-It minted exactly one active typed Imagination frontier:
-`frontier-native-frontier-minimal-route-chain-design-20260808`.
+All 23 focused coordinator routing tests pass. Operator-safe live proof is under
+`.epiphany-dogfood/v53-amended-soul-r42-poll`,
+`.epiphany-dogfood/v53-amended-soul-accept-r43`,
+`.epiphany-dogfood/v53-post-soul-r45`, and
+`.epiphany-dogfood/v53-post-soul-modeling-r46`.
 
-Self then ignored the stale display-level `regatherManually` recommendation and
-routed the typed frontier through the native planning lifecycle:
+The `v53-amended-soul-r41` supervisor poll is contaminated for normal dogfood
+supervision because the operator tailed the structured worker stdout while
+checking completion. It did not steer acceptance; use the coordinator
+projections above as authoritative evidence.
 
-1. planning request
-   `repo-frontier-planning-7adf9c5863cd3ca640086f9aafd1abd910aa8d28e40dcc6e08835a20af60a9aa`
-   committed at revision 53;
-2. Imagination job `2a5701fe-7fbe-4f29-b3a5-51d6e790acbd` launched at revision
-   54 and completed with typed candidate
-   `repo-frontier-plan-candidate-02c089eb385c27560252d1915b998efc7c800324971a7b915b6e9ff3d33e4646`;
-3. dedicated Mind request
-   `repo-frontier-plan-mind-7c8f086d050fe458a298ea4d9f5202e446530e5e14fa10129f52b4ae72238bc3`
-   committed at revision 55 without plan adoption or Hands authority.
+## Next action
 
-The next live typed action is `launchMindPlanReview`. It is valid continuation
-work, but the current engineering pass is reducing build and launch iteration
-cost before paying for another model turn.
+The first post-Soul Modeling job `8851bbcc-d013-4e5a-95bf-d69b4833dc29`
+timed out at its 300-second boundary and was reviewed/superseded. Its retry
+completed but received the older Eyes handoff because launch-context selection
+checked Research freshness before the newer accepted Soul boundary. Mind
+correctly rejected its resulting Evolution patch and the coordinator superseded
+it at revision 35.
 
-## Active engineering pass
+Launch context now lets the newest accepted organ boundary own the Modeling
+brief. It also reuses the RepoModel snapshot already loaded for dynamic memory
+context instead of reopening the whole runtime store to render model shape.
+All seven launch-context tests and the native coordinator seam test pass.
 
-Release packaging currently has false build ownership: the root
-`epiphany-release-bundle` manifest declares all 21 binaries and the packager
-invokes one `cargo build --bins`. The live cut makes the existing
-`required_release_build_target` mapping authoritative: group exact binary names
-under `epiphany-core`, `epiphany-openai-runtime`, and
-`epiphany-tool-mcp-runtime`; validate every owner lockfile; use one shared graph
-cache; and invoke only those named binaries. Focused packaged-release tests pass.
+Job `9d7cd7d8-2d43-4165-b3c5-54381126579e` completed from the correct Soul
+boundary, but the static worker-output schema still allowed it to omit the
+frontier request identity and emit ordinary Evolution. Mind rejected it with
+`Evolution cannot bypass a current route or own verdict-driven frontier
+lifecycle` and the coordinator superseded it through
+`role-failure-review-962c3f59-fdce-4558-8d40-1448230554d5` at revision 56.
+This repeated the prior semantic failure despite corrected context, proving
+that prompt context was not the owning seam.
 
-This removes root mega-package fan-out from authenticated packaging and creates
-honest per-owner timings. It does not eliminate the deeper invalidation wound:
-18 release binaries still depend on `epiphany-core`, which also contains
-volatile Self/coordinator policy. After timing the owner-grouped build, split
-volatile cognition policy into a leaf package consumed only by coordinator and
-status if the measured invalidation confirms that boundary.
+The live repair carries `repo_frontier_modeling_request_id` in the typed worker
+launch request. The model runtime uses that field to expose a specialized
+schema requiring the exact request id, `incorporate_frontier_verdict`, non-empty
+evidence, and exactly one `revise_frontier` operation. Generic Evolution is no
+longer representable for that launch; Mind remains final admission authority.
+Finish focused tests, commit and push, package one authenticated release, then
+relaunch the superseded post-Soul Modeling request without overrides. Do not
+recreate Eyes, Imagination, Hands, or Soul work from this circuit.
 
-## Current performance evidence
+Exact commit `61e8be38a3d194b70a4f469e7524653ecab590a8` packaged in 6m50s as
+release `sha256-67ed6c8d...` with witness `sha256-c98e36f3...`. Live launch
+`57272b34-8148-4668-903e-00cfe5fabfdd` proved that Evolution was no longer
+representable, but Mind rejected its frontier revision because the specialized
+schema still inherited an item shape that omitted `adopted_plan`; output thus
+altered adopted execution anatomy. The coordinator superseded it and launched
+retry `a89fe1ea-a88b-4108-a299-c99ca9b65fb7`, which completed. Review without
+automatic supersession failed closed with `generic frontier revision cannot
+alter adopted execution anatomy or own plan adoption`.
 
-- Exact `c35272c9` packaging of 21 binaries: 2m34s with a warm graph cache.
-- Fresh Modeling launch: state load 121ms, dynamic context 107ms, job commit
-  51.637s, coordinator total 51.865s.
-- The expensive launch segment is the whole-store job commit, not context
-  assembly.
-- Eyes launches against the same store have completed below one second, so the
-  Modeling carrier/persistence shape remains the likely discriminant.
+The repair now persists one typed verdict-Modeling launch authority containing
+the exact `RepoFrontierModelingRequest` and routed `RepoFrontierItem`. Provider
+schema generation const-binds every identity-bearing field, including the full
+adopted plan; only verdict-owned status, evidence refs, gap, and updated_at may
+vary. Persistence rejects missing, orphaned, mismatched, or non-Modeling
+authority. The focused schema and Soul-to-Modeling context tests pass, as do all
+15 model-runtime and all 15 coordinator tests. The completed retry remains
+immutable invalid evidence; commit and package this exact repair, supersede the
+old result explicitly, then pay for one corrected model turn.
 
-## Open readiness work
+Exact commit `5a3532b9` packaged 21 binaries in 5m57s as release
+`sha256-7d1040b8...` with witness `sha256-48202410...`. Invalid result `a89fe1ea...`
+was superseded by `role-failure-review-1d365571...`. Corrected job
+`ede197eb...` proved the typed live launch but timed out at 300 seconds and was
+superseded by `role-failure-review-d8e10919...`. Retry
+`6362b698-0566-4377-9c14-2d6580436a92` completed under a 600-second envelope.
+Mind accepted it as `accept-modeling-result-worker-6362b698-0566-4377-9c14-2d6580436a92`
+with evidence `ev-modeling-cb536bd5-eca9-465f-af33-4f0c46080ab6`, advancing
+thread state to revision 45. Coordinator projection r69 proves
+`modelingResultAcceptedAfterResearch: true` and derives `regatherManually` for
+Eyes; the causal Modeling route is consumed.
 
-- launch and adjudicate the committed Mind plan review;
-- prove native Persona cognition and external speech consequence;
-- prove Continuity crash, restart, session closure, and bounded retention;
-- measure long-duration resource plateau;
-- benchmark owner-grouped release builds and then cut volatile core fan-out;
-- profile and remove the Modeling whole-store commit path;
-- prove Linux cognition on Starfire, then size Yggdrasil from measured demand.
+The manual regather was reviewed as a bounded read-only Eyes action and approved
+explicitly. Eyes job `9687af12-9c20-4f86-a949-5c6fe3a73de0` launched at revision
+46, completed, and was accepted as
+`accept-research-result-worker-9687af12-9c20-4f86-a949-5c6fe3a73de0` with
+evidence `ev-research-7d07b100-bec4-4664-9ad9-b62e77fcf103` at revision 47.
+Self correctly routed the newer Research boundary once to Modeling. Modeling job
+`4e6b6022-73ab-49f1-81c8-03dddfceb29f` completed and was accepted as
+`accept-modeling-result-worker-4e6b6022-73ab-49f1-81c8-03dddfceb29f` with
+evidence `ev-modeling-aa0076a4-affd-4e98-a4a1-15bad24da0a3` at revision 49.
 
-Do not recreate prior Eyes, Hands, Soul, or Modeling work. Do not feed the old
-manual-regather loop. Use coordinator projections and receipts; raw worker
-thought remains sealed.
+Both accepted organs say the existing `repo_frontier` family should route one
+minimal Imagination design chain. Modeling emitted only generic node/edge
+Evolution, however, so no active Imagination frontier exists; the previous
+planning lifecycle is terminal. Self therefore falls back to
+`regatherManually` again. Do not feed that loop.
+
+The local typed Modeling-to-Imagination cut is implemented and focused-proofed.
+For ordinary Modeling, `checkpoint-update-needed` now requires exactly one new
+active, unadopted Imagination frontier with empty dependencies, safe scope, and
+result-grounded evidence. `checkpoint-ready` and `regather-needed` cannot mutate
+frontier; `nextSafeMove` remains display-only. Schema/admission hostile checks,
+22 Modeling-focused core tests, all 23 coordinator tests, and all 15 OpenAI
+runtime tests pass. Commit, package, and live runtime repair/proof remain.
+
+Exact pushed commit `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
+packaged all 21 roles in 2m34s as release
+`sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
+with witness
+`sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
+and was published to the Starfire local Verse. The operator explicitly grants
+standing supervisor authority to repair corrupted Epiphany runtime state
+proactively. Every intervention must remain bounded, labeled as supervisor
+repair, preserve immutable evidence, and emit receipts. Do not ask permission
+again merely because the repair changes runtime state.
+
+Iteration-cost evidence also narrowed. The approved Eyes launch committed in
+719ms and completed coordinator launch in 839ms against the same live store.
+Generic post-regather Modeling committed in 38.5s; verdict Modeling commits were
+43.5-44.5s. The launch defect follows the Modeling carrier/persistence path,
+not runtime-store size alone. Model/tool turns also needed roughly 6-10 minutes
+under the widened 600-second envelope, separate from package and launch costs.
+
+After the Modeling boundary lands, continue attacking the iteration path:
+
+- exact `6f3cdc61` packaging rebuilt 21 first-party release binaries in 6m59s;
+- Modeling launch-context assembly against the roughly 40 MiB runtime store
+  still took about 48 seconds before the detached worker appeared and about 83
+  seconds before the coordinator finished, even after removing one redundant
+  RepoModel pull;
+- the stable source/graph cache already exists, so the next cut is first-party
+  crate/module fan-out plus projection cost, not another cache wrapper.
+
+Still open: native Persona consequence, retention, crash/restart/session
+closure, long-duration resource behavior, timestamp ownership for admitted Mind
+decisions, and Linux/Yggdrasil cognition.
