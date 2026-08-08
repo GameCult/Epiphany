@@ -1,5 +1,5 @@
 use epiphany_state_model::EpiphanyInvestigationDisposition;
-use epiphany_state_model::EpiphanyReorientCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -66,7 +66,7 @@ pub enum EpiphanyReorientFreshnessStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyReorientInput<'a> {
-    pub checkpoint: Option<EpiphanyReorientCheckpoint<'a>>,
+    pub checkpoint: Option<&'a EpiphanyInvestigationCheckpoint>,
     pub state_present: bool,
     pub pressure_level: EpiphanyReorientPressureLevel,
     pub retrieval_status: EpiphanyReorientFreshnessStatus,
@@ -196,7 +196,7 @@ pub fn recommend_reorientation(
     };
     let workspace_root = input.watched_root.as_deref();
     let checkpoint_dirty_paths = overlapping_checkpoint_paths(
-        &checkpoint,
+        checkpoint,
         input
             .retrieval_dirty_paths
             .iter()
@@ -204,7 +204,7 @@ pub fn recommend_reorientation(
         workspace_root,
     );
     let checkpoint_changed_paths = overlapping_checkpoint_paths(
-        &checkpoint,
+        checkpoint,
         input.watcher_changed_paths.iter(),
         workspace_root,
     );
@@ -266,12 +266,12 @@ pub fn recommend_reorientation(
             build_decision(
                 EpiphanyReorientAction::Resume,
                 checkpoint_status,
-                Some(checkpoint.checkpoint_id.to_string()),
+                Some(checkpoint.checkpoint_id.clone()),
                 reasons,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
-                checkpoint.next_action.map(str::to_string).unwrap_or_else(|| {
+                checkpoint.next_action.clone().unwrap_or_else(|| {
                     "Resume from the durable checkpoint focus and verify the seam before broad edits."
                         .to_string()
                 }),
@@ -333,14 +333,14 @@ pub fn recommend_reorientation(
         build_decision(
             EpiphanyReorientAction::Regather,
             checkpoint_status,
-            Some(checkpoint.checkpoint_id.to_string()),
+            Some(checkpoint.checkpoint_id.clone()),
             reasons,
             checkpoint_dirty_paths,
             checkpoint_changed_paths,
             input.active_frontier_node_ids,
             checkpoint
                 .next_action
-                .map(str::to_string)
+                .clone()
                 .unwrap_or_else(|| "Re-gather source context before editing.".to_string()),
             format!("Re-gather before editing: {}.", note_fragments.join("; ")),
         ),
@@ -348,7 +348,7 @@ pub fn recommend_reorientation(
 }
 
 fn overlapping_checkpoint_paths<'a>(
-    checkpoint: &EpiphanyReorientCheckpoint<'_>,
+    checkpoint: &EpiphanyInvestigationCheckpoint,
     candidate_paths: impl IntoIterator<Item = &'a PathBuf>,
     workspace_root: Option<&Path>,
 ) -> Vec<PathBuf> {
@@ -391,7 +391,7 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::{EpiphanyCodeRef, EpiphanyInvestigationCheckpoint};
+    use epiphany_state_model::EpiphanyCodeRef;
 
     fn checkpoint() -> EpiphanyInvestigationCheckpoint {
         EpiphanyInvestigationCheckpoint {
@@ -416,7 +416,7 @@ mod tests {
 
     fn input(checkpoint: Option<&EpiphanyInvestigationCheckpoint>) -> EpiphanyReorientInput<'_> {
         EpiphanyReorientInput {
-            checkpoint: checkpoint.map(EpiphanyReorientCheckpoint::from),
+            checkpoint,
             state_present: true,
             pressure_level: EpiphanyReorientPressureLevel::Low,
             retrieval_status: EpiphanyReorientFreshnessStatus::Clean,

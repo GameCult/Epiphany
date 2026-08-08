@@ -873,22 +873,38 @@ pub enum RepoModelPatchPurpose {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyReorientCheckpoint<'a> {
-    pub checkpoint_id: &'a str,
-    pub disposition: EpiphanyInvestigationDisposition,
-    pub next_action: Option<&'a str>,
-    pub code_refs: &'a [EpiphanyCodeRef],
-}
-
-impl<'a> From<&'a EpiphanyInvestigationCheckpoint> for EpiphanyReorientCheckpoint<'a> {
-    fn from(checkpoint: &'a EpiphanyInvestigationCheckpoint) -> Self {
-        Self {
-            checkpoint_id: &checkpoint.checkpoint_id,
-            disposition: checkpoint.disposition,
-            next_action: checkpoint.next_action.as_deref(),
-            code_refs: &checkpoint.code_refs,
-        }
+pub fn reorient_checkpoint_from_admitted_repo_model(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    obligation_id: &str,
+    source_commit_id: &str,
+) -> EpiphanyInvestigationCheckpoint {
+    EpiphanyInvestigationCheckpoint {
+        checkpoint_id: obligation_id.to_string(),
+        kind: "admitted_repo_model".to_string(),
+        disposition: EpiphanyInvestigationDisposition::ResumeReady,
+        focus: "Current Mind-admitted RepoModel frontier".to_string(),
+        summary: Some(
+            "Derived from the authenticated current RepoModel semantic projection.".to_string(),
+        ),
+        next_action: Some(
+            "Resume from the current Mind-admitted RepoModel frontier.".to_string(),
+        ),
+        captured_at_turn_id: None,
+        open_questions: Vec::new(),
+        code_refs: snapshot
+            .frontier
+            .iter()
+            .filter(|item| item.status == RepoFrontierStatus::Active)
+            .flat_map(|item| item.source_scope.iter())
+            .map(|path| EpiphanyCodeRef {
+                path: path.into(),
+                start_line: None,
+                end_line: None,
+                symbol: None,
+                note: Some("Current admitted RepoModel frontier scope".to_string()),
+            })
+            .collect(),
+        evidence_ids: vec![source_commit_id.to_string()],
     }
 }
 

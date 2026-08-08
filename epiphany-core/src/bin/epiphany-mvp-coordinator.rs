@@ -1848,10 +1848,18 @@ fn launch_reorient(
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot launch reorientation without native coordinator state"))?;
-    let checkpoint = state
-        .investigation_checkpoint
-        .as_ref()
-        .ok_or_else(|| anyhow!("cannot launch reorientation without a durable checkpoint"))?;
+    let checkpoint = match state.investigation_checkpoint.clone() {
+        Some(checkpoint) => checkpoint,
+        None => {
+            let projection = epiphany_core::runtime_modeling_semantic_projection_input(runtime_store)
+                .context("cannot launch reorientation without a valid admitted RepoModel checkpoint")?;
+            epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
+                projection.snapshot(),
+                &projection.obligation().obligation_id,
+                &projection.obligation().source_commit_id,
+            )
+        }
+    };
     let status = collect_coordinator_status(runtime_store, thread_id)?;
     let decision: epiphany_core::EpiphanyReorientDecision =
         serde_json::from_value(status["reorient"]["decision"].clone())
@@ -1869,7 +1877,7 @@ fn launch_reorient(
         expected_revision,
         Some(max_runtime_seconds),
         &state,
-        checkpoint,
+        &checkpoint,
         &decision,
         Some(context),
     );

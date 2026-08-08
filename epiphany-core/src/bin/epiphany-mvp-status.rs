@@ -308,52 +308,25 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         epiphany_core::EpiphanyPressureLevel::High => EpiphanyReorientPressureLevel::High,
         epiphany_core::EpiphanyPressureLevel::Critical => EpiphanyReorientPressureLevel::Critical,
     };
-    let admitted_model_projection =
-        match epiphany_core::runtime_current_repo_model(&runtime_store_path)? {
-            Some(_) => Some(
-                epiphany_core::runtime_modeling_semantic_projection_input(&runtime_store_path)
-                    .context("failed to validate current RepoModel continuity projection")?,
-            ),
+    let reorient_checkpoint = match state_ref.and_then(|state| state.investigation_checkpoint.clone()) {
+        Some(checkpoint) => Some(checkpoint),
+        None => match epiphany_core::runtime_current_repo_model(&runtime_store_path)? {
             None => None,
-        };
-    let investigation_checkpoint =
-        state_ref.and_then(|state| state.investigation_checkpoint.as_ref());
-    let repo_model_code_refs = admitted_model_projection
-        .as_ref()
-        .map(|projection| {
-            projection
-                .snapshot()
-                .frontier
-                .iter()
-                .filter(|item| item.status == epiphany_core::RepoFrontierStatus::Active)
-                .flat_map(|item| item.source_scope.iter())
-                .map(|path| epiphany_state_model::EpiphanyCodeRef {
-                    path: path.into(),
-                    start_line: None,
-                    end_line: None,
-                    symbol: None,
-                    note: Some("Current admitted RepoModel frontier scope".to_string()),
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let reorient_checkpoint = investigation_checkpoint
-        .map(epiphany_state_model::EpiphanyReorientCheckpoint::from)
-        .or_else(|| {
-            admitted_model_projection.as_ref().map(|projection| {
-                epiphany_state_model::EpiphanyReorientCheckpoint {
-                    checkpoint_id: &projection.obligation().obligation_id,
-                    disposition:
-                        epiphany_state_model::EpiphanyInvestigationDisposition::ResumeReady,
-                    next_action: Some("Resume from the current Mind-admitted RepoModel frontier."),
-                    code_refs: &repo_model_code_refs,
-                }
-            })
-        });
+            Some(_) => {
+                let projection = epiphany_core::runtime_modeling_semantic_projection_input(&runtime_store_path)
+                    .context("failed to validate current RepoModel continuity projection")?;
+                Some(epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
+                    projection.snapshot(),
+                    &projection.obligation().obligation_id,
+                    &projection.obligation().source_commit_id,
+                ))
+            }
+        },
+    };
     let durable_checkpoint_present = reorient_checkpoint.is_some();
     let (reorient_state_status, reorient_decision) =
         recommend_reorientation(EpiphanyReorientInput {
-            checkpoint: reorient_checkpoint,
+            checkpoint: reorient_checkpoint.as_ref(),
             state_present: state_ref.is_some(),
             pressure_level: reorient_pressure_level,
             retrieval_status: reorient_retrieval_status(freshness.retrieval.status),
