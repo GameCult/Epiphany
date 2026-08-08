@@ -158,37 +158,82 @@ pub fn append_verification_hands_receipt_context(
     )
     .map_err(|error| format!("failed to load Mind RepoModel admission review for Soul: {error}"))?
     .ok_or_else(|| "Soul frontier admission receipt has no persisted Mind review".to_string())?;
-    let admission_result_id = admission_receipt.result_id.as_deref().ok_or_else(|| {
-        "Soul frontier admission receipt is not bound to a Modeling result".to_string()
-    })?;
-    let modeling_acceptances = state
-        .acceptance_receipts
-        .iter()
-        .filter(|receipt| {
-            receipt.role_id == "modeling"
-                && receipt.surface == "roleAccept"
-                && receipt.status == "accepted"
-                && receipt.result_id == admission_result_id
-        })
-        .collect::<Vec<_>>();
-    if modeling_acceptances.len() != 1 {
-        return Err(
-            "Soul frontier requires exactly one Modeling acceptance bound to its Mind admission"
-                .to_string(),
-        );
+    let mut modeling_chain = None;
+    let mut execution_amendment = None;
+    if let Some(admission_result_id) = admission_receipt.result_id.as_deref() {
+        let modeling_acceptances = state
+            .acceptance_receipts
+            .iter()
+            .filter(|receipt| {
+                receipt.role_id == "modeling"
+                    && receipt.surface == "roleAccept"
+                    && receipt.status == "accepted"
+                    && receipt.result_id == admission_result_id
+            })
+            .collect::<Vec<_>>();
+        if modeling_acceptances.len() != 1 {
+            return Err(
+                "Soul frontier requires exactly one Modeling acceptance bound to its Mind admission"
+                    .to_string(),
+            );
+        }
+        let modeling_acceptance = modeling_acceptances[0];
+        let state_commit_id = format!("mind-commit-{}", modeling_acceptance.id);
+        let state_commit =
+            crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
+                .map_err(|error| {
+                    format!("failed to load Mind state commit receipt for Soul: {error}")
+                })?
+                .ok_or_else(|| {
+                    "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string()
+                })?;
+        let gateway_review =
+            crate::runtime_mind_gateway_review(runtime_store_path, &state_commit.gateway_id)
+                .map_err(|error| {
+                    format!("failed to load Mind gateway review for Soul: {error}")
+                })?
+                .ok_or_else(|| {
+                    "Soul frontier Mind state commit has no gateway review".to_string()
+                })?;
+        modeling_chain = Some((modeling_acceptance, state_commit, gateway_review));
+    } else {
+        let amendment = crate::runtime_repo_frontier_execution_amendment_for_admission(
+            runtime_store_path,
+            &admission_receipt.receipt_id,
+        )
+        .map_err(|error| format!("failed to load execution amendment for Soul: {error}"))?
+        .ok_or_else(|| {
+            "Soul frontier admission is bound to neither Modeling nor an execution amendment"
+                .to_string()
+        })?;
+        let plan_amendment = route
+            .adopted_plan
+            .as_ref()
+            .and_then(|plan| plan.execution_amendment.as_ref())
+            .ok_or_else(|| "Soul amendment route has no effective plan amendment".to_string())?;
+        if amendment.schema_version
+            != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION
+            || amendment.contract != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT
+            || amendment.amendment_id != plan_amendment.amendment_id
+            || amendment.replaced_route_id != plan_amendment.replaces_route_id
+            || amendment.frontier_item_id != route.frontier_item_id
+            || amendment.admitted_model_revision != route.model_revision
+            || amendment.admitted_model_hash != route.model_hash
+            || amendment.replacement_action != plan_amendment.action
+            || amendment.replacement_command != plan_amendment.command
+            || admission_receipt.purpose
+                != (crate::RepoModelPatchPurpose::AmendFrontierExecution {
+                    route_id: amendment.replaced_route_id.clone(),
+                    amendment_id: amendment.amendment_id.clone(),
+                })
+        {
+            return Err(
+                "Soul execution amendment does not exactly bind admission, route, and effective plan"
+                    .to_string(),
+            );
+        }
+        execution_amendment = Some(amendment);
     }
-    let modeling_acceptance = modeling_acceptances[0];
-    let state_commit_id = format!("mind-commit-{}", modeling_acceptance.id);
-    let state_commit =
-        crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
-            .map_err(|error| format!("failed to load Mind state commit receipt for Soul: {error}"))?
-            .ok_or_else(|| {
-                "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string()
-            })?;
-    let gateway_review =
-        crate::runtime_mind_gateway_review(runtime_store_path, &state_commit.gateway_id)
-            .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
-            .ok_or_else(|| "Soul frontier Mind state commit has no gateway review".to_string())?;
     let telemetry = work_loop_telemetry_from_hands_chain(
         &chain,
         runtime_store_path,
@@ -215,32 +260,53 @@ pub fn append_verification_hands_receipt_context(
         route.gap,
     ));
     context.push_str("mindAdmissionChain:\n");
-    context.push_str(&format!(
-        "- modelingAcceptance: id={} resultId={} jobId={} acceptedAt={}\n",
-        modeling_acceptance.id,
-        modeling_acceptance.result_id,
-        modeling_acceptance.job_id,
-        modeling_acceptance.accepted_at,
-    ));
-    context.push_str(&format!(
-        "- gatewayReview: schemaVersion={} gatewayId={} sourceKind={} sourceRoleId={} decision={:?} allowedEffects={} refusedEffects={}\n",
-        gateway_review.schema_version,
-        gateway_review.gateway_id,
-        gateway_review.source_kind,
-        gateway_review.source_role_id,
-        gateway_review.decision,
-        gateway_review.allowed_effects.join(" | "),
-        gateway_review.refused_effects.join(" | "),
-    ));
-    context.push_str(&format!(
-        "- stateCommit: schemaVersion={} receiptId={} gatewayId={} stateRevision={} changedFields={} committedAt={}\n",
-        state_commit.schema_version,
-        state_commit.receipt_id,
-        state_commit.gateway_id,
-        state_commit.state_revision,
-        state_commit.changed_fields.join(" | "),
-        state_commit.committed_at,
-    ));
+    if let Some((modeling_acceptance, state_commit, gateway_review)) = modeling_chain {
+        context.push_str(&format!(
+            "- modelingAcceptance: id={} resultId={} jobId={} acceptedAt={}\n",
+            modeling_acceptance.id,
+            modeling_acceptance.result_id,
+            modeling_acceptance.job_id,
+            modeling_acceptance.accepted_at,
+        ));
+        context.push_str(&format!(
+            "- gatewayReview: schemaVersion={} gatewayId={} sourceKind={} sourceRoleId={} decision={:?} allowedEffects={} refusedEffects={}\n",
+            gateway_review.schema_version,
+            gateway_review.gateway_id,
+            gateway_review.source_kind,
+            gateway_review.source_role_id,
+            gateway_review.decision,
+            gateway_review.allowed_effects.join(" | "),
+            gateway_review.refused_effects.join(" | "),
+        ));
+        context.push_str(&format!(
+            "- stateCommit: schemaVersion={} receiptId={} gatewayId={} stateRevision={} changedFields={} committedAt={}\n",
+            state_commit.schema_version,
+            state_commit.receipt_id,
+            state_commit.gateway_id,
+            state_commit.state_revision,
+            state_commit.changed_fields.join(" | "),
+            state_commit.committed_at,
+        ));
+    } else if let Some(amendment) = execution_amendment {
+        context.push_str(&format!(
+            "- executionAmendment: schemaVersion={} amendmentId={} replacedRouteId={} sourceActorId={} commandId={} admissionId={} packetSha256={} previousRevision={} previousHash={} admittedRevision={} admittedHash={} replacementAction={} replacementCommand={} rationale={} amendedAt={}\n",
+            amendment.schema_version,
+            amendment.amendment_id,
+            amendment.replaced_route_id,
+            amendment.source_actor_id,
+            amendment.command_id,
+            amendment.admission_id,
+            amendment.packet_sha256,
+            amendment.previous_model_revision,
+            amendment.previous_model_hash,
+            amendment.admitted_model_revision,
+            amendment.admitted_model_hash,
+            amendment.replacement_action,
+            amendment.replacement_command,
+            amendment.rationale,
+            amendment.amended_at,
+        ));
+    }
     context.push_str(&format!(
         "- repoModelAdmissionReview: schemaVersion={} reviewId={} resultId={} jobId={} patchId={} patchSha256={} baseRevision={} baseHash={} decision={:?} evidenceIds={} reviewedAt={}\n",
         admission_review.schema_version,
@@ -272,10 +338,16 @@ pub fn append_verification_hands_receipt_context(
     ));
     if let Some(plan) = route.adopted_plan.as_ref() {
         context.push_str(&format!(
-            "adoptedCandidateSha256: {}\nadoptedAction: {}\nadoptedCommand: {}\nadoptedChecks: {}\nadoptedStopConditions: {}\nadoptedRollbackSteps: {}\nadoptedCommitMessage: {}\n",
+            "adoptedCandidateSha256: {}\nadoptedAction: {}\nadoptedCommand: {}\neffectiveAction: {}\neffectiveCommand: {}\nexecutionAmendmentId: {}\nadoptedChecks: {}\nadoptedStopConditions: {}\nadoptedRollbackSteps: {}\nadoptedCommitMessage: {}\n",
             plan.candidate_sha256,
             plan.action,
             plan.command,
+            plan.effective_action(),
+            plan.effective_command(),
+            plan.execution_amendment
+                .as_ref()
+                .map(|amendment| amendment.amendment_id.as_str())
+                .unwrap_or(""),
             plan.checks.join(" | "),
             plan.stop_conditions.join(" | "),
             plan.rollback_steps.join(" | "),

@@ -7601,6 +7601,25 @@ pub fn runtime_repo_frontier_route(
     cache.get::<RepoFrontierRoute>(route_id)
 }
 
+pub fn runtime_repo_frontier_execution_amendment_for_admission(
+    store_path: impl AsRef<Path>,
+    admission_receipt_id: &str,
+) -> Result<Option<RepoFrontierExecutionAmendmentReceipt>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut receipts = cache
+        .get_all::<RepoFrontierExecutionAmendmentReceipt>()?
+        .into_iter()
+        .filter(|receipt| receipt.model_admission_receipt_id == admission_receipt_id)
+        .collect::<Vec<_>>();
+    if receipts.len() > 1 {
+        return Err(anyhow!(
+            "RepoModel admission is bound to multiple execution amendments"
+        ));
+    }
+    Ok(receipts.pop())
+}
+
 pub fn runtime_latest_repo_frontier_relinquishment(
     store_path: impl AsRef<Path>,
 ) -> Result<Option<RepoFrontierRelinquishmentReceipt>> {
