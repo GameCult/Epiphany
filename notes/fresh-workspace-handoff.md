@@ -7,10 +7,10 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Latest Persona source implementation: `052d5b1ec194b9466d33858d2d7de9ec5c1acec3`
-- Authenticated cognition commit: `9d671aeef0526858747ae6e20a05025dccc6fbd7`
-- Release: `sha256-6de91b234bdfda1149e48b9fef6710bdd8c4e3274981e4aa88fc46ec109a2e56`
-- Witness: `sha256-f2c0e464b1523b1a14fb500afa747f0dd95166ebd068752bf639a43827c6b9ba`
+- Latest pushed Epiphany commit: `55660d78486f22795d29d620f261d33a613cdc18`
+- Authenticated release: `sha256-2f4a17126d12935088189c32caadef202a1e9b698ec2cfc8fd4aec08c0763696`
+- Witness: `sha256-c0788bda36aa28b8025979378968a2c48cbbcc607a1a538351756831c2b287f4`
+- Live Bifrost/CultLib runtime: `573bbd3968efcf38ce411c4ac934927fc8bdab11` / `f67f5122ed1bd11da016e7b820ed60145ccd0299`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Thread-state revision: `59`
@@ -18,8 +18,8 @@ machine at its current memory budget.
 
 ## Live causal boundary
 
-Source phase `052d5b1e` (Epiphany), `b8deaa9a` (Bifrost), and `2d0988ba`
-(`cultnet-rs`) implements the missing Starfire-to-Yggdrasil Persona nerve. An
+Epiphany `55660d78`, Bifrost `573bbd39`, CultLib `f67f5122`, and CultNet
+`2d0988ba` implement and deploy the Starfire-to-Yggdrasil Persona nerve. An
 already-durable signed `epiphany.persona_discord_delivery_request.v0` now
 travels over a Starfire-initiated CultNet/RUDP session; Bifrost admits it to
 its endpoint store, retains permit/journal/Discord authority, and returns its
@@ -31,11 +31,22 @@ spending an ordered data sequence; CultNet commit `2d0988ba` ports the upstream
 sequence-neutral ACK correction. Runtime identity is now deployment-bound to
 `epiphany-starfire`, not hardcoded as `epiphany-yggdrasil`.
 
-This is source and local wire proof, not live Persona proof. Next package and
-authenticate Epiphany `052d5b1e`, deploy Bifrost `b8deaa9a` on Yggdrasil with
-the Persona RUDP listener, bind Starfire to the WireGuard endpoint, and obtain
-one real signed Discord consequence receipt. Do not copy live `.cc` stores or
-relocate Bifrost actuation onto Starfire.
+Yggdrasil now runs both native feedback and Persona mouth services from the
+exact immutable Bifrost/CultLib runtime. Starfire runs the packaged permit
+service from the exact authenticated Epiphany release. Public trust anchors
+crossed hosts; signing seeds, Discord actuation, and private execution state did
+not. The first live Persona request reached model terminal and durable request
+state, then its expired recovery produced signed terminal `unknown` without a
+second post. It is sealed and may not be retried.
+
+The current seam is host firewall state, not RUDP or contract parsing. Windows
+created two inbound block rules for the new permit executable path while
+retaining two allow rules for the retired path. `gamecult-ops` commit `6ee08a4`
+contains the stable repair: remove only automatic Persona-permit program rules
+and install one path-independent UDP 17877 rule limited to Yggdrasil
+`10.77.0.1` on `wg-gamecult-starfire`. The repair requires secure-desktop UAC.
+After it lands, run the permit-only probe as `bifrost-feedback`; do not create a
+fresh Persona turn until that probe succeeds.
 
 The operator expects proactive operator-enginseer intervention in corrupted
 Epiphany runtime state; corruption is not a permission boundary. Repairs must
@@ -254,31 +265,33 @@ thought remains sealed.
 
 ## Persona consequence boundary
 
-The next live organ is Persona, but it is not a launch-only exercise. Starfire
-owns temporary Epiphany cognition and Yggdrasil owns Bifrost/Discord crossing.
-The source contracts already prove local model execution, Interpreter effects,
-signed delivery requests, the five-second canonical-brake permit, signed
-Bifrost terminal receipts, heartbeat terminalization, and crash reconciliation.
-The live cross-host signal path is absent.
+Persona is live across both hosts but has not yet completed a public consequence.
+Starfire owns temporary Epiphany cognition and the five-second permit;
+Yggdrasil owns Bifrost, the Discord binding, the actuator, the private execution
+journal, and the signed terminal receipt.
 
 Current physical state:
 
-- Yggdrasil runs only `bifrost-persona-feedback.service`; no Persona mouth or
-  Epiphany service units and no Persona crossing directories are installed.
+- Yggdrasil runs `bifrost-persona-feedback.service` and
+  `bifrost-persona-mouth.service` from exact Bifrost `573bbd39` / CultLib
+  `f67f5122`; the mouth is bound to WireGuard `10.77.0.1:17876`.
 - Starfire feedback ingress uses immutable CultNet snapshot export/import; it
   never copies live Bifrost `.cc` state.
-- `epiphany-persona-service` writes/reads local request and receipt stores.
-- Bifrost's mouth worker reads/writes local request and receipt stores and calls
-  the already-typed RUDP permit nerve before Discord actuation.
-- no request transport Starfire->Yggdrasil or signed receipt transport
-  Yggdrasil->Starfire exists.
-- Bifrost mouth and permit anchor readers currently hardcode
-  `epiphany-yggdrasil`, contradicting the admitted live target
-  `epiphany-starfire`.
+- Starfire permit PID `21204` runs exact authenticated Epiphany `55660d78` and
+  binds `10.77.0.2:17877`.
+- Request, receipt, and permit-request identities are purpose-specific. Only
+  public anchors crossed hosts; private keys remain with their owners.
+- The first live request reached model terminal, persisted on both sides, and
+  later reconciled to signed terminal `unknown` after its permit intent expired.
+  It did not automatically repost and must never be reused.
+- Windows currently blocks inbound traffic to the new exact permit executable
+  with automatic per-program rules. The path-independent scoped repair is
+  `F:\Projects\gamecult-ops\scripts\allow-starfire-epiphany-persona-permit.ps1`.
 
-Build one bidirectional CultNet/RUDP nerve. Epiphany remains the signed request
-owner; Bifrost authenticates and durably journals the request before acting;
-Bifrost remains the signed receipt owner; Epiphany authenticates the terminal
-receipt before heartbeat completion. Transport acknowledgement is never speech
-success. Do not SFTP live stores, share private keys, run the Bifrost actuator
-on Starfire, or weaken the five-second brake permit.
+After UAC applies the scoped firewall repair, run the permit-only probe as
+`bifrost-feedback`. When it succeeds, queue one fresh uniquely identified
+Persona mention and prove model terminal, signed request, permit, Discord
+message ID/URL, signed Bifrost receipt, Starfire admission, and heartbeat
+terminalization. Transport acknowledgement is never speech success. Do not
+SFTP live stores, share private keys, run Bifrost actuation on Starfire, weaken
+the permit, or retry the terminal-unknown request.
