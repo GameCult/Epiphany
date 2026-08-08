@@ -726,19 +726,35 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     schema
 }
 
-pub fn epiphany_frontier_verdict_modeling_output_schema(request_id: &str) -> serde_json::Value {
+pub fn epiphany_frontier_verdict_modeling_output_schema(
+    authority: &crate::RepoFrontierVerdictModelingLaunchAuthority,
+) -> serde_json::Value {
+    let request = &authority.request;
+    let item = &authority.frontier_item;
+    let disposition = match request.allowed_disposition {
+        crate::RepoFrontierVerdictDisposition::Resolved => "resolved",
+        crate::RepoFrontierVerdictDisposition::Blocked => "blocked",
+    };
+    let adopted_plan = serde_json::to_value(&item.adopted_plan)
+        .expect("frontier adopted plan must serialize for its provider schema");
+    let created_at = serde_json::to_value(&item.created_at)
+        .expect("frontier creation time must serialize for its provider schema");
+    let retired_at = serde_json::to_value(&item.retired_at)
+        .expect("frontier retirement time must serialize for its provider schema");
+    let superseded_by = serde_json::to_value(&item.superseded_by)
+        .expect("frontier supersession must serialize for its provider schema");
     let mut schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
     schema["properties"]["repoFrontierModelingRequestId"] = serde_json::json!({
         "type": "string",
-        "const": request_id
+        "const": request.request_id
     });
     schema["properties"]["repoModelPatch"]["properties"]["purpose"] = serde_json::json!({
         "type": "object",
         "required": ["kind", "route_id", "soul_verdict_receipt_id"],
         "properties": {
             "kind": {"const": "incorporate_frontier_verdict"},
-            "route_id": {"type": "string", "minLength": 1},
-            "soul_verdict_receipt_id": {"type": "string", "minLength": 1}
+            "route_id": {"const": request.route_id},
+            "soul_verdict_receipt_id": {"const": request.soul_verdict_receipt_id}
         },
         "additionalProperties": false
     });
@@ -751,7 +767,41 @@ pub fn epiphany_frontier_verdict_modeling_output_schema(request_id: &str) -> ser
             "required": ["operation", "item"],
             "properties": {
                 "operation": {"const": "revise_frontier"},
-                "item": repo_frontier_item_output_schema()
+                "item": {
+                    "type": "object",
+                    "required": [
+                        "id", "migration_body", "question", "gap", "target_claim_ids",
+                        "source_scope", "recommended_next_organ", "adopted_plan",
+                        "dependency_item_ids", "status", "evidence_refs", "created_at",
+                        "updated_at", "retired_at", "superseded_by"
+                    ],
+                    "properties": {
+                        "id": {"const": item.id},
+                        "migration_body": {"const": item.migration_body},
+                        "question": {"const": item.question},
+                        "gap": {"type": "string", "minLength": 1},
+                        "target_claim_ids": {"const": item.target_claim_ids},
+                        "source_scope": {"const": item.source_scope},
+                        "recommended_next_organ": {"const": item.recommended_next_organ},
+                        "adopted_plan": {"const": adopted_plan},
+                        "dependency_item_ids": {"const": item.dependency_item_ids},
+                        "status": {"const": disposition},
+                        "evidence_refs": {
+                            "type": "array",
+                            "minItems": 2,
+                            "items": {"type": "string", "minLength": 1},
+                            "allOf": [
+                                {"contains": {"const": request.verification_request_id}},
+                                {"contains": {"const": request.soul_verdict_receipt_id}}
+                            ]
+                        },
+                        "created_at": {"const": created_at},
+                        "updated_at": {"type": "string", "minLength": 1},
+                        "retired_at": {"const": retired_at},
+                        "superseded_by": {"const": superseded_by}
+                    },
+                    "additionalProperties": false
+                }
             },
             "additionalProperties": false
         }
@@ -1158,6 +1208,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
+        repo_frontier_verdict_modeling_authority: None,
     })
 }
 
@@ -1258,6 +1309,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
+        repo_frontier_verdict_modeling_authority: None,
     })
 }
 
@@ -1422,6 +1474,7 @@ pub fn build_epiphany_job_launch_request(
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
+        repo_frontier_verdict_modeling_authority: None,
     }
 }
 
@@ -1719,7 +1772,46 @@ mod tests {
 
     #[test]
     fn verdict_bound_modeling_schema_exposes_only_exact_frontier_revision_authority() {
-        let schema = epiphany_frontier_verdict_modeling_output_schema("modeling-request-exact");
+        let authority = crate::RepoFrontierVerdictModelingLaunchAuthority {
+            request: crate::RepoFrontierModelingRequest {
+                schema_version: crate::REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+                request_id: "modeling-request-exact".into(),
+                model_revision: 7,
+                model_hash: "model-hash".into(),
+                route_id: "route-exact".into(),
+                frontier_item_id: "frontier-exact".into(),
+                frontier_item_hash: "frontier-hash".into(),
+                verification_request_id: "verification-exact".into(),
+                soul_verdict_receipt_id: "soul-exact".into(),
+                verification_result_id: "verification-result".into(),
+                verification_job_id: "verification-job".into(),
+                verification_acceptance_receipt_id: "verification-acceptance".into(),
+                allowed_disposition: crate::RepoFrontierVerdictDisposition::Resolved,
+                requested_at: "2026-08-08T00:00:00Z".into(),
+                contract: crate::REPO_FRONTIER_MODELING_REQUEST_CONTRACT.into(),
+            },
+            frontier_item: crate::RepoFrontierItem {
+                id: "frontier-exact".into(),
+                migration_body: "runtime".into(),
+                question: "Did the consequence hold?".into(),
+                gap: "Awaiting verdict incorporation.".into(),
+                target_claim_ids: vec!["claim-exact".into()],
+                source_scope: vec!["epiphany-core".into()],
+                recommended_next_organ: "Hands".into(),
+                adopted_plan: Some(crate::RepoFrontierAdoptedPlan {
+                    command: "cargo test".into(),
+                    ..Default::default()
+                }),
+                dependency_item_ids: Vec::new(),
+                status: crate::RepoFrontierStatus::Active,
+                evidence_refs: vec!["prior-evidence".into()],
+                created_at: Some("2026-08-07T00:00:00Z".into()),
+                updated_at: Some("2026-08-07T00:00:00Z".into()),
+                retired_at: None,
+                superseded_by: None,
+            },
+        };
+        let schema = epiphany_frontier_verdict_modeling_output_schema(&authority);
         assert_eq!(
             schema["properties"]["repoFrontierModelingRequestId"]["const"],
             "modeling-request-exact"
@@ -1743,6 +1835,21 @@ mod tests {
             "revise_frontier"
         );
         assert_eq!(schema["properties"]["evidenceIds"]["minItems"], 1);
+        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["properties"]
+            ["item"];
+        assert_eq!(item["properties"]["id"]["const"], "frontier-exact");
+        assert_eq!(item["properties"]["status"]["const"], "resolved");
+        assert_eq!(
+            item["properties"]["adopted_plan"]["const"]["command"],
+            "cargo test"
+        );
+        assert!(
+            item["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|field| field == "adopted_plan")
+        );
     }
 
     #[test]

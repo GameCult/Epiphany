@@ -551,6 +551,8 @@ fn debug_variant_snake_case(value: impl std::fmt::Debug) -> String {
 pub struct ModelingWorkLoopLaunchContext {
     pub context: String,
     pub repo_frontier_modeling_request_id: Option<String>,
+    pub repo_frontier_verdict_modeling_authority:
+        Option<crate::RepoFrontierVerdictModelingLaunchAuthority>,
 }
 
 impl std::ops::Deref for ModelingWorkLoopLaunchContext {
@@ -577,6 +579,7 @@ pub fn append_modeling_work_loop_telemetry_context(
         return Ok(ModelingWorkLoopLaunchContext {
             context,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority: None,
         });
     }
     if accepted_research_is_newest_unmodeled_boundary(state) {
@@ -586,12 +589,14 @@ pub fn append_modeling_work_loop_telemetry_context(
         return Ok(ModelingWorkLoopLaunchContext {
             context,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority: None,
         });
     }
     let Some(accepted_verification) = latest_unique_accepted_verification(state)? else {
         return Ok(ModelingWorkLoopLaunchContext {
             context,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority: None,
         });
     };
     let modeling_request =
@@ -665,7 +670,13 @@ pub fn append_modeling_work_loop_telemetry_context(
     else {
         return Ok(ModelingWorkLoopLaunchContext {
             context,
-            repo_frontier_modeling_request_id: Some(modeling_request.request_id),
+            repo_frontier_modeling_request_id: Some(modeling_request.request_id.clone()),
+            repo_frontier_verdict_modeling_authority: Some(
+                crate::RepoFrontierVerdictModelingLaunchAuthority {
+                    request: modeling_request,
+                    frontier_item: current_item.clone(),
+                },
+            ),
         });
     };
     let soul_receipts = latest_accepted_soul_receipts(state);
@@ -715,7 +726,13 @@ pub fn append_modeling_work_loop_telemetry_context(
     context.push_str("</modeling_work_loop_telemetry>");
     Ok(ModelingWorkLoopLaunchContext {
         context,
-        repo_frontier_modeling_request_id: Some(modeling_request.request_id),
+        repo_frontier_modeling_request_id: Some(modeling_request.request_id.clone()),
+        repo_frontier_verdict_modeling_authority: Some(
+            crate::RepoFrontierVerdictModelingLaunchAuthority {
+                request: modeling_request,
+                frontier_item: current_item.clone(),
+            },
+        ),
     })
 }
 
@@ -1641,6 +1658,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
@@ -2033,6 +2051,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: "2026-06-12T00:00:06Z".to_string(),
             },
         )?;
@@ -2130,6 +2149,19 @@ mod tests {
             .repo_frontier_modeling_request_id
             .as_deref()
             .expect("Soul-bound Modeling context must return typed launch authority");
+        let modeling_authority = modeling_context
+            .repo_frontier_verdict_modeling_authority
+            .as_ref()
+            .expect("Soul-bound Modeling context must carry the exact frontier item");
+        assert_eq!(modeling_authority.request.request_id, modeling_request_id);
+        assert_eq!(
+            modeling_authority.request.frontier_item_id,
+            modeling_authority.frontier_item.id
+        );
+        assert_eq!(
+            modeling_authority.frontier_item.question,
+            "Does verification see the exact receipts?"
+        );
         assert!(modeling_context.contains(modeling_request_id));
         assert!(modeling_context.contains("soulVerdictReceiptId: soul-verdict-context"));
         assert!(modeling_context.contains("verificationResultId: result-verification-context"));

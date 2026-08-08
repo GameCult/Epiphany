@@ -354,9 +354,27 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub admitted_model_direction_consideration_request_id: Option<String>,
     #[cultcache(key = 17, default)]
     pub repo_frontier_modeling_request_id: Option<String>,
+    #[cultcache(key = 18, default)]
+    pub repo_frontier_verdict_modeling_authority_msgpack: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RepoFrontierVerdictModelingLaunchAuthority {
+    pub request: RepoFrontierModelingRequest,
+    pub frontier_item: crate::RepoFrontierItem,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
+    pub fn repo_frontier_verdict_modeling_authority(
+        &self,
+    ) -> Result<Option<RepoFrontierVerdictModelingLaunchAuthority>> {
+        decode_optional_msgpack(
+            self.repo_frontier_verdict_modeling_authority_msgpack
+                .as_deref(),
+            "verdict-bound Modeling launch authority",
+        )
+    }
+
     pub fn launch_document(&self) -> Result<EpiphanyWorkerLaunchDocument> {
         let document: EpiphanyWorkerLaunchDocument =
             rmp_serde::from_slice(&self.launch_document_msgpack)
@@ -792,6 +810,8 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub imagination_consideration_request_id: Option<String>,
     pub admitted_model_direction_consideration_request_id: Option<String>,
     pub repo_frontier_modeling_request_id: Option<String>,
+    pub repo_frontier_verdict_modeling_authority:
+        Option<RepoFrontierVerdictModelingLaunchAuthority>,
     pub created_at: String,
 }
 
@@ -846,6 +866,8 @@ pub struct EpiphanyJobLaunchRequest {
     pub imagination_consideration_request_id: Option<String>,
     pub admitted_model_direction_consideration_request_id: Option<String>,
     pub repo_frontier_modeling_request_id: Option<String>,
+    pub repo_frontier_verdict_modeling_authority:
+        Option<RepoFrontierVerdictModelingLaunchAuthority>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1354,6 +1376,11 @@ pub fn open_runtime_spine_heartbeat_job(
         options.imagination_consideration_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_repo_frontier_verdict_modeling_launch_authority(
+        &options.role,
+        options.repo_frontier_modeling_request_id.as_deref(),
+        options.repo_frontier_verdict_modeling_authority.as_ref(),
+    )?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
     validate_non_empty(&options.instruction, "instruction")?;
@@ -1445,6 +1472,11 @@ pub fn open_runtime_spine_heartbeat_job(
         admitted_model_direction_consideration_request_id: options
             .admitted_model_direction_consideration_request_id,
         repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
+        repo_frontier_verdict_modeling_authority_msgpack: options
+            .repo_frontier_verdict_modeling_authority
+            .as_ref()
+            .map(rmp_serde::to_vec_named)
+            .transpose()?,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1484,6 +1516,11 @@ pub fn prepare_runtime_spine_heartbeat_job(
         &options.binding_id,
         options.imagination_consideration_request_id.as_deref(),
         &options.launch_document,
+    )?;
+    validate_repo_frontier_verdict_modeling_launch_authority(
+        &options.role,
+        options.repo_frontier_modeling_request_id.as_deref(),
+        options.repo_frontier_verdict_modeling_authority.as_ref(),
     )?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
@@ -1602,6 +1639,11 @@ pub fn prepare_runtime_spine_heartbeat_job(
         admitted_model_direction_consideration_request_id: options
             .admitted_model_direction_consideration_request_id,
         repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
+        repo_frontier_verdict_modeling_authority_msgpack: options
+            .repo_frontier_verdict_modeling_authority
+            .as_ref()
+            .map(rmp_serde::to_vec_named)
+            .transpose()?,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -1611,6 +1653,40 @@ pub fn prepare_runtime_spine_heartbeat_job(
         cache.prepare_entry(&request.job_id, &request)?.0,
     ];
     Ok(PreparedRuntimeSpineHeartbeatJob { job, envelopes })
+}
+
+fn validate_repo_frontier_verdict_modeling_launch_authority(
+    role: &str,
+    request_id: Option<&str>,
+    authority: Option<&RepoFrontierVerdictModelingLaunchAuthority>,
+) -> Result<()> {
+    match (request_id, authority) {
+        (None, None) => Ok(()),
+        (Some(_), None) => Err(anyhow!(
+            "verdict-bound Modeling launch omitted its typed authority body"
+        )),
+        (None, Some(_)) => Err(anyhow!(
+            "verdict-bound Modeling authority body has no indexed request id"
+        )),
+        (Some(request_id), Some(authority)) => {
+            if role != EPIPHANY_MODELING_OWNER_ROLE {
+                return Err(anyhow!(
+                    "verdict-bound Modeling authority belongs only to the Modeling owner role"
+                ));
+            }
+            if request_id != authority.request.request_id {
+                return Err(anyhow!(
+                    "verdict-bound Modeling request id does not match its typed authority body"
+                ));
+            }
+            if authority.request.frontier_item_id != authority.frontier_item.id {
+                return Err(anyhow!(
+                    "verdict-bound Modeling authority does not carry its exact frontier item"
+                ));
+            }
+            Ok(())
+        }
+    }
 }
 
 fn validate_proposal_modeling_launch_carrier(
@@ -10083,6 +10159,7 @@ pub(crate) mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let mut cache = runtime_spine_cache(store)?;
         cache.put(job_id, &request)?;
@@ -14128,6 +14205,7 @@ pub(crate) mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;

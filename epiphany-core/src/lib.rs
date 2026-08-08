@@ -992,6 +992,7 @@ pub use runtime_spine::RUNTIME_SWARM_BINDING_KEY;
 pub use runtime_spine::RUNTIME_SWARM_BINDING_SCHEMA_VERSION;
 pub use runtime_spine::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION;
 pub use runtime_spine::RUNTIME_WORKER_LAUNCH_REQUEST_TYPE;
+pub use runtime_spine::RepoFrontierVerdictModelingLaunchAuthority;
 pub use runtime_spine::RuntimeHandsReceiptChainSummary;
 pub use runtime_spine::RuntimeSpineEventOptions;
 pub use runtime_spine::RuntimeSpineHeartbeatJobOptions;

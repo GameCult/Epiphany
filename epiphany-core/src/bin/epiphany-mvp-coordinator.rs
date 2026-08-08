@@ -1410,6 +1410,7 @@ fn launch_role(
     let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
     let mut repo_frontier_modeling_request_id = None;
+    let mut repo_frontier_verdict_modeling_authority = None;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
@@ -1448,6 +1449,8 @@ fn launch_role(
         context = modeling_launch_context.context;
         repo_frontier_modeling_request_id =
             modeling_launch_context.repo_frontier_modeling_request_id;
+        repo_frontier_verdict_modeling_authority =
+            modeling_launch_context.repo_frontier_verdict_modeling_authority;
     }
     let role_context_augmented_ms = started.elapsed().as_millis();
     let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
@@ -1461,6 +1464,7 @@ fn launch_role(
     .map_err(anyhow::Error::msg)?;
     request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
     request.repo_frontier_modeling_request_id = repo_frontier_modeling_request_id;
+    request.repo_frontier_verdict_modeling_authority = repo_frontier_verdict_modeling_authority;
     let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(
         thread_id,

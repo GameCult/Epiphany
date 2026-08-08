@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Exact release 61e8be38 now prevents verdict-bound Modeling from escaping into generic Evolution. Live retry proved the remaining schema wound: revise_frontier did not expose or const-bind the adopted plan, so model output implicitly removed execution anatomy and Mind rejected it. Job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 is completed and awaits a coherent typed-authority repair before review. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 carries RepoModel revision 6, an exact amended Hands consequence, and an accepted Soul pass. Verdict-bound Modeling now persists one typed request-plus-frontier-item authority and derives a schema that const-binds all execution identity, including adopted_plan; only verdict-owned fields may vary. Focused schema, context, model-runtime, and coordinator tests pass. Job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 remains immutable invalid evidence and must be explicitly superseded after this exact repair is packaged. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_after_partial_verdict_schema_proof
+    local_worktree: verified_typed_verdict_modeling_authority_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: The local execution amendment is user-authorized and packet-hash bound, not Bifrost-signed. Soul passed the amended consequence but reported that derived reorientation checkpoints carry empty evidence_ids; Modeling must preserve that limitation rather than overstate source provenance. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Exact packaging still takes 6m59s after core changes. Removing one redundant RepoModel pull left worker appearance near 48s and full coordinator launch near 83s, so repeated whole-store transactions remain the dominant 40 MiB launch-path defect.
-  next_action: Carry the exact routed RepoFrontierItem plus RepoFrontierModelingRequest as one typed verdict-modeling launch authority. Specialize the worker schema so every identity-bearing frontier field, including adopted_plan, is const-bound; only status, evidence_refs, gap, and updated_at may vary. Then explicitly supersede invalid completed job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 and launch one corrected attempt. Preserve the 45.77-second jobCommit timing as the launch-store optimization receipt.
+  next_action: Commit and package the verified typed verdict-Modeling authority repair. Then explicitly supersede invalid completed job a89fe1ea-a88b-4108-a299-c99ca9b65fb7 and launch exactly one corrected attempt under the authenticated release. Preserve the 45.77-second jobCommit timing as the launch-store optimization receipt.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

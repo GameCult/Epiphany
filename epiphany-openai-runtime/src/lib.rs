@@ -1352,7 +1352,21 @@ fn worker_output_schema_json(
                     .repo_frontier_modeling_request_id
                     .as_deref()
                     .expect("checked verdict-bound Modeling request identity");
-                epiphany_core::epiphany_frontier_verdict_modeling_output_schema(request_id)
+                let authority = launch_request
+                    .repo_frontier_verdict_modeling_authority()?
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "verdict-bound Modeling launch {request_id:?} omitted its typed authority body"
+                        )
+                    })?;
+                if authority.request.request_id != request_id {
+                    return Err(anyhow!(
+                        "verdict-bound Modeling launch identity mismatch: indexed {:?}, authority {:?}",
+                        request_id,
+                        authority.request.request_id
+                    ));
+                }
+                epiphany_core::epiphany_frontier_verdict_modeling_output_schema(&authority)
             } else {
                 epiphany_core::epiphany_role_launch_output_schema(role_id)
             }
@@ -2064,6 +2078,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2137,6 +2152,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2221,6 +2237,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
             .expect("typed planning failure");
@@ -2262,6 +2279,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2510,6 +2528,47 @@ mod tests {
                 repo_frontier_modeling_request_id: Some(
                     "frontier-modeling-request-1".to_string(),
                 ),
+                repo_frontier_verdict_modeling_authority: Some(
+                    epiphany_core::RepoFrontierVerdictModelingLaunchAuthority {
+                        request: epiphany_core::RepoFrontierModelingRequest {
+                            schema_version: epiphany_core::REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+                            request_id: "frontier-modeling-request-1".to_string(),
+                            model_revision: 1,
+                            model_hash: "model-hash".to_string(),
+                            route_id: "route-1".to_string(),
+                            frontier_item_id: "frontier-1".to_string(),
+                            frontier_item_hash: "frontier-hash".to_string(),
+                            verification_request_id: "verification-request-1".to_string(),
+                            soul_verdict_receipt_id: "soul-verdict-1".to_string(),
+                            verification_result_id: "verification-result-1".to_string(),
+                            verification_job_id: "verification-job-1".to_string(),
+                            verification_acceptance_receipt_id: "verification-acceptance-1".to_string(),
+                            allowed_disposition: epiphany_core::RepoFrontierVerdictDisposition::Resolved,
+                            requested_at: "2026-08-08T00:00:00Z".to_string(),
+                            contract: epiphany_core::REPO_FRONTIER_MODELING_REQUEST_CONTRACT.to_string(),
+                        },
+                        frontier_item: epiphany_core::RepoFrontierItem {
+                            id: "frontier-1".to_string(),
+                            migration_body: "runtime".to_string(),
+                            question: "Did the verified consequence hold?".to_string(),
+                            gap: "Awaiting verdict incorporation.".to_string(),
+                            target_claim_ids: vec!["claim-1".to_string()],
+                            source_scope: vec!["epiphany-core".to_string()],
+                            recommended_next_organ: "Hands".to_string(),
+                            adopted_plan: Some(epiphany_core::RepoFrontierAdoptedPlan {
+                                command: "cargo test".to_string(),
+                                ..Default::default()
+                            }),
+                            dependency_item_ids: Vec::new(),
+                            status: epiphany_core::RepoFrontierStatus::Active,
+                            evidence_refs: vec!["prior-evidence".to_string()],
+                            created_at: Some("2026-08-07T00:00:00Z".to_string()),
+                            updated_at: Some("2026-08-07T00:00:00Z".to_string()),
+                            retired_at: None,
+                            superseded_by: None,
+                        },
+                    },
+                ),
                 created_at: now(),
             },
         )?;
@@ -2681,6 +2740,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;

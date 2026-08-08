@@ -7,13 +7,13 @@ machine at its present memory budget.
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed source release commit: `6f3cdc6168e5bf8b680e141582152b56ef10debe`
+- Pushed source boundary: `b290d511` (typed verdict-Modeling authority repair verified locally and pending commit)
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Current release: `sha256-67ed6c8dbce5dee81dfaf44effb8f499c61ae98bbdff4d997a665f91deeef8a5`
 - Release witness: `sha256-c98e36f35057f902c518167db3f036edb4994b02f15f432510f7e6fde1263853`
 - Thread-state revision: `39`
-- Current action: schema-aware retry job `a89fe1ea-a88b-4108-a299-c99ca9b65fb7` is completed but invalid and unreviewed. Do not launch another worker. Repair exact frontier-item identity binding first, explicitly supersede this result, then launch one corrected attempt.
+- Current action: schema-aware retry job `a89fe1ea-a88b-4108-a299-c99ca9b65fb7` is completed but invalid and unreviewed. The typed authority repair is locally verified. Commit, package, explicitly supersede this result, then launch exactly one corrected attempt.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -92,12 +92,15 @@ retry `a89fe1ea-a88b-4108-a299-c99ca9b65fb7`, which completed. Review without
 automatic supersession failed closed with `generic frontier revision cannot
 alter adopted execution anatomy or own plan adoption`.
 
-Next cut: persist one typed verdict-Modeling launch authority containing the
-exact `RepoFrontierModelingRequest` and routed `RepoFrontierItem`. Generate
-provider `const` constraints for every identity-bearing field, especially the
-full adopted plan. Only verdict-owned status, evidence refs, gap, and updated_at
-may vary. The completed retry is immutable invalid evidence; supersede it only
-after the repair is ready, then pay for one corrected model turn.
+The repair now persists one typed verdict-Modeling launch authority containing
+the exact `RepoFrontierModelingRequest` and routed `RepoFrontierItem`. Provider
+schema generation const-binds every identity-bearing field, including the full
+adopted plan; only verdict-owned status, evidence refs, gap, and updated_at may
+vary. Persistence rejects missing, orphaned, mismatched, or non-Modeling
+authority. The focused schema and Soul-to-Modeling context tests pass, as do all
+15 model-runtime and all 15 coordinator tests. The completed retry remains
+immutable invalid evidence; commit and package this exact repair, supersede the
+old result explicitly, then pay for one corrected model turn.
 
 After the Modeling boundary lands, continue attacking the iteration path:
 
