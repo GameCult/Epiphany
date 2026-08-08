@@ -51,6 +51,12 @@ toolchain-specific Windows linker location, so it is not repository policy.
 Root `[profile.release] incremental = true` is the adopted portable change.
 This build-configuration edit is an explicit operator-requested supervisor
 intervention, not evidence that the sealed v44 Hands route performed it.
+Exact commit `388c49bca8ece81b8ad1d41ca075a3bea9654d67` packaged 21 binaries as
+`sha256-1c63d13fd18b24492376c87425f9c68859075e7032a73566823396ae4e31cb06`
+with witness
+`sha256-01b526d6ef87be91995e3c5ab5d053b4e6a840132d2a0612436096f31268d023`.
+Exact inspection and CultMesh catalog publication passed. The release is not
+active; resident daemons retain their prior pinned release.
 
 After the build benchmark, first give adopted Hands work a typed
 refusal/relinquish path that preserves Mind's plan authority, records why Hands
