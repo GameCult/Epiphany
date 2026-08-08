@@ -338,10 +338,10 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         })
         .unwrap_or_default();
     let reorient_checkpoint = investigation_checkpoint
-        .map(epiphany_core::EpiphanyReorientCheckpoint::from)
+        .map(epiphany_state_model::EpiphanyReorientCheckpoint::from)
         .or_else(|| {
             admitted_model_projection.as_ref().map(|projection| {
-                epiphany_core::EpiphanyReorientCheckpoint {
+                epiphany_state_model::EpiphanyReorientCheckpoint {
                     checkpoint_id: &projection.obligation().obligation_id,
                     disposition:
                         epiphany_state_model::EpiphanyInvestigationDisposition::ResumeReady,

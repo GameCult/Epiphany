@@ -873,6 +873,25 @@ pub enum RepoModelPatchPurpose {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyReorientCheckpoint<'a> {
+    pub checkpoint_id: &'a str,
+    pub disposition: EpiphanyInvestigationDisposition,
+    pub next_action: Option<&'a str>,
+    pub code_refs: &'a [EpiphanyCodeRef],
+}
+
+impl<'a> From<&'a EpiphanyInvestigationCheckpoint> for EpiphanyReorientCheckpoint<'a> {
+    fn from(checkpoint: &'a EpiphanyInvestigationCheckpoint) -> Self {
+        Self {
+            checkpoint_id: &checkpoint.checkpoint_id,
+            disposition: checkpoint.disposition,
+            next_action: checkpoint.next_action.as_deref(),
+            code_refs: &checkpoint.code_refs,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 #[ts(tag = "operation", rename_all = "snake_case")]

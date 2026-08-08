@@ -1,5 +1,5 @@
-use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyReorientCheckpoint;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -78,25 +78,6 @@ pub struct EpiphanyReorientInput<'a> {
     pub watcher_graph_node_ids: Vec<String>,
     pub active_frontier_node_ids: Vec<String>,
     pub watched_root: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyReorientCheckpoint<'a> {
-    pub checkpoint_id: &'a str,
-    pub disposition: EpiphanyInvestigationDisposition,
-    pub next_action: Option<&'a str>,
-    pub code_refs: &'a [epiphany_state_model::EpiphanyCodeRef],
-}
-
-impl<'a> From<&'a EpiphanyInvestigationCheckpoint> for EpiphanyReorientCheckpoint<'a> {
-    fn from(checkpoint: &'a EpiphanyInvestigationCheckpoint) -> Self {
-        Self {
-            checkpoint_id: &checkpoint.checkpoint_id,
-            disposition: checkpoint.disposition,
-            next_action: checkpoint.next_action.as_deref(),
-            code_refs: &checkpoint.code_refs,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -410,7 +391,7 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyCodeRef;
+    use epiphany_state_model::{EpiphanyCodeRef, EpiphanyInvestigationCheckpoint};
 
     fn checkpoint() -> EpiphanyInvestigationCheckpoint {
         EpiphanyInvestigationCheckpoint {
