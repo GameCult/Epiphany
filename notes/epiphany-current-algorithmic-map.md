@@ -1423,6 +1423,19 @@ proves failure, explicit review, suffixed retry binding, successful result
 persistence, and transition to `ImaginationResultReady` without relaxing any
 other causal identity.
 
+Fresh v52 then proved that full retry path live: the same planning authority
+produced a valid typed candidate, dedicated Mind adopted it, RepoModel advanced
+to revision 5, and the substrate derived `Hands=true`. A separately launched
+proposal-bound Modeling result became stale at that admission and was correctly
+rejected. Coordinator action ordering nevertheless treated its reviewed failure
+as a demand for a new proposal before consulting the newer actionable Hands
+frontier. This let stale worker history preempt current Mind authority. The
+coordinator now excludes exactly the state `(reviewed proposal failure, current
+Hands frontier)` from stale-result recovery, allowing the existing Hands branch
+to own the decision. Without a Hands frontier, the consumed proposal still
+fails closed at `awaitFrontierProposal`; ordinary non-proposal failures still
+route back to Modeling.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

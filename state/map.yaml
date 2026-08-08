@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 88778762 packages as sha256-4e0700d3e2305a343742608b06054faa4ab1ce4fb5a0fcef6ef1c8ee0efea914 with witness sha256-f434d5a480e5a1d54fef4cb18f93e391bc3cbd9669fd9ed6f7111f35a2d8a536. Sealed v50 proves typed Hands relinquishment and corrected Modeling. Fresh v51 proves the new Imagination safe-path context removed the prior scope-ceiling failure, then exposed a retry identity defect: successful retry bindings carry `-attempt-N`, while result validation demanded the attempt-zero ID. A local regression-tested repair now derives the expected immutable binding ID from attempt ordinal. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 5b922a04 packages as sha256-a019000d541fea02f7fda93dbbdc4f0bdcf8d6e2bc33a9ec4f38270dca2f26b1 with witness sha256-97937ae68206b26a09ba3479cf8865acf36b30f9686d15abf1663561afd1abab. Fresh v52 proves successful canonical Imagination retry, dedicated Mind adoption, RepoModel revision 5, and native `Hands=true` under the repaired scope and retry identities. A later stale proposal Modeling result was correctly rejected, but its reviewed failure preempted the newer Hands frontier in coordinator action ordering. A focused local repair now prevents stale proposal recovery from outranking current Mind authority. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: imagination_retry_binding_fix_verified_commit_next
+    local_worktree: stale_proposal_precedence_fix_verified_commit_next
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v51 replay under exact 88778762 produced a scope-valid Imagination candidate, proving the context repair moved the circuit past path authority. Runtime persistence then rejected the otherwise usable retry because `put_runtime_role_worker_result` compared every launch binding to the attempt-zero record ID even though Self correctly names retries with `-attempt-N`. The local identity repair is focused-test green but not yet committed, pushed, packaged, or replayed live.
-  next_action: Commit and push the retry-binding identity repair, package exact source, clone sealed v51 into v52, review the preserved typed failure, and replay the same planning authority under the new release. Prove successful Imagination retry reaches dedicated Mind adoption, then admit or supersede the pending v6 Modeling result according to the derived route and continue CRRC/Reorientation/Continuity/Soul.
+  unresolved_authority: Exact 5b922a04 substrate status on v52 reports an actionable Hands frontier after dedicated Mind adoption. Coordinator status instead returned `awaitFrontierProposal` because a reviewed stale proposal-bound Modeling rejection was handled before the later Hands-ready branch. The local decision-order repair is focused-test green but not yet committed, pushed, packaged, or replayed live. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
+  next_action: Commit and push the stale-proposal precedence repair, package exact source, clone sealed v52 into v53, and prove coordinator derives `ContinueImplementation` plus the exact Hands gate from the same native store. Then execute the adopted CRRC/Reorientation/Continuity implementation route through Hands and Soul. Audit coordinator-owned timestamps before declaring the planning circuit closed.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

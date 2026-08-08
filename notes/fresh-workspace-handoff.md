@@ -266,3 +266,33 @@ all attempts. The local repair derives the expected ID from
 and proves lifecycle `ImaginationResultReady`. Commit/push/package this repair,
 clone sealed v51 into v52, review its typed failure, and replay the same
 authority. Do not mutate v51 further.
+
+Exact retry repair `5b922a049fc139bfcf2882ffb5e5cec8f17b65fb` is pushed and
+packaged as
+`sha256-a019000d541fea02f7fda93dbbdc4f0bdcf8d6e2bc33a9ec4f38270dca2f26b1`
+with witness
+`sha256-97937ae68206b26a09ba3479cf8865acf36b30f9686d15abf1663561afd1abab`.
+Fresh v52 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v52-imagination-retry-identity`
+reviewed v51 failure with receipt
+`frontier-planning-failure-review-3987cb31-2d67-4fbe-98d7-7c512c27c31a`.
+Canonical Imagination retry result
+`result-worker-ff2aa229-11d2-4ace-b12e-4eb48ab3e617` persisted successfully.
+Dedicated Mind result
+`result-worker-6940aad8-a458-4d7a-847f-c412f0d9bc7c` adopted candidate
+`repo-frontier-plan-candidate-e8374ddfccd0f4e9c8bf16931e582c6e42a7d90de7587aaf3e9826e149752bb4`
+through decision
+`repo-frontier-plan-decision-0f762c79a9b0a19a24f77e34865a9edc0034f1601c52c9401bd255f7ed67432d`.
+RepoModel advanced to revision 5 and native runtime status reports
+`actionable frontiers: Hands=true Eyes=false`.
+
+The pending v6 Modeling result was then correctly rejected as stale against
+revision 5. Its reviewed proposal failure caused coordinator Self to return
+`awaitFrontierProposal` before consulting the current Hands signal. This is a
+decision-order fault: stale worker history cannot preempt newer Mind authority.
+The local repair excludes that exact state from completed-result recovery;
+without Hands authority the old fail-closed behavior remains. The focused
+coordinator test proves both branches. Commit/push/package, clone v52 into v53,
+and prove native coordinator `ContinueImplementation` plus the exact Hands
+gate. Also audit why the adopted decision serialized model-supplied
+`2025-02-14T00:00:00Z` instead of a coordinator-owned commit timestamp.

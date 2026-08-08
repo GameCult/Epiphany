@@ -972,9 +972,12 @@ pub fn recommend_coordinator_action(
 
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.modeling_result_accepted
+        && !(input.modeling_result_failure_reviewed
+            && input.modeling_result_proposal_bound
+            && input.hands_frontier_ready)
     {
         if input.modeling_result_failure_reviewed {
-            if input.modeling_result_proposal_bound {
+            if input.modeling_result_proposal_bound && !input.hands_frontier_ready {
                 return build(
                     EpiphanyCoordinatorAction::AwaitFrontierProposal,
                     Some(EpiphanyCoordinatorRoleId::Imagination),
@@ -984,14 +987,16 @@ pub fn recommend_coordinator_action(
                     "The proposal-bound Modeling result was rejected and its immutable selection request is consumed; await a fresh typed proposal instead of replaying old authority.",
                 );
             }
-            return build(
-                EpiphanyCoordinatorAction::LaunchModeling,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The completed Modeling result was rejected by admission and superseded; relaunch Modeling against current typed authority.",
-            );
+            if !input.modeling_result_proposal_bound {
+                return build(
+                    EpiphanyCoordinatorAction::LaunchModeling,
+                    Some(EpiphanyCoordinatorRoleId::Modeling),
+                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                    false,
+                    true,
+                    "The completed Modeling result was rejected by admission and superseded; relaunch Modeling against current typed authority.",
+                );
+            }
         }
         if !input.modeling_result_reviewable {
             if input.modeling_result_requests_regather
@@ -2125,6 +2130,24 @@ mod tests {
             await_fresh_proposal_after_rejected_selection
                 .reason
                 .contains("selection request is consumed")
+        );
+
+        let current_hands_route_survives_rejected_stale_proposal =
+            recommend_coordinator_action(EpiphanyCoordinatorInput {
+                signals: EpiphanyCoordinatorSignals {
+                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                },
+                modeling_result_failure_reviewed: true,
+                modeling_result_reviewable: true,
+                modeling_result_proposal_bound: true,
+                hands_frontier_ready: true,
+                ..input()
+            });
+        assert_eq!(
+            current_hands_route_survives_rejected_stale_proposal.action,
+            EpiphanyCoordinatorAction::ContinueImplementation
         );
 
         let await_proposal_without_hands_frontier =
