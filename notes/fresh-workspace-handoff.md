@@ -12,8 +12,8 @@ machine at its present memory budget.
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Current release: `sha256-d2e7205a2b714c89892ba623b26c3cc4c98ac6b4f54dfb9a0a2a623f0d92402d`
 - Release witness: `sha256-399d952e5944450775516e612d447be8b2a106e83399f35e2fb6ffb166d17876`
-- Thread-state revision: `31`
-- Current action: Modeling job `8851bbcc-d013-4e5a-95bf-d69b4833dc29` is running.
+- Thread-state revision: `34`
+- Current action: Modeling retry job `07cdae28-8f11-4cba-a19a-b847d2a4792c` is running with a 600-second budget under PID `17784`.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -52,10 +52,12 @@ projections above as authoritative evidence.
 
 ## Next action
 
-Poll Modeling job `8851bbcc-d013-4e5a-95bf-d69b4833dc29` only through an
-operator-safe coordinator projection. Accept the first valid Modeling result,
-then inspect Self's next typed action. Do not recreate Eyes, Imagination, Hands,
-or Soul work from this circuit.
+The first post-Soul Modeling job `8851bbcc-d013-4e5a-95bf-d69b4833dc29`
+timed out at its 300-second boundary and was reviewed/superseded at revision 33.
+Poll retry job `07cdae28-8f11-4cba-a19a-b847d2a4792c` only through an
+operator-safe coordinator projection. Accept its first valid result, then
+inspect Self's next typed action. Do not recreate Eyes, Imagination, Hands, or
+Soul work from this circuit.
 
 Commit and push the Soul-precedence repair and this Mind refresh. After the
 current Modeling boundary lands, attack the iteration path:
