@@ -31,6 +31,7 @@ invariants:
   - Bifrost owns external transport; Idunn owns deployment actuation; neither may impersonate Epiphany cognition.
   - CultMesh and Eve are projections, never owners of project truth.
   - The canonical swarm brake blocks cognition and consequences while preserving read-only physiology and operator sight.
+  - Corrupted Epiphany runtime state is an operator-enginseer intervention surface, not a permission boundary. Repair it proactively from authoritative evidence, preserve immutable evidence, and record exact before/after receipts; this standing repair authority does not bypass typed gates for new external consequences.
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:

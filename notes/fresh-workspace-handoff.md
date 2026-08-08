@@ -18,9 +18,13 @@ machine at its current memory budget.
 
 ## Live causal boundary
 
-The operator grants standing authority for bounded supervisor repair of
-corrupted Epiphany runtime state. Repairs must be labeled, receipted, preserve
-immutable worker evidence, and use exact compare-and-swap revision authority.
+The operator expects proactive operator-enginseer intervention in corrupted
+Epiphany runtime state; corruption is not a permission boundary. Repairs must
+be labeled, receipted, preserve immutable worker evidence, and use exact
+compare-and-swap revision authority. Record the authoritative before state,
+the exact intervention, and verified after state. This standing repair
+authority restores Epiphany's own invariants; it does not bypass typed gates
+for new Discord, deployment, or other external consequences.
 
 Commit `7093a8b9` supplies that narrow primitive for the legacy accepted Modeling
 result which predated the typed future-frontier invariant. Revision 49 was
