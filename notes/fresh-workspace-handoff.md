@@ -45,10 +45,24 @@ The current worktree makes cancellation atomically return the exact pressure to
 the sole retry scheduler and issues a new grant identity. All 16 resident-Self
 tests pass, including exact failed-turn pressure recovery.
 
+Exact pushed `c5f99c46` packages as
+`sha256-04a4854a1268139e42c028503460bb75d5b4c97b28c7fafcfb963ad1210c0090`
+with witness
+`sha256-615b3878473d65c67998614e1f6e33cec2bb5ea08a985210ff1c2161c1a481a5`.
+The v33 retry proof repeated the deliberate startup refusal under this release.
+Cancellation returned the pressure, but heartbeat reconciliation exposed that
+grant identity was still only schedule + action + pressure. A same-action retry
+therefore collided with the immutable first grant.
+
+The current worktree adds a pressure-local attempt ordinal to grant identity.
+The retry test now uses the same heartbeat schedule/action and proves attempt 2
+receives a distinct grant while retaining the same pressure authority. All 16
+resident-Self tests pass.
+
 ## Next action
 
-1. Commit, push, package, and authenticate the failed-turn retry repair.
-2. Preserve v31 and v32-replay as failure evidence; clone the recovered boundary
+1. Commit, push, package, and authenticate attempt-qualified retry grants.
+2. Preserve v31 through v33 as failure evidence; clone the recovered boundary
    into a new replay runtime using an approved `.epiphany-dogfood` artifact root.
 3. Re-run heartbeat selection and resident launch, including exact retry after
    one deliberate failed launch.

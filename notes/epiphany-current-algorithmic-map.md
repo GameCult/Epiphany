@@ -1250,6 +1250,12 @@ not mint the retry grant. The standard heartbeat remains the sole scheduler and
 may issue a new grant with a new identity for the same exact pressure after it
 has reconciled the terminal turn. A failed launch can therefore recover without
 operator pressure duplication or an authority-bypassing coordinator call.
+Grant identity includes the pressure-local attempt ordinal as well as heartbeat
+schedule and action identity. Historical grants remain immutable receipts; a
+retry cannot collide with its predecessor even when heartbeat reconciles the
+failed turn and schedules the replacement within the same physiological action.
+Concurrent issuers still derive the same next ordinal and contend on the one
+pending-pressure CAS, so attempt identity does not weaken single consumption.
 
 ## Exact release build cache ownership
 

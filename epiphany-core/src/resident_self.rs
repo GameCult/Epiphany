@@ -953,8 +953,14 @@ pub fn heartbeat_issue_resident_self_grant(
     let Some(mut pressure) = pending.into_iter().next() else {
         return Ok(None);
     };
+    let attempt_ordinal = cache
+        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .iter()
+        .filter(|grant| grant.pressure_id == pressure.pressure_id)
+        .count()
+        + 1;
     let grant_id = format!(
-        "resident-self-grant-{schedule_id}-{action_id}-{}",
+        "resident-self-grant-{schedule_id}-{action_id}-attempt-{attempt_ordinal}-{}",
         pressure.pressure_id
     );
     let grant = ResidentSelfHeartbeatGrant {
@@ -1950,10 +1956,11 @@ mod tests {
         assert_eq!(pressure.status, "pending");
         assert_eq!(pressure.consumed_by_grant_id, None);
         let retry_grant =
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 7)?
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?
                 .expect("retry grant");
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
+        assert!(retry_grant.grant_id.contains("-attempt-2-"));
         Ok(())
     }
 

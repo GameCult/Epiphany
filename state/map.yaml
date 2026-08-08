@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact b81092b2 packages 21 independently authenticated binaries as sha256-da343dcfe478720320f94c582eebcef2804aac41ac136a9c6a504cd248f495fa with witness sha256-41f081ce260467325a759bf6c888b30cf7d57faff1b1fdcfab398191323cf333. Stable graph and exact-source caches reduced this core successor to a 6m59s release build; core fan-out remains materially slower than state-only packaging. v32-replay proved the producer-replay repair live by crossing the original collision and launching the coordinator. A deliberate bad artifact root then exposed that failed-turn cancellation left its source pressure permanently consumed. The current worktree atomically returns cancelled pressure to heartbeat scheduling and passes all 16 resident-Self tests. Exact packaging and live retry remain required before resuming the implementation chain. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact c5f99c46 packages 21 independently authenticated binaries as sha256-04a4854a1268139e42c028503460bb75d5b4c97b28c7fafcfb963ad1210c0090 with witness sha256-615b3878473d65c67998614e1f6e33cec2bb5ea08a985210ff1c2161c1a481a5. v33 proved cancellation returns failed pressure to heartbeat, then exposed a second retry identity defect: reconciliation can grant within the same schedule/action, so the immutable original grant collided with the retry. The current worktree adds a pressure-local attempt ordinal to grant identity and passes all 16 resident-Self tests, including same-action attempt 2. Exact packaging and live retry remain required before resuming the implementation chain. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: failed_resident_turn_retry_repair_verified_pending_commit
+    local_worktree: attempt_qualified_resident_retry_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_b81092b2_replay_repair; cancellation_retry_successor_pending
+    starfire_release: authenticated_c5f99c46_cancellation_retry; attempt_identity_successor_pending
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v32-replay proved identical producer replay no longer collides and resident Self launches from the heartbeat grant. The deliberately invalid artifact root produced a typed failed lease and exposed that cancellation did not return the exact source pressure to heartbeat. The retry repair is locally verified but not yet packaged or proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit and package the failed-turn pressure retry repair, preserve v31/v32-replay as failure evidence, and prove heartbeat issues a new exact retry grant into an approved dogfood artifact root. Then continue the autonomous Imagination-to-Modeling-to-Mind-to-Hands chain and deliberate failure/restart/Soul closure.
+  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v32 proved producer replay; v33 proved cancellation returns exact pressure, then falsified same-action retry because grant identity lacked attempt lineage. The attempt-qualified repair is locally verified but not yet packaged or proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit and package attempt-qualified retry grants, preserve v31-v33 as failure evidence, and prove heartbeat issues same-action attempt 2 into an approved dogfood artifact root. Then continue the autonomous Imagination-to-Modeling-to-Mind-to-Hands chain and deliberate failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
