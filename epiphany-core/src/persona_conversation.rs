@@ -450,6 +450,21 @@ pub fn persona_delivery_receipt_exists_for_turn(
     Ok(false)
 }
 
+pub fn pending_persona_discord_delivery_request_for_turn(
+    request_store: &Path,
+    request_id: &str,
+) -> Result<Option<crate::PersonaDiscordDeliveryRequest>> {
+    for index in 0..16 {
+        if let Some(request) = crate::load_persona_discord_delivery_request(
+            request_store,
+            &format!("persona-discord:{request_id}:{index}"),
+        )? {
+            return Ok(Some(request));
+        }
+    }
+    Ok(None)
+}
+
 fn admit_state_notes(
     runtime_store: &Path,
     agent_store: &Path,

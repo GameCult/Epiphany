@@ -121,6 +121,10 @@ name = "epiphany-persona-discord-crossing-fixture"
 path = "src/bin/epiphany-persona-discord-crossing-fixture.rs"
 
 [[bin]]
+name = "epiphany-persona-discord-rudp-client-fixture"
+path = "src/bin/epiphany-persona-discord-rudp-client-fixture.rs"
+
+[[bin]]
 name = "epiphany-persona-discord-permit"
 path = "src/bin/epiphany-persona-discord-permit.rs"
 

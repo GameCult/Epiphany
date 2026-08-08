@@ -1,4 +1,8 @@
-use std::path::Path;
+use std::{
+    net::{SocketAddr, UdpSocket},
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{CultCache, DatabaseEntry, SingleFileMessagePackBackingStore};
@@ -6,8 +10,11 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use cultnet_rs::{
+    CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
+    CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
     GAMECULT_SERVICE_TRUST_ANCHOR_SCHEMA, GameCultServiceTrustAnchorRecord, ServiceIdentityProfile,
     ServiceIdentitySignature, ServiceIdentitySigner, ServiceSignaturePurpose,
+    decode_cultnet_message_from_slice, encode_cultnet_message_to_vec,
     verify_service_identity_signature_with_public_key,
 };
 
@@ -20,9 +27,9 @@ pub const PERSONA_DISCORD_DELIVERY_REQUEST_SIGNING_PURPOSE: &str =
 pub const PERSONA_DISCORD_DELIVERY_RECEIPT_SIGNING_PURPOSE: &str =
     "bifrost.persona-discord.delivery-receipt.v0";
 pub const EPIPHANY_PERSONA_MOUTH_SERVICE_ID: &str = "epiphany-persona-mouth";
-pub const EPIPHANY_PERSONA_MOUTH_RUNTIME_ID: &str = "epiphany-yggdrasil";
 pub const BIFROST_PERSONA_DELIVERY_SERVICE_ID: &str = "bifrost-persona-discord-delivery";
 pub const BIFROST_PERSONA_DELIVERY_RUNTIME_ID: &str = "bifrost-discord-yggdrasil";
+pub const PERSONA_DISCORD_DELIVERY_RUDP_CONNECTION_ID: u32 = 0xe91f_0003;
 
 pub enum EpiphanyPersonaDeliveryRequestIdentity {}
 pub struct EpiphanyPersonaDeliveryRequestPurpose;
@@ -313,6 +320,109 @@ pub fn load_persona_discord_delivery_receipt(
     id: &str,
 ) -> Result<Option<PersonaDiscordDeliveryReceipt>> {
     load_exact(path, id)
+}
+
+pub fn insert_persona_discord_delivery_receipt(
+    path: &Path,
+    receipt: &PersonaDiscordDeliveryReceipt,
+) -> Result<()> {
+    validate_receipt_shape(receipt)?;
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<PersonaDiscordDeliveryReceipt>()?;
+    let (entry, _) = cache.prepare_entry(&receipt.request_id, receipt)?;
+    if !SingleFileMessagePackBackingStore::new(path).insert_entry_if_absent(entry)? {
+        let existing = load_persona_discord_delivery_receipt(path, &receipt.request_id)?;
+        if existing.as_ref() != Some(receipt) {
+            bail!("Persona delivery receipt identity collision");
+        }
+    }
+    Ok(())
+}
+
+pub fn exchange_persona_discord_delivery_rudp(
+    endpoint: SocketAddr,
+    runtime_id: &str,
+    request_store: &Path,
+    receipt_store: &Path,
+    request: &PersonaDiscordDeliveryRequest,
+    receipt_anchor: &GameCultServiceTrustAnchorRecord,
+    timeout: Duration,
+) -> Result<PersonaDiscordDeliveryReceipt> {
+    if load_persona_discord_delivery_request(request_store, &request.request_id)?.as_ref()
+        != Some(request)
+    {
+        bail!("Persona delivery request must be durable before transport");
+    }
+    let message = CultNetMessage::DocumentPutRaw {
+        message_id: format!("persona-delivery-request-{}", request.request_id),
+        document: CultNetRawDocumentRecord {
+            schema_id: PERSONA_DISCORD_DELIVERY_REQUEST_SCHEMA_VERSION.into(),
+            record_key: request.request_id.clone(),
+            stored_at: request.issued_at.clone(),
+            payload_encoding: CultNetRawPayloadEncoding::Messagepack,
+            payload: rmp_serde::to_vec(request)?,
+            source_runtime_id: Some(runtime_id.into()),
+            source_agent_id: Some(request.signer_identity_id.clone()),
+            source_role: Some("epiphany-persona-mouth".into()),
+            tags: Some(vec!["cultnet.transport.rudp.v0".into()]),
+        },
+    };
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.set_read_timeout(Some(Duration::from_millis(50)))?;
+    let mut transport =
+        CultNetRudpSocketTransportConnection::new(CultNetRudpSocketTransportOptions::client(
+            runtime_id,
+            socket,
+            endpoint,
+            PERSONA_DISCORD_DELIVERY_RUDP_CONNECTION_ID,
+        ))?;
+    transport.connect(Vec::new())?;
+    let deadline = Instant::now() + timeout;
+    while !transport.connected() {
+        let _ = transport.receive_once()?;
+        transport.poll_resends()?;
+        if Instant::now() >= deadline {
+            bail!("Bifrost Persona delivery handshake unavailable");
+        }
+    }
+    transport.send(
+        "schema",
+        encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?,
+    )?;
+    loop {
+        if let Some(frame) = transport.receive_once()? {
+            if frame.channel_id != "schema" {
+                bail!("Bifrost Persona receipt arrived on a foreign channel");
+            }
+            let response = decode_cultnet_message_from_slice(
+                &frame.payload,
+                CultNetWireContract::CultNetSchemaV0,
+            )?;
+            let CultNetMessage::DocumentPutRaw { document, .. } = response else {
+                bail!("Bifrost Persona delivery returned a foreign message");
+            };
+            let receipt: PersonaDiscordDeliveryReceipt = rmp_serde::from_slice(&document.payload)?;
+            if document.schema_id != PERSONA_DISCORD_DELIVERY_RECEIPT_SCHEMA_VERSION
+                || document.record_key != request.request_id
+                || document.payload_encoding != CultNetRawPayloadEncoding::Messagepack
+                || document.source_runtime_id.as_deref()
+                    != Some(BIFROST_PERSONA_DELIVERY_RUNTIME_ID)
+                || document.source_agent_id.as_deref()
+                    != Some(receipt.provider_identity_id.as_str())
+                || document.source_role.as_deref() != Some("bifrost-persona-discord-delivery")
+                || document.tags.as_deref() != Some(&["cultnet.transport.rudp.v0".to_string()])
+            {
+                bail!("Bifrost Persona receipt envelope substituted authority");
+            }
+            verify_persona_discord_delivery_receipt(&receipt, request, receipt_anchor)?;
+            insert_persona_discord_delivery_receipt(receipt_store, &receipt)?;
+            return Ok(receipt);
+        }
+        transport.poll_resends()?;
+        if Instant::now() >= deadline {
+            bail!("Bifrost Persona delivery terminal receipt unavailable");
+        }
+    }
 }
 
 pub fn load_persona_discord_receipt_anchor(

@@ -1,13 +1,14 @@
-use std::{env, path::PathBuf, process::Command, thread, time::Duration};
+use std::{env, net::SocketAddr, path::PathBuf, process::Command, thread, time::Duration};
 
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     PersonaIdentity, PersonaProjectorInput, PersonaRepoActivity, PersonaSocialAffordance,
     PersonaTranscriptMessage, PersonaTurnTerminalOptions, complete_persona_turn_request_store,
-    default_organ_dependencies_for, load_agent_memory_entry_for_role,
-    load_epiphany_cultmesh_swarm_brake, load_heartbeat_state_entry,
-    load_persona_discord_receipt_anchor, load_persona_discord_service_anchor,
-    open_persona_discord_request_identity, persona_delivery_receipt_exists_for_turn,
+    default_organ_dependencies_for, exchange_persona_discord_delivery_rudp,
+    load_agent_memory_entry_for_role, load_epiphany_cultmesh_swarm_brake,
+    load_heartbeat_state_entry, load_persona_discord_receipt_anchor,
+    load_persona_discord_service_anchor, open_persona_discord_request_identity,
+    pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
     persona_model_terminal_exists, poll_persona_discord_crossing,
     reconcile_terminal_persona_conversation, semantic_memory_recall_from_heartbeat_action,
     validate_persona_discord_request_anchor,
@@ -173,7 +174,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
         ));
     }
     let receipt_anchor = load_persona_discord_receipt_anchor(&options.mouth_receipt_anchor)?;
-    let result = poll_persona_discord_crossing(
+    let mut result = poll_persona_discord_crossing(
         &options.runtime_store,
         &options.heartbeat_store,
         &options.agent_store,
@@ -186,6 +187,39 @@ async fn poll_once(options: &Options) -> Result<bool> {
         &request.request_id,
         &model_terminal.effect_document_id,
     )?;
+    if result.is_none() {
+        let crossing = pending_persona_discord_delivery_request_for_turn(
+            &options.mouth_request_store,
+            &request.request_id,
+        )?
+        .ok_or_else(|| anyhow!("Persona crossing is pending without a durable request"))?;
+        match exchange_persona_discord_delivery_rudp(
+            options.mouth_rudp,
+            &options.runtime_id,
+            &options.mouth_request_store,
+            &options.mouth_receipt_store,
+            &crossing,
+            &receipt_anchor,
+            Duration::from_millis(options.mouth_timeout_ms),
+        ) {
+            Ok(_) => {
+                result = poll_persona_discord_crossing(
+                    &options.runtime_store,
+                    &options.heartbeat_store,
+                    &options.agent_store,
+                    &options.cultmesh_store,
+                    &options.runtime_id,
+                    &options.mouth_request_store,
+                    &options.mouth_receipt_store,
+                    &signer,
+                    &receipt_anchor,
+                    &request.request_id,
+                    &model_terminal.effect_document_id,
+                )?;
+            }
+            Err(error) => eprintln!("Persona delivery remains durably pending: {error:#}"),
+        }
+    }
     Ok(result.is_some())
 }
 
@@ -207,6 +241,8 @@ struct Options {
     mouth_identity_store: PathBuf,
     mouth_request_anchor: PathBuf,
     mouth_receipt_anchor: PathBuf,
+    mouth_rudp: SocketAddr,
+    mouth_timeout_ms: u64,
     poll_ms: u64,
     once: bool,
 }
@@ -244,6 +280,10 @@ impl Options {
             mouth_identity_store: path("--mouth-identity-store")?,
             mouth_request_anchor: path("--mouth-request-anchor")?,
             mouth_receipt_anchor: path("--mouth-receipt-anchor")?,
+            mouth_rudp: value(&values, "--mouth-rudp", "")
+                .parse()
+                .context("--mouth-rudp must be an IP:port socket address")?,
+            mouth_timeout_ms: value(&values, "--mouth-timeout-ms", "10000").parse()?,
             runtime_id: value(&values, "--runtime-id", "epiphany-local"),
             provider: value(&values, "--provider", "openai-codex"),
             model: value(&values, "--model", "gpt-5.4"),
