@@ -1340,3 +1340,11 @@ packaged the 21-binary core-change release in 6m46s of Cargo work. An identical
 warm package completed Cargo in 1.48s and the full hash/copy/witness path in
 18.669s. Benchmark command lines and resolved cache paths are therefore part of
 release-cache evidence; source code alone does not prove the active packager.
+
+The cache does not erase crate invalidation. Exact `58f42b6a` changed
+`epiphany-core` and required 6m50s of Cargo work; its successor `5f09d35a`
+changed only `epiphany-mvp-coordinator`, reused the core artifact, and completed
+Cargo in 29.58s. The current iteration bottleneck is the broad recompilation
+and relink fan-out of the monolithic core crate. Incremental release reuse,
+linker choice, or a deliberate authority-based crate split must be benchmarked
+as separate release-contract changes rather than mixed into a cognition fix.

@@ -1,5 +1,23 @@
 # Fresh Workspace Handoff
 
+Exact pushed `5f09d35a` packages as
+`sha256-39a81a35d847fd6b459379d5bf3ef4fa57a3142745a10f13f4b033eea85ca45a`
+with witness
+`sha256-9cf82d9c1bdf018c36d199838598f5476acbc43818beb9fdb68840dc00be7f9b`.
+Because this commit changed only the coordinator binary, the stable release
+cache reused `epiphany-core` and Cargo completed in 29.58s; the preceding core
+change took 6m50s. The remaining iteration penalty is monolithic core
+invalidation, not universal package reconstruction.
+
+Fresh v40 replay proved the proposal startup actuator. Request `4b9414...`
+launched under persistent supervision, resident revision 5 remained running
+while its Modeling worker lived, and revision 6 completed only after the exact
+proposal launch binding existed. Typed status then advanced the pending queue
+to request `e75b60...`. The Modeling worker result failed and is not accepted,
+but the first request was consumed by its exact launch consequence rather than
+by a generic coordinator receipt. v40 is sealed as the successful
+binding-before-success boundary.
+
 Exact `58f42b6a` packages as
 `sha256-562aeb2bf246e27f2b63ed094633b63daff7ca07d5eb5f14dfcb12d47fca6daf`
 with witness
