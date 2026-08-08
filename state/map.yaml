@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact pushed 8a9439ca packages 21 independently authenticated binaries as sha256-39e12132f829fbb782cc4ba33308e44c641f6bd4a1136850ce9246b1179c3cbd with witness sha256-d57bdeb6e6b14cc3b7500d461fa7ea26455d319b4f1d904cda2fa6e0317407be. Its request-owned resident thread repair passes all 16 resident-Self tests and both swarm binary tests but still needs live v35 proof. The active publisher now uses the stable exact-source/graph cache: the core-change Cargo pass took 6m46s and an identical warm pass took 1.48s (18.669s including package verification/copy). Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 8a9439ca is authenticated as sha256-39e12132f829fbb782cc4ba33308e44c641f6bd4a1136850ce9246b1179c3cbd with witness sha256-d57bdeb6e6b14cc3b7500d461fa7ea26455d319b4f1d904cda2fa6e0317407be. v35 proved its resident launch preserved the typed request's original implementation thread and completed autonomous Imagination. Status then exposed multiple unclaimed proposal-Modeling requests because one direction result produced several explicitly selected options while the pending projection incorrectly required global singularity. The current worktree schedules those selected requests as a stable oldest-first queue and consumes them by exact launch binding. Focused queue and status tests pass. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: clean_at_pushed_8a9439ca
+    local_worktree: proposal_modeling_queue_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v32 proved producer replay; v33 proved cancellation requeue; v34 proved attempt-qualified retry and then falsified fixed resident thread substitution against the typed request. The exact packaged request-owned thread repair has not yet been proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Publish exact 8a9439ca into a fresh v35 clone of the original v31 boundary and prove the retried direction request reaches Imagination on its exact implementation thread. Then continue autonomous proposal Modeling, canonical Imagination, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
+  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v35 proved request-owned Imagination continuation, then exposed that multi-option autonomous promotion and singular pending-request projection disagreed about queue cardinality. The queue repair is locally verified but not packaged/live. Canonical proposal Modeling, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit, package, and authenticate the proposal-Modeling queue repair; clone sealed v35 into v36 and prove each selected Imagination option receives one Modeling launch in stable order. Then continue canonical Imagination planning, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

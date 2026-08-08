@@ -14,6 +14,21 @@ source plus a commit-local target was terminated after 12.8 minutes. Rebuild
 the publisher itself after changing release-cache machinery; otherwise the
 benchmark measures an obsolete body.
 
+Fresh runtime `live-20260808-v35-request-thread` published that release and ran
+under persistent swarm supervision. The resident child completed on exact
+thread `shakedown-v31-rupture-closure-implementation-r1`, proving the typed
+request owns the launch and lease across the real process boundary. The
+accepted Imagination direction result contained several options. Autonomous
+promotion correctly persisted each option and its exact provenance as selected
+proposal-Modeling work, but status then failed because the pending projection
+required exactly one unclaimed request.
+
+The current worktree treats selected proposal-Modeling requests as an
+oldest-first execution queue. A launch binding consumes only its exact request
+and exposes the next. The focused queue test proves both ordering and
+single-request consumption; both native status tests also pass. v35 is sealed
+at the cardinality failure boundary.
+
 Fresh runtime `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v31`
 accepted initial and proposal-bound Modeling for thread
 `shakedown-v31-rupture-closure-implementation-r1`. The generic user proposal
@@ -83,11 +98,12 @@ thread.
 
 ## Next action
 
-1. Commit and push this build-evidence/Mind refresh.
-2. Preserve v31 through v34 as failure evidence; clone the recovered boundary
-   into a new replay runtime using an approved `.epiphany-dogfood` artifact root.
-3. Publish exact `8a9439ca`, re-run heartbeat selection and resident launch,
-   including exact retry after one deliberate failed launch.
+1. Commit, push, package, and authenticate the proposal-Modeling queue repair.
+2. Preserve v31 through v35 as failure evidence; clone v35 into v36 and publish
+   the exact successor release.
+3. Run persistent resident supervision from an approved `.epiphany-dogfood`
+   root and prove the selected Imagination options launch Modeling one at a
+   time in stable request order.
 4. In a fresh runtime, re-run pressure ingestion twice and resident launch.
    Prove autonomous direction consideration, proposal-bound Modeling,
    canonical Imagination, dedicated Mind adoption, and exact Hands authority.

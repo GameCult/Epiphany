@@ -6214,9 +6214,11 @@ pub fn runtime_repo_frontier_planning_eligibility(
     })
 }
 
-/// Returns the single selected user proposal that has not yet been claimed by
-/// a Modeling launch. Selection is already an explicit Self authority; this
-/// projection prevents the CLI from becoming a second routing owner.
+/// Returns the oldest selected proposal that has not yet been claimed by a
+/// Modeling launch. Selection is already explicit Self authority; several
+/// Imagination options may therefore form a queue without asking this
+/// projection to prefer one proposal over another. Stable request order owns
+/// scheduling only and prevents the CLI from becoming a second routing owner.
 pub fn runtime_pending_repo_frontier_proposal_modeling_request(
     runtime_store: impl AsRef<Path>,
 ) -> Result<Option<RepoFrontierProposalModelingRequest>> {
@@ -6245,12 +6247,7 @@ pub fn runtime_pending_repo_frontier_proposal_modeling_request(
             .cmp(&b.selected_at)
             .then_with(|| a.request_id.cmp(&b.request_id))
     });
-    if pending.len() > 1 {
-        return Err(anyhow!(
-            "Self found multiple unclaimed proposal Modeling requests"
-        ));
-    }
-    Ok(pending.pop())
+    Ok(pending.into_iter().next())
 }
 
 /// Read-only Self projection over the existing typed frontier-planning chain.
@@ -10843,6 +10840,50 @@ pub(crate) mod tests {
                 .get_all::<RepoFrontierProposalModelingRequest>()?
                 .len(),
             1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn pending_proposal_modeling_requests_are_a_stable_execution_queue() -> Result<()> {
+        let root = tempdir()?;
+        let (store, proposal_id) = proposal_selection_fixture(root.path(), "queued")?;
+        let first = select_repo_frontier_work_proposal_for_modeling(
+            &store,
+            &proposal_id,
+            "2026-07-13T02:02:00Z",
+        )?;
+        let mut second = first.clone();
+        second.request_id = "repo-frontier-proposal-modeling-queued-second".into();
+        second.proposal_id = "queued-second-proposal".into();
+        second.proposal_payload_sha256 = "22".repeat(32);
+        second.selected_at = "2026-07-13T02:03:00Z".into();
+        validate_repo_frontier_proposal_modeling_request(&second)?;
+        overwrite_test_entry(&store, &second.request_id, &second)?;
+
+        assert_eq!(
+            runtime_pending_repo_frontier_proposal_modeling_request(&store)?,
+            Some(first.clone())
+        );
+
+        let first_launch = RepoFrontierProposalModelingLaunchBinding {
+            schema_version: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: "queued-first-launch".into(),
+            proposal_modeling_request_id: first.request_id,
+            proposal_id: first.proposal_id,
+            proposal_payload_sha256: first.proposal_payload_sha256,
+            job_id: "queued-first-job".into(),
+            binding_id: "modeling-checkpoint-worker".into(),
+            runtime_id: first.runtime_id,
+            thread_id: first.thread_id,
+            launched_at: "2026-07-13T02:04:00Z".into(),
+            worker_launch_document_sha256: "33".repeat(32),
+            contract: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        overwrite_test_entry(&store, &first_launch.binding_record_id, &first_launch)?;
+        assert_eq!(
+            runtime_pending_repo_frontier_proposal_modeling_request(&store)?,
+            Some(second)
         );
         Ok(())
     }

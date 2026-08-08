@@ -1266,6 +1266,15 @@ The prepared argv is then the single source for child launch and lease thread
 identity. Only plain operator objectives use the resident runtime thread.
 `epiphany-swarm` no longer reconstructs a fixed thread after preparation.
 
+An Imagination direction result may contain several option drafts. Autonomous
+promotion gives every option its own proposal, provenance binding, and explicit
+proposal-Modeling request. These are selected work items, not candidates still
+awaiting preference. `runtime_pending_repo_frontier_proposal_modeling_request`
+therefore schedules the oldest unclaimed request by `selected_at`, then stable
+request ID. A launch binding removes only its exact request from the pending
+queue, exposing the next. Self owns queue order; it does not silently discard
+or rank Imagination's already-selected options.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is
