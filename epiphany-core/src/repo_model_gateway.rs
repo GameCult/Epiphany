@@ -508,6 +508,10 @@ pub struct RepoFrontierPlanningLaunchBinding {
     pub worker_launch_document_sha256: String,
     #[cultcache(key = 9)]
     pub contract: String,
+    #[cultcache(key = 10, default)]
+    pub attempt_ordinal: u64,
+    #[cultcache(key = 11, default)]
+    pub superseded_failure_result_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -665,6 +669,10 @@ pub struct RepoFrontierPlanMindLaunchBinding {
     pub worker_launch_document_sha256: String,
     #[cultcache(key = 9)]
     pub contract: String,
+    #[cultcache(key = 10, default)]
+    pub attempt_ordinal: u64,
+    #[cultcache(key = 11, default)]
+    pub superseded_failure_result_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

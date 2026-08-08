@@ -128,6 +128,18 @@ identity/cargo validator error, while frontier lifecycle remains
 `imaginationRunning` with no typed result. This independent reproduction rules
 out a one-off detached-process race. Do not create v48: planning cannot adopt
 the repair because the failure is before the typed result Self needs to review
-or retry planning. The next lawful move is explicit operator authorization for
-a labeled supervisor intervention to repair typed failure projection and retry
-semantics, followed by packaging and a new clean dogfood run.
+or retry planning.
+
+The operator explicitly authorized proactive intervention in corrupted
+Epiphany runtime state, with receipts. The labeled supervisor intervention is
+now implemented in source. The OpenAI runtime canonicalizes set-shaped safe
+paths before identity validation and persists a non-executable typed role
+failure beside the generic failed runtime job. Self owns explicit reviewed
+supersession and creates monotonic immutable retry bindings for both
+Imagination planning and dedicated Mind judgment; failure alone cannot retry,
+old attempts remain evidence, and candidate/decision cargo is forbidden on the
+failure projection. Focused core, coordinator, and runtime tests pass,
+including symmetric Imagination and Mind failure/review/retry proofs. The next
+move is commit/push, one exact incremental authenticated package, and a fresh
+route-free live proof. v46 and v47 remain sealed and must not be repaired in
+place.

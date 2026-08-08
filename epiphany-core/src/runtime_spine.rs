@@ -2000,7 +2000,9 @@ pub fn put_runtime_role_worker_result(
         let bindings = cache
             .get_all::<RepoFrontierPlanningLaunchBinding>()?
             .into_iter()
-            .filter(|binding| binding.planning_request_id == request.request_id)
+            .filter(|binding| {
+                binding.planning_request_id == request.request_id && binding.job_id == result.job_id
+            })
             .collect::<Vec<_>>();
         if bindings.len() != 1 {
             return Err(anyhow!(
@@ -2251,7 +2253,9 @@ pub fn put_runtime_role_worker_result(
         let bindings = cache
             .get_all::<RepoFrontierPlanMindLaunchBinding>()?
             .into_iter()
-            .filter(|b| b.mind_request_id == request.request_id)
+            .filter(|binding| {
+                binding.mind_request_id == request.request_id && binding.job_id == result.job_id
+            })
             .collect::<Vec<_>>();
         if bindings.len() != 1 {
             return Err(anyhow!(
@@ -6336,26 +6340,26 @@ pub fn runtime_repo_frontier_planning_lifecycle(
         mind_result_id: None,
         decision_id: None,
     };
-    let imagination_launches = cache
+    let mut imagination_launches = cache
         .get_all::<RepoFrontierPlanningLaunchBinding>()?
         .into_iter()
         .filter(|binding| binding.planning_request_id == request.request_id)
         .collect::<Vec<_>>();
-    if imagination_launches.len() > 1 {
-        return Err(anyhow!(
-            "Self found multiple Imagination launches for one planning request"
-        ));
+    imagination_launches.sort_by_key(|binding| binding.attempt_ordinal);
+    for (expected, binding) in imagination_launches.iter().enumerate() {
+        if binding.attempt_ordinal != expected as u64 {
+            return Err(anyhow!(
+                "Self found noncontiguous frontier planning attempt identity"
+            ));
+        }
     }
-    if let Some(binding) = imagination_launches.first() {
+    if let Some(binding) = imagination_launches.last() {
         lifecycle.imagination_job_id = Some(binding.job_id.clone());
     }
     let imagination_results = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
         .into_iter()
-        .filter(|result| {
-            result.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
-                || lifecycle.imagination_job_id.as_deref() == Some(result.job_id.as_str())
-        })
+        .filter(|result| lifecycle.imagination_job_id.as_deref() == Some(result.job_id.as_str()))
         .collect::<Vec<_>>();
     if imagination_results.len() > 1 {
         return Err(anyhow!(
@@ -6373,7 +6377,43 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     if imagination_result.frontier_planning_request_id.as_deref()
         != Some(request.request_id.as_str())
     {
-        lifecycle.stage = RepoFrontierPlanningLifecycleStage::ImaginationFailed;
+        if !imagination_result
+            .role_id
+            .eq_ignore_ascii_case("imagination")
+            || imagination_result
+                .item_error
+                .as_deref()
+                .is_none_or(str::is_empty)
+            || imagination_result.frontier_plan_candidate_msgpack.is_some()
+        {
+            return Err(anyhow!(
+                "Self found malformed typed frontier planning failure"
+            ));
+        }
+        let reviewed = cache
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .ok_or_else(|| anyhow!("planning failure review requires thread state"))?
+            .state()?
+            .acceptance_receipts
+            .into_iter()
+            .filter(|receipt| {
+                receipt.result_id == imagination_result.result_id
+                    && receipt.job_id == imagination_result.job_id
+                    && receipt.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+                    && receipt.surface == "roleFailureReview"
+                    && receipt.role_id == "imagination"
+                    && receipt.status == "superseded"
+            })
+            .count();
+        lifecycle.stage = if reviewed == 1 {
+            RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady
+        } else if reviewed == 0 {
+            RepoFrontierPlanningLifecycleStage::ImaginationFailed
+        } else {
+            return Err(anyhow!(
+                "Self found conflicting frontier planning failure reviews"
+            ));
+        };
         return Ok(lifecycle);
     }
     let mind_requests = cache
@@ -6393,27 +6433,24 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     validate_repo_frontier_plan_mind_request(&cache, mind_request)?;
     lifecycle.mind_request_id = Some(mind_request.request_id.clone());
     lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindLaunchReady;
-    let mind_launches = cache
+    let mut mind_launches = cache
         .get_all::<RepoFrontierPlanMindLaunchBinding>()?
         .into_iter()
         .filter(|binding| binding.mind_request_id == mind_request.request_id)
         .collect::<Vec<_>>();
-    if mind_launches.len() > 1 {
-        return Err(anyhow!(
-            "Self found multiple Mind launches for one planning request"
-        ));
+    mind_launches.sort_by_key(|binding| binding.attempt_ordinal);
+    for (expected, binding) in mind_launches.iter().enumerate() {
+        if binding.attempt_ordinal != expected as u64 {
+            return Err(anyhow!("Self found noncontiguous Mind attempt identity"));
+        }
     }
-    if let Some(binding) = mind_launches.first() {
+    if let Some(binding) = mind_launches.last() {
         lifecycle.mind_job_id = Some(binding.job_id.clone());
     }
     let mind_results = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
         .into_iter()
-        .filter(|result| {
-            result.frontier_plan_mind_request_id.as_deref()
-                == Some(mind_request.request_id.as_str())
-                || lifecycle.mind_job_id.as_deref() == Some(result.job_id.as_str())
-        })
+        .filter(|result| lifecycle.mind_job_id.as_deref() == Some(result.job_id.as_str()))
         .collect::<Vec<_>>();
     if mind_results.len() > 1 {
         return Err(anyhow!(
@@ -6431,7 +6468,36 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     if mind_result.frontier_plan_mind_request_id.as_deref()
         != Some(mind_request.request_id.as_str())
     {
-        lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindFailed;
+        if !mind_result
+            .role_id
+            .eq_ignore_ascii_case("mindAdmissionReview")
+            || mind_result.item_error.as_deref().is_none_or(str::is_empty)
+            || mind_result.frontier_plan_mind_decision_msgpack.is_some()
+        {
+            return Err(anyhow!("Self found malformed typed Mind failure"));
+        }
+        let reviewed = cache
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .ok_or_else(|| anyhow!("Mind failure review requires thread state"))?
+            .state()?
+            .acceptance_receipts
+            .into_iter()
+            .filter(|receipt| {
+                receipt.result_id == mind_result.result_id
+                    && receipt.job_id == mind_result.job_id
+                    && receipt.binding_id == EPIPHANY_MIND_ROLE_BINDING_ID
+                    && receipt.surface == "roleFailureReview"
+                    && receipt.role_id == "mindAdmissionReview"
+                    && receipt.status == "superseded"
+            })
+            .count();
+        lifecycle.stage = if reviewed == 1 {
+            RepoFrontierPlanningLifecycleStage::MindLaunchReady
+        } else if reviewed == 0 {
+            RepoFrontierPlanningLifecycleStage::MindFailed
+        } else {
+            return Err(anyhow!("Self found conflicting Mind failure reviews"));
+        };
         return Ok(lifecycle);
     }
     lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindResultReady;

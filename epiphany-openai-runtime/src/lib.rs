@@ -1607,6 +1607,9 @@ fn role_worker_result_from_ingress(
     let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) = if let Some(ingress) =
         result.frontier_plan_candidate.as_ref()
     {
+        let mut safe_paths = clean_string_vec(&ingress.safe_paths);
+        safe_paths.sort();
+        safe_paths.dedup();
         let mut candidate = epiphany_core::RepoFrontierPlanCandidate {
             schema_version: epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.to_string(),
             candidate_id: String::new(),
@@ -1615,7 +1618,7 @@ fn role_worker_result_from_ingress(
             model_hash: ingress.model_hash.clone(),
             frontier_item_id: ingress.frontier_item_id.clone(),
             frontier_item_hash: ingress.frontier_item_hash.clone(),
-            safe_paths: clean_string_vec(&ingress.safe_paths),
+            safe_paths,
             action: ingress.action.trim().to_string(),
             command: ingress.command.trim().to_string(),
             checks: clean_string_vec(&ingress.checks),
@@ -1825,6 +1828,66 @@ fn role_worker_result_from_ingress(
     }
 }
 
+/// Projects a model-adapter failure into the typed faculty result consumed by
+/// Self's frontier-planning lifecycle. The generic runtime job remains the
+/// process/transport receipt; this document states only that the exact launched
+/// faculty produced no executable candidate or Mind judgment.
+pub fn failed_frontier_planning_role_result(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    error: &str,
+) -> Result<Option<EpiphanyRuntimeRoleWorkerResult>> {
+    if launch_request.frontier_planning_request_id.is_none()
+        && launch_request.frontier_plan_mind_request_id.is_none()
+    {
+        return Ok(None);
+    }
+    let document = launch_request.launch_document()?;
+    let EpiphanyWorkerLaunchDocument::Role(document) = document else {
+        return Err(anyhow!(
+            "frontier planning failure projection requires a role launch"
+        ));
+    };
+    let summary = format!("Worker runtime failed before producing usable output: {error}");
+    Ok(Some(EpiphanyRuntimeRoleWorkerResult {
+        schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+        result_id: format!("result-worker-{}", launch_request.job_id),
+        job_id: launch_request.job_id.clone(),
+        role_id: document.role_id,
+        verdict: "runtime-error".to_string(),
+        summary: summary.clone(),
+        next_safe_move: "Review the immutable planning failure before authorizing another attempt."
+            .to_string(),
+        checkpoint_summary: None,
+        scratch_summary: None,
+        files_inspected: Vec::new(),
+        frontier_node_ids: Vec::new(),
+        evidence_ids: Vec::new(),
+        artifact_refs: Vec::new(),
+        open_questions: Vec::new(),
+        evidence_gaps: Vec::new(),
+        risks: Vec::new(),
+        state_patch_msgpack: None,
+        self_patch_msgpack: None,
+        item_error: Some(error.trim().to_string()),
+        metadata: std::collections::BTreeMap::new(),
+        repo_model_patch_msgpack: None,
+        verification_request_id: None,
+        frontier_route_id: None,
+        repo_frontier_modeling_request_id: None,
+        proposal_modeling_request_id: None,
+        claim_repair_request_id: None,
+        frontier_planning_request_id: None,
+        frontier_plan_candidate_msgpack: None,
+        frontier_plan_mind_request_id: None,
+        frontier_plan_mind_decision_msgpack: None,
+        repository_body_observation_basis: document.repository_body_observation_basis,
+        imagination_consideration_request_id: None,
+        imagination_consideration_candidate_msgpack: None,
+        admitted_model_direction_consideration_request_id: None,
+        admitted_model_direction_consideration_result_msgpack: None,
+    }))
+}
+
 fn reorient_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     result_id: &str,
@@ -2028,7 +2091,7 @@ mod tests {
                     "model_hash":"model-hash",
                     "frontier_item_id":"frontier-1",
                     "frontier_item_hash":"frontier-hash",
-                    "safe_paths":["src"],
+                    "safe_paths":["tests","src","src"],
                     "action":"Implement the bounded cut.",
                     "command":"cargo test --lib",
                     "checks":["focused test passes"],
@@ -2088,6 +2151,72 @@ mod tests {
             candidate.schema_version,
             epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
         );
+        assert_eq!(candidate.safe_paths, ["src", "tests"]);
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_runtime_error_projects_non_executable_typed_failure() -> Result<()> {
+        let document =
+            EpiphanyWorkerLaunchDocument::Role(epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: "thread-1".into(),
+                role_id: "imagination".into(),
+                state_revision: 1,
+                objective: Some("Plan one frontier.".into()),
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            });
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "planning-job-failed".into(),
+            binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "epiphany.role.imagination".into(),
+            instruction: "plan".into(),
+            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: std::collections::BTreeMap::new(),
+            organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                "epiphany.role.imagination",
+                "role",
+                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: Some("planning-request-1".into()),
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+        };
+        let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
+            .expect("typed planning failure");
+        assert_eq!(failed.job_id, launch.job_id);
+        assert_eq!(failed.role_id, "imagination");
+        assert_eq!(failed.item_error.as_deref(), Some("candidate mismatch"));
+        assert!(failed.frontier_planning_request_id.is_none());
+        assert!(failed.frontier_plan_candidate_msgpack.is_none());
+        assert!(failed.state_patch_msgpack.is_none());
+        assert!(failed.repo_model_patch_msgpack.is_none());
         Ok(())
     }
 

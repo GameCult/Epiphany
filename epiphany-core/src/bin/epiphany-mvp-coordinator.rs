@@ -567,10 +567,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         if action == "awaitFrontierProposal"
             || matches!(
                 action.as_str(),
-                "waitForImaginationResult"
-                    | "waitForMindPlanResult"
-                    | "reviewFrontierPlanningFailure"
+                "waitForImaginationResult" | "waitForMindPlanResult"
             )
+            || (action == "reviewFrontierPlanningFailure" && !args.supersede_failed_results)
             || (is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action))
         {
             append_operator_step_jsonl(&steps_path, &step)?;
@@ -580,6 +579,45 @@ fn run_coordinator(args: &Args) -> Result<Value> {
 
         let revision = state_revision(&status);
         match action.as_str() {
+            "reviewFrontierPlanningFailure" => {
+                let lifecycle =
+                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                let (result_id, job_id, role_id, binding_id) = match lifecycle.stage {
+                    epiphany_core::RepoFrontierPlanningLifecycleStage::ImaginationFailed => (
+                        lifecycle.imagination_result_id.as_deref(),
+                        lifecycle.imagination_job_id.as_deref(),
+                        "imagination",
+                        epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
+                    ),
+                    epiphany_core::RepoFrontierPlanningLifecycleStage::MindFailed => (
+                        lifecycle.mind_result_id.as_deref(),
+                        lifecycle.mind_job_id.as_deref(),
+                        "mindAdmissionReview",
+                        epiphany_core::EPIPHANY_MIND_ROLE_BINDING_ID,
+                    ),
+                    _ => return Err(anyhow!("frontier planning failure review stage changed")),
+                };
+                let result_id = result_id.ok_or_else(|| {
+                    anyhow!("frontier planning failure review requires a typed result")
+                })?;
+                let job_id = job_id.ok_or_else(|| {
+                    anyhow!("frontier planning failure review requires a launch job")
+                })?;
+                let reviewed = supersede_frontier_planning_failure(
+                    &runtime_store,
+                    &thread_id,
+                    revision,
+                    result_id,
+                    job_id,
+                    role_id,
+                    binding_id,
+                )?;
+                push_event(
+                    &mut step,
+                    json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(reviewed)}),
+                );
+                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+            }
             "startFrontierPlanning" => {
                 let request = epiphany_core::select_and_commit_repo_frontier_planning_request(
                     &runtime_store,
@@ -1729,6 +1767,64 @@ fn supersede_role_result(
         "state": applied.state,
         "receipt": receipt,
     }))
+}
+
+fn supersede_frontier_planning_failure(
+    runtime_store: &Path,
+    thread_id: &str,
+    expected_revision: Option<i64>,
+    result_id: &str,
+    job_id: &str,
+    role_id: &str,
+    binding_id: &str,
+) -> Result<Value> {
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("planning failure review requires coordinator state"))?;
+    if let Some(existing) = state
+        .acceptance_receipts
+        .iter()
+        .find(|receipt| receipt.result_id == result_id)
+    {
+        if existing.job_id == job_id
+            && existing.binding_id == binding_id
+            && existing.surface == "roleFailureReview"
+            && existing.role_id == role_id
+            && existing.status == "superseded"
+        {
+            return Ok(json!({"revision": state.revision, "receipt": existing, "changed": false}));
+        }
+        return Err(anyhow!(
+            "planning failure already has conflicting review authority"
+        ));
+    }
+    let receipt = epiphany_state_model::EpiphanyAcceptanceReceipt {
+        id: format!("frontier-planning-failure-review-{}", Uuid::new_v4()),
+        result_id: result_id.to_string(),
+        job_id: job_id.to_string(),
+        binding_id: binding_id.to_string(),
+        surface: "roleFailureReview".to_string(),
+        role_id: role_id.to_string(),
+        status: "superseded".to_string(),
+        accepted_at: now(),
+        accepted_observation_id: None,
+        accepted_evidence_id: None,
+        summary: Some(
+            "Reviewed non-executable frontier Imagination failure; Self may schedule one next immutable attempt."
+                .to_string(),
+        ),
+    };
+    let applied = service.apply_state_update(
+        thread_id,
+        epiphany_core::EpiphanyStateUpdate {
+            expected_revision: expected_revision.and_then(|value| u64::try_from(value).ok()),
+            acceptance_receipts: vec![receipt.clone()],
+            ..Default::default()
+        },
+        None,
+    )?;
+    Ok(json!({"revision": applied.revision, "receipt": receipt, "changed": true}))
 }
 
 fn default_binding_id_for_role(role_id: &str) -> String {
