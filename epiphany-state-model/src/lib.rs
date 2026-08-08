@@ -876,7 +876,6 @@ pub enum RepoModelPatchPurpose {
 pub fn reorient_checkpoint_from_admitted_repo_model(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     obligation_id: &str,
-    source_commit_id: &str,
 ) -> EpiphanyInvestigationCheckpoint {
     EpiphanyInvestigationCheckpoint {
         checkpoint_id: obligation_id.to_string(),
@@ -904,7 +903,7 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
                 note: Some("Current admitted RepoModel frontier scope".to_string()),
             })
             .collect(),
-        evidence_ids: vec![source_commit_id.to_string()],
+        evidence_ids: Vec::new(),
     }
 }
 

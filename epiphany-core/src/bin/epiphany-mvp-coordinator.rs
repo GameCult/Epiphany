@@ -1856,7 +1856,6 @@ fn launch_reorient(
             epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
                 projection.snapshot(),
                 &projection.obligation().obligation_id,
-                &projection.obligation().source_commit_id,
             )
         }
     };

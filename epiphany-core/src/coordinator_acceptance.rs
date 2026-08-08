@@ -1,6 +1,7 @@
 use crate::coordinator_results::latest_runtime_link;
 use crate::coordinator_state::changed_fields;
 use crate::*;
+use anyhow::Context;
 use epiphany_state_model::EpiphanyThreadState;
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -73,11 +74,21 @@ pub fn accept_coordinator_reorient_finding(
     update_scratch: bool,
     update_investigation_checkpoint: bool,
 ) -> anyhow::Result<EpiphanyNativeReorientAcceptance> {
-    if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
-        return Err(anyhow::anyhow!(
-            "cannot update investigation checkpoint because state has no durable checkpoint"
-        ));
-    }
+    let investigation_checkpoint = if update_investigation_checkpoint {
+        match state.investigation_checkpoint.clone() {
+            Some(checkpoint) => Some(checkpoint),
+            None => {
+                let projection = crate::runtime_modeling_semantic_projection_input(store)
+                    .context("cannot accept reorientation without a valid admitted RepoModel checkpoint")?;
+                Some(epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
+                    projection.snapshot(),
+                    &projection.obligation().obligation_id,
+                ))
+            }
+        }
+    } else {
+        None
+    };
     let snapshot = read_reorient_result_snapshot(Some(state), Some(store), binding_id);
     if snapshot.status != EpiphanyCrrcResultStatus::Completed {
         return Err(anyhow::anyhow!(
@@ -97,7 +108,7 @@ pub fn accept_coordinator_reorient_finding(
         accepted_at.clone(),
         update_scratch,
         update_investigation_checkpoint,
-        state.investigation_checkpoint.clone(),
+        investigation_checkpoint,
     )
     .map_err(anyhow::Error::msg)?;
     let contract = acceptance_launch_contract_for_binding(store, state, binding_id, "reorient")
