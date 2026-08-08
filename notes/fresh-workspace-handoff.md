@@ -7,10 +7,10 @@ machine at its current memory budget.
 ## Authoritative state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed HEAD: `a1a43892` (reverts failed owner-group build experiment)
-- Authenticated cognition commit: `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
-- Release: `sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
-- Witness: `sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
+- Pushed HEAD: `d910158fd05fb78825dabda40b2147217c012c30`
+- Authenticated cognition commit: `d910158fd05fb78825dabda40b2147217c012c30`
+- Release: `sha256-2d6672958cd59cae43bbbc17c8218eaf3d50f3acab3b7d6550cb6dfad5f72020`
+- Witness: `sha256-23d3f44ef0f632dfc52a607585469b7242ac77a489e1406d7b3e2f578979462d`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Thread-state revision: `55`
@@ -79,22 +79,32 @@ only the feature-gated coordinator in the same target cache. Cache identity is
 target/toolchain-stable across lock edits; Cargo owns staleness while the frozen
 lock and release witness remain authority.
 
-Proof so far: exact coordinator check passes, all 23 policy tests pass, all 17
-packaged-release tests pass, core library check passes, and manifest inspection
-proves 74 declared/expected retained core binaries with coordinator/status
-absent. Commit, exact package, and localized release-relink timing remain.
+Exact `d910158f` is committed, pushed, authenticated, and published to
+`.epiphany-run/cultmesh/local-verse.ccmp`. Release
+`sha256-2d6672958cd59cae43bbbc17c8218eaf3d50f3acab3b7d6550cb6dfad5f72020`
+has witness
+`sha256-23d3f44ef0f632dfc52a607585469b7242ac77a489e1406d7b3e2f578979462d`.
+The cold stable graph took 17m38s; the isolated policy/coordinator phase took
+30.31s. A controlled warm invalidation of the policy source rebuilt exactly
+`epiphany-self-policy` and the root coordinator in 6.02s (6.133s wall). All 20
+stable packaged executables retained identical hashes, lengths, and write-times;
+the coordinator write-time advanced. The source-cache timestamp used to trigger
+Cargo staleness was restored after the measurement. The earlier 1.21s no-op
+probe reported `Removed 0 files` and is rejected, not evidence.
 
 ## Current performance evidence
 
 - Exact `c35272c9` warm packaging of 21 binaries: 2m34s.
 - Release-publisher bootstrap after a core edit: 4m11s.
+- Exact `d910158f` cold stable graph: 17m38s.
+- Exact `d910158f` isolated coordinator phase: 30.31s.
+- Warm Self-policy invalidation: 6.02s; zero of 20 stable packaged executables relinked.
 - Fresh Modeling context: state load 121ms, dynamic context 107ms.
 - Fresh Modeling job commit: 51.637s; coordinator total 51.865s.
 - The launch wound is the whole-store transaction, not context assembly.
 
 ## Open readiness work
 
-- commit, package, and benchmark the single-graph coordinator-policy split;
 - launch and adjudicate the committed Mind plan review;
 - prove native Persona cognition and external speech consequence;
 - prove Continuity crash, restart, session closure, and bounded retention;
