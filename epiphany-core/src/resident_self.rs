@@ -1082,6 +1082,36 @@ pub fn resident_self_pressures(path: &Path) -> Result<Vec<ResidentSelfPressure>>
     Ok(pressure)
 }
 
+pub fn verify_resident_self_grant_fulfillment(
+    resident_store: &Path,
+    runtime_store: &Path,
+    grant_id: &str,
+) -> Result<()> {
+    let grant = state_cache(resident_store)?
+        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .ok_or_else(|| anyhow!("resident Self fulfillment check lost its grant"))?;
+    if grant.pressure_kind != "repo-frontier-proposal-modeling" {
+        return Ok(());
+    }
+    let request_id = grant
+        .provenance_ref
+        .strip_prefix("cultcache://repo-frontier-proposal-modeling/")
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("proposal Modeling grant lost exact request provenance"))?;
+    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
+    runtime.pull_all_backing_stores()?;
+    if !runtime
+        .get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?
+        .iter()
+        .any(|binding| binding.proposal_modeling_request_id == request_id)
+    {
+        return Err(anyhow!(
+            "proposal Modeling pressure completed without its exact launch binding"
+        ));
+    }
+    Ok(())
+}
+
 pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
     let mut grants = state_cache(path)?
         .get_all::<ResidentSelfHeartbeatGrant>()?
@@ -2177,6 +2207,21 @@ mod tests {
             pressures[0].provenance_ref,
             "cultcache://repo-frontier-proposal-modeling/selection-1"
         );
+        let grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "queue-heartbeat",
+            "queue-action",
+            2,
+        )?
+        .expect("queue-head grant");
+        assert!(
+            verify_resident_self_grant_fulfillment(
+                &resident_store,
+                &runtime_store,
+                &grant.grant_id,
+            )
+            .is_err()
+        );
 
         let runtime_cache = crate::runtime_spine_cache(&runtime_store)?;
         let launch = crate::RepoFrontierProposalModelingLaunchBinding {
@@ -2196,6 +2241,7 @@ mod tests {
         };
         let (entry, _) = runtime_cache.prepare_entry(&launch.binding_record_id, &launch)?;
         SingleFileMessagePackBackingStore::new(&runtime_store).push(&entry)?;
+        verify_resident_self_grant_fulfillment(&resident_store, &runtime_store, &grant.grant_id)?;
 
         assert_eq!(
             ingest_resident_self_domain_pressure(

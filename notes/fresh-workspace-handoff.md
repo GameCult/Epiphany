@@ -40,6 +40,21 @@ cycle. All 17 resident-Self tests pass; focused tests prove runtime ordering,
 single-request launch consumption, and head-only pressure emission. v35 and v36
 are sealed failure boundaries.
 
+Exact `a1d80d40` packages as
+`sha256-1ef95f24e9d0bfb5e88ded9391c261d3b4cdc37276f4a6a0f2479cb57a8c9760`
+with witness
+`sha256-1fde6a1cd73747393631ac50de02c5e404a48c263f48386232b01ae288ab0024`.
+Fresh v37 replay proved head-only pressure: only request `464ac...` received a
+pressure, grant, and child claim. The coordinator exited zero and resident Self
+accepted its generic terminal receipt, but typed status still reported that
+same request pending. The runtime had no exact proposal-Modeling launch binding.
+
+The current worktree makes that impossible to call success. A proposal-Modeling
+grant must have its exact runtime launch binding before resident terminal ack;
+otherwise the turn is cancelled as `unfulfilled` and the same pressure returns
+to heartbeat. The focused fulfillment test and both swarm binary tests pass.
+v37 is sealed at the false-success boundary.
+
 Fresh runtime `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v31`
 accepted initial and proposal-bound Modeling for thread
 `shakedown-v31-rupture-closure-implementation-r1`. The generic user proposal
@@ -109,12 +124,11 @@ thread.
 
 ## Next action
 
-1. Commit, push, package, and authenticate the single-owner ingestion repair.
-2. Preserve v31 through v36 as failure evidence; replay from a boundary before
-   duplicate proposal pressures were created.
-3. Run persistent resident supervision from an approved `.epiphany-dogfood`
-   root and prove selected Imagination options launch Modeling one at a time in
-   runtime request order.
+1. Commit, push, package, and authenticate proposal-pressure fulfillment.
+2. Preserve v31 through v37 as failure evidence; clone v37 and publish the exact
+   successor release.
+3. Prove the unfulfilled zero-exit requeues, heartbeat retries, the exact launch
+   binding is created, and only then the next selected option becomes pressure.
 4. In a fresh runtime, re-run pressure ingestion twice and resident launch.
    Prove autonomous direction consideration, proposal-bound Modeling,
    canonical Imagination, dedicated Mind adoption, and exact Hands authority.

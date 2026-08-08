@@ -1278,6 +1278,14 @@ a second independently ordered pressure queue. Self owns queue order; it does
 not silently discard or rank Imagination's already-selected options, and
 heartbeat owns opportunity without acquiring a second scheduling opinion.
 
+Resident terminal success is also pressure-specific. For a
+`repo-frontier-proposal-modeling` grant, a zero-exit coordinator receipt proves
+only that the bounded coordinator process ended cleanly; it does not prove the
+requested Modeling launch occurred. Before acknowledging that pressure,
+resident Self now requires the runtime spine to contain the exact
+`RepoFrontierProposalModelingLaunchBinding`. Missing fulfillment is a typed
+failed turn: cancellation requeues the same pressure for heartbeat retry.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is

@@ -15,6 +15,7 @@ use epiphany_core::{
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
     validate_persona_feedback_store_separation, validate_resident_self_store_separation,
+    verify_resident_self_grant_fulfillment,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -236,6 +237,21 @@ fn cycle(
                             "coordinator exited zero without its exact resident terminal receipt"
                         )
                     })?;
+                if let Err(error) = verify_resident_self_grant_fulfillment(
+                    &args.state_store,
+                    &args.policy.runtime_store,
+                    &lease.grant_id,
+                ) {
+                    cancel_resident_self_turn(
+                        &args.state_store,
+                        &lease,
+                        "unfulfilled",
+                        &error.to_string(),
+                        now,
+                    )?;
+                    *state = load_resident_self_state(&args.state_store)?;
+                    return Ok(ResidentSelfOutcome::Failed);
+                }
                 complete_resident_self_turn(&args.state_store, &lease, &receipt, now)?;
                 *state = load_resident_self_state(&args.state_store)?;
                 Ok(ResidentSelfOutcome::Completed)
