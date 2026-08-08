@@ -1368,6 +1368,37 @@ planning request has no lawful review or retry transition. Native interrupt is
 not the missing owner: it may stop or block a binding, but it cannot fabricate
 the faculty result that Self's lifecycle consumes.
 
+The repair must not collapse retry scheduling into the semantic planning
+request. The current request ID is a deterministic function of runtime, thread,
+model, and frontier identity; it describes *what* is being planned. A retry is
+an attempt to execute that same authority, not a new semantic request and not a
+mutation of the old launch receipt.
+
+- Owner: the model adapter owns syntactic ingress and must canonicalize
+  set-shaped candidate fields such as safe paths before validation. Ordering is
+  serialization, not Imagination authority. Mind still owns whether the
+  resulting canonical paths stay within the request ceiling.
+- Owner: the model adapter also owns one non-executable typed role failure when
+  candidate parsing or validation fails. It binds the exact worker launch job,
+  carries `item_error`, carries no candidate or foreign authority cargo, and is
+  adjacent to—not replaced by—the generic failed runtime-job receipt.
+- Owner: Self owns attempt scheduling. An explicit reviewed failure may
+  authorize a new immutable attempt for the same semantic planning request.
+  Attempt identity and launch binding must be unique and monotonic; the prior
+  launch and failure remain immutable evidence.
+- Derived state: planning lifecycle reads the latest lawful attempt while
+  retaining earlier failures. `ImaginationFailed` is a review boundary, not an
+  implicit retry and not a terminal judgment on the frontier itself.
+- Forbidden writers: native interrupt cannot author faculty failure; generic
+  job status cannot become Imagination truth; a new launch cannot overwrite the
+  old binding; and retry cannot mint a new model/frontier authority or bypass
+  the current request's Body hashes.
+- Negative checks: malformed output yields both failure receipts; no retry is
+  launchable before explicit failure review; exactly one next attempt becomes
+  launchable afterward; stale or substituted review identity is refused; prior
+  failed attempts cannot later supply a candidate or override the successful
+  attempt.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the
