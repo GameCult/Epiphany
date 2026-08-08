@@ -1,5 +1,70 @@
 # Fresh workspace handoff
 
+## Linux resident coordination phase boundary — 2026-08-09
+
+Exact pushed source `c0055772750a7dd7335f65baa88307cf9e28c1e1` is packaged for Linux as
+`sha256-b4faf5721a8662b30464dacb9bcc0945b34051521af110ab3d56eef59036ba7e`
+with witness
+`sha256-7ddc54e0817efdcc56b6ceb5dc62124502da0d178f1946db7a8e0283a23ecaa0`.
+The cold root package took 12m33s plus 18.67s for the isolated coordinator and
+exceeded 4.4 GiB; the exact warm package took 9.08s wall and reproduced the
+same release and witness. Preserve Docker volumes `epiphany-linux-cargo-home`,
+`epiphany-linux-target`, `epiphany-linux-package-source`, and
+`epiphany-linux-package-cache`. Yggdrasil must not build this graph.
+
+The isolated resident body is under `.epiphany-run/linux-resident-c005/`.
+Packaged Repository Body bootstrap initially refused a foreign swarm ID, then
+succeeded with authoritative Mind swarm `gamecult.epiphany.main`. The successful
+pass ran from `23:10:34Z` to `23:15:50Z` and visibly performed two full-tree
+`git add --all` authentication passes. Its receipt is
+`body-bootstrap-success.log`; the identity refusal is
+`body-swarm-identity-refusal.log`.
+
+Heartbeat pulse 1 issued the original grant. Self first failed because the
+artifact root was mounted outside the coordinator's canonical
+`.epiphany-smoke` cleanup root. The typed cancellation returned pressure to
+pending; heartbeat pulse 2 acknowledged the exact terminal ID and issued
+attempt 2. With the same host artifacts mounted beneath
+`/workspace/.epiphany-smoke`, Self completed revision 6 and returned to sleep.
+This proves authenticated Linux heartbeat -> Self -> plan coordinator
+coordination. The plan coordinator intentionally invoked no model or tools.
+
+The next execute pass exposed process ownership. A one-shot coordinator
+container opened reorient job `8870f824-fdf9-4240-996a-6a663cead22c`, detached
+its model worker, and exited; Docker then killed the worker because PID 1 was
+gone. Exact-job recovery inside the resident container correctly refused the
+still-open inner job and sealed both outer and inner jobs failed. Do not replay
+that job. Receipts are in `execute-bootstrap-refusals.log`,
+`coordinator-execute-reorient/`, and `linux-reorient-recovery-summary.txt`.
+
+CRRC next routed Eyes. Resident Eyes job
+`ab813c57-081a-4c62-80e5-d3471ae451bf` reached a real OpenAI Codex request with
+three native read-only source tools advertised and no external consequence.
+Because the bounded objective promised no tools and coordinator ran with
+`--no-auto-tools`, the model-selected tool path had no tool loop; assistant text
+was empty and the `epiphany.worker.role_result.v3` parser failed closed. The
+failure was superseded by typed receipt
+`role-failure-review-859fa955-4fee-4dd5-a0a4-d75b769890be`. No tool invocation
+receipt was admitted. The resident cgroup peak across Self, coordinator, and
+model worker was 62,590,976 bytes (59.7 MiB), captured in
+`linux-eyes-memory-summary.txt` across 54 100ms samples.
+
+Auth residue audit found no copied `auth.json` and zero matches for access or
+refresh tokens. The private runtime store contains the mounted auth file's
+ChatGPT account identifier as model-transport identity metadata; no artifact or
+workspace file contains it. Do not describe the store as credential-free
+without this classification.
+
+Next: preserve this zero-tool circuit as sealed evidence. Create a fresh typed
+objective/adoption boundary for a Linux Eyes circuit that explicitly permits
+native read-only source tools, run it inside the persistent resident body,
+prove tool receipts plus a valid typed role result, review/accept it, and inspect
+the next routed organ. Do not rewrite the existing authoritative objective; the
+coordinator correctly refuses that. Also repair the uninstalled Yggdrasil
+systemd unit in `F:\Projects\gamecult-ops`: current `epiphany-swarm.service`
+omits required `--mcp-config` and
+`--persona-model-allowed-data-classifications` arguments.
+
 ## Retention and release-bootstrap pass — 2026-08-08
 
 Exact corrected release `100d8854` packaged 22 binaries as
