@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 5b922a04 packages as sha256-a019000d541fea02f7fda93dbbdc4f0bdcf8d6e2bc33a9ec4f38270dca2f26b1 with witness sha256-97937ae68206b26a09ba3479cf8865acf36b30f9686d15abf1663561afd1abab. Fresh v52 proves successful canonical Imagination retry, dedicated Mind adoption, RepoModel revision 5, and native `Hands=true` under the repaired scope and retry identities. A later stale proposal Modeling result was correctly rejected, but its reviewed failure preempted the newer Hands frontier in coordinator action ordering. A focused local repair now prevents stale proposal recovery from outranking current Mind authority. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 has completed the adopted RepoModel revision 5 Hands route through commit 0763fcbe94257eb9adbe92ab814b5a487f65551d. Final typed Hands receipts are present. The Mind-admitted RepoModel now supplies one shared continuity checkpoint to status, CRRC, Reorientation launch, and atomic Reorientation acceptance. Accepted Reorientation found retrieval and graph freshness unknown, so Self correctly routed Eyes regather; that worker is active. Persona consequence, retention, endurance, restart closure, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: stale_proposal_precedence_fix_verified_commit_next
     operator_wireguard: restored
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: Exact 5b922a04 substrate status on v52 reports an actionable Hands frontier after dedicated Mind adoption. Coordinator status instead returned `awaitFrontierProposal` because a reviewed stale proposal-bound Modeling rejection was handled before the later Hands-ready branch. The local decision-order repair is focused-test green but not yet committed, pushed, packaged, or replayed live. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
-  next_action: Commit and push the stale-proposal precedence repair, package exact source, clone sealed v52 into v53, and prove coordinator derives `ContinueImplementation` plus the exact Hands gate from the same native store. Then execute the adopted CRRC/Reorientation/Continuity implementation route through Hands and Soul. Audit coordinator-owned timestamps before declaring the planning circuit closed.
+  unresolved_authority: The accepted v53 Reorientation verdict correctly fails source freshness closed, but its narrative still describes the already-completed planning frontier as unresolved; only its typed regather verdict is authoritative. Eyes PID 20524 is refreshing source evidence. Exact 0763fcbe packaging is still required because the currently published 253ef340 release proves the behavior before the final atomic-acceptance corrections. The adopted Mind decision also carries a model-supplied 2025 timestamp; timestamp ownership remains a separate provenance audit item.
+  next_action: Poll the single active v53 Eyes worker, review and accept the first valid evidence packet, then let Self route Soul verification of the final Hands consequence. Package and publish exact 0763fcbe once without duplicate builds, replay the closed CRRC/Reorientation/Continuity chain, and inspect the next typed action. Then audit coordinator-owned timestamps before declaring the planning circuit closed.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
