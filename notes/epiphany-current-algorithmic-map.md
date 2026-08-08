@@ -1461,8 +1461,15 @@ repair loop and does not erase failed Soul launches or historical Hands receipts
 Verification layer: focused derivation tests prove exact success, original-plan
 preservation, single-use refusal, and generic-purpose refusal. The Hands receipt
 test proves a mismatched stated command leaves the store byte-identical before
-the exact command succeeds. Live v53 migration and renewed Soul verification are
-the remaining end-to-end proof.
+the exact command succeeds. Live v53 now proves the amended route through exact
+Hands receipts and an accepted Soul result at thread-state revision 31.
+
+Self resolves the complete Soul lifecycle before generic CRRC/regather routing.
+A pending or running Soul job routes only to result observation. A completed,
+accepted Soul result routes according to its verdict: bounded missing evidence
+may return to Hands, while an accepted pass or non-pass awaiting model
+incorporation routes Modeling. CRRC cannot mint a replacement Hands gate while
+Soul is running or after Soul has established the newer causal boundary.
 
 ## Exact release build cache ownership
 

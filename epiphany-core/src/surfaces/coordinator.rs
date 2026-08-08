@@ -1140,6 +1140,68 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if matches!(
+        input.signals.verification_result_status,
+        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
+    ) {
+        return build(
+            EpiphanyCoordinatorAction::ReviewVerificationResult,
+            Some(EpiphanyCoordinatorRoleId::Verification),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "A verification/review specialist is already running; wait for its result.",
+        );
+    }
+
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && input.verification_result_accepted
+        && !input.verification_result_allows_implementation
+        && input.verification_result_needs_evidence
+        && input.modeling_result_accepted
+        && input.verification_result_covers_current_modeling
+        && input.hands_frontier_ready
+    {
+        return build(
+            EpiphanyCoordinatorAction::ContinueImplementation,
+            Some(EpiphanyCoordinatorRoleId::Implementation),
+            None,
+            false,
+            false,
+            "The accepted verification/review finding asks for implementation evidence from the current modeling checkpoint; continue only the bounded evidence-gathering implementation step before re-verification.",
+        );
+    }
+
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && input.verification_result_accepted
+        && !input.verification_result_allows_implementation
+        && !input.modeling_result_accepted_after_verification
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "The accepted verification/review finding did not pass; strengthen modeling/checkpoint evidence before implementation continues.",
+        );
+    }
+
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && input.verification_result_accepted
+        && input.verification_result_allows_implementation
+        && !input.modeling_result_accepted_after_verification
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "Soul has accepted the Hands consequence evidence; route Modeling to update the machine model before another implementation turn.",
+        );
+    }
+
     if input.recommendation.action == EpiphanyCrrcAction::RegatherManually
         && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
             == Some(EpiphanyCoordinatorRoleStatus::Blocked)
@@ -1213,54 +1275,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
-        && input.verification_result_needs_evidence
-        && input.modeling_result_accepted
-        && input.verification_result_covers_current_modeling
-        && input.hands_frontier_ready
-    {
-        return build(
-            EpiphanyCoordinatorAction::ContinueImplementation,
-            Some(EpiphanyCoordinatorRoleId::Implementation),
-            None,
-            false,
-            false,
-            "The accepted verification/review finding asks for implementation evidence from the current modeling checkpoint; continue only the bounded evidence-gathering implementation step before re-verification.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
-        && !input.modeling_result_accepted_after_verification
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "The accepted verification/review finding did not pass; strengthen modeling/checkpoint evidence before implementation continues.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && input.verification_result_allows_implementation
-        && !input.modeling_result_accepted_after_verification
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Soul has accepted the Hands consequence evidence; route Modeling to update the machine model before another implementation turn.",
-        );
-    }
-
     if role_status(&input.roles, EpiphanyCoordinatorRoleId::Modeling).is_some_and(|status| {
         matches!(
             status,
@@ -1309,20 +1323,6 @@ pub fn recommend_coordinator_action(
             false,
             true,
             "A complete Hands consequence chain is newer than the last accepted Soul boundary; launch Verification against its typed request and receipts.",
-        );
-    }
-
-    if matches!(
-        input.signals.verification_result_status,
-        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
-    ) {
-        return build(
-            EpiphanyCoordinatorAction::ReviewVerificationResult,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "A verification/review specialist is already running; wait for its result.",
         );
     }
 
@@ -2417,6 +2417,73 @@ mod tests {
             Some(EpiphanyCoordinatorRoleId::Implementation)
         );
         assert!(decision.reason.contains("admitted current RepoModel"));
+    }
+
+    #[test]
+    fn pending_soul_preempts_regather_hands_frontier() {
+        let mut roles = base_roles();
+        roles
+            .iter_mut()
+            .find(|role| role.id == EpiphanyCoordinatorRoleId::Implementation)
+            .expect("implementation lane")
+            .status = EpiphanyCoordinatorRoleStatus::Blocked;
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+            roles,
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Pending,
+            },
+            research_result_accepted: true,
+            modeling_result_reviewable: true,
+            modeling_result_failure_reviewed: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+
+        assert_eq!(
+            decision.action,
+            EpiphanyCoordinatorAction::ReviewVerificationResult
+        );
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Verification)
+        );
+        assert!(!decision.can_auto_run);
+    }
+
+    #[test]
+    fn accepted_soul_preempts_regather_hands_frontier() {
+        let mut roles = base_roles();
+        roles
+            .iter_mut()
+            .find(|role| role.id == EpiphanyCoordinatorRoleId::Implementation)
+            .expect("implementation lane")
+            .status = EpiphanyCoordinatorRoleStatus::Blocked;
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
+            roles,
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+            },
+            research_result_accepted: true,
+            modeling_result_reviewable: true,
+            modeling_result_failure_reviewed: true,
+            verification_result_accepted: true,
+            verification_result_allows_implementation: true,
+            hands_frontier_ready: true,
+            ..input()
+        });
+
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(decision.can_auto_run);
     }
 
     #[test]
