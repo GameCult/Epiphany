@@ -552,6 +552,65 @@ pub fn resident_coordinator_thread_id(runtime_id: &str) -> Result<String> {
     Ok(format!("resident-self-thread-{runtime_id}"))
 }
 
+fn resident_coordinator_binding_for_grant(
+    policy: &ResidentSelfPolicy,
+    grant: &ResidentSelfHeartbeatGrant,
+) -> Result<(String, Option<(String, String)>)> {
+    let (prefix, request_flag) = match grant.pressure_kind.as_str() {
+        "imagination-consideration" => (
+            "cultcache://imagination-consideration/",
+            "--imagination-consideration-request-id",
+        ),
+        "admitted-model-direction-consideration" => (
+            "cultcache://admitted-model-direction-consideration/",
+            "--admitted-model-direction-consideration-request-id",
+        ),
+        "repo-frontier-proposal-modeling" => (
+            "cultcache://repo-frontier-proposal-modeling/",
+            "--proposal-modeling-request-id",
+        ),
+        _ => {
+            return Ok((
+                resident_coordinator_thread_id(&policy.release_runtime_id)?,
+                None,
+            ));
+        }
+    };
+    let request_id = grant
+        .provenance_ref
+        .strip_prefix(prefix)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("consideration grant lost exact request provenance"))?;
+    let mut cache = crate::runtime_spine_cache(&policy.runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let (runtime_id, thread_id) = match grant.pressure_kind.as_str() {
+        "imagination-consideration" => {
+            let request = cache
+                .get::<crate::ImaginationConsiderationRequest>(request_id)?
+                .ok_or_else(|| anyhow!("Imagination consideration request is missing"))?;
+            (request.runtime_id, request.thread_id)
+        }
+        "admitted-model-direction-consideration" => {
+            let request = cache
+                .get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
+                .ok_or_else(|| anyhow!("model direction consideration request is missing"))?;
+            (request.runtime_id, request.thread_id)
+        }
+        _ => {
+            let request = cache
+                .get::<crate::RepoFrontierProposalModelingRequest>(request_id)?
+                .ok_or_else(|| anyhow!("proposal Modeling request is missing"))?;
+            (request.runtime_id, request.thread_id)
+        }
+    };
+    if runtime_id != policy.release_runtime_id || thread_id.trim().is_empty() {
+        return Err(anyhow!(
+            "resident typed request escaped its runtime or thread authority"
+        ));
+    }
+    Ok((thread_id, Some((request_flag.into(), request_id.into()))))
+}
+
 fn prepared_coordinator_thread_id(argv: &[String]) -> Result<String> {
     let index = argv
         .iter()
@@ -561,6 +620,10 @@ fn prepared_coordinator_thread_id(argv: &[String]) -> Result<String> {
         .filter(|value| !value.trim().is_empty())
         .cloned()
         .ok_or_else(|| anyhow!("prepared coordinator argv has empty thread identity"))
+}
+
+pub fn resident_prepared_launch_thread_id(prepared: &ResidentSelfPreparedLaunch) -> Result<String> {
+    prepared_coordinator_thread_id(&prepared.argv)
 }
 
 #[cfg(test)]
@@ -1069,36 +1132,12 @@ pub fn prepare_resident_self_launch(
     let Some(mut grant) = pending_resident_self_grant(path)? else {
         return Ok(None);
     };
-    let turn_id = resident_coordinator_thread_id(&policy.release_runtime_id)?;
+    let (turn_id, typed_request) = resident_coordinator_binding_for_grant(policy, &grant)?;
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
     let mut argv = coordinator_argv(policy, &turn_id, &wake);
-    if matches!(
-        grant.pressure_kind.as_str(),
-        "imagination-consideration"
-            | "admitted-model-direction-consideration"
-            | "repo-frontier-proposal-modeling"
-    ) {
-        let (prefix, request_flag) = match grant.pressure_kind.as_str() {
-            "imagination-consideration" => (
-                "cultcache://imagination-consideration/",
-                "--imagination-consideration-request-id",
-            ),
-            "admitted-model-direction-consideration" => (
-                "cultcache://admitted-model-direction-consideration/",
-                "--admitted-model-direction-consideration-request-id",
-            ),
-            _ => (
-                "cultcache://repo-frontier-proposal-modeling/",
-                "--proposal-modeling-request-id",
-            ),
-        };
-        let request_id = grant
-            .provenance_ref
-            .strip_prefix(prefix)
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| anyhow!("consideration grant lost exact request provenance"))?;
+    if let Some((request_flag, request_id)) = typed_request {
         let objective = argv.pop();
         let flag = argv.pop();
         if objective.is_none() || flag.as_deref() != Some("--objective") {
@@ -1106,7 +1145,7 @@ pub fn prepare_resident_self_launch(
                 "consideration launch could not remove objective carrier"
             ));
         }
-        argv.extend([request_flag.into(), request_id.into()]);
+        argv.extend([request_flag, request_id]);
     }
     let executable = std::fs::read(&policy.coordinator_bin)
         .with_context(|| format!("failed to hash {}", policy.coordinator_bin.display()))?;
@@ -1724,6 +1763,54 @@ mod tests {
             release_witness_sha256: "sha256:test-manifest".into(),
         }
     }
+    fn seed_model_direction_request(
+        store: &Path,
+        request_id: &str,
+        runtime_id: &str,
+        thread_id: &str,
+    ) -> Result<()> {
+        let cache = crate::runtime_spine_cache(store)?;
+        let request = crate::AdmittedModelDirectionConsiderationRequest {
+            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION
+                .into(),
+            request_id: request_id.into(),
+            runtime_id: runtime_id.into(),
+            thread_id: thread_id.into(),
+            model_revision: 1,
+            model_hash: "sha256:model-1".into(),
+            model_admission_receipt_id: "model-admission-1".into(),
+            previous_terminal_result_id: None,
+            requested_at: "2026-07-18T00:00:00Z".into(),
+            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_CONTRACT.into(),
+            private_state_included: false,
+        };
+        let (entry, _) = cache.prepare_entry(request_id, &request)?;
+        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
+        Ok(())
+    }
+    fn seed_proposal_modeling_request(
+        store: &Path,
+        request_id: &str,
+        runtime_id: &str,
+        thread_id: &str,
+    ) -> Result<()> {
+        let cache = crate::runtime_spine_cache(store)?;
+        let request = crate::RepoFrontierProposalModelingRequest {
+            schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
+            request_id: request_id.into(),
+            proposal_id: "proposal-1".into(),
+            proposal_payload_sha256: "sha256:proposal-1".into(),
+            runtime_id: runtime_id.into(),
+            thread_id: thread_id.into(),
+            repository: "GameCult/Epiphany".into(),
+            workspace: absolute("workspace").display().to_string(),
+            selected_at: "2026-07-18T00:00:00Z".into(),
+            contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
+        };
+        let (entry, _) = cache.prepare_entry(request_id, &request)?;
+        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
+        Ok(())
+    }
     fn explicit() -> Option<ResidentSelfWake> {
         Some(ResidentSelfWake::Explicit {
             objective: "inspect".into(),
@@ -1830,6 +1917,13 @@ mod tests {
         std::fs::write(&coordinator, b"witnessed executable")?;
         let mut policy = policy();
         policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-model-1",
+            &policy.release_runtime_id,
+            "implementation-thread-1",
+        )?;
         let pressure = ResidentSelfPressure {
             schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
             pressure_id: "pressure-body-1".into(),
@@ -1856,6 +1950,10 @@ mod tests {
                 "--admitted-model-direction-consideration-request-id",
                 "request-model-1"
             ]));
+        assert_eq!(
+            resident_prepared_launch_thread_id(&prepared)?,
+            "implementation-thread-1"
+        );
         assert!(prepare_resident_self_launch(&store, &policy, 5)?.is_none());
         let process = LaunchedCoordinator {
             process_id: 44,
@@ -1915,6 +2013,13 @@ mod tests {
         std::fs::write(&coordinator, b"witnessed executable")?;
         let mut policy = policy();
         policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-retry-1",
+            &policy.release_runtime_id,
+            "implementation-thread-retry",
+        )?;
         enqueue_resident_self_pressure(
             &store,
             &ResidentSelfPressure {
@@ -1973,6 +2078,13 @@ mod tests {
         std::fs::write(&coordinator, b"witnessed executable")?;
         let mut policy = policy();
         policy.coordinator_bin = coordinator;
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_proposal_modeling_request(
+            &policy.runtime_store,
+            "selection-1",
+            &policy.release_runtime_id,
+            "implementation-thread-proposal",
+        )?;
         enqueue_resident_self_pressure(
             &store,
             &ResidentSelfPressure {
@@ -1997,6 +2109,10 @@ mod tests {
                 .argv
                 .windows(2)
                 .any(|pair| { pair == ["--proposal-modeling-request-id", "selection-1"] })
+        );
+        assert_eq!(
+            resident_prepared_launch_thread_id(&prepared)?,
+            "implementation-thread-proposal"
         );
         Ok(())
     }

@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact c5f99c46 packages 21 independently authenticated binaries as sha256-04a4854a1268139e42c028503460bb75d5b4c97b28c7fafcfb963ad1210c0090 with witness sha256-615b3878473d65c67998614e1f6e33cec2bb5ea08a985210ff1c2161c1a481a5. v33 proved cancellation returns failed pressure to heartbeat, then exposed a second retry identity defect: reconciliation can grant within the same schedule/action, so the immutable original grant collided with the retry. The current worktree adds a pressure-local attempt ordinal to grant identity and passes all 16 resident-Self tests, including same-action attempt 2. Exact packaging and live retry remain required before resuming the implementation chain. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact d4b446ab packages 21 independently authenticated binaries as sha256-d31ab4329dd34d93e101fa3a783373b6b1f3bc311fac057c6f0d0b4ce5911122 with witness sha256-d5256ee2181dcacc3da87c8f491a12c359a0bde6139a362d40053d453acac4b8. v34 proved deliberate resident failure, cancellation, attempt-2 grant, and replacement launch. Persistent serve then exposed that preparation substituted a fixed resident thread for the typed direction request's implementation thread; coordinator validation correctly refused the mismatch. The current worktree makes typed request runtime/thread authority own preparation, child launch, and lease identity. All 16 resident-Self tests and both swarm binary tests pass. Exact packaging and live continuation remain required. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: attempt_qualified_resident_retry_verified_pending_commit
+    local_worktree: request_owned_resident_thread_verified_pending_commit
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_c5f99c46_cancellation_retry; attempt_identity_successor_pending
+    starfire_release: authenticated_d4b446ab_attempt_retry; request_thread_successor_pending
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v32 proved producer replay; v33 proved cancellation returns exact pressure, then falsified same-action retry because grant identity lacked attempt lineage. The attempt-qualified repair is locally verified but not yet packaged or proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, deliberate worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit and package attempt-qualified retry grants, preserve v31-v33 as failure evidence, and prove heartbeat issues same-action attempt 2 into an approved dogfood artifact root. Then continue the autonomous Imagination-to-Modeling-to-Mind-to-Hands chain and deliberate failure/restart/Soul closure.
+  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v32 proved producer replay; v33 proved cancellation requeue; v34 proved attempt-qualified retry and then falsified fixed resident thread substitution against the typed request. The request-owned thread repair is locally verified but not yet packaged or proven live. Canonical Imagination, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Commit and package request-owned resident threads, preserve v31-v34 as failure evidence, and prove the retried direction request reaches Imagination on its exact implementation thread. Then continue autonomous proposal Modeling, canonical Imagination, dedicated Mind, Hands, and bounded-worker failure/restart/Soul closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

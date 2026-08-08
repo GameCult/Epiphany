@@ -1257,6 +1257,15 @@ failed turn and schedules the replacement within the same physiological action.
 Concurrent issuers still derive the same next ordinal and contend on the one
 pending-pressure CAS, so attempt identity does not weaken single consumption.
 
+Typed pressure does not own a new coordinator thread. Imagination
+consideration, admitted-model direction consideration, and autonomous proposal
+Modeling requests each carry the implementation thread that owns their causal
+state. Resident preparation reloads that exact request from the runtime store,
+verifies its runtime identity, and binds its thread into the coordinator argv.
+The prepared argv is then the single source for child launch and lease thread
+identity. Only plain operator objectives use the resident runtime thread.
+`epiphany-swarm` no longer reconstructs a fixed thread after preparation.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is

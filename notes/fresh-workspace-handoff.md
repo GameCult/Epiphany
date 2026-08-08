@@ -59,10 +59,28 @@ The retry test now uses the same heartbeat schedule/action and proves attempt 2
 receives a distinct grant while retaining the same pressure authority. All 16
 resident-Self tests pass.
 
+Exact pushed `d4b446ab` packages as
+`sha256-d31ab4329dd34d93e101fa3a783373b6b1f3bc311fac057c6f0d0b4ce5911122`
+with witness
+`sha256-d5256ee2181dcacc3da87c8f491a12c359a0bde6139a362d40053d453acac4b8`.
+The v34 live timeline proved the deliberate failure, cancellation, attempt-2
+grant, and replacement launch. Running the replacement under persistent
+`epiphany-swarm serve` reached coordinator validation, which correctly refused
+`model direction consideration provenance mismatch`: resident preparation had
+substituted fixed thread `resident-self-thread-epiphany-starfire` for the
+implementation thread owned by the typed direction request.
+
+The current worktree reloads typed direction, Imagination-consideration, and
+proposal-Modeling requests during preparation and carries their exact runtime
+and thread identity through argv, child launch, and lease. Plain operator
+pressure alone retains the fixed resident thread. All 16 resident-Self tests and
+both packaged swarm tests pass; typed launch tests assert the request-owned
+thread.
+
 ## Next action
 
-1. Commit, push, package, and authenticate attempt-qualified retry grants.
-2. Preserve v31 through v33 as failure evidence; clone the recovered boundary
+1. Commit, push, package, and authenticate request-owned resident threads.
+2. Preserve v31 through v34 as failure evidence; clone the recovered boundary
    into a new replay runtime using an approved `.epiphany-dogfood` artifact root.
 3. Re-run heartbeat selection and resident launch, including exact retry after
    one deliberate failed launch.
