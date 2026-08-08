@@ -10,7 +10,7 @@ machine at its current memory budget.
 - Latest pushed Epiphany commit: `55660d78486f22795d29d620f261d33a613cdc18`
 - Authenticated release: `sha256-2f4a17126d12935088189c32caadef202a1e9b698ec2cfc8fd4aec08c0763696`
 - Witness: `sha256-c0788bda36aa28b8025979378968a2c48cbbcc607a1a538351756831c2b287f4`
-- Live Bifrost/CultLib runtime: `573bbd3968efcf38ce411c4ac934927fc8bdab11` / `f67f5122ed1bd11da016e7b820ed60145ccd0299`
+- Live Bifrost/CultLib runtime: `cb3239aaac963995ad012e648f9a455463a54ea2` / `f67f5122ed1bd11da016e7b820ed60145ccd0299`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
 - Thread-state revision: `59`
@@ -18,7 +18,7 @@ machine at its current memory budget.
 
 ## Live causal boundary
 
-Epiphany `55660d78`, Bifrost `573bbd39`, CultLib `f67f5122`, and CultNet
+Epiphany `55660d78`, Bifrost `cb3239aa`, CultLib `f67f5122`, and CultNet
 `2d0988ba` implement and deploy the Starfire-to-Yggdrasil Persona nerve. An
 already-durable signed `epiphany.persona_discord_delivery_request.v0` now
 travels over a Starfire-initiated CultNet/RUDP session; Bifrost admits it to
@@ -39,14 +39,24 @@ not. The first live Persona request reached model terminal and durable request
 state, then its expired recovery produced signed terminal `unknown` without a
 second post. It is sealed and may not be retried.
 
-The current seam is host firewall state, not RUDP or contract parsing. Windows
-created two inbound block rules for the new permit executable path while
-retaining two allow rules for the retired path. `gamecult-ops` commit `6ee08a4`
-contains the stable repair: remove only automatic Persona-permit program rules
-and install one path-independent UDP 17877 rule limited to Yggdrasil
-`10.77.0.1` on `wg-gamecult-starfire`. The repair requires secure-desktop UAC.
-After it lands, run the permit-only probe as `bifrost-feedback`; do not create a
-fresh Persona turn until that probe succeeds.
+Live probing then found two cross-language/authority seams. Bifrost had encoded
+the permit request as a camelCase map while Rust requires a positional struct,
+and decoded Rust's positional permit as an object. Commit `514c2a6` aligns both
+wire bodies; a unique permit-only Node-to-Rust-to-Node request now completes.
+The second fresh Persona turn reached model terminal and consumed a permit, but
+Bifrost called its Discord bridge without the required CultMesh command ID.
+The bridge refused the unreceipted actuation and Bifrost correctly signed
+terminal `unknown` with no message ID. Commit `cb3239aa` binds the bridge command
+receipt to the signed Persona request ID and is live.
+
+Yggdrasil has no `/srv/bifrost/env/persona-delivery.env` and no
+`BIFROST_DISCORD_BOT_TOKEN` or compatible token in managed secret roots. No
+third Persona request may be created until an operator-owned bot token is
+installed root-only and the mouth restarted. The two existing requests are
+sealed non-deliveries and may never be retried. Windows still retains
+per-release firewall rules; the admitted prior authenticated permit binary PID
+`19024` carries diagnostic traffic, while `gamecult-ops` `e52c7dc` contains the
+durable path-independent UAC repair.
 
 The operator expects proactive operator-enginseer intervention in corrupted
 Epiphany runtime state; corruption is not a permission boundary. Repairs must
@@ -273,25 +283,33 @@ journal, and the signed terminal receipt.
 Current physical state:
 
 - Yggdrasil runs `bifrost-persona-feedback.service` and
-  `bifrost-persona-mouth.service` from exact Bifrost `573bbd39` / CultLib
+  `bifrost-persona-mouth.service` from exact Bifrost `cb3239aa` / CultLib
   `f67f5122`; the mouth is bound to WireGuard `10.77.0.1:17876`.
 - Starfire feedback ingress uses immutable CultNet snapshot export/import; it
   never copies live Bifrost `.cc` state.
-- Starfire permit PID `21204` runs exact authenticated Epiphany `55660d78` and
-  binds `10.77.0.2:17877`.
+- Starfire permit PID `19024` runs the prior authenticated Epiphany release at
+  the Windows-admitted path and binds `10.77.0.2:17877`; exact `55660d78`
+  remains published but blocked by Windows' per-release program rule.
 - Request, receipt, and permit-request identities are purpose-specific. Only
   public anchors crossed hosts; private keys remain with their owners.
 - The first live request reached model terminal, persisted on both sides, and
-  later reconciled to signed terminal `unknown` after its permit intent expired.
+  later reconciled to signed terminal failure after its permit intent expired.
   It did not automatically repost and must never be reused.
+- The second live request obtained a valid permit, then terminalized signed
+  `unknown` when the bridge rejected its missing CultMesh command ID. It has no
+  Discord message evidence and must never be reused. The source fix is live.
+- Unique permit-only probing completes across Node/Rust; the reusable probe no
+  longer collides with its own replay key.
+- Yggdrasil lacks the token-bearing Discord credential required for actuation.
 - Windows currently blocks inbound traffic to the new exact permit executable
   with automatic per-program rules. The path-independent scoped repair is
   `F:\Projects\gamecult-ops\scripts\allow-starfire-epiphany-persona-permit.ps1`.
 
-After UAC applies the scoped firewall repair, run the permit-only probe as
-`bifrost-feedback`. When it succeeds, queue one fresh uniquely identified
-Persona mention and prove model terminal, signed request, permit, Discord
-message ID/URL, signed Bifrost receipt, Starfire admission, and heartbeat
+Install an operator-owned bot token as root-only
+`/srv/bifrost/env/persona-delivery.env`, restart the mouth, and verify only the
+credential's presence. Then queue one fresh uniquely identified Persona mention
+and prove model terminal, signed request, permit, Discord message ID/URL, bridge
+crossing receipt, signed Bifrost receipt, Starfire admission, and heartbeat
 terminalization. Transport acknowledgement is never speech success. Do not
 SFTP live stores, share private keys, run Bifrost actuation on Starfire, weaken
-the permit, or retry the terminal-unknown request.
+the permit, or retry either sealed request.
