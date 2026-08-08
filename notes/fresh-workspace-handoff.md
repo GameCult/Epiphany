@@ -228,3 +228,34 @@ with witness
 Do not recreate prior Eyes, Hands, Soul, or Modeling work. Do not feed the old
 manual-regather loop. Use coordinator projections and receipts; raw worker
 thought remains sealed.
+
+## Persona consequence boundary
+
+The next live organ is Persona, but it is not a launch-only exercise. Starfire
+owns temporary Epiphany cognition and Yggdrasil owns Bifrost/Discord crossing.
+The source contracts already prove local model execution, Interpreter effects,
+signed delivery requests, the five-second canonical-brake permit, signed
+Bifrost terminal receipts, heartbeat terminalization, and crash reconciliation.
+The live cross-host signal path is absent.
+
+Current physical state:
+
+- Yggdrasil runs only `bifrost-persona-feedback.service`; no Persona mouth or
+  Epiphany service units and no Persona crossing directories are installed.
+- Starfire feedback ingress uses immutable CultNet snapshot export/import; it
+  never copies live Bifrost `.cc` state.
+- `epiphany-persona-service` writes/reads local request and receipt stores.
+- Bifrost's mouth worker reads/writes local request and receipt stores and calls
+  the already-typed RUDP permit nerve before Discord actuation.
+- no request transport Starfire->Yggdrasil or signed receipt transport
+  Yggdrasil->Starfire exists.
+- Bifrost mouth and permit anchor readers currently hardcode
+  `epiphany-yggdrasil`, contradicting the admitted live target
+  `epiphany-starfire`.
+
+Build one bidirectional CultNet/RUDP nerve. Epiphany remains the signed request
+owner; Bifrost authenticates and durably journals the request before acting;
+Bifrost remains the signed receipt owner; Epiphany authenticates the terminal
+receipt before heartbeat completion. Transport acknowledgement is never speech
+success. Do not SFTP live stores, share private keys, run the Bifrost actuator
+on Starfire, or weaken the five-second brake permit.

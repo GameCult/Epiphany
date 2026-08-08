@@ -1690,6 +1690,56 @@ equality remain owners. The measured parallel observation is 49.52s. A future
 cut that reuses hashes or weakens the second scan requires a new explicit
 freshness authority; it must not be smuggled in as a cache.
 
+## Cross-host Persona consequence nerve
+
+Owner: Starfire Persona owns cognition, Interpreter effects, and the signed
+`epiphany.persona_discord_delivery_request.v0`. Yggdrasil Bifrost owns Discord
+actuation, its private execution journal, and the signed
+`bifrost.persona_discord_delivery_receipt.v0`. The existing Starfire permit
+issuer owns the final five-second consequence authorization from the canonical
+CultMesh brake.
+
+Inputs: one exact signed Persona request, one Bifrost trust binding for the
+admitted target runtime/Persona/channel, one purpose-specific Bifrost permit
+request identity, the canonical Starfire brake document, and the two
+purpose-specific public receipt/permit anchors. Runtime identity must be data
+bound by those anchors and deployment configuration; `epiphany-yggdrasil` is no
+longer a valid compiled assumption while cognition resides on Starfire.
+
+Signal path: Epiphany sends the signed request as a typed CultNet raw document
+over RUDP. Bifrost verifies and persists it before processing. Immediately
+before Discord actuation Bifrost requests the existing short-lived permit from
+Starfire and durably records permit consumption before the provider call.
+Bifrost returns the terminal signed receipt as a separately typed CultNet raw
+document. Epiphany persists and verifies that receipt before creating delivery
+evidence and terminalizing the heartbeat request.
+
+Derived state: RUDP connection/ack state is transport-only. The request is an
+inert proposal until a permit exists. The permit authorizes one bounded attempt
+but is not delivery evidence. Only the signed Bifrost receipt can prove
+`completed`, `failed`, or terminal-`unknown` consequence.
+
+Forbidden writers: SFTP may not copy either live `.cc` store; Bifrost private
+execution state and Discord credentials may not cross to Starfire; Epiphany
+cannot manufacture a receipt; Bifrost cannot manufacture or extend a permit;
+and an `unknown` journal/receipt cannot be retried automatically. Running the
+Bifrost mouth on Starfire would move crossing authority and is not an accepted
+shortcut.
+
+Shared paths: first delivery, restart recovery, duplicate request replay,
+expired request, braked permit refusal, provider failure, and terminal receipt
+replay all use the same typed request/permit/receipt identities. The local
+stores are durable endpoint state beneath the network contracts, not the
+crossing themselves.
+
+Verification layer: Rust/TypeScript interop fixtures must prove exact tuple and
+wire compatibility; RUDP smokes must prove request persistence, permit
+correlation, signed receipt return, replay idempotence, and substituted
+runtime/channel/signature refusal. Live proof requires one reserved Persona
+turn to reach model terminal, signed request, released-brake permit, Discord
+message ID/URL, signed Bifrost receipt, Epiphany delivery evidence, and
+heartbeat terminal receipt without exposing private state.
+
 ## Verdict-bound Modeling output authority
 
 Live v53 exposed a missing typed boundary after Soul acceptance. The
