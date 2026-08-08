@@ -3162,6 +3162,20 @@ pub(crate) mod tests {
             Some(failed.result_id.as_str())
         );
         assert_eq!(attempts[1].job_id, retry_job_id);
+        assert_eq!(
+            attempts[1].binding_record_id,
+            format!(
+                "repo-frontier-planning-launch-{}-attempt-1",
+                planning.request_id
+            )
+        );
+        let retry_result =
+            frontier_planning_result(&planning, retry_job_id, "2026-07-15T09:00:07Z")?;
+        put_runtime_role_worker_result(&store, &retry_result)?;
+        assert_eq!(
+            crate::runtime_repo_frontier_planning_lifecycle(&store)?.stage,
+            crate::RepoFrontierPlanningLifecycleStage::ImaginationResultReady
+        );
         Ok(())
     }
 

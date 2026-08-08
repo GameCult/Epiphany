@@ -34,9 +34,9 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 182a5913 packages as sha256-b194a1850071739d62f1dd820529a511d2e7d07286d451506f1021e05e796143 with witness sha256-455e715919444c98528986ee3a88aeb6daffd187d57d5202a15d7e9e688c1979. Sealed v50 proves the typed Hands refusal and atomic Mind relinquishment against the historical v49 route, then proves corrected proposal-bound Modeling through RepoModel revision 4. Its canonical Imagination attempts both failed closed because the model-facing planning contract omitted the enforced safe-path ceiling; no candidate or Hands authority was admitted. A focused local repair now states that invariant in both schema and runtime output contract. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 88778762 packages as sha256-4e0700d3e2305a343742608b06054faa4ab1ce4fb5a0fcef6ef1c8ee0efea914 with witness sha256-f434d5a480e5a1d54fef4cb18f93e391bc3cbd9669fd9ed6f7111f35a2d8a536. Sealed v50 proves typed Hands relinquishment and corrected Modeling. Fresh v51 proves the new Imagination safe-path context removed the prior scope-ceiling failure, then exposed a retry identity defect: successful retry bindings carry `-attempt-N`, while result validation demanded the attempt-zero ID. A local regression-tested repair now derives the expected immutable binding ID from attempt ordinal. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: imagination_safe_path_context_fix_verified_commit_next
+    local_worktree: imagination_retry_binding_fix_verified_commit_next
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v50 consumed both immutable Imagination attempts under the old release after producing the same bounded rejection, `frontier planning candidate exceeds exact frontier authority`. Source inspection shows the validator already owns the correct ceiling, but neither the output schema nor the runtime contract told Imagination that safe_paths must equal or descend from source_scope. The local context repair is focused-test green but is not yet committed, pushed, packaged, or replayed on a fresh runtime.
-  next_action: Commit and push the Imagination safe-path context repair, package its exact source once, clone sealed v50 into a fresh runtime, issue a fresh typed proposal, and prove Modeling -> Imagination -> dedicated Mind adoption without overrides. Record the transient v4 HTTP 503 and both v50 authority failures as endurance and context receipts. Then continue the adopted CRRC/Reorientation/Continuity/Soul implementation route.
+  unresolved_authority: v51 replay under exact 88778762 produced a scope-valid Imagination candidate, proving the context repair moved the circuit past path authority. Runtime persistence then rejected the otherwise usable retry because `put_runtime_role_worker_result` compared every launch binding to the attempt-zero record ID even though Self correctly names retries with `-attempt-N`. The local identity repair is focused-test green but not yet committed, pushed, packaged, or replayed live.
+  next_action: Commit and push the retry-binding identity repair, package exact source, clone sealed v51 into v52, review the preserved typed failure, and replay the same planning authority under the new release. Prove successful Imagination retry reaches dedicated Mind adoption, then admit or supersede the pending v6 Modeling result according to the derived route and continue CRRC/Reorientation/Continuity/Soul.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

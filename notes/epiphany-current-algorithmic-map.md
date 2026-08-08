@@ -1411,6 +1411,18 @@ runtime contract now state that safe paths are a sorted, duplicate-free
 narrowing of source scope, and adjacent useful files belong in stop conditions.
 The validator remains unchanged and Mind retains final admission authority.
 
+Fresh v51 moved the same immutable planning authority past that ceiling and
+exposed the next retry invariant. Self correctly names attempt zero
+`repo-frontier-planning-launch-<request>` and later immutable attempts
+`repo-frontier-planning-launch-<request>-attempt-<ordinal>`. Result validation
+nevertheless required the attempt-zero record ID for every successful result.
+Consequently failures and reviews could schedule retries, but no retry could
+ever become a valid Imagination result. Validation now derives the expected
+record ID from the persisted binding's attempt ordinal. The regression test
+proves failure, explicit review, suffixed retry binding, successful result
+persistence, and transition to `ImaginationResultReady` without relaxing any
+other causal identity.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

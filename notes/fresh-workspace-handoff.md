@@ -242,3 +242,27 @@ expanding authority. Focused core and OpenAI-runtime tests pass. Commit and
 push, package once, clone v50 into a fresh runtime, and replay a fresh proposal
 through Modeling, canonical Imagination, and dedicated Mind. Do not retry the
 consumed v50 request again.
+
+Commit `88778762d6fde2c640ba6cd98d3a426226ce3da7` is pushed and packaged as
+`sha256-4e0700d3e2305a343742608b06054faa4ab1ce4fb5a0fcef6ef1c8ee0efea914`
+with witness
+`sha256-f434d5a480e5a1d54fef4cb18f93e391bc3cbd9669fd9ed6f7111f35a2d8a536`.
+The stable release cache completed the changed core/runtime bundle in 1m34s.
+Fresh v51 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v51-imagination-scope-context`
+is cloned from sealed v50 and has this exact release published. Proposal v6
+launched source-grounded Modeling result
+`result-worker-51add51b-d949-4500-b49d-77e9ebd198c6`, which remains pending
+behind the older current planning lifecycle.
+
+After reviewing v50's preserved second Imagination failure, v51 replayed the
+same planning request under the corrected context. The candidate passed the
+safe-path ceiling and then failed with `frontier planning result does not
+exactly bind request, launch, runtime, thread, and candidate`. Source inspection
+found a deterministic retry bug: Self persists retry binding IDs with
+`-attempt-N`, but runtime result validation demanded the attempt-zero ID for
+all attempts. The local repair derives the expected ID from
+`binding.attempt_ordinal`. The focused test now persists a valid retry result
+and proves lifecycle `ImaginationResultReady`. Commit/push/package this repair,
+clone sealed v51 into v52, review its typed failure, and replay the same
+authority. Do not mutate v51 further.

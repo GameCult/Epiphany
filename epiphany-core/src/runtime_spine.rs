@@ -2028,10 +2028,17 @@ pub fn put_runtime_role_worker_result(
             "{:x}",
             Sha256::digest(&worker_launch.launch_document_msgpack)
         );
+        let expected_binding_record_id = if binding.attempt_ordinal == 0 {
+            format!("repo-frontier-planning-launch-{}", request.request_id)
+        } else {
+            format!(
+                "repo-frontier-planning-launch-{}-attempt-{}",
+                request.request_id, binding.attempt_ordinal
+            )
+        };
         if binding.schema_version != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION
             || binding.contract != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT
-            || binding.binding_record_id
-                != format!("repo-frontier-planning-launch-{}", request.request_id)
+            || binding.binding_record_id != expected_binding_record_id
             || binding.job_id != result.job_id
             || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || binding.runtime_id != request.runtime_id
