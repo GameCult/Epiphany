@@ -2583,6 +2583,29 @@ pub(crate) mod tests {
         let route = select_and_commit_repo_frontier_route(&store, "2026-07-15T09:00:06Z")?;
         assert_eq!(route.adopted_plan.as_ref(), Some(adopted));
         assert_eq!(route.source_scope, adopted.safe_paths);
+        let admission_review = crate::runtime_repo_model_admission_review(
+            &store,
+            &admission.review_id,
+        )?
+        .expect("plan decision admission review");
+        crate::coordinator_launch_context::validate_frontier_plan_decision_chain(
+            &decision,
+            &admission,
+            &admission_review,
+            &route,
+        )
+        .map_err(anyhow::Error::msg)?;
+        let mut substituted_route = route.clone();
+        substituted_route.model_hash = "substituted-admitted-model".into();
+        assert!(
+            crate::coordinator_launch_context::validate_frontier_plan_decision_chain(
+                &decision,
+                &admission,
+                &admission_review,
+                &substituted_route,
+            )
+            .is_err()
+        );
         let grant = crate::substrate_gate_coordinator_implementation_grant(
             "adopt-hands-grant".into(),
             "adopt-hands-job".into(),

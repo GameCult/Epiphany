@@ -202,32 +202,12 @@ pub fn append_verification_hands_receipt_context(
         )
         .map_err(|error| format!("failed to load Soul frontier plan decision: {error}"))?
         .ok_or_else(|| "Soul frontier admission has no persisted plan decision".to_string())?;
-        let source_matches = match decision.decision_source.as_ref() {
-            Some(crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }) => {
-                admission_receipt.result_id.as_deref() == Some(result_id.as_str())
-                    && admission_review.result_id.as_deref() == Some(result_id.as_str())
-                    && admission_review.job_id.as_deref() == Some(job_id.as_str())
-            }
-            Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. }) => {
-                admission_receipt.result_id.is_none()
-                    && admission_review.result_id.is_none()
-                    && admission_review.job_id.is_none()
-            }
-            None => false,
-        };
-        if decision.decision != crate::RepoFrontierPlanDecision::Adopt
-            || decision.model_admission_receipt_id != admission_receipt.receipt_id
-            || decision.model_revision != admission_receipt.previous_revision
-            || decision.model_hash != admission_receipt.previous_hash
-            || decision.frontier_item_id != route.frontier_item_id
-            || decision.frontier_item_hash != route.frontier_item_hash
-            || !source_matches
-        {
-            return Err(
-                "Soul frontier plan decision does not exactly bind admission, route, and decision source"
-                    .to_string(),
-            );
-        }
+        validate_frontier_plan_decision_chain(
+            &decision,
+            &admission_receipt,
+            &admission_review,
+            &route,
+        )?;
         plan_decision_chain = Some(decision);
     } else if let Some(admission_result_id) = admission_receipt.result_id.as_deref() {
         let modeling_acceptances = state
@@ -507,6 +487,51 @@ pub fn append_verification_hands_receipt_context(
     );
     context.push_str("</verification_work_loop_telemetry>");
     Ok(context)
+}
+
+pub(crate) fn validate_frontier_plan_decision_chain(
+    decision: &crate::RepoFrontierPlanDecisionReceipt,
+    admission_receipt: &crate::RepoModelAdmissionReceipt,
+    admission_review: &crate::RepoModelAdmissionReview,
+    route: &crate::RepoFrontierRoute,
+) -> Result<(), String> {
+    let source_matches = match decision.decision_source.as_ref() {
+        Some(crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }) => {
+            admission_receipt.result_id.as_deref() == Some(result_id.as_str())
+                && admission_review.result_id.as_deref() == Some(result_id.as_str())
+                && admission_review.job_id.as_deref() == Some(job_id.as_str())
+        }
+        Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. }) => {
+            admission_receipt.result_id.is_none()
+                && admission_review.result_id.is_none()
+                && admission_review.job_id.is_none()
+        }
+        None => false,
+    };
+    if decision.decision != crate::RepoFrontierPlanDecision::Adopt
+        || decision.model_admission_receipt_id != admission_receipt.receipt_id
+        || decision.model_revision != admission_receipt.previous_revision
+        || decision.model_hash != admission_receipt.previous_hash
+        || decision.frontier_item_id != route.frontier_item_id
+        || admission_receipt.admitted_revision != route.model_revision
+        || admission_receipt.admitted_hash != route.model_hash
+        || !matches!(
+            &admission_receipt.purpose,
+            crate::RepoModelPatchPurpose::AdoptFrontierPlan {
+                planning_request_id,
+                candidate_id,
+                ..
+            } if planning_request_id == &decision.planning_request_id
+                && candidate_id == &decision.candidate_id
+        )
+        || !source_matches
+    {
+        return Err(
+            "Soul frontier plan decision does not exactly bind admission, route, and decision source"
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 pub fn has_complete_hands_consequence_after_latest_accepted_boundary(

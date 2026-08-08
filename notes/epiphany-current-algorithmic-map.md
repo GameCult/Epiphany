@@ -1497,8 +1497,9 @@ an authenticated operator supplied the decision.
 
 Soul selects and verifies provenance by typed route anatomy. A non-empty
 `frontier_plan_decision_id` requires the exact decision receipt, Adopt verdict,
-admission receipt binding, base model revision/hash, frontier identity/hash,
-and exact Mind-worker result/job or authenticated-operator source. Only an
+admission receipt binding, pre-admission model revision/hash and frontier
+identity, admission-purpose planning/candidate identity, post-admission route
+model revision/hash, and exact Mind-worker result/job or authenticated-operator source. Only an
 ordinary worker-result admission may require the Modeling acceptance,
 Mind-state-commit, and gateway-review chain. Execution amendments retain their
 separate exact receipt chain.
@@ -1511,7 +1512,10 @@ validation path despite the legacy generic `WorkerResult` source tag.
 Forbidden writer: Soul cannot infer Modeling from result presence, and a plan
 decision cannot bypass provenance merely because its admission and review
 contain a model-produced result. Missing, substituted, non-Adopt, or
-route-mismatched decisions fail closed before worker launch.
+route-mismatched decisions fail closed before worker launch. The decision's
+pre-adoption frontier-item hash is deliberately not equated with the route's
+post-adoption frontier-item hash; Mind's admitted patch is the transition that
+changes that item.
 
 ## Exact release build cache ownership
 

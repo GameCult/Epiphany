@@ -2,7 +2,8 @@ use anyhow::{Result, anyhow};
 use epiphany_core::{
     RepoFrontierExecutionAmendment, RepoFrontierRoute, amend_repo_frontier_execution,
     apply_supervisor_modeling_acceptance_correction, read_coordinator_state,
-    runtime_repo_model_admission_receipt, runtime_repo_model_admission_review, runtime_spine_cache,
+    runtime_repo_frontier_plan_decision, runtime_repo_model_admission_receipt,
+    runtime_repo_model_admission_review, runtime_spine_cache,
 };
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, path::PathBuf};
@@ -83,6 +84,11 @@ fn main() -> Result<()> {
             .ok_or_else(|| anyhow!("route {route_id} admission receipt is absent"))?;
         let review = runtime_repo_model_admission_review(&store, &admission.review_id)?
             .ok_or_else(|| anyhow!("route {route_id} admission review is absent"))?;
+        let plan_decision = if admission.frontier_plan_decision_id.is_empty() {
+            None
+        } else {
+            runtime_repo_frontier_plan_decision(&store, &admission.frontier_plan_decision_id)?
+        };
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -93,6 +99,12 @@ fn main() -> Result<()> {
                 "admissionResultId": admission.result_id,
                 "admissionReviewId": admission.review_id,
                 "admissionSource": review.admission_source,
+                "admissionPreviousRevision": admission.previous_revision,
+                "admissionPreviousHash": admission.previous_hash,
+                "admissionAdmittedRevision": admission.admitted_revision,
+                "admissionAdmittedHash": admission.admitted_hash,
+                "frontierPlanDecisionId": admission.frontier_plan_decision_id,
+                "frontierPlanDecision": plan_decision,
                 "frontierItemId": route.frontier_item_id,
                 "frontierItemHash": route.frontier_item_hash,
                 "originalAction": plan.action,

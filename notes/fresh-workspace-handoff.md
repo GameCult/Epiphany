@@ -72,6 +72,15 @@ The active source repair types all new plan admissions as
 uses the already-persisted `frontier_plan_decision_id` as the compatibility
 discriminator for v53. It does not rewrite evidence or weaken Soul.
 
+Authenticated release `sha256-53dc65ecf1971fc39a535c3a597723e02ebe73a28936581441b4fe007c98c601`
+from `d2538d46` proved the typed branch live, then failed closed because its
+first exact-binding predicate incorrectly equated the decision's pre-adoption
+frontier hash with the route's post-adoption hash. The follow-up source repair
+binds the decision to the pre-admission model, the admission purpose to the
+planning request and candidate, and the route to the admitted model. A focused
+positive/negative test proves the real transition passes and a substituted
+admitted route hash fails.
+
 ## Build-time finding
 
 Commit `0f0b006d` made the three named owner manifests drive separate locked Cargo
