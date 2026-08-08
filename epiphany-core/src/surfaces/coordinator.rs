@@ -975,6 +975,9 @@ pub fn recommend_coordinator_action(
         && !(input.modeling_result_failure_reviewed
             && input.modeling_result_proposal_bound
             && input.hands_frontier_ready)
+        && !(input.modeling_result_failure_reviewed
+            && input.research_result_accepted
+            && input.implementation_evidence_after_verification)
     {
         if input.modeling_result_failure_reviewed {
             if input.modeling_result_proposal_bound && !input.hands_frontier_ready {
@@ -2032,7 +2035,7 @@ mod tests {
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
             research_result_accepted: true,
-            modeling_result_accepted: true,
+            modeling_result_failure_reviewed: true,
             implementation_evidence_after_verification: true,
             reorient_finding_accepted: true,
             ..input()
