@@ -100,6 +100,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ("swarm", file_name("epiphany-swarm")),
         ("operator-command", file_name("epiphany-operator-command")),
         ("heartbeat", file_name("epiphany-heartbeat-store")),
+        ("runtime-spine", file_name("epiphany-runtime-spine")),
         (
             "persona-feedback-ingress",
             file_name("epiphany-persona-feedback-ingress"),
@@ -562,6 +563,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "swarm" => Ok(("epiphany-core", "epiphany-swarm")),
         "operator-command" => Ok(("epiphany-core", "epiphany-operator-command")),
         "heartbeat" => Ok(("epiphany-core", "epiphany-heartbeat-store")),
+        "runtime-spine" => Ok(("epiphany-core", "epiphany-runtime-spine")),
         "persona-feedback-ingress" => Ok(("epiphany-core", "epiphany-persona-feedback-ingress")),
         "persona-service" => Ok(("epiphany-openai-runtime", "epiphany-persona-service")),
         "persona-mouth-identity" => Ok(("epiphany-core", "epiphany-persona-mouth-identity")),
@@ -1082,6 +1084,7 @@ mod tests {
             "swarm",
             "operator-command",
             "heartbeat",
+            "runtime-spine",
             "coordinator",
             "hands-action",
             "model-runtime",
@@ -1104,6 +1107,10 @@ mod tests {
         assert_eq!(
             required_release_build_target("heartbeat").unwrap(),
             ("epiphany-core", "epiphany-heartbeat-store")
+        );
+        assert_eq!(
+            required_release_build_target("runtime-spine").unwrap(),
+            ("epiphany-core", "epiphany-runtime-spine")
         );
         assert_eq!(
             required_release_build_target("coordinator").unwrap(),

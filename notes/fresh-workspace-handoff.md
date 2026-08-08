@@ -29,6 +29,16 @@ Package and publish the source cut next, replay with the exact package, then
 begin bounded retention. The Discord credential and stable Windows firewall
 rule remain separate open fronts.
 
+The first `230f71f4` package attempt was deliberately terminated after 211
+seconds. It had correctly opened a new Rust 1.95 graph namespace, but inspection
+showed `epiphany-runtime-spine` was absent from the release's required binary
+set. The resulting package could not expose the session-closure actuator and
+therefore could not prove its own Continuity claim. Rejected build progress is
+preserved in `.epiphany-run/package-230f71f4.stderr.log`. The current source
+adds `runtime-spine` as a required authenticated release role; all 17 packaged
+release tests pass. Commit and package that correction instead of resuming the
+invalid `230f71f4` build.
+
 Epiphany remains a supervised engineering alpha. Starfire is the cognition and
 release forge; Yggdrasil is the small live crossing host and is not a build
 machine at its current memory budget.
