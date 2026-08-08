@@ -65,6 +65,19 @@ Then replay v44, reject the incomplete plan through that path, adopt a corrected
 plan including the status-composition owner, and prove CRRC -> accepted
 Reorientation -> Continuity recovery -> Soul closure.
 
+Fresh runtime
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v45-hands-relinquishment`
+was copied from the pre-planning v42 boundary; v44 remains sealed. Typed
+proposal `operator-hands-route-relinquishment-v1` was selected as Modeling
+request
+`repo-frontier-proposal-modeling-5c0ce91b6d30d16c31087088ac613f893a4b65f430cc6fb7fe20faa1bfccde6a`
+with payload digest
+`01e6bdc556e7cad6dbfcae93ad5f82fd57794af11b3dafb39ecb3747a19f6dfb`.
+One bounded active-release coordinator step launched the proposal-bound
+Modeling worker, now running under PID `5740`; operator-safe artifacts are in
+`.epiphany-dogfood/v45-hands-relinquishment-r2`. Poll it and do not launch a
+duplicate or read sealed worker output.
+
 Persona consequence, bounded retention, crash/restart closure, endurance and
 resource plateau, and Linux/Yggdrasil cognition remain open. v22 and earlier
 shakedown scars remain in git and the typed evidence ledger; they are not active
