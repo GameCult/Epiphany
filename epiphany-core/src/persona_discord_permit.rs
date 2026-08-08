@@ -389,15 +389,18 @@ pub fn serve_persona_discord_permit_rudp(
         ))?;
     loop {
         match transport.receive_once() {
-            Ok(Some(frame)) => {
-                if let Ok(reply) = process_frame(config, signer, &frame.payload) {
+            Ok(Some(frame)) => match process_frame(config, signer, &frame.payload) {
+                Ok(reply) => {
                     let payload = encode_cultnet_message_to_vec(
                         &reply,
                         CultNetWireContract::CultNetSchemaV0,
                     )?;
                     transport.send("schema", payload)?;
                 }
-            }
+                Err(error) => {
+                    eprintln!("permit issuer rejected authenticated transport frame: {error:#}")
+                }
+            },
             Ok(None) => {}
             Err(error) => eprintln!("permit issuer discarded hostile frame: {error:#}"),
         }
