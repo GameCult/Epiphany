@@ -199,13 +199,22 @@ tests pass. Direct release observation fell to 49.52s and created generation 3.
 This is material but not final; package it and measure a real launch before
 claiming the original 51s path is cured.
 
-Packaging no longer requests Cargo `--bins`, which linked every diagnostic and
-smoke executable after core edits. It now requests only the authenticated
-release sibling binaries, leaving the feature-gated coordinator in its existing
-second phase. The focused 17 packaging tests pass. A deliberately detached
-release benchmark that missed the shared target directory took 4m41s, proving
-that target-cache location must remain tool-owned rather than operator memory;
-the authenticated packager already owns a stable graph cache explicitly.
+Packaging selection was tested by replacing Cargo `--bins` with the explicit
+authenticated sibling set while leaving the feature-gated coordinator in its
+existing second phase. The focused 17 packaging tests passed. A deliberately
+detached release benchmark that missed the shared target directory took 4m41s,
+proving that target-cache location must remain tool-owned rather than operator
+memory; the authenticated packager already owns a stable graph cache explicitly.
+
+The real exact `9d671aee` package falsified that selector hypothesis. The first
+phase still took 7m26s because root `--bins` already named the 20 stable release
+bundle targets; it never linked core's 74 diagnostic binaries. Explicitly
+listing the same 20 targets did not reduce fan-out. The change is reverted in
+source. Core compilation remains the build-time owner. Exact `9d671aee` is
+nevertheless authenticated and published as release
+`sha256-6de91b234bdfda1149e48b9fef6710bdd8c4e3274981e4aa88fc46ec109a2e56`
+with witness
+`sha256-f2c0e464b1523b1a14fb500afa747f0dd95166ebd068752bf639a43827c6b9ba`.
 
 ## Open readiness work
 

@@ -456,12 +456,8 @@ fn build_required_release_siblings(
     })?;
     let mut outputs = BTreeMap::new();
     let required = required_packaged_release_binaries(target);
-    let mut first_pass_bins = BTreeSet::new();
     for (role, file_name) in &required {
-        let (_, binary) = required_release_build_target(role)?;
-        if *role != "coordinator" {
-            first_pass_bins.insert(binary);
-        }
+        required_release_build_target(role)?;
         outputs.insert(
             *role,
             target_dir.join(target).join("release").join(file_name),
@@ -477,10 +473,8 @@ fn build_required_release_siblings(
         .arg(&target_dir)
         .arg("--target")
         .arg(target)
-        .arg("--locked");
-    for binary in first_pass_bins {
-        command.arg("--bin").arg(binary);
-    }
+        .arg("--locked")
+        .arg("--bins");
     let status = command
         .status()
         .context("failed to start Epiphany release bundle build")?;
