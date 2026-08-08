@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use epiphany_core::{
     RepoFrontierExecutionAmendment, RepoFrontierRoute, amend_repo_frontier_execution,
-    runtime_spine_cache,
+    apply_supervisor_modeling_acceptance_correction, runtime_spine_cache,
 };
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, path::PathBuf};
@@ -10,7 +10,10 @@ fn main() -> Result<()> {
     let mut values = BTreeMap::new();
     let mut args = env::args().skip(1);
     let command = args.next().ok_or_else(|| anyhow!(usage()))?;
-    if command != "amend-frontier-execution" && command != "inspect-frontier-execution" {
+    if command != "amend-frontier-execution"
+        && command != "inspect-frontier-execution"
+        && command != "supersede-modeling-acceptance"
+    {
         return Err(anyhow!("unknown command {command}\n{}", usage()));
     }
     while let Some(flag) = args.next() {
@@ -28,6 +31,20 @@ fn main() -> Result<()> {
             .ok_or_else(|| anyhow!("missing {name}"))
     };
     let store = PathBuf::from(take("--store")?);
+    if command == "supersede-modeling-acceptance" {
+        let receipt = apply_supervisor_modeling_acceptance_correction(
+            &store,
+            &take("--thread-id")?,
+            take("--expected-revision")?.parse()?,
+            &take("--receipt-id")?,
+            &take("--result-id")?,
+            &take("--source-actor-id")?,
+            &take("--reason")?,
+            &take("--corrected-at")?,
+        )?;
+        println!("{}", serde_json::to_string_pretty(&receipt)?);
+        return Ok(());
+    }
     let route_id = take("--route-id")?;
     if command == "inspect-frontier-execution" {
         let mut cache = runtime_spine_cache(&store)?;
@@ -101,5 +118,5 @@ fn main() -> Result<()> {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-mind-repair inspect-frontier-execution --store PATH --route-id ID\n       epiphany-mind-repair amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339"
+    "usage: epiphany-mind-repair inspect-frontier-execution --store PATH --route-id ID\n       epiphany-mind-repair amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339\n       epiphany-mind-repair supersede-modeling-acceptance --store PATH --thread-id ID --expected-revision N --receipt-id ID --result-id ID --source-actor-id ID --reason missing-typed-future-frontier --corrected-at RFC3339"
 }
