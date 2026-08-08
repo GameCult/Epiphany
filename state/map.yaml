@@ -34,7 +34,7 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 now proves a complete typed Modeling-to-Imagination-to-Mind-to-Hands-to-Soul circuit. Mind adopted one bounded route-chain specification, Hands committed it with exact patch/command/commit receipts, and Soul accepted the consequence at revision 57. The authenticated provenance repair validates the pre-adoption decision through Mind admission into the post-adoption route without rewriting evidence. Self now causally derives launchModeling from the accepted Soul boundary. Persona consequence, retention, endurance, restart closure, whole-store launch latency, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Live v53 proves a complete typed Modeling-to-Imagination-to-Mind-to-Hands-to-Soul-to-Modeling circuit. Soul accepted the bounded consequence at revision 57; causal Modeling accepted result 972f4e31 at revision 59 and resolved the exact frontier without reopening or mutating other RepoModel anatomy. Self no longer derives Hands or Modeling and falls back to the legacy CRRC regather projection. The route is consumed. Persona consequence, retention, endurance, restart closure, whole-store launch cost, and Linux/Yggdrasil cognition remain open.
   operational_state:
     local_worktree: clean_at_authenticated_d910158f_policy_split
     operator_wireguard: restored
@@ -53,7 +53,7 @@ current_status:
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
   unresolved_authority: Modeling job commit still costs about 52 seconds against the 76 MiB runtime store. The adopted Mind decision also carries a model-supplied 2025 timestamp; coordinator commit-time timestamp ownership remains open. Persona consequence, Continuity closure, retention, endurance, and Linux cognition remain unproven.
-  next_action: Launch the causally derived post-Soul Modeling turn from revision 57, accept the first valid result, and verify verdict incorporation consumes the route. Then profile the Modeling whole-store commit transaction before Persona consequence and Continuity crash/restart/closure.
+  next_action: Treat v53 as a closed circuit and do not reopen its resolved frontier through the legacy regather projection. Use the fresh 51.482s job-commit profile to cut the whole-store transaction seam, then begin a separate native Persona consequence circuit followed by Continuity crash/restart/closure.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

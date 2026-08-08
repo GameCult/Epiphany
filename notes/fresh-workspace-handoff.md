@@ -13,7 +13,7 @@ machine at its current memory budget.
 - Witness: `sha256-e7f6c5f97b270c324b0d6109768226fd0c15415784993cb497abe6b841c36d58`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Thread-state revision: `57`
+- Thread-state revision: `59`
 - Sealed evidence: v49 through v52. Do not mutate it.
 
 ## Live causal boundary
@@ -91,6 +91,15 @@ the claim to the documentation-only route-chain specification. A read-only
 coordinator planning pass now derives `launchModeling` because Soul accepted
 the Hands consequence.
 
+Post-Soul Modeling job `972f4e31-9009-4b7d-863d-b2aa0295abf7` launched at
+revision 58. Its live launch timings were state load 79ms, dynamic context
+66ms, role augmentation 1.053s, job commit 51.482s, total 52.680s. The worker
+produced exactly one verdict-incorporation patch; Mind accepted it as
+`accept-modeling-result-worker-972f4e31-9009-4b7d-863d-b2aa0295abf7` at
+revision 59. The frontier is resolved and the Soul-to-Modeling route is
+consumed. Self now falls back to the legacy CRRC `regatherManually` projection;
+do not use that historical pressure to reopen this completed frontier.
+
 ## Build-time finding
 
 Commit `0f0b006d` made the three named owner manifests drive separate locked Cargo
@@ -143,7 +152,7 @@ probe reported `Removed 0 files` and is rejected, not evidence.
 
 ## Open readiness work
 
-- launch and adjudicate the causally derived post-Soul Modeling turn;
+- cut the measured 51.482s whole-store Modeling job-commit seam;
 - prove native Persona cognition and external speech consequence;
 - prove Continuity crash, restart, session closure, and bounded retention;
 - measure long-duration resource plateau;
