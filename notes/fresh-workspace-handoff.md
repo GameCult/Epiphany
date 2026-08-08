@@ -24,6 +24,20 @@ retention and three heartbeat-binary tests pass. The resident heartbeat remains
 stopped pending an authenticated package of this correction; do not restart the
 old binary.
 
+That correction is now exact-package live-proven. Commit `42bc665a` packaged
+release `sha256-f68fb664ee67af4c665c9a1c6162422a8944cc3b5771e4b6b1c90c23c63c48e8`
+with witness
+`sha256-d9c00bc57408ba8d1c9f74a09364c513819122f127fdb5888c93c8dbc68b694e`.
+Its resident heartbeat resumed at pulse 012558, crossed the 320-directory
+hysteresis edge at pulse 012561, emitted a named 64-directory retention receipt
+for 3,615,104 bytes, continued to pulse 012562, and left 258 directories. The
+three quarantined reset-era pulses were retired in that receipt. PID 19928 owns
+the live process; logs are
+`.epiphany-run/resident/heartbeat-v8-42bc665a.stdout.log` and `.stderr.log`.
+Warm exact packaging after the root target-set transition measured 1m12s stable
+phase plus 6.56s coordinator, confirming the prior 7m19s pass was a one-time
+target-set relink rather than the new steady state.
+
 The first exact `339d5a6f` build completed its Rust 1.95 graph in 17m07s but
 failed because the isolated coordinator artifact was absent. Rebuilding that
 single target restored the cache. A detached clean-worktree retry then exposed
