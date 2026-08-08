@@ -1355,6 +1355,19 @@ current route, and the full consequence/Soul path remains the only route to a
 `Resolved` frontier. The old route can neither authorize edits after
 relinquishment nor be hidden by a later repair loop.
 
+Planning failure has two adjacent authorities. The generic runtime job owns
+process and transport terminal status. The typed role result owns what Self may
+infer about a faculty outcome. `runtime_repo_frontier_planning_lifecycle` reads
+the latter by exact planning request or launch job identity; it deliberately
+does not treat an arbitrary failed process as an Imagination judgment. A worker
+adapter that rejects a malformed planning candidate must therefore persist both
+receipts: the generic failed job and a non-executable typed Imagination result
+with `item_error`, exact launch job identity, and no candidate cargo. Without
+that projection, a dead failed job remains `ImaginationRunning` and the current
+planning request has no lawful review or retry transition. Native interrupt is
+not the missing owner: it may stop or block a binding, but it cannot fabricate
+the faculty result that Self's lifecycle consumes.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

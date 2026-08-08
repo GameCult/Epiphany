@@ -87,3 +87,47 @@ Persona consequence, bounded retention, crash/restart closure, endurance and
 resource plateau, and Linux/Yggdrasil cognition remain open. v22 and earlier
 shakedown scars remain in git and the typed evidence ledger; they are not active
 rehydration state.
+
+## Route-free recovery and planning failure — v46/v47
+
+Fresh v46 at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v46-route-free-relinquishment`
+was bootstrapped natively from the repository Body rather than copied from an
+old coordinator store. It accepted the explicit objective, selected proposal
+`operator-hands-route-relinquishment-v1`, and accepted a source-grounded,
+proposal-bound Modeling result. Modeling included
+`epiphany-core/src/bin/epiphany-mvp-status.rs` in the frontier scope, proving the
+route-free recovery boundary that v45 lacked.
+
+Canonical Imagination then returned a candidate that failed current request
+validation with `frontier planning candidate substituted request identity or
+required cargo`. The generic runtime job was correctly marked `Failed`, but no
+`epiphany.runtime.role_worker_result` failure projection was persisted. Self's
+planning lifecycle consumes that typed role result, not the generic job, so it
+remained falsely at `imaginationRunning` after the worker exited. Native
+interrupt could mark the thread binding blocked but could not create the
+missing typed failure or lawful retry. Preserve v46 as negative evidence; do
+not edit its store or read its raw worker output.
+
+Fresh retry v47 is
+`F:\Projects\.epiphany-runtime\shakedown\live-20260808-v47-route-free-relinquishment-retry`
+on thread `shakedown-v47-hands-relinquishment-r1`. Its proposal payload is
+`sha256-06f21aa478a3f6374b9c42bcd0d75320dfd0c354204be69169b67a9ddb13506a`
+and selected Modeling request is
+`repo-frontier-proposal-modeling-ff89a288603b4b26ba86a728240d03710b45516c7bb5d3e6d02e7a63bb41cf70`.
+The scope hints use the actual source owners: `hands_gateway.rs`,
+`mind_gateway.rs`, `repo_model_gateway.rs`, `runtime_spine.rs`, the Hands CLI,
+`epiphany-mvp-status.rs`, and the app server. Active-release proposal Modeling
+completed and was accepted under the operator-safe artifact directories
+`.epiphany-dogfood/v47-hands-relinquishment-modeling-r0` and
+`.epiphany-dogfood/v47-hands-relinquishment-modeling-accept-r1`.
+
+v47 canonical Imagination then failed identically to v46. Generic runtime job
+`43a3855c-8445-4c0d-8fa2-85576ef6d631` is `Failed` with the same candidate
+identity/cargo validator error, while frontier lifecycle remains
+`imaginationRunning` with no typed result. This independent reproduction rules
+out a one-off detached-process race. Do not create v48: planning cannot adopt
+the repair because the failure is before the typed result Self needs to review
+or retry planning. The next lawful move is explicit operator authorization for
+a labeled supervisor intervention to repair typed failure projection and retry
+semantics, followed by packaging and a new clean dogfood run.
