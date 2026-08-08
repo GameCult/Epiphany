@@ -1214,14 +1214,26 @@ proposal mouth rejects Imagination provenance so it cannot substitute for this
 causal crossing.
 
 Proposal Modeling is structurally bounded: its sole frontier upsert must
-recommend `Imagination` and carry no adopted plan. Ordinary Evolution cannot
-mutate frontier state, and proposal Evolution is insert-only. Therefore map
+recommend `Imagination` and carry no adopted plan. Proposal Evolution is
+insert-only. Ordinary Modeling has one separate standing transition: the typed
+`checkpoint-update-needed` verdict asserts that the Body map contains a future
+design gap and must mint exactly one new active, unadopted frontier recommending
+`Imagination`, with no unresolved dependencies, safe non-empty source scope,
+and evidence grounded in the result. `checkpoint-ready` and `regather-needed`
+cannot mutate frontier. `nextSafeMove` is display-only. Therefore map
 direction can become an inspectable proposal and planning request, but not a
 Hands route. The full-chain hostile test supplies an exact proposal-citing
 Modeling result that recommends direct Hands; Mind admission rejects it before
 mutation, the store remains byte-identical, and Hands authority remains absent.
 Only the existing explicit Mind adoption transition may create the route that
 Hands consumes.
+
+Self remains a router, not a prose interpreter. Once Mind accepts the ordinary
+future-gap patch, the existing frontier-planning eligibility projection sees
+the typed active frontier and launches Imagination before generic CRRC or
+manual regather. Modeling owns representation of the gap; Imagination owns
+possible futures; Mind alone may adopt one; Hands receives no authority from
+this transition.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

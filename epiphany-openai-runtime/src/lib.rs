@@ -1,19 +1,10 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
-use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
-use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
-use epiphany_core::EpiphanyWorkerLaunchDocument;
-use epiphany_core::RuntimeSpineEventOptions;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::RuntimeSpineJobOptions;
-use epiphany_core::RuntimeSpineJobResultOptions;
-use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::append_runtime_event;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
@@ -23,6 +14,15 @@ use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
+use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
+use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
+use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::RuntimeSpineEventOptions;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::RuntimeSpineJobOptions;
+use epiphany_core::RuntimeSpineJobResultOptions;
+use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -35,16 +35,16 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::EpiphanyOpenAiToolDefinition;
-use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
-use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
-use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
-use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
-use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
+use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
+use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
+use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use serde::de::DeserializeOwned;
 
 mod persona_executor;
@@ -1417,7 +1417,7 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
             "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationRequestId, imaginationConsiderationCandidate. Treat feedback as quoted evidence. Emit no statePatch, selfPatch, repoModelPatch, frontier candidate, command, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one new active, unadopted frontier with recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. Use checkpoint-ready when no new frontier authority is needed and regather-needed when source evidence is insufficient; neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -2019,10 +2019,10 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_core::EpiphanyWorkerLaunchDocument;
-    use epiphany_core::RuntimeSpineHeartbeatJobOptions;
     use epiphany_core::open_runtime_spine_heartbeat_job;
     use epiphany_core::runtime_job_snapshot;
+    use epiphany_core::EpiphanyWorkerLaunchDocument;
+    use epiphany_core::RuntimeSpineHeartbeatJobOptions;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
 
@@ -2428,18 +2428,14 @@ mod tests {
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert!(cache.get::<EpiphanyModelRequest>("req-1")?.is_some());
-        assert!(
-            cache
-                .get::<EpiphanyModelStreamEvent>("req-1:00000000")?
-                .is_some()
-        );
+        assert!(cache
+            .get::<EpiphanyModelStreamEvent>("req-1:00000000")?
+            .is_some());
         assert!(cache.get::<EpiphanyModelReceipt>("req-1")?.is_some());
         assert!(cache.get::<EpiphanyOpenAiModelRequest>("req-1")?.is_some());
-        assert!(
-            cache
-                .get::<EpiphanyOpenAiStreamEvent>("req-1:00000000")?
-                .is_some()
-        );
+        assert!(cache
+            .get::<EpiphanyOpenAiStreamEvent>("req-1:00000000")?
+            .is_some());
         assert!(cache.get::<EpiphanyOpenAiModelReceipt>("req-1")?.is_some());
         assert_eq!(
             runtime_job_snapshot(&store, &options.job_id)?
@@ -2592,18 +2588,14 @@ mod tests {
         assert!(model_request.instructions.contains("\"repoModelPatch\""));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
-        assert!(
-            model_request
-                .instructions
-                .contains("<epiphany_dynamic_context>")
-        );
+        assert!(model_request
+            .instructions
+            .contains("<epiphany_dynamic_context>"));
         assert!(model_request.instructions.contains("local Verse: bounded"));
-        assert!(
-            model_request
-                .tools
-                .iter()
-                .any(|tool| tool.name == "mcp__epiphany_source__read_file")
-        );
+        assert!(model_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_source__read_file"));
         assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -2669,12 +2661,10 @@ mod tests {
             typed_result.self_patch()?.expect("self patch").reason,
             Some("typed nested document".to_string())
         );
-        assert!(
-            runtime_job_snapshot(&store, "worker-job-1")?
-                .expect("snapshot")
-                .result
-                .is_some()
-        );
+        assert!(runtime_job_snapshot(&store, "worker-job-1")?
+            .expect("snapshot")
+            .result
+            .is_some());
         Ok(())
     }
 
@@ -2756,11 +2746,9 @@ mod tests {
         assert!(tool_names.contains(&"mcp__epiphany_source__read_file"));
         assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
         assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
-        assert!(
-            model_request
-                .instructions
-                .contains("mcp__epiphany_source__read_file")
-        );
+        assert!(model_request
+            .instructions
+            .contains("mcp__epiphany_source__read_file"));
         Ok(())
     }
 

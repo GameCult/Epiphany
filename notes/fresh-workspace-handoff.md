@@ -128,10 +128,15 @@ Both accepted organs say the existing `repo_frontier` family should route one
 minimal Imagination design chain. Modeling emitted only generic node/edge
 Evolution, however, so no active Imagination frontier exists; the previous
 planning lifecycle is terminal. Self therefore falls back to
-`regatherManually` again. Do not feed that loop. The architectural cut is a
-typed Modeling-to-Imagination handoff: Modeling owns the future gap in RepoModel,
-and Self may route only inspectable typed frontier authority, never prose
-`nextSafeMove` interpretation.
+`regatherManually` again. Do not feed that loop.
+
+The local typed Modeling-to-Imagination cut is implemented and focused-proofed.
+For ordinary Modeling, `checkpoint-update-needed` now requires exactly one new
+active, unadopted Imagination frontier with empty dependencies, safe scope, and
+result-grounded evidence. `checkpoint-ready` and `regather-needed` cannot mutate
+frontier; `nextSafeMove` remains display-only. Schema/admission hostile checks,
+22 Modeling-focused core tests, all 23 coordinator tests, and all 15 OpenAI
+runtime tests pass. Commit, package, and live runtime repair/proof remain.
 
 Iteration-cost evidence also narrowed. The approved Eyes launch committed in
 719ms and completed coordinator launch in 839ms against the same live store.

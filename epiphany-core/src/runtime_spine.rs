@@ -2624,6 +2624,53 @@ pub fn migrate_legacy_repo_model_projection_obligation(
     .map(Some)
 }
 
+fn validate_ordinary_modeling_frontier_transition(
+    verdict: &str,
+    frontier_operation_count: usize,
+    upserts: &[&crate::RepoFrontierItem],
+    result_evidence: &[String],
+) -> Result<()> {
+    match verdict {
+        "checkpoint-update-needed" => {
+            if frontier_operation_count != 1 || upserts.len() != 1 {
+                return Err(anyhow!(
+                    "checkpoint-update-needed Modeling requires exactly one new Imagination frontier"
+                ));
+            }
+            let frontier = upserts[0];
+            if frontier.status != crate::RepoFrontierStatus::Active
+                || frontier.recommended_next_organ != "Imagination"
+                || frontier.adopted_plan.is_some()
+                || !frontier.dependency_item_ids.is_empty()
+                || frontier.source_scope.is_empty()
+                || !safe_sorted_unique_paths(&frontier.source_scope)
+                || frontier.evidence_refs.is_empty()
+                || !frontier
+                    .evidence_refs
+                    .iter()
+                    .any(|evidence| result_evidence.contains(evidence))
+            {
+                return Err(anyhow!(
+                    "checkpoint-update-needed Modeling frontier must be active, unadopted, immediately routeable to Imagination, safely scoped, and grounded in result evidence"
+                ));
+            }
+        }
+        "checkpoint-ready" | "regather-needed" => {
+            if frontier_operation_count != 0 {
+                return Err(anyhow!(
+                    "ordinary Modeling without a future-gap verdict cannot mutate frontier"
+                ));
+            }
+        }
+        _ => {
+            return Err(anyhow!(
+                "ordinary Modeling result has unsupported typed verdict"
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn commit_repo_model_admission(
     runtime_store: impl AsRef<Path>,
     result_id: &str,
@@ -3268,11 +3315,12 @@ pub fn commit_repo_model_admission(
                 }
                 request.request_id
             } else {
-                if frontier_operation_count != 0 {
-                    return Err(anyhow!(
-                        "ordinary Evolution cannot mutate frontier without explicit proposal request"
-                    ));
-                }
+                validate_ordinary_modeling_frontier_transition(
+                    &result.verdict,
+                    frontier_operation_count,
+                    &upserts,
+                    &result_evidence,
+                )?;
                 String::new()
             };
             (
@@ -10210,6 +10258,67 @@ pub(crate) mod tests {
         assert_eq!(input.snapshot, snapshot);
         assert_eq!(input.obligation, obligation);
         assert_eq!(input.authority.envelopes.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn ordinary_modeling_future_gap_has_one_typed_imagination_exit() -> Result<()> {
+        let evidence = vec!["evidence-future-gap".to_string()];
+        let valid = crate::RepoFrontierItem {
+            id: "future-gap".into(),
+            migration_body: "Model the unresolved design boundary.".into(),
+            question: "What future shape preserves the boundary?".into(),
+            gap: "The Body map exposes a design decision without an adopted plan.".into(),
+            target_claim_ids: vec!["claim-runtime-model".into()],
+            source_scope: vec!["epiphany-core/src/runtime_spine.rs".into()],
+            recommended_next_organ: "Imagination".into(),
+            dependency_item_ids: Vec::new(),
+            status: crate::RepoFrontierStatus::Active,
+            evidence_refs: evidence.clone(),
+            ..Default::default()
+        };
+
+        validate_ordinary_modeling_frontier_transition(
+            "checkpoint-update-needed",
+            1,
+            &[&valid],
+            &evidence,
+        )?;
+        assert!(validate_ordinary_modeling_frontier_transition(
+            "checkpoint-update-needed",
+            0,
+            &[],
+            &evidence,
+        )
+        .is_err());
+        assert!(validate_ordinary_modeling_frontier_transition(
+            "checkpoint-ready",
+            1,
+            &[&valid],
+            &evidence,
+        )
+        .is_err());
+
+        let mut hands = valid.clone();
+        hands.recommended_next_organ = "Hands".into();
+        let mut adopted = valid.clone();
+        adopted.adopted_plan = Some(crate::RepoFrontierAdoptedPlan {
+            command: "cargo test".into(),
+            ..Default::default()
+        });
+        let mut blocked = valid.clone();
+        blocked.dependency_item_ids = vec!["unresolved".into()];
+        let mut ungrounded = valid.clone();
+        ungrounded.evidence_refs = vec!["other-evidence".into()];
+        for hostile in [&hands, &adopted, &blocked, &ungrounded] {
+            assert!(validate_ordinary_modeling_frontier_transition(
+                "checkpoint-update-needed",
+                1,
+                &[hostile],
+                &evidence,
+            )
+            .is_err());
+        }
         Ok(())
     }
 

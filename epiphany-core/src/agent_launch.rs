@@ -1,5 +1,7 @@
 use std::sync::OnceLock;
 
+use crate::build_reorient_job_launch_request;
+use crate::default_launch_organ_contract;
 use crate::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use crate::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use crate::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
@@ -13,8 +15,6 @@ use crate::EpiphanyReorientLaunchRequestInput;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyRoleWorkerLaunchDocument;
 use crate::EpiphanyWorkerLaunchDocument;
-use crate::build_reorient_job_launch_request;
-use crate::default_launch_organ_contract;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyThreadState;
@@ -91,6 +91,29 @@ fn repo_frontier_item_output_schema() -> serde_json::Value {
             "updated_at": {"type": "string"}
         }
     })
+}
+
+fn modeling_imagination_frontier_output_schema() -> serde_json::Value {
+    let mut schema = repo_frontier_item_output_schema();
+    schema["required"] = serde_json::json!([
+        "id",
+        "migration_body",
+        "question",
+        "gap",
+        "target_claim_ids",
+        "source_scope",
+        "recommended_next_organ",
+        "dependency_item_ids",
+        "status",
+        "evidence_refs"
+    ]);
+    schema["properties"]["source_scope"]["minItems"] = serde_json::json!(1);
+    schema["properties"]["recommended_next_organ"] = serde_json::json!({"const": "Imagination"});
+    schema["properties"]["dependency_item_ids"]["maxItems"] = serde_json::json!(0);
+    schema["properties"]["status"] = serde_json::json!({"const": "active"});
+    schema["properties"]["evidence_refs"]["minItems"] = serde_json::json!(1);
+    schema["additionalProperties"] = serde_json::json!(false);
+    schema
 }
 
 fn repo_model_node_output_schema() -> serde_json::Value {
@@ -684,13 +707,70 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             },
             {
                 "if": {
-                    "not": {
-                        "anyOf": [
-                            {"required": ["repoFrontierModelingRequestId"]},
-                            {"required": ["proposalModelingRequestId"]},
-                            {"required": ["claimRepairRequestId"]}
-                        ]
-                    }
+                    "allOf": [
+                        {
+                            "not": {
+                                "anyOf": [
+                                    {"required": ["repoFrontierModelingRequestId"]},
+                                    {"required": ["proposalModelingRequestId"]},
+                                    {"required": ["claimRepairRequestId"]}
+                                ]
+                            }
+                        },
+                        {"properties": {"verdict": {"const": "checkpoint-update-needed"}}, "required": ["verdict"]}
+                    ]
+                },
+                "then": {
+                    "properties": {
+                        "repoModelPatch": {
+                            "properties": {
+                                "purpose": {
+                                    "type": "object",
+                                    "required": ["kind"],
+                                    "properties": {"kind": {"const": "evolution"}},
+                                    "additionalProperties": false
+                                },
+                                "operations": {
+                                    "items": {
+                                        "anyOf": [
+                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
+                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
+                                            {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
+                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
+                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
+                                            {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}},
+                                            {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "upsert_frontier"}, "item": modeling_imagination_frontier_output_schema()}, "additionalProperties": false}
+                                        ]
+                                    },
+                                    "contains": {
+                                        "type": "object",
+                                        "properties": {"operation": {"const": "upsert_frontier"}},
+                                        "required": ["operation"]
+                                    },
+                                    "minContains": 1,
+                                    "maxContains": 1
+                                }
+                            },
+                            "required": ["purpose", "operations"]
+                        }
+                    },
+                    "required": ["repoModelPatch"]
+                }
+            },
+            {
+                "if": {
+                    "allOf": [
+                        {
+                            "not": {
+                                "anyOf": [
+                                    {"required": ["repoFrontierModelingRequestId"]},
+                                    {"required": ["proposalModelingRequestId"]},
+                                    {"required": ["claimRepairRequestId"]}
+                                ]
+                            }
+                        },
+                        {"not": {"properties": {"verdict": {"const": "checkpoint-update-needed"}}, "required": ["verdict"]}}
+                    ]
                 },
                 "then": {
                     "properties": {
@@ -1663,11 +1743,9 @@ mod tests {
         .expect("Mind launch request");
         assert_eq!(request.owner_role, EPIPHANY_MIND_OWNER_ROLE);
         assert_eq!(request.binding_id, EPIPHANY_MIND_ROLE_BINDING_ID);
-        assert!(
-            request
-                .instruction
-                .contains("admission-review procedure serving Epiphany Mind")
-        );
+        assert!(request
+            .instruction
+            .contains("admission-review procedure serving Epiphany Mind"));
         assert_eq!(
             request.frontier_plan_mind_request_id.as_deref(),
             Some("mind-request-1")
@@ -1690,26 +1768,22 @@ mod tests {
     #[test]
     fn modeling_schema_exposes_only_typed_authority_purposes() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "repositoryBodyObservationBasis")
-        );
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "repositoryBodyObservationBasis"));
         assert_eq!(
             schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
             false
         );
-        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
-            ["anyOf"][6]["properties"]["item"];
-        assert!(
-            frontier_item["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "target_claim_ids")
-        );
+        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]
+            ["items"]["anyOf"][6]["properties"]["item"];
+        assert!(frontier_item["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "target_claim_ids"));
         assert_eq!(
             frontier_item["properties"]["target_claim_ids"]["minItems"],
             1
@@ -1723,13 +1797,11 @@ mod tests {
             purposes[1]["properties"]["kind"]["const"],
             "incorporate_frontier_verdict"
         );
-        assert!(
-            purposes[1]["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "route_id")
-        );
+        assert!(purposes[1]["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "route_id"));
         assert_eq!(
             schema["allOf"][0]["then"]["required"][0],
             "repoFrontierModelingRequestId"
@@ -1748,21 +1820,48 @@ mod tests {
                 ["maxContains"],
             1
         );
-        let ordinary_operations =
+        let future_gap_operations = schema["allOf"][3]["then"]["properties"]["repoModelPatch"]
+            ["properties"]["operations"]["items"]["anyOf"]
+            .as_array()
+            .expect("future-gap Modeling operations");
+        assert_eq!(future_gap_operations.len(), 7);
+        let future_gap_frontier = &future_gap_operations[6]["properties"]["item"];
+        assert_eq!(
+            future_gap_frontier["properties"]["recommended_next_organ"]["const"],
+            "Imagination"
+        );
+        assert_eq!(
+            future_gap_frontier["properties"]["status"]["const"],
+            "active"
+        );
+        assert_eq!(
+            future_gap_frontier["properties"]["dependency_item_ids"]["maxItems"],
+            0
+        );
+        assert_eq!(
             schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["items"]["anyOf"]
-                .as_array()
-                .expect("ordinary Modeling operations");
-        assert_eq!(ordinary_operations.len(), 6);
-        assert!(ordinary_operations.iter().all(|operation| {
+                ["minContains"],
+            1
+        );
+        assert_eq!(
+            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
+                ["maxContains"],
+            1
+        );
+        let no_future_gap_operations = schema["allOf"][4]["then"]["properties"]["repoModelPatch"]
+            ["properties"]["operations"]["items"]["anyOf"]
+            .as_array()
+            .expect("ordinary Modeling operations without future-gap authority");
+        assert_eq!(no_future_gap_operations.len(), 6);
+        assert!(no_future_gap_operations.iter().all(|operation| {
             !operation["properties"]["operation"]["const"]
                 .as_str()
                 .is_some_and(|kind| kind.contains("frontier"))
         }));
-        let operations =
-            schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
-                .as_array()
-                .expect("typed Modeling operations");
+        let operations = schema["properties"]["repoModelPatch"]["properties"]["operations"]
+            ["items"]["anyOf"]
+            .as_array()
+            .expect("typed Modeling operations");
         let node_kinds = operations[0]["properties"]["node"]["properties"]["kind"]["enum"]
             .as_array()
             .expect("typed RepoModel node kinds");
@@ -1816,15 +1915,14 @@ mod tests {
             schema["properties"]["repoFrontierModelingRequestId"]["const"],
             "modeling-request-exact"
         );
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "repoFrontierModelingRequestId")
-        );
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "repoFrontierModelingRequestId"));
         assert_eq!(
-            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]["const"],
+            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]
+                ["const"],
             "incorporate_frontier_verdict"
         );
         let operations = &schema["properties"]["repoModelPatch"]["properties"]["operations"];
@@ -1835,21 +1933,19 @@ mod tests {
             "revise_frontier"
         );
         assert_eq!(schema["properties"]["evidenceIds"]["minItems"], 1);
-        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["properties"]
-            ["item"];
+        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
+            ["properties"]["item"];
         assert_eq!(item["properties"]["id"]["const"], "frontier-exact");
         assert_eq!(item["properties"]["status"]["const"], "resolved");
         assert_eq!(
             item["properties"]["adopted_plan"]["const"]["command"],
             "cargo test"
         );
-        assert!(
-            item["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|field| field == "adopted_plan")
-        );
+        assert!(item["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field == "adopted_plan"));
     }
 
     #[test]
@@ -1895,11 +1991,9 @@ mod tests {
     #[test]
     fn frontier_planning_schema_exposes_candidate_without_generic_patch_mouths() {
         let schema = epiphany_frontier_planning_output_schema();
-        assert!(
-            schema["properties"]
-                .get("frontierPlanningRequestId")
-                .is_some()
-        );
+        assert!(schema["properties"]
+            .get("frontierPlanningRequestId")
+            .is_some());
         assert!(schema["properties"].get("frontierPlanCandidate").is_some());
         assert!(schema["properties"].get("statePatch").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
@@ -1916,16 +2010,12 @@ mod tests {
     #[test]
     fn consideration_schema_has_only_proposal_candidate_cargo() {
         let schema = epiphany_imagination_consideration_output_schema();
-        assert!(
-            schema["properties"]
-                .get("imaginationConsiderationRequestId")
-                .is_some()
-        );
-        assert!(
-            schema["properties"]
-                .get("imaginationConsiderationCandidate")
-                .is_some()
-        );
+        assert!(schema["properties"]
+            .get("imaginationConsiderationRequestId")
+            .is_some());
+        assert!(schema["properties"]
+            .get("imaginationConsiderationCandidate")
+            .is_some());
         for forbidden in [
             "statePatch",
             "selfPatch",
