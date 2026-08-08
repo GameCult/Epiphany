@@ -1182,7 +1182,11 @@ exclusive Imagination, request Mind review, launch the dedicated reviewer, and
 commit Mind's decision. Failed Imagination or Mind jobs become explicit review
 stages rather than remaining indistinguishable from running jobs. A terminal
 Hold or Refuse suppresses immediate replanning of the same current authority.
-This code path is locally proven but still requires exact packaged live proof.
+Exact packaged `c35272c9` proves the live chain through the Mind boundary: fresh
+accepted Modeling minted one typed Imagination frontier, Self selected it over
+older CRRC regather display state, Imagination completed, and Self committed the
+dedicated Mind request without adopting the candidate or granting Hands
+authority. Mind launch, judgment, and decision commit remain next.
 
 Selected user proposals are also native Self input. The runtime projection
 `runtime_pending_repo_frontier_proposal_modeling_request` returns the single
@@ -1565,6 +1569,16 @@ the release packager to build and witness binaries from their owning packages;
 the witness remains the cross-package release authority. A compatibility
 re-export from `epiphany-core` would preserve the invalidation edge and is not a
 completed split.
+
+Exact `0f0b006d` tested the tempting manifest-only cut and rejected it. The
+packager grouped binaries under three independently locked owner manifests and
+shared one target directory. Cold core completed in 8m02s; the OpenAI owner
+then resolved its own graph and began compiling `epiphany-core` again. The run
+was terminated at 16m53s before the tool owner could repeat the same wound, and
+`a1a43892` reverted the cut. Separate owner lock universes are therefore not the
+crate split. The viable design must keep one Cargo dependency graph while
+moving volatile coordinator policy and the coordinator/status binary consumers
+out of the stable core compilation unit.
 
 Launch latency is a separate whole-store-read wound. The live runtime store was
 about 40 MiB, and post-Soul Modeling launch took roughly 50-90 seconds before
