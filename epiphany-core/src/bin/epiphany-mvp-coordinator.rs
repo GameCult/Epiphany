@@ -39,6 +39,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Instant;
 use uuid::Uuid;
 
 #[cfg(windows)]
@@ -1401,10 +1402,12 @@ fn launch_role(
     max_runtime_seconds: u64,
     proposal_modeling_request_id: Option<&str>,
 ) -> Result<Value> {
+    let started = Instant::now();
     let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
+    let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
@@ -1425,6 +1428,7 @@ fn launch_role(
         )
     }
     .map_err(anyhow::Error::msg)?;
+    let dynamic_context_rendered_ms = started.elapsed().as_millis();
     if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
         context = epiphany_core::append_verification_hands_receipt_context(
             context,
@@ -1441,6 +1445,7 @@ fn launch_role(
         )
         .map_err(anyhow::Error::msg)?;
     }
+    let role_context_augmented_ms = started.elapsed().as_millis();
     let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
         role,
@@ -1451,6 +1456,7 @@ fn launch_role(
     )
     .map_err(anyhow::Error::msg)?;
     request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
+    let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(
         thread_id,
         &state,
@@ -1459,12 +1465,21 @@ fn launch_role(
         Uuid::new_v4().to_string(),
         now(),
     )?;
+    let job_committed_ms = started.elapsed().as_millis();
     Ok(json!({
         "bindingId": launched.binding_id,
         "launcherJobId": launched.launcher_job_id,
         "backendJobId": launched.backend_job_id,
         "revision": launched.epiphany_state.revision,
         "state": launched.epiphany_state,
+        "timingsMs": {
+            "stateLoad": state_loaded_ms,
+            "dynamicContextRender": dynamic_context_rendered_ms.saturating_sub(state_loaded_ms),
+            "roleContextAugment": role_context_augmented_ms.saturating_sub(dynamic_context_rendered_ms),
+            "requestBuild": request_built_ms.saturating_sub(role_context_augmented_ms),
+            "jobCommit": job_committed_ms.saturating_sub(request_built_ms),
+            "total": job_committed_ms,
+        },
     }))
 }
 
