@@ -759,6 +759,13 @@ pub struct RuntimeSpineSessionOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeSpineSessionClosureOptions {
+    pub session_id: String,
+    pub completed_at: String,
+    pub summary: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSpineEventOptions {
     pub event_id: String,
     pub occurred_at: String,
@@ -1228,6 +1235,75 @@ pub fn ensure_runtime_session(
         metadata: BTreeMap::new(),
     };
     cache.put(&options.session_id, &session)?;
+    Ok(session)
+}
+
+pub fn close_runtime_session(
+    store_path: impl AsRef<Path>,
+    options: RuntimeSpineSessionClosureOptions,
+) -> Result<EpiphanyRuntimeSession> {
+    validate_non_empty(&options.session_id, "session id")?;
+    validate_non_empty(&options.completed_at, "session completion time")?;
+    validate_non_empty(&options.summary, "session completion summary")?;
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let mut session = cache
+        .get::<EpiphanyRuntimeSession>(&options.session_id)?
+        .ok_or_else(|| anyhow!("runtime session {:?} does not exist", options.session_id))?;
+    if session.status == EpiphanyRuntimeSessionStatus::Completed {
+        return Ok(session);
+    }
+    if session.status == EpiphanyRuntimeSessionStatus::Archived {
+        return Err(anyhow!(
+            "runtime session {:?} is archived and cannot be completed",
+            options.session_id
+        ));
+    }
+    let open_job_ids = cache
+        .get_all::<EpiphanyRuntimeJob>()?
+        .into_iter()
+        .filter(|job| {
+            job.session_id == options.session_id
+                && matches!(
+                    job.status,
+                    EpiphanyRuntimeJobStatus::Queued
+                        | EpiphanyRuntimeJobStatus::Running
+                        | EpiphanyRuntimeJobStatus::WaitingForReview
+                )
+        })
+        .map(|job| job.job_id)
+        .collect::<Vec<_>>();
+    if !open_job_ids.is_empty() {
+        return Err(anyhow!(
+            "runtime session {:?} has open jobs: {}",
+            options.session_id,
+            open_job_ids.join(", ")
+        ));
+    }
+    let event_id = format!("event-session-completed-{}", options.session_id);
+    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
+        return Err(anyhow!(
+            "runtime session {:?} has a completion event but is not completed",
+            options.session_id
+        ));
+    }
+    session.status = EpiphanyRuntimeSessionStatus::Completed;
+    session.updated_at = options.completed_at.clone();
+    session.coordinator_note = options.summary.clone();
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id,
+        occurred_at: options.completed_at,
+        event_type: "session.completed".to_string(),
+        source: "continuity".to_string(),
+        session_id: Some(options.session_id),
+        job_id: None,
+        summary: options.summary,
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&session.session_id, &session)?;
+    cache.put(&event.event_id, &event)?;
     Ok(session)
 }
 
@@ -13668,6 +13744,87 @@ pub(crate) mod tests {
         assert_eq!(invocations[1].intent_id, "pending");
         assert_eq!(invocations[1].status, "pending");
         assert!(invocations[1].receipt_id.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_session_closure_requires_terminal_jobs_and_replays_exactly() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-08-08T20:00:00Z".to_string(),
+            },
+        )?;
+        create_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: "session-close".to_string(),
+                objective: "Prove bounded closure.".to_string(),
+                created_at: "2026-08-08T20:00:01Z".to_string(),
+                coordinator_note: "test".to_string(),
+            },
+        )?;
+        create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: "job-close".to_string(),
+                session_id: "session-close".to_string(),
+                role: "continuity".to_string(),
+                created_at: "2026-08-08T20:00:02Z".to_string(),
+                summary: "Close me first.".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        let closure = RuntimeSpineSessionClosureOptions {
+            session_id: "session-close".to_string(),
+            completed_at: "2026-08-08T20:00:04Z".to_string(),
+            summary: "All session-local jobs are terminal.".to_string(),
+        };
+        assert!(close_runtime_session(&store, closure.clone()).is_err());
+        complete_runtime_job(
+            &store,
+            RuntimeSpineJobResultOptions {
+                result_id: "result-close".to_string(),
+                job_id: "job-close".to_string(),
+                completed_at: "2026-08-08T20:00:03Z".to_string(),
+                verdict: "pass".to_string(),
+                summary: "Closed.".to_string(),
+                next_safe_move: "Complete the session.".to_string(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+
+        let completed = close_runtime_session(&store, closure.clone())?;
+        assert_eq!(completed.status, EpiphanyRuntimeSessionStatus::Completed);
+        assert_eq!(close_runtime_session(&store, closure)?, completed);
+        assert!(
+            create_runtime_job(
+                &store,
+                RuntimeSpineJobOptions {
+                    job_id: "job-after-close".to_string(),
+                    session_id: "session-close".to_string(),
+                    role: "continuity".to_string(),
+                    created_at: "2026-08-08T20:00:05Z".to_string(),
+                    summary: "Must be refused.".to_string(),
+                    artifact_refs: Vec::new(),
+                },
+            )
+            .is_err()
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let events = cache
+            .get_all::<EpiphanyRuntimeEvent>()?
+            .into_iter()
+            .filter(|event| event.event_type == "session.completed")
+            .collect::<Vec<_>>();
+        assert_eq!(events.len(), 1);
+        assert_eq!(runtime_spine_status(&store)?.active_sessions, 0);
         Ok(())
     }
 

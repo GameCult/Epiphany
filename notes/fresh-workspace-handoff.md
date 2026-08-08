@@ -1,5 +1,34 @@
 # Fresh workspace handoff
 
+## Continuity closure pass — 2026-08-08
+
+Sealed v28 remains immutable at
+`F:\Projects\.epiphany-runtime\shakedown\live-20260807-v28\runtime.cc`,
+2,378,654 bytes, SHA-256
+`df9d707f1a87dcf557ad638c7baf8136d9db6f72b35d57abe96759088331f864`.
+A byte-identical disposable copy under
+`.epiphany-run/continuity-v28-replay-20260808/` reproduced dead Imagination job
+`b34d21de-6788-4935-8910-75275c257444`. Authenticated release `55660d78`
+terminalized that outer job as failed with result
+`result-worker-b34d21de-6788-4935-8910-75275c257444`; the copied runtime then
+reported nine jobs, nine results, and zero open jobs. A second worker start was
+refused because the job was already terminal. Adapter-status refresh changed
+the store hash during that refusal, so job/result identity—not whole-store
+byte equality—is the restart invariant.
+
+The replay then exposed a separate architectural hole: all four v28 sessions
+were still active because the runtime spine defined `Completed` but supplied no
+completion owner. The current source adds Continuity-owned session closure,
+`list-sessions`, and `close-session`. Closure refuses open jobs and archived
+sessions, emits deterministic `session.completed`, is idempotent for an already
+completed session, and prevents later job creation. The focused core test
+passes. The disposable v28 copy now has zero active sessions and four closure
+events; its final SHA-256 is
+`06179384829bda33dfb5df78dc0923a545598ddf73e33c674abe96934f2713c5`.
+Package and publish the source cut next, replay with the exact package, then
+begin bounded retention. The Discord credential and stable Windows firewall
+rule remain separate open fronts.
+
 Epiphany remains a supervised engineering alpha. Starfire is the cognition and
 release forge; Yggdrasil is the small live crossing host and is not a build
 machine at its current memory budget.

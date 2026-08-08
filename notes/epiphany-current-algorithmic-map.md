@@ -1,5 +1,16 @@
 # Epiphany Current Algorithmic Map
 
+## Runtime job and session closure ownership
+
+- Owner: the worker runtime terminalizes its own outer role job and inner model job. Continuity owns runtime-session completion after every job in that session is terminal.
+- Inputs: worker success, ordinary runtime error, timeout, and the session-local job set. Coordinator status is an observer of these typed documents, not a writer.
+- Outputs: exactly one terminal job result per job, a `Completed` session, and one deterministic `session.completed` runtime event sourced from Continuity.
+- Derived state: `*Running`, open-job count, and active-session count are projections. Adapter-status refreshes may change unrelated store bytes on restart and are not job authority.
+- Forbidden writers: coordinator restart/status code cannot synthesize worker results or pretend a session closed. A repair loop cannot hide a dead worker. New jobs cannot enter a completed session.
+- Shared paths: bounded and unbounded worker execution use the same result-sealing primitive; explicit session closure uses the same terminal-job predicate for coordinator, resident, and model-adapter sessions.
+- Cut line: sessions no longer remain permanently active merely because creation was implemented before completion. Closure refuses any queued, running, or review-waiting session-local job; exact closure replay is idempotent.
+- Verification layer: a byte-identical disposable copy of sealed v28 reproduced the dead Imagination job. Authenticated `55660d78` terminalized it as failed, restart could not create a second result, and the new Continuity primitive closed all four sessions from four active to zero while preserving sealed v28 unchanged.
+
 ## Proposal frontier routeability invariant
 
 Proposal Modeling admission and Self planning selection now share one boundary:

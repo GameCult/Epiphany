@@ -5,12 +5,15 @@ use chrono::SecondsFormat;
 use epiphany_core::EpiphanyRuntimeEvent;
 use epiphany_core::EpiphanyRuntimeJob;
 use epiphany_core::EpiphanyRuntimeJobResult;
+use epiphany_core::EpiphanyRuntimeSession;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
+use epiphany_core::RuntimeSpineSessionClosureOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::append_runtime_event;
+use epiphany_core::close_runtime_session;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::create_runtime_session;
@@ -108,6 +111,21 @@ fn main() -> Result<()> {
                 );
             }
         }
+        Command::ListSessions => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut sessions = cache.get_all::<EpiphanyRuntimeSession>()?;
+            sessions.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+            println!("runtime sessions");
+            for session in sessions {
+                println!(
+                    "{}\t{:?}\t{}",
+                    session.session_id,
+                    session.status,
+                    session.objective.replace(['\r', '\n', '\t'], " ")
+                );
+            }
+        }
         Command::ListModelRequests => {
             let mut cache = runtime_spine_cache(&args.store)?;
             cache.pull_all_backing_stores()?;
@@ -182,6 +200,18 @@ fn main() -> Result<()> {
             println!("runtime session opened");
             println!("session: {}", session.session_id);
             println!("objective: {}", session.objective);
+        }
+        Command::CloseSession { session_id, summary } => {
+            let session = close_runtime_session(
+                &args.store,
+                RuntimeSpineSessionClosureOptions {
+                    session_id,
+                    completed_at: now(),
+                    summary,
+                },
+            )?;
+            println!("runtime session completed");
+            println!("session: {}", session.session_id);
         }
         Command::RecordEvent {
             event_id,
@@ -290,12 +320,17 @@ enum Command {
     },
     Status,
     ListJobs,
+    ListSessions,
     ListModelRequests,
     ListEvents,
     OpenSession {
         session_id: String,
         objective: String,
         coordinator_note: String,
+    },
+    CloseSession {
+        session_id: String,
+        summary: String,
     },
     RecordEvent {
         event_id: String,
@@ -373,6 +408,7 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
         }
         "status" => Ok(Command::Status),
         "list-jobs" => Ok(Command::ListJobs),
+        "list-sessions" => Ok(Command::ListSessions),
         "list-model-requests" => Ok(Command::ListModelRequests),
         "list-events" => Ok(Command::ListEvents),
         "open-session" => {
@@ -491,6 +527,28 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
                 summary,
                 artifact_refs,
             })
+        }
+        "close-session" => {
+            let mut session_id = String::new();
+            let mut summary = String::new();
+            parse_options(args, |name, value| match name {
+                "--session-id" => {
+                    session_id = value;
+                    Ok(())
+                }
+                "--summary" => {
+                    summary = value;
+                    Ok(())
+                }
+                _ => Err(anyhow!("unknown close-session argument: {name}")),
+            })?;
+            if session_id.trim().is_empty() {
+                return Err(anyhow!("close-session requires --session-id"));
+            }
+            if summary.trim().is_empty() {
+                return Err(anyhow!("close-session requires --summary"));
+            }
+            Ok(Command::CloseSession { session_id, summary })
         }
         "complete-job" => {
             let mut result_id = format!("result-{}", Uuid::new_v4());
@@ -620,7 +678,7 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-model-requests|list-events|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|open-session|close-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
 }
 
 fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {
