@@ -7,13 +7,13 @@ machine at its present memory budget.
 ## Authoritative live state
 
 - Branch: `codex/epiphany-shakedown-live`
-- Pushed source release commit: `5a3532b996af4aecb1ed00de3747dd1ac7a1e053`
+- Pushed source release commit: `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
 - Live workspace: `F:\Projects\.epiphany-runtime\shakedown\live-20260808-v53-hands-precedence`
 - Thread: `shakedown-v49-hands-relinquishment-r1`
-- Current release: `sha256-7d1040b8cc01429d12d30780af3ac43f46e23382fff6a3267369b403d16e4387`
-- Release witness: `sha256-48202410ca55be72e0444f0d29501644608fb4b94953c9f901763dc7f6547aa6`
+- Current release: `sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
+- Release witness: `sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
 - Thread-state revision: `49`
-- Current action: do not approve another `regatherManually` loop. The approved Eyes pass and its causal Modeling reconciliation are accepted, but their prose recommendation for Imagination has no typed active frontier for Self to route. Design the native Modeling-to-Imagination authority seam first.
+- Current action: do not approve another `regatherManually` loop. Preserve v53 evidence, create a labeled supervisor correction boundary for the legacy accepted Modeling result, then replay one compliant typed Modeling-to-Imagination handoff under the exact current release.
 - Sealed evidence: v49 through v52. Do not mutate them.
 
 ## Live causal boundary
@@ -137,6 +137,17 @@ result-grounded evidence. `checkpoint-ready` and `regather-needed` cannot mutate
 frontier; `nextSafeMove` remains display-only. Schema/admission hostile checks,
 22 Modeling-focused core tests, all 23 coordinator tests, and all 15 OpenAI
 runtime tests pass. Commit, package, and live runtime repair/proof remain.
+
+Exact pushed commit `c35272c9e639ba8bfd27143fee26cf8beaccae6a`
+packaged all 21 roles in 2m34s as release
+`sha256-201a11149fadf2771c9ff9166d1f9492c9ca25d77b4666a4d10d6934760f0718`
+with witness
+`sha256-c696137e8b6f6bc2e2a4ba217f7aa74c220578b95c9b66d2aa681bef0ac62538`
+and was published to the Starfire local Verse. The operator explicitly grants
+standing supervisor authority to repair corrupted Epiphany runtime state
+proactively. Every intervention must remain bounded, labeled as supervisor
+repair, preserve immutable evidence, and emit receipts. Do not ask permission
+again merely because the repair changes runtime state.
 
 Iteration-cost evidence also narrowed. The approved Eyes launch committed in
 719ms and completed coordinator launch in 839ms against the same live store.
