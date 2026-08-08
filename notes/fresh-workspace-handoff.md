@@ -1,5 +1,33 @@
 # Fresh Workspace Handoff
 
+Fresh v42 now proves the `ecfff489` repair live. Exact release
+`sha256-6e5cd9827ab6a659c8a29f1147daf8ebec52ea3d148a16905a1401c539059d79`
+with witness
+`sha256-8d53746348eecf2afd2a5def5539dfb544e260104fb33e3e7d0eec83573ce3dc`
+gave ordinary resident Modeling its role-scoped read tools. The worker inspected
+source, emitted a generic node/edge-only RepoModel evolution, and Mind accepted
+it without the frontier bypass seen in v41. v41 remains sealed.
+
+The accepted result exposed the next authority seam. RepoModel admission does
+not create or replace the legacy durable investigation checkpoint consumed by
+CRRC, so status remained `prepareCheckpoint` and Self launched another generic
+Modeling pass. The worker cannot repair this through `statePatch`: repository
+anatomy was deliberately removed from that surface, and the worker must not own
+accepted checkpoint truth. Typed proposal
+`proposal-v42-unify-modeling-checkpoint-authority` is selected as request
+`repo-frontier-proposal-modeling-bfb37ae71693a31ea573ef3ffaeec3f9561d51afff4a9c30bb59606d54d2586f`.
+Its required route is proposal Modeling -> canonical Imagination -> dedicated
+Mind decision -> Hands. The proposal-bound worker is PID `32480` with a
+600-second bound; poll it before launching anything else.
+
+Exact `ecfff489` packaging took 7m04s of Cargo work. Release incremental
+compilation is absent, a core edit recompiles monolithic `epiphany-core`, and
+the bundle relinks 21 binaries. Benchmark `incremental=true` and `rust-lld`
+independently after the cognition boundary. During v42 tool rounds `runtime.cc`
+grew beyond 59 MB and exposed brief whole-file replacement windows; measure
+that separately as retention/storage work rather than mixing it into the
+checkpoint repair.
+
 Fresh v41 exhausted the selected proposal queue, then exercised failure and
 recovery. Two Modeling runs launched with resident `--no-auto-tools` failed
 immediately because the assistant payload was empty/non-typed JSON. Supervised

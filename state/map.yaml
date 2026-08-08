@@ -34,15 +34,15 @@ invariants:
   - Evidence and git retain history; this map retains only state that changes future decisions.
 
 current_status:
-  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact 5f09d35a packages as sha256-39a81a35d847fd6b459379d5bf3ef4fa57a3142745a10f13f4b033eea85ca45a with witness sha256-9cf82d9c1bdf018c36d199838598f5476acbc43818beb9fdb68840dc00be7f9b. v40 proved proposal binding-before-success and ordered queue consumption. v41 proved failed Modeling results can be supervised, superseded, and relaunched, but resident's blanket no-tools flag starved Modeling and the generic output schema offered frontier mutations ordinary evolution could never admit. Tool-enabled retries produced grounded results; Mind correctly rejected both forbidden frontier patches. The current worktree restores role-scoped tools and structurally restricts ordinary Modeling to node/edge evolution. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact ecfff489 packages as sha256-6e5cd9827ab6a659c8a29f1147daf8ebec52ea3d148a16905a1401c539059d79 with witness sha256-8d53746348eecf2afd2a5def5539dfb544e260104fb33e3e7d0eec83573ce3dc. v42 proves ordinary resident Modeling receives role-scoped source tools, emits a grounded schema-constrained node/edge RepoModel patch, and reaches Mind admission without frontier bypass. That proof exposed a split checkpoint authority: accepted RepoModel admission does not satisfy CRRC's durable investigation checkpoint, so Self relaunches generic Modeling. A selected typed proposal now routes that seam through proposal Modeling, canonical Imagination, and dedicated Mind before Hands. Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
   operational_state:
-    local_worktree: modeling_tool_and_output_authority_repair_verified_pending_commit
+    local_worktree: clean_at_ecfff489_live_v42_checkpoint_authority_shakedown
     operator_wireguard: restored
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: released
-    starfire_release: authenticated_5f09d35a_proposal_startup_actuator
+    starfire_release: authenticated_ecfff489_modeling_tool_and_output_authority
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_active
@@ -52,8 +52,8 @@ current_status:
     bifrost_feedback_crossing: authenticated_transport_only
     yggdrasil_epiphany_services: absent
     resident_physiology: heartbeat_and_self_running
-  unresolved_authority: v31's generic user proposal produced a lawful direct Hands gate, but the active objective requires the autonomous Imagination-origin path and dedicated Mind adoption, so that gate remains inert. v37 proved single-owner pressure ordering but exposed that generic coordinator completion could consume a typed pressure without its requested launch consequence. The fulfillment repair is locally verified but not packaged/live. Canonical proposal Modeling, dedicated Mind adoption, exact Hands binding, bounded-worker failure/restart/closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
-  next_action: Commit, package, and authenticate the Modeling tool/output-authority repair; replay the sealed v41 recovery and prove ordinary Modeling emits an admissible node/edge-only patch, then follow CRRC into Reorientation acceptance and Continuity recovery receipt before Soul closure. Continue canonical Imagination planning, dedicated Mind, Hands, Persona, endurance, and Linux/Yggdrasil.
+  unresolved_authority: v42 proved Modeling tool access and ordinary output authority, but accepted RepoModel admission and CRRC's durable investigation checkpoint remain separate truths. Typed proposal proposal-v42-unify-modeling-checkpoint-authority is selected for exact proposal Modeling so canonical Imagination and dedicated Mind can choose the repair before Hands. Failure-to-Reorientation-to-Continuity-to-Soul closure, Persona consequence, retention, endurance, and Linux/Yggdrasil cognition remain open.
+  next_action: Complete and admit the proposal-bound v42 Modeling result, drive its actionable frontier through canonical Imagination and dedicated Mind adoption, then execute only the adopted Hands repair that gives checkpoint truth one owner. Prove CRRC advances into accepted Reorientation, a Continuity recovery receipt, and Soul closure. Benchmark release incremental compilation and rust-lld separately after this cognition boundary; measure the growing whole-file runtime store as a distinct retention problem.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

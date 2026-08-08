@@ -1317,6 +1317,20 @@ authority fields whose exact identities Mind validates. This moves the first
 line of defense from a prose warning plus downstream rejection into the model's
 declared output contract; Mind remains the final admission owner.
 
+Live v42 proves that contract end to end: ordinary resident Modeling received
+read-only source tools, grounded its map in inspected repository paths, emitted
+only generic node/edge evolution, and reached Mind RepoModel admission. The next
+split is downstream. CRRC still derives resumability from the thread state's
+durable investigation checkpoint, while Modeling acceptance commits RepoModel
+admission plus observation/evidence state and does not establish that
+checkpoint. Consequently accepted Modeling can leave `prepareCheckpoint` true
+and trigger another generic Modeling launch. Neither generic `statePatch` nor
+the worker may become a second checkpoint owner. A typed proposal now asks the
+frontier-planning circuit to choose one authority: either Mind admission derives
+the continuity checkpoint deterministically from accepted RepoModel evidence,
+or CRRC consumes canonical RepoModel admission directly. Canonical Imagination
+and dedicated Mind must adopt the choice before Hands changes the seam.
+
 ## Exact release build cache ownership
 
 Release construction has two serialized cache authorities. The graph cache is
@@ -1363,3 +1377,9 @@ Cargo in 29.58s. The current iteration bottleneck is the broad recompilation
 and relink fan-out of the monolithic core crate. Incremental release reuse,
 linker choice, or a deliberate authority-based crate split must be benchmarked
 as separate release-contract changes rather than mixed into a cognition fix.
+Exact `ecfff489` confirmed the slow case at 7m04s of Cargo work. The active
+release rustc command had no incremental directory, and the root bundle built
+all 21 binaries. Release incremental compilation and `rust-lld` therefore have
+separate measurable hypotheses; an authority-based core crate split remains the
+larger structural option if those two changes do not materially reduce edits to
+the current monolith.
