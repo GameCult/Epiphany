@@ -1046,6 +1046,21 @@ Next: run the measured idle/active endurance plateau, then continue the
 remaining organ coordination audit. Broad session/model/event/tool compaction
 still waits for typed archived-session ownership.
 
+The first endurance harness under
+`.epiphany-run/idle-endurance-16c4b19f` is preserved as contaminated harness
+evidence: launching Self as a shell background job inherited the shell's
+non-default SIGINT disposition, so `ctrlc::try_set_handler` correctly refused
+to steal it. This was not a source regression. The corrected direct-PID run is
+active in `epiphany-linux-idle-heartbeat-16c4b19f` and
+`epiphany-linux-idle-self-16c4b19f`. Hidden monitor PID is recorded at
+`.epiphany-run/idle-endurance2-16c4b19f/monitor.pid`; five-second CPU/RSS/store/
+artifact/pulse samples go to `samples.tsv`, then the monitor SIGTERMs Self and
+writes `exits.txt` plus both daemon logs. Heartbeat runs 900 one-second pulses
+with retain 8/batch 4. Its current typed projection says
+`active-coordinator-turn` while Self is braked because the copied root and Eyes
+local-Verse brake scopes differ; do not call this an idle plateau without the
+final state audit. Poll only and preserve active c005.
+
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound
 (default 256). Only Heartbeat-consumed terminal lifecycles whose pressure still
