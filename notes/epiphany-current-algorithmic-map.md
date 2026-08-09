@@ -2030,3 +2030,19 @@ Live CultMesh publication is a distinct authority and may continue through the
 core document catalog. The deletion line is the core-owned construction module:
 construction logic must not remain duplicated behind a new wrapper, and a
 bootstrap packaging tool must not depend on monolithic `epiphany-core`.
+
+Commit `76afdaf0` completes that cut. `epiphany-release-construction` owns the
+typed entries plus package/build/hash/copy/witness/inspect path. Core re-exports
+those contracts and owns only CultMesh publication, load, and authenticated
+lookup. The standalone `epiphany-package` CLI therefore cannot publish live
+state and its dependency graph contains no `epiphany-core`. The shipped
+`epiphany-release` CLI retains publication and consumes the same constructor
+types. All 19 moved tests pass and the core test harness compiles.
+
+On the existing Starfire dependency cache, exact cold bootstrap fell from
+7m57s to 30.24s and warm bootstrap to 4.40s. Exact `76afdaf0` packaging produced
+release `sha256-30caab9e...a1aec` and witness `sha256-89c2ad60...fdecf` in
+12m16s of Cargo work without warnings. Its warm replay took 10.16s total, Cargo
+0.82s, and reproduced both identifiers. Independent inspection accepted both.
+The packaged full publisher accepted the narrow tool's witness and advanced the
+resident release Verse hash from `b160c610...3909` to `83ed430f...ae81`.

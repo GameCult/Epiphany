@@ -1,5 +1,31 @@
 # Fresh workspace handoff
 
+## Release-construction bootstrap extracted — 2026-08-09
+
+Commit `76afdaf0ce863f19e9396ef4d21ed8ff3fb39690` moves package
+construction, filesystem verification, and witness inspection into
+`epiphany-release-construction`. `epiphany-core` retains only live CultMesh
+publication, load, and authentication. The bootstrap graph contains no
+`epiphany-core`; all 19 construction tests pass and the core test harness
+compiles. Exact Linux bootstrap fell from 7m57s to 30.24s cold and 4.40s warm.
+
+The narrow tool then produced warning-free 24-binary release
+`sha256-30caab9ef1ea89f9a885d87832b1e312a35288ec3f895bd5b0e83f7f7a6a1aec`
+with witness
+`sha256-89c2ad604254faec3e1e01f753b5dff38a402f43d009074ba4b47b1ec46fdecf`.
+Cold Cargo took 12m16s. The identical warm replay took 10.16s total with Cargo
+at 0.82s and reproduced both identifiers. Independent narrow-tool inspection
+accepted both copies. The packaged full publisher then accepted the same
+witness and changed c005's local Verse hash from `b160c610...3909` to
+`83ed430f...ae81` without activating the body. This proves construction and
+publication remain interoperable while owning distinct consequences.
+
+Next assign graceful signal ownership. Shutdown must prevent new work, preserve
+an unclaimed prepared launch for restart, signal an exact active child, record
+shutdown terminalization without failure pressure, and exit zero only after no
+child remains. Prove both idle and active paths against copied typed stores
+before replacing c005.
+
 ## Exact 24-binary release published — 2026-08-09
 
 Exact pushed source `f00c8279c966c43c6ac899d9b16280f373b45941`
