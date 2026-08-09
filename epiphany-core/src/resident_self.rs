@@ -1207,25 +1207,14 @@ pub fn verify_resident_self_grant_fulfillment(
     let grant = state_cache(resident_store)?
         .get::<ResidentSelfHeartbeatGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self fulfillment check lost its grant"))?;
-    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
-    runtime.pull_all_backing_stores()?;
-    let worker_results = runtime.get_all::<crate::EpiphanyRuntimeRoleWorkerResult>()?;
-    match grant.pressure_kind.as_str() {
+    let request = match grant.pressure_kind.as_str() {
         "repo-frontier-proposal-modeling" => {
             let request_id = grant
                 .provenance_ref
                 .strip_prefix("cultcache://repo-frontier-proposal-modeling/")
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| anyhow!("proposal Modeling grant lost exact request provenance"))?;
-            Ok(
-                if worker_results.iter().any(|result| {
-                    result.proposal_modeling_request_id.as_deref() == Some(request_id)
-                }) {
-                    ResidentSelfGrantFulfillment::Fulfilled
-                } else {
-                    ResidentSelfGrantFulfillment::Pending
-                },
-            )
+            Some(crate::RuntimeTypedRequestRef::ProposalModeling(request_id))
         }
         "admitted-model-direction-consideration" => {
             let request_id = grant
@@ -1233,31 +1222,9 @@ pub fn verify_resident_self_grant_fulfillment(
                 .strip_prefix("cultcache://admitted-model-direction-consideration/")
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| anyhow!("model direction grant lost exact request provenance"))?;
-            let request = runtime
-                .get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
-                .ok_or_else(|| anyhow!("model direction fulfillment request is missing"))?;
-            for worker_result in worker_results.iter().filter(|result| {
-                result
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(request_id)
-            }) {
-                let result = worker_result
-                    .admitted_model_direction_consideration_result()?
-                    .ok_or_else(|| anyhow!("model direction worker result lost typed companion"))?;
-                crate::validate_admitted_model_direction_consideration_result(&request, &result)?;
-                if runtime
-                    .get::<crate::AdmittedModelDirectionConsiderationResult>(&result.result_id)?
-                    .as_ref()
-                    != Some(&result)
-                {
-                    return Err(anyhow!(
-                        "model direction worker result lost its persisted typed companion"
-                    ));
-                }
-                return Ok(ResidentSelfGrantFulfillment::Fulfilled);
-            }
-            Ok(ResidentSelfGrantFulfillment::Pending)
+            Some(crate::RuntimeTypedRequestRef::AdmittedModelDirection(
+                request_id,
+            ))
         }
         "imagination-consideration" => {
             let request_id = grant
@@ -1267,38 +1234,22 @@ pub fn verify_resident_self_grant_fulfillment(
                 .ok_or_else(|| {
                     anyhow!("Imagination consideration grant lost exact request provenance")
                 })?;
-            let request = runtime
-                .get::<crate::ImaginationConsiderationRequest>(request_id)?
-                .ok_or_else(|| {
-                    anyhow!("Imagination consideration fulfillment request is missing")
-                })?;
-            for worker_result in worker_results.iter().filter(|result| {
-                result.imagination_consideration_request_id.as_deref() == Some(request_id)
-            }) {
-                let candidate = worker_result
-                    .imagination_consideration_candidate()?
-                    .ok_or_else(|| anyhow!("Imagination worker result lost typed candidate"))?;
-                crate::validate_imagination_consideration_candidate(&request, &candidate)?;
-                if candidate.candidate_id
-                    != crate::imagination_consideration_candidate_id_for_launch(
-                        request_id,
-                        &worker_result.job_id,
-                    )
-                    || runtime
-                        .get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?
-                        .as_ref()
-                        != Some(&candidate)
-                {
-                    return Err(anyhow!(
-                        "Imagination worker result lost its exact persisted candidate"
-                    ));
-                }
-                return Ok(ResidentSelfGrantFulfillment::Fulfilled);
-            }
-            Ok(ResidentSelfGrantFulfillment::Pending)
+            Some(crate::RuntimeTypedRequestRef::ImaginationConsideration(
+                request_id,
+            ))
         }
-        _ => Ok(ResidentSelfGrantFulfillment::Fulfilled),
-    }
+        _ => None,
+    };
+    let Some(request) = request else {
+        return Ok(ResidentSelfGrantFulfillment::Fulfilled);
+    };
+    Ok(
+        if crate::runtime_typed_request_fulfillment(runtime_store, request)?.is_some() {
+            ResidentSelfGrantFulfillment::Fulfilled
+        } else {
+            ResidentSelfGrantFulfillment::Pending
+        },
+    )
 }
 
 pub fn settle_resident_self_exited_coordinator(
@@ -2399,7 +2350,42 @@ mod tests {
         thread_id: &str,
     ) -> Result<()> {
         seed_runtime_identity(store, runtime_id)?;
-        let cache = crate::runtime_spine_cache(store)?;
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let mut model = crate::EpiphanyMemoryGraphSnapshot::default();
+        model.model_revision = 1;
+        let model_hash = crate::memory_graph_model_hash(&model)?;
+        cache.put(
+            crate::MEMORY_GRAPH_KEY,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&model)?,
+        )?;
+        cache.put(
+            "model-admission-1",
+            &crate::RepoModelAdmissionReceipt {
+                schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
+                receipt_id: "model-admission-1".into(),
+                review_id: "review-model-1".into(),
+                result_id: None,
+                patch_id: "patch-model-1".into(),
+                patch_sha256: "sha256:patch-model-1".into(),
+                previous_revision: 0,
+                previous_hash: "sha256:previous-model".into(),
+                admitted_revision: model.model_revision,
+                admitted_hash: model_hash.clone(),
+                admitted_at: "2026-07-18T00:00:00Z".into(),
+                contract: crate::REPO_MODEL_ADMISSION_CONTRACT.into(),
+                purpose: crate::RepoModelPatchPurpose::Evolution,
+                frontier_route_id: String::new(),
+                verification_request_id: String::new(),
+                soul_verdict_receipt_id: String::new(),
+                frontier_modeling_request_id: String::new(),
+                proposal_modeling_request_id: String::new(),
+                claim_repair_request_id: String::new(),
+                frontier_plan_decision_id: String::new(),
+                repository_body_observation_basis: None,
+                admission_source: None,
+            },
+        )?;
         let request = crate::AdmittedModelDirectionConsiderationRequest {
             schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION
                 .into(),
@@ -2407,7 +2393,7 @@ mod tests {
             runtime_id: runtime_id.into(),
             thread_id: thread_id.into(),
             model_revision: 1,
-            model_hash: "sha256:model-1".into(),
+            model_hash,
             model_admission_receipt_id: "model-admission-1".into(),
             previous_terminal_result_id: None,
             requested_at: "2026-07-18T00:00:00Z".into(),
@@ -2456,6 +2442,166 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
         }
+    }
+
+    fn admit_test_model_direction_result(
+        store: &Path,
+        request: &crate::AdmittedModelDirectionConsiderationRequest,
+        result: &crate::AdmittedModelDirectionConsiderationResult,
+        job_id: &str,
+    ) -> Result<()> {
+        let document =
+            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: request.thread_id.clone(),
+                role_id: "imagination".into(),
+                state_revision: 0,
+                objective: None,
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: Some(
+                    crate::AdmittedModelDirectionConsiderationContextProjection::new(
+                        request,
+                        &crate::EpiphanyMemoryGraphSnapshot::default(),
+                    ),
+                ),
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            });
+        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: job_id.into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "imagination".into(),
+            instruction: "Test exact admitted model direction consideration.".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "imagination",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: Some(request.request_id.clone()),
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.put(job_id, &launch)?;
+        let mut worker = role_worker_result(job_id, "imagination");
+        worker.admitted_model_direction_consideration_request_id = Some(request.request_id.clone());
+        worker.admitted_model_direction_consideration_result_msgpack =
+            Some(rmp_serde::to_vec_named(result)?);
+        crate::put_runtime_role_worker_result(store, &worker)
+    }
+
+    fn admit_test_imagination_candidate(
+        store: &Path,
+        request: &crate::ImaginationConsiderationRequest,
+        model: &crate::EpiphanyMemoryGraphSnapshot,
+        candidate: &crate::ImaginationConsiderationCandidate,
+        job_id: &str,
+    ) -> Result<()> {
+        let document =
+            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: request.thread_id.clone(),
+                role_id: "imagination".into(),
+                state_revision: 0,
+                objective: None,
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: Some(
+                    crate::ImaginationConsiderationContextProjection::new(request, model),
+                ),
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            });
+        let launch_document_msgpack = rmp_serde::to_vec_named(&document)?;
+        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: job_id.into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "imagination".into(),
+            instruction: "Test exact feedback consideration.".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: launch_document_msgpack.clone(),
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "imagination",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: Some(request.request_id.clone()),
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let binding = crate::ImaginationConsiderationLaunchBinding {
+            schema_version: crate::IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: format!("imagination-consideration-launch-{}", request.request_id),
+            request_id: request.request_id.clone(),
+            job_id: job_id.into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            runtime_id: request.runtime_id.clone(),
+            thread_id: request.thread_id.clone(),
+            launched_at: "2026-07-18T00:00:01Z".into(),
+            worker_launch_document_sha256: format!(
+                "{:x}",
+                Sha256::digest(&launch_document_msgpack)
+            ),
+        };
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.put(job_id, &launch)?;
+        cache.put(&binding.binding_record_id, &binding)?;
+        let mut worker = role_worker_result(job_id, "imagination");
+        worker.imagination_consideration_request_id = Some(request.request_id.clone());
+        worker.imagination_consideration_candidate_msgpack =
+            Some(rmp_serde::to_vec_named(candidate)?);
+        crate::put_runtime_role_worker_result(store, &worker)
     }
     fn coordinator_receipt_for_lease(
         lease: &ResidentSelfTurnLease,
@@ -2771,16 +2917,23 @@ mod tests {
         );
         assert!(pending_resident_self_acks(&store)?.is_empty());
 
-        let runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
+        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
+        runtime.pull_all_backing_stores()?;
+        let request = runtime
+            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-model-1")?
+            .expect("model direction request");
         let result = crate::AdmittedModelDirectionConsiderationResult {
             schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
                 .into(),
-            result_id: "result-model-1".into(),
+            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
+                &request.request_id,
+                "job-model-1",
+            ),
             request_id: "request-model-1".into(),
             runtime_id: "cognitive-runtime".into(),
             thread_id: "implementation-thread-1".into(),
             model_revision: 1,
-            model_hash: "sha256:model-1".into(),
+            model_hash: request.model_hash.clone(),
             model_admission_receipt_id: "model-admission-1".into(),
             disposition: crate::AdmittedModelDirectionDisposition::Hold,
             summary: "Hold while the current admitted direction remains coherent.".into(),
@@ -2792,14 +2945,7 @@ mod tests {
             proposal_only: true,
             terminal: true,
         };
-        let (result_entry, _) = runtime.prepare_entry(&result.result_id, &result)?;
-        SingleFileMessagePackBackingStore::new(&policy.runtime_store).push(&result_entry)?;
-        let mut worker = role_worker_result("job-model-1", "imagination");
-        worker.admitted_model_direction_consideration_request_id = Some("request-model-1".into());
-        worker.admitted_model_direction_consideration_result_msgpack =
-            Some(rmp_serde::to_vec_named(&result)?);
-        let (worker_entry, _) = runtime.prepare_entry(&worker.job_id, &worker)?;
-        SingleFileMessagePackBackingStore::new(&policy.runtime_store).push(&worker_entry)?;
+        admit_test_model_direction_result(&policy.runtime_store, &request, &result, "job-model-1")?;
         assert_eq!(
             settle_resident_self_exited_coordinator(
                 &store,
@@ -3014,16 +3160,23 @@ mod tests {
             ResidentSelfGrantFulfillment::Pending
         );
 
-        let runtime = crate::runtime_spine_cache(&runtime_store)?;
+        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
+        runtime.pull_all_backing_stores()?;
+        let request = runtime
+            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-model-fulfillment")?
+            .expect("model direction request");
         let result = crate::AdmittedModelDirectionConsiderationResult {
             schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
                 .into(),
-            result_id: "result-model-fulfillment".into(),
+            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
+                &request.request_id,
+                "job-model-fulfillment",
+            ),
             request_id: "request-model-fulfillment".into(),
             runtime_id: "test-runtime".into(),
             thread_id: "implementation-thread-1".into(),
             model_revision: 1,
-            model_hash: "sha256:model-1".into(),
+            model_hash: request.model_hash.clone(),
             model_admission_receipt_id: "model-admission-1".into(),
             disposition: crate::AdmittedModelDirectionDisposition::Hold,
             summary: "Hold while the current admitted direction remains coherent.".into(),
@@ -3035,23 +3188,12 @@ mod tests {
             proposal_only: true,
             terminal: true,
         };
-        let (entry, _) = runtime.prepare_entry(&result.result_id, &result)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&entry)?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Pending
-        );
-        let mut worker = role_worker_result("job-model-fulfillment", "imagination");
-        worker.admitted_model_direction_consideration_request_id =
-            Some("request-model-fulfillment".into());
-        worker.admitted_model_direction_consideration_result_msgpack =
-            Some(rmp_serde::to_vec_named(&result)?);
-        let (worker_entry, _) = runtime.prepare_entry(&worker.job_id, &worker)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&worker_entry)?;
+        admit_test_model_direction_result(
+            &runtime_store,
+            &request,
+            &result,
+            "job-model-fulfillment",
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -3069,6 +3211,39 @@ mod tests {
         let resident_store = temp.path().join("resident-self.cc");
         let runtime_store = temp.path().join("runtime.cc");
         let runtime = crate::runtime_spine_cache(&runtime_store)?;
+        let mut model = crate::EpiphanyMemoryGraphSnapshot::default();
+        model.model_revision = 1;
+        let model_hash = crate::memory_graph_model_hash(&model)?;
+        let model_entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
+        let receipt = crate::RepoModelAdmissionReceipt {
+            schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "model-admission-1".into(),
+            review_id: "review-model-1".into(),
+            result_id: None,
+            patch_id: "patch-model-1".into(),
+            patch_sha256: "sha256:patch-model-1".into(),
+            previous_revision: 0,
+            previous_hash: "sha256:previous-model".into(),
+            admitted_revision: model.model_revision,
+            admitted_hash: model_hash.clone(),
+            admitted_at: "2026-07-18T00:00:00Z".into(),
+            contract: crate::REPO_MODEL_ADMISSION_CONTRACT.into(),
+            purpose: crate::RepoModelPatchPurpose::Evolution,
+            frontier_route_id: String::new(),
+            verification_request_id: String::new(),
+            soul_verdict_receipt_id: String::new(),
+            frontier_modeling_request_id: String::new(),
+            proposal_modeling_request_id: String::new(),
+            claim_repair_request_id: String::new(),
+            frontier_plan_decision_id: String::new(),
+            repository_body_observation_basis: None,
+            admission_source: None,
+        };
+        let (model_entry, _) = runtime.prepare_entry(crate::MEMORY_GRAPH_KEY, &model_entry)?;
+        let (receipt_entry, _) = runtime.prepare_entry(&receipt.receipt_id, &receipt)?;
+        let mut backing = SingleFileMessagePackBackingStore::new(&runtime_store);
+        backing.push(&model_entry)?;
+        backing.push(&receipt_entry)?;
         let request = crate::ImaginationConsiderationRequest {
             schema_version: crate::IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION.into(),
             request_id: "request-imagination-fulfillment".into(),
@@ -3084,7 +3259,7 @@ mod tests {
             repository: "GameCult/Epiphany".into(),
             persona_id: "epiphany".into(),
             model_revision: 1,
-            model_hash: "sha256:model-1".into(),
+            model_hash,
             model_admission_receipt_id: "model-admission-1".into(),
             routing_policy_id: "routing-policy-1".into(),
             question: crate::ImaginationConsiderationQuestion::CompareWithCurrentBodyAndSuggestCoherentOptions,
@@ -3170,12 +3345,13 @@ mod tests {
             )?,
             ResidentSelfGrantFulfillment::Pending
         );
-        let mut worker = role_worker_result(worker_job_id, "imagination");
-        worker.imagination_consideration_request_id = Some(request.request_id.clone());
-        worker.imagination_consideration_candidate_msgpack =
-            Some(rmp_serde::to_vec_named(&candidate)?);
-        let (worker_entry, _) = runtime.prepare_entry(&worker.job_id, &worker)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&worker_entry)?;
+        admit_test_imagination_candidate(
+            &runtime_store,
+            &request,
+            &model,
+            &candidate,
+            worker_job_id,
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -3490,13 +3666,14 @@ mod tests {
         worker.proposal_modeling_request_id = Some("selection-1".into());
         let (entry, _) = runtime_cache.prepare_entry(&worker.job_id, &worker)?;
         SingleFileMessagePackBackingStore::new(&runtime_store).push(&entry)?;
-        assert_eq!(
+        assert!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
                 &runtime_store,
                 &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Fulfilled
+            )
+            .is_err(),
+            "an echo-only proposal result without its immutable worker launch is hostile, not fulfilled"
         );
 
         assert_eq!(

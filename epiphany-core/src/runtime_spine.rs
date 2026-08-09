@@ -1,9 +1,5 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::RepoFrontierPlanMindContextProjection;
-use crate::runtime_store_backend::{
-    RuntimeSpineBackingStore as SingleFileMessagePackBackingStore,
-    runtime_spine_backing_store,
-};
 use crate::agent_launch::{
     EPIPHANY_IMAGINATION_OWNER_ROLE, EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
@@ -93,6 +89,9 @@ use crate::repo_model_gateway::{
     RepoFrontierWorkProposal, RepoModelAdmissionReceipt, RepoModelAdmissionReview,
     RepoModelClaimChallenge, RepoModelClaimRepairFrontierRef, RepoModelClaimRepairLaunchBinding,
     RepoModelClaimRepairRequest, RepoModelMigrationReceipt, RuntimeRepositoryDomainBinding,
+};
+use crate::runtime_store_backend::{
+    RuntimeSpineBackingStore as SingleFileMessagePackBackingStore, runtime_spine_backing_store,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -2554,6 +2553,330 @@ pub fn runtime_role_worker_result(
     cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeTypedRequestRef<'a> {
+    ProposalModeling(&'a str),
+    ImaginationConsideration(&'a str),
+    AdmittedModelDirection(&'a str),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeTypedFulfillmentEvidence {
+    pub job_id: String,
+    pub result_id: String,
+    pub request_id: String,
+}
+
+fn validate_proposal_modeling_worker_fulfillment(
+    cache: &CultCache,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<()> {
+    let request_id = result
+        .proposal_modeling_request_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost request echo"))?;
+    if !result.role_id.eq_ignore_ascii_case("modeling") || result.item_error.is_some() {
+        return Err(anyhow!(
+            "proposal Modeling fulfillment requires a successful Modeling result"
+        ));
+    }
+    let patch: crate::RepoModelPatch = rmp_serde::from_slice(
+        result
+            .repo_model_patch_msgpack
+            .as_deref()
+            .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost RepoModel patch"))?,
+    )
+    .context("decode proposal Modeling fulfillment RepoModel patch")?;
+    if patch.purpose != crate::RepoModelPatchPurpose::Evolution {
+        return Err(anyhow!(
+            "proposal Modeling fulfillment requires an Evolution patch"
+        ));
+    }
+    let request = cache
+        .get::<RepoFrontierProposalModelingRequest>(request_id)?
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment request is missing"))?;
+    validate_repo_frontier_proposal_modeling_request(&request)?;
+    let proposal = cache
+        .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment proposal is missing"))?;
+    validate_repo_frontier_work_proposal(&proposal)?;
+    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+        validate_autonomous_proposal_binding(cache, &proposal)?;
+    }
+    let bindings = cache
+        .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.job_id == result.job_id)
+        .collect::<Vec<_>>();
+    if bindings.len() != 1 {
+        return Err(anyhow!(
+            "proposal Modeling fulfillment requires exactly one launch binding"
+        ));
+    }
+    let binding = &bindings[0];
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment worker launch is missing"))?;
+    let document = launch.launch_document()?;
+    let projection = match &document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let identity = require_identity(cache)?;
+    let thread = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("proposal Modeling fulfillment thread state is missing"))?;
+    thread.state()?;
+    let payload = rmp_serde::to_vec_named(&(
+        &proposal.title,
+        &proposal.body,
+        &proposal.desired_outcome,
+        &proposal.constraints,
+        &proposal.scope_hints,
+        &proposal.evidence_refs,
+    ))?;
+    let proposal_payload_sha256 = format!("{:x}", Sha256::digest(payload));
+    let expected_projection = crate::RepoFrontierProposalModelingContextProjection {
+        schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
+        contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT.into(),
+        request_id: request.request_id.clone(),
+        proposal_id: proposal.proposal_id.clone(),
+        proposal_payload_sha256: proposal.payload_sha256.clone(),
+        runtime_id: request.runtime_id.clone(),
+        thread_id: request.thread_id.clone(),
+        repository: request.repository.clone(),
+        workspace: request.workspace.clone(),
+        source_kind: proposal.source_kind,
+        source_actor: proposal.source_actor.clone(),
+        source_ref: proposal.source_ref.clone(),
+        title: proposal.title.clone(),
+        body: proposal.body.clone(),
+        desired_outcome: proposal.desired_outcome.clone(),
+        constraints: proposal.constraints.clone(),
+        scope_hints: proposal.scope_hints.clone(),
+        evidence_refs: proposal.evidence_refs.clone(),
+        private_state_included: proposal.private_state_included,
+        model_revision: patch.base_revision,
+        model_hash: patch.base_hash.clone(),
+    };
+    let launch_sha256 = format!("{:x}", Sha256::digest(&launch.launch_document_msgpack));
+    let mismatches = [
+        (
+            "request.payload",
+            request.proposal_payload_sha256 != proposal.payload_sha256,
+        ),
+        (
+            "proposal.payload",
+            proposal.payload_sha256 != proposal_payload_sha256,
+        ),
+        ("request.runtime", request.runtime_id != identity.runtime_id),
+        ("request.thread", request.thread_id != thread.thread_id),
+        (
+            "request.repository",
+            request.repository != proposal.repository,
+        ),
+        ("request.workspace", request.workspace != proposal.workspace),
+        (
+            "binding.id",
+            binding.binding_record_id
+                != format!("repo-frontier-proposal-modeling-launch-{}", result.job_id),
+        ),
+        (
+            "binding.schema",
+            binding.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION,
+        ),
+        (
+            "binding.contract",
+            binding.contract != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT,
+        ),
+        (
+            "binding.request",
+            binding.proposal_modeling_request_id != request.request_id,
+        ),
+        (
+            "binding.proposal",
+            binding.proposal_id != proposal.proposal_id,
+        ),
+        (
+            "binding.payload",
+            binding.proposal_payload_sha256 != proposal.payload_sha256,
+        ),
+        ("binding.job", binding.job_id != result.job_id),
+        (
+            "binding.role",
+            binding.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID,
+        ),
+        ("binding.runtime", binding.runtime_id != identity.runtime_id),
+        ("binding.thread", binding.thread_id != thread.thread_id),
+        (
+            "binding.time",
+            chrono::DateTime::parse_from_rfc3339(&binding.launched_at).is_err(),
+        ),
+        (
+            "binding.hash",
+            binding.worker_launch_document_sha256 != launch_sha256,
+        ),
+        (
+            "launch.schema",
+            launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
+        ),
+        ("launch.job", launch.job_id != result.job_id),
+        ("launch.binding", launch.binding_id != binding.binding_id),
+        ("launch.role", launch.role != EPIPHANY_MODELING_OWNER_ROLE),
+        (
+            "launch.request",
+            launch.proposal_modeling_request_id.as_deref() != Some(request.request_id.as_str()),
+        ),
+        (
+            "launch.projection",
+            projection != Some(&expected_projection),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(name, failed)| failed.then_some(name))
+    .collect::<Vec<_>>();
+    if !mismatches.is_empty() {
+        return Err(anyhow!(
+            "proposal Modeling fulfillment provenance mismatch: {}",
+            mismatches.join(", ")
+        ));
+    }
+    let upserts = patch
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            crate::RepoModelPatchOperation::UpsertFrontier { item } => Some(item),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let frontier_operations = patch
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation,
+                crate::RepoModelPatchOperation::UpsertFrontier { .. }
+                    | crate::RepoModelPatchOperation::ReviseFrontier { .. }
+                    | crate::RepoModelPatchOperation::RetireFrontier { .. }
+            )
+        })
+        .count();
+    if !result
+        .evidence_ids
+        .iter()
+        .any(|id| id == &proposal.proposal_id)
+        || frontier_operations != 1
+        || upserts.len() != 1
+        || !upserts[0]
+            .evidence_refs
+            .iter()
+            .any(|id| id == &proposal.proposal_id)
+        || upserts[0].source_scope.is_empty()
+        || !safe_sorted_unique_paths(&upserts[0].source_scope)
+        || upserts[0].status != crate::RepoFrontierStatus::Active
+        || !matches!(
+            upserts[0].recommended_next_organ.as_str(),
+            "Hands" | "Eyes" | "Imagination"
+        )
+        || (proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
+            && (upserts[0].recommended_next_organ != "Imagination"
+                || upserts[0].adopted_plan.is_some()))
+    {
+        return Err(anyhow!(
+            "proposal Modeling fulfillment result is not one safe proposal-citing routeable frontier"
+        ));
+    }
+    Ok(())
+}
+
+pub fn runtime_typed_request_fulfillment(
+    store_path: impl AsRef<Path>,
+    request: RuntimeTypedRequestRef<'_>,
+) -> Result<Option<RuntimeTypedFulfillmentEvidence>> {
+    let store_path = store_path.as_ref();
+    let request_id = match request {
+        RuntimeTypedRequestRef::ProposalModeling(id)
+        | RuntimeTypedRequestRef::ImaginationConsideration(id)
+        | RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
+    };
+    validate_non_empty(request_id, "typed fulfillment request id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let matches = cache
+        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+        .into_iter()
+        .filter(|result| match request {
+            RuntimeTypedRequestRef::ProposalModeling(_) => {
+                result.proposal_modeling_request_id.as_deref() == Some(request_id)
+            }
+            RuntimeTypedRequestRef::ImaginationConsideration(_) => {
+                result.imagination_consideration_request_id.as_deref() == Some(request_id)
+            }
+            RuntimeTypedRequestRef::AdmittedModelDirection(_) => {
+                result
+                    .admitted_model_direction_consideration_request_id
+                    .as_deref()
+                    == Some(request_id)
+            }
+        })
+        .collect::<Vec<_>>();
+    if matches.is_empty() {
+        return Ok(None);
+    }
+    if matches.len() != 1 {
+        return Err(anyhow!(
+            "typed fulfillment request has multiple terminal worker claimants"
+        ));
+    }
+    let result = &matches[0];
+    if result.item_error.is_some() {
+        return Err(anyhow!(
+            "typed fulfillment claimant terminated with an item error"
+        ));
+    }
+    // This is the runtime admission owner. Replaying an already persisted
+    // immutable result performs the same full validation without writing.
+    put_runtime_role_worker_result(store_path, result)?;
+    match request {
+        RuntimeTypedRequestRef::ProposalModeling(_) => {
+            validate_proposal_modeling_worker_fulfillment(&cache, result)?;
+        }
+        RuntimeTypedRequestRef::ImaginationConsideration(_) => {
+            let candidate = result
+                .imagination_consideration_candidate()?
+                .ok_or_else(|| anyhow!("Imagination fulfillment lost typed candidate"))?;
+            if cache
+                .get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?
+                .as_ref()
+                != Some(&candidate)
+            {
+                return Err(anyhow!(
+                    "Imagination fulfillment lost its persisted typed candidate"
+                ));
+            }
+        }
+        RuntimeTypedRequestRef::AdmittedModelDirection(_) => {
+            let direction = result
+                .admitted_model_direction_consideration_result()?
+                .ok_or_else(|| anyhow!("model direction fulfillment lost typed result"))?;
+            if cache
+                .get::<crate::AdmittedModelDirectionConsiderationResult>(&direction.result_id)?
+                .as_ref()
+                != Some(&direction)
+            {
+                return Err(anyhow!(
+                    "model direction fulfillment lost its persisted typed result"
+                ));
+            }
+        }
+    }
+    Ok(Some(RuntimeTypedFulfillmentEvidence {
+        job_id: result.job_id.clone(),
+        result_id: result.result_id.clone(),
+        request_id: request_id.to_string(),
+    }))
+}
+
 pub fn ensure_runtime_repo_model(
     runtime_store: impl AsRef<Path>,
     legacy_memory_store: impl AsRef<Path>,
@@ -3161,263 +3484,19 @@ pub fn commit_repo_model_admission(
                 })
                 .count();
             let request_id = if let Some(request_id) = echoed {
-                let request = cache
-                    .get::<RepoFrontierProposalModelingRequest>(request_id)?
-                    .ok_or_else(|| {
-                        anyhow!("proposal Evolution requires exact selection request")
-                    })?;
-                validate_repo_frontier_proposal_modeling_request(&request)?;
-                let proposal = cache
-                    .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
-                    .ok_or_else(|| anyhow!("proposal Evolution requires exact proposal"))?;
-                validate_repo_frontier_work_proposal(&proposal)?;
-                if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-                    validate_autonomous_proposal_binding(&cache, &proposal)?;
-                }
-                let launch_bindings = cache
-                    .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
-                    .into_iter()
-                    .filter(|binding| binding.job_id == result.job_id)
-                    .collect::<Vec<_>>();
-                if launch_bindings.len() != 1 {
-                    return Err(anyhow!(
-                        "proposal Evolution requires exactly one coordinator launch binding for its job"
-                    ));
-                }
-                let launch_binding = &launch_bindings[0];
-                let worker_launch = cache
-                    .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
-                    .ok_or_else(|| {
-                        anyhow!("proposal Evolution requires its runtime worker launch request")
-                    })?;
-                let worker_launch_document = worker_launch.launch_document()?;
-                let launch_projection = match &worker_launch_document {
-                    EpiphanyWorkerLaunchDocument::Role(document) => {
-                        document.proposal_modeling_context.as_ref()
-                    }
-                    EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-                };
-                let identity = require_identity(&cache)?;
-                let thread = cache
-                    .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                    .ok_or_else(|| {
-                        anyhow!("proposal Evolution requires authoritative thread state")
-                    })?;
-                thread.state()?;
-                let content = rmp_serde::to_vec_named(&(
-                    &proposal.title,
-                    &proposal.body,
-                    &proposal.desired_outcome,
-                    &proposal.constraints,
-                    &proposal.scope_hints,
-                    &proposal.evidence_refs,
-                ))?;
-                let payload_hash = format!("{:x}", Sha256::digest(content));
-                let expected_projection = crate::RepoFrontierProposalModelingContextProjection {
-                    schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION
-                        .into(),
-                    contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT.into(),
-                    request_id: request.request_id.clone(),
-                    proposal_id: proposal.proposal_id.clone(),
-                    proposal_payload_sha256: proposal.payload_sha256.clone(),
-                    runtime_id: request.runtime_id.clone(),
-                    thread_id: request.thread_id.clone(),
-                    repository: request.repository.clone(),
-                    workspace: request.workspace.clone(),
-                    source_kind: proposal.source_kind,
-                    source_actor: proposal.source_actor.clone(),
-                    source_ref: proposal.source_ref.clone(),
-                    title: proposal.title.clone(),
-                    body: proposal.body.clone(),
-                    desired_outcome: proposal.desired_outcome.clone(),
-                    constraints: proposal.constraints.clone(),
-                    scope_hints: proposal.scope_hints.clone(),
-                    evidence_refs: proposal.evidence_refs.clone(),
-                    private_state_included: proposal.private_state_included,
-                    model_revision: patch.base_revision,
-                    model_hash: patch.base_hash.clone(),
-                };
-                let launch_document_sha256 = format!(
-                    "{:x}",
-                    Sha256::digest(&worker_launch.launch_document_msgpack)
-                );
-                let mismatches = [
-                    (
-                        "request.schema",
-                        request.schema_version
-                            != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION,
-                    ),
-                    (
-                        "request.contract",
-                        request.contract != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT,
-                    ),
-                    (
-                        "proposal.schema",
-                        proposal.schema_version != REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION,
-                    ),
-                    (
-                        "proposal.contract",
-                        proposal.contract != REPO_FRONTIER_WORK_PROPOSAL_CONTRACT,
-                    ),
-                    ("proposal.private", proposal.private_state_included),
-                    (
-                        "request.payload",
-                        request.proposal_payload_sha256 != proposal.payload_sha256,
-                    ),
-                    ("proposal.payload", proposal.payload_sha256 != payload_hash),
-                    (
-                        "request.proposal_runtime",
-                        request.runtime_id != proposal.runtime_id,
-                    ),
-                    ("request.runtime", request.runtime_id != identity.runtime_id),
-                    (
-                        "request.proposal_thread",
-                        request.thread_id != proposal.thread_id,
-                    ),
-                    ("request.thread", request.thread_id != thread.thread_id),
-                    (
-                        "request.repository",
-                        request.repository != proposal.repository,
-                    ),
-                    ("request.workspace", request.workspace != proposal.workspace),
-                    (
-                        "binding.id",
-                        launch_binding.binding_record_id
-                            != format!("repo-frontier-proposal-modeling-launch-{}", result.job_id),
-                    ),
-                    (
-                        "binding.schema",
-                        launch_binding.schema_version
-                            != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION,
-                    ),
-                    (
-                        "binding.contract",
-                        launch_binding.contract
-                            != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT,
-                    ),
-                    (
-                        "binding.request",
-                        launch_binding.proposal_modeling_request_id != request.request_id,
-                    ),
-                    (
-                        "binding.proposal",
-                        launch_binding.proposal_id != proposal.proposal_id,
-                    ),
-                    (
-                        "binding.payload",
-                        launch_binding.proposal_payload_sha256 != proposal.payload_sha256,
-                    ),
-                    ("binding.job", launch_binding.job_id != result.job_id),
-                    (
-                        "binding.role",
-                        launch_binding.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID,
-                    ),
-                    (
-                        "binding.runtime",
-                        launch_binding.runtime_id != identity.runtime_id,
-                    ),
-                    (
-                        "binding.thread",
-                        launch_binding.thread_id != thread.thread_id,
-                    ),
-                    (
-                        "binding.launched_at",
-                        chrono::DateTime::parse_from_rfc3339(&launch_binding.launched_at).is_err(),
-                    ),
-                    (
-                        "binding.launch_document_hash",
-                        launch_binding.worker_launch_document_sha256 != launch_document_sha256,
-                    ),
-                    (
-                        "launch.schema",
-                        worker_launch.schema_version
-                            != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
-                    ),
-                    ("launch.job", worker_launch.job_id != result.job_id),
-                    (
-                        "launch.binding",
-                        worker_launch.binding_id != launch_binding.binding_id,
-                    ),
-                    (
-                        "launch.role",
-                        worker_launch.role != EPIPHANY_MODELING_OWNER_ROLE,
-                    ),
-                    (
-                        "launch.request",
-                        worker_launch.proposal_modeling_request_id.as_deref()
-                            != Some(request.request_id.as_str()),
-                    ),
-                    (
-                        "launch.projection",
-                        launch_projection != Some(&expected_projection),
-                    ),
-                    (
-                        "launch.model_base",
-                        expected_projection.model_revision != patch.base_revision
-                            || expected_projection.model_hash != patch.base_hash,
-                    ),
-                ]
-                .into_iter()
-                .filter_map(|(name, failed)| failed.then_some(name))
-                .collect::<Vec<_>>();
-                if !mismatches.is_empty() {
-                    return Err(anyhow!(
-                        "proposal Evolution provenance binding mismatch: {}",
-                        mismatches.join(", ")
-                    ));
-                }
+                validate_proposal_modeling_worker_fulfillment(&cache, &result)?;
                 if cache
                     .get_all::<RepoModelAdmissionReceipt>()?
                     .iter()
                     .any(|receipt| {
-                        receipt.proposal_modeling_request_id == request.request_id
+                        receipt.proposal_modeling_request_id == request_id
                             && (receipt.review_id != review.review_id
                                 || receipt.result_id.as_deref() != Some(result.result_id.as_str()))
                     })
                 {
                     return Err(anyhow!("proposal Modeling request already incorporated"));
                 }
-                if !result_evidence.iter().any(|id| id == &proposal.proposal_id)
-                    || frontier_operation_count != 1
-                    || upserts.len() != 1
-                    || !upserts[0]
-                        .evidence_refs
-                        .iter()
-                        .any(|id| id == &proposal.proposal_id)
-                {
-                    return Err(anyhow!(
-                        "proposal Evolution requires one proposal-citing frontier upsert and exact evidence"
-                    ));
-                }
-                if upserts[0].source_scope.is_empty()
-                    || !safe_sorted_unique_paths(&upserts[0].source_scope)
-                {
-                    return Err(anyhow!(
-                        "proposal Evolution frontier source_scope must be non-empty, safe relative paths in strict lexicographic order with no duplicates"
-                    ));
-                }
-                if upserts[0].status != crate::RepoFrontierStatus::Active {
-                    return Err(anyhow!(
-                        "proposal Evolution frontier must be active so accepted unresolved work is immediately routeable"
-                    ));
-                }
-                if !matches!(
-                    upserts[0].recommended_next_organ.as_str(),
-                    "Hands" | "Eyes" | "Imagination"
-                ) {
-                    return Err(anyhow!(
-                        "proposal Evolution frontier recommended_next_organ must be one exact routeable organ: Hands, Eyes, or Imagination"
-                    ));
-                }
-                if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
-                    && (upserts[0].recommended_next_organ != "Imagination"
-                        || upserts[0].adopted_plan.is_some())
-                {
-                    return Err(anyhow!(
-                        "autonomous proposal Modeling may admit only an unadopted Imagination-planning frontier; Mind alone may adopt a plan before Hands"
-                    ));
-                }
-                request.request_id
+                request_id.to_string()
             } else {
                 validate_ordinary_modeling_frontier_transition(
                     &result.verdict,
@@ -8735,9 +8814,7 @@ pub fn retain_coordinator_run_receipts(
             || head.private_state_exposed
             || !head.retired_chain_digest.starts_with("sha256:")
         {
-            return Err(anyhow!(
-                "coordinator run receipt retention head is invalid"
-            ));
+            return Err(anyhow!("coordinator run receipt retention head is invalid"));
         }
     }
     let snapshot = cache.snapshot_envelopes();
@@ -8794,13 +8871,13 @@ pub fn retain_coordinator_run_receipts(
         retained_at: retained_at.into(),
         private_state_exposed: false,
     };
-    let (replacement, _) = cache.prepare_entry(
-        COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
-        &head,
-    )?;
-    if !runtime_spine_backing_store(store_path)?
-        .replace_and_delete_if_snapshot_unchanged(&snapshot, vec![replacement], &deletions)?
-    {
+    let (replacement, _) =
+        cache.prepare_entry(COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY, &head)?;
+    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &deletions,
+    )? {
         return Err(anyhow!(
             "coordinator run receipt retention lost its snapshot fence"
         ));
@@ -10520,20 +10597,24 @@ pub(crate) mod tests {
             &[&valid],
             &evidence,
         )?;
-        assert!(validate_ordinary_modeling_frontier_transition(
-            "checkpoint-update-needed",
-            0,
-            &[],
-            &evidence,
-        )
-        .is_err());
-        assert!(validate_ordinary_modeling_frontier_transition(
-            "checkpoint-ready",
-            1,
-            &[&valid],
-            &evidence,
-        )
-        .is_err());
+        assert!(
+            validate_ordinary_modeling_frontier_transition(
+                "checkpoint-update-needed",
+                0,
+                &[],
+                &evidence,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_ordinary_modeling_frontier_transition(
+                "checkpoint-ready",
+                1,
+                &[&valid],
+                &evidence,
+            )
+            .is_err()
+        );
 
         let mut hands = valid.clone();
         hands.recommended_next_organ = "Hands".into();
@@ -10547,13 +10628,15 @@ pub(crate) mod tests {
         let mut ungrounded = valid.clone();
         ungrounded.evidence_refs = vec!["other-evidence".into()];
         for hostile in [&hands, &adopted, &blocked, &ungrounded] {
-            assert!(validate_ordinary_modeling_frontier_transition(
-                "checkpoint-update-needed",
-                1,
-                &[hostile],
-                &evidence,
-            )
-            .is_err());
+            assert!(
+                validate_ordinary_modeling_frontier_transition(
+                    "checkpoint-update-needed",
+                    1,
+                    &[hostile],
+                    &evidence,
+                )
+                .is_err()
+            );
         }
         Ok(())
     }
@@ -10834,6 +10917,73 @@ pub(crate) mod tests {
             &format!("proposal-review-{suffix}"),
         )?;
         Ok((store, result, review))
+    }
+
+    #[test]
+    fn typed_proposal_fulfillment_reuses_runtime_admission_and_refuses_hostile_claimants()
+    -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, result, _) = proposal_admission_fixture(root.path(), "typed-fulfillment")?;
+        let request_id = result
+            .proposal_modeling_request_id
+            .clone()
+            .expect("proposal request echo");
+        assert_eq!(
+            runtime_typed_request_fulfillment(
+                &store,
+                RuntimeTypedRequestRef::ProposalModeling(&request_id),
+            )?,
+            None
+        );
+
+        put_runtime_role_worker_result(&store, &result)?;
+        let evidence = runtime_typed_request_fulfillment(
+            &store,
+            RuntimeTypedRequestRef::ProposalModeling(&request_id),
+        )?
+        .expect("authenticated proposal fulfillment");
+        assert_eq!(evidence.job_id, result.job_id);
+        assert_eq!(evidence.result_id, result.result_id);
+        assert_eq!(evidence.request_id, request_id);
+
+        let hostile_store = root.path().join("typed-fulfillment-hostile.cc");
+        std::fs::copy(&store, &hostile_store)?;
+        let mut hostile_cache = runtime_spine_cache(&hostile_store)?;
+        hostile_cache.pull_all_backing_stores()?;
+        let mut binding = hostile_cache
+            .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
+            .into_iter()
+            .find(|binding| binding.job_id == result.job_id)
+            .expect("proposal launch binding");
+        binding.worker_launch_document_sha256 = "00".repeat(32);
+        let binding_id = binding.binding_record_id.clone();
+        overwrite_test_entry(&hostile_store, &binding_id, &binding)?;
+        let before = std::fs::read(&hostile_store)?;
+        assert!(
+            runtime_typed_request_fulfillment(
+                &hostile_store,
+                RuntimeTypedRequestRef::ProposalModeling(&request_id),
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&hostile_store)?, before);
+
+        let duplicate_store = root.path().join("typed-fulfillment-duplicate.cc");
+        std::fs::copy(&store, &duplicate_store)?;
+        let mut duplicate = result.clone();
+        duplicate.job_id = "duplicate-job".into();
+        duplicate.result_id = "duplicate-result".into();
+        overwrite_test_entry(&duplicate_store, &duplicate.job_id, &duplicate)?;
+        let before = std::fs::read(&duplicate_store)?;
+        assert!(
+            runtime_typed_request_fulfillment(
+                &duplicate_store,
+                RuntimeTypedRequestRef::ProposalModeling(&request_id),
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&duplicate_store)?, before);
+        Ok(())
     }
 
     fn claim_repair_admission_fixture(
@@ -13837,8 +13987,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn coordinator_run_receipt_retention_preserves_authority_and_cannot_resurrect_work(
-    ) -> Result<()> {
+    fn coordinator_run_receipt_retention_preserves_authority_and_cannot_resurrect_work()
+    -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         initialize_runtime_spine(
@@ -13892,13 +14042,8 @@ pub(crate) mod tests {
             .into_iter()
             .filter(|entry| entry.r#type != EpiphanyCoordinatorRunReceipt::TYPE)
             .collect::<Vec<_>>();
-        let head = retain_coordinator_run_receipts(
-            &store,
-            1,
-            &preserved,
-            "2026-05-06T00:10:00Z",
-        )?
-        .expect("two receipts should be retired");
+        let head = retain_coordinator_run_receipts(&store, 1, &preserved, "2026-05-06T00:10:00Z")?
+            .expect("two receipts should be retired");
         assert_eq!(head.revision, 1);
         assert_eq!(head.retired_receipt_count, 2);
         assert_eq!(
@@ -13928,9 +14073,7 @@ pub(crate) mod tests {
         assert_eq!(unrelated_after, unrelated_before);
         assert!(
             cache
-                .get::<EpiphanyCoordinatorRunReceipt>(
-                    COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
-                )?
+                .get::<EpiphanyCoordinatorRunReceipt>(COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,)?
                 .is_none(),
             "the retention head must not deserialize as runnable receipt authority"
         );
@@ -13943,13 +14086,8 @@ pub(crate) mod tests {
             Some(&head)
         );
         assert!(
-            retain_coordinator_run_receipts(
-                &store,
-                1,
-                &preserved,
-                "2026-05-06T00:11:00Z",
-            )?
-            .is_none(),
+            retain_coordinator_run_receipts(&store, 1, &preserved, "2026-05-06T00:11:00Z",)?
+                .is_none(),
             "a stable retained set must not rewrite the head"
         );
         Ok(())
@@ -13997,13 +14135,8 @@ pub(crate) mod tests {
                 },
             )?;
         }
-        retain_coordinator_run_receipts(
-            &store,
-            0,
-            &BTreeSet::new(),
-            "2026-05-06T00:10:00Z",
-        )?
-        .expect("the older receipt should be retired");
+        retain_coordinator_run_receipts(&store, 0, &BTreeSet::new(), "2026-05-06T00:10:00Z")?
+            .expect("the older receipt should be retired");
         let receipts = coordinator_run_receipts(&store)?;
         assert_eq!(receipts.len(), 1);
         assert_eq!(receipts[0].receipt_id, "receipt-2");
