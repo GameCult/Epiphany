@@ -1822,5 +1822,36 @@ identities. The failed results remain sealed evidence and cannot be rewritten.
 Verification layer: `mind_ingress_derives_immutable_identity_from_launch_context`
 feeds five substituted identities and proves the emitted typed decision carries
 only the canonical launch identities. All 15 `epiphany-openai-runtime` library
-tests pass. Exact Linux package and one explicitly authorized resident retry are
-still required before this boundary is live-proven.
+tests pass. Exact Linux package `bd96305e` live-proved the boundary: typed review
+superseded failed job `8e5952fb`, authorized retry `2d2a3e8b` completed with the
+canonical request and candidate identities, and Self atomically committed adopt
+decision `repo-frontier-plan-decision-e7d7f3c7...`. The lifecycle is terminal;
+no tools or external consequence occurred.
+
+## Starfire package cache physiology (2026-08-09)
+
+Owner: the persistent Docker source, graph, and Cargo-home volumes own reusable
+build products. The exact release witness still owns package identity. Free disk
+and cache presence are preconditions for the fast path, not release evidence.
+
+A full `C:` disk exposed the physical failure boundary: the shared Windows
+Codex target occupied roughly 276 GiB, rustc faulted with SIGBUS, and Docker's
+backend also faulted until targeted Cargo cleanup restored about 252 GiB free
+and only the `docker-desktop` WSL body was restarted. The recovered package
+then paid a 25m12s cold release compile plus a 33.53s isolated coordinator pass.
+
+An identical package against `epiphany-linux-package-source`,
+`epiphany-linux-package-cache`, and `epiphany-linux-cargo-home` completed in
+9.65 seconds wall. Cargo phases were 0.81s and 0.65s and the run reproduced
+release `sha256-01dbed4b...` and witness `sha256-c3ab5a60...`. Therefore normal
+shakedown iteration must retain those volumes and inspect disk/cache health
+before compilation. Routine cache destruction, commit-partitioned graph caches,
+or Yggdrasil builds are forbidden writers of iteration latency.
+
+State stewardship currently sits outside that warm release surface. Building
+the unshipped `epiphany-state` binary against the same exact source and graph
+still recompiled a second dependency universe and took 7m11s merely to append a
+typed evidence record. This is not a request for another cache. Either the state
+steward must ship in the owned release graph or its narrow typed write port must
+move into an already-shipped native owner; canonical Mind maintenance must not
+require a second monolithic core build.

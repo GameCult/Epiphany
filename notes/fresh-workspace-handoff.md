@@ -1,5 +1,49 @@
 # Fresh workspace handoff
 
+## Resident Mind terminal adoption and warm package proof — 2026-08-09
+
+Exact pushed source `bd96305e60428b8ea2af822f1e1a233405c09c43` is packaged and
+published as
+`sha256-01dbed4b015dabccc6f17df49118bba90195993da002f109bafd73f23b1d3a8f`
+with witness
+`sha256-c3ab5a602de9c58e3ffb23cc5d316e5e36d94a013a697a113af01b4b2cf00808`.
+The first package completed its release graph in 25m12s and its isolated
+coordinator phase in 33.53s. It followed a host incident where
+`C:\Users\Meta\.cargo-target-codex` occupied roughly 276 GiB, filled `C:`, and
+caused rustc and Docker backend SIGBUS failures. `cargo clean --target-dir`
+reclaimed the target, restored roughly 252 GiB free, and Docker was recovered by
+terminating only `docker-desktop` WSL before restart. Preserve the preflight and
+SIGBUS receipts under `.epiphany-run/linux-package-bd96305e/`.
+
+The identical package was then rerun against persistent volumes
+`epiphany-linux-package-source`, `epiphany-linux-package-cache`, and
+`epiphany-linux-cargo-home`. It completed in 9.65 seconds wall; Cargo reported
+0.81s for the ordinary release graph and 0.65s for the isolated coordinator,
+and reproduced the exact release and witness. Receipts are under
+`.epiphany-run/linux-package-bd96305e-warm/`. This proves the fast shakedown
+path is stable cache retention plus free-disk/cache preflight. Do not clean or
+partition the shared package graph for routine iterations, and never build this
+graph on Yggdrasil.
+
+The typed evidence append exposed a separate build boundary: `epiphany-state`
+is not among the 22 shipped binaries, and building it standalone against the
+same exact source/cache took 7m11s. Do not solve this with another graph cache.
+Ship the state steward through the owned release graph or move its narrow typed
+ledger-write port into an already-shipped native owner.
+
+The published repair completed the resident frontier-planning chain. Typed
+failure review
+`frontier-planning-failure-review-4824d856-876f-432c-8fdd-664728938105`
+superseded failed Mind job `8e5952fb-0db6-460c-b061-c75d32410cc2` and authorized
+one retry. Mind job `2d2a3e8b-77f0-4f57-9125-ec3305a95843` returned a valid
+typed adopt judgment without tools or external consequence. Self committed
+terminal decision
+`repo-frontier-plan-decision-e7d7f3c79595e09f2d2cd9e7c4614909e803b1f9b509f0fc1482d3aaab2ad6d3`
+against the original candidate. The next typed action is
+`continueImplementation`; execute only that admitted Hands frontier. Do not
+recreate Eyes, Modeling, Imagination, either failed Mind attempt, or the
+successful retry.
+
 ## Packaged Body speed proof and resident Mind identity correction — 2026-08-09
 
 Exact pushed source `217dd4b96746536e01dc8991b5e6f31c2c588af0` is packaged as
