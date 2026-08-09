@@ -359,6 +359,7 @@ fn cycle(
                     brake_engaged,
                     timed_out,
                     now,
+                    args.policy.cooldown_seconds,
                 )?;
                 *state = load_resident_self_state(&args.state_store)?;
                 Ok(outcome)

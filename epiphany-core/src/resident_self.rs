@@ -1080,7 +1080,22 @@ pub fn heartbeat_issue_resident_self_grant(
     action_id: &str,
     now_millis: u64,
 ) -> Result<Option<ResidentSelfHeartbeatGrant>> {
-    let cache = state_cache(path)?;
+    let mut cache = state_cache(path)?;
+    if cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .is_none()
+    {
+        let (state_entry, _) =
+            cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &ResidentSelfState::default())?;
+        let _ = SingleFileMessagePackBackingStore::new(path).insert_entry_if_absent(state_entry)?;
+        cache = state_cache(path)?;
+    }
+    let mut state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .ok_or_else(|| anyhow!("resident Self grant fence is missing"))?;
+    if state.active_turn.is_some() || state.prepared_launch.is_some() {
+        return Ok(None);
+    }
     if cache
         .get_all::<ResidentSelfHeartbeatGrant>()?
         .iter()
@@ -1125,7 +1140,7 @@ pub fn heartbeat_issue_resident_self_grant(
         private_state_exposed: false,
     };
     let snapshot = cache.snapshot_envelopes();
-    let expected = snapshot
+    let expected_pressure = snapshot
         .iter()
         .find(|entry| {
             entry.r#type == <ResidentSelfPressure as DatabaseEntry>::TYPE
@@ -1133,12 +1148,25 @@ pub fn heartbeat_issue_resident_self_grant(
         })
         .cloned()
         .ok_or_else(|| anyhow!("pending pressure lost envelope"))?;
+    let expected_state = snapshot
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfState as DatabaseEntry>::TYPE
+                && entry.key == RESIDENT_SELF_STATE_KEY
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("resident Self grant fence lost envelope"))?;
     pressure.status = "consumed".into();
     pressure.consumed_by_grant_id = Some(grant_id);
+    state.revision += 1;
     let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
     let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
+    let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     if !SingleFileMessagePackBackingStore::new(path)
-        .compare_and_swap_batch(&[expected], vec![pressure_entry, grant_entry])?
+        .compare_and_swap_batch(
+            &[expected_state, expected_pressure],
+            vec![state_entry, pressure_entry, grant_entry],
+        )?
     {
         return Err(anyhow!(
             "heartbeat lost resident Self pressure-to-grant CAS"
@@ -1271,6 +1299,7 @@ pub fn settle_resident_self_exited_coordinator(
     brake_engaged: bool,
     timed_out: bool,
     now_millis: u64,
+    cooldown_seconds: u64,
 ) -> Result<ResidentSelfOutcome> {
     match verify_resident_self_grant_fulfillment(resident_store, runtime_store, &lease.grant_id) {
         Ok(ResidentSelfGrantFulfillment::Pending)
@@ -1312,7 +1341,13 @@ pub fn settle_resident_self_exited_coordinator(
             Ok(ResidentSelfOutcome::Failed)
         }
         Ok(ResidentSelfGrantFulfillment::Fulfilled) => {
-            complete_resident_self_turn(resident_store, lease, receipt, now_millis)?;
+            complete_resident_self_turn(
+                resident_store,
+                lease,
+                receipt,
+                now_millis,
+                cooldown_seconds,
+            )?;
             Ok(ResidentSelfOutcome::Completed)
         }
     }
@@ -1610,6 +1645,7 @@ fn complete_resident_self_turn(
     lease: &ResidentSelfTurnLease,
     coordinator: &crate::EpiphanyCoordinatorRunReceipt,
     now_millis: u64,
+    cooldown_seconds: u64,
 ) -> Result<ResidentSelfTerminalAck> {
     if coordinator.thread_id != lease.turn_id
         || !matches!(
@@ -1666,6 +1702,8 @@ fn complete_resident_self_turn(
         .ok_or_else(|| anyhow!("resident Self state lost envelope"))?;
     state.active_turn = None;
     state.last_coordinator_receipt_id = Some(coordinator.receipt_id.clone());
+    state.next_eligible_at_millis =
+        now_millis.saturating_add(cooldown_seconds.saturating_mul(1000));
     state.revision += 1;
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
@@ -2574,6 +2612,25 @@ mod tests {
             resident_prepared_launch_thread_id(&prepared)?,
             "implementation-thread-1"
         );
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-arrived-during-turn".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "operator://arrived-during-turn".into(),
+                objective: "Remain pending until Heartbeat owns a later coordinator turn.".into(),
+                created_at_millis: 2,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 5)?
+                .is_none(),
+            "one Heartbeat coordinator turn cannot issue a companion grant while Self is prepared"
+        );
         assert!(prepare_resident_self_launch(&store, &policy, 5)?.is_none());
         let process = LaunchedCoordinator {
             process_id: 44,
@@ -2588,6 +2645,19 @@ mod tests {
         let lease =
             acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 6)?;
         assert_eq!(lease.grant_id, grant.grant_id);
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?
+                .is_none(),
+            "one Heartbeat coordinator turn cannot issue a companion grant while Self is active"
+        );
+        assert_eq!(
+            resident_self_pressures(&store)?
+                .into_iter()
+                .find(|item| item.pressure_id == "pressure-arrived-during-turn")
+                .expect("later pressure")
+                .status,
+            "pending"
+        );
         assert!(
             acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 7)
                 .is_err()
@@ -2619,7 +2689,10 @@ mod tests {
         };
         let mut wrong = receipt.clone();
         wrong.resident_release_commit = Some("unwitnessed-release".into());
-        assert!(complete_resident_self_turn(&store, &lease, &wrong, 8).is_err());
+        assert!(
+            complete_resident_self_turn(&store, &lease, &wrong, 8, policy.cooldown_seconds)
+                .is_err()
+        );
         assert_eq!(
             settle_resident_self_exited_coordinator(
                 &store,
@@ -2630,6 +2703,7 @@ mod tests {
                 false,
                 false,
                 9,
+                policy.cooldown_seconds,
             )?,
             ResidentSelfOutcome::AwaitingFulfillment
         );
@@ -2678,10 +2752,13 @@ mod tests {
                 false,
                 false,
                 10,
+                policy.cooldown_seconds,
             )?,
             ResidentSelfOutcome::Completed
         );
-        assert!(load_resident_self_state(&store)?.active_turn.is_none());
+        let completed_state = load_resident_self_state(&store)?;
+        assert!(completed_state.active_turn.is_none());
+        assert_eq!(completed_state.next_eligible_at_millis, 10_010);
         let acks = pending_resident_self_acks(&store)?;
         assert_eq!(acks.len(), 1);
         assert_eq!(acks[0].coordinator_receipt_id, receipt.receipt_id);
@@ -3108,6 +3185,7 @@ mod tests {
             false,
             false,
             6,
+            policy.cooldown_seconds,
         )?;
         assert_eq!(outcome, ResidentSelfOutcome::Braked);
         let cache = state_cache(&store)?;
@@ -3134,6 +3212,7 @@ mod tests {
                 false,
                 false,
                 7,
+                policy.cooldown_seconds,
             )
             .is_err()
         );
