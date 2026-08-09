@@ -1,5 +1,27 @@
 # Fresh workspace handoff
 
+## Sole packaged executable owner — 2026-08-09
+
+Exact `fe6bf006` cold packaging proved the single-process graph and produced
+native-inspected 23-binary release
+`sha256-7e579b3d78e7de4a8bf161125908ac41d2b9582aba24b5f5be6922d6a4940db0`
+with witness
+`sha256-45215f5d27d8edb5be877aad769ccd7ac971952d343dc516dea744ee4f82533a`.
+The cold conversion took 36m55s. Its identical warm rerun took 11.05s total,
+with Cargo completing in 1.26s, but produced a different valid release and
+witness. Cargo reported output filename collisions between the selected
+`epiphany-release-bundle` and `epiphany-core` packages. Four binaries differed:
+`epiphany-hands-action`, `epiphany-persona-mouth-identity`,
+`epiphany-repository-body`, and `epiphany-workspace-coverage-projector`.
+
+The live authority correction makes `epiphany-release-bundle` the only package
+selected for witnessed binaries. It now declares `epiphany-state` alongside the
+other 22 release targets, still using the core-owned source and library. The
+core package remains a developer binary surface but is no longer a packaged
+executable writer. All 19 focused tests pass. Commit and push this cut, rebuild
+the exact packager, then require a warning-free exact package and byte-identical
+warm replay before publication.
+
 ## Deterministic single release graph — 2026-08-09
 
 Exact pushed source `e9465c11208d648440999903770cbde245c1da3b`

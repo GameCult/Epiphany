@@ -514,8 +514,6 @@ fn release_build_command(
         .arg("--locked")
         .arg("--package")
         .arg("epiphany-release-bundle")
-        .arg("--package")
-        .arg("epiphany-core")
         .arg("--features")
         .arg("epiphany-release-bundle/coordinator-runtime");
     for (_, file_name) in required {
@@ -1157,15 +1155,12 @@ mod tests {
 
         assert_eq!(envs.get("CARGO_INCREMENTAL"), Some(&Some("0".to_string())));
         assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 23);
-        assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 2);
+        assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 1);
         assert!(
             args.windows(2)
                 .any(|pair| pair == ["--package", "epiphany-release-bundle"])
         );
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--package", "epiphany-core"])
-        );
+        assert!(!args.iter().any(|arg| arg == "epiphany-core"));
         assert!(
             args.windows(2)
                 .any(|pair| pair == ["--features", "epiphany-release-bundle/coordinator-runtime"])

@@ -1945,3 +1945,21 @@ binaries explicitly, and sets `CARGO_INCREMENTAL=0`. Follow-up coordinator and
 state-steward Cargo commands are forbidden writers and have been deleted. All
 19 focused packaged-release tests pass. Exact Linux packaging plus a
 byte-identical warm rerun remain the verification boundary.
+
+### Sole packaged executable owner
+
+The first single-process proof exposed a deeper split. Selecting
+`epiphany-release-bundle` and `epiphany-core` together compiled overlapping bin
+names into the same output paths. Cargo warned that this collision may become a
+hard error. The cold run took 36m55s and the identical warm run took 11.05s
+(Cargo 1.26s), so graph warming was fixed, but four output files changed and the
+witness did not reproduce.
+
+Packaged executable selection now belongs only to `epiphany-release-bundle`.
+It declares all 23 targets, including `epiphany-state`, from their owning source
+paths and selects the core library as a dependency. `epiphany-core` binary
+targets remain developer entry points; the core package is not selected as a
+release writer. The forbidden state is two selected packages writing one
+release filename. Nineteen focused tests prove the command contains one package
+selector and no `epiphany-core` package argument. Exact warning-free Linux and
+byte-identical warm witness proof remain open.

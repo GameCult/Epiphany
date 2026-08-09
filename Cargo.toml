@@ -88,6 +88,10 @@ name = "epiphany-release"
 path = "epiphany-core/src/bin/epiphany-release.rs"
 
 [[bin]]
+name = "epiphany-state"
+path = "epiphany-core/src/bin/epiphany-state.rs"
+
+[[bin]]
 name = "epiphany-memory-semantic-projector"
 path = "epiphany-core/src/bin/epiphany-memory-semantic-projector.rs"
 
