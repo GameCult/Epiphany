@@ -867,8 +867,13 @@ authority is present and current, Unknown is the truthful result.
 separate bind command consumes the existing validated runtime swarm binding and
 pins a caller-supplied workspace ID, exact runtime/swarm/source-identity hash,
 canonical Git root, object format, scope, and ignore policy; observe cannot mint
-identity. Two disposable-index `read-tree`/`git add --all -- .`/
-`write-tree` scans must agree. CultCache MessagePack persists immutable
+identity. One observation-owned disposable index/object quarantine is initialized
+with `read-tree`; two complete `git add --all -- .`/`write-tree`/staged-entry/
+raw-byte manifest scans against that same private index must agree. The second
+scan may reuse Git's verified index stat cache, but it still enumerates the whole
+Body and cannot publish unless its tree and raw manifest exactly equal the first.
+The index is deleted with the observation session and never becomes durable
+truth. CultCache MessagePack persists immutable
 generations and an exact-CAS current head; unchanged raw manifest preserves the
 generation. The observer makes no historical continuity claim and has no Ready field.
 Sparse checkout fails closed, submodules are gitlink-only, and RepoModel/

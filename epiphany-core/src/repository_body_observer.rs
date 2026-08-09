@@ -744,8 +744,9 @@ fn scan_repository(
     }
     let head = resolve_head(&top_path)?;
     let started = chrono::Utc::now().to_rfc3339();
-    let first = scan_tree(&top_path, head.is_some(), binding)?;
-    let second = scan_tree(&top_path, head.is_some(), binding)?;
+    let mut scanner = IsolatedTreeScanner::new(&top_path, head.is_some())?;
+    let first = scanner.scan(binding)?;
+    let second = scanner.scan(binding)?;
     let finished = chrono::Utc::now().to_rfc3339();
     if first != second {
         bail!("repository changed across isolated Git index and raw-content scans");
@@ -794,50 +795,75 @@ struct RawTreeScan {
     entries: Vec<RepositoryBodyManifestEntry>,
 }
 
-fn scan_tree(repo: &Path, has_head: bool, binding: &RepositoryBodyBinding) -> Result<RawTreeScan> {
-    let temp = std::env::temp_dir().join(format!("epiphany-body-index-{}", Uuid::new_v4()));
-    create_private_scan_directory(&temp)?;
-    let index = temp.join("index");
-    let object_directory = temp.join("objects");
-    std::fs::create_dir(&object_directory)?;
-    struct Remove(PathBuf);
-    impl Drop for Remove {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
+struct IsolatedTreeScanner<'a> {
+    repo: &'a Path,
+    temp: PathBuf,
+    index: String,
+    object_directory: String,
+    body_object_directory: String,
+}
+
+impl<'a> IsolatedTreeScanner<'a> {
+    fn new(repo: &'a Path, has_head: bool) -> Result<Self> {
+        let temp = std::env::temp_dir().join(format!("epiphany-body-index-{}", Uuid::new_v4()));
+        create_private_scan_directory(&temp)?;
+        let index = temp.join("index");
+        let object_directory = temp.join("objects");
+        std::fs::create_dir(&object_directory)?;
+        let index_text = index.to_string_lossy().into_owned();
+        let object_directory_text = object_directory.to_string_lossy().into_owned();
+        let body_object_directory = repository_object_directory(repo)?;
+        let body_object_directory_text = encode_git_path_list_entry(&body_object_directory);
+        let scanner = Self {
+            repo,
+            temp,
+            index: index_text,
+            object_directory: object_directory_text,
+            body_object_directory: body_object_directory_text,
+        };
+        let env = scanner.env();
+        if has_head {
+            git(repo, &env, &["read-tree", "HEAD"])?;
+        } else {
+            git(repo, &env, &["read-tree", "--empty"])?;
         }
+        Ok(scanner)
     }
-    let _remove = Remove(temp);
-    let index_text = index.to_string_lossy().into_owned();
-    let object_directory_text = object_directory.to_string_lossy().into_owned();
-    let body_object_directory = repository_object_directory(repo)?;
-    let body_object_directory_text = encode_git_path_list_entry(&body_object_directory);
-    let env = [
-        ("GIT_INDEX_FILE", index_text.as_str()),
-        ("GIT_OBJECT_DIRECTORY", object_directory_text.as_str()),
-        (
-            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-            body_object_directory_text.as_str(),
-        ),
-    ];
-    if has_head {
-        git(repo, &env, &["read-tree", "HEAD"])?;
-    } else {
-        git(repo, &env, &["read-tree", "--empty"])?;
+
+    fn env(&self) -> [(&str, &str); 3] {
+        [
+            ("GIT_INDEX_FILE", self.index.as_str()),
+            ("GIT_OBJECT_DIRECTORY", self.object_directory.as_str()),
+            (
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                self.body_object_directory.as_str(),
+            ),
+        ]
     }
-    git(
-        repo,
-        &env,
-        &["-c", "core.excludesFile=", "add", "--all", "--", "."],
-    )?;
-    let tree_oid = git(repo, &env, &["write-tree"])?.trim().to_string();
-    let index = git_bytes(repo, &env, &["ls-files", "--stage", "-z"])?;
-    let entries = raw_manifest_entries(repo, &index)?;
-    let manifest_root_sha256 = manifest_root(binding, &entries)?;
-    Ok(RawTreeScan {
-        tree_oid,
-        manifest_root_sha256,
-        entries,
-    })
+
+    fn scan(&mut self, binding: &RepositoryBodyBinding) -> Result<RawTreeScan> {
+        let env = self.env();
+        git(
+            self.repo,
+            &env,
+            &["-c", "core.excludesFile=", "add", "--all", "--", "."],
+        )?;
+        let tree_oid = git(self.repo, &env, &["write-tree"])?.trim().to_string();
+        let index = git_bytes(self.repo, &env, &["ls-files", "--stage", "-z"])?;
+        let entries = raw_manifest_entries(self.repo, &index)?;
+        let manifest_root_sha256 = manifest_root(binding, &entries)?;
+        Ok(RawTreeScan {
+            tree_oid,
+            manifest_root_sha256,
+            entries,
+        })
+    }
+}
+
+impl Drop for IsolatedTreeScanner<'_> {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.temp);
+    }
 }
 
 #[cfg(unix)]
@@ -1606,6 +1632,32 @@ mod tests {
             _ => bail!("expected delete"),
         };
         assert_ne!(b.tree_oid, c.tree_oid);
+        Ok(())
+    }
+    #[test]
+    fn equality_scans_share_one_private_index_session_and_remove_it() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, _) = bound(d.path(), state.path(), "workspace", "runtime", "swarm")?;
+        write(&d.path().join("tracked.txt"), "one")?;
+        run(d.path(), &["add", "."])?;
+        run(d.path(), &["commit", "-m", "seed"])?;
+        let opening = load_body_envelopes(&store)?;
+        let binding: RepositoryBodyBinding = decode(
+            find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+                .ok_or_else(|| anyhow!("test Body binding missing"))?,
+        )?;
+
+        let mut scanner = IsolatedTreeScanner::new(d.path(), true)?;
+        let temp = scanner.temp.clone();
+        let index = scanner.index.clone();
+        let first = scanner.scan(&binding)?;
+        assert!(Path::new(&index).is_file());
+        let second = scanner.scan(&binding)?;
+        assert_eq!(scanner.index, index);
+        assert_eq!(first, second);
+        drop(scanner);
+        assert!(!temp.exists());
         Ok(())
     }
     #[test]

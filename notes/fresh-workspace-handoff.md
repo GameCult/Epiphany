@@ -1,5 +1,45 @@
 # Fresh workspace handoff
 
+## Linux Eyes-to-Modeling acceptance and Body observation speed cut — 2026-08-09
+
+The fresh tool-enabled resident circuit under `/state/eyes-tools` completed its
+causal organ chain. Eyes job `eaf25324-3d4c-49c1-a93d-65f16b080806` used three
+governed native read-only source tools, emitted typed result
+`result-worker-eaf25324-3d4c-49c1-a93d-65f16b080806`, and was accepted as
+`ev-research-856fb6d1-17eb-4d71-bafc-774277e9b64e`. Self then derived
+`launchModeling` because accepted Research was newer than Modeling. Modeling job
+`3333e537-7451-4cfd-92bf-b69030b2ab4f` used three governed read-only tool rounds,
+emitted `result-worker-3333e537-7451-4cfd-92bf-b69030b2ab4f`, and was accepted as
+`ev-modeling-11da531d-3403-41a1-93c3-7224d364364a`. Typed status now reports both
+`modelingResultAccepted` and `modelingResultAcceptedAfterResearch` true, so the
+single-use route was consumed. The next action is `startFrontierPlanning` for
+Imagination. No external consequence occurred.
+
+The Modeling circuit peaked at 109,887,488 bytes over 2,025 cgroup samples.
+Its launch receipt measured `jobCommit=160183ms`; process inspection showed the
+time inside the first of two full `git add --all` Repository Body scans. The
+observer formerly created a brand-new private index and object quarantine for
+each equality scan. The current source cut gives one observation session sole
+ownership of one private index/object quarantine, initializes it from HEAD once,
+and runs both full scans against it. Scan two still performs `git add --all`,
+`write-tree`, staged-entry enumeration, and raw-byte manifest hashing, so the
+stable-equality invariant remains intact while Git may reuse its verified stat
+cache. All 25 focused `repository_body_observer` tests pass, including explicit
+proof that both scans share one private index and that session teardown removes
+it. The live-worktree mechanism benchmark measured cold scans at 2,176ms and
+1,656ms versus a shared
+session at 1,414ms and 123ms: 3,832ms fell to 1,537ms, a 2,295ms / 60% pair
+reduction. The ignored receipt is `body-index-benchmark.stdout.log`. This is
+mechanism evidence, not yet packaged coordinator evidence; package once and
+remeasure exact `jobCommit` before claiming the 160-second live wound closed.
+
+Two attempted detached launches were refused before state mutation. The first
+used a nonexistent container path. The next two reached the artifact cleanup
+guard from `/`, so the guard correctly rejected `/workspace/.epiphany-smoke` as
+outside its process-relative safety roots. The successful launch explicitly
+used Docker working directory `/workspace`. Preserve these as operator
+intervention receipts; they prove the guard rather than runtime corruption.
+
 ## Linux resident coordination phase boundary — 2026-08-09
 
 Exact pushed source `c0055772750a7dd7335f65baa88307cf9e28c1e1` is packaged for Linux as
