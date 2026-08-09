@@ -1364,6 +1364,9 @@ Terminal completion owns its cooldown in that same resident-state and
 acknowledgement CAS. `next_eligible_at_millis` is persisted from the configured
 cooldown before the active lease disappears. The serve loop's sleep is only a
 process-efficiency detail; restart cannot become a second eligibility owner.
+The shared preparation primitive reloads the persisted state and refuses every
+grant before that deadline, so `serve`, `once`, and crash/restart do not need
+separate cooldown opinions.
 
 One Heartbeat coordinator turn owns at most one resident grant. Grant issuance
 first refuses any prepared or active Self authority, then atomically advances

@@ -1278,3 +1278,13 @@ Twenty-four resident tests and eight swarm binary tests pass. Package exact
 Require exactly one grant per Heartbeat turn, later pressure pending through the
 persisted cooldown (including restart), typed fulfillment once, bounded return
 to plateau, and clean zero exits. Active c005 remains untouched.
+
+Pre-package source inspection caught one surviving obsolete path: production
+`cycle()` called `prepare_resident_self_launch` without reading the persisted
+deadline, and preparation itself did not enforce it. The in-flight de2e8ad5
+package was stopped as invalid source; its build logs are preserved under
+`.epiphany-run/linux-package-de2e8ad5/`. Pushed `ee05d9bb` moves the read into
+the shared preparation primitive. A fresh post-completion call with a committed
+later grant now refuses at deadline minus one and prepares exactly at the
+deadline. Package latest source containing both `90648073` and `ee05d9bb`;
+never resume or publish the stopped de2e8ad5 build.
