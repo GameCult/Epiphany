@@ -1,5 +1,37 @@
 # Fresh workspace handoff
 
+## Deterministic single release graph — 2026-08-09
+
+Exact pushed source `e9465c11208d648440999903770cbde245c1da3b`
+produced authenticated release
+`sha256-5f90294fb037ff777ca99f345e0f4b1e082b176c35bd6e16a60b46d5a687c0cb`
+with witness
+`sha256-403a4dd4705772d8d588f3abedb336436b9f1b4ebc037b86efbc5995f5d6a291`.
+Native inspection accepted the exact source and all 23 required binaries. The
+packaged `epiphany-state` hash is
+`8e5e0edd3af59a9f8710d4b6b3a7fbe8243f1002acd6e1d4c415e8053d0cd7c2`.
+
+The cold package took 24m22s: 17m03s for the root graph and 6m38s for the
+separate state-steward graph. The identical cached rerun was worse at 28m30s:
+21m04s for the root graph, 34.62s for the coordinator graph, and 6m42s for the
+state-steward graph. It also produced a different authenticated release,
+`sha256-4700e984410e0c8e735d1fcecec282235ed5d096d20b6dbbdb206a83636228fa`,
+with witness
+`sha256-f71519f7a27a9588715daf9f11d33031b2680659aa405c29807a39efcfcce373`.
+Twenty-one binaries were byte-identical; only `epiphany-model-runtime` and
+`epiphany-persona-service`, both from `epiphany-openai-runtime`, changed. The
+old packager was oscillating one target cache through three feature graphs,
+and incremental release codegen made the authenticated output nondeterministic.
+
+The source cut now uses one Cargo command for both first-party packages, the
+coordinator feature, and all 23 explicit binaries, with `CARGO_INCREMENTAL=0`.
+The separate coordinator and state-steward build authorities are deleted. All
+19 focused packaged-release tests pass. The cold Windows harness took 3m38s;
+the final source rerun compiled in 47.87s and executed in 0.83s. Commit and push
+this cut, then require an exact Linux package and an identical warm rerun with
+both materially improved time and exact release/witness equality before
+publication.
+
 ## Unified Cargo authority and shipped state steward — 2026-08-09
 
 The first exact `6808f3f5` package attempt failed before release construction:

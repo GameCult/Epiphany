@@ -1923,3 +1923,25 @@ vendored Starlark's older `hashbrown` integration; Rust rejected the missing
 release-target check traversing Starlark through Codex login and
 `epiphany-openai-auth-spine` completed successfully in 3m16s. This is lockfile
 compatibility authority, not a source patch or relaxed gate.
+
+### Single deterministic packaged build authority
+
+The original packaged-release path invoked Cargo three times against one target
+directory: the broad root binary graph, the coordinator feature graph, and the
+core-owned state steward. Cargo correctly rebuilt when each command changed the
+selected feature set, so the cache oscillated instead of warming. Exact source
+`e9465c11` took 24m22s cold (17m03s root plus 6m38s state) and 28m30s on an
+identical cached rerun (21m04s root, 34.62s coordinator, 6m42s state).
+
+The two runs also yielded different valid authenticated releases. Twenty-one of
+23 binaries were byte-identical; only the two `epiphany-openai-runtime`
+binaries differed, including different ELF build IDs and code bytes. Release
+incremental codegen is therefore not an admissible input to witnessed output.
+
+`build_required_release_siblings` now has one process owner. It selects
+`epiphany-release-bundle` and `epiphany-core`, selects
+`epiphany-release-bundle/coordinator-runtime` once, names all 23 required
+binaries explicitly, and sets `CARGO_INCREMENTAL=0`. Follow-up coordinator and
+state-steward Cargo commands are forbidden writers and have been deleted. All
+19 focused packaged-release tests pass. Exact Linux packaging plus a
+byte-identical warm rerun remain the verification boundary.

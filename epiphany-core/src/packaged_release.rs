@@ -480,44 +480,29 @@ fn build_required_release_siblings(
             target_dir.join(target).join("release").join(file_name),
         );
     }
-    let mut command = std::process::Command::new(cargo);
-    command
-        .arg("build")
-        .arg("--release")
-        .arg("--manifest-path")
-        .arg(&manifest)
-        .arg("--target-dir")
-        .arg(&target_dir)
-        .arg("--target")
-        .arg(target)
-        .arg("--locked")
-        .arg("--bins");
+    let mut command = release_build_command(cargo, &manifest, &target_dir, target, &required)?;
     let status = command
         .status()
         .context("failed to start Epiphany release bundle build")?;
     if !status.success() {
         bail!("Epiphany release bundle build failed");
     }
-    let coordinator_status = std::process::Command::new(cargo)
-        .arg("build")
-        .arg("--release")
-        .arg("--manifest-path")
-        .arg(&manifest)
-        .arg("--target-dir")
-        .arg(&target_dir)
-        .arg("--target")
-        .arg(target)
-        .arg("--locked")
-        .arg("--features")
-        .arg("coordinator-runtime")
-        .arg("--bin")
-        .arg("epiphany-mvp-coordinator")
-        .status()
-        .context("failed to start feature-gated coordinator release build")?;
-    if !coordinator_status.success() {
-        bail!("feature-gated coordinator release build failed");
-    }
-    let state_steward_status = std::process::Command::new(cargo)
+    Ok(BuiltReleaseSiblings {
+        binaries: outputs,
+        _graph_lock: graph_lock,
+    })
+}
+
+fn release_build_command(
+    cargo: &std::ffi::OsStr,
+    manifest: &Path,
+    target_dir: &Path,
+    target: &str,
+    required: &[(&'static str, String)],
+) -> Result<std::process::Command> {
+    let mut command = std::process::Command::new(cargo);
+    command
+        .env("CARGO_INCREMENTAL", "0")
         .arg("build")
         .arg("--release")
         .arg("--manifest-path")
@@ -528,18 +513,19 @@ fn build_required_release_siblings(
         .arg(target)
         .arg("--locked")
         .arg("--package")
+        .arg("epiphany-release-bundle")
+        .arg("--package")
         .arg("epiphany-core")
-        .arg("--bin")
-        .arg("epiphany-state")
-        .status()
-        .context("failed to start state-steward release build")?;
-    if !state_steward_status.success() {
-        bail!("state-steward release build failed");
+        .arg("--features")
+        .arg("epiphany-release-bundle/coordinator-runtime");
+    for (_, file_name) in required {
+        let binary_name = Path::new(file_name)
+            .file_stem()
+            .and_then(std::ffi::OsStr::to_str)
+            .with_context(|| format!("packaged binary name is invalid: {file_name}"))?;
+        command.arg("--bin").arg(binary_name);
     }
-    Ok(BuiltReleaseSiblings {
-        binaries: outputs,
-        _graph_lock: graph_lock,
-    })
+    Ok(command)
 }
 
 fn verify_release_bundle_lock(repo: &Path, cargo: &std::ffi::OsStr) -> Result<()> {
@@ -1142,6 +1128,57 @@ mod tests {
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
         verify_release_bundle_lock(repo, &cargo)
             .unwrap_or_else(|error| panic!("release bundle lockfile is not frozen: {error:#}"));
+    }
+
+    #[test]
+    fn packaged_release_uses_one_deterministic_cargo_graph() {
+        let required = required_packaged_release_binaries("x86_64-unknown-linux-gnu");
+        let command = release_build_command(
+            std::ffi::OsStr::new("cargo"),
+            Path::new("Cargo.toml"),
+            Path::new("target"),
+            "x86_64-unknown-linux-gnu",
+            &required,
+        )
+        .expect("release build command");
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        let envs = command
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        assert_eq!(envs.get("CARGO_INCREMENTAL"), Some(&Some("0".to_string())));
+        assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 23);
+        assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 2);
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--package", "epiphany-release-bundle"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--package", "epiphany-core"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--features", "epiphany-release-bundle/coordinator-runtime"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-state"])
+        );
+        assert!(!args.iter().any(|arg| arg == "--bins"));
     }
 
     #[test]
