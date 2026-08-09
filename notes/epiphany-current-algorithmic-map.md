@@ -2136,5 +2136,15 @@ replace-and-delete transaction, so exact pressure/grant/ack/claim deletion and
 replacement of the one digest/count retention head cannot split. The head is
 not read by scheduling. Twenty resident Self tests and six swarm tests pass,
 including refusal of live/requeued authority and negative proof that retained
-history cannot create pending work. Exact packaged copied-state proof remains
-the acceptance boundary.
+history cannot create pending work.
+
+Exact `ed15f83a` closes the packaged boundary. Its 24-binary release is
+`sha256-4a4be03688eab1d1f7c13ac0057f0664c4658cab88471a0eac451a1d4607b85d`
+with witness
+`sha256-f163170174f022c124cc2f94d195639d02f65b79bac229af3efb8333176673c4`.
+Under an engaged copied-state brake, packaged Self retired two closed
+lifecycles/six exact envelopes into a revision-1 head with chain digest
+`sha256:69a2c5971430846590fe20ba32a1a9299726a51c997b9e9c07ec044ebbff34a6`.
+Two pending pressures survived, grants and acknowledgements remained empty,
+and replay did not advance the head. Resident lifecycle retention is accepted;
+the next retention owner must be mapped independently.

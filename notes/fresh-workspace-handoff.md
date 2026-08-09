@@ -1054,3 +1054,27 @@ replace-and-delete primitive and its stale-snapshot refusal proof. Twenty
 resident Self tests and six swarm binary tests pass, including negative proof
 that retention cannot create pending pressure/grants/acks or resurrect state.
 Package and copied-state proof remain before this slice is accepted.
+
+Exact `ed15f83a` packaged in 7m26s after one failed-closed cache repair. The
+first attempt found a stale cached source worktree whose `git-common-dir`
+pointed at a deleted prior clone. Only that exact
+`source-fb4097c8f489c830678f32a39e818cf462bff5c1fe853bc12d106184c9bfd571`
+directory was removed; Cargo home and target caches were preserved. The
+replacement package produced 24 binaries, release
+`sha256-4a4be03688eab1d1f7c13ac0057f0664c4658cab88471a0eac451a1d4607b85d`,
+and witness
+`sha256-f163170174f022c124cc2f94d195639d02f65b79bac229af3efb8333176673c4`.
+Independent packaged inspection accepted exact source, inventory, witness, and
+private-state exclusion without warnings.
+
+Receipts are in `.epiphany-run/resident-retention-ed15f83a/`. Under an engaged
+copied-state brake, the exact packaged Self compacted a portable fixture with
+two closed lifecycles and one requeued control. The head is revision 1,
+`retired_lifecycle_count=2`, `retired_envelope_count=6`, and chained digest
+`sha256:69a2c5971430846590fe20ba32a1a9299726a51c997b9e9c07ec044ebbff34a6`.
+The requeued control plus one independently ingested pending typed pressure
+survived; grants and acknowledgements are empty. A second exact packaged pass
+left the head unchanged. Active c005 remained running and untouched.
+
+Resident lifecycle retention is accepted. Next map coordinator receipt and
+semantic/runtime history references before choosing the next compaction owner.
