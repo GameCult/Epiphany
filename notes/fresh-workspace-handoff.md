@@ -44,6 +44,20 @@ against the original candidate. The next typed action is
 recreate Eyes, Modeling, Imagination, either failed Mind attempt, or the
 successful retry.
 
+Hands gate `hands-intent-linux-eyes-tools-c005-0-2ad7b2ce-...` exposed the
+candidate's exact rollback: discard the planning draft if later evidence shows
+the coordinated resident circuit already exists. Current canonical state and
+c005 receipts satisfy that condition, while the runtime artifacts needed to
+reconcile it are outside the adopted safe paths (`notes/fresh-workspace-handoff.md`
+and `state/map.yaml`). Hands therefore produced no mutation and recorded typed
+refusal `hands-refusal-4cd85889-17d0-4d26-8a95-07d04a5cdabf`. Mind atomically
+retired route `repo-frontier-route-817bf422...` through relinquishment
+`repo-frontier-relinquishment-7b846272...`, advancing RepoModel revision 2 to 3.
+The next coordinator snapshot falls back to historical CRRC
+`regatherManually` from the old failed reorientation worker. Treat that as a
+routing-precedence wound, not fresh Eyes evidence and not authority to recreate
+the retired route.
+
 ## Packaged Body speed proof and resident Mind identity correction — 2026-08-09
 
 Exact pushed source `217dd4b96746536e01dc8991b5e6f31c2c588af0` is packaged as

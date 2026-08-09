@@ -1855,3 +1855,22 @@ typed evidence record. This is not a request for another cache. Either the state
 steward must ship in the owned release graph or its narrow typed write port must
 move into an already-shipped native owner; canonical Mind maintenance must not
 require a second monolithic core build.
+
+## Live route relinquishment and stale CRRC fallback (2026-08-09)
+
+The adopted frontier candidate carried its own negative transition: discard the
+planning draft if later admitted evidence proves the coordinated resident
+circuit already exists. By Hands-gate time, canonical c005 state did prove that
+circuit, while the typed receipt bodies needed to reconcile the later evidence
+were outside the route's two safe paths. Hands made no file or command
+consequence and emitted refusal `hands-refusal-4cd85889...` naming the missing
+artifact scope. Mind-owned relinquishment `7b846272...` atomically retired route
+`817bf422...`, advanced RepoModel from revision 2 to 3, and preserved the adopted
+route as immutable history.
+
+The next Self projection returns `regatherManually` solely because the legacy
+CRRC still carries an old failed reorientation result. That failure predates the
+now-terminal Eyes-to-Mind circuit and the relinquishment. A historical CRRC
+failure is not fresh Eyes pressure. Routing precedence must compare causal
+freshness or terminal consumption before allowing that projection to select the
+next organ; prompt language must not compensate for the missing ownership cut.
