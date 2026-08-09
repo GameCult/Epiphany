@@ -1074,6 +1074,27 @@ Self reports braked. Direct-PID containers are
 CPU/RSS/store/artifacts and will stop Self after 900 pulses. Poll only; do not
 start a duplicate or disturb active c005.
 
+The bounded active-cognition endurance pass has an authority map; do not
+replace it with a synthetic busy fixture. Resident Self owns consumption of one
+real Heartbeat grant, exact coordinator-child identity, fulfillment, terminal
+receipt, cooldown, and shutdown. Heartbeat owns typed scheduling. The selected
+candidate is the copied unresolved `admitted-model-direction-consideration`
+request already seen minting a grant in the first physiology run; its production
+route launches proposal-only Imagination cognition through the exact packaged
+coordinator/model runtime. Docker stats, process counts, and operator-safe
+projections are evidence only. The monitor may stop the isolated containers
+after terminal proof and a measured cooldown interval; it may not write runtime
+authority, inject a fake child, create retry pressure, accept a worker result,
+or weaken any consequence gate. After the idle control closes, copy its body,
+inspect the pending grant through packaged projections, release the canonical
+brake in both local-Verse namespaces, and use a long enough turn timeout plus
+cooldown to observe launch, active memory peak, typed completion, and return to
+plateau. Acceptance requires exact coordinator/resident fulfillment receipts,
+the typed Imagination result path, no external consequence, bounded stores and
+artifacts, and clean direct-PID shutdown. If the request or grant is absent,
+resolved, or mismatched, stop and choose a new request through its production
+typed owner; do not manufacture endurance theater.
+
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound
 (default 256). Only Heartbeat-consumed terminal lifecycles whose pressure still
