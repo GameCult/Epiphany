@@ -1,5 +1,22 @@
 # Fresh workspace handoff
 
+## Cross-container resident ownership accepted — 2026-08-09
+
+Exact `c930f505` release
+`sha256-cd684079eec277bbb434f147c4f6c679553780230822f9d30f0810ec0988100a`
+with witness `sha256-c7642818f076f7109585a6e7021371815607fb7ecb141cb2b7c008335fbecec4`
+passed independent 24-binary inspection. In copied state, a resident owner reached
+sleeping and created `resident-self.cc.resident-self.process.lock`. A second
+container was refused with exit 1 and the exact owner-already-exists error;
+resident state SHA-256 remained
+`8EA6CD6C30C6D2D64F850585D865B342493CEFD04C34D5870D65DFE506E1190A`.
+
+Heartbeat tick then completed without changing the resident hash. Bounded
+Heartbeat serve acquired `heartbeat.cc.heartbeat.process.lock`, emitted one
+pulse, and stopped cleanly while resident Self remained live. Resident SIGTERM
+exited zero in 483 ms with final `braked`. Receipts are under
+`.epiphany-run/resident-lock-c930f505/` and container logs are retained.
+
 ## Warm package acceptance and resident-owner lock — 2026-08-09
 
 Construction-owned Cargo home is accepted. Exact `9f369528` migration release
