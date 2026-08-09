@@ -1050,16 +1050,29 @@ The first endurance harness under
 `.epiphany-run/idle-endurance-16c4b19f` is preserved as contaminated harness
 evidence: launching Self as a shell background job inherited the shell's
 non-default SIGINT disposition, so `ctrlc::try_set_handler` correctly refused
-to steal it. This was not a source regression. The corrected direct-PID run is
-active in `epiphany-linux-idle-heartbeat-16c4b19f` and
-`epiphany-linux-idle-self-16c4b19f`. Hidden monitor PID is recorded at
-`.epiphany-run/idle-endurance2-16c4b19f/monitor.pid`; five-second CPU/RSS/store/
-artifact/pulse samples go to `samples.tsv`, then the monitor SIGTERMs Self and
-writes `exits.txt` plus both daemon logs. Heartbeat runs 900 one-second pulses
-with retain 8/batch 4. Its current typed projection says
-`active-coordinator-turn` while Self is braked because the copied root and Eyes
-local-Verse brake scopes differ; do not call this an idle plateau without the
-final state audit. Poll only and preserve active c005.
+to steal it. This was not a source regression. The corrected direct-PID run in
+`.epiphany-run/idle-endurance2-16c4b19f` completed 900 one-second Heartbeat
+pulses and then direct-PID SIGTERM closure: Heartbeat and Self both exited zero,
+Self's final projection was braked with shutdown requested, and active c005
+remained untouched. Across 984 seconds and 143 comparable Heartbeat samples,
+RSS stayed 27.79--28.54 MiB; first/last-quarter averages differed by 0.06 MiB.
+Across 991 seconds and 144 Self samples, RSS stayed 26.90--27.73 MiB;
+first/last-quarter averages differed by 0.057 MiB. The aggregate copied state
+oscillated between 7,330,870 and 7,344,497 bytes and returned to 7,332,629;
+artifact payload stayed at 13,175 bytes in one pulse directory. This is useful
+bounded active-marker/braked-Self physiology, not an idle cognition claim: the
+copied Heartbeat store retained a stale coordinator participant marked running.
+
+A genuine idle control is now active in
+`.epiphany-run/idle-control-16c4b19f`. Exact packaged `epiphany-verse-query`
+engaged the canonical typed `epiphany/swarm-brake` under runtime
+`epiphany-starfire-linux` in both root and Eyes local-Verse stores. Heartbeat
+therefore reports `braked-after-ack-reconciliation` with the exact brake ID and
+Self reports braked. Direct-PID containers are
+`epiphany-linux-idle-control-heartbeat-16c4b19f` and
+`epiphany-linux-idle-control-self-16c4b19f`; hidden monitor PID 22912 samples
+CPU/RSS/store/artifacts and will stop Self after 900 pulses. Poll only; do not
+start a duplicate or disturb active c005.
 
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound
