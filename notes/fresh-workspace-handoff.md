@@ -1028,16 +1028,23 @@ prepared/active launches, unconsumed acknowledgements, and brake/shutdown
 cancellations whose pressure was requeued. Negative proof must show retained
 history cannot create pending work or resurrect a coordinator turn.
 
-Coordinator receipt deletion remains forbidden until resident/current-frontier
-and recovery references are mapped. Supervisor stdout/stderr truncate at
-launch but grow without bound during a long-lived process; the fatal log grows
-across launches. Do not truncate beneath inherited child file descriptors.
-`E:\Projects\gamecult-ops` is unavailable in this workspace, so log ownership
-must wait for the infrastructure runbook rather than being guessed.
+Coordinator receipt, Heartbeat artifact, and deployment log ownership are now
+settled. Exact packaged `16c4b19f` retired pulse directories 1-2 from a
+five-pulse copied-store fixture, retained 3-5 byte-identically, emitted the
+typed retention receipt, and replayed `within-bound` without another receipt.
+Receipts are under `.epiphany-run/heartbeat-retention-16c4b19f`.
 
-Next: implement the resident lifecycle retention organ and its negative tests,
-then audit coordinator references, packaged Heartbeat retention, supervisor log
-ownership, and the measured idle/active endurance plateau.
+The live infrastructure repo is `F:\Projects\gamecult-ops`. Commit `059821f`
+makes systemd-journald the sole Yggdrasil owner for supervisor and projector
+stdout/stderr: both projector policies bind `/dev/stdout` and `/dev/stderr`,
+the unit explicitly selects journal streams, and no parallel long-lived files
+remain under the Epiphany state root. The optional fatal log is not configured
+by the Yggdrasil unit. The full organizational operator wiring suite passes.
+Do not reintroduce external truncation beneath inherited descriptors.
+
+Next: run the measured idle/active endurance plateau, then continue the
+remaining organ coordination audit. Broad session/model/event/tool compaction
+still waits for typed archived-session ownership.
 
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound

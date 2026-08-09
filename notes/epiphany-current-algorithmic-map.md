@@ -9,7 +9,7 @@
 - Forbidden writers: projection limits cannot masquerade as retention. Unknown directory names, symlinks, paths outside the canonical root, post-plan manifest changes, and the pulse containing the latest cognition artifact all fail closed before deletion.
 - Shared paths: explicit `retain-artifacts` and every resident heartbeat serve outcome call the same plan/reconcile primitive. A crash after plan commitment resumes that exact plan; already absent members are accepted, while surviving members must still match their planned manifests.
 - Cut line: the permanent one-directory-per-15-second growth path is removed. Process stdout/stderr logs remain a separate supervisor-owned rotation problem and are not deleted by heartbeat retention.
-- Verification layer: synthetic CultCache-backed tests prove hysteresis bounding and idempotence, changed-plan refusal with preservation, unknown-directory refusal before deletion, and protection of the latest cognition artifact. Live backlog reduction waits for exact packaging.
+- Verification layer: synthetic CultCache-backed tests prove hysteresis bounding and idempotence, changed-plan refusal with preservation, unknown-directory refusal before deletion, and protection of the latest cognition artifact. Exact packaged `16c4b19f` retired pulse directories 1-2 from a five-pulse copied-store fixture, retained 3-5 byte-identically, emitted its typed plan/receipt projection, and replay returned `within-bound` without another receipt.
 
 ## Runtime job and session closure ownership
 
@@ -2067,8 +2067,11 @@ work.
   path, and digest may be removed. Symlinks, non-directories, drift, and unknown
   members fail closed.
 - **Verification layer:** existing tests prove boundedness, idempotence,
-  exact-member refusal, and typed receipts. The remaining live audit must use
-  the packaged path, not invent a second cleaner.
+  exact-member refusal, and typed receipts. Exact packaged `16c4b19f` used the
+  same public command path to retire two witnessed directories from a
+  five-pulse copied-store fixture, preserve the remaining three, and replay as
+  `within-bound` without another receipt. Receipts are under
+  `.epiphany-run/heartbeat-retention-16c4b19f`.
 
 ### Resident Self lifecycle rows
 
@@ -2118,18 +2121,23 @@ work.
 
 ### Supervisor stdout/stderr
 
-- **Owner:** the daemon supervisor opens each service stdout/stderr path. A
-  launch truncates those files, but output during one long-lived process is
-  currently unbounded; the append-only fatal log is unbounded across launches.
-- **Forbidden writers:** an external truncator must not cut a file beneath an
-  inherited child descriptor. That can leave the writer at its old offset and
-  create sparse or misleading evidence.
-- **Intended boundary:** either the supervisor owns piped, bounded rotation with
-  nonblocking drains and crash-safe receipts, or the deployment service manager
-  owns rotation and the repo stops claiming file ownership. The infrastructure
-  runbook must decide this boundary before code changes. The configured
-  `gamecult-ops` drive is unavailable in this workspace, so this branch remains
-  deliberately uncut rather than guessed.
+- **Owner:** systemd-journald owns deployed Yggdrasil supervisor, semantic
+  projector, and workspace-coverage projector stream retention. Epiphany owns
+  typed service state, not a parallel filesystem log history.
+- **Inputs:** the supervisor policies bind managed child output to
+  `/dev/stdout` and `/dev/stderr`; `epiphany.service` explicitly binds its own
+  streams to the journal.
+- **Derived state:** journal rows are operational evidence. They cannot satisfy
+  service readiness, provider health, or typed completion.
+- **Forbidden writers:** Epiphany must not create parallel long-lived projector
+  log files under its state root, and no external truncator may cut a file
+  beneath an inherited child descriptor.
+- **Cut line:** `gamecult-ops` commit `059821f` removes all four projector
+  file-log paths from the Yggdrasil policy, names journald as the sole owner in
+  the deployment runbook, and passes the complete organizational operator
+  wiring suite. The optional supervisor fatal log is not configured by the
+  Yggdrasil unit; service failure is journal-owned too. Starfire's temporary
+  Windows shakedown logs remain bounded run receipts, not deployment truth.
 
 Resident lifecycle retention now follows this map. Resident Self's production
 serve/once owner applies a configurable closed-lifecycle bound (default 256).
