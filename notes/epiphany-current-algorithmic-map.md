@@ -1353,9 +1353,13 @@ request has one authenticated terminal worker result. The verifier replays the
 same immutable runtime admission path that owns worker launch role/binding,
 request/runtime/thread/job identity, launch projection, foreign-cargo
 exclusion, and typed companion persistence. Proposal Modeling adds its exact
-selection, proposal payload, launch binding, Body basis, Evolution patch, and
-proposal-citing frontier contract through the same helper used by Mind
-admission. Missing
+selection, proposal payload, autonomous origin chain, launch binding, immutable
+launch Body basis, Evolution patch, and proposal-citing frontier contract.
+Delayed fulfillment does not re-read the current external Body status: that
+mutable eligibility belongs to Mind admission, which separately revalidates the
+live Body binding before changing RepoModel. An autonomous proposal may return
+to Imagination or route to Eyes for more evidence, but cannot route directly to
+Hands or smuggle an adopted plan before Mind adoption. Missing
 terminal evidence is `awaiting-fulfillment`: the active lease remains live and
 cannot be retained, relaunched, acknowledged, or requeued. A later serve cycle
 consumes the route exactly once when the typed evidence appears. Brake,

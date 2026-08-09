@@ -1413,3 +1413,37 @@ layer still refuses the resulting unadmitted state. All 50 runtime-spine tests
 now pass alongside the focused suites. Package exact `70683d6b`, then prove the
 same pending-to-authenticated-fulfilled transition on copied state. Active c005
 remains untouched.
+
+Exact `c1b461b2` then packaged as warning-free 24-binary release
+`sha256-4bb7013c9d423cc8fd58be7300babe2dc1658cbcf952a7c1d9c5e0717dcd983a`
+with witness
+`sha256-3d2a6c9f2453c3085bb3825271069ac3451863f274bb606954cc3efd0c09edba`.
+The first packaging preflight correctly refused absent submodules. A retry
+exposed one stale persistent source-cache worktree whose clone volume no longer
+existed; that exact cache directory was inspected, removed, and the single real
+build completed in 8m49s. The accepted release contains 24 ELF x86-64 binaries,
+has no build warnings, and inspects against the exact source and witness.
+
+The copied-state run under `.epiphany-run/fulfillment-live-c1b461b2` launched
+the pending autonomous proposal Modeling grant. Its coordinator exited zero and
+resident Self remained on the same lease as `awaiting-fulfillment`, proving the
+new asynchronous state transition. The exact genuine worker result
+`result-worker-a0be7d08-3c2b-4736-99ae-fffb72628911` was not accepted. Delayed
+fulfillment re-entered the autonomous proposal validator, which required the
+current external Body-status file and required every Imagination-origin proposal
+to route back to Imagination. The live result coherently produced one active,
+proposal-citing Eyes frontier for receipt-body research. Self therefore
+terminalized the grant as `unfulfilled`. This run is preserved falsification
+evidence, not a successful fulfillment proof. Self later stopped on SIGTERM in
+1.686s with exit zero and final `braked`; active c005 was untouched.
+
+Commit `c9738fdb` repairs the authority split. Immutable autonomous origin,
+direction, launch, payload, result, and frontier provenance now own delayed
+fulfillment. Current external Body authentication remains a separate Mind
+admission requirement. An autonomous result may route to Eyes for evidence or
+back to Imagination, but direct Hands and pre-adopted plans remain forbidden.
+The regression deletes the fixture's current Body-status file and still proves
+typed fulfillment; the autonomous bridge accepts an Eyes continuation and
+continues to reject direct Hands. All 50 runtime-spine and 24 resident tests
+pass. Package exact `c9738fdb` and replay the pending-to-fulfilled transition
+from a fresh copied state; do not rehabilitate the rejected c1b run.
