@@ -22,6 +22,10 @@ use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 use std::process::{Child, Command};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread;
 use std::time::Duration;
 
@@ -71,24 +75,34 @@ fn main() -> Result<()> {
     let mut ports = NativePorts::new(&args.policy);
     match args.command {
         CommandKind::Once => {
-            let outcome = cycle(&args, &mut state, &mut ports)?;
+            let outcome = cycle(&args, &mut state, &mut ports, false)?;
             publish_self_readiness(&args)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&summary(&state, &outcome))?
+                serde_json::to_string_pretty(&summary(&state, &outcome, false))?
             );
         }
-        CommandKind::Serve => loop {
-            let outcome = cycle(&args, &mut state, &mut ports)?;
-            publish_self_readiness(&args)?;
-            println!("{}", serde_json::to_string(&summary(&state, &outcome))?);
-            let seconds = match outcome {
-                ResidentSelfOutcome::Failed => args.policy.failure_backoff_seconds,
-                ResidentSelfOutcome::Completed => args.policy.cooldown_seconds,
-                _ => args.policy.idle_sleep_seconds,
-            };
-            thread::sleep(Duration::from_secs(seconds.max(1)));
-        },
+        CommandKind::Serve => {
+            let shutdown_requested = install_shutdown_signal_owner()?;
+            loop {
+                let shutting_down = shutdown_requested.load(Ordering::SeqCst);
+                let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
+                publish_self_readiness(&args)?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&summary(&state, &outcome, shutting_down))?
+                );
+                if shutting_down && state.active_turn.is_none() {
+                    break;
+                }
+                let seconds = match outcome {
+                    ResidentSelfOutcome::Failed => args.policy.failure_backoff_seconds,
+                    ResidentSelfOutcome::Completed => args.policy.cooldown_seconds,
+                    _ => args.policy.idle_sleep_seconds,
+                };
+                wait_for_shutdown(&shutdown_requested, Duration::from_secs(seconds.max(1)));
+            }
+        }
         CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
     Ok(())
@@ -127,14 +141,62 @@ fn run_feedback_import_if_released(
     import()
 }
 
+fn run_cycle_ingress_if_running(
+    shutdown_requested: bool,
+    ingress: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    if shutdown_requested {
+        return Ok(());
+    }
+    ingress()
+}
+
+fn install_shutdown_signal_owner() -> Result<Arc<AtomicBool>> {
+    let requested = Arc::new(AtomicBool::new(false));
+    let signal = Arc::clone(&requested);
+    ctrlc::try_set_handler(move || {
+        signal.store(true, Ordering::SeqCst);
+    })
+    .context("failed to install resident Self shutdown signal owner")?;
+    Ok(requested)
+}
+
+fn wait_for_shutdown(requested: &AtomicBool, duration: Duration) {
+    let deadline = std::time::Instant::now() + duration;
+    while !requested.load(Ordering::SeqCst) {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        thread::sleep(remaining.min(Duration::from_millis(50)));
+    }
+}
+
+fn cancelled_turn_status(
+    shutdown_requested: bool,
+    brake_engaged: bool,
+    timed_out: bool,
+) -> &'static str {
+    if shutdown_requested {
+        "shutdown-cancelled"
+    } else if brake_engaged {
+        "brake-cancelled"
+    } else if timed_out {
+        "timed-out"
+    } else {
+        "process-failed"
+    }
+}
+
 fn cycle(
     args: &Args,
     state: &mut ResidentSelfState,
     ports: &mut NativePorts,
+    shutdown_requested: bool,
 ) -> Result<ResidentSelfOutcome> {
     let now = Utc::now().timestamp_millis().max(0) as u64;
     let brake_engaged = ports.brake_engaged()?;
-    run_feedback_import_if_released(brake_engaged, || {
+    run_feedback_import_if_released(brake_engaged || shutdown_requested, || {
         import_bifrost_persona_feedback_deliveries(
             &args.persona_feedback_source_store,
             &args.persona_feedback_store,
@@ -152,20 +214,23 @@ fn cycle(
         )?;
         Ok(())
     })?;
-    bind_runtime_repository_domain(
-        &args.policy.runtime_store,
-        &args.feedback_target_repository,
-        &Utc::now().to_rfc3339(),
-    )?;
-    ingest_resident_self_domain_pressure(
-        &args.state_store,
-        &args.policy.runtime_store,
-        &args.persona_feedback_store,
-        &args.policy.release_runtime_id,
-        &args.feedback_target_repository,
-        &args.policy.workspace.display().to_string(),
-        now,
-    )?;
+    run_cycle_ingress_if_running(shutdown_requested, || {
+        bind_runtime_repository_domain(
+            &args.policy.runtime_store,
+            &args.feedback_target_repository,
+            &Utc::now().to_rfc3339(),
+        )?;
+        ingest_resident_self_domain_pressure(
+            &args.state_store,
+            &args.policy.runtime_store,
+            &args.persona_feedback_store,
+            &args.policy.release_runtime_id,
+            &args.feedback_target_repository,
+            &args.policy.workspace.display().to_string(),
+            now,
+        )?;
+        Ok(())
+    })?;
     *state = load_resident_self_state(&args.state_store)?;
     if let Some(prepared) = state.prepared_launch.clone() {
         if let Some(claim) = resident_self_child_claim(&args.state_store, &prepared.preparation_id)?
@@ -183,7 +248,7 @@ fn cycle(
             *state = load_resident_self_state(&args.state_store)?;
             return Ok(ResidentSelfOutcome::Running);
         }
-        if ports.brake_engaged()? {
+        if shutdown_requested || ports.brake_engaged()? {
             return Ok(ResidentSelfOutcome::Braked);
         }
         let launch = CoordinatorLaunch {
@@ -216,7 +281,7 @@ fn cycle(
         let brake_engaged = ports.brake_engaged()?;
         let timed_out = now.saturating_sub(lease.started_at_millis)
             > args.policy.turn_timeout_seconds.saturating_mul(1000);
-        if brake_engaged || timed_out {
+        if shutdown_requested || brake_engaged || timed_out {
             if ports.observe_child(&lease)? == ChildObservation::Running {
                 ports.request_child_stop(&lease)?;
                 return Ok(ResidentSelfOutcome::Draining);
@@ -260,13 +325,7 @@ fn cycle(
                 cancel_resident_self_turn(
                     &args.state_store,
                     &lease,
-                    if brake_engaged {
-                        "brake-cancelled"
-                    } else if timed_out {
-                        "timed-out"
-                    } else {
-                        "process-failed"
-                    },
+                    cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
                     &format!("coordinator terminal observation exit={code}"),
                     now,
                 )?;
@@ -277,13 +336,7 @@ fn cycle(
                 cancel_resident_self_turn(
                     &args.state_store,
                     &lease,
-                    if brake_engaged {
-                        "brake-cancelled"
-                    } else if timed_out {
-                        "timed-out"
-                    } else {
-                        "process-failed"
-                    },
+                    cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
                     "exact coordinator process is missing",
                     now,
                 )?;
@@ -292,7 +345,7 @@ fn cycle(
             }
         };
     }
-    if ports.brake_engaged()? {
+    if shutdown_requested || ports.brake_engaged()? {
         return Ok(ResidentSelfOutcome::Braked);
     }
     let Some(prepared) = prepare_resident_self_launch(&args.state_store, &args.policy, now)? else {
@@ -320,12 +373,17 @@ fn cycle(
     Ok(ResidentSelfOutcome::Launched)
 }
 
-fn summary(state: &ResidentSelfState, outcome: &ResidentSelfOutcome) -> serde_json::Value {
+fn summary(
+    state: &ResidentSelfState,
+    outcome: &ResidentSelfOutcome,
+    shutdown_requested: bool,
+) -> serde_json::Value {
     json!({
         "schemaVersion": "epiphany.resident_self.operator_projection.v0",
         "status": format!("{outcome:?}").to_ascii_lowercase(),
         "revision": state.revision,
         "activeTurnId": state.active_turn.as_ref().map(|turn| &turn.turn_id),
+        "shutdownRequested": shutdown_requested,
         "nextEligibleAtMillis": state.next_eligible_at_millis,
         "wakeAuthority": "standard heartbeat consumes typed operator, admitted Modeling-map direction consideration, Persona feedback, or Imagination proposal pressure and emits one single-consumption Self grant",
         "preparedRecovery": if state.prepared_launch.is_some() { "fail-closed-awaiting-exact-child-claim-or-witnessed-recovery" } else { "not-required" },
@@ -525,14 +583,6 @@ impl ResidentSelfPorts for NativePorts<'_> {
     }
 
     fn request_child_stop(&mut self, lease: &epiphany_core::ResidentSelfTurnLease) -> Result<()> {
-        if let Some(child) = self.children.get_mut(&lease.process_id) {
-            return child.kill().with_context(|| {
-                format!(
-                    "failed to stop exact coordinator process {}",
-                    lease.process_id
-                )
-            });
-        }
         terminate_process_instance(&ProcessInstanceIdentity {
             process_id: lease.process_id,
             creation_token: lease.process_creation_token,
@@ -623,6 +673,41 @@ mod brake_tests {
             })
             .is_err()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn shutdown_preempts_other_cancellation_causes() {
+        assert_eq!(
+            cancelled_turn_status(true, true, true),
+            "shutdown-cancelled"
+        );
+        assert_eq!(cancelled_turn_status(false, true, true), "brake-cancelled");
+        assert_eq!(cancelled_turn_status(false, false, true), "timed-out");
+        assert_eq!(cancelled_turn_status(false, false, false), "process-failed");
+    }
+
+    #[test]
+    fn shutdown_wait_returns_immediately_when_already_requested() {
+        let requested = AtomicBool::new(true);
+        let started = std::time::Instant::now();
+        wait_for_shutdown(&requested, Duration::from_secs(1));
+        assert!(started.elapsed() < Duration::from_millis(100));
+    }
+
+    #[test]
+    fn shutdown_does_not_admit_new_cycle_ingress() -> Result<()> {
+        let touched = std::cell::Cell::new(false);
+        run_cycle_ingress_if_running(true, || {
+            touched.set(true);
+            Ok(())
+        })?;
+        assert!(!touched.get());
+        run_cycle_ingress_if_running(false, || {
+            touched.set(true);
+            Ok(())
+        })?;
+        assert!(touched.get());
         Ok(())
     }
 }

@@ -27,6 +27,7 @@ license-file = "LICENSE"
 anyhow = "1"
 bm25 = "2.3.2"
 chrono = "0.4.44"
+ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "vendor/cultcache-rs" }
 cultmesh-rs = { path = "vendor/cultmesh-rs" }
 cultnet-rs = { path = "vendor/cultnet-rs" }

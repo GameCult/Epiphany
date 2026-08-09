@@ -1479,9 +1479,8 @@ pub fn cancel_resident_self_turn(
 ) -> Result<ResidentSelfTerminalAck> {
     if !matches!(
         status,
-        "brake-cancelled" | "timed-out" | "process-failed" | "unfulfilled"
-    )
-        || reason.trim().is_empty()
+        "brake-cancelled" | "shutdown-cancelled" | "timed-out" | "process-failed" | "unfulfilled"
+    ) || reason.trim().is_empty()
     {
         return Err(anyhow!(
             "resident Self cancellation requires a typed terminal status and reason"
@@ -1539,7 +1538,8 @@ pub fn cancel_resident_self_turn(
         .ok_or_else(|| anyhow!("resident Self cancellation pressure envelope missing"))?;
     state.active_turn = None;
     state.revision += 1;
-    state.consecutive_failures += u64::from(status != "brake-cancelled");
+    state.consecutive_failures +=
+        u64::from(!matches!(status, "brake-cancelled" | "shutdown-cancelled"));
     pressure.status = "pending".into();
     pressure.consumed_by_grant_id = None;
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
@@ -2111,6 +2111,68 @@ mod tests {
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         assert!(retry_grant.grant_id.contains("-attempt-2-"));
+        Ok(())
+    }
+
+    #[test]
+    fn shutdown_cancellation_requeues_pressure_without_failure_backoff() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-shutdown-1",
+            &policy.release_runtime_id,
+            "implementation-thread-shutdown",
+        )?;
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-shutdown-1".into(),
+                kind: "admitted-model-direction-consideration".into(),
+                provenance_ref:
+                    "cultcache://admitted-model-direction-consideration/request-shutdown-1".into(),
+                objective: "Resume this exact pressure after graceful restart.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 2)?.expect("grant");
+        let prepared = prepare_resident_self_launch(&store, &policy, 3)?.expect("preparation");
+        let process = LaunchedCoordinator {
+            process_id: 44,
+            process_creation_token: 55,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
+        let lease =
+            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
+        let ack = cancel_resident_self_turn(
+            &store,
+            &lease,
+            "shutdown-cancelled",
+            "resident process received an operator shutdown signal",
+            6,
+        )?;
+        assert_eq!(ack.terminal_status, "shutdown-cancelled");
+        let cache = state_cache(&store)?;
+        let state = cache
+            .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+            .expect("resident state");
+        assert_eq!(state.consecutive_failures, 0);
+        assert!(state.active_turn.is_none());
+        let pressure = cache
+            .get::<ResidentSelfPressure>("pressure-shutdown-1")?
+            .expect("requeued pressure");
+        assert_eq!(pressure.status, "pending");
+        assert_eq!(pressure.consumed_by_grant_id, None);
         Ok(())
     }
 
