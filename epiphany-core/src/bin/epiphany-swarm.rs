@@ -7,16 +7,16 @@ use epiphany_core::{
     ResidentSelfState, acknowledge_resident_self_launch, acquire_resident_process_singleton,
     authenticate_resident_self_policy, bind_runtime_repository_domain,
     bridge_admitted_persona_feedback_to_heartbeat, cancel_resident_self_turn,
-    capture_process_instance, complete_resident_self_turn, coordinator_run_receipts,
-    derive_resident_cognition_readiness, enqueue_resident_self_pressure,
-    import_bifrost_persona_feedback_deliveries, ingest_resident_self_domain_pressure,
-    load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
-    pending_resident_self_acks, prepare_resident_self_launch, publish_resident_provider_readiness,
+    capture_process_instance, coordinator_run_receipts, derive_resident_cognition_readiness,
+    enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
+    ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
+    load_resident_self_state, observe_process_instance, pending_resident_self_acks,
+    prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_local_provider_status, terminate_process_instance,
-    retain_coordinator_run_receipts, retain_resident_self_lifecycles,
-    validate_persona_feedback_store_separation,
-    validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
+    resident_self_local_provider_status, retain_coordinator_run_receipts,
+    retain_resident_self_lifecycles, settle_resident_self_exited_coordinator,
+    terminate_process_instance, validate_persona_feedback_store_separation,
+    validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -350,24 +350,18 @@ fn cycle(
                             "coordinator exited zero without its exact resident terminal receipt"
                         )
                     })?;
-                if let Err(error) = verify_resident_self_grant_fulfillment(
+                let outcome = settle_resident_self_exited_coordinator(
                     &args.state_store,
                     &args.policy.runtime_store,
-                    &lease.grant_id,
-                ) {
-                    cancel_resident_self_turn(
-                        &args.state_store,
-                        &lease,
-                        "unfulfilled",
-                        &error.to_string(),
-                        now,
-                    )?;
-                    *state = load_resident_self_state(&args.state_store)?;
-                    return Ok(ResidentSelfOutcome::Failed);
-                }
-                complete_resident_self_turn(&args.state_store, &lease, &receipt, now)?;
+                    &lease,
+                    &receipt,
+                    shutdown_requested,
+                    brake_engaged,
+                    timed_out,
+                    now,
+                )?;
                 *state = load_resident_self_state(&args.state_store)?;
-                Ok(ResidentSelfOutcome::Completed)
+                Ok(outcome)
             }
             ChildObservation::Exited(code) => {
                 cancel_resident_self_turn(
@@ -428,7 +422,7 @@ fn summary(
 ) -> serde_json::Value {
     json!({
         "schemaVersion": "epiphany.resident_self.operator_projection.v0",
-        "status": format!("{outcome:?}").to_ascii_lowercase(),
+        "status": outcome.operator_status(),
         "revision": state.revision,
         "activeTurnId": state.active_turn.as_ref().map(|turn| &turn.turn_id),
         "shutdownRequested": shutdown_requested,
@@ -747,6 +741,14 @@ mod brake_tests {
     fn shutdown_cancellation_is_a_braked_outcome_not_a_failure() {
         assert_eq!(outcome_after_cancel(true), ResidentSelfOutcome::Braked);
         assert_eq!(outcome_after_cancel(false), ResidentSelfOutcome::Failed);
+    }
+
+    #[test]
+    fn terminal_fulfillment_has_explicit_operator_projection() {
+        assert_eq!(
+            ResidentSelfOutcome::AwaitingFulfillment.operator_status(),
+            "awaiting-fulfillment"
+        );
     }
 
     #[test]

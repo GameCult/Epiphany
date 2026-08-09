@@ -1063,16 +1063,17 @@ artifact payload stayed at 13,175 bytes in one pulse directory. This is useful
 bounded active-marker/braked-Self physiology, not an idle cognition claim: the
 copied Heartbeat store retained a stale coordinator participant marked running.
 
-A genuine idle control is now active in
-`.epiphany-run/idle-control-16c4b19f`. Exact packaged `epiphany-verse-query`
-engaged the canonical typed `epiphany/swarm-brake` under runtime
-`epiphany-starfire-linux` in both root and Eyes local-Verse stores. Heartbeat
-therefore reports `braked-after-ack-reconciliation` with the exact brake ID and
-Self reports braked. Direct-PID containers are
-`epiphany-linux-idle-control-heartbeat-16c4b19f` and
-`epiphany-linux-idle-control-self-16c4b19f`; hidden monitor PID 22912 samples
-CPU/RSS/store/artifacts and will stop Self after 900 pulses. Poll only; do not
-start a duplicate or disturb active c005.
+A genuine idle control in `.epiphany-run/idle-control-16c4b19f` is complete.
+Exact packaged `epiphany-verse-query` engaged the canonical typed
+`epiphany/swarm-brake` under runtime `epiphany-starfire-linux` in both root and
+Eyes local-Verse stores. Heartbeat completed 900 one-second refused pulses and
+exited zero; the monitor then sent direct-PID SIGTERM to Self, which also exited
+zero with shutdown requested. Across 139 comparable Heartbeat samples RSS was
+27.77--28.52 MiB and first/last-quarter averages changed by 0.0068 MiB. Across
+141 Self samples RSS was 26.97--27.73 MiB and the quarter delta was 0.0423 MiB.
+Aggregate copied state stayed exactly 7,332,259 bytes and artifact payload
+stayed zero. This is the accepted no-cognition baseline. Active c005 remained
+untouched.
 
 The bounded active-cognition endurance pass has an authority map; do not
 replace it with a synthetic busy fixture. Resident Self owns consumption of one
@@ -1094,6 +1095,24 @@ the typed Imagination result path, no external consequence, bounded stores and
 artifacts, and clean direct-PID shutdown. If the request or grant is absent,
 resolved, or mismatched, stop and choose a new request through its production
 typed owner; do not manufacture endurance theater.
+
+Source inspection before active endurance found a continuity fault in the
+resident closure path. A zero-exit bounded coordinator can publish its exact
+coordinator receipt before a detached typed worker result appears; the old
+cycle acknowledged the grant immediately and could permanently consume its
+pressure if the worker later failed. Resident Self now keeps the active lease
+and projects `awaiting-fulfillment` until the runtime-owned worker result and
+exact typed companion prove terminal cognition. Proposal Modeling requires its
+exact echoed request; admitted model-direction and Imagination consideration
+also validate and compare their persisted typed result/candidate. Brake,
+shutdown, and timeout cancel and requeue the exact pressure once through the
+existing CAS. The raw completion primitive is private to this settling seam.
+Imagination candidates must not predate their request. Twenty-two resident
+tests, eight swarm binary tests, and eight Imagination consideration tests pass,
+including exited-zero pending-to-fulfilled closure and exact-once shutdown
+requeue. This cut is not packaged yet. Commit and publish it, package the exact
+source with the persistent Starfire cache, authenticate all 24 binaries and
+witness, then use only that release for active cognition endurance.
 
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound

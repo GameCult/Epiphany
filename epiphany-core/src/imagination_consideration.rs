@@ -360,6 +360,10 @@ pub fn validate_candidate(
     request: &ImaginationConsiderationRequest,
     candidate: &ImaginationConsiderationCandidate,
 ) -> Result<()> {
+    let requested_at = chrono::DateTime::parse_from_rfc3339(&request.requested_at)
+        .map_err(|_| anyhow!("consideration request timestamp is invalid"))?;
+    let proposed_at = chrono::DateTime::parse_from_rfc3339(&candidate.proposed_at)
+        .map_err(|_| anyhow!("consideration candidate timestamp is invalid"))?;
     validate_visibility_classification(
         &candidate.source_visibility,
         &candidate.data_classification,
@@ -385,7 +389,7 @@ pub fn validate_candidate(
                 .source_discussion_refs
                 .contains(reference)
         })
-        || chrono::DateTime::parse_from_rfc3339(&candidate.proposed_at).is_err()
+        || proposed_at < requested_at
     {
         bail!("candidate substituted causal identity");
     }
@@ -491,8 +495,8 @@ mod tests {
     #[test]
     fn cold_runtime_without_thread_defers_feedback_consideration() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let runtime = temp.path().join("runtime.ccmp");
-        let feedback = temp.path().join("feedback.ccmp");
+        let runtime = temp.path().join("runtime.cc");
+        let feedback = temp.path().join("feedback.cc");
         let mut cache = crate::runtime_spine_cache(&runtime)?;
         cache.put(
             crate::RUNTIME_IDENTITY_KEY,
@@ -608,6 +612,13 @@ mod tests {
             }
             assert!(validate_candidate(&request(), &candidate).is_err());
         }
+    }
+
+    #[test]
+    fn candidate_cannot_predate_its_request() {
+        let mut candidate = candidate(ImaginationConsiderationDisposition::Suggest);
+        candidate.proposed_at = "2026-07-17T23:59:59Z".into();
+        assert!(validate_candidate(&request(), &candidate).is_err());
     }
 
     #[test]

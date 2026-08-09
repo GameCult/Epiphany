@@ -1324,15 +1324,23 @@ heartbeat owns opportunity without acquiring a second scheduling opinion.
 Resident terminal success is also pressure-specific. For a
 `repo-frontier-proposal-modeling` grant, a zero-exit coordinator receipt proves
 only that the bounded coordinator process ended cleanly; it does not prove the
-requested Modeling launch occurred. Before acknowledging that pressure,
-resident Self now requires the runtime spine to contain the exact
-`RepoFrontierProposalModelingLaunchBinding`. Missing fulfillment is a typed
-failed turn: the same cancellation authority used by process failure, timeout,
-and brake cancellation admits the `unfulfilled` terminal class and atomically
-requeues the same pressure for heartbeat retry. The producer of a terminal
-class and the cancellation contract must evolve together; otherwise the
-runtime errors before the requeue CAS and leaves physiology split across an
-active resident lease and an uncompleted heartbeat turn.
+requested Modeling work reached a typed terminal result. The resident active
+turn therefore remains the sole acknowledgement owner after coordinator exit.
+For proposal Modeling it requires the runtime-owned worker result echoing the
+exact proposal request. For admitted model-direction and Imagination
+consideration it additionally validates the exact typed result/candidate and
+requires that byte-identical companion to exist in the runtime store. Missing
+terminal evidence is `awaiting-fulfillment`: the active lease remains live and
+cannot be retained, relaunched, acknowledged, or requeued. A later serve cycle
+consumes the route exactly once when the typed evidence appears. Brake,
+shutdown, or timeout while waiting uses the existing cancellation CAS to close
+the lease once and return its exact pressure to Heartbeat; invalid or
+substituted evidence closes as `unfulfilled`. Coordinator process closure is
+therefore evidence, never cognitive completion authority.
+
+Imagination candidate time is part of that causal contract. A candidate must
+have a valid RFC3339 timestamp at or after its request timestamp. A
+well-shaped candidate from before the request cannot close resident authority.
 
 Typed resident launches run the bounded coordinator in planning mode so an
 ordinary operator objective cannot silently become actuation. Request-owned
