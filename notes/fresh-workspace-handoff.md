@@ -1010,3 +1010,31 @@ crossing receipt, signed Bifrost receipt, Starfire admission, and heartbeat
 terminalization. Transport acknowledgement is never speech success. Do not
 SFTP live stores, share private keys, run Bifrost actuation on Starfire, weaken
 the permit, or retry either sealed request.
+
+## Continuity retention audit — 2026-08-09
+
+The source-grounded retention authority map is now in
+`notes/epiphany-current-algorithmic-map.md`. Heartbeat pulse directories already
+have typed plan/receipt retention and in-store heartbeat history is capped at
+128. Resident Self pressure/grant/claim/ack lifecycle rows and runtime-spine
+coordinator receipts remain unbounded. The old `ResidentSelfRuntimeReceipt`
+shape is produced only by test-only reconciliation and is not a live target.
+
+Resident lifecycle retirement may touch only a fully closed lifecycle after
+Heartbeat has consumed its terminal acknowledgement. It must atomically delete
+exact witnessed envelopes, publish typed digest/count evidence with no
+scheduling authority, and refuse pending pressure, unconsumed grants,
+prepared/active launches, unconsumed acknowledgements, and brake/shutdown
+cancellations whose pressure was requeued. Negative proof must show retained
+history cannot create pending work or resurrect a coordinator turn.
+
+Coordinator receipt deletion remains forbidden until resident/current-frontier
+and recovery references are mapped. Supervisor stdout/stderr truncate at
+launch but grow without bound during a long-lived process; the fatal log grows
+across launches. Do not truncate beneath inherited child file descriptors.
+`E:\Projects\gamecult-ops` is unavailable in this workspace, so log ownership
+must wait for the infrastructure runbook rather than being guessed.
+
+Next: implement the resident lifecycle retention organ and its negative tests,
+then audit coordinator references, packaged Heartbeat retention, supervisor log
+ownership, and the measured idle/active endurance plateau.

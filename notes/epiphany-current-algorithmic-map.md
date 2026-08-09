@@ -2046,3 +2046,89 @@ release `sha256-30caab9e...a1aec` and witness `sha256-89c2ad60...fdecf` in
 0.82s, and reproduced both identifiers. Independent inspection accepted both.
 The packaged full publisher accepted the narrow tool's witness and advanced the
 resident release Verse hash from `b160c610...3909` to `83ed430f...ae81`.
+
+## Continuity retention authority map
+
+Retention is not a janitor allowed to erase old-looking rows. Each store owner
+may retire only authority that its live readers can no longer interpret as
+work.
+
+### Heartbeat artifacts
+
+- **Owner:** Heartbeat owns pulse artifact retirement and its typed
+  plan/receipt chain.
+- **Inputs:** exact pulse directories outside the newest configured window.
+- **Outputs:** a CAS-published plan and receipt naming the exact members.
+- **Derived state:** pulse history is diagnostic evidence; the in-store history
+  projection is independently capped at 128 entries.
+- **Forbidden writers:** filesystem cleanup outside Heartbeat must not decide
+  pulse liveness or manufacture retention receipts.
+- **Deletion line:** only plan members that still match their witnessed type,
+  path, and digest may be removed. Symlinks, non-directories, drift, and unknown
+  members fail closed.
+- **Verification layer:** existing tests prove boundedness, idempotence,
+  exact-member refusal, and typed receipts. The remaining live audit must use
+  the packaged path, not invent a second cleaner.
+
+### Resident Self lifecycle rows
+
+- **Owner:** resident Self owns pressures, Heartbeat grants, child claims, and
+  terminal acknowledgements in `resident-self.cc`. Heartbeat may consume an
+  acknowledgement through the typed CAS function; it does not own arbitrary
+  deletion from the resident store.
+- **Inputs:** one fully closed lifecycle: a consumed terminal acknowledgement,
+  its consumed grant, the pressure still bound to that grant in a final
+  consumed state, and any child claim bound to the same launch.
+- **Outputs:** a typed retention head/receipt preserving a digest and count of
+  retired lifecycle identities while carrying no scheduling authority.
+- **Derived state:** closed lifecycle history is evidence only. Pending
+  pressures, unconsumed grants, prepared launches, active leases, and
+  unconsumed acknowledgements remain live authority.
+- **Forbidden writers:** retention cannot change pressure status, clear an
+  active/prepared lease, consume an acknowledgement, or infer closure from age.
+  Brake and shutdown cancellations requeue their pressure and are not closed
+  merely because they emitted a terminal acknowledgement.
+- **Shared path:** completion, failure, timeout, brake, and shutdown all reach
+  the same lifecycle-closure predicate after Heartbeat consumption; no manual
+  cleanup path may bypass it.
+- **Deletion line:** remove exact witnessed envelopes atomically only when the
+  current state has no prepared or active reference to the grant and no
+  pending acknowledgement exists. The test-only
+  `ResidentSelfRuntimeReceipt` type is not a live retention target.
+- **Verification layer:** negative tests must prove that a retention head alone
+  cannot create pending pressure, issue a grant, satisfy an acknowledgement,
+  or resurrect a coordinator turn.
+
+### Coordinator receipts
+
+- **Owner:** the runtime spine owns coordinator run receipts. Resident Self
+  stores only the latest receipt identity and terminal acknowledgements may
+  reference an exact receipt.
+- **Inputs:** receipts older than the retained frontier and unreferenced by
+  current resident state, pending acknowledgements, accepted coordinator
+  state, or recovery paths.
+- **Outputs:** a typed accumulator preserving terminal counts/digests without
+  pretending to be a runnable receipt.
+- **Forbidden writers:** resident retention cannot delete runtime receipts;
+  runtime compaction cannot guess that cross-store references are dead.
+- **Deletion line:** no coordinator receipt retirement until the cross-store
+  reference set and crash-recovery readers are source-grounded and tested.
+
+### Supervisor stdout/stderr
+
+- **Owner:** the daemon supervisor opens each service stdout/stderr path. A
+  launch truncates those files, but output during one long-lived process is
+  currently unbounded; the append-only fatal log is unbounded across launches.
+- **Forbidden writers:** an external truncator must not cut a file beneath an
+  inherited child descriptor. That can leave the writer at its old offset and
+  create sparse or misleading evidence.
+- **Intended boundary:** either the supervisor owns piped, bounded rotation with
+  nonblocking drains and crash-safe receipts, or the deployment service manager
+  owns rotation and the repo stops claiming file ownership. The infrastructure
+  runbook must decide this boundary before code changes. The configured
+  `gamecult-ops` drive is unavailable in this workspace, so this branch remains
+  deliberately uncut rather than guessed.
+
+The next implementation slice is resident lifecycle retention. It must use
+CultCache's exact-envelope atomic deletion surface, publish typed non-authority
+evidence, and prove negatively that retired history cannot re-enter scheduling.
