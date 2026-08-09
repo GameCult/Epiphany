@@ -85,6 +85,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
     vec![
         ("supervisor", file_name("epiphany-daemon-supervisor")),
         ("release-publisher", file_name("epiphany-release")),
+        ("state-steward", file_name("epiphany-state")),
         (
             "semantic-projector",
             file_name("epiphany-memory-semantic-projector"),
@@ -516,6 +517,25 @@ fn build_required_release_siblings(
     if !coordinator_status.success() {
         bail!("feature-gated coordinator release build failed");
     }
+    let state_steward_status = std::process::Command::new(cargo)
+        .arg("build")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .arg("--target")
+        .arg(target)
+        .arg("--locked")
+        .arg("--package")
+        .arg("epiphany-core")
+        .arg("--bin")
+        .arg("epiphany-state")
+        .status()
+        .context("failed to start state-steward release build")?;
+    if !state_steward_status.success() {
+        bail!("state-steward release build failed");
+    }
     Ok(BuiltReleaseSiblings {
         binaries: outputs,
         _graph_lock: graph_lock,
@@ -567,6 +587,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
     match role {
         "supervisor" => Ok(("epiphany-core", "epiphany-daemon-supervisor")),
         "release-publisher" => Ok(("epiphany-core", "epiphany-release")),
+        "state-steward" => Ok(("epiphany-core", "epiphany-state")),
         "semantic-projector" => Ok(("epiphany-core", "epiphany-memory-semantic-projector")),
         "workspace-coverage-projector" => {
             Ok(("epiphany-core", "epiphany-workspace-coverage-projector"))
@@ -1141,6 +1162,7 @@ mod tests {
             "operator-command",
             "heartbeat",
             "runtime-spine",
+            "state-steward",
             "coordinator",
             "hands-action",
             "model-runtime",
@@ -1167,6 +1189,10 @@ mod tests {
         assert_eq!(
             required_release_build_target("runtime-spine").unwrap(),
             ("epiphany-core", "epiphany-runtime-spine")
+        );
+        assert_eq!(
+            required_release_build_target("state-steward").unwrap(),
+            ("epiphany-core", "epiphany-state")
         );
         assert!(root_manifest.contains("name = \"epiphany-runtime-spine\""));
         assert_eq!(
@@ -1201,6 +1227,35 @@ mod tests {
             required_release_build_target("tool-mcp-runtime").unwrap(),
             ("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")
         );
+    }
+
+    #[test]
+    fn root_workspace_owns_first_party_dependency_resolution() {
+        let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = core.parent().expect("epiphany-core repository parent");
+        let root_manifest = fs::read_to_string(repo.join("Cargo.toml")).expect("root manifest");
+        assert!(root_manifest.contains("[workspace]"));
+        for member in [
+            "epiphany-core",
+            "epiphany-model-adapter",
+            "epiphany-openai-adapter",
+            "epiphany-openai-auth-spine",
+            "epiphany-openai-codex-spine",
+            "epiphany-openai-runtime",
+            "epiphany-self-policy",
+            "epiphany-state-model",
+            "epiphany-tool-adapter",
+            "epiphany-tool-mcp-runtime",
+        ] {
+            assert!(
+                root_manifest.contains(&format!("\"{member}\"")),
+                "root workspace omits {member}"
+            );
+            assert!(
+                !repo.join(member).join("Cargo.lock").exists(),
+                "{member} retains a competing Cargo.lock"
+            );
+        }
     }
 
     #[test]

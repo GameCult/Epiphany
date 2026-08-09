@@ -1894,10 +1894,23 @@ contract uses a separate cache mount, explicit target directory, and explicit
 Rust proxy path. It rebuilt the current coordinator in 37.55s with dependencies
 warm.
 
-The remaining structural defect is independent dependency resolution:
-`epiphany-self-policy/Cargo.lock` forced a 6m34s cold graph for one focused test,
-while the state steward previously forced a 7m11s graph. One root Cargo
-workspace/lock graph should own release binaries, policy tests, and typed state
-stewardship. The exact release witness remains package identity authority; the
-workspace and native runner own iteration reuse. Additional caches are
-forbidden compensators.
+The root manifest now declares every first-party Epiphany crate as one Cargo
+workspace and the root lockfile is the sole resolution owner. Seven child locks
+and three dead child patch declarations are deleted. Vendored Codex and
+CultCache are explicitly excluded because they own nested workspaces. A release
+contract test rejects any omitted first-party member or regrown child lock.
+
+`epiphany-state` stays with its narrow owner, `epiphany-core`; placing it in the
+root release-bundle package was tested and rejected because package-level
+dependencies would preserve the monolith. The native packager instead builds
+that package/bin explicitly on its existing target and witnesses it as required
+role `state-steward`. The release bundle therefore grows from 22 to 23 binaries
+without creating a second graph or a duplicate executable owner.
+
+Measured proof: the one-time workspace migration compiled first-party crates in
+5m02s; the identical locked policy test then passed in 4.47s. The core-owned
+state steward built in 23.20s on that graph and served a status read in 1.12s
+including container startup. Eighteen release-contract tests pass. Their
+one-time dev harness cost 5m33s, identical warm execution cost 4.43s, and a
+subsequent packager source edit rebuilt/tested in 20.10s. Exact release witness
+authority remains unchanged; a clean 23-binary package is the next boundary.

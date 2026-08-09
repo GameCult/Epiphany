@@ -1,5 +1,29 @@
 # Fresh workspace handoff
 
+## Unified Cargo authority and shipped state steward — 2026-08-09
+
+The root manifest is now the single first-party Cargo workspace and root
+`Cargo.lock` is the sole dependency-resolution authority. Seven child lockfiles
+and three now-ignored child patch declarations were deleted. Vendored Codex and
+CultCache retain their own explicitly excluded workspaces. A source guard in
+the release packager rejects a missing first-party member or a regrown child
+lockfile.
+
+The exact stale-CRRC policy regression paid a one-time 5m02s first-party
+workspace migration, then reran identically in 4.47s. `epiphany-state` remains
+owned by `epiphany-core`, built on the same target in 23.20s, and appended typed
+evidence without another graph; a full status read including container startup
+took 1.12s. The rejected attempt to place it in the root release package was
+stopped because that would drag the root monolith into a narrow ledger tool.
+
+The native release packager now witnesses `state-steward` as the 23rd required
+binary and builds it explicitly from package `epiphany-core` on the existing
+release target. All 18 focused packager tests pass. The one-time core test
+harness cost 5m33s; an identical warm run took 4.43s, and the final source
+increment rebuilt/tested in 20.10s. Receipts live under
+`.epiphany-run/unified-build/`. Next package the clean committed source and
+prove a warm identical 23-binary release before resuming resident endurance.
+
 ## Stale CRRC authority cut and copied c005 replay — 2026-08-09
 
 Self no longer lets a failed reorientation result older than typed frontier
