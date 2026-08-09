@@ -547,6 +547,7 @@ pub enum ResidentSelfGrantFulfillment {
 
 pub fn coordinator_argv(
     policy: &ResidentSelfPolicy,
+    runtime_id: &str,
     turn_id: &str,
     wake: &ResidentSelfWake,
 ) -> Vec<String> {
@@ -559,7 +560,7 @@ pub fn coordinator_argv(
         "--model-provider".into(),
         policy.model_provider.clone(),
         "--runtime-id".into(),
-        policy.release_runtime_id.clone(),
+        runtime_id.into(),
         "--thread-id".into(),
         turn_id.into(),
         "--cwd".into(),
@@ -598,10 +599,30 @@ pub fn resident_coordinator_thread_id(runtime_id: &str) -> Result<String> {
     Ok(format!("resident-self-thread-{runtime_id}"))
 }
 
+struct ResidentCoordinatorBinding {
+    runtime_id: String,
+    thread_id: String,
+    typed_request: Option<(String, String)>,
+}
+
+pub fn resident_cognitive_runtime_id(runtime_store: &Path) -> Result<String> {
+    let mut cache = crate::runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    Ok(cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("resident runtime store lost its immutable identity"))?
+        .runtime_id)
+}
+
 fn resident_coordinator_binding_for_grant(
     policy: &ResidentSelfPolicy,
     grant: &ResidentSelfHeartbeatGrant,
-) -> Result<(String, Option<(String, String)>)> {
+) -> Result<ResidentCoordinatorBinding> {
+    let mut cache = crate::runtime_spine_cache(&policy.runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let runtime_identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("resident typed request runtime store lost its identity"))?;
     let (prefix, request_flag) = match grant.pressure_kind.as_str() {
         "imagination-consideration" => (
             "cultcache://imagination-consideration/",
@@ -616,10 +637,11 @@ fn resident_coordinator_binding_for_grant(
             "--proposal-modeling-request-id",
         ),
         _ => {
-            return Ok((
-                resident_coordinator_thread_id(&policy.release_runtime_id)?,
-                None,
-            ));
+            return Ok(ResidentCoordinatorBinding {
+                thread_id: resident_coordinator_thread_id(&runtime_identity.runtime_id)?,
+                runtime_id: runtime_identity.runtime_id,
+                typed_request: None,
+            });
         }
     };
     let request_id = grant
@@ -627,8 +649,6 @@ fn resident_coordinator_binding_for_grant(
         .strip_prefix(prefix)
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| anyhow!("consideration grant lost exact request provenance"))?;
-    let mut cache = crate::runtime_spine_cache(&policy.runtime_store)?;
-    cache.pull_all_backing_stores()?;
     let (runtime_id, thread_id) = match grant.pressure_kind.as_str() {
         "imagination-consideration" => {
             let request = cache
@@ -649,12 +669,19 @@ fn resident_coordinator_binding_for_grant(
             (request.runtime_id, request.thread_id)
         }
     };
-    if runtime_id != policy.release_runtime_id || thread_id.trim().is_empty() {
+    if runtime_id != runtime_identity.runtime_id || thread_id.trim().is_empty() {
         return Err(anyhow!(
-            "resident typed request escaped its runtime or thread authority"
+            "resident typed request {request_id} kind {} belongs to runtime {runtime_id} with thread-present={}, but mounted runtime store belongs to {}",
+            grant.pressure_kind,
+            !thread_id.trim().is_empty(),
+            runtime_identity.runtime_id,
         ));
     }
-    Ok((thread_id, Some((request_flag.into(), request_id.into()))))
+    Ok(ResidentCoordinatorBinding {
+        runtime_id: runtime_identity.runtime_id,
+        thread_id,
+        typed_request: Some((request_flag.into(), request_id.into())),
+    })
 }
 
 fn prepared_coordinator_thread_id(argv: &[String]) -> Result<String> {
@@ -839,7 +866,7 @@ fn reconcile_resident_self(
     let launch = CoordinatorLaunch {
         turn_id: turn_id.clone(),
         wake: wake.clone(),
-        argv: coordinator_argv(policy, &turn_id, &wake),
+        argv: coordinator_argv(policy, &policy.release_runtime_id, &turn_id, &wake),
     };
     let process = ports.launch_coordinator(&launch)?;
     let process_id = process.process_id;
@@ -1348,12 +1375,12 @@ pub fn prepare_resident_self_launch(
     let Some(mut grant) = pending_resident_self_grant(path)? else {
         return Ok(None);
     };
-    let (turn_id, typed_request) = resident_coordinator_binding_for_grant(policy, &grant)?;
+    let binding = resident_coordinator_binding_for_grant(policy, &grant)?;
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
-    let mut argv = coordinator_argv(policy, &turn_id, &wake);
-    if let Some((request_flag, request_id)) = typed_request {
+    let mut argv = coordinator_argv(policy, &binding.runtime_id, &binding.thread_id, &wake);
+    if let Some((request_flag, request_id)) = binding.typed_request {
         let objective = argv.pop();
         let flag = argv.pop();
         if objective.is_none() || flag.as_deref() != Some("--objective") {
@@ -2244,12 +2271,36 @@ mod tests {
             release_witness_sha256: "sha256:test-manifest".into(),
         }
     }
+    fn seed_runtime_identity(store: &Path, runtime_id: &str) -> Result<()> {
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        if cache
+            .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        let identity = crate::EpiphanyRuntimeIdentity {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+            runtime_id: runtime_id.into(),
+            display_name: "Resident test runtime".into(),
+            runtime_kind: "resident-test".into(),
+            created_at: "2026-07-18T00:00:00Z".into(),
+            updated_at: "2026-07-18T00:00:00Z".into(),
+            supported_document_types: Vec::new(),
+            metadata: BTreeMap::new(),
+        };
+        let (entry, _) = cache.prepare_entry(crate::RUNTIME_IDENTITY_KEY, &identity)?;
+        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
+        Ok(())
+    }
     fn seed_model_direction_request(
         store: &Path,
         request_id: &str,
         runtime_id: &str,
         thread_id: &str,
     ) -> Result<()> {
+        seed_runtime_identity(store, runtime_id)?;
         let cache = crate::runtime_spine_cache(store)?;
         let request = crate::AdmittedModelDirectionConsiderationRequest {
             schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION
@@ -2346,6 +2397,7 @@ mod tests {
         thread_id: &str,
         selected_at: &str,
     ) -> Result<()> {
+        seed_runtime_identity(store, runtime_id)?;
         let cache = crate::runtime_spine_cache(store)?;
         let request = crate::RepoFrontierProposalModelingRequest {
             schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
@@ -2473,7 +2525,7 @@ mod tests {
         seed_model_direction_request(
             &policy.runtime_store,
             "request-model-1",
-            &policy.release_runtime_id,
+            "cognitive-runtime",
             "implementation-thread-1",
         )?;
         let pressure = ResidentSelfPressure {
@@ -2506,6 +2558,18 @@ mod tests {
                 "--admitted-model-direction-consideration-request-id",
                 "request-model-1"
             ]));
+        assert!(
+            prepared
+                .argv
+                .windows(2)
+                .any(|pair| pair == ["--runtime-id", "cognitive-runtime"])
+        );
+        assert!(
+            !prepared
+                .argv
+                .windows(2)
+                .any(|pair| pair == ["--runtime-id", policy.release_runtime_id.as_str()])
+        );
         assert_eq!(
             resident_prepared_launch_thread_id(&prepared)?,
             "implementation-thread-1"
@@ -2581,7 +2645,7 @@ mod tests {
                 .into(),
             result_id: "result-model-1".into(),
             request_id: "request-model-1".into(),
-            runtime_id: policy.release_runtime_id.clone(),
+            runtime_id: "cognitive-runtime".into(),
             thread_id: "implementation-thread-1".into(),
             model_revision: 1,
             model_hash: "sha256:model-1".into(),
@@ -2621,6 +2685,96 @@ mod tests {
         let acks = pending_resident_self_acks(&store)?;
         assert_eq!(acks.len(), 1);
         assert_eq!(acks[0].coordinator_receipt_id, receipt.receipt_id);
+        Ok(())
+    }
+
+    #[test]
+    fn typed_request_must_belong_to_its_mounted_runtime_store_not_release_runtime() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator;
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_runtime_identity(&policy.runtime_store, "cognitive-runtime")?;
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-foreign-runtime",
+            "foreign-runtime",
+            "implementation-thread-foreign",
+        )?;
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-foreign-runtime".into(),
+                kind: "admitted-model-direction-consideration".into(),
+                provenance_ref:
+                    "cultcache://admitted-model-direction-consideration/request-foreign-runtime"
+                        .into(),
+                objective: "This request must remain in its foreign runtime.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        heartbeat_issue_resident_self_grant(&store, "heartbeat-foreign", "action-foreign", 2)?
+            .expect("foreign request grant fixture");
+        let error = prepare_resident_self_launch(&store, &policy, 3)
+            .expect_err("foreign request must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("belongs to runtime foreign-runtime")
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("mounted runtime store belongs to cognitive-runtime")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn plain_objective_uses_mounted_runtime_identity_for_thread_and_argv() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator;
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_runtime_identity(&policy.runtime_store, "cognitive-runtime")?;
+        enqueue_resident_self_pressure(
+            &store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "operator-pressure".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "operator://objective".into(),
+                objective: "Run one bounded planning turn.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        heartbeat_issue_resident_self_grant(&store, "heartbeat-plain", "action-plain", 2)?
+            .expect("plain objective grant");
+        let prepared =
+            prepare_resident_self_launch(&store, &policy, 3)?.expect("plain objective preparation");
+        assert!(
+            prepared
+                .argv
+                .windows(2)
+                .any(|pair| pair == ["--runtime-id", "cognitive-runtime"])
+        );
+        assert_eq!(
+            resident_prepared_launch_thread_id(&prepared)?,
+            "resident-self-thread-cognitive-runtime"
+        );
         Ok(())
     }
 

@@ -1114,6 +1114,45 @@ requeue. This cut is not packaged yet. Commit and publish it, package the exact
 source with the persistent Starfire cache, authenticate all 24 binaries and
 witness, then use only that release for active cognition endurance.
 
+Commit `30a63d63` packaged after a failed-closed construction-cache repair.
+The clone initially lacked declared submodules; after exact initialization the
+constructor found the known stale
+`source-fb4097c8f489c830678f32a39e818cf462bff5c1fe853bc12d106184c9bfd571`
+worktree whose Git common-dir named a deleted clone. Only that verified 57 MiB
+source directory was removed; Cargo home and target caches survived. The same
+container then completed in 8m26s. Exact release is
+`sha256-a1e8a0985573f7bacf5316c62080ed4bfb8b00c7214331e0baf775d24a7a50a4`;
+witness is
+`sha256-473482113ac16e6656e2cb02582ee5696818b3255a7184960e8839aa291bf3b9`.
+Independent packaged inspection accepted exact source and all 24 Linux ELF
+binaries with zero warnings.
+
+The first real active-cognition attempt is preserved under
+`.epiphany-run/active-cognition-30a63d63`. Packaged publication into the copied
+Verse and both canonical brake releases succeeded. Heartbeat moved from
+braked to `active-coordinator-turn`, but Self failed before preparation with
+`resident typed request escaped its runtime or thread authority`; no worker or
+external consequence launched. A quarantined read-only typed-state diagnostic
+proved the request was valid, unresolved, and owned by runtime
+`epiphany-starfire-linux-eyes-tools` on thread `linux-eyes-tools-c005`, while
+the policy's `release_runtime_id` was `epiphany-starfire-linux`. The code had
+collapsed binary-publication identity and cognitive-store identity. Both
+brakes were re-engaged. Self exited 1; the manually stopped Heartbeat required
+kill after its 15-second stop window and exited 137, so this run is failed
+evidence, not endurance acceptance.
+
+The source cut now loads the mounted runtime store's immutable
+`EpiphanyRuntimeIdentity`; that one owner supplies typed request validation,
+plain-work thread identity, and the coordinator's `--runtime-id`. Release
+runtime identity remains binary-authentication authority only. Persona feedback
+target identity remains crossing-owned rather than being mass-renamed. The
+diagnostic error now names safe request/kind/runtime identities, a negative test
+proves a request from a foreign runtime still fails closed, and differing-ID
+tests require both typed and plain prepared argv to name the cognitive runtime.
+Twenty-four resident and eight swarm binary tests pass. Commit, package,
+authenticate, then rerun from a fresh copy of the accepted idle baseline; do
+not reuse the failed active body.
+
 Resident lifecycle retention is now implemented in source. Resident Self's
 serve/once owner invokes a configurable `--retained-closed-lifecycles` bound
 (default 256). Only Heartbeat-consumed terminal lifecycles whose pressure still

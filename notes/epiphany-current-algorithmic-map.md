@@ -1304,7 +1304,29 @@ Typed pressure does not own a new coordinator thread. Imagination
 consideration, admitted-model direction consideration, and autonomous proposal
 Modeling requests each carry the implementation thread that owns their causal
 state. Resident preparation reloads that exact request from the runtime store,
-verifies its runtime identity, and binds its thread into the coordinator argv.
+verifies its runtime identity against the immutable identity of that mounted
+runtime store, and binds its thread into the coordinator argv. The release
+publication runtime is a separate authority: it authenticates the packaged
+binary body but does not decide which cognitive runtime owns a typed request.
+This distinction matters in the live Starfire topology, where release runtime
+`epiphany-starfire-linux` mounts the Eyes cognition store whose identity is
+`epiphany-starfire-linux-eyes-tools`. Comparing a request to the release
+runtime falsely rejects valid local cognition; comparing it to its own store
+still refuses a request imported from a foreign runtime.
+
+The live identity matrix is explicit:
+
+- packaged-release witness runtime authenticates the binary publication;
+- mounted runtime-store identity owns coordinator execution, request identity,
+  runtime mutation, and the coordinator's `--runtime-id`;
+- local-Verse brake identity is the namespace read by the process using that
+  Verse store and must contain the canonical brake entry;
+- Persona feedback target identity belongs to the feedback crossing contract
+  and is not silently rewritten when cognition mounts a narrower runtime.
+
+Plain operator objectives also execute against the mounted cognitive runtime
+and derive `resident-self-thread-{cognitive-runtime}`. They do not get a second
+runtime truth merely because no typed domain request supplied one.
 The prepared argv is then the single source for child launch and lease thread
 identity. Only plain operator objectives use the resident runtime thread.
 `epiphany-swarm` no longer reconstructs a fixed thread after preparation.
