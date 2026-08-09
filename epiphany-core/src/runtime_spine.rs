@@ -11717,17 +11717,18 @@ pub(crate) mod tests {
                 &workspace,
                 1_752_796_803_000,
             )?,
-            1
+            0,
+            "an existing Modeling launch owns the selected request and cannot be scheduled twice"
         );
-        let grant = crate::resident_self::heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "autonomous-heartbeat",
-            "autonomous-action",
-            1_752_796_803_001,
-        )?
-        .expect("autonomous Modeling grant");
-        assert_eq!(grant.pressure_kind, "repo-frontier-proposal-modeling");
-        assert!(grant.provenance_ref.ends_with(&selection.request_id));
+        assert!(
+            crate::resident_self::heartbeat_issue_resident_self_grant(
+                &resident_store,
+                "autonomous-heartbeat",
+                "autonomous-action",
+                1_752_796_803_001,
+            )?
+            .is_none()
+        );
         assert_eq!(
             crate::ingest_resident_self_domain_pressure(
                 &resident_store,
@@ -13549,7 +13550,7 @@ pub(crate) mod tests {
 
     #[test]
     fn repo_frontier_route_refuses_unadmitted_and_ineligible_models() -> Result<()> {
-        fn admitted_store_with_items(
+        fn store_with_attempted_items(
             store: &Path,
             suffix: &str,
             items: Vec<crate::RepoFrontierItem>,
@@ -13574,13 +13575,24 @@ pub(crate) mod tests {
                     rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
                 let proposal_id = result.evidence_ids[0].clone();
                 let mut item = item;
+                let routeable = item.status == crate::RepoFrontierStatus::Active;
                 item.evidence_refs.push(proposal_id);
                 patch.operations = vec![crate::RepoModelPatchOperation::UpsertFrontier { item }];
                 let bytes = rmp_serde::to_vec_named(&patch)?;
                 review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
                 result.repo_model_patch_msgpack = Some(bytes);
                 put_runtime_role_worker_result(store, &result)?;
-                commit_repo_model_admission(store, &result.result_id, &review)?;
+                let before_admission = std::fs::read(store)?;
+                let admission = commit_repo_model_admission(store, &result.result_id, &review);
+                if !routeable {
+                    assert!(
+                        admission.is_err(),
+                        "inactive frontier output must stop at Mind admission"
+                    );
+                    assert_eq!(std::fs::read(store)?, before_admission);
+                    return Ok(());
+                }
+                admission?;
                 current = runtime_current_repo_model(store)?.expect("admitted model");
             }
             Ok(())
@@ -13623,7 +13635,7 @@ pub(crate) mod tests {
                     created_at: "2026-07-13T05:00:00Z".to_string(),
                 },
             )?;
-            admitted_store_with_items(
+            store_with_attempted_items(
                 &store,
                 suffix,
                 vec![crate::RepoFrontierItem {
@@ -13652,7 +13664,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T05:00:00Z".to_string(),
             },
         )?;
-        admitted_store_with_items(
+        store_with_attempted_items(
             &active_store,
             "active",
             vec![crate::RepoFrontierItem {
@@ -13683,7 +13695,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T05:00:00Z".to_string(),
             },
         )?;
-        admitted_store_with_items(
+        store_with_attempted_items(
             &store,
             "dependency",
             vec![
