@@ -10,6 +10,7 @@ use cultcache_rs::{
     SingleFileMessagePackBackingStore,
 };
 use serde::Serialize;
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
 #[cfg(windows)]
 use std::ffi::OsStr;
@@ -38,6 +39,15 @@ pub struct ResidentProcessSingletonGuard {
     file: File,
 }
 
+#[cfg(unix)]
+fn resident_process_singleton_lock_path(role: &str, store: &Path) -> Result<PathBuf> {
+    let file_name = store
+        .file_name()
+        .ok_or_else(|| anyhow!("resident singleton store has no file name"))?
+        .to_string_lossy();
+    Ok(store.with_file_name(format!("{file_name}.{role}.process.lock")))
+}
+
 impl Drop for ResidentProcessSingletonGuard {
     fn drop(&mut self) {
         #[cfg(windows)]
@@ -60,12 +70,12 @@ pub fn acquire_resident_process_singleton(
         bail!("unsupported resident singleton role: {role}");
     }
     let store = canonical_or_absolute(store.as_ref());
-    let identity = format!(
-        "{:x}",
-        Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
-    );
     #[cfg(windows)]
     {
+        let identity = format!(
+            "{:x}",
+            Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
+        );
         let name = OsStr::new(&format!("Global\\EpiphanyResident-{role}-{identity}"))
             .encode_wide()
             .chain(std::iter::once(0))
@@ -88,7 +98,7 @@ pub fn acquire_resident_process_singleton(
     }
     #[cfg(unix)]
     {
-        let path = std::env::temp_dir().join(format!("epiphany-resident-{role}-{identity}.lock"));
+        let path = resident_process_singleton_lock_path(role, &store)?;
         let file = File::options()
             .create(true)
             .read(true)
@@ -730,6 +740,21 @@ mod tests {
             acquire_resident_process_singleton("resident-self", temp.path().join("other.cc"))?;
         drop((owner, other_role, other_store));
         assert!(acquire_resident_process_singleton("resident-self", &store).is_ok());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_resident_singleton_lock_is_shared_beside_the_mounted_store() -> Result<()> {
+        let store = Path::new("/state/resident.cc");
+        assert_eq!(
+            resident_process_singleton_lock_path("resident-self", store)?,
+            PathBuf::from("/state/resident.cc.resident-self.process.lock")
+        );
+        assert_eq!(
+            resident_process_singleton_lock_path("heartbeat", store)?,
+            PathBuf::from("/state/resident.cc.heartbeat.process.lock")
+        );
         Ok(())
     }
 

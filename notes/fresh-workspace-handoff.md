@@ -1,5 +1,20 @@
 # Fresh workspace handoff
 
+## Warm package acceptance and resident-owner lock — 2026-08-09
+
+Construction-owned Cargo home is accepted. Exact `9f369528` migration release
+`sha256-154af0ef9a729f7f46876f99add6828d7e5503f3ecc949ac791f00f26017beca`
+with witness `sha256-9b670a4acca14480840da3f09fd83ff5c97829b19f81bd6037c59c9146548cec`
+took 15m04s once. The identical warm replay took 10.17s wall, Cargo 1.38s,
+and passed independent 24-binary inspection without warnings or collisions.
+
+Do not describe the resident store as globally single-writer. Heartbeat and
+authenticated operator admission own separate typed CAS entries. The proven
+fault is that Unix `resident-self` singleton locks use container-private temp
+directories. Current source places role-specific process locks beside the
+mounted store, preserving Heartbeat's distinct role lock. Windows focused
+tests pass; package once and prove two-container exclusion on Linux.
+
 ## Corrected shutdown replay and Cargo-home ownership — 2026-08-09
 
 Exact `b8138a6b` release `sha256-f3e0966333b86181bf13893a45f7636d0c6ff13720fbf535b29cca485c3fd58d`
