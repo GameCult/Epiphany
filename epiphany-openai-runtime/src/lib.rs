@@ -672,6 +672,7 @@ pub fn complete_worker_job_from_assistant_text(
                 let typed_result = role_worker_result_from_ingress(
                     launch_request,
                     &document.role_id,
+                    document.frontier_plan_mind_context.as_ref(),
                     &result_id,
                     parsed,
                     evidence_refs.clone(),
@@ -1451,7 +1452,6 @@ struct RoleWorkerResultIngress {
     claim_repair_request_id: Option<String>,
     frontier_planning_request_id: Option<String>,
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
-    frontier_plan_mind_request_id: Option<String>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
     imagination_consideration_request_id: Option<String>,
     imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
@@ -1464,11 +1464,6 @@ struct RoleWorkerResultIngress {
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct RepoFrontierPlanMindDecisionIngress {
-    mind_request_id: String,
-    planning_request_id: String,
-    imagination_result_id: String,
-    candidate_id: String,
-    candidate_sha256: String,
     decision: Option<epiphany_core::RepoFrontierPlanDecision>,
     rationale: String,
     decided_at: String,
@@ -1618,6 +1613,7 @@ fn parse_worker_result_ingress(
 fn role_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     role_id: &str,
+    frontier_plan_mind_context: Option<&epiphany_core::RepoFrontierPlanMindContextProjection>,
     result_id: &str,
     result: &RoleWorkerResultIngress,
     runtime_evidence_ids: Vec<String>,
@@ -1666,19 +1662,27 @@ fn role_worker_result_from_ingress(
     let (frontier_plan_mind_decision_msgpack, frontier_plan_mind_decision_error) =
         if let Some(ingress) = result.frontier_plan_mind_decision.as_ref() {
             if let Some(decision) = ingress.decision {
-                encode_optional_document(
-                    &Some(epiphany_core::RepoFrontierPlanMindDecision {
-                        mind_request_id: ingress.mind_request_id.trim().into(),
-                        planning_request_id: ingress.planning_request_id.trim().into(),
-                        imagination_result_id: ingress.imagination_result_id.trim().into(),
-                        candidate_id: ingress.candidate_id.trim().into(),
-                        candidate_sha256: ingress.candidate_sha256.trim().into(),
-                        decision,
-                        rationale: ingress.rationale.trim().into(),
-                        decided_at: ingress.decided_at.trim().into(),
-                    }),
-                    "frontierPlanMindDecision",
-                )
+                match frontier_plan_mind_context {
+                    Some(context) => encode_optional_document(
+                        &Some(epiphany_core::RepoFrontierPlanMindDecision {
+                            mind_request_id: context.request.request_id.clone(),
+                            planning_request_id: context.planning_request.request_id.clone(),
+                            imagination_result_id: context.request.imagination_result_id.clone(),
+                            candidate_id: context.candidate.candidate_id.clone(),
+                            candidate_sha256: context.request.candidate_sha256.clone(),
+                            decision,
+                            rationale: ingress.rationale.trim().into(),
+                            decided_at: ingress.decided_at.trim().into(),
+                        }),
+                        "frontierPlanMindDecision",
+                    ),
+                    None => (
+                        None,
+                        Some(
+                            "frontierPlanMindDecision: launch lacks immutable Mind context".into(),
+                        ),
+                    ),
+                }
             } else {
                 (
                     None,
@@ -1836,9 +1840,8 @@ fn role_worker_result_from_ingress(
             result.frontier_planning_request_id.as_deref(),
         ),
         frontier_plan_candidate_msgpack,
-        frontier_plan_mind_request_id: clean_optional_string(
-            result.frontier_plan_mind_request_id.as_deref(),
-        ),
+        frontier_plan_mind_request_id: frontier_plan_mind_context
+            .map(|context| context.request.request_id.clone()),
         frontier_plan_mind_decision_msgpack,
         imagination_consideration_request_id: clean_optional_string(
             result.imagination_consideration_request_id.as_deref(),
@@ -2083,6 +2086,7 @@ mod tests {
         let result = role_worker_result_from_ingress(
             &launch,
             "verification",
+            None,
             "verification-result-1",
             &parsed,
             vec!["openai-request:verification-request-1".to_string()],
@@ -2157,6 +2161,7 @@ mod tests {
         let result = role_worker_result_from_ingress(
             &launch,
             "imagination",
+            None,
             "planning-result-1",
             &parsed,
             Vec::new(),
@@ -2252,9 +2257,9 @@ mod tests {
     }
 
     #[test]
-    fn mind_ingress_preserves_exact_typed_judgment() -> Result<()> {
+    fn mind_ingress_derives_immutable_identity_from_launch_context() -> Result<()> {
         let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
-            r#"{"roleId":"mindAdmissionReview","verdict":"adopt","summary":"bounded","nextSafeMove":"admit","filesInspected":[],"frontierPlanMindRequestId":"mind-request-1","frontierPlanMindDecision":{"mindRequestId":"mind-request-1","planningRequestId":"planning-request-1","imaginationResultId":"imagination-result-1","candidateId":"candidate-1","candidateSha256":"candidate-hash-1","decision":"adopt","rationale":"Exact candidate is bounded and falsifiable.","decidedAt":"2026-07-15T10:00:00Z"}}"#,
+            r#"{"roleId":"mindAdmissionReview","verdict":"adopt","summary":"bounded","nextSafeMove":"admit","filesInspected":[],"frontierPlanMindRequestId":"model-substituted-request","frontierPlanMindDecision":{"mindRequestId":"model-substituted-request","planningRequestId":"model-substituted-planning","imaginationResultId":"model-substituted-result","candidateId":"model-substituted-candidate","candidateSha256":"model-substituted-hash","decision":"adopt","rationale":"Exact candidate is bounded and falsifiable.","decidedAt":"2026-07-15T10:00:00Z"}}"#,
         )?;
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
             schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
@@ -2281,9 +2286,61 @@ mod tests {
             repo_frontier_modeling_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
+        let context = epiphany_core::RepoFrontierPlanMindContextProjection {
+            schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION.into(),
+            contract: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT.into(),
+            request: epiphany_core::RepoFrontierPlanMindRequest {
+                schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION
+                    .into(),
+                request_id: "mind-request-1".into(),
+                planning_request_id: "planning-request-1".into(),
+                imagination_result_id: "imagination-result-1".into(),
+                imagination_job_id: "imagination-job-1".into(),
+                candidate_id: "candidate-1".into(),
+                candidate_sha256: "candidate-hash-1".into(),
+                runtime_id: "runtime-1".into(),
+                thread_id: "thread-1".into(),
+                requested_at: "2026-07-15T09:59:00Z".into(),
+                contract: epiphany_core::REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT.into(),
+            },
+            planning_request: epiphany_core::RepoFrontierPlanningRequest {
+                schema_version: epiphany_core::REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
+                request_id: "planning-request-1".into(),
+                model_revision: 1,
+                model_hash: "model-hash-1".into(),
+                admission_receipt_id: "admission-1".into(),
+                frontier_item_id: "frontier-1".into(),
+                frontier_item_hash: "frontier-hash-1".into(),
+                selected_organ: "Imagination".into(),
+                source_scope: vec!["epiphany-openai-runtime".into()],
+                requested_at: "2026-07-15T09:58:00Z".into(),
+                contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.into(),
+                runtime_id: "runtime-1".into(),
+                thread_id: "thread-1".into(),
+            },
+            candidate: epiphany_core::RepoFrontierPlanCandidate {
+                schema_version: epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
+                candidate_id: "candidate-1".into(),
+                planning_request_id: "planning-request-1".into(),
+                model_revision: 1,
+                model_hash: "model-hash-1".into(),
+                frontier_item_id: "frontier-1".into(),
+                frontier_item_hash: "frontier-hash-1".into(),
+                safe_paths: vec!["epiphany-openai-runtime".into()],
+                action: "repair".into(),
+                command: "cargo test".into(),
+                checks: vec!["focused test".into()],
+                stop_conditions: vec!["identity mismatch".into()],
+                rollback_steps: vec!["revert".into()],
+                commit_message: "Derive Mind identity".into(),
+                proposed_at: "2026-07-15T09:59:00Z".into(),
+                contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.into(),
+            },
+        };
         let result = role_worker_result_from_ingress(
             &launch,
             "mindAdmissionReview",
+            Some(&context),
             "mind-result-1",
             &parsed,
             Vec::new(),
@@ -2301,6 +2358,10 @@ mod tests {
             epiphany_core::RepoFrontierPlanDecision::Adopt
         );
         assert_eq!(decision.candidate_sha256, "candidate-hash-1");
+        assert_eq!(decision.mind_request_id, "mind-request-1");
+        assert_eq!(decision.planning_request_id, "planning-request-1");
+        assert_eq!(decision.imagination_result_id, "imagination-result-1");
+        assert_eq!(decision.candidate_id, "candidate-1");
         assert!(result.state_patch_msgpack.is_none());
         assert!(result.repo_model_patch_msgpack.is_none());
         Ok(())

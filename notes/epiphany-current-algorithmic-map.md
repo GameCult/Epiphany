@@ -1797,3 +1797,30 @@ leaving only status, evidence references, gap, and update timestamp writable.
 The completed worker result is immutable invalid evidence and cannot be made
 valid by changing admission after the fact. Supersede it only when the corrected
 launch/schema boundary is ready, then run one new inference.
+
+## Launch-owned Mind decision identity (2026-08-09)
+
+Owner: the authenticated `RepoFrontierPlanMindContextProjection` in the worker
+launch owns Mind request, planning request, Imagination result, candidate, and
+candidate-digest identity. The Mind model owns only the judgment and rationale;
+its JSON echoes are formatting cargo and cannot select executable identity.
+
+Current mechanism: `complete_worker_job_from_assistant_text` passes the exact
+launch projection to `role_worker_result_from_ingress`. The adapter constructs
+`RepoFrontierPlanMindDecision` identity fields and the outer request echo from
+that projection. A decision without Mind launch context becomes a typed item
+error. `put_runtime_role_worker_result` retains its exact persisted-request,
+launch-binding, launch-document hash, role, runtime, thread, and candidate
+validation; no admission check was weakened.
+
+Forbidden writer: `RoleWorkerResultIngress` no longer deserializes Mind identity
+fields into authority. A model may print counterfeit IDs, but they are ignored.
+This replaces the live failure mode where two validly launched resident Mind
+attempts failed closed because the model imperfectly recopied long immutable
+identities. The failed results remain sealed evidence and cannot be rewritten.
+
+Verification layer: `mind_ingress_derives_immutable_identity_from_launch_context`
+feeds five substituted identities and proves the emitted typed decision carries
+only the canonical launch identities. All 15 `epiphany-openai-runtime` library
+tests pass. Exact Linux package and one explicitly authorized resident retry are
+still required before this boundary is live-proven.

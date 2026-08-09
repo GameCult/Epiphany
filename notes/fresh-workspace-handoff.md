@@ -1,5 +1,41 @@
 # Fresh workspace handoff
 
+## Packaged Body speed proof and resident Mind identity correction — 2026-08-09
+
+Exact pushed source `217dd4b96746536e01dc8991b5e6f31c2c588af0` is packaged as
+`sha256-3dab68c572519501c3401a8b737603e312349a4052f69f7f751478fa2631aaf3`
+with witness
+`sha256-2278ec15ed44a21e4bc4d20b4f64d67fb530c4bc2bc44cd1cd9d775b16838f74`.
+The exact packaged observer reread the unchanged resident c005 Body as
+generation 1/tree `4d1f8a23558d53622ed21be0bb51db456b532f48` in 94,521ms. This is
+strong observer-boundary evidence against the old 160,183ms Modeling
+`jobCommit`, but not a coordinator-to-coordinator replay because Self's typed
+route had already advanced. Receipts are under
+`.epiphany-run/linux-package-217dd/`; do not rebuild this release.
+
+The resident chain completed `startFrontierPlanning`, then native Imagination
+job `f62738f1-a819-431a-a454-c0b2cff5a4d8` produced candidate
+`repo-frontier-plan-candidate-28f597414331a67b71449bcf28317c42ddbd78566dbe92aa41b9f54302762be8`.
+Self committed Mind request
+`repo-frontier-plan-mind-90e8c1995805d94d05c9e065a117c54eb8993cd93c985b9daa2915746c32977f`.
+Mind attempt `411e73bb-4906-4785-be92-2a72a9290691` failed identity validation,
+was explicitly superseded, and authorized one retry. Retry
+`8e5952fb-0db6-460c-b061-c75d32410cc2` failed with `Mind result request
+disappeared`. Direct read-only binary inspection proved the exact canonical
+request, planning request, and candidate keys remain in `runtime.cc`; the model
+had substituted an unknown echo. Both failures are immutable evidence.
+
+The authority fault was in source: `RoleWorkerResultIngress` allowed model JSON
+to author the outer Mind request echo plus five identities inside the typed
+decision. `epiphany-openai-runtime/src/lib.rs` now derives request, planning,
+Imagination-result, candidate, and candidate-digest identities exclusively from
+the authenticated `RepoFrontierPlanMindContextProjection`. The model owns only
+decision, rationale, and its proposed timestamp. A regression supplies five
+counterfeit model identities and proves the runtime emits the canonical launch
+identities; all 15 runtime library tests pass. Package once, explicitly review
+and supersede failed retry `8e5952fb`, and launch only the newly authorized
+attempt. Do not recreate Imagination or either failed Mind attempt.
+
 ## Linux Eyes-to-Modeling acceptance and Body observation speed cut — 2026-08-09
 
 The fresh tool-enabled resident circuit under `/state/eyes-tools` completed its

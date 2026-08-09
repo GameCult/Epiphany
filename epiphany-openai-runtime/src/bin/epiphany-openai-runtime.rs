@@ -1029,6 +1029,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;
@@ -1123,6 +1124,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;
@@ -1205,6 +1207,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;
