@@ -1360,6 +1360,20 @@ the lease once and return its exact pressure to Heartbeat; invalid or
 substituted evidence closes as `unfulfilled`. Coordinator process closure is
 therefore evidence, never cognitive completion authority.
 
+Terminal completion owns its cooldown in that same resident-state and
+acknowledgement CAS. `next_eligible_at_millis` is persisted from the configured
+cooldown before the active lease disappears. The serve loop's sleep is only a
+process-efficiency detail; restart cannot become a second eligibility owner.
+
+One Heartbeat coordinator turn owns at most one resident grant. Grant issuance
+first refuses any prepared or active Self authority, then atomically advances
+the singleton `ResidentSelfState` revision with the exact pressure-to-grant
+transition. That state envelope is the cardinality fence: two pressures cannot
+be issued under one schedule/action after the first grant has been consumed by
+preparation, and concurrent issuers cannot win disjoint pressure CASes. Pressure
+arriving during a prepared or active turn stays pending until Heartbeat closes
+the exact acknowledgement and schedules a later coordinator turn.
+
 Imagination candidate time is part of that causal contract. A candidate must
 have a valid RFC3339 timestamp at or after its request timestamp. A
 well-shaped candidate from before the request cannot close resident authority.

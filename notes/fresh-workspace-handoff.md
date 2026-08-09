@@ -1244,3 +1244,37 @@ absent, and exact replay did not advance the head or create work. Active c005
 remained running and untouched. Coordinator receipt retention is accepted.
 Next settle supervisor log ownership and packaged Heartbeat retention, then run
 the measured idle/active endurance plateau.
+
+## Active cognition continuity fault and repaired ownership (2026-08-09)
+
+Exact `e09104a7` produced warning-free 24-binary release
+`sha256-40d4971a3b7ecf4debf558621b80c6384c6c1a155971e42aecf44bf05d13e418`
+with witness
+`sha256-5f68e73e0b9ad2dff7e7cfa912455bd7e27f1a653c2a2eecd8bf5a012f146c68`.
+Receipts are under `.epiphany-run/active-cognition2-e09104a7`. On a fresh copy
+of the accepted idle body, exact Heartbeat launched the valid Eyes cognitive
+runtime/thread. Self remained `awaiting-fulfillment` after coordinator exit,
+accepted the exact typed Imagination result, wrote one terminal acknowledgement,
+and Heartbeat consumed it. This live causal fulfillment seam is accepted.
+
+The 900-pulse run then exposed two coupled continuity faults. Completion cleared
+the active lease without persisting the configured 180-second cooldown, leaving
+`nextEligibleAtMillis=0`. Separately, grant issuance checked only unconsumed
+grants. Once preparation marked the first grant consumed, later pressure could
+receive another grant under the same still-running Heartbeat schedule/action.
+The first acknowledgement then closed that Heartbeat turn while Self retained
+the companion grant. Three cognitive turns ran instead of the intended single
+turn plus cooldown. Final Heartbeat and Self exits were both zero, but this body
+is rejected as bounded-turn/endurance proof. The detached sampler also died
+mid-run and was restarted append-only; the visible sampling gap is preserved.
+
+Pushed commit `90648073` moves both decisions to their proper owners. Terminal
+completion persists `next_eligible_at_millis` in the same CAS as lease closure
+and acknowledgement publication. Heartbeat grant issuance refuses prepared or
+active Self authority and advances the singleton resident-state revision in the
+same pressure-to-grant CAS, so disjoint pressures cannot share a Heartbeat turn.
+Twenty-four resident tests and eight swarm binary tests pass. Package exact
+`90648073`, authenticate it, then replay from another fresh accepted-idle copy.
+Require exactly one grant per Heartbeat turn, later pressure pending through the
+persisted cooldown (including restart), typed fulfillment once, bounded return
+to plateau, and clean zero exits. Active c005 remains untouched.
