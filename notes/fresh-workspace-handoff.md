@@ -1360,3 +1360,42 @@ later pressure may receive a new grant from a different Heartbeat turn.
 Twenty-four resident, eight swarm, and eleven heartbeat-state tests pass.
 Package and replay the exact committed source from a fresh accepted-idle copy;
 do not accept c778 or 61d as bounded endurance evidence.
+
+Exact `a987d2f7` packaged as warning-free 24-binary release
+`sha256-fa7476e703c807c1ec7fdf5a099e0ac36a34ff8c01e2b404a4aade1a2cf3b6d0`
+with witness
+`sha256-515c9caa49fb90585834520f4e8f6fdc1704145e1a0cd7b695be09ad93d14e14`.
+The active6 body under `.epiphany-run/active-cognition6-a987d2f7` copied 7,667
+state/workspace/crossing/artifact files plus the machine identity from the
+accepted idle control with zero hash differences, then published only that
+exact release.
+
+The first typed turn completed at resident revision 9. Self stopped exit zero
+and restarted before `nextEligibleAtMillis=1786311170229`, then slept through
+the deadline. At `1786311162775` an isolated snapshot-fenced diagnostic deleted
+the exact terminal acknowledgement and cleared only `consumed_at_millis`; the
+v1 grant retained terminal `planned` at `1786310990229`. After expiry that grant
+remained dead. A later proposal used a distinct grant from active6 pulse 77.
+That grant terminalized independently, and completion of another later grant
+still did not change or resurrect the corrupted original. Receipts
+`corruption-receipt.txt`, `post-expiry-inspection.txt`,
+`post-second-completion-inspection.txt`, and `final-inspection.txt` bind the
+exact identities.
+
+Heartbeat completed 900 pulses and exited zero; the detached monitor stopped
+Self with exit zero. Heartbeat, Self, and monitor stderr are empty. No tracked
+workspace path changed. Pulse artifacts ended at three retained directories.
+The final 40 samples are byte-flat: total state 13,012,660; runtime 9,225,193;
+resident 22,984; Heartbeat 13,200; artifacts 298,663. Self rested at 31.92 MiB
+and Heartbeat at 27.81 MiB before stop. Exact-grant terminality and bounded
+active endurance are accepted. Active c005 was untouched.
+
+The next semantic seam is not another lifecycle patch. Resident proposal
+Modeling fulfillment currently accepts any role-worker result naming the exact
+request ID; it does not reuse runtime-spine authentication of the one launch
+binding, runtime/thread/job identity, worker launch context, and admitted typed
+result. Imagination fulfillment has the parallel binding-provenance weakness.
+Map one runtime-owned verifier, demote resident Self to verdict consumer, add
+hostile substitution tests plus a cycle-level pending-to-fulfilled exactly-once
+proof, then package. Do not let the successful process/endurance proof overclaim
+semantic authentication.

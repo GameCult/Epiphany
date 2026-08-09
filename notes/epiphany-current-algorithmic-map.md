@@ -1360,6 +1360,14 @@ the lease once and return its exact pressure to Heartbeat; invalid or
 substituted evidence closes as `unfulfilled`. Coordinator process closure is
 therefore evidence, never cognitive completion authority.
 
+The remaining cut is authentication ownership inside that fulfillment verdict.
+Runtime spine already owns admission of launch bindings, worker launch context,
+request/runtime/thread/job identity, and exact typed results. Resident Self must
+consume one shared runtime-owned verdict. Merely finding a role-worker result
+that echoes a proposal request ID, or deriving an Imagination candidate from an
+otherwise unauthenticated binding, is not fulfillment. Self may retain or close
+its lease from the verdict; it may not recreate a weaker admission policy.
+
 Terminal completion owns its cooldown in that same resident-state and
 acknowledgement CAS. `next_eligible_at_millis` is persisted from the configured
 cooldown before the active lease disappears. The serve loop's sleep is only a
