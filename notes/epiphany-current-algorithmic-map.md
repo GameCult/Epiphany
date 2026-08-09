@@ -1868,9 +1868,36 @@ artifact scope. Mind-owned relinquishment `7b846272...` atomically retired route
 `817bf422...`, advanced RepoModel from revision 2 to 3, and preserved the adopted
 route as immutable history.
 
-The next Self projection returns `regatherManually` solely because the legacy
-CRRC still carries an old failed reorientation result. That failure predates the
-now-terminal Eyes-to-Mind circuit and the relinquishment. A historical CRRC
-failure is not fresh Eyes pressure. Routing precedence must compare causal
-freshness or terminal consumption before allowing that projection to select the
-next organ; prompt language must not compensate for the missing ownership cut.
+The status owner now compares the latest bound reorientation job `updated_at`
+with the latest typed relinquishment `relinquished_at`. No relinquishment keeps
+the ordinary CRRC path. After relinquishment, a missing or older reorientation
+job makes manual-regather pressure stale. Coordinator status preserves the raw
+CRRC source projection but feeds routing `Continue` with no scene action to
+Self. A newer reorientation result retains ordinary manual-regather authority.
+
+The focused policy regression passed 1/1. A collision-safe copy of the c005
+`eyes-tools` store derived `awaitFrontierProposal`, `canAutoRun=false`, and
+target Imagination while source signals still published raw CRRC
+`regatherManually`. The live c005 store was never mounted. CRRC therefore owns
+continuity observation, Self owns routing, and relinquishment is the causal
+boundary preventing dead continuity history from impersonating current Eyes
+pressure.
+
+## Build runner and dependency-graph authority receipt (2026-08-09)
+
+The persistent target is useful only when the build process names it as
+`CARGO_TARGET_DIR`; mounting a volume at `/target` alone carries no authority.
+One rejected invocation silently compiled into `/workspace/target` for 17m48s
+before operator intervention stopped it. A cached `CARGO_HOME` must also not
+cover `/usr/local/cargo`, where the image keeps its Rust proxies. The working
+contract uses a separate cache mount, explicit target directory, and explicit
+Rust proxy path. It rebuilt the current coordinator in 37.55s with dependencies
+warm.
+
+The remaining structural defect is independent dependency resolution:
+`epiphany-self-policy/Cargo.lock` forced a 6m34s cold graph for one focused test,
+while the state steward previously forced a 7m11s graph. One root Cargo
+workspace/lock graph should own release binaries, policy tests, and typed state
+stewardship. The exact release witness remains package identity authority; the
+workspace and native runner own iteration reuse. Additional caches are
+forbidden compensators.

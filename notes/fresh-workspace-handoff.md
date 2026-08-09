@@ -1,5 +1,31 @@
 # Fresh workspace handoff
 
+## Stale CRRC authority cut and copied c005 replay — 2026-08-09
+
+Self no longer lets a failed reorientation result older than typed frontier
+relinquishment `repo-frontier-relinquishment-7b846272...` route the next organ.
+The status owner compares the latest bound reorientation job update with the
+relinquishment timestamp. Coordinator status demotes only stale manual-regather
+pressure to routing Continue; raw CRRC remains published as
+`regatherManually`. The focused causal regression passed 1/1.
+
+A collision-safe copy of c005 `state/eyes-tools` was replayed for thread
+`linux-eyes-tools-c005`. It derived `awaitFrontierProposal`,
+`canAutoRun=false`, and target Imagination while source signals still reported
+raw CRRC `regatherManually`. The live c005 store was not mounted. Receipts are
+under the directory named by `.epiphany-run/stale-crrc-replay-current.txt`; the
+valid proof is `replay-c005-eyes-output.log`. Earlier root-store/fresh-thread
+replays are rejected-path receipts, not c005 evidence.
+
+The independent `epiphany-self-policy` lock graph paid 6m34s for this one cold
+test. A misconfigured Docker invocation then omitted `CARGO_TARGET_DIR`,
+compiled into `/workspace/target` for 17m48s, and was proactively stopped with
+logs preserved under `.epiphany-run/stale-crrc-build/`. With the target, Cargo
+home, and Rust proxy path explicitly separated, the coordinator rebuilt in
+37.55s. Encode that contract in one native launcher and collapse the policy
+test plus state steward into the root dependency authority. Do not add another
+cache.
+
 ## Resident Mind terminal adoption and warm package proof — 2026-08-09
 
 Exact pushed source `bd96305e60428b8ea2af822f1e1a233405c09c43` is packaged and

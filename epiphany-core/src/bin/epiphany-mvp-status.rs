@@ -491,6 +491,11 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let frontier_relinquishment =
         epiphany_core::runtime_latest_repo_frontier_relinquishment(&runtime_store_path)
             .context("failed to derive latest frontier relinquishment from runtime-spine state")?;
+    let crrc_regather_current = crrc_regather_current_after_relinquishment(
+        state_ref,
+        &runtime_store_path,
+        frontier_relinquishment.as_ref(),
+    )?;
     let pending_proposal =
         epiphany_core::runtime_pending_repo_frontier_proposal_modeling_request(&runtime_store_path)
             .context("failed to derive pending proposal Modeling authority")?;
@@ -499,6 +504,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         checkpoint_present: durable_checkpoint_present,
         pressure: pressure.clone(),
         recommendation: recommendation.clone(),
+        crrc_regather_current,
         roles: roles.clone(),
         reorient_action: reorient_decision.action,
         research_result_status,
@@ -958,6 +964,27 @@ fn native_reorient_result_status(
         Ok(None) => EpiphanyCrrcResultStatus::BackendMissing,
         Err(_) => EpiphanyCrrcResultStatus::BackendUnavailable,
     }
+}
+
+fn crrc_regather_current_after_relinquishment(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    relinquishment: Option<&epiphany_core::RepoFrontierRelinquishmentReceipt>,
+) -> Result<bool> {
+    let Some(relinquishment) = relinquishment else {
+        return Ok(true);
+    };
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, REORIENT_BINDING_ID) else {
+        return Ok(false);
+    };
+    let Some(snapshot) = runtime_job_snapshot(runtime_store, job_id)? else {
+        return Ok(false);
+    };
+    let reorient_updated_at = chrono::DateTime::parse_from_rfc3339(&snapshot.job.updated_at)
+        .context("reorientation job updated_at is not RFC3339")?;
+    let relinquished_at = chrono::DateTime::parse_from_rfc3339(&relinquishment.relinquished_at)
+        .context("frontier relinquishment timestamp is not RFC3339")?;
+    Ok(reorient_updated_at > relinquished_at)
 }
 
 fn reconcile_native_runtime_jobs(
