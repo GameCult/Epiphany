@@ -1315,3 +1315,25 @@ test that explicitly blessed same-turn retry was corrected. Twenty-four resident
 eight swarm, and eleven heartbeat-state tests pass. Commit and push this cut,
 package the exact commit, and replay from a fresh idle copy. Do not reuse the
 invalid d303 body as bounded-turn evidence.
+
+Exact `c77824ef` packaged as warning-free 24-binary release
+`sha256-e0b7c5cf54c4fb62929d91326c4604e8ad486c59411d6b2509de9182e7a83482`
+with witness
+`sha256-f923a10c4a96b4301a952c3f874a913535f3165fee531034bbce077811a5629b`.
+The fresh copied body under `.epiphany-run/active-cognition4-c77824ef`
+matched all 7,668 accepted-idle files. One exact grant completed and persisted
+`nextEligibleAtMillis=1786307607233`; Self restarted zero and slept through the
+deadline. Heartbeat never issued another grant after the original pulse-48
+grant, so schedule/action issuance cardinality is accepted.
+
+After expiry, Self nevertheless launched again. The typed diagnostic proved the
+active lease named the exact already-completed pulse-48 grant, not another
+Heartbeat grant. This run is rejected and was stopped with receipts. The deeper
+ownership rule is that `ResidentSelfTerminalAck`, not the mutable
+`consumed_at_millis` marker, permanently kills its exact grant. Pending selection
+and Heartbeat's unconsumed-grant fence now exclude every terminally acknowledged
+grant. A focused test deliberately regresses a completed grant's consumed marker
+to absent and proves it remains unselectable while a different Heartbeat turn may
+still grant later pending pressure. Twenty-four resident, eight swarm, and eleven
+heartbeat-state tests pass. Commit, push, package, and replay this terminal fence;
+do not treat c778 as bounded endurance evidence.

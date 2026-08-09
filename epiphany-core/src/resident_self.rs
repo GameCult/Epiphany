@@ -1096,11 +1096,15 @@ pub fn heartbeat_issue_resident_self_grant(
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(None);
     }
+    let terminal_grant_ids = cache
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .map(|ack| ack.grant_id)
+        .collect::<std::collections::BTreeSet<_>>();
     let grants = cache.get_all::<ResidentSelfHeartbeatGrant>()?;
     if grants.iter().any(|grant| {
-        grant.consumed_at_millis.is_none()
-            || (grant.heartbeat_schedule_id == schedule_id
-                && grant.heartbeat_action_id == action_id)
+        (grant.heartbeat_schedule_id == schedule_id && grant.heartbeat_action_id == action_id)
+            || (grant.consumed_at_millis.is_none() && !terminal_grant_ids.contains(&grant.grant_id))
     }) {
         return Ok(None);
     }
@@ -1352,10 +1356,18 @@ pub fn settle_resident_self_exited_coordinator(
 }
 
 pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
-    let mut grants = state_cache(path)?
+    let cache = state_cache(path)?;
+    let terminal_grant_ids = cache
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .map(|ack| ack.grant_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut grants = cache
         .get_all::<ResidentSelfHeartbeatGrant>()?
         .into_iter()
-        .filter(|grant| grant.consumed_at_millis.is_none())
+        .filter(|grant| {
+            grant.consumed_at_millis.is_none() && !terminal_grant_ids.contains(&grant.grant_id)
+        })
         .collect::<Vec<_>>();
     grants.sort_by(|a, b| {
         a.issued_at_millis
@@ -2761,6 +2773,30 @@ mod tests {
         let acks = pending_resident_self_acks(&store)?;
         assert_eq!(acks.len(), 1);
         assert_eq!(acks[0].coordinator_receipt_id, receipt.receipt_id);
+        let cache = state_cache(&store)?;
+        let mut stale_grant = cache
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("completed grant");
+        let expected_grant = cache
+            .snapshot_envelopes()
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == ResidentSelfHeartbeatGrant::TYPE
+                    && entry.key == stale_grant.grant_id
+            })
+            .expect("completed grant envelope");
+        stale_grant.consumed_at_millis = None;
+        let (stale_entry, _) = cache.prepare_entry(&stale_grant.grant_id, &stale_grant)?;
+        assert!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .compare_and_swap_entry(&expected_grant, stale_entry)?,
+            "test must install the observed restart-corruption shape"
+        );
+        assert!(
+            pending_resident_self_grant(&store)?.is_none(),
+            "terminal acknowledgement permanently kills its exact grant"
+        );
+        assert!(prepare_resident_self_launch(&store, &policy, 10_010)?.is_none());
         let later_pressure = ResidentSelfPressure {
             schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
             pressure_id: "pressure-after-completion".into(),
