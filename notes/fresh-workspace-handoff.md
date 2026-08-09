@@ -1,5 +1,33 @@
 # Fresh workspace handoff
 
+## Exact 24-binary release published — 2026-08-09
+
+Exact pushed source `f00c8279c966c43c6ac899d9b16280f373b45941`
+completed a warning-free 24-binary Linux package in 18m44s of Cargo work. The
+authenticated release is
+`sha256-a7c4c2e305257664e9fe2eb64fdd5ba9e7bcb3491c5697e95082c4a3713b579e`;
+its witness is
+`sha256-e9984086452ae0d4887f7ab63d111469d1f801fd7712c2441611bf5793b889b8`.
+Independent native inspection accepted source, inventory, hashes, and private
+state exclusion. The identical warm replay completed in 10.64s total with
+Cargo at 0.92s, reproduced both identifiers exactly, and passed a second
+independent native inspection. Receipts live under
+`.epiphany-run/linux-package-f00c8279-{3,warm}/`.
+
+Native publication inserted the release and head into c005's main local Verse
+without replacing the running 9b8df0b4 body. `local-verse.cc` changed from
+SHA-256 `d88bb300f8db589f3f82fcba6781b9eb1e9828f22a55684fdaaba0e8a68dcf0d`
+to `b160c610988753278afbad7f5bad436193144a92e9fd506982099ad58d213909`.
+Availability does not own activation.
+
+The remaining iteration tax is now precise. Rebuilding the exact release
+publisher first took 7m57s because `epiphany-release` imports packaged-release
+construction from monolithic `epiphany-core`; the package command then builds
+that core again inside the 24-binary graph. Extract construction and witness
+inspection into a narrow crate/tool, leaving live Verse publication as its own
+authority. Prove the cold bootstrap reduction without changing release or
+witness authority, then resume graceful SIGTERM ownership.
+
 ## Resident continuity, topology repair, and build-free status — 2026-08-09
 
 Authenticated release `sha256-d1392730...` is now the running c005 body. The

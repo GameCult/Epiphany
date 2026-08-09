@@ -2010,3 +2010,23 @@ unconditional loop followed by blocking `thread::sleep` and installs no signal
 observer. Docker therefore escalates to SIGKILL and records exit 137. Graceful
 shutdown work must assign one signal owner, make sleep interruptible, and define
 how an active exact child is drained or terminalized before claiming closure.
+
+### Release-construction bootstrap authority
+
+Exact `f00c8279` packages the build-free status projector as the 24th binary.
+The cold package compiled its one deterministic release graph in 18m44s and
+produced release `sha256-a7c4c2e3...` with witness `sha256-e9984086...` without
+warnings. The identical warm replay took 10.64s total, Cargo 0.92s, and
+reproduced both identifiers exactly. Independent native inspection accepted
+both copies. Publication changed c005's main local Verse hash from
+`d88bb300...dcf0d` to `b160c610...3909` without activating the new body.
+
+The remaining cold iteration tax precedes that graph. `epiphany-release` owns
+package, inspect, and publish commands but imports all implementation through
+`epiphany-core::packaged_release`; obtaining the publisher therefore compiled
+the monolithic core for 7m57s before the package command compiled core again.
+Release construction and filesystem witness inspection need a narrow owner.
+Live CultMesh publication is a distinct authority and may continue through the
+core document catalog. The deletion line is the core-owned construction module:
+construction logic must not remain duplicated behind a new wrapper, and a
+bootstrap packaging tool must not depend on monolithic `epiphany-core`.
