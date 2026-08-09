@@ -1404,7 +1404,10 @@ pub fn prepare_resident_self_launch(
     let mut state = cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
         .unwrap_or_default();
-    if state.active_turn.is_some() || state.prepared_launch.is_some() {
+    if now_millis < state.next_eligible_at_millis
+        || state.active_turn.is_some()
+        || state.prepared_launch.is_some()
+    {
         return Ok(None);
     }
     let Some(mut grant) = pending_resident_self_grant(path)? else {
@@ -2762,6 +2765,22 @@ mod tests {
         let acks = pending_resident_self_acks(&store)?;
         assert_eq!(acks.len(), 1);
         assert_eq!(acks[0].coordinator_receipt_id, receipt.receipt_id);
+        let later_pressure = ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "pressure-after-completion".into(),
+            kind: "operator-objective".into(),
+            provenance_ref: "operator://after-completion".into(),
+            objective: "Prove persisted cooldown survives a fresh preparation read.".into(),
+            created_at_millis: 11,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        };
+        enqueue_resident_self_pressure(&store, &later_pressure)?;
+        heartbeat_issue_resident_self_grant(&store, "heartbeat-later", "action-later", 12)?
+            .expect("later Heartbeat grant");
+        assert!(prepare_resident_self_launch(&store, &policy, 10_009)?.is_none());
+        assert!(prepare_resident_self_launch(&store, &policy, 10_010)?.is_some());
         Ok(())
     }
 
