@@ -1914,3 +1914,12 @@ including container startup. Eighteen release-contract tests pass. Their
 one-time dev harness cost 5m33s, identical warm execution cost 4.43s, and a
 subsequent packager source edit rebuilt/tested in 20.10s. Exact release witness
 authority remains unchanged; a clean 23-binary package is the next boundary.
+
+The first clean-package attempt exposed a lock migration incompatibility before
+release construction. Fresh resolution selected `allocative 0.3.6` beside
+vendored Starlark's older `hashbrown` integration; Rust rejected the missing
+`Allocative` implementation. The lock owner now retains the previously proven
+`allocative 0.3.4`, `allocative_derive 0.3.3`, and `ctor 0.1.26`. A locked
+release-target check traversing Starlark through Codex login and
+`epiphany-openai-auth-spine` completed successfully in 3m16s. This is lockfile
+compatibility authority, not a source patch or relaxed gate.

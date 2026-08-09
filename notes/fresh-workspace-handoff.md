@@ -2,6 +2,18 @@
 
 ## Unified Cargo authority and shipped state steward — 2026-08-09
 
+The first exact `6808f3f5` package attempt failed before release construction:
+the one-time `cargo generate-lockfile` had advanced `allocative` from 0.3.4 to
+0.3.6 (and its derive/ctor companions), which is semver-accepted but
+incompatible with vendored Starlark's `hashbrown` Allocative implementation.
+No release or witness was emitted. The root lock is corrected to the previously
+proven trio `allocative 0.3.4`, `allocative_derive 0.3.3`, and `ctor 0.1.26`.
+A release-target `cargo check --release --locked -p
+epiphany-openai-auth-spine` traversed Starlark, Codex protocol/login, and the
+auth spine successfully in 3m16s. Commit and push this lock repair, then advance
+the clean Linux package source and retry once; do not reuse the failed package
+as evidence.
+
 The root manifest is now the single first-party Cargo workspace and root
 `Cargo.lock` is the sole dependency-resolution authority. Seven child lockfiles
 and three now-ignored child patch declarations were deleted. Vendored Codex and
