@@ -2601,7 +2601,7 @@ fn validate_proposal_modeling_worker_fulfillment(
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment proposal is missing"))?;
     validate_repo_frontier_work_proposal(&proposal)?;
     if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        validate_autonomous_proposal_binding(cache, &proposal)?;
+        validate_autonomous_proposal_origin_binding(cache, &proposal)?;
     }
     let bindings = cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
@@ -2779,7 +2779,7 @@ fn validate_proposal_modeling_worker_fulfillment(
             "Hands" | "Eyes" | "Imagination"
         )
         || (proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
-            && (upserts[0].recommended_next_organ != "Imagination"
+            && (upserts[0].recommended_next_organ == "Hands"
                 || upserts[0].adopted_plan.is_some()))
     {
         return Err(anyhow!(
@@ -3485,6 +3485,15 @@ pub fn commit_repo_model_admission(
                 .count();
             let request_id = if let Some(request_id) = echoed {
                 validate_proposal_modeling_worker_fulfillment(&cache, &result)?;
+                let request = cache
+                    .get::<RepoFrontierProposalModelingRequest>(request_id)?
+                    .ok_or_else(|| anyhow!("proposal Modeling admission request is missing"))?;
+                let proposal = cache
+                    .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
+                    .ok_or_else(|| anyhow!("proposal Modeling admission proposal is missing"))?;
+                if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
+                    validate_autonomous_proposal_binding(&cache, &proposal)?;
+                }
                 if cache
                     .get_all::<RepoModelAdmissionReceipt>()?
                     .iter()
@@ -3947,7 +3956,7 @@ pub(crate) fn validate_repo_frontier_work_proposal(
     Ok(())
 }
 
-pub(crate) fn validate_autonomous_proposal_binding(
+fn validate_autonomous_proposal_origin_binding(
     cache: &CultCache,
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<RepoFrontierAutonomousProposalBinding> {
@@ -4003,8 +4012,6 @@ pub(crate) fn validate_autonomous_proposal_binding(
     let domain = cache
         .get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
         .ok_or_else(|| anyhow!("autonomous proposal requires repository domain binding"))?;
-    let (body_binding, _) = crate::load_repository_body_status(Path::new(&route.body_store_path))?
-        .ok_or_else(|| anyhow!("autonomous proposal requires authenticated Body status"))?;
     let chain_checks = [
         (
             "worker result identity",
@@ -4093,12 +4100,6 @@ pub(crate) fn validate_autonomous_proposal_binding(
         || domain.swarm_id != route.swarm_id
         || domain.workspace_id != route.workspace_id
         || domain.body_binding_sha256 != route.body_binding_sha256
-        || body_binding.runtime_id != route.runtime_id
-        || body_binding.swarm_id != route.swarm_id
-        || body_binding.workspace_id != route.workspace_id
-        || crate::repository_body_observer::body_binding_sha256(&body_binding)?
-            != route.body_binding_sha256
-        || proposal.workspace != body_binding.git_top_level
         || chrono::DateTime::parse_from_rfc3339(&binding.created_at).is_err()
         || proposal.source_actor != EPIPHANY_IMAGINATION_OWNER_ROLE
         || proposal.source_ref != result.result_id
@@ -4106,6 +4107,28 @@ pub(crate) fn validate_autonomous_proposal_binding(
         || proposal.body != option.summary
     {
         return Err(anyhow!("autonomous proposal origin binding mismatch"));
+    }
+    Ok(binding)
+}
+
+pub(crate) fn validate_autonomous_proposal_binding(
+    cache: &CultCache,
+    proposal: &RepoFrontierWorkProposal,
+) -> Result<RepoFrontierAutonomousProposalBinding> {
+    let binding = validate_autonomous_proposal_origin_binding(cache, proposal)?;
+    let route = cache
+        .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("autonomous proposal requires repository Body binding"))?;
+    let (body_binding, _) = crate::load_repository_body_status(Path::new(&route.body_store_path))?
+        .ok_or_else(|| anyhow!("autonomous proposal requires authenticated Body status"))?;
+    if body_binding.runtime_id != route.runtime_id
+        || body_binding.swarm_id != route.swarm_id
+        || body_binding.workspace_id != route.workspace_id
+        || crate::repository_body_observer::body_binding_sha256(&body_binding)?
+            != route.body_binding_sha256
+        || proposal.workspace != body_binding.git_top_level
+    {
+        return Err(anyhow!("autonomous proposal Body binding mismatch"));
     }
     Ok(binding)
 }
@@ -10937,6 +10960,9 @@ pub(crate) mod tests {
         );
 
         put_runtime_role_worker_result(&store, &result)?;
+        let body_route = crate::runtime_repository_body_store_binding(&store)?
+            .expect("proposal fixture repository Body route");
+        std::fs::remove_file(&body_route.body_store_path)?;
         let evidence = runtime_typed_request_fulfillment(
             &store,
             RuntimeTypedRequestRef::ProposalModeling(&request_id),
@@ -11663,6 +11689,18 @@ pub(crate) mod tests {
             runtime_worker_launch_body_basis(&store, modeling_job)?;
         hostile_result.admitted_model_direction_consideration_request_id = None;
         hostile_result.admitted_model_direction_consideration_result_msgpack = None;
+        let mut eyes_patch = hostile_patch.clone();
+        let crate::RepoModelPatchOperation::UpsertFrontier { item } =
+            &mut eyes_patch.operations[0]
+        else {
+            panic!("autonomous fixture must upsert one frontier")
+        };
+        item.recommended_next_organ = "Eyes".into();
+        let mut eyes_result = hostile_result.clone();
+        eyes_result.repo_model_patch_msgpack = Some(rmp_serde::to_vec_named(&eyes_patch)?);
+        let mut fulfillment_cache = runtime_spine_cache(&store)?;
+        fulfillment_cache.pull_all_backing_stores()?;
+        validate_proposal_modeling_worker_fulfillment(&fulfillment_cache, &eyes_result)?;
         put_runtime_role_worker_result(&store, &hostile_result)?;
         let hostile_review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
