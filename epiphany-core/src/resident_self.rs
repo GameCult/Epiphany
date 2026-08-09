@@ -15,6 +15,9 @@ pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.
 pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.heartbeat_grant.v0";
 pub const RESIDENT_SELF_ACK_SCHEMA_VERSION: &str = "epiphany.resident_self.terminal_ack.v0";
 pub const RESIDENT_SELF_CHILD_CLAIM_SCHEMA_VERSION: &str = "epiphany.resident_self.child_claim.v0";
+pub const RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION: &str =
+    "epiphany.resident_self.retention_head.v0";
+pub const RESIDENT_SELF_RETENTION_HEAD_KEY: &str = "resident-self-retention";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -164,6 +167,28 @@ pub struct ResidentSelfChildClaim {
     #[cultcache(key = 9)]
     pub claimed_at_millis: u64,
     #[cultcache(key = 10, default)]
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.resident_self.retention_head.v0",
+    schema = "ResidentSelfRetentionHead"
+)]
+pub struct ResidentSelfRetentionHead {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub revision: u64,
+    #[cultcache(key = 2)]
+    pub retired_lifecycle_count: u64,
+    #[cultcache(key = 3)]
+    pub retired_envelope_count: u64,
+    #[cultcache(key = 4)]
+    pub retired_chain_digest: String,
+    #[cultcache(key = 5)]
+    pub retained_at_millis: u64,
+    #[cultcache(key = 6, default)]
     pub private_state_exposed: bool,
 }
 
@@ -833,6 +858,7 @@ fn state_cache(path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<ResidentSelfHeartbeatGrant>()?;
     cache.register_entry_type::<ResidentSelfTerminalAck>()?;
     cache.register_entry_type::<ResidentSelfChildClaim>()?;
+    cache.register_entry_type::<ResidentSelfRetentionHead>()?;
     let mut identities = HashSet::new();
     for envelope in SingleFileMessagePackBackingStore::new(path).pull_all()? {
         let owned = envelope.r#type == ResidentSelfState::TYPE
@@ -840,7 +866,8 @@ fn state_cache(path: &Path) -> Result<CultCache> {
             || envelope.r#type == ResidentSelfPressure::TYPE
             || envelope.r#type == ResidentSelfHeartbeatGrant::TYPE
             || envelope.r#type == ResidentSelfTerminalAck::TYPE
-            || envelope.r#type == ResidentSelfChildClaim::TYPE;
+            || envelope.r#type == ResidentSelfChildClaim::TYPE
+            || envelope.r#type == ResidentSelfRetentionHead::TYPE;
         if !owned {
             continue;
         }
@@ -869,6 +896,9 @@ fn state_cache(path: &Path) -> Result<CultCache> {
             }
             ResidentSelfChildClaim::TYPE => {
                 cache.load_envelope::<ResidentSelfChildClaim>(envelope)?;
+            }
+            ResidentSelfRetentionHead::TYPE => {
+                cache.load_envelope::<ResidentSelfRetentionHead>(envelope)?;
             }
             _ => unreachable!("owned resident Self type was matched above"),
         };
@@ -1606,6 +1636,159 @@ pub fn heartbeat_consume_resident_self_ack(
     Ok(())
 }
 
+pub fn retain_resident_self_lifecycles(
+    path: &Path,
+    retain_closed: usize,
+    now_millis: u64,
+) -> Result<Option<ResidentSelfRetentionHead>> {
+    let cache = state_cache(path)?;
+    let state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .unwrap_or_default();
+    let pressures = cache
+        .get_all::<ResidentSelfPressure>()?
+        .into_iter()
+        .map(|pressure| (pressure.pressure_id.clone(), pressure))
+        .collect::<std::collections::HashMap<_, _>>();
+    let grants = cache
+        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .into_iter()
+        .map(|grant| (grant.grant_id.clone(), grant))
+        .collect::<std::collections::HashMap<_, _>>();
+    let claims = cache.get_all::<ResidentSelfChildClaim>()?;
+    let mut closed = cache
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .filter_map(|ack| {
+            let grant = grants.get(&ack.grant_id)?;
+            let pressure = pressures.get(&grant.pressure_id)?;
+            let inactive = state.active_turn.as_ref().map(|lease| &lease.grant_id)
+                != Some(&grant.grant_id)
+                && state
+                    .prepared_launch
+                    .as_ref()
+                    .map(|prepared| &prepared.grant.grant_id)
+                    != Some(&grant.grant_id);
+            (ack.consumed_by_heartbeat_at_millis.is_some()
+                && grant.consumed_at_millis.is_some()
+                && pressure.status == "consumed"
+                && pressure.consumed_by_grant_id.as_deref() == Some(grant.grant_id.as_str())
+                && inactive)
+                .then_some((
+                    ack.completed_at_millis,
+                    ack.ack_id.clone(),
+                    grant.grant_id.clone(),
+                ))
+        })
+        .collect::<Vec<_>>();
+    closed.sort();
+    let retire_count = closed.len().saturating_sub(retain_closed);
+    if retire_count == 0 {
+        return Ok(None);
+    }
+
+    let snapshot = cache.snapshot_envelopes();
+    let prior_head = cache.get::<ResidentSelfRetentionHead>(RESIDENT_SELF_RETENTION_HEAD_KEY)?;
+    if let Some(head) = &prior_head {
+        if head.schema_version != RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION
+            || head.private_state_exposed
+            || !head.retired_chain_digest.starts_with("sha256:")
+        {
+            return Err(anyhow!("resident Self retention head is invalid"));
+        }
+    }
+    let mut expected = Vec::new();
+    let mut retired_lifecycles = 0_u64;
+    for (_, ack_id, grant_id) in closed.into_iter().take(retire_count) {
+        let grant = grants
+            .get(&grant_id)
+            .ok_or_else(|| anyhow!("closed resident lifecycle lost its grant"))?;
+        let pressure = pressures
+            .get(&grant.pressure_id)
+            .ok_or_else(|| anyhow!("closed resident lifecycle lost its pressure"))?;
+        for (entry_type, key) in [
+            (ResidentSelfPressure::TYPE, pressure.pressure_id.as_str()),
+            (ResidentSelfHeartbeatGrant::TYPE, grant_id.as_str()),
+            (ResidentSelfTerminalAck::TYPE, ack_id.as_str()),
+        ] {
+            expected.push(
+                snapshot
+                    .iter()
+                    .find(|entry| entry.r#type == entry_type && entry.key == key)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("closed resident lifecycle lost an envelope"))?,
+            );
+        }
+        expected.extend(
+            claims
+                .iter()
+                .filter(|claim| claim.grant_id == grant_id)
+                .map(|claim| {
+                    snapshot
+                        .iter()
+                        .find(|entry| {
+                            entry.r#type == ResidentSelfChildClaim::TYPE
+                                && entry.key == claim.claim_id
+                        })
+                        .cloned()
+                        .ok_or_else(|| anyhow!("closed resident lifecycle lost its child claim"))
+                })
+                .collect::<Result<Vec<_>>>()?,
+        );
+        retired_lifecycles += 1;
+    }
+    if let Some(envelope) = snapshot.iter().find(|entry| {
+        entry.r#type == ResidentSelfRetentionHead::TYPE
+            && entry.key == RESIDENT_SELF_RETENTION_HEAD_KEY
+    }) {
+        expected.push(envelope.clone());
+    }
+    expected.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    let deletions = expected
+        .iter()
+        .filter(|entry| entry.r#type != ResidentSelfRetentionHead::TYPE)
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut digest_inputs = vec![
+        prior_head
+            .as_ref()
+            .map(|head| head.retired_chain_digest.clone())
+            .unwrap_or_else(|| "resident-self-retention-root".into())
+            .into_bytes(),
+    ];
+    for entry in &deletions {
+        digest_inputs.push(entry.r#type.as_bytes().to_vec());
+        digest_inputs.push(entry.key.as_bytes().to_vec());
+        digest_inputs.push(entry.payload.clone());
+    }
+    let head = ResidentSelfRetentionHead {
+        schema_version: RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION.into(),
+        revision: prior_head.as_ref().map_or(1, |head| head.revision + 1),
+        retired_lifecycle_count: prior_head.as_ref().map_or(retired_lifecycles, |head| {
+            head.retired_lifecycle_count + retired_lifecycles
+        }),
+        retired_envelope_count: prior_head.as_ref().map_or(deletions.len() as u64, |head| {
+            head.retired_envelope_count + deletions.len() as u64
+        }),
+        retired_chain_digest: digest_parts(digest_inputs),
+        retained_at_millis: now_millis,
+        private_state_exposed: false,
+    };
+    let (replacement, _) = cache.prepare_entry(RESIDENT_SELF_RETENTION_HEAD_KEY, &head)?;
+    if !SingleFileMessagePackBackingStore::new(path).replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &deletions,
+    )? {
+        return Err(anyhow!("resident Self lost lifecycle-retention CAS"));
+    }
+    Ok(Some(head))
+}
+
 pub fn load_resident_self_state(path: &Path) -> Result<ResidentSelfState> {
     Ok(state_cache(path)?
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
@@ -1616,6 +1799,115 @@ pub fn load_resident_self_state(path: &Path) -> Result<ResidentSelfState> {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    fn insert_closed_lifecycle(path: &Path, suffix: &str, completed_at_millis: u64) -> Result<()> {
+        let cache = state_cache(path)?;
+        let pressure_id = format!("pressure-{suffix}");
+        let grant_id = format!("grant-{suffix}");
+        let pressure = ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: pressure_id.clone(),
+            kind: "operator-objective".into(),
+            provenance_ref: format!("test://{suffix}"),
+            objective: format!("objective {suffix}"),
+            created_at_millis: completed_at_millis.saturating_sub(3),
+            status: "consumed".into(),
+            consumed_by_grant_id: Some(grant_id.clone()),
+            private_state_exposed: false,
+        };
+        let grant = ResidentSelfHeartbeatGrant {
+            schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
+            grant_id: grant_id.clone(),
+            pressure_id,
+            pressure_kind: "operator-objective".into(),
+            provenance_ref: format!("test://{suffix}"),
+            objective: format!("objective {suffix}"),
+            heartbeat_schedule_id: "schedule".into(),
+            heartbeat_action_id: format!("action-{suffix}"),
+            issued_at_millis: completed_at_millis.saturating_sub(2),
+            consumed_at_millis: Some(completed_at_millis.saturating_sub(1)),
+            private_state_exposed: false,
+        };
+        let ack = ResidentSelfTerminalAck {
+            schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
+            ack_id: format!("ack-{suffix}"),
+            grant_id,
+            heartbeat_schedule_id: "schedule".into(),
+            heartbeat_action_id: format!("action-{suffix}"),
+            launch_digest: format!("sha256:{suffix}"),
+            coordinator_receipt_id: format!("receipt-{suffix}"),
+            terminal_status: "completed".into(),
+            completed_at_millis,
+            consumed_by_heartbeat_at_millis: Some(completed_at_millis + 1),
+            private_state_exposed: false,
+        };
+        let mut entries = Vec::new();
+        entries.push(cache.prepare_entry(&pressure.pressure_id, &pressure)?.0);
+        entries.push(cache.prepare_entry(&grant.grant_id, &grant)?.0);
+        entries.push(cache.prepare_entry(&ack.ack_id, &ack)?.0);
+        assert!(SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(&[], entries)?);
+        Ok(())
+    }
+
+    #[test]
+    fn retention_bounds_closed_lifecycles_and_cannot_resurrect_work() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        insert_closed_lifecycle(&store, "old", 10)?;
+        insert_closed_lifecycle(&store, "new", 20)?;
+
+        let head = retain_resident_self_lifecycles(&store, 1, 30)?
+            .ok_or_else(|| anyhow!("retention did not compact the oldest lifecycle"))?;
+        assert_eq!(head.retired_lifecycle_count, 1);
+        assert_eq!(head.retired_envelope_count, 3);
+        assert!(head.retired_chain_digest.starts_with("sha256:"));
+        assert!(!pending_resident_self_pressure(&store)?);
+        assert!(pending_resident_self_grant(&store)?.is_none());
+        assert!(pending_resident_self_acks(&store)?.is_empty());
+        assert_eq!(resident_self_pressures(&store)?.len(), 1);
+        assert!(retain_resident_self_lifecycles(&store, 1, 31)?.is_none());
+        assert_eq!(
+            load_resident_self_state(&store)?,
+            ResidentSelfState::default()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn retention_refuses_live_or_requeued_lifecycle_authority() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        insert_closed_lifecycle(&store, "closed", 10)?;
+        insert_closed_lifecycle(&store, "requeued", 20)?;
+        let cache = state_cache(&store)?;
+        let mut pressure = cache
+            .get::<ResidentSelfPressure>("pressure-requeued")?
+            .ok_or_else(|| anyhow!("test pressure missing"))?;
+        let expected = cache
+            .snapshot_envelopes()
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == ResidentSelfPressure::TYPE && entry.key == pressure.pressure_id
+            })
+            .ok_or_else(|| anyhow!("test pressure envelope missing"))?;
+        pressure.status = "pending".into();
+        pressure.consumed_by_grant_id = None;
+        let replacement = cache.prepare_entry(&pressure.pressure_id, &pressure)?.0;
+        assert!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .compare_and_swap_entry(&expected, replacement)?
+        );
+
+        let head = retain_resident_self_lifecycles(&store, 0, 30)?
+            .ok_or_else(|| anyhow!("closed lifecycle was not retained"))?;
+        assert_eq!(head.retired_lifecycle_count, 1);
+        assert!(pending_resident_self_pressure(&store)?);
+        assert_eq!(
+            resident_self_pressures(&store)?[0].pressure_id,
+            "pressure-requeued"
+        );
+        Ok(())
+    }
 
     #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
     #[cultcache(type = "test.resident.provider_readiness", schema = "ForeignReadiness")]

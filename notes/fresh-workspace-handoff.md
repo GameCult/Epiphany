@@ -1038,3 +1038,19 @@ must wait for the infrastructure runbook rather than being guessed.
 Next: implement the resident lifecycle retention organ and its negative tests,
 then audit coordinator references, packaged Heartbeat retention, supervisor log
 ownership, and the measured idle/active endurance plateau.
+
+Resident lifecycle retention is now implemented in source. Resident Self's
+serve/once owner invokes a configurable `--retained-closed-lifecycles` bound
+(default 256). Only Heartbeat-consumed terminal lifecycles whose pressure still
+binds the consumed grant and which have no prepared/active lease are eligible.
+The exact pressure/grant/ack/claim envelopes are deleted in the same
+snapshot-fenced CultCache write that replaces the single retention head. The
+head carries only cumulative counts and a chained digest; scheduling readers do
+not consume it. Requeued brake/shutdown/failure pressure remains live.
+
+CultCache commit `fecc17c` on
+`codex/resident-retention-compaction` adds the missing single-file atomic
+replace-and-delete primitive and its stale-snapshot refusal proof. Twenty
+resident Self tests and six swarm binary tests pass, including negative proof
+that retention cannot create pending pressure/grants/acks or resurrect state.
+Package and copied-state proof remain before this slice is accepted.

@@ -2129,6 +2129,12 @@ work.
   `gamecult-ops` drive is unavailable in this workspace, so this branch remains
   deliberately uncut rather than guessed.
 
-The next implementation slice is resident lifecycle retention. It must use
-CultCache's exact-envelope atomic deletion surface, publish typed non-authority
-evidence, and prove negatively that retired history cannot re-enter scheduling.
+Resident lifecycle retention now follows this map. Resident Self's production
+serve/once owner applies a configurable closed-lifecycle bound (default 256).
+CultCache commit `fecc17c` adds a complete-snapshot-fenced single-file
+replace-and-delete transaction, so exact pressure/grant/ack/claim deletion and
+replacement of the one digest/count retention head cannot split. The head is
+not read by scheduling. Twenty resident Self tests and six swarm tests pass,
+including refusal of live/requeued authority and negative proof that retained
+history cannot create pending work. Exact packaged copied-state proof remains
+the acceptance boundary.

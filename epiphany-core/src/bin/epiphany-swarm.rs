@@ -14,8 +14,8 @@ use epiphany_core::{
     prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
-    validate_persona_feedback_store_separation, validate_resident_self_store_separation,
-    verify_resident_self_grant_fulfillment,
+    retain_resident_self_lifecycles, validate_persona_feedback_store_separation,
+    validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -76,6 +76,11 @@ fn main() -> Result<()> {
     match args.command {
         CommandKind::Once => {
             let outcome = cycle(&args, &mut state, &mut ports, false)?;
+            retain_resident_self_lifecycles(
+                &args.state_store,
+                args.retained_closed_lifecycles,
+                Utc::now().timestamp_millis().max(0) as u64,
+            )?;
             publish_self_readiness(&args)?;
             println!(
                 "{}",
@@ -87,6 +92,11 @@ fn main() -> Result<()> {
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
+                retain_resident_self_lifecycles(
+                    &args.state_store,
+                    args.retained_closed_lifecycles,
+                    Utc::now().timestamp_millis().max(0) as u64,
+                )?;
                 publish_self_readiness(&args)?;
                 println!(
                     "{}",
@@ -412,6 +422,7 @@ struct Args {
     state_store: PathBuf,
     heartbeat_store: PathBuf,
     provider_freshness_seconds: u64,
+    retained_closed_lifecycles: usize,
     persona_feedback_source_store: PathBuf,
     persona_feedback_store: PathBuf,
     bifrost_feedback_trust_anchor: PathBuf,
@@ -513,6 +524,9 @@ impl Args {
             state_store: path("--state-store")?,
             heartbeat_store: path("--heartbeat-store")?,
             provider_freshness_seconds: u64v("--provider-freshness-seconds", 180)?,
+            retained_closed_lifecycles: u64v("--retained-closed-lifecycles", 256)?
+                .try_into()
+                .context("--retained-closed-lifecycles exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,
