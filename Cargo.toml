@@ -6,6 +6,7 @@ members = [
     "epiphany-openai-auth-spine",
     "epiphany-openai-codex-spine",
     "epiphany-openai-runtime",
+    "epiphany-release-construction",
     "epiphany-self-policy",
     "epiphany-state-model",
     "epiphany-tool-adapter",

@@ -2097,6 +2097,7 @@ dependencies = [
  "ed25519-dalek",
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
+ "epiphany-release-construction",
  "epiphany-state-model",
  "epiphany-tool-adapter",
  "fs2",
@@ -2219,6 +2220,22 @@ dependencies = [
  "uuid",
  "windows-sys 0.59.0",
  "zeroize",
+]
+
+[[package]]
+name = "epiphany-release-construction"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cultcache-rs",
+ "fs2",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "uuid",
 ]
 
 [[package]]

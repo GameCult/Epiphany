@@ -1,0 +1,29 @@
+[package]
+name = "epiphany-release-construction"
+version = "0.1.0"
+edition = "2024"
+publish = false
+autobins = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_release_construction"
+path = "src/lib.rs"
+
+[[bin]]
+name = "epiphany-package"
+path = "src/bin/epiphany-package.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4.44"
+cultcache-rs = { path = "../vendor/cultcache-rs" }
+fs2 = "0.4"
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
