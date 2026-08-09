@@ -1405,11 +1405,11 @@ Focused proof is green: 24 resident tests, 8 `epiphany-swarm` tests, 11
 Heartbeat-state tests, and the new hostile proposal verifier test. The resident
 cycle proof now exits the coordinator zero, remains `awaiting-fulfillment`,
 admits an exact launch-bound model-direction result through runtime spine, and
-closes once. The broader 50-test runtime-spine sweep reached 48 green and
-exposed two older contradictory fixtures: one expects a proposal with an
-existing launch to remain schedulable; another asks proposal admission to admit
-Proposed/Blocked frontier rows despite its active-routeable contract. Do not
-loosen fulfillment authentication to satisfy them. Reconcile which owner those
-tests are actually exercising, restore a fully green runtime sweep, then update
-Mind and package exact `cc566a3c` or its corrective descendant. Active c005
+closes once. The broader runtime-spine sweep exposed two stale fixture opinions;
+commit `70683d6b` aligns them with live ownership. An existing Modeling launch
+already claims scheduling authority and cannot produce a duplicate resident
+grant. Proposed/Blocked frontier output stops at Mind admission, while the route
+layer still refuses the resulting unadmitted state. All 50 runtime-spine tests
+now pass alongside the focused suites. Package exact `70683d6b`, then prove the
+same pending-to-authenticated-fulfilled transition on copied state. Active c005
 remains untouched.
