@@ -1095,7 +1095,7 @@ Session/job/event/model/tool retention remains forbidden until typed archived
 session ownership closes tool follow-up, review, recovery, and accepted-frontier
 references.
 
-The source implementation is now complete but not yet packaged. Runtime owns a
+The source implementation is accepted. Runtime owns a
 typed cumulative count/digest head and exact receipt deletion behind one
 full-snapshot fence. Resident Self invokes it after each cycle, before resident
 lifecycle retirement, with a default-256 window and explicit preservation of
@@ -1108,5 +1108,25 @@ window and have a small retention window retire it before completion scanning.
 CultCache `9cae2779` supplies the same atomic replace/delete primitive to the
 production non-owning redb handle; its concurrent-insert refusal test passes.
 Twenty resident tests, seven swarm tests, and two coordinator-retention tests
-pass. Next commit and package this exact source, then prove it on copied state;
-active c005 remains untouched.
+pass. Exact `16c4b19f` produced warning-free 24-binary release
+`sha256-6cd1907a87d37cd4517e3f1d3541ecee6595480c21401f977f51f63e929a8ef8`
+with witness
+`sha256-c9f4f8ba962bd97674c5e178a67a881b592af5833048029cd11805604bd6c17e`.
+The first package attempt failed closed on the known stale cached git worktree;
+only exact corrupted cache directory
+`source-fb4097c8f489c830678f32a39e818cf462bff5c1fe853bc12d106184c9bfd571`
+was removed, preserving Cargo home and target. The replacement completed in
+9m16s and independently inspected as exact source, 24 binaries, no warnings.
+
+Receipts `.epiphany-run/coordinator-retention-16c4b19f` prove packaged behavior
+under copied engaged-brake state. With a window of one, 21 old receipts retired;
+the newest receipt and a deliberately old receipt named by both resident state
+and a pending acknowledgement survived. The revision-1 head digest is
+`sha256:63587221d745315af81c705824d16313d2f748b6ff9840a2b4152127a6758fbd`.
+All 720 unrelated runtime envelopes retained digest
+`sha256:c21a12653ce1bf0e64342c6fcbf98d006aeb8fa707de69527886db20e4c20e1c`.
+Resident authority counts were unchanged, active/prepared authority remained
+absent, and exact replay did not advance the head or create work. Active c005
+remained running and untouched. Coordinator receipt retention is accepted.
+Next settle supervisor log ownership and packaged Heartbeat retention, then run
+the measured idle/active endurance plateau.

@@ -2224,6 +2224,21 @@ backends. Unit tests prove stale-snapshot refusal, explicit-ID preservation,
 zero-window newest preservation, stable replay, and that the head cannot
 deserialize or enumerate as runnable coordinator receipt authority.
 
-The source still requires an exact authenticated package and copied-state
-production proof. It does not pretend to solve runtime
-session/model/event/tool retention.
+Exact source `16c4b19f` produced warning-free 24-binary release
+`sha256-6cd1907a87d37cd4517e3f1d3541ecee6595480c21401f977f51f63e929a8ef8`
+with witness
+`sha256-c9f4f8ba962bd97674c5e178a67a881b592af5833048029cd11805604bd6c17e`.
+Under copied engaged-brake state and a retention window of one, packaged Self
+retired 21 receipts, preserved the newest receipt and a deliberately old
+receipt named by both resident state and a pending acknowledgement, and wrote
+revision-1 digest
+`sha256:63587221d745315af81c705824d16313d2f748b6ff9840a2b4152127a6758fbd`.
+All 720 unrelated runtime envelopes retained digest
+`sha256:c21a12653ce1bf0e64342c6fcbf98d006aeb8fa707de69527886db20e4c20e1c`;
+resident pressure/grant/ack/claim counts did not change; active and prepared
+authority stayed absent. Exact replay did not advance the head or create work.
+Receipts are under `.epiphany-run/coordinator-retention-16c4b19f` and package
+construction/inspection under `.epiphany-run/linux-package-16c4b19f`.
+
+Coordinator receipt retention is accepted. It does not pretend to solve
+runtime session/model/event/tool retention.
