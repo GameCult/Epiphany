@@ -1963,3 +1963,25 @@ release writer. The forbidden state is two selected packages writing one
 release filename. Nineteen focused tests prove the command contains one package
 selector and no `epiphany-core` package argument. Exact warning-free Linux and
 byte-identical warm witness proof remain open.
+
+### Deterministic warm release proof
+
+Exact source `9b8df0b4` completed the corrected package in 12m46s with no Cargo
+output-collision warnings. The resulting 23-binary release is
+`sha256-d13927303c957db6799135a61ce6a2899235c397b525968be0bffc3b5ad2a831`;
+its witness is
+`sha256-d07277cb5f142a4cc90e9364da0bd058eeba8c524eaf8c00bd9d55f088c78de0`.
+Native inspection accepted exact source, inventory, sibling hashes, and private
+state exclusion.
+
+The identical warm replay used the same source, Cargo home, and graph cache. It
+completed in 10.73s total with Cargo at 0.97s and reproduced the release and
+witness identifiers exactly. This closes the package-speed and deterministic
+artifact boundary: one workspace lock, one Cargo process, one graph, one
+selected package, 23 explicit outputs, and non-incremental release codegen.
+
+Native publication inserted the release entry and head into c005's existing
+local Verse without stopping its resident process. Publication changes release
+availability; it does not own executable replacement. Continuity now owns the
+next boundary: supervised stop, authenticated body replacement, restart on the
+same typed stores, and proof that Self resumes the existing frontier.

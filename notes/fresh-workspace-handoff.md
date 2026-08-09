@@ -1,5 +1,28 @@
 # Fresh workspace handoff
 
+## Deterministic warm release published — 2026-08-09
+
+Exact pushed source `9b8df0b487eaae12e35dbe53a82faae1a1e39954`
+packaged without output-collision warnings in 12m46s after the sole-owner cut.
+Native inspection accepted all 23 binaries in release
+`sha256-d13927303c957db6799135a61ce6a2899235c397b525968be0bffc3b5ad2a831`
+with witness
+`sha256-d07277cb5f142a4cc90e9364da0bd058eeba8c524eaf8c00bd9d55f088c78de0`.
+The identical warm replay completed in 10.73s total, with Cargo at 0.97s, and
+reproduced both identifiers exactly. Native inspection independently accepted
+the warm copy.
+
+The native release publisher added this exact release to c005's local Verse
+while the resident process remained live. Before publication,
+`local-verse.cc` was 43,849 bytes with SHA-256
+`60872eb9222485c00ccb0c423776f85bacaf2521ed9b80d1bcceccfb319b8eaf`.
+After publication it is 51,311 bytes with SHA-256
+`d88bb300f8db589f3f82fcba6781b9eb1e9828f22a55684fdaaba0e8a68dcf0d`.
+The running c005 body is still pinned to the older authenticated release. Next:
+commit this evidence, then perform a supervised stop/body replacement/restart
+against the existing stores and prove continuity resumes at
+`awaitFrontierProposal` without recreating relinquished route `817bf422`.
+
 ## Sole packaged executable owner — 2026-08-09
 
 Exact `fe6bf006` cold packaging proved the single-process graph and produced
