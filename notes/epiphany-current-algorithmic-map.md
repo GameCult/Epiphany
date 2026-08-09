@@ -1348,10 +1348,14 @@ Resident terminal success is also pressure-specific. For a
 only that the bounded coordinator process ended cleanly; it does not prove the
 requested Modeling work reached a typed terminal result. The resident active
 turn therefore remains the sole acknowledgement owner after coordinator exit.
-For proposal Modeling it requires the runtime-owned worker result echoing the
-exact proposal request. For admitted model-direction and Imagination
-consideration it additionally validates the exact typed result/candidate and
-requires that byte-identical companion to exist in the runtime store. Missing
+For every typed lane it asks one runtime-spine-owned verifier whether the exact
+request has one authenticated terminal worker result. The verifier replays the
+same immutable runtime admission path that owns worker launch role/binding,
+request/runtime/thread/job identity, launch projection, foreign-cargo
+exclusion, and typed companion persistence. Proposal Modeling adds its exact
+selection, proposal payload, launch binding, Body basis, Evolution patch, and
+proposal-citing frontier contract through the same helper used by Mind
+admission. Missing
 terminal evidence is `awaiting-fulfillment`: the active lease remains live and
 cannot be retained, relaunched, acknowledged, or requeued. A later serve cycle
 consumes the route exactly once when the typed evidence appears. Brake,
@@ -1360,13 +1364,14 @@ the lease once and return its exact pressure to Heartbeat; invalid or
 substituted evidence closes as `unfulfilled`. Coordinator process closure is
 therefore evidence, never cognitive completion authority.
 
-The remaining cut is authentication ownership inside that fulfillment verdict.
-Runtime spine already owns admission of launch bindings, worker launch context,
-request/runtime/thread/job identity, and exact typed results. Resident Self must
-consume one shared runtime-owned verdict. Merely finding a role-worker result
-that echoes a proposal request ID, or deriving an Imagination candidate from an
-otherwise unauthenticated binding, is not fulfillment. Self may retain or close
-its lease from the verdict; it may not recreate a weaker admission policy.
+Resident Self now owns only the mapping from grant provenance to a typed runtime
+request reference and the lease transition driven by the verdict. It does not
+scan worker rows or recreate candidate/result policy. No claimant means
+Pending; one authenticated claimant means Fulfilled; item errors, missing or
+swapped launches/bindings, missing companions, foreign cargo, and multiple
+claimants fail closed. Replaying a result already persisted by runtime admission
+is validation-only: exact idempotence performs no write, while a missing
+companion or changed envelope refuses before mutation.
 
 Terminal completion owns its cooldown in that same resident-state and
 acknowledgement CAS. `next_eligible_at_millis` is persisted from the configured

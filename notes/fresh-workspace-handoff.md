@@ -1390,12 +1390,26 @@ resident 22,984; Heartbeat 13,200; artifacts 298,663. Self rested at 31.92 MiB
 and Heartbeat at 27.81 MiB before stop. Exact-grant terminality and bounded
 active endurance are accepted. Active c005 was untouched.
 
-The next semantic seam is not another lifecycle patch. Resident proposal
-Modeling fulfillment currently accepts any role-worker result naming the exact
-request ID; it does not reuse runtime-spine authentication of the one launch
-binding, runtime/thread/job identity, worker launch context, and admitted typed
-result. Imagination fulfillment has the parallel binding-provenance weakness.
-Map one runtime-owned verifier, demote resident Self to verdict consumer, add
-hostile substitution tests plus a cycle-level pending-to-fulfilled exactly-once
-proof, then package. Do not let the successful process/endurance proof overclaim
-semantic authentication.
+Commit `cc566a3c` cuts the typed-fulfillment authentication split. Runtime spine
+now owns one typed request verifier for proposal Modeling, Imagination
+consideration, and admitted model-direction consideration. It replays the exact
+immutable result-admission path and then checks the persisted typed companion;
+proposal Modeling additionally uses one shared immutable proposal/selection/
+launch/patch validator from both delayed fulfillment and Mind admission.
+Resident Self only maps exact grant provenance to that typed request and consumes
+Pending/Fulfilled/error. Echo-only rows, substituted launch bindings, item
+errors, missing companions, and duplicate terminal claimants cannot complete a
+grant.
+
+Focused proof is green: 24 resident tests, 8 `epiphany-swarm` tests, 11
+Heartbeat-state tests, and the new hostile proposal verifier test. The resident
+cycle proof now exits the coordinator zero, remains `awaiting-fulfillment`,
+admits an exact launch-bound model-direction result through runtime spine, and
+closes once. The broader 50-test runtime-spine sweep reached 48 green and
+exposed two older contradictory fixtures: one expects a proposal with an
+existing launch to remain schedulable; another asks proposal admission to admit
+Proposed/Blocked frontier rows despite its active-routeable contract. Do not
+loosen fulfillment authentication to satisfy them. Reconcile which owner those
+tests are actually exercising, restore a fully green runtime sweep, then update
+Mind and package exact `cc566a3c` or its corrective descendant. Active c005
+remains untouched.
