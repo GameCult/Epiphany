@@ -1328,12 +1328,35 @@ grant, so schedule/action issuance cardinality is accepted.
 
 After expiry, Self nevertheless launched again. The typed diagnostic proved the
 active lease named the exact already-completed pulse-48 grant, not another
-Heartbeat grant. This run is rejected and was stopped with receipts. The deeper
-ownership rule is that `ResidentSelfTerminalAck`, not the mutable
-`consumed_at_millis` marker, permanently kills its exact grant. Pending selection
-and Heartbeat's unconsumed-grant fence now exclude every terminally acknowledged
-grant. A focused test deliberately regresses a completed grant's consumed marker
-to absent and proves it remains unselectable while a different Heartbeat turn may
-still grant later pending pressure. Twenty-four resident, eight swarm, and eleven
-heartbeat-state tests pass. Commit, push, package, and replay this terminal fence;
-do not treat c778 as bounded endurance evidence.
+Heartbeat grant. This run is rejected and was stopped with receipts. The first
+repair treated `ResidentSelfTerminalAck` as grant death instead of the mutable
+`consumed_at_millis` marker. Exact replay disproved that ownership cut.
+
+Exact `61d06140` packaged as warning-free 24-binary release
+`sha256-07d63fb815aa2298b95f240d856e912ca41ed4dc70ebe17ed559fc29766b4a71`
+with witness
+`sha256-06cd8373ca37c29e0123298484a67b6346b4b8ec0b8c93cd959237b3d8b7787a`.
+The fresh 7,668-file copied body under
+`.epiphany-run/active-cognition5-61d06140` completed one typed turn, persisted
+`nextEligibleAtMillis=1786308887955`, restarted Self with exit zero, and slept
+through the deadline. Heartbeat issued no second grant. After expiry Self again
+prepared the original grant.
+
+Typed inspection found no success acknowledgement for that grant and no
+resident lifecycle-retention head. Singleton `ResidentSelfState` still retained
+the completed closure and cooldown; stopping the rejected run later wrote the
+expected shutdown-cancellation acknowledgement. The acknowledgement-only fence
+was therefore built on separately retained evidence, not on the grant whose
+launchability it tried to decide.
+
+Each `ResidentSelfHeartbeatGrant` now owns its own terminality. Completion and
+cancellation write its terminal timestamp and status in the same CAS that clears
+the exact active lease; cancellation also requeues the pressure in that CAS.
+Pending selection and Heartbeat issuance consult the grant-owned terminal fact.
+`ResidentSelfTerminalAck` is Heartbeat-facing notification and provenance, not
+launch authority. The focused regression deletes the acknowledgement and clears
+the grant's consumed marker, then proves the terminal grant remains dead while
+later pressure may receive a new grant from a different Heartbeat turn.
+Twenty-four resident, eight swarm, and eleven heartbeat-state tests pass.
+Package and replay the exact committed source from a fresh accepted-idle copy;
+do not accept c778 or 61d as bounded endurance evidence.

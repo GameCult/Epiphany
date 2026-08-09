@@ -1380,14 +1380,16 @@ Heartbeat turn. Pressure arriving after that turn spent its grant stays pending
 until Heartbeat consumes the exact terminal acknowledgement and schedules a
 different coordinator turn.
 
-Terminal acknowledgement is irreversible grant death. Pending-grant selection
-loads all `ResidentSelfTerminalAck` rows first and excludes their exact grant IDs
-before considering `consumed_at_millis`. Heartbeat applies the same exclusion
-when deciding whether another unconsumed grant blocks issuance. The consumed
-marker proves preparation consumed launch authority; it cannot reopen authority
-after completion, cancellation, restart, stale-envelope resolution, or marker
-regression. Lifecycle retention may delete this evidence only after Heartbeat has
-consumed the acknowledgement and the owning turn is already closed.
+Each `ResidentSelfHeartbeatGrant` owns its irreversible terminality. Completion
+and cancellation write the exact grant's terminal timestamp and status in the
+same snapshot-fenced CAS that clears its active lease. Pending-grant selection
+and Heartbeat issuance read that grant-owned fact before considering the mutable
+`consumed_at_millis` marker. `ResidentSelfTerminalAck` is no longer a launch
+authority; it is Heartbeat-facing notification and provenance. Its absence or
+qualified lifecycle retirement cannot resurrect a grant. The consumed marker
+proves preparation consumed launch authority; clearing it cannot reopen a
+terminal grant after completion, cancellation, restart, stale-envelope
+resolution, or marker regression.
 
 Imagination candidate time is part of that causal contract. A candidate must
 have a valid RFC3339 timestamp at or after its request timestamp. A

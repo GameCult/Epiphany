@@ -12,7 +12,7 @@ pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.sta
 pub const RESIDENT_SELF_RUNTIME_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.resident_self.runtime_receipt.v0";
 pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.pressure.v0";
-pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.heartbeat_grant.v0";
+pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.heartbeat_grant.v1";
 pub const RESIDENT_SELF_ACK_SCHEMA_VERSION: &str = "epiphany.resident_self.terminal_ack.v0";
 pub const RESIDENT_SELF_CHILD_CLAIM_SCHEMA_VERSION: &str = "epiphany.resident_self.child_claim.v0";
 pub const RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION: &str =
@@ -108,6 +108,10 @@ pub struct ResidentSelfHeartbeatGrant {
     pub consumed_at_millis: Option<u64>,
     #[cultcache(key = 10, default)]
     pub private_state_exposed: bool,
+    #[cultcache(key = 11, default)]
+    pub terminal_at_millis: Option<u64>,
+    #[cultcache(key = 12, default)]
+    pub terminal_status: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1096,7 +1100,7 @@ pub fn heartbeat_issue_resident_self_grant(
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(None);
     }
-    let terminal_grant_ids = cache
+    let legacy_terminal_grant_ids = cache
         .get_all::<ResidentSelfTerminalAck>()?
         .into_iter()
         .map(|ack| ack.grant_id)
@@ -1104,7 +1108,10 @@ pub fn heartbeat_issue_resident_self_grant(
     let grants = cache.get_all::<ResidentSelfHeartbeatGrant>()?;
     if grants.iter().any(|grant| {
         (grant.heartbeat_schedule_id == schedule_id && grant.heartbeat_action_id == action_id)
-            || (grant.consumed_at_millis.is_none() && !terminal_grant_ids.contains(&grant.grant_id))
+            || (grant.consumed_at_millis.is_none()
+                && grant.terminal_at_millis.is_none()
+                && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
+                    && legacy_terminal_grant_ids.contains(&grant.grant_id)))
     }) {
         return Ok(None);
     }
@@ -1142,6 +1149,8 @@ pub fn heartbeat_issue_resident_self_grant(
         issued_at_millis: now_millis,
         consumed_at_millis: None,
         private_state_exposed: false,
+        terminal_at_millis: None,
+        terminal_status: None,
     };
     let snapshot = cache.snapshot_envelopes();
     let expected_pressure = snapshot
@@ -1357,7 +1366,7 @@ pub fn settle_resident_self_exited_coordinator(
 
 pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
     let cache = state_cache(path)?;
-    let terminal_grant_ids = cache
+    let legacy_terminal_grant_ids = cache
         .get_all::<ResidentSelfTerminalAck>()?
         .into_iter()
         .map(|ack| ack.grant_id)
@@ -1366,7 +1375,10 @@ pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHea
         .get_all::<ResidentSelfHeartbeatGrant>()?
         .into_iter()
         .filter(|grant| {
-            grant.consumed_at_millis.is_none() && !terminal_grant_ids.contains(&grant.grant_id)
+            grant.consumed_at_millis.is_none()
+                && grant.terminal_at_millis.is_none()
+                && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
+                    && legacy_terminal_grant_ids.contains(&grant.grant_id))
         })
         .collect::<Vec<_>>();
     grants.sort_by(|a, b| {
@@ -1689,15 +1701,15 @@ fn complete_resident_self_turn(
             "resident Self active lease changed before terminal ack"
         ));
     }
-    let grant = cache
+    let mut grant = cache
         .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
         .ok_or_else(|| anyhow!("resident Self grant missing at terminal ack"))?;
     let ack = ResidentSelfTerminalAck {
         schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
         ack_id: format!("resident-self-ack-{}", lease.grant_id),
         grant_id: lease.grant_id.clone(),
-        heartbeat_schedule_id: grant.heartbeat_schedule_id,
-        heartbeat_action_id: grant.heartbeat_action_id,
+        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
+        heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest: lease.launch_digest.clone(),
         coordinator_receipt_id: coordinator.receipt_id.clone(),
         terminal_status: coordinator.status.clone(),
@@ -1705,24 +1717,38 @@ fn complete_resident_self_turn(
         consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
     };
-    let expected = cache
-        .snapshot_envelopes()
-        .into_iter()
+    let envelopes = cache.snapshot_envelopes();
+    let expected_state = envelopes
+        .iter()
         .find(|entry| {
             entry.r#type == <ResidentSelfState as DatabaseEntry>::TYPE
                 && entry.key == RESIDENT_SELF_STATE_KEY
         })
+        .cloned()
         .ok_or_else(|| anyhow!("resident Self state lost envelope"))?;
+    let expected_grant = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+                && entry.key == grant.grant_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("resident Self grant lost envelope at terminal ack"))?;
     state.active_turn = None;
     state.last_coordinator_receipt_id = Some(coordinator.receipt_id.clone());
     state.next_eligible_at_millis =
         now_millis.saturating_add(cooldown_seconds.saturating_mul(1000));
     state.revision += 1;
+    grant.schema_version = RESIDENT_SELF_GRANT_SCHEMA_VERSION.into();
+    grant.terminal_at_millis = Some(now_millis);
+    grant.terminal_status = Some(coordinator.status.clone());
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
+    let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
     let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
-    if !SingleFileMessagePackBackingStore::new(path)
-        .compare_and_swap_batch(&[expected], vec![state_entry, ack_entry])?
-    {
+    if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
+        &[expected_state, expected_grant],
+        vec![state_entry, grant_entry, ack_entry],
+    )? {
         return Err(anyhow!("resident Self lost terminal-ack CAS"));
     }
     Ok(ack)
@@ -1751,7 +1777,7 @@ pub fn cancel_resident_self_turn(
     if state.active_turn.as_ref() != Some(lease) {
         return Err(anyhow!("resident Self cancellation lease changed"));
     }
-    let grant = cache
+    let mut grant = cache
         .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
         .ok_or_else(|| anyhow!("resident Self cancellation grant missing"))?;
     let mut pressure = cache
@@ -1768,8 +1794,8 @@ pub fn cancel_resident_self_turn(
         schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
         ack_id: format!("resident-self-cancel-{}-{status}", lease.grant_id),
         grant_id: lease.grant_id.clone(),
-        heartbeat_schedule_id: grant.heartbeat_schedule_id,
-        heartbeat_action_id: grant.heartbeat_action_id,
+        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
+        heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest: lease.launch_digest.clone(),
         coordinator_receipt_id: format!("resident-self-runtime-{status}-{}", lease.grant_id),
         terminal_status: status.into(),
@@ -1794,18 +1820,30 @@ pub fn cancel_resident_self_turn(
         })
         .cloned()
         .ok_or_else(|| anyhow!("resident Self cancellation pressure envelope missing"))?;
+    let expected_grant = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+                && entry.key == grant.grant_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("resident Self cancellation grant envelope missing"))?;
     state.active_turn = None;
     state.revision += 1;
     state.consecutive_failures +=
         u64::from(!matches!(status, "brake-cancelled" | "shutdown-cancelled"));
     pressure.status = "pending".into();
     pressure.consumed_by_grant_id = None;
+    grant.schema_version = RESIDENT_SELF_GRANT_SCHEMA_VERSION.into();
+    grant.terminal_at_millis = Some(now_millis);
+    grant.terminal_status = Some(status.into());
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
+    let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
     let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
     if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
-        &[expected_state, expected_pressure],
-        vec![state_entry, pressure_entry, ack_entry],
+        &[expected_state, expected_pressure, expected_grant],
+        vec![state_entry, pressure_entry, grant_entry, ack_entry],
     )? {
         return Err(anyhow!("resident Self lost cancellation CAS"));
     }
@@ -1890,6 +1928,12 @@ pub fn retain_resident_self_lifecycles(
         .filter_map(|ack| {
             let grant = grants.get(&ack.grant_id)?;
             let pressure = pressures.get(&grant.pressure_id)?;
+            let terminal_grant = if grant.schema_version == RESIDENT_SELF_GRANT_SCHEMA_VERSION {
+                grant.terminal_at_millis == Some(ack.completed_at_millis)
+                    && grant.terminal_status.as_deref() == Some(ack.terminal_status.as_str())
+            } else {
+                grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
+            };
             let inactive = state.active_turn.as_ref().map(|lease| &lease.grant_id)
                 != Some(&grant.grant_id)
                 && state
@@ -1899,6 +1943,7 @@ pub fn retain_resident_self_lifecycles(
                     != Some(&grant.grant_id);
             (ack.consumed_by_heartbeat_at_millis.is_some()
                 && grant.consumed_at_millis.is_some()
+                && terminal_grant
                 && pressure.status == "consumed"
                 && pressure.consumed_by_grant_id.as_deref() == Some(grant.grant_id.as_str())
                 && inactive)
@@ -2055,6 +2100,8 @@ mod tests {
             issued_at_millis: completed_at_millis.saturating_sub(2),
             consumed_at_millis: Some(completed_at_millis.saturating_sub(1)),
             private_state_exposed: false,
+            terminal_at_millis: Some(completed_at_millis),
+            terminal_status: Some("completed".into()),
         };
         let ack = ResidentSelfTerminalAck {
             schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
@@ -2777,6 +2824,8 @@ mod tests {
         let mut stale_grant = cache
             .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
             .expect("completed grant");
+        assert_eq!(stale_grant.terminal_at_millis, Some(10));
+        assert_eq!(stale_grant.terminal_status.as_deref(), Some("planned"));
         let expected_grant = cache
             .snapshot_envelopes()
             .into_iter()
@@ -2792,9 +2841,21 @@ mod tests {
                 .compare_and_swap_entry(&expected_grant, stale_entry)?,
             "test must install the observed restart-corruption shape"
         );
+        let ack_envelope = state_cache(&store)?
+            .snapshot_envelopes()
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == ResidentSelfTerminalAck::TYPE && entry.key == acks[0].ack_id
+            })
+            .expect("terminal acknowledgement envelope");
+        assert!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .delete_batch_if_unchanged(&[ack_envelope])?,
+            "test must install the observed missing-ack shape"
+        );
         assert!(
             pending_resident_self_grant(&store)?.is_none(),
-            "terminal acknowledgement permanently kills its exact grant"
+            "the exact grant's terminal state permanently kills its launch authority"
         );
         assert!(prepare_resident_self_launch(&store, &policy, 10_010)?.is_none());
         let later_pressure = ResidentSelfPressure {
@@ -3183,7 +3244,15 @@ mod tests {
         assert_eq!(pressure.consumed_by_grant_id, None);
         assert!(
             heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?.is_none(),
-            "a terminal acknowledgement ends grant authority for its Heartbeat turn"
+            "a terminal grant ends authority for its Heartbeat turn"
+        );
+        let terminal_grant = state_cache(&store)?
+            .get::<ResidentSelfHeartbeatGrant>(&first_grant.grant_id)?
+            .expect("terminal first grant");
+        assert_eq!(terminal_grant.terminal_at_millis, Some(6));
+        assert_eq!(
+            terminal_grant.terminal_status.as_deref(),
+            Some("unfulfilled")
         );
         let retry_grant =
             heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 8)?
