@@ -1,5 +1,20 @@
 # Fresh workspace handoff
 
+## Active resident shutdown proof — 2026-08-09
+
+Exact authenticated `00ee3821` idle SIGTERM exited zero. In the active proof,
+the packaged coordinator was frozen as PID 103, PID 1 received SIGTERM, the
+child retained pending termination, and resumption terminalized the child
+before the resident exited zero in 2.023 seconds. The packaged operator
+projection nevertheless reported `failed`; source now maps shutdown
+cancellation to `Braked`, with a focused invariant test. Package and replay
+that exact correction once.
+
+An attempted live admission also proved that a second process can write typed
+pressure which the resident's in-memory state later overwrites. Preserve the
+active6 receipts. This is a resident-store single-writer/command-ingress seam,
+not permission to add a retrying sidecar writer.
+
 ## Release-construction bootstrap extracted — 2026-08-09
 
 Commit `76afdaf0ce863f19e9396ef4d21ed8ff3fb39690` moves package

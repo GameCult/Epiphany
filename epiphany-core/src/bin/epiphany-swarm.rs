@@ -188,6 +188,14 @@ fn cancelled_turn_status(
     }
 }
 
+fn outcome_after_cancel(shutdown_requested: bool) -> ResidentSelfOutcome {
+    if shutdown_requested {
+        ResidentSelfOutcome::Braked
+    } else {
+        ResidentSelfOutcome::Failed
+    }
+}
+
 fn cycle(
     args: &Args,
     state: &mut ResidentSelfState,
@@ -330,7 +338,7 @@ fn cycle(
                     now,
                 )?;
                 *state = load_resident_self_state(&args.state_store)?;
-                Ok(ResidentSelfOutcome::Failed)
+                Ok(outcome_after_cancel(shutdown_requested))
             }
             ChildObservation::Missing => {
                 cancel_resident_self_turn(
@@ -341,7 +349,7 @@ fn cycle(
                     now,
                 )?;
                 *state = load_resident_self_state(&args.state_store)?;
-                Ok(ResidentSelfOutcome::Failed)
+                Ok(outcome_after_cancel(shutdown_requested))
             }
         };
     }
@@ -685,6 +693,12 @@ mod brake_tests {
         assert_eq!(cancelled_turn_status(false, true, true), "brake-cancelled");
         assert_eq!(cancelled_turn_status(false, false, true), "timed-out");
         assert_eq!(cancelled_turn_status(false, false, false), "process-failed");
+    }
+
+    #[test]
+    fn shutdown_cancellation_is_a_braked_outcome_not_a_failure() {
+        assert_eq!(outcome_after_cancel(true), ResidentSelfOutcome::Braked);
+        assert_eq!(outcome_after_cancel(false), ResidentSelfOutcome::Failed);
     }
 
     #[test]
