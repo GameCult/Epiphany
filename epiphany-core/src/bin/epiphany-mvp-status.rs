@@ -166,6 +166,7 @@ struct Args {
     stderr: PathBuf,
     interrupt_binding: Option<String>,
     interrupt_reason: Option<String>,
+    include_auxiliary_status: bool,
 }
 
 impl Args {
@@ -187,6 +188,7 @@ impl Args {
                 .join("epiphany-mvp-status-server.stderr.log"),
             interrupt_binding: None,
             interrupt_reason: None,
+            include_auxiliary_status: true,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -205,6 +207,7 @@ impl Args {
                 "--interrupt-reason" => {
                     parsed.interrupt_reason = Some(take_string(&mut args, "--interrupt-reason")?)
                 }
+                "--coordinator-only" => parsed.include_auxiliary_status = false,
                 _ => return Err(anyhow!("unknown argument: {arg}")),
             }
         }
@@ -216,7 +219,7 @@ fn run_status(args: &Args) -> Result<Value> {
     if args.interrupt_binding.is_some() {
         return run_native_interrupt(args);
     }
-    run_native_status(args, true)
+    run_native_status(args, args.include_auxiliary_status)
 }
 
 fn run_native_interrupt(args: &Args) -> Result<Value> {
@@ -271,6 +274,7 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
                 .join("epiphany-mvp-status-server.stderr.log"),
             interrupt_binding: None,
             interrupt_reason: None,
+            include_auxiliary_status: false,
         },
         false,
     )
@@ -687,7 +691,15 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
             "--limit",
             "8",
         ],
-    )?;
+    )
+    .unwrap_or_else(|error| {
+        json!({
+            "status": "unavailable",
+            "surface": "heartbeat",
+            "reason": error.to_string(),
+            "authority": "auxiliary projection is optional and cannot summon a build"
+        })
+    });
     let latest_discord_persona = native_json(
         "epiphany-persona-discord",
         &[
@@ -1427,22 +1439,16 @@ pub fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
     .join("debug")
     .join(format!("{bin_name}.exe"));
     let exe = sibling.filter(|path| path.exists()).unwrap_or(configured);
-    let output = if exe.exists() {
-        Command::new(&exe).args(args).output()
-    } else {
-        let mut command = Command::new("cargo");
-        command
-            .arg("run")
-            .arg("--quiet")
-            .arg("--manifest-path")
-            .arg("epiphany-core/Cargo.toml")
-            .arg("--bin")
-            .arg(bin_name)
-            .arg("--")
-            .args(args)
-            .output()
+    if !exe.exists() {
+        return Err(anyhow!(
+            "optional projection executable is absent: {}",
+            exe.display()
+        ));
     }
-    .with_context(|| format!("failed to run {bin_name}"))?;
+    let output = Command::new(&exe)
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run {bin_name}"))?;
     if !output.status.success() {
         return Err(anyhow!(
             "{} failed: {}{}",
@@ -1468,6 +1474,21 @@ fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Path
 mod native_interrupt_tests {
     use super::*;
     use epiphany_state_model::{EpiphanyJobBinding, EpiphanyJobKind};
+
+    #[test]
+    fn operator_projection_has_no_build_authority() {
+        let source = include_str!("epiphany-mvp-status.rs");
+        let native_json = source
+            .split("pub fn native_json")
+            .nth(1)
+            .expect("native_json source");
+        let native_json = native_json
+            .split("fn take_string")
+            .next()
+            .expect("native_json boundary");
+        assert!(!native_json.contains("Command::new(\"cargo\")"));
+        assert!(source.contains("\"--coordinator-only\""));
+    }
 
     #[test]
     fn native_operator_contract_has_one_store_and_no_codex_state_field() {
@@ -1514,6 +1535,7 @@ mod native_interrupt_tests {
             stderr: PathBuf::new(),
             interrupt_binding: Some("modeling-worker".to_string()),
             interrupt_reason: Some("native status proof".to_string()),
+            include_auxiliary_status: false,
         };
         let result = run_status(&args)?;
         assert_eq!(result["source"], "native");

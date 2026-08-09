@@ -1,5 +1,39 @@
 # Fresh workspace handoff
 
+## Resident continuity, topology repair, and build-free status — 2026-08-09
+
+Authenticated release `sha256-d1392730...` is now the running c005 body. The
+old body and the first replacement container are retained as rollback receipts.
+Both Docker stops sent SIGTERM and ended in exit 137 after timeout, proving that
+`epiphany-swarm serve` has no graceful signal owner even while idle.
+
+The first replacement preserved resident Self revision 6, sleeping state, no
+active turn, and no prepared recovery, but native status exposed a live topology
+fault: resident Self used `/state/runtime.cc`, whose next action was
+`launchResearch`, while the accepted coordinated cognition chain lives in
+`/state/eyes-tools/runtime.cc`. The resident was rebound without copying or
+merging state. Release authentication remains `/state/local-verse.cc`; runtime,
+coordination Verse, and Mind now use the established `/state/eyes-tools/`
+stores. The current container ID begins `f0303137`; rollback container
+`epiphany-linux-resident-self-c005-wrong-runtime-0934` preserves the bad binding.
+
+Post-rebind operator projection derives `awaitFrontierProposal`, terminal
+frontier planning, accepted Research, and `modelingResultAcceptedAfterResearch`.
+Route `817bf422...` appears only as the route named by relinquishment receipt
+`repo-frontier-relinquishment-7b846272...`; it is not actionable or recreated.
+The obsolete root runtime hash remained
+`c10caa321322632111a4e8f69550be4c799d78c92a78780a3066bbf6ad0a7c7c`.
+
+The diagnostic itself exposed hidden build authority: standalone
+`epiphany-mvp-status` invoked Cargo whenever optional Heartbeat/Persona/Void
+helpers were absent. That fallback is deleted. Optional panels now report
+unavailable, `--coordinator-only` performs the exact routing read, and status is
+the 24th explicit packaged binary. Heavy OpenAI and MCP runtime dependencies are
+feature-admitted so coordinator/status iteration does not compile them. Focused
+proof passes 19/19 release tests and 3/3 status tests; warm runs complete in
+about 1-4 seconds. Exact 24-binary packaging remains next, followed by graceful
+shutdown ownership, restart proof, retention, logs, and endurance.
+
 ## Deterministic warm release published — 2026-08-09
 
 Exact pushed source `9b8df0b487eaae12e35dbe53a82faae1a1e39954`

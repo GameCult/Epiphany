@@ -1985,3 +1985,28 @@ local Verse without stopping its resident process. Publication changes release
 availability; it does not own executable replacement. Continuity now owns the
 next boundary: supervised stop, authenticated body replacement, restart on the
 same typed stores, and proof that Self resumes the existing frontier.
+
+### Operator projection and resident topology ownership
+
+`epiphany-mvp-status` owns read-only coordinator projection. It may execute an
+already-present optional projection helper, but it cannot construct one.
+Missing Heartbeat, Persona, or Void helpers therefore derive an unavailable
+auxiliary panel. `--coordinator-only` omits those panels and reads the accepted
+coordinator state directly; observation can no longer summon Cargo. The status
+binary is an explicit release sibling so deployed operator sight is part of the
+authenticated body rather than a workstation accident.
+
+Resident Self has four distinct store roles. `release_store` authenticates the
+running body; `runtime_store` owns nervous-system and coordinator state;
+`local_verse_store` owns the coordination providers and brake; and
+`agent_memory_store` owns Mind material. These paths may share a directory, but
+they are not interchangeable. In c005, the accepted Eyes-to-Hands chain owns
+the `/state/eyes-tools/` runtime, local Verse, and Mind. The main local Verse
+still owns release publication. The old `/state/runtime.cc` is no longer a
+resident cognition owner; it is retained evidence only.
+
+Docker SIGTERM currently reaches `epiphany-swarm` PID 1, but `serve` owns an
+unconditional loop followed by blocking `thread::sleep` and installs no signal
+observer. Docker therefore escalates to SIGKILL and records exit 137. Graceful
+shutdown work must assign one signal owner, make sleep interruptible, and define
+how an active exact child is drained or terminalized before claiming closure.

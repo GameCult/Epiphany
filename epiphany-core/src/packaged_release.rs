@@ -120,6 +120,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             file_name("epiphany-persona-discord-permit-identity"),
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
+        ("coordinator-status", file_name("epiphany-mvp-status")),
         ("frontier-proposal", file_name("epiphany-frontier-proposal")),
         ("hands-action", file_name("epiphany-hands-action")),
         ("model-runtime", file_name("epiphany-model-runtime")),
@@ -515,7 +516,7 @@ fn release_build_command(
         .arg("--package")
         .arg("epiphany-release-bundle")
         .arg("--features")
-        .arg("epiphany-release-bundle/coordinator-runtime");
+        .arg("epiphany-release-bundle/release-runtime");
     for (_, file_name) in required {
         let binary_name = Path::new(file_name)
             .file_stem()
@@ -592,6 +593,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
             Ok(("epiphany-core", "epiphany-persona-discord-permit-identity"))
         }
         "coordinator" => Ok((".", "epiphany-mvp-coordinator")),
+        "coordinator-status" => Ok((".", "epiphany-mvp-status")),
         "frontier-proposal" => Ok(("epiphany-core", "epiphany-frontier-proposal")),
         "hands-action" => Ok(("epiphany-core", "epiphany-hands-action")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
@@ -1154,7 +1156,7 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(envs.get("CARGO_INCREMENTAL"), Some(&Some("0".to_string())));
-        assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 23);
+        assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 24);
         assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 1);
         assert!(
             args.windows(2)
@@ -1163,11 +1165,15 @@ mod tests {
         assert!(!args.iter().any(|arg| arg == "epiphany-core"));
         assert!(
             args.windows(2)
-                .any(|pair| pair == ["--features", "epiphany-release-bundle/coordinator-runtime"])
+                .any(|pair| pair == ["--features", "epiphany-release-bundle/release-runtime"])
         );
         assert!(
             args.windows(2)
                 .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-mvp-status"])
         );
         assert!(
             args.windows(2)
@@ -1298,6 +1304,9 @@ mod tests {
         let core_manifest = fs::read_to_string(core.join("Cargo.toml")).expect("core manifest");
 
         assert!(root_manifest.contains("coordinator-runtime = [\"dep:epiphany-self-policy\"]"));
+        assert!(root_manifest.contains(
+            "release-runtime = [\"coordinator-runtime\", \"openai-runtime\", \"tool-mcp-runtime\"]"
+        ));
         assert!(root_manifest.contains("required-features = [\"coordinator-runtime\"]"));
         assert!(core_manifest.contains("autobins = false"));
         assert!(!core_manifest.contains("name = \"epiphany-mvp-coordinator\""));
