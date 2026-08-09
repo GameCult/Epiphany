@@ -53,6 +53,28 @@ impl RuntimeSpineBackingStore {
             }
         }
     }
+
+    pub(crate) fn replace_and_delete_if_snapshot_unchanged(
+        &self,
+        expected_snapshot: &[CultCacheEnvelope],
+        replacements: Vec<CultCacheEnvelope>,
+        deletions: &[CultCacheEnvelope],
+    ) -> Result<bool> {
+        match self.selected()? {
+            SelectedBackingStore::Snapshot(store) => store
+                .replace_and_delete_if_snapshot_unchanged(
+                    expected_snapshot,
+                    replacements,
+                    deletions,
+                ),
+            SelectedBackingStore::Keyed(store) => store
+                .replace_and_delete_if_snapshot_unchanged(
+                    expected_snapshot,
+                    replacements,
+                    deletions,
+                ),
+        }
+    }
 }
 
 impl CacheBackingStore for RuntimeSpineBackingStore {

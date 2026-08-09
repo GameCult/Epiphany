@@ -11,14 +11,15 @@ use epiphany_core::{
     derive_resident_cognition_readiness, enqueue_resident_self_pressure,
     import_bifrost_persona_feedback_deliveries, ingest_resident_self_domain_pressure,
     load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
-    prepare_resident_self_launch, publish_resident_provider_readiness,
+    pending_resident_self_acks, prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
-    retain_resident_self_lifecycles, validate_persona_feedback_store_separation,
+    retain_coordinator_run_receipts, retain_resident_self_lifecycles,
+    validate_persona_feedback_store_separation,
     validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
 };
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -76,6 +77,7 @@ fn main() -> Result<()> {
     match args.command {
         CommandKind::Once => {
             let outcome = cycle(&args, &mut state, &mut ports, false)?;
+            retain_runtime_receipts(&args, &state)?;
             retain_resident_self_lifecycles(
                 &args.state_store,
                 args.retained_closed_lifecycles,
@@ -92,6 +94,7 @@ fn main() -> Result<()> {
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
+                retain_runtime_receipts(&args, &state)?;
                 retain_resident_self_lifecycles(
                     &args.state_store,
                     args.retained_closed_lifecycles,
@@ -116,6 +119,33 @@ fn main() -> Result<()> {
         CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
     Ok(())
+}
+
+fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()> {
+    if !runtime_receipt_retention_allowed(
+        state.active_turn.is_some(),
+        state.prepared_launch.is_some(),
+    ) {
+        return Ok(());
+    }
+    let mut preserved = pending_resident_self_acks(&args.state_store)?
+        .into_iter()
+        .map(|ack| ack.coordinator_receipt_id)
+        .collect::<BTreeSet<_>>();
+    if let Some(receipt_id) = &state.last_coordinator_receipt_id {
+        preserved.insert(receipt_id.clone());
+    }
+    retain_coordinator_run_receipts(
+        &args.policy.runtime_store,
+        args.retained_coordinator_receipts,
+        &preserved,
+        &Utc::now().to_rfc3339(),
+    )?;
+    Ok(())
+}
+
+fn runtime_receipt_retention_allowed(has_active_turn: bool, has_prepared_launch: bool) -> bool {
+    !has_active_turn && !has_prepared_launch
 }
 
 fn publish_self_readiness(args: &Args) -> Result<()> {
@@ -423,6 +453,7 @@ struct Args {
     heartbeat_store: PathBuf,
     provider_freshness_seconds: u64,
     retained_closed_lifecycles: usize,
+    retained_coordinator_receipts: usize,
     persona_feedback_source_store: PathBuf,
     persona_feedback_store: PathBuf,
     bifrost_feedback_trust_anchor: PathBuf,
@@ -527,6 +558,9 @@ impl Args {
             retained_closed_lifecycles: u64v("--retained-closed-lifecycles", 256)?
                 .try_into()
                 .context("--retained-closed-lifecycles exceeds platform size")?,
+            retained_coordinator_receipts: u64v("--retained-coordinator-receipts", 256)?
+                .try_into()
+                .context("--retained-coordinator-receipts exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,
@@ -737,5 +771,13 @@ mod brake_tests {
         })?;
         assert!(touched.get());
         Ok(())
+    }
+
+    #[test]
+    fn runtime_receipt_retention_refuses_active_or_prepared_launch_authority() {
+        assert!(runtime_receipt_retention_allowed(false, false));
+        assert!(!runtime_receipt_retention_allowed(true, false));
+        assert!(!runtime_receipt_retention_allowed(false, true));
+        assert!(!runtime_receipt_retention_allowed(true, true));
     }
 }

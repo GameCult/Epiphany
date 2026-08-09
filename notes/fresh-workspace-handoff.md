@@ -1094,3 +1094,19 @@ The accumulator must not enumerate as a receipt or satisfy resident completion.
 Session/job/event/model/tool retention remains forbidden until typed archived
 session ownership closes tool follow-up, review, recovery, and accepted-frontier
 references.
+
+The source implementation is now complete but not yet packaged. Runtime owns a
+typed cumulative count/digest head and exact receipt deletion behind one
+full-snapshot fence. Resident Self invokes it after each cycle, before resident
+lifecycle retirement, with a default-256 window and explicit preservation of
+every pending terminal acknowledgement plus `last_coordinator_receipt_id`.
+Even a configured zero window retains the newest receipt. The head has a
+distinct CultCache type and cannot enumerate as `EpiphanyCoordinatorRunReceipt`.
+Retention refuses to run while active-turn or prepared-launch authority exists,
+so a child cannot write its terminal receipt during the pre-exit observation
+window and have a small retention window retire it before completion scanning.
+CultCache `9cae2779` supplies the same atomic replace/delete primitive to the
+production non-owning redb handle; its concurrent-insert refusal test passes.
+Twenty resident tests, seven swarm tests, and two coordinator-retention tests
+pass. Next commit and package this exact source, then prove it on copied state;
+active c005 remains untouched.

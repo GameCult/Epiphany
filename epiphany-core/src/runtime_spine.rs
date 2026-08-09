@@ -165,6 +165,9 @@ pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
 pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v0";
+pub const COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_SCHEMA_VERSION: &str =
+    "epiphany.coordinator_run_receipt_retention_head.v0";
+pub const COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY: &str = "coordinator-run-receipt-retention";
 pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
 pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
@@ -683,6 +686,28 @@ pub struct EpiphanyCoordinatorRunReceipt {
     pub resident_executable_digest: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator_run_receipt_retention_head.v0",
+    schema = "EpiphanyCoordinatorRunReceiptRetentionHead"
+)]
+pub struct EpiphanyCoordinatorRunReceiptRetentionHead {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub revision: u64,
+    #[cultcache(key = 2)]
+    pub retired_receipt_count: u64,
+    #[cultcache(key = 3)]
+    pub retired_status_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 4)]
+    pub retired_chain_digest: String,
+    #[cultcache(key = 5)]
+    pub retained_at: String,
+    #[cultcache(key = 6, default)]
+    pub private_state_exposed: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EpiphanyRuntimeSessionStatus {
@@ -965,6 +990,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
+    cache.register_entry_type::<EpiphanyCoordinatorRunReceiptRetentionHead>()?;
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
@@ -8652,6 +8678,136 @@ pub fn coordinator_run_receipts(
     cache.get_all::<EpiphanyCoordinatorRunReceipt>()
 }
 
+pub fn retain_coordinator_run_receipts(
+    store_path: impl AsRef<Path>,
+    retain_recent: usize,
+    preserve_receipt_ids: &BTreeSet<String>,
+    retained_at: &str,
+) -> Result<Option<EpiphanyCoordinatorRunReceiptRetentionHead>> {
+    chrono::DateTime::parse_from_rfc3339(retained_at)
+        .map_err(|error| anyhow!("coordinator receipt retention timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let mut receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+    let created_at_by_receipt = receipts
+        .iter()
+        .map(|receipt| {
+            chrono::DateTime::parse_from_rfc3339(&receipt.created_at)
+                .map(|created_at| (receipt.receipt_id.clone(), created_at))
+                .map_err(|error| {
+                    anyhow!(
+                        "coordinator receipt {:?} has invalid created_at: {error}",
+                        receipt.receipt_id
+                    )
+                })
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    receipts.sort_by(|left, right| {
+        created_at_by_receipt[&left.receipt_id]
+            .cmp(&created_at_by_receipt[&right.receipt_id])
+            .then(left.receipt_id.cmp(&right.receipt_id))
+    });
+    let keep_recent = retain_recent.max(1);
+    let recent_ids = receipts
+        .iter()
+        .rev()
+        .take(keep_recent)
+        .map(|receipt| receipt.receipt_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let retired = receipts
+        .iter()
+        .filter(|receipt| {
+            !recent_ids.contains(receipt.receipt_id.as_str())
+                && !preserve_receipt_ids.contains(&receipt.receipt_id)
+        })
+        .collect::<Vec<_>>();
+    if retired.is_empty() {
+        return Ok(None);
+    }
+
+    let prior = cache.get::<EpiphanyCoordinatorRunReceiptRetentionHead>(
+        COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
+    )?;
+    if let Some(head) = &prior {
+        if head.schema_version != COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_SCHEMA_VERSION
+            || head.private_state_exposed
+            || !head.retired_chain_digest.starts_with("sha256:")
+        {
+            return Err(anyhow!(
+                "coordinator run receipt retention head is invalid"
+            ));
+        }
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let mut deletions = retired
+        .iter()
+        .map(|receipt| {
+            snapshot
+                .iter()
+                .find(|entry| {
+                    entry.r#type == EpiphanyCoordinatorRunReceipt::TYPE
+                        && entry.key == receipt.receipt_id
+                })
+                .cloned()
+                .ok_or_else(|| anyhow!("coordinator receipt lost its exact envelope"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    deletions.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    let mut status_counts = prior
+        .as_ref()
+        .map(|head| head.retired_status_counts.clone())
+        .unwrap_or_default();
+    for receipt in &retired {
+        *status_counts.entry(receipt.status.clone()).or_default() += 1;
+    }
+    let mut digest = Sha256::new();
+    let prior_digest = prior
+        .as_ref()
+        .map(|head| head.retired_chain_digest.as_str())
+        .unwrap_or("coordinator-run-receipt-retention-root");
+    digest.update((prior_digest.len() as u64).to_le_bytes());
+    digest.update(prior_digest.as_bytes());
+    for entry in &deletions {
+        for bytes in [
+            entry.r#type.as_bytes(),
+            entry.key.as_bytes(),
+            entry.payload.as_slice(),
+        ] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+    }
+    let head = EpiphanyCoordinatorRunReceiptRetentionHead {
+        schema_version: COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_SCHEMA_VERSION.into(),
+        revision: prior.as_ref().map_or(1, |head| head.revision + 1),
+        retired_receipt_count: prior.as_ref().map_or(retired.len() as u64, |head| {
+            head.retired_receipt_count + retired.len() as u64
+        }),
+        retired_status_counts: status_counts,
+        retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+        retained_at: retained_at.into(),
+        private_state_exposed: false,
+    };
+    let (replacement, _) = cache.prepare_entry(
+        COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
+        &head,
+    )?;
+    if !runtime_spine_backing_store(store_path)?
+        .replace_and_delete_if_snapshot_unchanged(&snapshot, vec![replacement], &deletions)?
+    {
+        return Err(anyhow!(
+            "coordinator run receipt retention lost its snapshot fence"
+        ));
+    }
+    Ok(Some(head))
+}
+
 pub fn complete_runtime_job(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineJobResultOptions,
@@ -13677,6 +13833,180 @@ pub(crate) mod tests {
                 .get::<EpiphanyCoordinatorRunReceipt>("coordinator-receipt-1")?
                 .is_some()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn coordinator_run_receipt_retention_preserves_authority_and_cannot_resurrect_work(
+    ) -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-retention-test".to_string(),
+                display_name: "Epiphany Retention Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )?;
+        for (index, status) in ["planned", "completed", "failed", "completed"]
+            .into_iter()
+            .enumerate()
+        {
+            let ordinal = index + 1;
+            put_coordinator_run_receipt(
+                &store,
+                &EpiphanyCoordinatorRunReceipt {
+                    schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                    receipt_id: format!("receipt-{ordinal}"),
+                    session_id: "session-1".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    mode: "default".to_string(),
+                    status: status.to_string(),
+                    final_action: "manualRegather".to_string(),
+                    final_reason: None,
+                    step_count: ordinal as u64,
+                    created_at: format!("2026-05-06T00:0{ordinal}:00Z"),
+                    model_provider: None,
+                    runtime_store: store.display().to_string(),
+                    artifact_refs: Vec::new(),
+                    sealed_artifact_refs: Vec::new(),
+                    metadata: BTreeMap::new(),
+                    resident_grant_id: None,
+                    resident_launch_digest: None,
+                    resident_policy_digest: None,
+                    resident_argv_digest: None,
+                    resident_objective_digest: None,
+                    resident_release_commit: None,
+                    resident_release_manifest_digest: None,
+                    resident_executable_digest: None,
+                },
+            )?;
+        }
+
+        let preserved = BTreeSet::from(["receipt-1".to_string()]);
+        let mut before_cache = runtime_spine_cache(&store)?;
+        before_cache.pull_all_backing_stores()?;
+        let unrelated_before = before_cache
+            .snapshot_envelopes()
+            .into_iter()
+            .filter(|entry| entry.r#type != EpiphanyCoordinatorRunReceipt::TYPE)
+            .collect::<Vec<_>>();
+        let head = retain_coordinator_run_receipts(
+            &store,
+            1,
+            &preserved,
+            "2026-05-06T00:10:00Z",
+        )?
+        .expect("two receipts should be retired");
+        assert_eq!(head.revision, 1);
+        assert_eq!(head.retired_receipt_count, 2);
+        assert_eq!(
+            head.retired_status_counts,
+            BTreeMap::from([("completed".to_string(), 1), ("failed".to_string(), 1)])
+        );
+        assert!(head.retired_chain_digest.starts_with("sha256:"));
+
+        let receipts = coordinator_run_receipts(&store)?;
+        assert_eq!(
+            receipts
+                .iter()
+                .map(|receipt| receipt.receipt_id.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["receipt-1", "receipt-4"])
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let unrelated_after = cache
+            .snapshot_envelopes()
+            .into_iter()
+            .filter(|entry| {
+                entry.r#type != EpiphanyCoordinatorRunReceipt::TYPE
+                    && entry.r#type != EpiphanyCoordinatorRunReceiptRetentionHead::TYPE
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(unrelated_after, unrelated_before);
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorRunReceipt>(
+                    COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
+                )?
+                .is_none(),
+            "the retention head must not deserialize as runnable receipt authority"
+        );
+        assert_eq!(
+            cache
+                .get::<EpiphanyCoordinatorRunReceiptRetentionHead>(
+                    COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY,
+                )?
+                .as_ref(),
+            Some(&head)
+        );
+        assert!(
+            retain_coordinator_run_receipts(
+                &store,
+                1,
+                &preserved,
+                "2026-05-06T00:11:00Z",
+            )?
+            .is_none(),
+            "a stable retained set must not rewrite the head"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn coordinator_run_receipt_retention_keeps_newest_when_window_is_zero() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-zero-window-test".to_string(),
+                display_name: "Epiphany Zero Window Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )?;
+        for ordinal in 1..=2 {
+            put_coordinator_run_receipt(
+                &store,
+                &EpiphanyCoordinatorRunReceipt {
+                    schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                    receipt_id: format!("receipt-{ordinal}"),
+                    session_id: "session-1".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    mode: "default".to_string(),
+                    status: "completed".to_string(),
+                    final_action: "manualRegather".to_string(),
+                    final_reason: None,
+                    step_count: ordinal,
+                    created_at: format!("2026-05-06T00:0{ordinal}:00Z"),
+                    model_provider: None,
+                    runtime_store: store.display().to_string(),
+                    artifact_refs: Vec::new(),
+                    sealed_artifact_refs: Vec::new(),
+                    metadata: BTreeMap::new(),
+                    resident_grant_id: None,
+                    resident_launch_digest: None,
+                    resident_policy_digest: None,
+                    resident_argv_digest: None,
+                    resident_objective_digest: None,
+                    resident_release_commit: None,
+                    resident_release_manifest_digest: None,
+                    resident_executable_digest: None,
+                },
+            )?;
+        }
+        retain_coordinator_run_receipts(
+            &store,
+            0,
+            &BTreeSet::new(),
+            "2026-05-06T00:10:00Z",
+        )?
+        .expect("the older receipt should be retired");
+        let receipts = coordinator_run_receipts(&store)?;
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].receipt_id, "receipt-2");
         Ok(())
     }
 

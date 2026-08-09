@@ -2105,14 +2105,16 @@ work.
   stores only the latest receipt identity and terminal acknowledgements may
   reference an exact receipt.
 - **Inputs:** receipts older than the retained frontier and unreferenced by
-  current resident state, pending acknowledgements, accepted coordinator
-  state, or recovery paths.
+  the configurable newest window or explicit IDs supplied from current
+  resident state and pending acknowledgements. Retention refuses prepared or
+  active launch authority.
 - **Outputs:** a typed accumulator preserving terminal counts/digests without
   pretending to be a runnable receipt.
 - **Forbidden writers:** resident retention cannot delete runtime receipts;
   runtime compaction cannot guess that cross-store references are dead.
-- **Deletion line:** no coordinator receipt retirement until the cross-store
-  reference set and crash-recovery readers are source-grounded and tested.
+- **Deletion line:** runtime replaces the singleton head and deletes exact old
+  receipt envelopes in one full-snapshot-fenced transaction. Unknown runtime
+  rows remain byte-identical.
 
 ### Supervisor stdout/stderr
 
@@ -2208,5 +2210,20 @@ These are not one retention family merely because they share a file.
   must not be removed merely because a model receipt exists; tool follow-up and
   review/recovery readers must first be closed.
 
-The next bounded implementation is coordinator receipt accumulation only. It
-must not pretend to solve runtime session/model/event retention.
+The coordinator receipt accumulator is implemented in source. Runtime owns the
+typed head, cumulative status counts, chained digest, and full-snapshot-fenced
+replacement/deletion. Resident Self supplies the cross-store preservation set
+from pending terminal acknowledgements and `last_coordinator_receipt_id` before
+resident lifecycle retirement; it does not write or delete runtime rows
+directly. Retention is forbidden while active-turn or prepared-launch authority
+exists, closing the interval where a child may have written its terminal
+receipt but Self has not yet observed exit. The default window is 256 and the
+newest receipt survives even when the configured window is zero. CultCache's production non-owning redb handle
+now exposes the same fenced compaction primitive as the snapshot and owned-redb
+backends. Unit tests prove stale-snapshot refusal, explicit-ID preservation,
+zero-window newest preservation, stable replay, and that the head cannot
+deserialize or enumerate as runnable coordinator receipt authority.
+
+The source still requires an exact authenticated package and copied-state
+production proof. It does not pretend to solve runtime
+session/model/event/tool retention.
