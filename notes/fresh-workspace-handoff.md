@@ -1447,3 +1447,32 @@ typed fulfillment; the autonomous bridge accepts an Eyes continuation and
 continues to reject direct Hands. All 50 runtime-spine and 24 resident tests
 pass. Package exact `c9738fdb` and replay the pending-to-fulfilled transition
 from a fresh copied state; do not rehabilitate the rejected c1b run.
+
+Exact `6dd9b132` packaged in 8m47s as warning-free 24-binary release
+`sha256-e9380f98b000e216705218c96f2925976558fff63113d5d003aed443ba80aadd`
+with witness
+`sha256-271f062be9b77d9a49d7aa26884c64db65c42919d30d8fecf650c7cb7890c86c`.
+The Linux-native source volume was required because a Windows bind mount made
+Linux Git report line-ending changes across the tracked tree; both preflight
+refusals are preserved and no build began under either. The accepted package
+contains 24 x86-64 ELF binaries and no warning/error log matches.
+
+The fresh copied body under `.epiphany-run/fulfillment-live-6dd9b132` contains
+7,678 files and matched the Active6 machine ID plus six authority/store hashes
+exactly before publishing only the new release. The exact pending autonomous
+proposal grant launched once. Coordinator exit left Self on the same lease as
+`awaiting-fulfillment` while the detached Modeling worker continued. Runtime
+then admitted `result-worker-cae0cad1-188e-46fa-832c-7cb0676422dd` with typed
+`checkpoint-update-needed` and one active proposal-citing Eyes frontier. Self
+completed at revision 21 with exactly one result, one `planned` terminal
+acknowledgement, terminal `planned` on the exact grant, and persisted
+`nextEligibleAtMillis=1786318158509`. Continued serve cycles did not duplicate
+result or acknowledgement. The copied workspace has zero tracked changes.
+SIGTERM completed in 577ms with exit zero and final `braked`. Runtime-owned
+asynchronous typed fulfillment is accepted; active c005 was untouched.
+
+The next pass is broad semantic/runtime retention. Map session/job/event,
+model-request/result/stream-event, and tool-intent/receipt ownership and
+cross-store liveness before editing. No age-only deletion and no broad
+compaction are authorized until one typed archived-session owner can prove a
+fully closed, unreferenced generation cannot resurrect or erase work.

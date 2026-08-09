@@ -1368,6 +1368,14 @@ the lease once and return its exact pressure to Heartbeat; invalid or
 substituted evidence closes as `unfulfilled`. Coordinator process closure is
 therefore evidence, never cognitive completion authority.
 
+Exact packaged `6dd9b132` proves that ownership cut live. One autonomous
+proposal Modeling coordinator exited while its detached worker continued; Self
+held the same lease as `awaiting-fulfillment`. Runtime later admitted one exact
+`checkpoint-update-needed` result whose proposal-citing frontier routed to
+Eyes. Self consumed it once, wrote one `planned` acknowledgement, terminalized
+the exact grant, and persisted cooldown. Continued serve cycles produced no
+second result or acknowledgement, and SIGTERM ended braked with exit zero.
+
 Resident Self now owns only the mapping from grant provenance to a typed runtime
 request reference and the lease transition driven by the verdict. It does not
 scan worker rows or recreate candidate/result policy. No claimant means
