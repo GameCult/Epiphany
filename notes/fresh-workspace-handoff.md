@@ -1,5 +1,22 @@
 # Fresh workspace handoff
 
+## Corrected shutdown replay and Cargo-home ownership — 2026-08-09
+
+Exact `b8138a6b` release `sha256-f3e0966333b86181bf13893a45f7636d0c6ff13720fbf535b29cca485c3fd58d`
+with witness `sha256-4652c86f4a5560475de597fd162dfc7a5369df711cd00e51a3805e769b68a0ee`
+passed native 24-binary inspection. Frozen coordinator PID 88 retained pending
+SIGTERM, resumed, terminalized, and the resident exited zero in 1.613 seconds
+with final `braked`. Restart reached `sleeping`; idle SIGTERM then exited zero
+in 871 ms with final `braked`. Receipts are under
+`.epiphany-run/shutdown-active8-b8138a6b/`.
+
+The exact package took 19m26s. The Docker recipe mounted a Cargo-home volume at
+`/cargo-home` without setting `CARGO_HOME`, so fresh containers still updated
+and downloaded through throwaway `/usr/local/cargo`. Release construction now
+owns `build_cache_root/cargo-home` and exports it to Cargo. All 19 focused tests
+pass. The first exact build after this change is a one-time source-path
+migration; require a second warm replay before claiming the iteration fix.
+
 ## Active resident shutdown proof — 2026-08-09
 
 Exact authenticated `00ee3821` idle SIGTERM exited zero. In the active proof,

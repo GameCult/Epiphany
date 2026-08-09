@@ -472,6 +472,13 @@ fn build_required_release_siblings(
         )
     })?;
     let mut outputs = BTreeMap::new();
+    let cargo_home = target_root.join("cargo-home");
+    fs::create_dir_all(&cargo_home).with_context(|| {
+        format!(
+            "failed to create release Cargo cache {}",
+            cargo_home.display()
+        )
+    })?;
     let required = required_packaged_release_binaries(target);
     for (role, file_name) in &required {
         required_release_build_target(role)?;
@@ -480,7 +487,14 @@ fn build_required_release_siblings(
             target_dir.join(target).join("release").join(file_name),
         );
     }
-    let mut command = release_build_command(cargo, &manifest, &target_dir, target, &required)?;
+    let mut command = release_build_command(
+        cargo,
+        &manifest,
+        &target_dir,
+        &cargo_home,
+        target,
+        &required,
+    )?;
     let status = command
         .status()
         .context("failed to start Epiphany release bundle build")?;
@@ -497,12 +511,14 @@ fn release_build_command(
     cargo: &std::ffi::OsStr,
     manifest: &Path,
     target_dir: &Path,
+    cargo_home: &Path,
     target: &str,
     required: &[(&'static str, String)],
 ) -> Result<std::process::Command> {
     let mut command = std::process::Command::new(cargo);
     command
         .env("CARGO_INCREMENTAL", "0")
+        .env("CARGO_HOME", cargo_home)
         .arg("build")
         .arg("--release")
         .arg("--manifest-path")
@@ -1064,6 +1080,7 @@ mod tests {
             std::ffi::OsStr::new("cargo"),
             Path::new("Cargo.toml"),
             Path::new("target"),
+            Path::new("cargo-home"),
             "x86_64-unknown-linux-gnu",
             &required,
         )
@@ -1083,6 +1100,10 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
 
         assert_eq!(envs.get("CARGO_INCREMENTAL"), Some(&Some("0".to_string())));
+        assert_eq!(
+            envs.get("CARGO_HOME"),
+            Some(&Some("cargo-home".to_string()))
+        );
         assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 24);
         assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 1);
         assert!(
