@@ -1369,13 +1369,16 @@ grant before that deadline, so `serve`, `once`, and crash/restart do not need
 separate cooldown opinions.
 
 One Heartbeat coordinator turn owns at most one resident grant. Grant issuance
-first refuses any prepared or active Self authority, then atomically advances
+first loads every persisted grant and refuses if any grant already names the
+requesting schedule/action, whether consumed or not. It also refuses any other
+unconsumed grant plus prepared or active Self authority, then atomically advances
 the singleton `ResidentSelfState` revision with the exact pressure-to-grant
-transition. That state envelope is the cardinality fence: two pressures cannot
-be issued under one schedule/action after the first grant has been consumed by
-preparation, and concurrent issuers cannot win disjoint pressure CASes. Pressure
-arriving during a prepared or active turn stays pending until Heartbeat closes
-the exact acknowledgement and schedules a later coordinator turn.
+transition. Persisted grant identity is the lifetime cardinality fence; the
+state-envelope CAS is the concurrency fence. Completion, cancellation, cooldown
+expiry, restart, or later pressure cannot restore grant authority to the same
+Heartbeat turn. Pressure arriving after that turn spent its grant stays pending
+until Heartbeat consumes the exact terminal acknowledgement and schedules a
+different coordinator turn.
 
 Imagination candidate time is part of that causal contract. A candidate must
 have a valid RFC3339 timestamp at or after its request timestamp. A

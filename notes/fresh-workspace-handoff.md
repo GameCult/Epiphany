@@ -1288,3 +1288,30 @@ the shared preparation primitive. A fresh post-completion call with a committed
 later grant now refuses at deadline minus one and prepares exactly at the
 deadline. Package latest source containing both `90648073` and `ee05d9bb`;
 never resume or publish the stopped de2e8ad5 build.
+
+Exact `d303dd1f` then packaged as warning-free 24-binary release
+`sha256-8e55c6f76dd2cf6ad93393ea99ed98a871370e68f9fe59ae234f5e494481c67d`
+with witness
+`sha256-1834a1f7717d6d12510f3747c5d2a758572e7267d0b766be5c1b0fa0130300e3`.
+Receipts are under `.epiphany-run/active-cognition3-d303dd1f`. Exact typed
+fulfillment persisted `nextEligibleAtMillis=1786305955374`. Self stopped zero
+123 seconds before that deadline, restarted against the same resident store,
+and remained sleeping with the exact deadline through expiry. Cooldown ownership
+and restart refusal are accepted.
+
+The same run exposed the remaining cardinality fault. Once completion removed
+prepared/active Self authority, repeated pulses of the still-running Heartbeat
+schedule/action could issue again because the grant fence remembered only
+unconsumed grants, not that this turn had already spent its grant. Work launched
+again under `epiphany-active-cognition3-d303dd1f.serve-000131` /
+`heartbeat.coordinator.work`. The copied run was stopped and rejected; immutable
+logs and `run-invalidated.txt` preserve the intervention.
+
+The source cut now makes the persisted grant set the lifetime fence: if any
+grant already names the requesting schedule/action, issuance returns none
+regardless of consumption, resident idleness, cooldown expiry, cancellation, or
+later pressure. Cancellation retry moves to a different Heartbeat turn; the old
+test that explicitly blessed same-turn retry was corrected. Twenty-four resident,
+eight swarm, and eleven heartbeat-state tests pass. Commit and push this cut,
+package the exact commit, and replay from a fresh idle copy. Do not reuse the
+invalid d303 body as bounded-turn evidence.

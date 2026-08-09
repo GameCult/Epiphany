@@ -1096,11 +1096,12 @@ pub fn heartbeat_issue_resident_self_grant(
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(None);
     }
-    if cache
-        .get_all::<ResidentSelfHeartbeatGrant>()?
-        .iter()
-        .any(|grant| grant.consumed_at_millis.is_none())
-    {
+    let grants = cache.get_all::<ResidentSelfHeartbeatGrant>()?;
+    if grants.iter().any(|grant| {
+        grant.consumed_at_millis.is_none()
+            || (grant.heartbeat_schedule_id == schedule_id
+                && grant.heartbeat_action_id == action_id)
+    }) {
         return Ok(None);
     }
     let mut pending = cache
@@ -1116,8 +1117,7 @@ pub fn heartbeat_issue_resident_self_grant(
     let Some(mut pressure) = pending.into_iter().next() else {
         return Ok(None);
     };
-    let attempt_ordinal = cache
-        .get_all::<ResidentSelfHeartbeatGrant>()?
+    let attempt_ordinal = grants
         .iter()
         .filter(|grant| grant.pressure_id == pressure.pressure_id)
         .count()
@@ -1162,12 +1162,10 @@ pub fn heartbeat_issue_resident_self_grant(
     let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
     let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
-    if !SingleFileMessagePackBackingStore::new(path)
-        .compare_and_swap_batch(
-            &[expected_state, expected_pressure],
-            vec![state_entry, pressure_entry, grant_entry],
-        )?
-    {
+    if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
+        &[expected_state, expected_pressure],
+        vec![state_entry, pressure_entry, grant_entry],
+    )? {
         return Err(anyhow!(
             "heartbeat lost resident Self pressure-to-grant CAS"
         ));
@@ -2630,8 +2628,7 @@ mod tests {
             },
         )?;
         assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 5)?
-                .is_none(),
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 5)?.is_none(),
             "one Heartbeat coordinator turn cannot issue a companion grant while Self is prepared"
         );
         assert!(prepare_resident_self_launch(&store, &policy, 5)?.is_none());
@@ -2649,8 +2646,7 @@ mod tests {
             acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 6)?;
         assert_eq!(lease.grant_id, grant.grant_id);
         assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?
-                .is_none(),
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?.is_none(),
             "one Heartbeat coordinator turn cannot issue a companion grant while Self is active"
         );
         assert_eq!(
@@ -2777,6 +2773,10 @@ mod tests {
             private_state_exposed: false,
         };
         enqueue_resident_self_pressure(&store, &later_pressure)?;
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 11)?.is_none(),
+            "completion cannot reopen grant authority for the same Heartbeat turn"
+        );
         heartbeat_issue_resident_self_grant(&store, "heartbeat-later", "action-later", 12)?
             .expect("later Heartbeat grant");
         assert!(prepare_resident_self_launch(&store, &policy, 10_009)?.is_none());
@@ -3145,9 +3145,13 @@ mod tests {
             .expect("requeued pressure");
         assert_eq!(pressure.status, "pending");
         assert_eq!(pressure.consumed_by_grant_id, None);
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?.is_none(),
+            "a terminal acknowledgement ends grant authority for its Heartbeat turn"
+        );
         let retry_grant =
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?
-                .expect("retry grant");
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 8)?
+                .expect("later Heartbeat turn retry grant");
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         assert!(retry_grant.grant_id.contains("-attempt-2-"));
