@@ -1078,3 +1078,19 @@ left the head unchanged. Active c005 remained running and untouched.
 
 Resident lifecycle retention is accepted. Next map coordinator receipt and
 semantic/runtime history references before choosing the next compaction owner.
+
+The next owner map is now source-grounded. c005's copied runtime store has 22
+coordinator receipts, 20 jobs/results, 7 sessions, 482 events, and roughly 2.9
+MiB of duplicated native/OpenAI model requests. Do not compact this as one
+family. Resident Self is the only live authority reader of coordinator run
+receipts: after child exit zero it requires exact thread plus launch digest and
+then validates the full launch contract. CultMesh Hands/review mirrors carry
+the receipt ID but do not resolve it back into runtime authority.
+
+The bounded next slice is coordinator receipts only: runtime owns one digest
+accumulator, preserves a configurable newest window plus explicit cross-store
+IDs, and always preserves the newest receipt across the child-exit/ack seam.
+The accumulator must not enumerate as a receipt or satisfy resident completion.
+Session/job/event/model/tool retention remains forbidden until typed archived
+session ownership closes tool follow-up, review, recovery, and accepted-frontier
+references.

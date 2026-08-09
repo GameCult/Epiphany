@@ -2148,3 +2148,65 @@ lifecycles/six exact envelopes into a revision-1 head with chain digest
 Two pending pressures survived, grants and acknowledgements remained empty,
 and replay did not advance the head. Resident lifecycle retention is accepted;
 the next retention owner must be mapped independently.
+
+## Runtime and coordinator retention authority map
+
+The copied c005 runtime store currently contains 22 coordinator run receipts,
+20 jobs/results, 7 sessions, 482 runtime events, 13 native plus 13 OpenAI model
+requests (about 2.9 MiB of duplicated prompt cargo), 72 model stream events, 13
+receipt pairs, 7 worker launches, and the accepted Mind/Modeling/Hands frontier.
+These are not one retention family merely because they share a file.
+
+### Coordinator run receipts
+
+- **Owner:** the runtime spine writes `EpiphanyCoordinatorRunReceipt`; the
+  resident Self process is its only live authority consumer.
+- **Live input path:** after an active child exits zero, Self scans receipts for
+  the exact `thread_id` plus `resident_launch_digest`, then validates the full
+  launch contract before emitting its terminal acknowledgement. A receipt is
+  not present while the child is still active; a valid terminal receipt is
+  therefore the newest receipt at the completion boundary.
+- **Other references:** resident state records the latest receipt ID and
+  terminal acknowledgements record their source ID. CultMesh Hands gates and
+  role-review events also carry the ID, but source inspection finds no lookup
+  from those mirrors back into the runtime receipt store; each mirror is a
+  self-contained provenance projection.
+- **Derived state:** old coordinator receipts are historical evidence after
+  resident terminal acknowledgement. Their artifact references do not own the
+  referenced files and cannot be used as a file-retention decision.
+- **Output:** one runtime-owned typed accumulator head with cumulative terminal
+  counts and a chained digest. It is never returned by
+  `coordinator_run_receipts` and cannot satisfy resident completion.
+- **Preservation set:** retain a configurable newest global window (default
+  256) plus any explicit IDs supplied by a cross-store caller. The newest
+  receipt is always retained, even if the configured historical window is
+  zero, because it may be crossing the child-exit/terminal-ack seam.
+- **Forbidden writers:** resident Self cannot directly delete runtime rows;
+  CultMesh projection, artifact cleanup, and wall-clock age cannot decide
+  receipt liveness.
+- **Deletion line:** exact old receipt envelopes and replacement of the one
+  accumulator head must share a full-snapshot-fenced transaction. Unknown
+  runtime rows remain byte-identical.
+- **Negative verification:** the accumulator alone must not appear in receipt
+  enumeration, match a thread/launch digest, terminalize a lease, or change the
+  accepted coordinator frontier.
+
+### Session, job, event, model, and tool history
+
+- **Owner:** runtime session closure owns the eventual archive boundary. Model
+  transport owns request/event/receipt families only while a request can still
+  receive stream events or construct a tool follow-up. Tool follow-up directly
+  reloads the original native model request and its tool intent/receipt chain.
+- **Current authority:** open sessions/jobs, waiting review, accepted role
+  results, pending tool intents, current Self/Mind requests, and the coordinator
+  thread state remain live. `runtime_spine_status` and operator list commands
+  currently enumerate complete history; those counts are observation, not a
+  right to keep unbounded authority forever.
+- **Deletion line:** no broad runtime or semantic compaction until a typed
+  archived-session summary owns the closed family and all cross-family IDs
+  needed by the accepted frontier are explicitly preserved. Model requests
+  must not be removed merely because a model receipt exists; tool follow-up and
+  review/recovery readers must first be closed.
+
+The next bounded implementation is coordinator receipt accumulation only. It
+must not pretend to solve runtime session/model/event retention.
