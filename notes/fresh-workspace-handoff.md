@@ -43,8 +43,11 @@ A copied c006 restart is clean and actual c006 remains untouched. Exact payload
 inspection corrected an initial false alarm: the retained grant is unconsumed,
 nonterminal, and exactly matches Heartbeat's running schedule/action. The brake
 is coherently holding pending authority; there is no orphan repair to perform.
-Remove the release source guard's unconditional submodule force-checkout and
-measure the next exact package before waking c006. Yggdrasil never builds.
+The release source guard now pre-cleans cached submodules, updates only changed
+pins without `--force`, then re-cleans and verifies the exact tree. Its twenty
+focused tests pass. Commit and package this cut, compare it with the 11m04s
+`a4756857` baseline, and require an identical warm replay before waking c006.
+Yggdrasil never builds.
 
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 

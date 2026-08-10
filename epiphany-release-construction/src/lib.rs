@@ -297,6 +297,7 @@ impl ReleaseSourceGuard {
 
         if path.exists() {
             verify_cached_worktree_owner(repo, &path)?;
+            reset_and_clean_cached_submodules(&path, "pre-clean cached release submodules")?;
             run_git_checked(
                 &path,
                 &["-c", "core.longpaths=true", "clean", "-ffdx"],
@@ -336,27 +337,10 @@ impl ReleaseSourceGuard {
 
         run_git_checked(
             &path,
-            &[
-                "-c",
-                "core.longpaths=true",
-                "submodule",
-                "update",
-                "--init",
-                "--recursive",
-                "--force",
-            ],
+            &release_submodule_update_args(),
             "failed to initialize exact release submodules",
         )?;
-        run_git_checked(
-            &path,
-            &["submodule", "foreach", "--recursive", "git reset --hard"],
-            "failed to reset exact release submodules",
-        )?;
-        run_git_checked(
-            &path,
-            &["submodule", "foreach", "--recursive", "git clean -ffdx"],
-            "failed to clean exact release submodules",
-        )?;
+        reset_and_clean_cached_submodules(&path, "clean exact release submodules")?;
         let head = git_output(&path, &["rev-parse", "HEAD"])?;
         if head.trim() != commit {
             bail!("cached release worktree resolved {head:?}, expected {commit}");
@@ -380,6 +364,31 @@ impl ReleaseSourceGuard {
             _source_lock: source_lock,
         })
     }
+}
+
+fn release_submodule_update_args() -> [&'static str; 6] {
+    [
+        "-c",
+        "core.longpaths=true",
+        "submodule",
+        "update",
+        "--init",
+        "--recursive",
+    ]
+}
+
+fn reset_and_clean_cached_submodules(repo: &Path, context: &str) -> Result<()> {
+    run_git_checked(
+        repo,
+        &["submodule", "foreach", "--recursive", "git reset --hard"],
+        &format!("failed to reset {context}"),
+    )?;
+    run_git_checked(
+        repo,
+        &["submodule", "foreach", "--recursive", "git clean -ffdx"],
+        &format!("failed to clean {context}"),
+    )?;
+    Ok(())
 }
 
 fn verify_cached_worktree_owner(repo: &Path, worktree: &Path) -> Result<()> {
@@ -994,6 +1003,23 @@ mod tests {
             baseline,
             release_bundle_target_dir(root, b"lock-v2", "target-a", "toolchain-a")
         );
+    }
+
+    #[test]
+    fn cached_source_update_does_not_force_refresh_unchanged_submodules() {
+        let args = release_submodule_update_args();
+        assert_eq!(
+            args,
+            [
+                "-c",
+                "core.longpaths=true",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ]
+        );
+        assert!(!args.contains(&"--force"));
     }
 
     #[test]

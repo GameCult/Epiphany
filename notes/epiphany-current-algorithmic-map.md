@@ -1658,11 +1658,13 @@ partition this cache and never becomes derived build authority.
 The source cache is identified by canonical repository identity. It owns one
 persistent detached worktree so unchanged tracked files retain stable paths and
 timestamps across commits. Before every build it exclusively locks that source,
-force-checks out the exact clean commit, cleans the main tree and recursive
-submodules, and verifies repository ownership, HEAD, status, and submodule
-identity with long-path-aware Git commands. It remains locked until the release
-has copied and witnessed every binary. No concurrent packager can mutate source
-or graph outputs during that interval.
+pre-cleans cached submodules, checks out the exact parent commit, updates only
+changed submodule pins without forcing unchanged worktrees, re-cleans the main
+tree and recursive submodules, and verifies repository ownership, HEAD, status,
+and submodule identity with long-path-aware Git commands. It remains locked
+until the release has copied and witnessed every binary. No concurrent packager
+can mutate source or graph outputs during that interval. Submodule mtimes and
+Cargo fingerprints are cache mechanics, never release identity.
 
 The release witness remains the only packaged-output authority: exact commit,
 runtime, target, toolchain, sorted binary roles, lengths, and byte digests.
