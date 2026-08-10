@@ -1348,7 +1348,7 @@ pub fn recover_dead_resident_typed_worker(
         return Ok(false);
     };
     match claim.status.as_str() {
-        "terminal-death" | "terminal-unactivated" => return Ok(true),
+        "terminal-death" | "terminal-unactivated" | "terminal-failure" => return Ok(true),
         "terminal-result" => return Ok(false),
         "claimed" | "active" => {}
         _ => return Err(anyhow!("typed worker process claim has invalid status")),

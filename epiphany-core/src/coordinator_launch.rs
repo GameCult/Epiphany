@@ -1216,7 +1216,7 @@ fn worker_process_attempt_is_terminal(cache: &CultCache, job_id: &str) -> Result
         .is_some_and(|claim| {
             matches!(
                 claim.status.as_str(),
-                "terminal-death" | "terminal-unactivated"
+                "terminal-death" | "terminal-unactivated" | "terminal-failure"
             )
         }))
 }
@@ -1248,7 +1248,10 @@ fn terminal_runtime_link_for_binding(
     let Some(claim) = crate::runtime_worker_process_claim(runtime_store, &link.runtime_job_id)? else {
         return Ok(None);
     };
-    if !matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated") {
+    if !matches!(
+        claim.status.as_str(),
+        "terminal-death" | "terminal-unactivated" | "terminal-failure"
+    ) {
         return Ok(None);
     }
     let terminal_authority_id = claim

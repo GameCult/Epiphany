@@ -1,5 +1,37 @@
 # Fresh workspace handoff
 
+## Worker terminal-failure ownership exposed live and repaired in source — 2026-08-10
+
+Exact packaged `75b84180` copied-state runs now prove both claimed and active
+SIGKILL orphans become `terminal-death` only after Linux exact-process
+observation. Replaying the claimed recovery returned success without changing
+the runtime-store SHA-256. A persisted active resident lease then settled
+through production `settle_resident_self_exited_coordinator`: the lease cleared,
+the exact grant became `process-failed`, one cancellation ack appeared, and the
+pressure returned to pending once. Heartbeat issued attempt two for that same
+pressure. A distinct packaged job/process became active while the prior claim
+remained terminal-death, proving no dual live attempt. Receipts are under
+`.epiphany-run/worker-continuity-75b84180/typed-claimed-sigkill/` and
+`typed-active-sigkill-3/`.
+
+The retry worker then exited zero after a typed model-transport failure, with a
+generic failed runtime result but an incorrectly surviving `active` process
+claim. This is a real Continuity fault: generic completion and process
+terminality had split writers. Current source makes `complete_runtime_job` one
+snapshot-fenced transaction for job, result, completion event, and exact active
+claim. A generic worker completion becomes `terminal-failure`; an admitted
+reorient result remains `terminal-result`. Proposal Modeling, Imagination, and
+admitted-model-direction retry predicates accept terminal-failure as exact
+supersession authority. No cleanup loop was added.
+
+Core passes 661 tests with one intentional ignore. The OpenAI runtime passes 15
+library tests, 10 model-runtime tests, and 10 openai-runtime tests. The cut is
+not yet committed or packaged. Next review/commit/push it, package exact source
+once on Starfire, then replay the packaged activated transport failure and
+require atomic terminal-failure plus canonical resident settlement/retry and
+retention non-resurrection. Valid-result-before-coordinator-receipt remains
+open. Actual c006 remains braked and stopped. Yggdrasil never builds.
+
 ## Packaged worker start gate accepted — recovery/retry still open — 2026-08-10
 
 Exact pushed source `75b841808bb5f693acfe4513befd430fbaf65b75`

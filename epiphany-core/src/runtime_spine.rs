@@ -10457,7 +10457,10 @@ pub fn runtime_typed_request_attempt_exists(
         .iter()
         .filter(|launch| {
             claims.get(&launch.job_id).is_none_or(|claim| {
-                !matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated")
+                !matches!(
+                    claim.status.as_str(),
+                    "terminal-death" | "terminal-unactivated" | "terminal-failure"
+                )
             })
         })
         .any(|launch| match request {
@@ -11128,6 +11131,19 @@ pub fn complete_runtime_job(
             options.result_id
         ));
     }
+    let event_id = format!("event-job-completed-{}", options.job_id);
+    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
+        return Err(anyhow!(
+            "runtime job completion event {:?} already exists",
+            event_id
+        ));
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let job_envelope = snapshot
+        .iter()
+        .find(|entry| entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == options.job_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("runtime job lost its exact envelope"))?;
     let terminal_status = terminal_status_for_verdict(&options.verdict);
     job.status = terminal_status;
     job.updated_at = options.completed_at.clone();
@@ -11147,11 +11163,9 @@ pub fn complete_runtime_job(
         artifact_refs: options.artifact_refs,
         metadata: BTreeMap::new(),
     };
-    cache.put(&job.job_id, &job)?;
-    cache.put(&result.result_id, &result)?;
     let event = EpiphanyRuntimeEvent {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: format!("event-job-completed-{}", options.job_id),
+        event_id,
         occurred_at: options.completed_at,
         event_type: "job.completed".to_string(),
         source: "runtime-spine".to_string(),
@@ -11163,7 +11177,56 @@ pub fn complete_runtime_job(
         ),
         metadata: BTreeMap::from([("resultId".to_string(), result.result_id.clone())]),
     };
-    cache.put(&event.event_id, &event)?;
+    let mut expected = vec![job_envelope];
+    let mut writes = vec![
+        cache.prepare_entry(&job.job_id, &job)?.0,
+        cache.prepare_entry(&result.result_id, &result)?.0,
+        cache.prepare_entry(&event.event_id, &event)?.0,
+    ];
+    let claim_id = worker_process_claim_id(&result.job_id);
+    if let Some(claim) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
+        match claim.status.as_str() {
+            "active" => {
+                let claim_envelope = snapshot
+                    .iter()
+                    .find(|entry| {
+                        entry.r#type == EpiphanyRuntimeWorkerProcessClaim::TYPE
+                            && entry.key == claim_id
+                    })
+                    .cloned()
+                    .ok_or_else(|| anyhow!("runtime worker completion lost its claim envelope"))?;
+                let mut terminal = claim;
+                if let Some(reorient) =
+                    cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
+                {
+                    terminal.status = "terminal-result".into();
+                    terminal.terminal_authority_id = Some(reorient.result_id);
+                } else {
+                    terminal.status = "terminal-failure".into();
+                    terminal.terminal_authority_id = Some(result.result_id.clone());
+                }
+                terminal.terminal_at = Some(result.completed_at.clone());
+                expected.push(claim_envelope);
+                writes.push(cache.prepare_entry(&claim_id, &terminal)?.0);
+            }
+            "terminal-result" => {}
+            "claimed" => {
+                return Err(anyhow!(
+                    "runtime worker job cannot complete before activation"
+                ));
+            }
+            status => {
+                return Err(anyhow!(
+                    "runtime worker job completion found terminal process status {status:?}"
+                ));
+            }
+        }
+    }
+    if !runtime_spine_backing_store(store_path.as_ref())?
+        .compare_and_swap_batch(&expected, writes)?
+    {
+        return Err(anyhow!("runtime job completion lost its exact snapshot"));
+    }
     Ok(result)
 }
 
@@ -12992,6 +13055,90 @@ pub(crate) mod tests {
             Some("worker-process-result")
         );
         assert_eq!(runtime_role_worker_result(&store, "worker-process-job")?, Some(result));
+        Ok(())
+    }
+
+    #[test]
+    fn generic_worker_failure_atomically_terminalizes_its_active_process_claim() -> Result<()> {
+        let root = tempdir()?;
+        let store = root.path().join("worker-process-failure.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "worker-failure-runtime".into(),
+                display_name: "Worker failure runtime".into(),
+                created_at: "2026-08-10T13:30:00Z".into(),
+            },
+        )?;
+        create_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: "worker-failure-session".into(),
+                objective: "Prove generic failure closes exact worker process authority".into(),
+                created_at: "2026-08-10T13:30:01Z".into(),
+                coordinator_note: "Runtime Continuity fixture".into(),
+            },
+        )?;
+        create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: "worker-failure-job".into(),
+                session_id: "worker-failure-session".into(),
+                role: "epiphany-researcher".into(),
+                created_at: "2026-08-10T13:30:02Z".into(),
+                summary: "Await worker terminal authority".into(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        put_test_non_modeling_worker_launch(&store, "worker-failure-job", "research")?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut launch = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>("worker-failure-job")?
+            .expect("worker failure launch");
+        launch.proposal_modeling_request_id = Some("worker-failure-request".into());
+        cache.put("worker-failure-job", &launch)?;
+        let process = crate::capture_process_instance(std::process::id())?;
+        let token = "worker-failure-capability";
+        claim_runtime_worker_process(
+            &store,
+            "worker-failure-job",
+            &process,
+            &format!("{:x}", Sha256::digest(token.as_bytes())),
+            "2026-08-10T13:30:03Z",
+        )?;
+        activate_runtime_worker_process(
+            &store,
+            "worker-failure-job",
+            &process,
+            token,
+            "2026-08-10T13:30:04Z",
+        )?;
+        let result = complete_runtime_job(
+            &store,
+            RuntimeSpineJobResultOptions {
+                result_id: "result-worker-failure-job".into(),
+                job_id: "worker-failure-job".into(),
+                completed_at: "2026-08-10T13:30:05Z".into(),
+                verdict: "failed".into(),
+                summary: "Provider failed before typed role output.".into(),
+                next_safe_move: "Retry only from this terminal process authority.".into(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        let claim = runtime_worker_process_claim(&store, "worker-failure-job")?
+            .expect("terminal failure claim");
+        assert_eq!(claim.status, "terminal-failure");
+        assert_eq!(
+            claim.terminal_authority_id.as_deref(),
+            Some(result.result_id.as_str())
+        );
+        assert_eq!(claim.terminal_at.as_deref(), Some(result.completed_at.as_str()));
+        assert!(!runtime_typed_request_attempt_exists(
+            &store,
+            RuntimeTypedRequestRef::ProposalModeling("worker-failure-request"),
+        )?);
         Ok(())
     }
 

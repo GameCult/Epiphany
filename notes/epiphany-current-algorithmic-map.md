@@ -3168,8 +3168,9 @@ spawns `epiphany-openai-runtime run-worker` with an activation-capability digest
 then waits for the child-authored exact process claim before presenting the
 preimage. The worker cannot enter watchdog, provider, model, or tool paths before
 activation. Runtime result admission atomically replaces the active claim with
-`terminal-result`; resident Continuity may replace it with `terminal-death` only
-after exact native process observation.
+`terminal-result`; generic runtime completion atomically replaces it with
+`terminal-failure`; resident Continuity may replace it with `terminal-death`
+only after exact native process observation.
 
 - Owner: the worker runtime owns claiming its exact native process incarnation
   before model or tool work. Runtime Continuity owns activation, terminalization,
@@ -3179,9 +3180,10 @@ after exact native process observation.
   explicit activation bound to that claim, native exact-process observation,
   and authenticated terminal worker result.
 - Outputs: `claimed` before consequence-capable work, `active` only after one
-  explicit activation, then exactly one `terminal-result`, `terminal-death`, or
-  `terminal-unactivated`. A terminal-death/unactivated attempt may be superseded
-  by a distinct job/binding incarnation without deleting the prior launch family.
+  explicit activation, then exactly one `terminal-result`, `terminal-failure`,
+  `terminal-death`, or `terminal-unactivated`. A terminal failure/death/
+  unactivated attempt may be superseded by a distinct job/binding incarnation
+  without deleting the prior launch family.
 - Derived state: coordinator artifact PID and detached `Child` handle are
   diagnostic only. Request identity remains retry-stable; launch, worker claim,
   process, session, and artifact directory are attempt-incarnation state.
@@ -3197,7 +3199,9 @@ after exact native process observation.
   coordinator launcher, and resident Self. `roleFailureReview` no longer owns
   proposal retry. All three typed lanes consult exact process terminality, and
   dead runtime-link projections are demoted before planning a replacement.
-  The remaining cut is packaged Linux falsification, not another retry policy.
+  Generic job completion now owns one snapshot-fenced write of the runtime job,
+  generic result, completion event, and terminal-failure claim. The remaining
+  cut is packaged Linux falsification, not another retry policy.
 - Verification layer: kill before claim, after claim/before activation, after
   activation/before result, and after valid result/before coordinator receipt;
   prove no model/tool work before activation, no dual live attempts, same typed
@@ -3205,10 +3209,13 @@ after exact native process observation.
   retention non-resurrection across all three typed lanes. Source evidence now
   includes exact process/result race tests, activation CLI ordering, typed retry
   for proposal/Imagination/model direction, stale-link demotion, canonical Self
-  settlement, core 660 passed/1 ignored, swarm 9, coordinator 17, and OpenAI
-  runtime 10. Exact 75b84180 package inspection authenticates 24 binaries,
+  settlement, core 661 passed/1 ignored, swarm 9, coordinator 17, and OpenAI
+  runtime 15+10+10. Exact 75b84180 package inspection authenticates 24 binaries,
   release sha256-3959bcb3, witness sha256-6e34eb0a, and zero warnings. Packaged
-  Linux proves terminal-unactivated without provider work plus durable claimed
-  and active orphan shapes after SIGKILL/no OOM. Resident terminal-death,
-  canonical requeue/retry, valid-result-before-receipt, and retention replay
-  remain the open packaged boundaries.
+  Linux proves terminal-unactivated without provider work, durable claimed and
+  active orphan shapes after SIGKILL/no OOM, native terminal-death, canonical
+  requeue, and one same-request distinct retry without dual live authority. The
+  retry exposed an activated generic-failure path that left its claim active;
+  source now closes that as terminal-failure atomically. Packaged
+  terminal-failure, valid-result-before-receipt, and retention replay remain the
+  open boundaries.
