@@ -2682,6 +2682,35 @@ cannot turn partial deletion into completion, and the accepted frontier plus
 reservation validation prevents either reservation or repost of the retired
 turn. Receipts are under `.epiphany-run/persona-retention-44230a05`.
 
+### Starfire Persona-permit firewall ownership
+
+- Owner: gamecult-ops exact `6ee08a4` owns one Windows PersistentStore rule;
+  Windows projects it into ActiveStore. Epiphany release paths are not owners.
+- Inputs: local WireGuard address `10.77.0.2`, Yggdrasil peer `10.77.0.1`, UDP
+  permit port 17877, Public profile, and interface `wg-gamecult-starfire`.
+- Output: one enabled inbound allow rule named
+  `Epiphany-Persona-Permit-Yggdrasil`, scoped to that exact tuple.
+- Derived state: ActiveStore is the live projection of PersistentStore;
+  application-path Query User rules are unwanted derived OS prompts and have no
+  release or permit authority.
+- Forbidden writers: authenticated release publication, executable relocation,
+  the Persona permit daemon, and Bifrost cannot create broader firewall policy
+  or replace the stable host rule.
+- Shared path: initial installation and reconciliation use
+  `allow-starfire-epiphany-persona-permit.ps1`; live verification reads both
+  policy stores plus their address, port, and interface filters.
+- Cut line: remove every per-program permit rule and retain only the stable
+  WireGuard-scoped tuple. WireGuard membership remains transport identity, not
+  a substitute for CultNet signatures or permit validation.
+- Verification: exact matching PersistentStore and ActiveStore rows exist;
+  zero application filters target the permit executable; the automatic/running
+  WireGuard service owns `10.77.0.2/24`. The earlier authenticated cross-host
+  probe proves the rule carries the typed protocol without broadening it.
+
+Live receipts are under `.epiphany-run/firewall-bffbaa45`. A non-elevated
+reconciliation attempt was denied before mutation and left identical snapshots;
+it is recorded as a negative authority check, not misreported as idempotence.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

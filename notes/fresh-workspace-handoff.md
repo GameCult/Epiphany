@@ -1904,3 +1904,24 @@ untouched and Yggdrasil did not build.
 
 Next: establish stable Starfire firewall ownership, then continue the broad
 remaining organ-coordination matrix. Preserve active c005.
+
+## Stable Starfire firewall ownership accepted — 2026-08-10
+
+Gamecult-ops exact `6ee08a4` already owns the firewall seam through
+`scripts/allow-starfire-epiphany-persona-permit.ps1`; Epiphany's open status was
+stale. Authoritative Starfire state contains the same exact enabled local rule
+in both Windows `PersistentStore` and `ActiveStore`: inbound Public UDP 17877,
+local `10.77.0.2`, remote `10.77.0.1`, interface
+`wg-gamecult-starfire`. There are zero application-filter rules for changing
+`epiphany-persona-discord-permit.exe` release paths. The WireGuard tunnel is
+automatic and running with `10.77.0.2/24` on that interface.
+
+A non-elevated attempt to reconcile the rule was refused with access denied
+before any mutation; exact before/after snapshots were identical. This was not
+used as idempotence proof. Persistence is instead grounded by the exact
+PersistentStore row, the identical active projection, the committed owning
+script/runbook, and the already accepted cross-host permit proof. Receipts are
+under `.epiphany-run/firewall-bffbaa45`. Active c005 was untouched.
+
+Next: map bounded runtime model event/session/tool history and its
+non-resurrection boundary before editing. Yggdrasil never builds.
