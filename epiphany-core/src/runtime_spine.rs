@@ -166,6 +166,8 @@ pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.model_e
 pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.tool_execution_binding";
 pub const ARCHIVED_RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.archived_session";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
+pub const RUNTIME_WORKER_PROCESS_CLAIM_TYPE: &str =
+    "epiphany.runtime.worker_process_claim.v0";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
@@ -197,6 +199,8 @@ pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
 pub const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
+pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
+    "epiphany.runtime.worker_process_claim.v0";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.role_worker_result.v3";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -449,6 +453,42 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub repo_frontier_modeling_request_id: Option<String>,
     #[cultcache(key = 18, default)]
     pub repo_frontier_verdict_modeling_authority_msgpack: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.worker_process_claim.v0",
+    schema = "EpiphanyRuntimeWorkerProcessClaim"
+)]
+pub struct EpiphanyRuntimeWorkerProcessClaim {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub claim_id: String,
+    #[cultcache(key = 2)]
+    pub job_id: String,
+    #[cultcache(key = 3)]
+    pub process_id: u32,
+    #[cultcache(key = 4)]
+    pub process_creation_token: u64,
+    #[cultcache(key = 5)]
+    pub process_executable_path: String,
+    #[cultcache(key = 6)]
+    pub activation_token_sha256: String,
+    #[cultcache(key = 7)]
+    pub status: String,
+    #[cultcache(key = 8)]
+    pub claimed_at: String,
+    #[cultcache(key = 9, default)]
+    pub activated_at: Option<String>,
+    #[cultcache(key = 10, default)]
+    pub terminal_at: Option<String>,
+    #[cultcache(key = 11, default)]
+    pub terminal_authority_id: Option<String>,
+}
+
+fn worker_process_claim_id(job_id: &str) -> String {
+    format!("runtime-worker-process-{job_id}")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1044,6 +1084,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeToolExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyArchivedRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
+    cache.register_entry_type::<EpiphanyRuntimeWorkerProcessClaim>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
     cache.register_entry_type::<RepoModelAdmissionReview>()?;
@@ -3370,6 +3411,221 @@ pub fn runtime_worker_launch_body_basis(
         .repository_body_observation_basis()
 }
 
+pub fn runtime_worker_process_claim(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyRuntimeWorkerProcessClaim>> {
+    validate_non_empty(job_id, "worker process claim job id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&worker_process_claim_id(job_id))
+}
+
+pub fn claim_runtime_worker_process(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    process: &crate::ProcessInstanceIdentity,
+    activation_token_sha256: &str,
+    claimed_at: &str,
+) -> Result<EpiphanyRuntimeWorkerProcessClaim> {
+    let store_path = store_path.as_ref();
+    validate_non_empty(job_id, "worker process claim job id")?;
+    validate_non_empty(activation_token_sha256, "worker activation token digest")?;
+    if activation_token_sha256.len() != 64
+        || !activation_token_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(anyhow!("worker activation token digest is not SHA-256 hex"));
+    }
+    chrono::DateTime::parse_from_rfc3339(claimed_at)
+        .map_err(|error| anyhow!("worker process claim timestamp is invalid: {error}"))?;
+    if process.process_id == 0
+        || process.creation_token == 0
+        || process.executable_path.as_os_str().is_empty()
+    {
+        return Err(anyhow!("worker process claim identity is incomplete"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .is_none()
+    {
+        return Err(anyhow!("worker process claim requires its immutable launch"));
+    }
+    if cache
+        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .is_some()
+    {
+        return Err(anyhow!("worker process cannot claim after terminal result"));
+    }
+    let claim_id = worker_process_claim_id(job_id);
+    let claim = EpiphanyRuntimeWorkerProcessClaim {
+        schema_version: RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION.into(),
+        claim_id: claim_id.clone(),
+        job_id: job_id.into(),
+        process_id: process.process_id,
+        process_creation_token: process.creation_token,
+        process_executable_path: process.executable_path.display().to_string(),
+        activation_token_sha256: activation_token_sha256.into(),
+        status: "claimed".into(),
+        claimed_at: claimed_at.into(),
+        activated_at: None,
+        terminal_at: None,
+        terminal_authority_id: None,
+    };
+    if let Some(existing) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
+        return if existing == claim {
+            Ok(existing)
+        } else {
+            Err(anyhow!("worker process claim identity is already owned"))
+        };
+    }
+    let envelope = cache.prepare_entry(&claim_id, &claim)?.0;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[], vec![envelope])?
+    {
+        Ok(claim)
+    } else {
+        Err(anyhow!("worker process claim lost immutable insertion"))
+    }
+}
+
+pub fn activate_runtime_worker_process(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    process: &crate::ProcessInstanceIdentity,
+    activation_token: &str,
+    activated_at: &str,
+) -> Result<EpiphanyRuntimeWorkerProcessClaim> {
+    let store_path = store_path.as_ref();
+    validate_non_empty(activation_token, "worker activation token")?;
+    chrono::DateTime::parse_from_rfc3339(activated_at)
+        .map_err(|error| anyhow!("worker activation timestamp is invalid: {error}"))?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let claim_id = worker_process_claim_id(job_id);
+    let current = cache
+        .get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker activation requires its process claim"))?;
+    let digest = format!("{:x}", Sha256::digest(activation_token.as_bytes()));
+    if current.job_id != job_id
+        || current.process_id != process.process_id
+        || current.process_creation_token != process.creation_token
+        || current.process_executable_path != process.executable_path.display().to_string()
+        || current.activation_token_sha256 != digest
+    {
+        return Err(anyhow!("worker activation does not bind the exact process claim"));
+    }
+    if current.status == "active" {
+        return Ok(current);
+    }
+    if current.status != "claimed" {
+        return Err(anyhow!("worker activation found terminal process authority"));
+    }
+    let current_envelope = cache
+        .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker activation lost its claim envelope"))?;
+    let mut next = current;
+    next.status = "active".into();
+    next.activated_at = Some(activated_at.into());
+    let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[current_envelope], vec![next_envelope])?
+    {
+        Ok(next)
+    } else {
+        Err(anyhow!("worker activation lost its exact claim snapshot"))
+    }
+}
+
+pub fn abandon_unactivated_runtime_worker_process(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    process: &crate::ProcessInstanceIdentity,
+    terminal_at: &str,
+) -> Result<EpiphanyRuntimeWorkerProcessClaim> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(terminal_at)
+        .map_err(|error| anyhow!("worker abandonment timestamp is invalid: {error}"))?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let claim_id = worker_process_claim_id(job_id);
+    let current = cache
+        .get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker abandonment requires its process claim"))?;
+    if current.process_id != process.process_id
+        || current.process_creation_token != process.creation_token
+        || current.process_executable_path != process.executable_path.display().to_string()
+        || current.status != "claimed"
+    {
+        return Err(anyhow!("worker abandonment does not own an unactivated exact claim"));
+    }
+    let current_envelope = cache
+        .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker abandonment lost its claim envelope"))?;
+    let mut next = current;
+    next.status = "terminal-unactivated".into();
+    next.terminal_at = Some(terminal_at.into());
+    next.terminal_authority_id = Some(format!("worker-unactivated-{job_id}"));
+    let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[current_envelope], vec![next_envelope])?
+    {
+        Ok(next)
+    } else {
+        Err(anyhow!("worker abandonment lost its exact claim snapshot"))
+    }
+}
+
+pub(crate) fn terminalize_runtime_worker_process_death(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    terminal_authority_id: &str,
+    terminal_at: &str,
+) -> Result<EpiphanyRuntimeWorkerProcessClaim> {
+    let store_path = store_path.as_ref();
+    validate_non_empty(terminal_authority_id, "worker death terminal authority")?;
+    chrono::DateTime::parse_from_rfc3339(terminal_at)
+        .map_err(|error| anyhow!("worker death timestamp is invalid: {error}"))?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let claim_id = worker_process_claim_id(job_id);
+    let current = cache
+        .get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker death recovery requires its process claim"))?;
+    if current.status == "terminal-death"
+        && current.terminal_authority_id.as_deref() == Some(terminal_authority_id)
+    {
+        return Ok(current);
+    }
+    if !matches!(current.status.as_str(), "claimed" | "active") {
+        return Err(anyhow!("worker death recovery found terminal process authority"));
+    }
+    if cache
+        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .is_some()
+    {
+        return Err(anyhow!("worker death recovery races a terminal result"));
+    }
+    let current_envelope = cache
+        .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker death recovery lost its claim envelope"))?;
+    let mut next = current;
+    next.status = "terminal-death".into();
+    next.terminal_at = Some(terminal_at.into());
+    next.terminal_authority_id = Some(terminal_authority_id.into());
+    let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[current_envelope], vec![next_envelope])?
+    {
+        Ok(next)
+    } else {
+        Err(anyhow!("worker death recovery lost its exact claim snapshot"))
+    }
+}
+
 pub fn put_runtime_role_worker_result(
     store_path: impl AsRef<Path>,
     result: &EpiphanyRuntimeRoleWorkerResult,
@@ -3853,10 +4109,20 @@ pub fn put_runtime_role_worker_result(
             ));
         }
     }
+    let process_claim_id = worker_process_claim_id(&result.job_id);
+    let process_claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?;
     if let Some(existing) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
         if existing != *result {
             return Err(anyhow!(
                 "role worker result is immutable for its runtime job"
+            ));
+        }
+        if let Some(claim) = process_claim.as_ref()
+            && (claim.status != "terminal-result"
+                || claim.terminal_authority_id.as_deref() != Some(result.result_id.as_str()))
+        {
+            return Err(anyhow!(
+                "role worker result is not terminal authority for its process claim"
             ));
         }
         if let Some(companion) = model_direction_companion.as_ref() {
@@ -3873,6 +4139,23 @@ pub fn put_runtime_role_worker_result(
     }
     let (envelope, _) = cache.prepare_entry(&result.job_id, result)?;
     let mut writes = vec![envelope];
+    let mut expected = Vec::new();
+    if let Some(claim) = process_claim.as_ref() {
+        if claim.status != "active" {
+            return Err(anyhow!(
+                "role worker result requires its active process claim"
+            ));
+        }
+        let current_envelope = cache
+            .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
+            .ok_or_else(|| anyhow!("role worker result lost its process claim envelope"))?;
+        let mut terminal_claim = claim.clone();
+        terminal_claim.status = "terminal-result".into();
+        terminal_claim.terminal_at = Some(chrono::Utc::now().to_rfc3339());
+        terminal_claim.terminal_authority_id = Some(result.result_id.clone());
+        expected.push(current_envelope);
+        writes.push(cache.prepare_entry(&process_claim_id, &terminal_claim)?.0);
+    }
     if let Some(companion) = model_direction_companion.as_ref() {
         if cache
             .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
@@ -3886,7 +4169,7 @@ pub fn put_runtime_role_worker_result(
         writes.push(companion_envelope);
     }
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], writes)? {
+    if backing.compare_and_swap_batch(&expected, writes)? {
         return Ok(());
     }
     let mut reloaded = runtime_spine_cache(store_path)?;
@@ -3900,7 +4183,16 @@ pub fn put_runtime_role_worker_result(
             .is_some_and(|existing| existing == *companion),
         None => true,
     };
-    if worker_matches && companion_matches {
+    let claim_matches = match process_claim.as_ref() {
+        Some(_) => reloaded
+            .get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
+            .is_some_and(|claim| {
+                claim.status == "terminal-result"
+                    && claim.terminal_authority_id.as_deref() == Some(result.result_id.as_str())
+            }),
+        None => true,
+    };
+    if worker_matches && companion_matches && claim_matches {
         Ok(())
     } else {
         Err(anyhow!(
@@ -10155,9 +10447,19 @@ pub fn runtime_typed_request_attempt_exists(
     validate_non_empty(request_id, "typed attempt request id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let claims = cache
+        .get_all::<EpiphanyRuntimeWorkerProcessClaim>()?
+        .into_iter()
+        .map(|claim| (claim.job_id.clone(), claim))
+        .collect::<BTreeMap<_, _>>();
     Ok(cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .iter()
+        .filter(|launch| {
+            claims.get(&launch.job_id).is_none_or(|claim| {
+                !matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated")
+            })
+        })
         .any(|launch| match request {
             RuntimeTypedRequestRef::ProposalModeling(_) => {
                 launch.proposal_modeling_request_id.as_deref() == Some(request_id)
@@ -11303,6 +11605,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "Role worker results preserve the typed finding payload; generic runtime job results are lifecycle receipts.",
+            ],
+        ),
+        mutation_contract(
+            RUNTIME_WORKER_PROCESS_CLAIM_TYPE,
+            RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "The worker claims its native process before model/tool work; the spawning coordinator alone presents the one-use activation preimage.",
+                "Terminal result and exact process death replace the same claim; absence and age are not terminal authority.",
             ],
         ),
         mutation_contract(
@@ -12588,6 +12902,190 @@ pub(crate) mod tests {
         };
         let mut cache = runtime_spine_cache(store)?;
         cache.put(job_id, &request)?;
+        Ok(())
+    }
+
+    #[test]
+    fn worker_process_claim_gates_work_and_terminal_result_replaces_it_atomically() -> Result<()> {
+        let root = tempdir()?;
+        let store = root.path().join("worker-process-claim.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "worker-process-runtime".into(),
+                display_name: "Worker process runtime".into(),
+                created_at: "2026-08-10T12:00:00Z".into(),
+            },
+        )?;
+        put_test_non_modeling_worker_launch(&store, "worker-process-job", "research")?;
+        let process = crate::capture_process_instance(std::process::id())?;
+        let token = "worker-activation-secret";
+        let token_sha256 = format!("{:x}", Sha256::digest(token.as_bytes()));
+        claim_runtime_worker_process(
+            &store,
+            "worker-process-job",
+            &process,
+            &token_sha256,
+            "2026-08-10T12:00:01Z",
+        )?;
+        let result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "worker-process-result".into(),
+            job_id: "worker-process-job".into(),
+            role_id: "research".into(),
+            verdict: "checkpoint-ready".into(),
+            summary: "Claimed worker completed.".into(),
+            next_safe_move: "Review evidence.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+        };
+        assert!(put_runtime_role_worker_result(&store, &result).is_err());
+        assert!(
+            activate_runtime_worker_process(
+                &store,
+                "worker-process-job",
+                &process,
+                "wrong-token",
+                "2026-08-10T12:00:02Z",
+            )
+            .is_err()
+        );
+        activate_runtime_worker_process(
+            &store,
+            "worker-process-job",
+            &process,
+            token,
+            "2026-08-10T12:00:02Z",
+        )?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let claim = runtime_worker_process_claim(&store, "worker-process-job")?
+            .expect("terminal process claim");
+        assert_eq!(claim.status, "terminal-result");
+        assert_eq!(
+            claim.terminal_authority_id.as_deref(),
+            Some("worker-process-result")
+        );
+        assert_eq!(runtime_role_worker_result(&store, "worker-process-job")?, Some(result));
+        Ok(())
+    }
+
+    #[test]
+    fn worker_process_death_is_single_use_and_excludes_late_result() -> Result<()> {
+        let root = tempdir()?;
+        let store = root.path().join("worker-process-death.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "worker-death-runtime".into(),
+                display_name: "Worker death runtime".into(),
+                created_at: "2026-08-10T12:10:00Z".into(),
+            },
+        )?;
+        put_test_non_modeling_worker_launch(&store, "worker-death-job", "research")?;
+        let process = crate::ProcessInstanceIdentity {
+            process_id: u32::MAX - 1,
+            creation_token: 77,
+            created_at_rfc3339: None,
+            executable_path: PathBuf::from("/release/epiphany-model-runtime"),
+        };
+        claim_runtime_worker_process(
+            &store,
+            "worker-death-job",
+            &process,
+            &"a".repeat(64),
+            "2026-08-10T12:10:01Z",
+        )?;
+        let terminal = terminalize_runtime_worker_process_death(
+            &store,
+            "worker-death-job",
+            "worker-death-recovery-worker-death-job",
+            "2026-08-10T12:10:02Z",
+        )?;
+        assert_eq!(terminal.status, "terminal-death");
+        assert_eq!(
+            terminalize_runtime_worker_process_death(
+                &store,
+                "worker-death-job",
+                "worker-death-recovery-worker-death-job",
+                "2026-08-10T12:10:02Z",
+            )?,
+            terminal
+        );
+        assert!(
+            terminalize_runtime_worker_process_death(
+                &store,
+                "worker-death-job",
+                "substituted-authority",
+                "2026-08-10T12:10:03Z",
+            )
+            .is_err()
+        );
+        let mut result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "late-result".into(),
+            job_id: "worker-death-job".into(),
+            role_id: "research".into(),
+            verdict: "checkpoint-ready".into(),
+            summary: "Late result must lose.".into(),
+            next_safe_move: "None.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+        };
+        assert!(put_runtime_role_worker_result(&store, &result).is_err());
+        result.result_id = "other-late-result".into();
+        assert!(put_runtime_role_worker_result(&store, &result).is_err());
         Ok(())
     }
 

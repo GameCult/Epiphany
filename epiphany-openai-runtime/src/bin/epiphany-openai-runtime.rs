@@ -150,6 +150,7 @@ async fn main() -> Result<()> {
         "run-worker" => {
             let options = parse_run_worker_options(args.collect())?;
             require_supported_provider(&options.provider)?;
+            claim_and_wait_for_worker_activation(&options)?;
             let timeout_guard = start_run_worker_timeout_watchdog(&options);
             let timeout_seconds = options.max_runtime_seconds;
             let timeout_store = options.store_path.clone();
@@ -526,6 +527,7 @@ struct RunWorkerCliOptions {
     cwd: Option<PathBuf>,
     max_tool_rounds: usize,
     max_runtime_seconds: Option<u64>,
+    activation_token_sha256: String,
 }
 
 struct ToolFollowupCliOptions {
@@ -626,6 +628,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut cwd = None;
     let mut max_tool_rounds = 4usize;
     let mut max_runtime_seconds = None;
+    let mut activation_token_sha256 = None;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -648,6 +651,10 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             "--max-runtime-seconds" => {
                 max_runtime_seconds = Some(next_value(&mut iter, "--max-runtime-seconds")?.parse()?)
             }
+            "--activation-token-sha256" => {
+                activation_token_sha256 =
+                    Some(next_value(&mut iter, "--activation-token-sha256")?)
+            }
             other => return Err(anyhow!("unknown run-worker argument: {other}")),
         }
     }
@@ -663,7 +670,61 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         cwd,
         max_tool_rounds,
         max_runtime_seconds,
+        activation_token_sha256: activation_token_sha256
+            .context("run-worker requires --activation-token-sha256")?,
     })
+}
+
+fn claim_and_wait_for_worker_activation(options: &RunWorkerCliOptions) -> Result<()> {
+    let process = epiphany_core::capture_process_instance(std::process::id())?;
+    epiphany_core::claim_runtime_worker_process(
+        &options.store_path,
+        &options.job_id,
+        &process,
+        &options.activation_token_sha256,
+        &chrono::Utc::now().to_rfc3339(),
+    )?;
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let claim = epiphany_core::runtime_worker_process_claim(
+            &options.store_path,
+            &options.job_id,
+        )?
+        .ok_or_else(|| anyhow!("worker activation gate lost its process claim"))?;
+        if claim.process_id != process.process_id
+            || claim.process_creation_token != process.creation_token
+            || claim.process_executable_path != process.executable_path.display().to_string()
+        {
+            return Err(anyhow!("worker activation gate observed a substituted process claim"));
+        }
+        match claim.status.as_str() {
+            "active" => return Ok(()),
+            "claimed" if std::time::Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            "claimed" => {
+                epiphany_core::abandon_unactivated_runtime_worker_process(
+                    &options.store_path,
+                    &options.job_id,
+                    &process,
+                    &chrono::Utc::now().to_rfc3339(),
+                )?;
+                fail_worker_job(
+                    &options.store_path,
+                    &options.job_id,
+                    "Worker activation expired before provider/tool work.".into(),
+                    "Runtime Continuity may supersede only from the terminal unactivated process claim."
+                        .into(),
+                )?;
+                return Err(anyhow!("worker activation gate expired before model/tool work"));
+            }
+            status => {
+                return Err(anyhow!(
+                    "worker activation gate found non-runnable status {status:?}"
+                ));
+            }
+        }
+    }
 }
 
 fn parse_tool_followup_options(args: Vec<String>) -> Result<ToolFollowupCliOptions> {
@@ -1139,6 +1200,33 @@ mod tests {
     use epiphany_core::runtime_worker_launch_request;
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
+
+    #[test]
+    fn worker_cli_requires_activation_capability_before_runtime_path() -> Result<()> {
+        assert!(
+            parse_run_worker_options(vec![
+                "--job-id".into(),
+                "job-without-gate".into(),
+            ])
+            .is_err()
+        );
+        let options = parse_run_worker_options(vec![
+            "--job-id".into(),
+            "job-with-gate".into(),
+            "--activation-token-sha256".into(),
+            "a".repeat(64),
+        ])?;
+        assert_eq!(options.activation_token_sha256, "a".repeat(64));
+        let source = include_str!("epiphany-openai-runtime.rs");
+        let gate = source
+            .find("claim_and_wait_for_worker_activation(&options)?")
+            .expect("worker main owns activation gate");
+        let watchdog = source
+            .find("start_run_worker_timeout_watchdog(&options)")
+            .expect("worker runtime starts watchdog");
+        assert!(gate < watchdog);
+        Ok(())
+    }
 
     #[test]
     fn model_turn_json_ingress_accepts_published_native_object() -> Result<()> {
@@ -1825,5 +1913,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }

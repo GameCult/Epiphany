@@ -1281,6 +1281,109 @@ pub fn resident_self_typed_attempt_exists(
     crate::runtime_typed_request_attempt_exists(runtime_store, request)
 }
 
+pub fn recover_dead_resident_typed_worker(
+    resident_store: &Path,
+    runtime_store: &Path,
+    grant_id: &str,
+    recovered_at_millis: u64,
+) -> Result<bool> {
+    let grant = state_cache(resident_store)?
+        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .ok_or_else(|| anyhow!("typed worker death recovery lost its grant"))?;
+    let Some(request) = resident_self_typed_request_ref(&grant)? else {
+        return Ok(false);
+    };
+    let request_id = match request {
+        crate::RuntimeTypedRequestRef::ProposalModeling(id)
+        | crate::RuntimeTypedRequestRef::ImaginationConsideration(id)
+        | crate::RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
+    };
+    let mut cache = crate::runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let mut launches = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| match request {
+            crate::RuntimeTypedRequestRef::ProposalModeling(_) => {
+                launch.proposal_modeling_request_id.as_deref() == Some(request_id)
+            }
+            crate::RuntimeTypedRequestRef::ImaginationConsideration(_) => {
+                launch.imagination_consideration_request_id.as_deref() == Some(request_id)
+            }
+            crate::RuntimeTypedRequestRef::AdmittedModelDirection(_) => launch
+                .admitted_model_direction_consideration_request_id
+                .as_deref()
+                == Some(request_id),
+        })
+        .collect::<Vec<_>>();
+    launches.sort_by(|a, b| a.job_id.cmp(&b.job_id));
+    let mut retryable = Vec::new();
+    for launch in &launches {
+        let claim = cache.get::<crate::EpiphanyRuntimeWorkerProcessClaim>(&format!(
+            "runtime-worker-process-{}",
+            launch.job_id
+        ))?;
+        retryable.push((launch, claim));
+    }
+    let live = retryable
+        .iter()
+        .filter(|(_, claim)| {
+            claim.as_ref().is_some_and(|claim| {
+                matches!(claim.status.as_str(), "claimed" | "active" | "terminal-result")
+            })
+        })
+        .count();
+    if live > 1 {
+        return Err(anyhow!("typed request has multiple live worker process claims"));
+    }
+    let selected = retryable
+        .iter()
+        .find(|(_, claim)| {
+            claim.as_ref().is_some_and(|claim| {
+                matches!(claim.status.as_str(), "claimed" | "active" | "terminal-result")
+            })
+        })
+        .or_else(|| retryable.last());
+    let Some((launch, Some(claim))) = selected else {
+        return Ok(false);
+    };
+    match claim.status.as_str() {
+        "terminal-death" | "terminal-unactivated" => return Ok(true),
+        "terminal-result" => return Ok(false),
+        "claimed" | "active" => {}
+        _ => return Err(anyhow!("typed worker process claim has invalid status")),
+    }
+    let identity = crate::ProcessInstanceIdentity {
+        process_id: claim.process_id,
+        creation_token: claim.process_creation_token,
+        created_at_rfc3339: None,
+        executable_path: PathBuf::from(&claim.process_executable_path),
+    };
+    match crate::observe_process_instance(&identity) {
+        crate::ProcessInstanceObservation::ExactAlive => Ok(false),
+        crate::ProcessInstanceObservation::Inaccessible
+        | crate::ProcessInstanceObservation::Indeterminate { .. } => Err(anyhow!(
+            "Continuity cannot prove the exact typed worker process dead"
+        )),
+        crate::ProcessInstanceObservation::ExactExited { .. }
+        | crate::ProcessInstanceObservation::Missing
+        | crate::ProcessInstanceObservation::Replaced { .. } => {
+            let recovered_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(
+                recovered_at_millis as i64,
+            )
+            .ok_or_else(|| anyhow!("typed worker death timestamp is out of range"))?
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            crate::runtime_spine::terminalize_runtime_worker_process_death(
+                runtime_store,
+                &launch.job_id,
+                &format!("worker-death-recovery-{}", launch.job_id),
+                &recovered_at,
+            )?;
+            Ok(true)
+        }
+    }
+}
+
 pub fn resident_self_grant_has_typed_request(
     resident_store: &Path,
     grant_id: &str,
@@ -1335,13 +1438,50 @@ pub fn settle_resident_self_exited_coordinator(
         });
     }
     match verify_resident_self_grant_fulfillment(resident_store, runtime_store, &lease.grant_id) {
+        Ok(ResidentSelfGrantFulfillment::Pending) if typed && typed_attempt => {
+            if !recover_dead_resident_typed_worker(
+                resident_store,
+                runtime_store,
+                &lease.grant_id,
+                now_millis,
+            )? {
+                return Ok(ResidentSelfOutcome::AwaitingFulfillment);
+            }
+            cancel_resident_self_turn(
+                resident_store,
+                lease,
+                "process-failed",
+                "Runtime Continuity proved the exact activated worker process terminal before typed fulfillment",
+                now_millis,
+            )?;
+            Ok(if shutdown_requested {
+                ResidentSelfOutcome::Braked
+            } else {
+                ResidentSelfOutcome::Failed
+            })
+        }
         Ok(ResidentSelfGrantFulfillment::Pending)
             if typed
-                && (typed_attempt
-                    || (successful_receipt
-                        && !(shutdown_requested || brake_engaged || timed_out))) =>
+                && successful_receipt
+                && !(shutdown_requested || brake_engaged || timed_out) =>
         {
-            Ok(ResidentSelfOutcome::AwaitingFulfillment)
+            if recover_dead_resident_typed_worker(
+                resident_store,
+                runtime_store,
+                &lease.grant_id,
+                now_millis,
+            )? {
+                cancel_resident_self_turn(
+                    resident_store,
+                    lease,
+                    "process-failed",
+                    "Runtime Continuity proved the exact worker attempt terminal before activation or fulfillment",
+                    now_millis,
+                )?;
+                Ok(ResidentSelfOutcome::Failed)
+            } else {
+                Ok(ResidentSelfOutcome::AwaitingFulfillment)
+            }
         }
         Ok(ResidentSelfGrantFulfillment::Pending) => {
             let status = if shutdown_requested {
@@ -4330,6 +4470,293 @@ mod tests {
         assert_eq!(
             pressures[1].provenance_ref,
             "cultcache://repo-frontier-proposal-modeling/selection-2"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn exact_dead_typed_worker_claim_becomes_retry_authority() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident_store = temp.path().join("resident.cc");
+        let runtime_store = temp.path().join("runtime.cc");
+        crate::initialize_runtime_spine(
+            &runtime_store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "test-runtime".into(),
+                display_name: "Typed death runtime".into(),
+                created_at: "2026-08-10T12:20:00Z".into(),
+            },
+        )?;
+        enqueue_resident_self_pressure(
+            &resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "typed-worker-death-pressure".into(),
+                kind: "repo-frontier-proposal-modeling".into(),
+                provenance_ref: "cultcache://repo-frontier-proposal-modeling/death-request".into(),
+                objective: "Recover exact dead typed worker.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "typed-death-heartbeat",
+            "typed-death-action",
+            2,
+        )?
+        .expect("typed death grant");
+        let document = crate::EpiphanyWorkerLaunchDocument::Role(
+            crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: "typed-death-thread".into(),
+                role_id: "modeling".into(),
+                state_revision: 0,
+                objective: None,
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            },
+        );
+        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "typed-death-job".into(),
+            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            authority_scope: "modeling".into(),
+            instruction: "Typed death fixture.".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "modeling",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: Some("death-request".into()),
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
+        runtime.put(&launch.job_id, &launch)?;
+        let missing_process = crate::ProcessInstanceIdentity {
+            process_id: u32::MAX - 2,
+            creation_token: 91,
+            created_at_rfc3339: None,
+            executable_path: PathBuf::from("/release/epiphany-model-runtime"),
+        };
+        crate::claim_runtime_worker_process(
+            &runtime_store,
+            &launch.job_id,
+            &missing_process,
+            &"b".repeat(64),
+            "2026-08-10T12:20:01Z",
+        )?;
+        assert!(resident_self_typed_attempt_exists(
+            &resident_store,
+            &runtime_store,
+            &grant.grant_id,
+        )?);
+        assert!(recover_dead_resident_typed_worker(
+            &resident_store,
+            &runtime_store,
+            &grant.grant_id,
+            1_786_360_000_000,
+        )?);
+        assert!(!resident_self_typed_attempt_exists(
+            &resident_store,
+            &runtime_store,
+            &grant.grant_id,
+        )?);
+        assert_eq!(
+            crate::runtime_worker_process_claim(&runtime_store, &launch.job_id)?
+                .expect("terminal death claim")
+                .status,
+            "terminal-death"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn exact_dead_typed_worker_settles_active_lease_by_canonical_requeue() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident_store = temp.path().join("resident.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-worker-death-settlement",
+            "cognitive-runtime",
+            "thread-worker-death-settlement",
+        )?;
+        enqueue_resident_self_pressure(
+            &resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-worker-death-settlement".into(),
+                kind: "admitted-model-direction-consideration".into(),
+                provenance_ref: "cultcache://admitted-model-direction-consideration/request-worker-death-settlement".into(),
+                objective: "Prove exact worker death settles the resident lease.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "heartbeat-worker-death",
+            "action-worker-death",
+            2,
+        )?
+        .expect("worker death grant");
+        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
+            .expect("worker death preparation");
+        let coordinator_process = LaunchedCoordinator {
+            process_id: 44,
+            process_creation_token: 55,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &coordinator_process,
+            4,
+        )?;
+        let lease = acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &coordinator_process,
+            5,
+        )?;
+        let document = crate::EpiphanyWorkerLaunchDocument::Role(
+            crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: "thread-worker-death-settlement".into(),
+                role_id: "imagination".into(),
+                state_revision: 0,
+                objective: None,
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            },
+        );
+        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "worker-death-settlement-job".into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "imagination".into(),
+            instruction: "Typed worker death settlement fixture.".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "imagination",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: Some(
+                "request-worker-death-settlement".into(),
+            ),
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        crate::runtime_spine_cache(&policy.runtime_store)?.put(&launch.job_id, &launch)?;
+        let missing_worker = crate::ProcessInstanceIdentity {
+            process_id: u32::MAX - 3,
+            creation_token: 92,
+            created_at_rfc3339: None,
+            executable_path: PathBuf::from("/release/epiphany-imagination-runtime"),
+        };
+        crate::claim_runtime_worker_process(
+            &policy.runtime_store,
+            &launch.job_id,
+            &missing_worker,
+            &"c".repeat(64),
+            "2026-08-10T12:30:01Z",
+        )?;
+        let receipt = coordinator_receipt_for_lease(&lease, &policy.runtime_store);
+        assert_eq!(
+            settle_resident_self_exited_coordinator(
+                &resident_store,
+                &policy.runtime_store,
+                &lease,
+                &receipt,
+                false,
+                false,
+                false,
+                1_786_360_600_000,
+                policy.cooldown_seconds,
+            )?,
+            ResidentSelfOutcome::Failed
+        );
+        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
+        let terminal_grant = state_cache(&resident_store)?
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("terminal grant");
+        assert_eq!(terminal_grant.terminal_status.as_deref(), Some("process-failed"));
+        let pressure = state_cache(&resident_store)?
+            .get::<ResidentSelfPressure>("pressure-worker-death-settlement")?
+            .expect("requeued pressure");
+        assert_eq!(pressure.status, "pending");
+        assert_eq!(pressure.consumed_by_grant_id, None);
+        assert_eq!(
+            crate::runtime_worker_process_claim(&policy.runtime_store, &launch.job_id)?
+                .expect("terminal worker death claim")
+                .status,
+            "terminal-death"
         );
         Ok(())
     }

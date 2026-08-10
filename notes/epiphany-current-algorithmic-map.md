@@ -3164,11 +3164,12 @@ three. Exact live replay remains the package acceptance boundary.
 # Orphan worker Continuity authority map — 2026-08-10
 
 Current mechanism: the coordinator persists an immutable runtime worker launch,
-spawns `epiphany-openai-runtime run-worker` detached, and records the returned
-PID only in its artifact JSON. The runtime store has no durable binding between
-that launch/job and the worker process incarnation. Coordinator death after
-spawn therefore leaves resident Self unable to prove whether the worker may
-still publish terminal output.
+spawns `epiphany-openai-runtime run-worker` with an activation-capability digest,
+then waits for the child-authored exact process claim before presenting the
+preimage. The worker cannot enter watchdog, provider, model, or tool paths before
+activation. Runtime result admission atomically replaces the active claim with
+`terminal-result`; resident Continuity may replace it with `terminal-death` only
+after exact native process observation.
 
 - Owner: the worker runtime owns claiming its exact native process incarnation
   before model or tool work. Runtime Continuity owns activation, terminalization,
@@ -3178,9 +3179,9 @@ still publish terminal output.
   explicit activation bound to that claim, native exact-process observation,
   and authenticated terminal worker result.
 - Outputs: `claimed` before consequence-capable work, `active` only after one
-  explicit activation, then exactly one `terminal-result` or `terminal-death`.
-  A terminal-death attempt may be superseded by a new ordinal without deleting
-  the prior launch family.
+  explicit activation, then exactly one `terminal-result`, `terminal-death`, or
+  `terminal-unactivated`. A terminal-death/unactivated attempt may be superseded
+  by a distinct job/binding incarnation without deleting the prior launch family.
 - Derived state: coordinator artifact PID and detached `Child` handle are
   diagnostic only. Request identity remains retry-stable; launch, worker claim,
   process, session, and artifact directory are attempt-incarnation state.
@@ -3192,13 +3193,17 @@ still publish terminal output.
   direction must use the same worker start gate and terminal claim primitive.
   The worker itself claims before all provider/tool routes; no coordinator-only
   happy path may bypass it.
-- Cut line: persist a typed worker process claim from inside `run-worker`, gate
-  work on exact activation, make terminal result close that claim atomically,
-  and let Continuity write terminal death only after exact native observation.
-  Then extend each typed launch family with ordinal/supersession bound to that
-  terminal-death authority. Do not reuse the current unbound artifact PID.
+- Cut line: implemented in `runtime_spine.rs`, `epiphany-openai-runtime`, the
+  coordinator launcher, and resident Self. `roleFailureReview` no longer owns
+  proposal retry. All three typed lanes consult exact process terminality, and
+  dead runtime-link projections are demoted before planning a replacement.
+  The remaining cut is packaged Linux falsification, not another retry policy.
 - Verification layer: kill before claim, after claim/before activation, after
   activation/before result, and after valid result/before coordinator receipt;
   prove no model/tool work before activation, no dual live attempts, same typed
   request with distinct attempt/process/artifact identities, exact replay, and
-  retention non-resurrection across all three typed lanes.
+  retention non-resurrection across all three typed lanes. Source evidence now
+  includes exact process/result race tests, activation CLI ordering, typed retry
+  for proposal/Imagination/model direction, stale-link demotion, canonical Self
+  settlement, core 660 passed/1 ignored, swarm 9, coordinator 17, and OpenAI
+  runtime 10. Packaged Linux kill boundaries remain open.

@@ -185,7 +185,7 @@ fn commit_coordinator_job_launch_in_cache(
     let imagination_consideration_launch = if let Some(request_id) =
         request.imagination_consideration_request_id.as_deref()
     {
-        let (consideration, identity) =
+        let (consideration, identity, attempt_ordinal) =
             validate_imagination_consideration_launch(cache, current_state, request, request_id)?;
         let model = cache
             .get::<EpiphanyMemoryGraphEntry>(MEMORY_GRAPH_KEY)?
@@ -219,7 +219,7 @@ fn commit_coordinator_job_launch_in_cache(
             "{:x}",
             Sha256::digest(rmp_serde::to_vec_named(&effective_launch_document)?)
         );
-        Some((consideration, identity, hash))
+        Some((consideration, identity, hash, attempt_ordinal))
     } else {
         None
     };
@@ -462,15 +462,20 @@ fn commit_coordinator_job_launch_in_cache(
                 .0,
         );
     }
-    if let Some((consideration, identity, worker_launch_document_sha256)) =
+    if let Some((consideration, identity, worker_launch_document_sha256, attempt_ordinal)) =
         imagination_consideration_launch
     {
+        let binding_record_id = if attempt_ordinal == 0 {
+            format!("imagination-consideration-launch-{}", consideration.request_id)
+        } else {
+            format!(
+                "imagination-consideration-launch-{}-attempt-{attempt_ordinal}",
+                consideration.request_id
+            )
+        };
         let binding = ImaginationConsiderationLaunchBinding {
             schema_version: IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id: format!(
-                "imagination-consideration-launch-{}",
-                consideration.request_id
-            ),
+            binding_record_id,
             request_id: consideration.request_id,
             job_id: plan.backend_job_id.clone(),
             binding_id: request.binding_id.clone(),
@@ -913,7 +918,7 @@ fn validate_imagination_consideration_launch(
     state: &EpiphanyThreadState,
     launch: &EpiphanyJobLaunchRequest,
     request_id: &str,
-) -> Result<(ImaginationConsiderationRequest, EpiphanyRuntimeIdentity)> {
+) -> Result<(ImaginationConsiderationRequest, EpiphanyRuntimeIdentity, u64)> {
     if match &launch.launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => {
             document.imagination_consideration_context.is_some()
@@ -947,14 +952,26 @@ fn validate_imagination_consideration_launch(
     {
         return Err(anyhow!("consideration launch provenance mismatch"));
     }
-    if cache
+    let prior_bindings = cache
         .get_all::<ImaginationConsiderationLaunchBinding>()?
         .iter()
-        .any(|binding| binding.request_id == request_id)
-    {
-        return Err(anyhow!("consideration request already bound"));
+        .filter(|binding| binding.request_id == request_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    for binding in prior_bindings {
+        if !worker_process_attempt_is_terminal(cache, &binding.job_id)? {
+            return Err(anyhow!("consideration request already bound"));
+        }
     }
-    Ok((request, identity))
+    let attempt_ordinal = u64::try_from(
+        cache
+            .get_all::<ImaginationConsiderationLaunchBinding>()?
+            .iter()
+            .filter(|binding| binding.request_id == request_id)
+            .count(),
+    )
+    .map_err(|_| anyhow!("consideration attempt ordinal overflow"))?;
+    Ok((request, identity, attempt_ordinal))
 }
 
 fn validate_admitted_model_direction_consideration_launch(
@@ -1000,17 +1017,21 @@ fn validate_admitted_model_direction_consideration_launch(
     {
         return Err(anyhow!("model direction consideration provenance mismatch"));
     }
-    if cache
+    let prior_launches = cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .iter()
-        .any(|worker| {
+        .filter(|worker| {
             worker
                 .admitted_model_direction_consideration_request_id
                 .as_deref()
                 == Some(request_id)
         })
-    {
-        return Err(anyhow!("model direction consideration already bound"));
+        .cloned()
+        .collect::<Vec<_>>();
+    for worker in prior_launches {
+        if !worker_process_attempt_is_terminal(cache, &worker.job_id)? {
+            return Err(anyhow!("model direction consideration already bound"));
+        }
     }
     Ok(request)
 }
@@ -1132,15 +1153,18 @@ fn validate_proposal_modeling_launch(
     if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
         crate::runtime_spine::validate_autonomous_proposal_binding(cache, &proposal)?;
     }
-    if cache
+    let prior_bindings = cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
         .iter()
         .filter(|binding| binding.proposal_modeling_request_id == request_id)
-        .any(|binding| !proposal_modeling_launch_was_superseded(state, binding))
-    {
-        return Err(anyhow!(
-            "proposal Modeling selection request already has an unsuperseded launch"
-        ));
+        .cloned()
+        .collect::<Vec<_>>();
+    for binding in prior_bindings {
+        if !proposal_modeling_launch_was_superseded(cache, &binding)? {
+            return Err(anyhow!(
+                "proposal Modeling selection request already has an unsuperseded launch"
+            ));
+        }
     }
     let identity = cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
@@ -1178,17 +1202,23 @@ fn validate_proposal_modeling_launch(
 }
 
 fn proposal_modeling_launch_was_superseded(
-    state: &EpiphanyThreadState,
+    cache: &CultCache,
     binding: &RepoFrontierProposalModelingLaunchBinding,
-) -> bool {
-    state.acceptance_receipts.iter().any(|receipt| {
-        receipt.job_id == binding.job_id
-            && receipt.binding_id == binding.binding_id
-            && receipt.surface == "roleFailureReview"
-            && receipt.role_id == "modeling"
-            && receipt.status == "superseded"
-            && !receipt.result_id.trim().is_empty()
-    })
+) -> Result<bool> {
+    worker_process_attempt_is_terminal(cache, &binding.job_id)
+}
+
+fn worker_process_attempt_is_terminal(cache: &CultCache, job_id: &str) -> Result<bool> {
+    Ok(cache
+        .get::<crate::EpiphanyRuntimeWorkerProcessClaim>(&format!(
+            "runtime-worker-process-{job_id}"
+        ))?
+        .is_some_and(|claim| {
+            matches!(
+                claim.status.as_str(),
+                "terminal-death" | "terminal-unactivated"
+            )
+        }))
 }
 
 fn terminal_runtime_link_for_binding(
@@ -1206,16 +1236,28 @@ fn terminal_runtime_link_for_binding(
     if link.runtime_result_id.is_some() {
         return Ok(None);
     }
-    let Some(snapshot) = runtime_job_snapshot(runtime_store, &link.runtime_job_id)? else {
+    if let Some(snapshot) = runtime_job_snapshot(runtime_store, &link.runtime_job_id)?
+        && let Some(result) = snapshot.result
+    {
+        let mut terminal = link.clone();
+        terminal.id = format!("{}-{}", link.id, result.result_id);
+        terminal.surface = "runtimeResult".to_string();
+        terminal.runtime_result_id = Some(result.result_id);
+        return Ok(Some(terminal));
+    }
+    let Some(claim) = crate::runtime_worker_process_claim(runtime_store, &link.runtime_job_id)? else {
         return Ok(None);
     };
-    let Some(result) = snapshot.result else {
+    if !matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated") {
         return Ok(None);
-    };
+    }
+    let terminal_authority_id = claim
+        .terminal_authority_id
+        .ok_or_else(|| anyhow!("terminal worker process claim lost its authority id"))?;
     let mut terminal = link.clone();
-    terminal.id = format!("{}-{}", link.id, result.result_id);
-    terminal.surface = "runtimeResult".to_string();
-    terminal.runtime_result_id = Some(result.result_id);
+    terminal.id = format!("{}-{}", link.id, terminal_authority_id);
+    terminal.surface = "runtimeWorkerProcessTerminal".to_string();
+    terminal.runtime_result_id = Some(terminal_authority_id);
     Ok(Some(terminal))
 }
 
@@ -1644,6 +1686,67 @@ pub(crate) mod tests {
         })
     }
 
+    fn model_direction_launch_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        std::path::PathBuf,
+        EpiphanyThreadState,
+        EpiphanyJobLaunchRequest,
+        AdmittedModelDirectionConsiderationRequest,
+    )> {
+        let (store, state, _, planning) = frontier_planning_launch_fixture(root, suffix)?;
+        let request = AdmittedModelDirectionConsiderationRequest {
+            schema_version: ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: format!("model-direction-{suffix}"),
+            runtime_id: planning.runtime_id,
+            thread_id: planning.thread_id.clone(),
+            model_revision: planning.model_revision,
+            model_hash: planning.model_hash,
+            model_admission_receipt_id: planning.admission_receipt_id,
+            previous_terminal_result_id: None,
+            requested_at: "2026-07-18T00:00:00Z".into(),
+            contract: ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_CONTRACT.into(),
+            private_state_included: false,
+        };
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.put(&request.request_id, &request)?;
+        let mut launch = build_epiphany_role_launch_request(
+            &request.thread_id,
+            EpiphanyRoleResultRoleId::Imagination,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        launch.admitted_model_direction_consideration_request_id =
+            Some(request.request_id.clone());
+        Ok((store, state, launch, request))
+    }
+
+    fn terminalize_test_worker_process(store: &Path, job_id: &str, suffix: &str) -> Result<()> {
+        let process = crate::ProcessInstanceIdentity {
+            process_id: 10_000 + u32::try_from(suffix.len())?,
+            creation_token: 20_000 + u64::try_from(suffix.len())?,
+            executable_path: std::path::PathBuf::from(format!("/tmp/epiphany-worker-{suffix}")),
+            created_at_rfc3339: Some("2026-07-18T00:00:01Z".into()),
+        };
+        crate::claim_runtime_worker_process(
+            store,
+            job_id,
+            &process,
+            &"a".repeat(64),
+            "2026-07-18T00:00:02Z",
+        )?;
+        crate::runtime_spine::terminalize_runtime_worker_process_death(
+            store,
+            job_id,
+            &format!("worker-death-{suffix}"),
+            "2026-07-18T00:00:03Z",
+        )?;
+        Ok(())
+    }
+
     fn launch_frontier_mind_result(
         store: &Path,
         imagination_result: &EpiphanyRuntimeRoleWorkerResult,
@@ -1998,7 +2101,19 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn proposal_launch_binding_is_reusable_only_after_exact_failure_supersession() {
+    fn proposal_launch_binding_is_reusable_only_after_exact_process_terminality() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = root.path().join("proposal-supersession.cc");
+        crate::initialize_runtime_spine(
+            &store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "runtime-1".into(),
+                display_name: "Proposal supersession".into(),
+                created_at: "2026-07-13T05:00:00Z".into(),
+            },
+        )?;
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
         let binding = RepoFrontierProposalModelingLaunchBinding {
             schema_version: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
             binding_record_id: "proposal-launch-1".into(),
@@ -2014,7 +2129,7 @@ pub(crate) mod tests {
             contract: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
         };
         let mut state = EpiphanyThreadState::default();
-        assert!(!proposal_modeling_launch_was_superseded(&state, &binding));
+        assert!(!proposal_modeling_launch_was_superseded(&cache, &binding)?);
 
         state
             .acceptance_receipts
@@ -2029,10 +2144,27 @@ pub(crate) mod tests {
                 accepted_at: "2026-07-13T05:01:00Z".into(),
                 ..Default::default()
             });
-        assert!(proposal_modeling_launch_was_superseded(&state, &binding));
+        assert!(!proposal_modeling_launch_was_superseded(&cache, &binding)?);
 
         state.acceptance_receipts[0].job_id = "other-job".into();
-        assert!(!proposal_modeling_launch_was_superseded(&state, &binding));
+        assert!(!proposal_modeling_launch_was_superseded(&cache, &binding)?);
+        let terminal_claim = crate::EpiphanyRuntimeWorkerProcessClaim {
+            schema_version: crate::RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION.into(),
+            claim_id: "runtime-worker-process-job-1".into(),
+            job_id: "job-1".into(),
+            process_id: 41,
+            process_creation_token: 73,
+            process_executable_path: "/release/epiphany-model-runtime".into(),
+            activation_token_sha256: "a".repeat(64),
+            status: "terminal-death".into(),
+            claimed_at: "2026-07-13T05:00:04Z".into(),
+            activated_at: Some("2026-07-13T05:00:05Z".into()),
+            terminal_at: Some("2026-07-13T05:00:06Z".into()),
+            terminal_authority_id: Some("worker-death-recovery-job-1".into()),
+        };
+        cache.put(&terminal_claim.claim_id, &terminal_claim)?;
+        assert!(proposal_modeling_launch_was_superseded(&cache, &binding)?);
+        Ok(())
     }
 
     #[test]
@@ -2263,6 +2395,187 @@ pub(crate) mod tests {
         cargo.result_id = "cargo-result".into();
         cargo.state_patch_msgpack = Some(vec![0]);
         assert!(put_runtime_role_worker_result(&store, &cargo).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn consideration_relaunch_requires_exact_terminal_process_and_preserves_attempt_history(
+    ) -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, request) = consideration_launch_fixture(root.path(), "retry")?;
+        let first = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-consideration-first".into(),
+            "backend-consideration-first".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &state,
+            &launch,
+            &first,
+            "2026-07-18T00:00:01Z".into(),
+        )?;
+        let current_state = coordinator_acceptance_cache(&store)?
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        let mut retry_launch = build_epiphany_role_launch_request(
+            &request.thread_id,
+            EpiphanyRoleResultRoleId::Imagination,
+            Some(current_state.revision),
+            Some(60),
+            &current_state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        retry_launch.imagination_consideration_request_id = Some(request.request_id.clone());
+        let before_refusal = std::fs::read(&store)?;
+        assert!(plan_coordinator_job_launch(
+            &current_state,
+            &retry_launch,
+            &store,
+            "launcher-consideration-refused".into(),
+            "backend-consideration-refused".into(),
+        )
+        .is_err());
+        assert_eq!(std::fs::read(&store)?, before_refusal);
+
+        terminalize_test_worker_process(
+            &store,
+            "backend-consideration-first",
+            "consideration-first",
+        )?;
+        let first_binding = coordinator_acceptance_cache(&store)?
+            .get::<ImaginationConsiderationLaunchBinding>(&format!(
+                "imagination-consideration-launch-{}",
+                request.request_id
+            ))?
+            .expect("first immutable consideration binding");
+        let first_claim = crate::runtime_worker_process_claim(
+            &store,
+            "backend-consideration-first",
+        )?
+        .expect("terminal first process claim");
+
+        let second = plan_coordinator_job_launch(
+            &current_state,
+            &retry_launch,
+            &store,
+            "launcher-consideration-second".into(),
+            "backend-consideration-second".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &current_state,
+            &retry_launch,
+            &second,
+            "2026-07-18T00:00:04Z".into(),
+        )?;
+        let cache = coordinator_acceptance_cache(&store)?;
+        let second_binding = cache
+            .get::<ImaginationConsiderationLaunchBinding>(&format!(
+                "imagination-consideration-launch-{}-attempt-1",
+                request.request_id
+            ))?
+            .expect("second immutable consideration binding");
+        assert_eq!(first_binding.job_id, "backend-consideration-first");
+        assert_eq!(second_binding.job_id, "backend-consideration-second");
+        assert_eq!(
+            cache.get::<ImaginationConsiderationLaunchBinding>(&first_binding.binding_record_id)?,
+            Some(first_binding)
+        );
+        assert_eq!(
+            crate::runtime_worker_process_claim(&store, "backend-consideration-first")?,
+            Some(first_claim)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn model_direction_relaunch_requires_exact_terminal_process() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, request) =
+            model_direction_launch_fixture(root.path(), "retry")?;
+        let first = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-model-direction-first".into(),
+            "backend-model-direction-first".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &state,
+            &launch,
+            &first,
+            "2026-07-18T00:00:01Z".into(),
+        )?;
+        let current_state = coordinator_acceptance_cache(&store)?
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        let mut retry_launch = build_epiphany_role_launch_request(
+            &request.thread_id,
+            EpiphanyRoleResultRoleId::Imagination,
+            Some(current_state.revision),
+            Some(60),
+            &current_state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        retry_launch.admitted_model_direction_consideration_request_id =
+            Some(request.request_id.clone());
+        let before_refusal = std::fs::read(&store)?;
+        assert!(plan_coordinator_job_launch(
+            &current_state,
+            &retry_launch,
+            &store,
+            "launcher-model-direction-refused".into(),
+            "backend-model-direction-refused".into(),
+        )
+        .is_err());
+        assert_eq!(std::fs::read(&store)?, before_refusal);
+
+        terminalize_test_worker_process(
+            &store,
+            "backend-model-direction-first",
+            "model-direction-first",
+        )?;
+        let first_launch = crate::runtime_worker_launch_request(
+            &store,
+            "backend-model-direction-first",
+        )?
+        .expect("first immutable model direction launch");
+        let second = plan_coordinator_job_launch(
+            &current_state,
+            &retry_launch,
+            &store,
+            "launcher-model-direction-second".into(),
+            "backend-model-direction-second".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &current_state,
+            &retry_launch,
+            &second,
+            "2026-07-18T00:00:04Z".into(),
+        )?;
+        let second_launch = crate::runtime_worker_launch_request(
+            &store,
+            "backend-model-direction-second",
+        )?
+        .expect("second immutable model direction launch");
+        assert_ne!(first_launch.job_id, second_launch.job_id);
+        assert_eq!(
+            first_launch.admitted_model_direction_consideration_request_id,
+            second_launch.admitted_model_direction_consideration_request_id
+        );
+        assert_eq!(
+            crate::runtime_worker_launch_request(&store, "backend-model-direction-first")?,
+            Some(first_launch)
+        );
         Ok(())
     }
 

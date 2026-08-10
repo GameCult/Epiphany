@@ -14,6 +14,7 @@ use epiphany_core::{
     load_resident_self_state, observe_process_instance, pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
     recover_receipt_free_dead_coordinator_session,
+    recover_dead_resident_typed_worker,
     resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_grant_has_typed_request, resident_self_local_provider_status,
@@ -318,7 +319,14 @@ fn settle_receipt_free_dead_coordinator(
                     &args.policy.runtime_store,
                     &lease.grant_id,
                 )? {
-                    return Ok(ResidentSelfOutcome::AwaitingFulfillment);
+                    if !recover_dead_resident_typed_worker(
+                        &args.state_store,
+                        &args.policy.runtime_store,
+                        &lease.grant_id,
+                        now,
+                    )? {
+                        return Ok(ResidentSelfOutcome::AwaitingFulfillment);
+                    }
                 }
             }
         }

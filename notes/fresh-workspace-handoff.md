@@ -1,25 +1,39 @@
 # Fresh workspace handoff
 
-## Orphan-worker ownership mapped — 2026-08-10
+## Orphan-worker Continuity source complete — 2026-08-10
 
-The receipt-free pre-open coordinator boundary already has a focused source
-test and fails closed on exact runtime-incarnation absence. The remaining
-post-open fault is deeper than resident retry policy. Detached worker launch
-persists the immutable runtime job/document, but the spawned worker PID exists
-only in coordinator artifact JSON. No typed runtime state binds job, launch,
-PID, creation token, executable, activation, and terminal state. After
-coordinator death, neither resident Self nor Runtime Continuity can prove that
-the worker is dead; supersession would permit two workers to publish for one
-typed request.
+The runtime now persists one `EpiphanyRuntimeWorkerProcessClaim` per immutable
+worker job. `run-worker` claims its own PID, creation token, executable, and
+activation-capability digest before watchdog, provider, model, or tool work. It
+waits for the coordinator to observe that exact claim and present the matching
+capability. Failure to activate terminalizes the claim without cognitive work.
+An authenticated worker result and `terminal-result` claim replacement share
+one snapshot-fenced transaction.
 
-The authority map is now explicit in the algorithmic map. `run-worker` must
-claim its own exact process before provider/tool work and wait for an exact
-runtime activation. Authenticated result or exact observed process death then
-terminalizes that same claim. Only terminal death can ground a new attempt
-ordinal. Proposal Modeling, Imagination consideration, and admitted model
-direction must share this primitive. Coordinator artifact PID is sight only;
-do not promote it or infer death from time/receipt absence. Actual c006 remains
-braked. Yggdrasil never builds.
+Resident Continuity resolves the request's exact worker launch and claim. Only
+native `Missing`, `Replaced`, or exact exit observation may replace a claimed or
+active process with `terminal-death`; alive waits, inaccessible/indeterminate
+fails closed, and a result race refuses. Self then uses its existing
+`process-failed` terminal vocabulary to clear the exact lease, terminalize the
+grant, and requeue pressure once. `roleFailureReview`, coordinator receipt
+absence, elapsed time, and legacy claimless launches grant no retry authority.
+
+Proposal Modeling, Imagination consideration, and admitted model direction now
+share this terminality predicate. Imagination retries receive distinct binding
+IDs; every lane receives a distinct backend job. A dead process also demotes
+the stale active runtime-link projection so it cannot veto the new launch.
+Attempt history and terminal claims remain immutable. Focused user-story tests
+prove refusal before terminality and successful retry afterward for all three
+lanes, including canonical resident settlement. Full gates pass: core 660
+passed/1 ignored, swarm 9/9, coordinator 17/17, OpenAI runtime 10/10.
+
+This cut is not yet committed, packaged, or accepted on Linux. Next commit and
+push it, package exactly once with the persistent Starfire cache, authenticate
+the 24-binary release and witness, and run the copied-state kill matrix at
+pre-claim, claimed/unactivated, activated/pre-result, and valid-result before
+coordinator receipt. Prove same typed request with distinct incarnation,
+no dual live worker, no pre-activation model/tool work, exact settlement, and
+retention non-resurrection. Actual c006 remains braked. Yggdrasil never builds.
 
 ## Heartbeat graceful SIGTERM accepted on Linux — 2026-08-10
 

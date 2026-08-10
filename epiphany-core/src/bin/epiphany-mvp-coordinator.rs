@@ -31,11 +31,14 @@ use epiphany_core::{
 };
 use serde_json::Value;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -2030,6 +2033,8 @@ fn launch_worker_runtime_detached(
     max_runtime_seconds: u64,
     auto_tools: bool,
 ) -> Result<Value> {
+    let activation_token = Uuid::new_v4().to_string();
+    let activation_token_sha256 = format!("{:x}", Sha256::digest(activation_token.as_bytes()));
     let stdout_path = artifact_dir.join(format!(
         "step-{step_index:02}-{}-worker-runtime.stdout.json",
         sanitize_id(role_id)
@@ -2051,6 +2056,8 @@ fn launch_worker_runtime_detached(
         .arg(mcp_config)
         .arg("--job-id")
         .arg(job_id)
+        .arg("--activation-token-sha256")
+        .arg(&activation_token_sha256)
         .arg("--max-runtime-seconds")
         .arg(max_runtime_seconds.to_string());
     if auto_tools {
@@ -2073,13 +2080,47 @@ fn launch_worker_runtime_detached(
         .stderr(Stdio::from(stderr_file));
     #[cfg(windows)]
     command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
-    let child = command
+    let mut child = command
         .spawn()
         .with_context(|| format!("failed to spawn {}", model_runtime_bin.display()))?;
+    let process = capture_process_instance(child.id())?;
+    let claim_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(claim) = epiphany_core::runtime_worker_process_claim(runtime_store, job_id)? {
+            if claim.process_id != process.process_id
+                || claim.process_creation_token != process.creation_token
+                || claim.process_executable_path != process.executable_path.display().to_string()
+                || claim.activation_token_sha256 != activation_token_sha256
+            {
+                return Err(anyhow!(
+                    "worker process claim does not bind the spawned incarnation"
+                ));
+            }
+            epiphany_core::activate_runtime_worker_process(
+                runtime_store,
+                job_id,
+                &process,
+                &activation_token,
+                &chrono::Utc::now().to_rfc3339(),
+            )?;
+            break;
+        }
+        if let Some(status) = child.try_wait()? {
+            return Err(anyhow!(
+                "worker exited with {status} before claiming runtime authority"
+            ));
+        }
+        if std::time::Instant::now() >= claim_deadline {
+            return Err(anyhow!(
+                "worker did not claim runtime authority before activation deadline"
+            ));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
     Ok(json!({
         "status": "launched",
         "jobId": job_id,
-        "pid": child.id(),
+        "pid": process.process_id,
         "stdout": stdout_path,
         "stderr": stderr_path,
         "note": "Worker runtime is detached; coordinator observes completion through runtime-spine role/reorient result polling.",
