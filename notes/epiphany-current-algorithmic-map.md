@@ -3280,3 +3280,13 @@ closed lifecycle envelopes for deletion, and preserves the co-resident row
 byte-identically. Core 662/1 ignored and swarm 7 pass; copied exact-source replay
 retired the packaged lifecycle and produced no retry. Exact packaging of this
 fence remains the next gate.
+
+Exact `52ee6b53` closes that packaging gate. Release `sha256-24a8faee` and
+witness `sha256-c1d0f4f1` authenticate 24 binaries with zero warnings. A first
+packaged cycle created the real co-resident readiness shape while settling the
+zero-receipt typed result. After Heartbeat consumed the ack, a second packaged
+cycle with retention zero retired the lifecycle and exited sleeping without a
+replacement grant. Replay had neither retired work nor retry authority. The
+full-backing fence is therefore accepted; Imagination and proposal Modeling
+remain independent typed-fulfillment variants, not reasons to reopen retention
+ownership.

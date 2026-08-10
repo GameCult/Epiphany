@@ -2534,3 +2534,30 @@ Next: commit and package the retention-fence cut, replay it through the exact
 package with the readiness row already present, then cover proposal Modeling,
 Imagination, and terminal-worker-attempt runtime retention. Actual c006 remains
 braked and stopped; Yggdrasil never builds.
+
+## Co-resident resident retention accepted packaged — 2026-08-10
+
+Source `52ee6b535eadb7b492190591593b682c3746867e` is pushed and packaged as
+`sha256-24a8faee17bc28fa7eca877748cfa14472832881352f251b2d4b4f33db823771`
+with witness
+`sha256-c1d0f4f1d9a5d0a253eefacf50d1901d2b8de062bcef5e692bda2a6f39d5af48`.
+Independent inspection authenticated 24 binaries and zero warnings. Cargo took
+7m06s. The first package attempt failed before Cargo because the source volume
+was mounted read-only; its receipt is preserved with the successful attempt
+under `.epiphany-run/linux-package-52ee6b53`.
+
+Fresh copied state under `.epiphany-run/resident-retention-52ee6b53` used the
+exact packaged Body binder/observer, release publisher, and `epiphany-swarm`.
+The first resident cycle settled the zero-receipt admitted-model-direction
+result as `recovered-fulfilled`, exited zero, and published provider readiness
+into the resident store. Heartbeat then consumed the exact terminal ack. A
+second exact packaged `once` with closed-lifecycle retention zero exited zero
+`sleeping`, removed the pressure/grant/ack family despite the co-resident
+readiness row, retained no active turn, and could not mint a retry. A replay
+found no lifecycle to retire and still returned no grant.
+
+Next: use the same resident-owned settlement path for an authenticated
+Imagination candidate chain, including exact request, launch binding, worker
+launch/result, death recovery, retention, and no-retry proof. Proposal Modeling
+and runtime retention of terminal worker attempts follow. Actual c006 remains
+braked and stopped; Yggdrasil never builds.
