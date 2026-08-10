@@ -3259,3 +3259,24 @@ refusal, exact closed-lifecycle retention, and no retry before or after
 retention. The fixture linked exact pushed source; it did not execute the
 packaged swarm CLI. Direct packaged-binary provenance remains open alongside
 the proposal Modeling and Imagination variants.
+
+### Packaged settlement and co-resident retention fence
+
+The exact `2e66433f` packaged `epiphany-swarm` now directly proves the
+admitted-model-direction case: zero coordinator receipts plus authenticated
+typed fulfillment and exact process death settle the original grant as
+`recovered-fulfilled`, keep its pressure consumed, clear active authority, and
+exit zero. Exact packaged repository-Body bind/observation supplies the domain
+authority, and cognitive runtime identity remains distinct from release
+provenance throughout the run.
+
+Resident lifecycle retention owns deletion of only pressure/grant/ack/claim
+families and replacement of its singleton head. Its compare-and-swap fence,
+however, must be the complete physical backing snapshot because resident
+provider readiness legitimately shares the file. An owner-only snapshot is not
+a full-snapshot fence and caused deterministic refusal after readiness was
+published. The source cut reads every envelope for the fence, selects only
+closed lifecycle envelopes for deletion, and preserves the co-resident row
+byte-identically. Core 662/1 ignored and swarm 7 pass; copied exact-source replay
+retired the packaged lifecycle and produced no retry. Exact packaging of this
+fence remains the next gate.

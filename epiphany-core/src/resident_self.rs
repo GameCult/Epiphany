@@ -2421,7 +2421,10 @@ pub fn retain_resident_self_lifecycles(
         return Ok(None);
     }
 
-    let snapshot = cache.snapshot_envelopes();
+    // Retention owns only the lifecycle families below, but its fence must
+    // cover every co-resident envelope. Provider readiness is published into
+    // this same store after each cycle and must remain byte-identical.
+    let snapshot = SingleFileMessagePackBackingStore::new(path).pull_all()?;
     let prior_head = cache.get::<ResidentSelfRetentionHead>(RESIDENT_SELF_RETENTION_HEAD_KEY)?;
     if let Some(head) = &prior_head {
         if head.schema_version != RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION
@@ -2591,6 +2594,17 @@ mod tests {
         let store = temp.path().join("resident-self.cc");
         insert_closed_lifecycle(&store, "old", 10)?;
         insert_closed_lifecycle(&store, "new", 20)?;
+        let mut foreign_cache = CultCache::new();
+        foreign_cache.register_entry_type::<ForeignReadiness>()?;
+        let foreign = foreign_cache
+            .prepare_entry(
+                "provider-readiness",
+                &ForeignReadiness {
+                    status: "ready".into(),
+                },
+            )?
+            .0;
+        SingleFileMessagePackBackingStore::new(&store).push(&foreign)?;
 
         let head = retain_resident_self_lifecycles(&store, 1, 30)?
             .ok_or_else(|| anyhow!("retention did not compact the oldest lifecycle"))?;
@@ -2601,6 +2615,12 @@ mod tests {
         assert!(pending_resident_self_grant(&store)?.is_none());
         assert!(pending_resident_self_acks(&store)?.is_empty());
         assert_eq!(resident_self_pressures(&store)?.len(), 1);
+        assert!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .pull_all()?
+                .contains(&foreign),
+            "retention must preserve the co-resident readiness envelope byte-for-byte"
+        );
         assert!(retain_resident_self_lifecycles(&store, 1, 31)?.is_none());
         assert_eq!(
             load_resident_self_state(&store)?,

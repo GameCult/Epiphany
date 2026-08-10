@@ -2506,3 +2506,31 @@ source, while the corresponding release was separately authenticated. Do not
 claim packaged CLI execution yet. Next drive the same state through the exact
 packaged `epiphany-swarm`, then cover proposal Modeling and Imagination and
 runtime retention of terminal worker attempts. Actual c006 stays braked.
+
+## Packaged fulfilled-before-receipt accepted; retention fence corrected — 2026-08-10
+
+The exact `2e66433f` packaged `epiphany-swarm` directly consumed the copied
+pre-fulfilled admitted-model-direction state and exited zero with `completed`.
+The resident store has no active turn; the exact grant and acknowledgement are
+`recovered-fulfilled`; and the pressure remains consumed by that original
+grant. The runtime held zero coordinator receipts. The proof used exact
+packaged repository-Body bind and observation first, and deliberately separated
+cognitive runtime `worker-continuity-fixture` from release runtime
+`epiphany-starfire-linux`. Receipts are under
+`.epiphany-run/fulfilled-before-receipt-2e66433f-packaged`.
+
+The follow-up retention negative found a production fence defect: resident
+lifecycle retention derived its CAS snapshot from the owner-only cache, while
+provider readiness is a legitimate foreign envelope in the same backing file.
+After the first readiness publication, later retention therefore refused every
+full-snapshot CAS. Retention now reads the complete backing snapshot as its
+fence while selecting and deleting only the exact closed lifecycle families.
+A hostile co-resident readiness test proves byte identity. Full core tests pass
+662 with one intentional ignore; all seven swarm tests pass. Rebuilding the
+exact-source fixture against this cut retired the packaged proof lifecycle and
+Heartbeat still issued no retry.
+
+Next: commit and package the retention-fence cut, replay it through the exact
+package with the readiness row already present, then cover proposal Modeling,
+Imagination, and terminal-worker-attempt runtime retention. Actual c006 remains
+braked and stopped; Yggdrasil never builds.
