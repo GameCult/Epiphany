@@ -2711,6 +2711,60 @@ Live receipts are under `.epiphany-run/firewall-bffbaa45`. A non-elevated
 reconciliation attempt was denied before mutation and left identical snapshots;
 it is recorded as a negative authority check, not misreported as idempotence.
 
+### Coordinator runtime-session closure and retention gap
+
+The broad runtime-history remainder is not an unclassified pile. Exact
+model-adapter generations are already bounded by
+`archive_completed_model_session`: it validates terminal jobs, native/provider
+request streams and receipts, tool bindings/intents/receipts, and runtime events,
+then replaces that exact family with `EpiphanyArchivedRuntimeSession` under one
+full-snapshot fence. Outer-worker and coordinator authority is deliberately
+refused.
+
+The live missing family is native coordinator sessions. The coordinator creates
+`coordinator-{thread_id}` plus a `coordinator.started` event and eventually
+writes `EpiphanyCoordinatorRunReceipt`, but it never calls
+`close_runtime_session`. These sessions therefore remain falsely `Active`
+after process-terminal evidence exists. Receipt retention can later remove the
+receipt, but completed-session retention cannot select the session because it
+requires a nonempty model-adapter job family. This is both unbounded growth and
+a false liveness projection.
+
+Authority map for the cut:
+
+- Owner: runtime spine owns one atomic coordinator-run terminalization
+  transaction. Neither resident Self nor the artifact writer closes the runtime
+  session.
+- Inputs: exact active coordinator session envelope; exact terminal coordinator
+  receipt bound to its session and thread; the absence of session jobs; existing
+  coordinator-started events; one terminal timestamp.
+- Outputs: in one full-snapshot-fenced replacement, persist the immutable run
+  receipt, mark the session `Completed`, and publish exactly one deterministic
+  `session.completed` event.
+- Derived state: coordinator JSON/text artifacts and runtime status projections
+  describe the committed terminal transaction; they do not terminalize it.
+- Forbidden writers: `put_coordinator_run_receipt` followed by a separate close,
+  receipt retention, resident acknowledgement, process exit, and artifact
+  existence may not independently decide session death.
+- Shared paths: every successful native coordinator exit mode uses the same
+  finalizer. Legacy active coordinator sessions may be repaired only from one
+  exact matching terminal receipt, no jobs, and the authenticated coordinator
+  event shape.
+- Retention owner: completed coordinator-session archival owns the whole exact
+  session family, including its coordinator receipt and runtime events. Generic
+  coordinator-receipt retention must preserve receipts still named by a live or
+  completed runtime session; it owns only receipts outside a session family.
+- Cut line: remove the coordinator binary's standalone receipt write. Do not
+  teach model-session archival to ignore coordinator receipts or infer closure
+  from age. Do not leave two independent deleters able to retire the same
+  receipt.
+- Verification: atomic stale-snapshot refusal; exact replay idempotence; legacy
+  repair refusal for zero/multiple/mismatched receipts or any job; active and
+  newest-session preservation; exact old family replacement; unrelated runtime
+  byte identity; tombstone refusal of session/job recreation; and copied exact
+  package proof that terminal coordinator sessions plateau without changing
+  resident authority.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

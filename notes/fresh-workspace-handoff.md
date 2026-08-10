@@ -1925,3 +1925,26 @@ under `.epiphany-run/firewall-bffbaa45`. Active c005 was untouched.
 
 Next: map bounded runtime model event/session/tool history and its
 non-resurrection boundary before editing. Yggdrasil never builds.
+
+## Coordinator runtime-session retention gap mapped — 2026-08-10
+
+Existing `archive_completed_model_session` already owns the exact closed
+model-adapter family, including native/provider streams and tool evidence. It
+correctly refuses outer-worker and coordinator authority. The actual remaining
+growth fault is upstream: `epiphany-mvp-coordinator` creates a
+`coordinator-{thread_id}` runtime session and start event, then writes a
+terminal coordinator receipt without ever closing the session. The store keeps
+false `Active` sessions indefinitely; generic receipt retention may later
+remove their only terminal evidence.
+
+The next cut is an atomic runtime-spine finalizer for receipt + completed
+session + deterministic completion event. Completed coordinator-session
+archival then owns that exact family, including its receipt. Generic receipt
+retention must preserve every receipt still named by a live/completed session
+and own only orphans; two deleters may not race for the same authority. Legacy
+repair is permitted only from one exact matching terminal receipt, no jobs, and
+the authenticated coordinator event shape. Do not weaken model-session
+refusals or infer terminality from age.
+
+Next: implement the owner cut with hostile CAS/replay/legacy tests, then package
+and prove copied-state plateau. Preserve active c005. Yggdrasil never builds.
