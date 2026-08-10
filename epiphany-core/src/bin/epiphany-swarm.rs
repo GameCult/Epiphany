@@ -7,16 +7,21 @@ use epiphany_core::{
     ResidentSelfState, acknowledge_resident_self_launch, acquire_resident_process_singleton,
     authenticate_resident_self_policy, bind_runtime_repository_domain,
     bridge_admitted_persona_feedback_to_heartbeat, cancel_resident_self_turn,
-    capture_process_instance, coordinator_run_receipts, derive_resident_cognition_readiness,
+    capture_process_instance, complete_resident_self_turn_after_death,
+    coordinator_run_receipts, derive_resident_cognition_readiness,
     enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
     load_resident_self_state, observe_process_instance, pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
+    recover_receipt_free_dead_coordinator_session,
     resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_local_provider_status, retain_completed_runtime_sessions,
+    resident_self_grant_has_typed_request, resident_self_local_provider_status,
+    resident_self_typed_attempt_exists,
+    retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_resident_self_lifecycles,
     settle_resident_self_exited_coordinator, terminate_process_instance,
-    validate_persona_feedback_store_separation, validate_resident_self_store_separation,
+    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt,
+    validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -243,6 +248,100 @@ fn outcome_after_cancel(shutdown_requested: bool) -> ResidentSelfOutcome {
     }
 }
 
+fn exact_resident_coordinator_receipt(
+    runtime_store: &std::path::Path,
+    lease: &epiphany_core::ResidentSelfTurnLease,
+) -> Result<Option<epiphany_core::EpiphanyCoordinatorRunReceipt>> {
+    let session_id = epiphany_core::coordinator_run_session_id(
+        &lease.turn_id,
+        Some(&lease.launch_digest),
+    )?;
+    let mut receipts = coordinator_run_receipts(runtime_store)?
+        .into_iter()
+        .filter(|receipt| receipt.session_id == session_id)
+        .collect::<Vec<_>>();
+    if receipts.len() > 1 {
+        return Err(anyhow!(
+            "resident coordinator session has multiple terminal receipts"
+        ));
+    }
+    let Some(receipt) = receipts.pop() else {
+        return Ok(None);
+    };
+    validate_resident_self_coordinator_receipt(lease, &receipt)?;
+    Ok(Some(receipt))
+}
+
+fn settle_receipt_free_dead_coordinator(
+    args: &Args,
+    lease: &epiphany_core::ResidentSelfTurnLease,
+    observation: ChildObservation,
+    shutdown_requested: bool,
+    brake_engaged: bool,
+    timed_out: bool,
+    now: u64,
+) -> Result<ResidentSelfOutcome> {
+    let typed = resident_self_grant_has_typed_request(&args.state_store, &lease.grant_id)?;
+    if typed {
+        match verify_resident_self_grant_fulfillment(
+            &args.state_store,
+            &args.policy.runtime_store,
+            &lease.grant_id,
+        )? {
+            epiphany_core::ResidentSelfGrantFulfillment::Fulfilled => {
+                let recovery = recover_receipt_free_dead_coordinator_session(
+                    &args.state_store,
+                    &args.policy.runtime_store,
+                    lease,
+                    observation,
+                    now,
+                )?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "typed fulfillment cannot predate its coordinator runtime incarnation"
+                    )
+                })?;
+                complete_resident_self_turn_after_death(
+                    &args.state_store,
+                    lease,
+                    &recovery,
+                    now,
+                    args.policy.cooldown_seconds,
+                )?;
+                return Ok(ResidentSelfOutcome::Completed);
+            }
+            epiphany_core::ResidentSelfGrantFulfillment::Pending => {
+                if resident_self_typed_attempt_exists(
+                    &args.state_store,
+                    &args.policy.runtime_store,
+                    &lease.grant_id,
+                )? {
+                    return Ok(ResidentSelfOutcome::AwaitingFulfillment);
+                }
+            }
+        }
+    }
+    let recovery = recover_receipt_free_dead_coordinator_session(
+        &args.state_store,
+        &args.policy.runtime_store,
+        lease,
+        observation,
+        now,
+    )?;
+    cancel_resident_self_turn(
+        &args.state_store,
+        lease,
+        cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
+        if recovery.is_some() {
+            "exact coordinator process died after atomic opening and before a terminal receipt"
+        } else {
+            "exact coordinator process died before atomic runtime opening"
+        },
+        now,
+    )?;
+    Ok(outcome_after_cancel(shutdown_requested))
+}
+
 fn cycle(
     args: &Args,
     state: &mut ResidentSelfState,
@@ -344,54 +443,51 @@ fn cycle(
         }
         return match ports.observe_child(&lease)? {
             ChildObservation::Running => Ok(ResidentSelfOutcome::Running),
-            ChildObservation::Exited(0) => {
-                let receipt = coordinator_run_receipts(&args.policy.runtime_store)?
-                    .into_iter()
-                    .find(|receipt| {
-                        receipt.thread_id == lease.turn_id
-                            && receipt.resident_launch_digest.as_deref()
-                                == Some(&lease.launch_digest)
-                    })
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "coordinator exited zero without its exact resident terminal receipt"
-                        )
-                    })?;
-                let outcome = settle_resident_self_exited_coordinator(
-                    &args.state_store,
-                    &args.policy.runtime_store,
-                    &lease,
-                    &receipt,
-                    shutdown_requested,
-                    brake_engaged,
-                    timed_out,
-                    now,
-                    args.policy.cooldown_seconds,
-                )?;
+            observation => {
+                let receipt =
+                    exact_resident_coordinator_receipt(&args.policy.runtime_store, &lease)?;
+                if let Some(receipt) = receipt.as_ref().filter(|receipt| {
+                    matches!(
+                        receipt.status.as_str(),
+                        "planned" | "needsReview" | "completed"
+                    )
+                }) {
+                    let outcome = settle_resident_self_exited_coordinator(
+                        &args.state_store,
+                        &args.policy.runtime_store,
+                        &lease,
+                        receipt,
+                        shutdown_requested,
+                        brake_engaged,
+                        timed_out,
+                        now,
+                        args.policy.cooldown_seconds,
+                    )?;
+                    *state = load_resident_self_state(&args.state_store)?;
+                    return Ok(outcome);
+                }
+                let outcome = if receipt.is_some() {
+                    cancel_resident_self_turn(
+                        &args.state_store,
+                        &lease,
+                        cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
+                        "exact coordinator terminal receipt reports failure",
+                        now,
+                    )?;
+                    outcome_after_cancel(shutdown_requested)
+                } else {
+                    settle_receipt_free_dead_coordinator(
+                        args,
+                        &lease,
+                        observation,
+                        shutdown_requested,
+                        brake_engaged,
+                        timed_out,
+                        now,
+                    )?
+                };
                 *state = load_resident_self_state(&args.state_store)?;
                 Ok(outcome)
-            }
-            ChildObservation::Exited(code) => {
-                cancel_resident_self_turn(
-                    &args.state_store,
-                    &lease,
-                    cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
-                    &format!("coordinator terminal observation exit={code}"),
-                    now,
-                )?;
-                *state = load_resident_self_state(&args.state_store)?;
-                Ok(outcome_after_cancel(shutdown_requested))
-            }
-            ChildObservation::Missing => {
-                cancel_resident_self_turn(
-                    &args.state_store,
-                    &lease,
-                    cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
-                    "exact coordinator process is missing",
-                    now,
-                )?;
-                *state = load_resident_self_state(&args.state_store)?;
-                Ok(outcome_after_cancel(shutdown_requested))
             }
         };
     }

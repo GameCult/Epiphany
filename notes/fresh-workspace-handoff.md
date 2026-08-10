@@ -2075,3 +2075,48 @@ Normal coordinator lifecycle ownership is accepted. The next distinct fault is
 a hard process death after atomic opening but before any receipt. Continuity
 must ground that repair in exact process/lease authority; age, retention, and
 absence of a receipt cannot infer death.
+
+## Receipt-free coordinator death recovery source cut — 2026-08-10
+
+The Continuity owner is now implemented but not yet packaged. Resident Self
+requires its exact persisted active lease, immutable child claim, active
+unterminated grant, and an independent native observation proving the exact
+process incarnation exited, disappeared, or was replaced. Exact-alive,
+inaccessible, and indeterminate observations refuse recovery. Runtime
+Continuity then atomically replaces only the matching Active jobless
+coordinator session as Completed while appending one typed death-recovery
+receipt and one deterministic recovery event. A normal coordinator receipt and
+a death-recovery receipt cannot coexist. Replays are exact and snapshot races
+leave the Active family unchanged.
+
+The cut exposed and removed a deeper identity conflation. The cognitive thread
+is request-owned context and must survive retries; it is not a run identity.
+Ordinary coordinators retain `coordinator-{thread}` sessions, while resident
+coordinator sessions are now derived from the exact launch digest. A cancelled
+grant therefore terminalizes and requeues through the existing resident CAS,
+then the new grant produces a distinct session incarnation on the same
+cognitive thread. Archived session tombstones and terminal families still
+refuse exact incarnation reuse.
+
+The receipt-free classifier distinguishes three crash boundaries. If the exact
+process died before atomic runtime opening, the entire incarnation family must
+be absent and resident cancellation may requeue without synthetic runtime
+state. If a typed result is already authenticated, runtime death recovery can
+terminalize the process and the original grant closes as
+`recovered-fulfilled`. If a typed worker launch exists without terminal
+fulfillment, the active lease remains `awaiting-fulfillment`; duplicate launch
+is forbidden until orphan-worker terminality and explicit supersession have a
+real owner. This last Continuity seam remains open. Retry artifact directories
+are keyed by grant incarnation, not cognitive thread, preserving prior attempt
+evidence byte-for-byte.
+
+Focused death-recovery, resident requeue/new-incarnation, and legacy retention
+tests pass. Final serial verification under
+`.epiphany-run/continuity-death-recovery-source` passed 653 library tests with
+one intentional ignore, all 17 coordinator-binary tests, and all 8 swarm tests;
+stderr is empty and the detached suite recorded exit zero. The first parallel
+full-library run had exposed one real eager-fallback archive bug plus two Git
+fixture flakes; the archive bug is fixed, the serial suite removes the fixture
+contention, and the complete corrected source pass is green. Commit, exact
+packaging, and copied-live hard-death proof remain. Active c005 remains
+untouched.

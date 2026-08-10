@@ -553,9 +553,12 @@ pub fn coordinator_argv(
     policy: &ResidentSelfPolicy,
     runtime_id: &str,
     turn_id: &str,
+    artifact_incarnation: Option<&str>,
     wake: &ResidentSelfWake,
 ) -> Vec<String> {
-    let artifact_dir = policy.artifact_root.join(turn_id);
+    let artifact_dir = policy
+        .artifact_root
+        .join(artifact_incarnation.unwrap_or(turn_id));
     let mut argv = vec![
         "--model-runtime-bin".into(),
         policy.model_runtime_bin.display().to_string(),
@@ -870,7 +873,13 @@ fn reconcile_resident_self(
     let launch = CoordinatorLaunch {
         turn_id: turn_id.clone(),
         wake: wake.clone(),
-        argv: coordinator_argv(policy, &policy.release_runtime_id, &turn_id, &wake),
+        argv: coordinator_argv(
+            policy,
+            &policy.release_runtime_id,
+            &turn_id,
+            None,
+            &wake,
+        ),
     };
     let process = ports.launch_coordinator(&launch)?;
     let process_id = process.process_id;
@@ -1207,7 +1216,23 @@ pub fn verify_resident_self_grant_fulfillment(
     let grant = state_cache(resident_store)?
         .get::<ResidentSelfHeartbeatGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self fulfillment check lost its grant"))?;
-    let request = match grant.pressure_kind.as_str() {
+    let request = resident_self_typed_request_ref(&grant)?;
+    let Some(request) = request else {
+        return Ok(ResidentSelfGrantFulfillment::Fulfilled);
+    };
+    Ok(
+        if crate::runtime_typed_request_fulfillment(runtime_store, request)?.is_some() {
+            ResidentSelfGrantFulfillment::Fulfilled
+        } else {
+            ResidentSelfGrantFulfillment::Pending
+        },
+    )
+}
+
+fn resident_self_typed_request_ref<'a>(
+    grant: &'a ResidentSelfHeartbeatGrant,
+) -> Result<Option<crate::RuntimeTypedRequestRef<'a>>> {
+    Ok(match grant.pressure_kind.as_str() {
         "repo-frontier-proposal-modeling" => {
             let request_id = grant
                 .provenance_ref
@@ -1239,17 +1264,31 @@ pub fn verify_resident_self_grant_fulfillment(
             ))
         }
         _ => None,
+    })
+}
+
+pub fn resident_self_typed_attempt_exists(
+    resident_store: &Path,
+    runtime_store: &Path,
+    grant_id: &str,
+) -> Result<bool> {
+    let grant = state_cache(resident_store)?
+        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .ok_or_else(|| anyhow!("resident Self attempt check lost its grant"))?;
+    let Some(request) = resident_self_typed_request_ref(&grant)? else {
+        return Ok(false);
     };
-    let Some(request) = request else {
-        return Ok(ResidentSelfGrantFulfillment::Fulfilled);
-    };
-    Ok(
-        if crate::runtime_typed_request_fulfillment(runtime_store, request)?.is_some() {
-            ResidentSelfGrantFulfillment::Fulfilled
-        } else {
-            ResidentSelfGrantFulfillment::Pending
-        },
-    )
+    crate::runtime_typed_request_attempt_exists(runtime_store, request)
+}
+
+pub fn resident_self_grant_has_typed_request(
+    resident_store: &Path,
+    grant_id: &str,
+) -> Result<bool> {
+    let grant = state_cache(resident_store)?
+        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .ok_or_else(|| anyhow!("resident Self typed-request check lost its grant"))?;
+    Ok(resident_self_typed_request_ref(&grant)?.is_some())
 }
 
 pub fn settle_resident_self_exited_coordinator(
@@ -1313,6 +1352,118 @@ pub fn settle_resident_self_exited_coordinator(
             Ok(ResidentSelfOutcome::Completed)
         }
     }
+}
+
+pub fn recover_receipt_free_dead_coordinator_session(
+    resident_store: &Path,
+    runtime_store: &Path,
+    lease: &ResidentSelfTurnLease,
+    observation: ChildObservation,
+    now_millis: u64,
+) -> Result<Option<crate::EpiphanyCoordinatorDeathRecovery>> {
+    let (observation, exit_code) = match observation {
+        ChildObservation::Exited(code) => ("exited", Some(code)),
+        ChildObservation::Missing => ("missing", None),
+        ChildObservation::Running => {
+            return Err(anyhow!(
+                "Continuity refuses coordinator death recovery while the exact child is running"
+            ));
+        }
+    };
+    let cache = state_cache(resident_store)?;
+    let state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .ok_or_else(|| anyhow!("coordinator death recovery lost resident state"))?;
+    if state.active_turn.as_ref() != Some(lease) {
+        return Err(anyhow!(
+            "coordinator death recovery lease is not the active resident authority"
+        ));
+    }
+    let grant = cache
+        .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
+        .ok_or_else(|| anyhow!("coordinator death recovery lost its grant"))?;
+    if grant.consumed_at_millis.is_none()
+        || grant.terminal_at_millis.is_some()
+        || grant.terminal_status.is_some()
+    {
+        return Err(anyhow!(
+            "coordinator death recovery grant is not active and unterminated"
+        ));
+    }
+    let preparation_id = format!("resident-self-prepared-{}", lease.grant_id);
+    let claim = resident_self_child_claim(resident_store, &preparation_id)?
+        .ok_or_else(|| anyhow!("coordinator death recovery lost its immutable child claim"))?;
+    if claim.grant_id != lease.grant_id
+        || claim.launch_digest != lease.launch_digest
+        || claim.process_id != lease.process_id
+        || claim.process_creation_token != lease.process_creation_token
+        || claim.executable_path != lease.process_executable_path
+        || claim.executable_digest != lease.coordinator_executable_digest
+    {
+        return Err(anyhow!(
+            "coordinator death recovery child claim disagrees with the exact lease"
+        ));
+    }
+    let expected_process = crate::ProcessInstanceIdentity {
+        process_id: lease.process_id,
+        creation_token: lease.process_creation_token,
+        created_at_rfc3339: None,
+        executable_path: lease.process_executable_path.clone(),
+    };
+    match crate::observe_process_instance(&expected_process) {
+        crate::ProcessInstanceObservation::ExactAlive => {
+            return Err(anyhow!(
+                "Continuity refuses coordinator death recovery while the exact process incarnation is alive"
+            ));
+        }
+        crate::ProcessInstanceObservation::Inaccessible
+        | crate::ProcessInstanceObservation::Indeterminate { .. } => {
+            return Err(anyhow!(
+                "Continuity cannot prove the exact coordinator process incarnation dead"
+            ));
+        }
+        crate::ProcessInstanceObservation::ExactExited { .. }
+        | crate::ProcessInstanceObservation::Missing
+        | crate::ProcessInstanceObservation::Replaced { .. } => {}
+    }
+    let recovered_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
+        .ok_or_else(|| anyhow!("coordinator death recovery timestamp is out of range"))?
+        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let session_id = crate::coordinator_run_session_id(
+        &lease.turn_id,
+        Some(&lease.launch_digest),
+    )?;
+    if crate::runtime_spine::coordinator_run_incarnation_is_absent(
+        runtime_store,
+        &lease.turn_id,
+        &lease.launch_digest,
+    )? {
+        return Ok(None);
+    }
+    let recovery = crate::EpiphanyCoordinatorDeathRecovery {
+        schema_version: crate::runtime_spine::COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION.into(),
+        recovery_id: format!("coordinator-death-recovery-{session_id}"),
+        session_id,
+        thread_id: lease.turn_id.clone(),
+        resident_grant_id: lease.grant_id.clone(),
+        resident_launch_digest: lease.launch_digest.clone(),
+        process_id: lease.process_id,
+        process_creation_token: lease.process_creation_token,
+        process_executable_path: lease.process_executable_path.display().to_string(),
+        resident_started_at_millis: lease.started_at_millis,
+        observation: observation.into(),
+        recovered_at,
+        private_state_exposed: false,
+        exit_code,
+    };
+    let runtime_session_objective =
+        format!("Resident coordinator launch {}.", lease.objective_digest);
+    crate::runtime_spine::recover_coordinator_run_after_exact_process_death(
+        runtime_store,
+        &recovery,
+        &runtime_session_objective,
+    )?;
+    Ok(Some(recovery))
 }
 
 pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
@@ -1390,7 +1541,13 @@ pub fn prepare_resident_self_launch(
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
-    let mut argv = coordinator_argv(policy, &binding.runtime_id, &binding.thread_id, &wake);
+    let mut argv = coordinator_argv(
+        policy,
+        &binding.runtime_id,
+        &binding.thread_id,
+        Some(&grant.grant_id),
+        &wake,
+    );
     if let Some((request_flag, request_id)) = binding.typed_request {
         let objective = argv.pop();
         let flag = argv.pop();
@@ -1623,7 +1780,24 @@ fn complete_resident_self_turn(
     now_millis: u64,
     cooldown_seconds: u64,
 ) -> Result<ResidentSelfTerminalAck> {
+    validate_resident_self_coordinator_receipt(lease, coordinator)?;
+    complete_resident_self_turn_with_terminal(
+        path,
+        lease,
+        &coordinator.receipt_id,
+        &coordinator.status,
+        now_millis,
+        cooldown_seconds,
+    )
+}
+
+pub fn validate_resident_self_coordinator_receipt(
+    lease: &ResidentSelfTurnLease,
+    coordinator: &crate::EpiphanyCoordinatorRunReceipt,
+) -> Result<()> {
     if coordinator.thread_id != lease.turn_id
+        || coordinator.session_id
+            != crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?
         || !matches!(
             coordinator.status.as_str(),
             "planned" | "needsReview" | "completed"
@@ -1643,6 +1817,48 @@ fn complete_resident_self_turn(
             "coordinator terminal receipt does not exactly bind the resident launch contract"
         ));
     }
+    Ok(())
+}
+
+pub fn complete_resident_self_turn_after_death(
+    path: &Path,
+    lease: &ResidentSelfTurnLease,
+    recovery: &crate::EpiphanyCoordinatorDeathRecovery,
+    now_millis: u64,
+    cooldown_seconds: u64,
+) -> Result<ResidentSelfTerminalAck> {
+    if recovery.session_id
+        != crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?
+        || recovery.thread_id != lease.turn_id
+        || recovery.resident_grant_id != lease.grant_id
+        || recovery.resident_launch_digest != lease.launch_digest
+        || recovery.process_id != lease.process_id
+        || recovery.process_creation_token != lease.process_creation_token
+        || recovery.process_executable_path != lease.process_executable_path.display().to_string()
+        || recovery.resident_started_at_millis != lease.started_at_millis
+    {
+        return Err(anyhow!(
+            "coordinator death recovery does not exactly bind the resident lease"
+        ));
+    }
+    complete_resident_self_turn_with_terminal(
+        path,
+        lease,
+        &recovery.recovery_id,
+        "recovered-fulfilled",
+        now_millis,
+        cooldown_seconds,
+    )
+}
+
+fn complete_resident_self_turn_with_terminal(
+    path: &Path,
+    lease: &ResidentSelfTurnLease,
+    terminal_id: &str,
+    terminal_status: &str,
+    now_millis: u64,
+    cooldown_seconds: u64,
+) -> Result<ResidentSelfTerminalAck> {
     let cache = state_cache(path)?;
     let mut state = cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
@@ -1662,8 +1878,8 @@ fn complete_resident_self_turn(
         heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
         heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest: lease.launch_digest.clone(),
-        coordinator_receipt_id: coordinator.receipt_id.clone(),
-        terminal_status: coordinator.status.clone(),
+        coordinator_receipt_id: terminal_id.to_string(),
+        terminal_status: terminal_status.to_string(),
         completed_at_millis: now_millis,
         consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
@@ -1686,13 +1902,13 @@ fn complete_resident_self_turn(
         .cloned()
         .ok_or_else(|| anyhow!("resident Self grant lost envelope at terminal ack"))?;
     state.active_turn = None;
-    state.last_coordinator_receipt_id = Some(coordinator.receipt_id.clone());
+    state.last_coordinator_receipt_id = Some(terminal_id.to_string());
     state.next_eligible_at_millis =
         now_millis.saturating_add(cooldown_seconds.saturating_mul(1000));
     state.revision += 1;
     grant.schema_version = RESIDENT_SELF_GRANT_SCHEMA_VERSION.into();
     grant.terminal_at_millis = Some(now_millis);
-    grant.terminal_status = Some(coordinator.status.clone());
+    grant.terminal_status = Some(terminal_status.to_string());
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
     let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
@@ -2610,7 +2826,11 @@ mod tests {
         crate::EpiphanyCoordinatorRunReceipt {
             schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: format!("coordinator-terminal-{}", lease.turn_id),
-            session_id: format!("session-{}", lease.turn_id),
+            session_id: crate::coordinator_run_session_id(
+                &lease.turn_id,
+                Some(&lease.launch_digest),
+            )
+            .expect("resident lease has a valid session incarnation"),
             thread_id: lease.turn_id.clone(),
             mode: "plan".into(),
             status: "planned".into(),
@@ -2766,6 +2986,7 @@ mod tests {
         let mut policy = policy();
         policy.coordinator_bin = coordinator.clone();
         policy.runtime_store = temp.path().join("runtime.cc");
+        policy.artifact_root = temp.path().join("artifacts");
         seed_model_direction_request(
             &policy.runtime_store,
             "request-model-1",
@@ -2869,7 +3090,10 @@ mod tests {
         let receipt = crate::EpiphanyCoordinatorRunReceipt {
             schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: "coordinator-terminal-1".into(),
-            session_id: "session-1".into(),
+            session_id: crate::coordinator_run_session_id(
+                &lease.turn_id,
+                Some(&lease.launch_digest),
+            )?,
             thread_id: lease.turn_id.clone(),
             mode: "plan".into(),
             status: "planned".into(),
@@ -2897,6 +3121,9 @@ mod tests {
             complete_resident_self_turn(&store, &lease, &wrong, 8, policy.cooldown_seconds)
                 .is_err()
         );
+        let mut wrong_session = receipt.clone();
+        wrong_session.session_id = format!("{}-substituted", receipt.session_id);
+        assert!(validate_resident_self_coordinator_receipt(&lease, &wrong_session).is_err());
         assert_eq!(
             settle_resident_self_exited_coordinator(
                 &store,
@@ -3436,6 +3663,253 @@ mod tests {
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         assert!(retry_grant.grant_id.contains("-attempt-2-"));
+        Ok(())
+    }
+
+    #[test]
+    fn receipt_free_dead_coordinator_recovery_preserves_exact_lease_then_requeues() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident_store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        policy.artifact_root = temp.path().join("artifacts");
+        seed_runtime_identity(&policy.runtime_store, "test-runtime")?;
+        let objective = "Recover a coordinator killed after atomic opening.";
+        enqueue_resident_self_pressure(
+            &resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-dead-coordinator".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "operator://dead-coordinator-test".into(),
+                objective: objective.into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "heartbeat-dead",
+            "action-dead",
+            2,
+        )?
+        .expect("dead coordinator grant");
+        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
+            .expect("dead coordinator preparation");
+        let first_artifact_index = prepared
+            .argv
+            .iter()
+            .position(|value| value == "--artifact-dir")
+            .expect("first artifact flag");
+        let first_artifact_dir = PathBuf::from(&prepared.argv[first_artifact_index + 1]);
+        std::fs::create_dir_all(&first_artifact_dir)?;
+        let first_artifact = first_artifact_dir.join("sealed-first-attempt.txt");
+        std::fs::write(&first_artifact, b"first attempt evidence")?;
+        let process = LaunchedCoordinator {
+            process_id: u32::MAX - 1,
+            process_creation_token: 155,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        let runtime_session_id =
+            crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?;
+        let runtime_session_objective =
+            format!("Resident coordinator launch {}.", lease.objective_digest);
+        crate::open_coordinator_run(
+            &policy.runtime_store,
+            &runtime_session_id,
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+            &runtime_session_objective,
+            "1970-01-01T00:00:00.005Z",
+        )?;
+        assert!(
+            recover_receipt_free_dead_coordinator_session(
+                &resident_store,
+                &policy.runtime_store,
+                &lease,
+                ChildObservation::Running,
+                6,
+            )
+            .is_err()
+        );
+        let recovery = recover_receipt_free_dead_coordinator_session(
+            &resident_store,
+            &policy.runtime_store,
+            &lease,
+            ChildObservation::Missing,
+            6,
+        )?
+        .expect("opened coordinator death recovery");
+        assert_eq!(
+            load_resident_self_state(&resident_store)?.active_turn,
+            Some(lease.clone())
+        );
+        assert_eq!(
+            recover_receipt_free_dead_coordinator_session(
+                &resident_store,
+                &policy.runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                6,
+            )?,
+            Some(recovery.clone())
+        );
+        let fulfilled_copy = temp.path().join("resident-self-fulfilled-copy.cc");
+        std::fs::copy(&resident_store, &fulfilled_copy)?;
+        let recovered_ack = complete_resident_self_turn_after_death(
+            &fulfilled_copy,
+            &lease,
+            &recovery,
+            7,
+            policy.cooldown_seconds,
+        )?;
+        assert_eq!(recovered_ack.terminal_status, "recovered-fulfilled");
+        assert!(load_resident_self_state(&fulfilled_copy)?.active_turn.is_none());
+        assert!(crate::coordinator_run_receipts(&policy.runtime_store)?.is_empty());
+        cancel_resident_self_turn(
+            &resident_store,
+            &lease,
+            "process-failed",
+            "exact coordinator process died without a run receipt",
+            7,
+        )?;
+        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
+        assert!(pending_resident_self_pressure(&resident_store)?);
+        let retry_grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "heartbeat-retry",
+            "action-retry",
+            8,
+        )?
+        .expect("retry grant");
+        let retry_prepared = prepare_resident_self_launch(&resident_store, &policy, 9)?
+            .expect("retry preparation");
+        let retry_artifact_index = retry_prepared
+            .argv
+            .iter()
+            .position(|value| value == "--artifact-dir")
+            .expect("retry artifact flag");
+        let retry_artifact_dir = PathBuf::from(&retry_prepared.argv[retry_artifact_index + 1]);
+        assert_ne!(retry_artifact_dir, first_artifact_dir);
+        assert_eq!(std::fs::read(&first_artifact)?, b"first attempt evidence");
+        let retry_thread = resident_prepared_launch_thread_id(&retry_prepared)?;
+        assert_eq!(retry_thread, lease.turn_id);
+        assert_ne!(retry_prepared.launch_digest, lease.launch_digest);
+        let retry_session_id = crate::coordinator_run_session_id(
+            &retry_thread,
+            Some(&retry_prepared.launch_digest),
+        )?;
+        assert_ne!(retry_session_id, runtime_session_id);
+        crate::open_coordinator_run(
+            &policy.runtime_store,
+            &retry_session_id,
+            &retry_thread,
+            Some(&retry_prepared.launch_digest),
+            &format!(
+                "Resident coordinator launch {}.",
+                retry_prepared.objective_digest
+            ),
+            "1970-01-01T00:00:00.009Z",
+        )?;
+        assert_eq!(retry_grant.terminal_at_millis, None);
+        assert_eq!(
+            state_cache(&resident_store)?
+                .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+                .expect("terminal original grant")
+                .terminal_status
+                .as_deref(),
+            Some("process-failed")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn receipt_free_death_before_runtime_opening_is_proven_absent_and_requeued() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident_store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        policy.artifact_root = temp.path().join("artifacts");
+        seed_runtime_identity(&policy.runtime_store, "test-runtime")?;
+        enqueue_resident_self_pressure(
+            &resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-pre-open-death".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "operator://pre-open-death".into(),
+                objective: "Recover death before runtime opening.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "heartbeat-pre-open",
+            "action-pre-open",
+            2,
+        )?
+        .expect("pre-open grant");
+        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
+            .expect("pre-open preparation");
+        let process = LaunchedCoordinator {
+            process_id: u32::MAX - 2,
+            process_creation_token: 255,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        assert_eq!(
+            recover_receipt_free_dead_coordinator_session(
+                &resident_store,
+                &policy.runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                6,
+            )?,
+            None
+        );
+        cancel_resident_self_turn(
+            &resident_store,
+            &lease,
+            "process-failed",
+            "exact child died before runtime opening",
+            7,
+        )?;
+        assert!(pending_resident_self_pressure(&resident_store)?);
+        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
         Ok(())
     }
 

@@ -301,7 +301,21 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "ephemeral": args.ephemeral,
         "workspace": cwd,
     }));
-    let runtime_session_id = format!("coordinator-{thread_id}");
+    let resident_launch_digest = args
+        .resident_binding
+        .get("launch-digest")
+        .map(String::as_str);
+    let runtime_session_id = epiphany_core::coordinator_run_session_id(
+        &thread_id,
+        resident_launch_digest,
+    )?;
+    let runtime_session_objective = args
+        .resident_binding
+        .get("objective-digest")
+        .map(|digest| format!("Resident coordinator launch {digest}."))
+        .unwrap_or_else(|| {
+            "Coordinate the Epiphany MVP lanes with native runtime job receipts.".to_string()
+        });
     let runtime_identity = initialize_runtime_spine(
         &runtime_store,
         coordinator_runtime_identity_options(
@@ -313,7 +327,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         &runtime_store,
         &runtime_session_id,
         &thread_id,
-        "Coordinate the Epiphany MVP lanes with native runtime job receipts.",
+        resident_launch_digest,
+        &runtime_session_objective,
         &now(),
     )?;
     startup_events.push(json!({

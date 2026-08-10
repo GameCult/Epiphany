@@ -2860,6 +2860,63 @@ bind the opened session to exact process or resident lease identity, prove that
 identity dead, and terminalize or quarantine the session through a dedicated
 receipt-grounded recovery path before retention can see it as closed.
 
+#### Receipt-free coordinator death authority map
+
+- Owner: resident Self owns the exact child lease and its process-incarnation
+  observation; runtime Continuity owns terminal recovery of the corresponding
+  orphaned coordinator session.
+- Inputs: the persisted active resident lease, its immutable child claim and
+  terminal grant, an exact `Missing` or `Exited` observation for that process
+  incarnation, and the runtime's matching Active coordinator session plus
+  deterministic start event.
+- Outputs: one typed coordinator-death recovery receipt and one deterministic
+  recovery event, atomically replacing the runtime session as Completed. Self
+  then uses its existing exact-grant cancellation transaction to requeue the
+  pressure.
+- Identity split: the cognitive thread remains request-owned context. A
+  resident coordinator session is a distinct run incarnation derived from the
+  exact resident launch digest; ordinary non-resident runs retain the simple
+  `coordinator-{thread}` identity. Requeue therefore creates a new session
+  without rewriting or reusing the cognitive thread.
+- Derived state: timestamps, session age, receipt absence, PID presence, and
+  operator projections remain observations only. None can establish death.
+- Forbidden writers: retention, legacy coordinator repair, the coordinator
+  itself after death, generic runtime session closure, and timeout policy may
+  not synthesize this terminal family. A normal coordinator receipt and a
+  death-recovery receipt are mutually exclusive.
+- Shared paths: zero exit without a receipt, nonzero exit without a receipt,
+  and restart observation of a missing exact child share one settlement
+  classifier. Death before runtime opening proves that exact incarnation family
+  wholly absent and requeues without inventing runtime state. Death after
+  opening uses the recovery transaction. Normal exits with an exact fully bound
+  run receipt retain the normal finalizer path.
+- Typed-work boundary: authenticated terminal typed fulfillment lets the
+  death-recovery authority close the original grant exactly once without a
+  duplicate launch. No typed attempt permits canonical requeue. A typed launch
+  attempt without terminal fulfillment remains active and
+  `awaiting-fulfillment`; Continuity does not yet own orphan-worker terminality
+  or supersession, so timeout or brake cannot manufacture a retry.
+- Cut line: replace direct receipt-free resident cancellation with runtime
+  recovery followed by canonical resident cancellation, and stop using the
+  cognitive thread as the resident run identity; do not add an age-based
+  scavenger or let session retention repair Active state.
+- Verification: exact lease/claim/session/thread/objective/start-event binding,
+  hostile substitution refusal, live or indeterminate process refusal,
+  single-use replay, full-snapshot CAS refusal, mutual exclusion with normal
+  receipts, restart recovery, pressure requeue without grant resurrection, and
+  eventual archive of the recovered terminal family.
+
+Retry artifacts are grant-incarnation-owned rather than thread-owned. Prepared
+argv carries `artifact_root/{grant_id}`, so a new launch on the same cognitive
+thread cannot erase the prior attempt's sealed directory.
+
+Source verification for this cut is complete: the serial core suite passed 653
+tests with one intentional ignore, followed by all 17 coordinator-binary tests
+and all 8 swarm tests. The detached receipt is
+`.epiphany-run/continuity-death-recovery-source`; stderr is empty and exit is
+zero. Exact packaging and copied-live process-death falsification remain the
+acceptance boundary.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

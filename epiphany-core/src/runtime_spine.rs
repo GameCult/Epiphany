@@ -1083,6 +1083,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
+    cache.register_entry_type::<EpiphanyCoordinatorDeathRecovery>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceiptRetentionHead>()?;
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
@@ -1928,6 +1929,7 @@ pub fn retain_completed_runtime_sessions(
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let bindings = cache.get_all::<EpiphanyRuntimeModelExecutionBinding>()?;
     let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+    let death_recoveries = cache.get_all::<EpiphanyCoordinatorDeathRecovery>()?;
     let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
     let mut candidates = cache
         .get_all::<EpiphanyRuntimeSession>()?
@@ -1945,11 +1947,15 @@ pub fn retain_completed_runtime_sessions(
                 });
             let coordinator_family = session_jobs.is_empty()
                 && session.session_id.starts_with("coordinator-")
-                && receipts
+                && (receipts
                     .iter()
                     .filter(|receipt| receipt.session_id == session.session_id)
                     .count()
-                    == 1
+                    + death_recoveries
+                        .iter()
+                        .filter(|recovery| recovery.session_id == session.session_id)
+                        .count()
+                    == 1)
                 && !receipts.iter().any(|receipt| {
                     receipt.session_id == session.session_id
                         && preserve_coordinator_receipt_ids.contains(&receipt.receipt_id)
@@ -2575,6 +2581,10 @@ where
             .iter()
             .any(|receipt| receipt.session_id == session_id)
             || cache
+                .get_all::<EpiphanyCoordinatorDeathRecovery>()?
+                .iter()
+                .any(|recovery| recovery.session_id == session_id)
+            || cache
                 .get_all::<EpiphanyRuntimeEvent>()?
                 .iter()
                 .any(|event| event.session_id.as_deref() == Some(session_id))
@@ -2604,16 +2614,28 @@ where
         .into_iter()
         .filter(|receipt| receipt.session_id == session_id)
         .collect::<Vec<_>>();
-    if receipts.len() != 1 {
+    let recoveries = cache
+        .get_all::<EpiphanyCoordinatorDeathRecovery>()?
+        .into_iter()
+        .filter(|recovery| recovery.session_id == session_id)
+        .collect::<Vec<_>>();
+    if receipts.len() + recoveries.len() != 1 {
         return Err(anyhow!(
-            "coordinator session archive requires one exact run receipt"
+            "coordinator session archive requires one exact terminal authority"
         ));
     }
-    let receipt = &receipts[0];
-    if session_id
-        .strip_prefix("coordinator-")
-        .is_none_or(|thread_id| thread_id != receipt.thread_id)
-    {
+    let expected_session_id = if let Some(receipt) = receipts.first() {
+        coordinator_run_session_id(
+            &receipt.thread_id,
+            receipt.resident_launch_digest.as_deref(),
+        )?
+    } else {
+        coordinator_run_session_id(
+            &recoveries[0].thread_id,
+            Some(&recoveries[0].resident_launch_digest),
+        )?
+    };
+    if session_id != expected_session_id {
         return Err(anyhow!(
             "coordinator session archive found a substituted thread binding"
         ));
@@ -2624,7 +2646,11 @@ where
         .filter(|event| event.session_id.as_deref() == Some(session_id))
         .collect::<Vec<_>>();
     events.sort_by(|left, right| left.event_id.cmp(&right.event_id));
-    let expected_completion = coordinator_completion_event(receipt);
+    let expected_completion = if let Some(receipt) = receipts.first() {
+        coordinator_completion_event(receipt)
+    } else {
+        coordinator_death_recovery_event(&recoveries[0])
+    };
     if events
         .iter()
         .filter(|event| **event == expected_completion)
@@ -2641,7 +2667,11 @@ where
                     || event.source != "epiphany-mvp-coordinator"
                     || event.job_id.is_some())
         })
-        || session.updated_at != receipt.created_at
+        || session.updated_at
+            != match receipts.first() {
+                Some(receipt) => receipt.created_at.as_str(),
+                None => recoveries[0].recovered_at.as_str(),
+            }
         || session.coordinator_note != expected_completion.summary
     {
         return Err(anyhow!(
@@ -2650,12 +2680,17 @@ where
     }
     let snapshot = cache.snapshot_envelopes();
     let mut deletions = Vec::new();
+    let terminal_envelope = if let Some(receipt) = receipts.first() {
+        (EpiphanyCoordinatorRunReceipt::TYPE, receipt.receipt_id.clone())
+    } else {
+        (
+            EpiphanyCoordinatorDeathRecovery::TYPE,
+            recoveries[0].recovery_id.clone(),
+        )
+    };
     for (document_type, key) in
         std::iter::once((EpiphanyRuntimeSession::TYPE, session_id.to_string()))
-            .chain(std::iter::once((
-                EpiphanyCoordinatorRunReceipt::TYPE,
-                receipt.receipt_id.clone(),
-            )))
+            .chain(std::iter::once(terminal_envelope))
             .chain(
                 events
                     .iter()
@@ -10108,6 +10143,37 @@ fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> 
     Ok(())
 }
 
+pub fn runtime_typed_request_attempt_exists(
+    store_path: impl AsRef<Path>,
+    request: RuntimeTypedRequestRef<'_>,
+) -> Result<bool> {
+    let request_id = match request {
+        RuntimeTypedRequestRef::ProposalModeling(id)
+        | RuntimeTypedRequestRef::ImaginationConsideration(id)
+        | RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
+    };
+    validate_non_empty(request_id, "typed attempt request id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    Ok(cache
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
+        .iter()
+        .any(|launch| match request {
+            RuntimeTypedRequestRef::ProposalModeling(_) => {
+                launch.proposal_modeling_request_id.as_deref() == Some(request_id)
+            }
+            RuntimeTypedRequestRef::ImaginationConsideration(_) => {
+                launch.imagination_consideration_request_id.as_deref() == Some(request_id)
+            }
+            RuntimeTypedRequestRef::AdmittedModelDirection(_) => {
+                launch
+                    .admitted_model_direction_consideration_request_id
+                    .as_deref()
+                    == Some(request_id)
+            }
+        }))
+}
+
 fn coordinator_completion_event(receipt: &EpiphanyCoordinatorRunReceipt) -> EpiphanyRuntimeEvent {
     EpiphanyRuntimeEvent {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
@@ -10125,10 +10191,71 @@ fn coordinator_completion_event(receipt: &EpiphanyCoordinatorRunReceipt) -> Epip
     }
 }
 
+pub const COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION: &str =
+    "epiphany.coordinator_death_recovery.v0";
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator_death_recovery.v0",
+    schema = "EpiphanyCoordinatorDeathRecovery"
+)]
+pub struct EpiphanyCoordinatorDeathRecovery {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub recovery_id: String,
+    #[cultcache(key = 2)]
+    pub session_id: String,
+    #[cultcache(key = 3)]
+    pub thread_id: String,
+    #[cultcache(key = 4)]
+    pub resident_grant_id: String,
+    #[cultcache(key = 5)]
+    pub resident_launch_digest: String,
+    #[cultcache(key = 6)]
+    pub process_id: u32,
+    #[cultcache(key = 7)]
+    pub process_creation_token: u64,
+    #[cultcache(key = 8)]
+    pub process_executable_path: String,
+    #[cultcache(key = 9)]
+    pub resident_started_at_millis: u64,
+    #[cultcache(key = 10)]
+    pub observation: String,
+    #[cultcache(key = 11)]
+    pub recovered_at: String,
+    #[cultcache(key = 12, default)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 13, default)]
+    pub exit_code: Option<i32>,
+}
+
+pub fn coordinator_run_session_id(
+    thread_id: &str,
+    resident_launch_digest: Option<&str>,
+) -> Result<String> {
+    validate_non_empty(thread_id, "coordinator run thread id")?;
+    match resident_launch_digest {
+        None => Ok(format!("coordinator-{thread_id}")),
+        Some(digest) => {
+            let hex = digest.strip_prefix("sha256:").ok_or_else(|| {
+                anyhow!("resident coordinator session requires a SHA-256 launch digest")
+            })?;
+            if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(anyhow!(
+                    "resident coordinator session launch digest is invalid"
+                ));
+            }
+            Ok(format!("coordinator-{thread_id}-resident-{}", hex.to_ascii_lowercase()))
+        }
+    }
+}
+
 pub fn open_coordinator_run(
     store_path: impl AsRef<Path>,
     session_id: &str,
     thread_id: &str,
+    resident_launch_digest: Option<&str>,
     objective: &str,
     started_at: &str,
 ) -> Result<(EpiphanyRuntimeSession, EpiphanyRuntimeEvent)> {
@@ -10136,6 +10263,7 @@ pub fn open_coordinator_run(
         store_path,
         session_id,
         thread_id,
+        resident_launch_digest,
         objective,
         started_at,
         || Ok(()),
@@ -10146,6 +10274,7 @@ fn open_coordinator_run_with_before_commit<F>(
     store_path: impl AsRef<Path>,
     session_id: &str,
     thread_id: &str,
+    resident_launch_digest: Option<&str>,
     objective: &str,
     started_at: &str,
     before_commit: F,
@@ -10158,7 +10287,7 @@ where
     validate_non_empty(objective, "coordinator run objective")?;
     chrono::DateTime::parse_from_rfc3339(started_at)
         .map_err(|error| anyhow!("coordinator run start timestamp is invalid: {error}"))?;
-    if session_id != format!("coordinator-{thread_id}") {
+    if session_id != coordinator_run_session_id(thread_id, resident_launch_digest)? {
         return Err(anyhow!(
             "coordinator run session id is not bound to its thread"
         ));
@@ -10169,11 +10298,21 @@ where
     require_identity(&cache)?;
     let event_id = format!("event-coordinator-started-{session_id}");
     if cache.get::<EpiphanyRuntimeSession>(session_id)?.is_some()
+        || cache
+            .get::<EpiphanyArchivedRuntimeSession>(session_id)?
+            .is_some()
         || cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some()
         || cache
             .get_all::<EpiphanyCoordinatorRunReceipt>()?
             .iter()
-            .any(|receipt| receipt.session_id == session_id || receipt.thread_id == thread_id)
+            .any(|receipt| {
+                receipt.session_id == session_id
+                    || (resident_launch_digest.is_none() && receipt.thread_id == thread_id)
+            })
+        || cache
+            .get_all::<EpiphanyCoordinatorDeathRecovery>()?
+            .iter()
+            .any(|recovery| recovery.session_id == session_id)
     {
         return Err(anyhow!(
             "coordinator run session or thread authority already exists"
@@ -10224,6 +10363,189 @@ pub fn finalize_coordinator_run(
     finalize_coordinator_run_with_before_commit(store_path, receipt, || Ok(()))
 }
 
+fn coordinator_death_recovery_event(
+    recovery: &EpiphanyCoordinatorDeathRecovery,
+) -> EpiphanyRuntimeEvent {
+    EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-coordinator-death-recovered-{}", recovery.session_id),
+        occurred_at: recovery.recovered_at.clone(),
+        event_type: "coordinator.death-recovered".to_string(),
+        source: "epiphany-continuity".to_string(),
+        session_id: Some(recovery.session_id.clone()),
+        job_id: None,
+        summary: format!(
+            "Continuity terminalized coordinator session after exact process observation {:?}{}.",
+            recovery.observation,
+            recovery
+                .exit_code
+                .map(|code| format!(" with exit code {code}"))
+                .unwrap_or_default()
+        ),
+        metadata: BTreeMap::new(),
+    }
+}
+
+pub(crate) fn recover_coordinator_run_after_exact_process_death(
+    store_path: impl AsRef<Path>,
+    recovery: &EpiphanyCoordinatorDeathRecovery,
+    expected_objective: &str,
+) -> Result<EpiphanyRuntimeSession> {
+    recover_coordinator_run_after_exact_process_death_with_before_commit(
+        store_path,
+        recovery,
+        expected_objective,
+        || Ok(()),
+    )
+}
+
+pub(crate) fn coordinator_run_incarnation_is_absent(
+    store_path: impl AsRef<Path>,
+    thread_id: &str,
+    resident_launch_digest: &str,
+) -> Result<bool> {
+    let session_id = coordinator_run_session_id(thread_id, Some(resident_launch_digest))?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    Ok(cache.get::<EpiphanyRuntimeSession>(&session_id)?.is_none()
+        && cache
+            .get::<EpiphanyArchivedRuntimeSession>(&session_id)?
+            .is_none()
+        && !cache
+            .get_all::<EpiphanyRuntimeEvent>()?
+            .iter()
+            .any(|event| event.session_id.as_deref() == Some(session_id.as_str()))
+        && !cache
+            .get_all::<EpiphanyRuntimeJob>()?
+            .iter()
+            .any(|job| job.session_id == session_id)
+        && !cache
+            .get_all::<EpiphanyCoordinatorRunReceipt>()?
+            .iter()
+            .any(|receipt| receipt.session_id == session_id)
+        && !cache
+            .get_all::<EpiphanyCoordinatorDeathRecovery>()?
+            .iter()
+            .any(|recovery| recovery.session_id == session_id))
+}
+
+fn recover_coordinator_run_after_exact_process_death_with_before_commit<F>(
+    store_path: impl AsRef<Path>,
+    recovery: &EpiphanyCoordinatorDeathRecovery,
+    expected_objective: &str,
+    before_commit: F,
+) -> Result<EpiphanyRuntimeSession>
+where
+    F: FnOnce() -> Result<()>,
+{
+    validate_non_empty(expected_objective, "recovered coordinator objective")?;
+    if recovery.schema_version != COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION
+        || recovery.recovery_id != format!("coordinator-death-recovery-{}", recovery.session_id)
+        || recovery.session_id
+            != coordinator_run_session_id(
+                &recovery.thread_id,
+                Some(&recovery.resident_launch_digest),
+            )?
+        || recovery.resident_grant_id.trim().is_empty()
+        || !recovery.resident_launch_digest.starts_with("sha256:")
+        || recovery.process_id == 0
+        || recovery.process_creation_token == 0
+        || recovery.process_executable_path.trim().is_empty()
+        || recovery.resident_started_at_millis == 0
+        || !matches!(recovery.observation.as_str(), "exited" | "missing")
+        || (recovery.observation == "missing" && recovery.exit_code.is_some())
+        || recovery.private_state_exposed
+    {
+        return Err(anyhow!("coordinator death recovery contract is invalid"));
+    }
+    chrono::DateTime::parse_from_rfc3339(&recovery.recovered_at)
+        .map_err(|error| anyhow!("coordinator death recovery timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let mut session = cache
+        .get::<EpiphanyRuntimeSession>(&recovery.session_id)?
+        .ok_or_else(|| anyhow!("coordinator death recovery session is absent"))?;
+    let expected_event = coordinator_death_recovery_event(recovery);
+    if session.status == EpiphanyRuntimeSessionStatus::Completed {
+        let existing_recovery = cache
+            .get::<EpiphanyCoordinatorDeathRecovery>(&recovery.recovery_id)?;
+        let existing_event = cache.get::<EpiphanyRuntimeEvent>(&expected_event.event_id)?;
+        if existing_recovery.as_ref() == Some(recovery)
+            && existing_event.as_ref() == Some(&expected_event)
+            && session.objective == expected_objective
+            && session.updated_at == recovery.recovered_at
+            && session.coordinator_note == expected_event.summary
+        {
+            return Ok(session);
+        }
+        return Err(anyhow!(
+            "completed coordinator session does not match exact death recovery"
+        ));
+    }
+    if session.status != EpiphanyRuntimeSessionStatus::Active
+        || session.objective != expected_objective
+    {
+        return Err(anyhow!(
+            "coordinator death recovery requires the exact active session objective"
+        ));
+    }
+    let start_event_id = format!("event-coordinator-started-{}", recovery.session_id);
+    let start_event = cache
+        .get::<EpiphanyRuntimeEvent>(&start_event_id)?
+        .ok_or_else(|| anyhow!("coordinator death recovery lost its start event"))?;
+    let session_started_at = chrono::DateTime::parse_from_rfc3339(&session.created_at)
+        .map_err(|error| anyhow!("coordinator session start timestamp is invalid: {error}"))?;
+    let recovered_at = chrono::DateTime::parse_from_rfc3339(&recovery.recovered_at)
+        .map_err(|error| anyhow!("coordinator death recovery timestamp is invalid: {error}"))?;
+    if (session_started_at.timestamp_millis().max(0) as u64)
+        < recovery.resident_started_at_millis
+        || recovered_at < session_started_at
+        || start_event.occurred_at != session.created_at
+        || start_event.event_type != "coordinator.started"
+        || start_event.source != "epiphany-mvp-coordinator"
+        || start_event.session_id.as_deref() != Some(recovery.session_id.as_str())
+        || start_event.job_id.is_some()
+        || cache
+            .get_all::<EpiphanyRuntimeJob>()?
+            .iter()
+            .any(|job| job.session_id == recovery.session_id)
+        || cache
+            .get_all::<EpiphanyCoordinatorRunReceipt>()?
+            .iter()
+            .any(|receipt| receipt.session_id == recovery.session_id)
+        || cache
+            .get_all::<EpiphanyCoordinatorDeathRecovery>()?
+            .iter()
+            .any(|existing| existing.session_id == recovery.session_id)
+        || cache.get::<EpiphanyRuntimeEvent>(&expected_event.event_id)?.is_some()
+    {
+        return Err(anyhow!(
+            "coordinator death recovery found substituted or competing authority"
+        ));
+    }
+    let snapshot = cache.snapshot_envelopes();
+    session.status = EpiphanyRuntimeSessionStatus::Completed;
+    session.updated_at = recovery.recovered_at.clone();
+    session.coordinator_note = expected_event.summary.clone();
+    let replacements = vec![
+        cache.prepare_entry(&session.session_id, &session)?.0,
+        cache.prepare_entry(&recovery.recovery_id, recovery)?.0,
+        cache.prepare_entry(&expected_event.event_id, &expected_event)?.0,
+    ];
+    before_commit()?;
+    if !runtime_spine_backing_store(store_path)?
+        .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+    {
+        return Err(anyhow!(
+            "coordinator death recovery lost its full snapshot fence"
+        ));
+    }
+    Ok(session)
+}
+
 fn finalize_coordinator_run_with_before_commit<F>(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyCoordinatorRunReceipt,
@@ -10233,6 +10555,16 @@ where
     F: FnOnce() -> Result<()>,
 {
     validate_coordinator_run_receipt(receipt)?;
+    if receipt.session_id
+        != coordinator_run_session_id(
+            &receipt.thread_id,
+            receipt.resident_launch_digest.as_deref(),
+        )?
+    {
+        return Err(anyhow!(
+            "coordinator run receipt session is not bound to its run incarnation"
+        ));
+    }
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -12677,6 +13009,14 @@ pub(crate) mod tests {
             .proposal_modeling_request_id
             .clone()
             .expect("proposal request echo");
+        assert!(runtime_typed_request_attempt_exists(
+            &store,
+            RuntimeTypedRequestRef::ProposalModeling(&request_id),
+        )?);
+        assert!(!runtime_typed_request_attempt_exists(
+            &store,
+            RuntimeTypedRequestRef::ProposalModeling("absent-proposal-request"),
+        )?);
         assert_eq!(
             runtime_typed_request_fulfillment(
                 &store,
@@ -15935,6 +16275,7 @@ pub(crate) mod tests {
             &store,
             "coordinator-thread-open",
             "thread-open",
+            None,
             "Open one coordinator authority family.",
             "2026-08-10T10:00:01Z",
         )?;
@@ -15947,6 +16288,7 @@ pub(crate) mod tests {
                 &store,
                 "coordinator-thread-open",
                 "thread-open",
+                None,
                 "Open one coordinator authority family.",
                 "2026-08-10T10:00:01Z",
             )
@@ -15958,6 +16300,7 @@ pub(crate) mod tests {
                 &store,
                 "coordinator-swapped",
                 "thread-bound",
+                None,
                 "Refuse split identity.",
                 "2026-08-10T10:00:02Z",
             )
@@ -15968,6 +16311,7 @@ pub(crate) mod tests {
             &store,
             "coordinator-thread-raced-open",
             "thread-raced-open",
+            None,
             "Lose the opening snapshot.",
             "2026-08-10T10:00:03Z",
             || {
@@ -16005,6 +16349,129 @@ pub(crate) mod tests {
             cache
                 .get::<EpiphanyRuntimeEvent>("event-concurrent-opening-observation")?
                 .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn coordinator_death_recovery_is_exact_single_use_and_archivable() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-coordinator-death-test".to_string(),
+                display_name: "Epiphany Coordinator Death Test".to_string(),
+                created_at: "2026-08-10T11:00:00Z".to_string(),
+            },
+        )?;
+        let objective = "Recover one exact dead coordinator.";
+        let launch_digest = format!("sha256:{}", "a".repeat(64));
+        let session_id = coordinator_run_session_id("thread-dead", Some(&launch_digest))?;
+        open_coordinator_run(
+            &store,
+            &session_id,
+            "thread-dead",
+            Some(&launch_digest),
+            objective,
+            "2026-08-10T11:00:01Z",
+        )?;
+        let recovery = EpiphanyCoordinatorDeathRecovery {
+            schema_version: COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION.to_string(),
+            recovery_id: format!("coordinator-death-recovery-{session_id}"),
+            session_id,
+            thread_id: "thread-dead".to_string(),
+            resident_grant_id: "grant-dead".to_string(),
+            resident_launch_digest: launch_digest,
+            process_id: 41,
+            process_creation_token: 73,
+            process_executable_path: "/release/epiphany-mvp-coordinator".to_string(),
+            resident_started_at_millis: 1,
+            observation: "missing".to_string(),
+            recovered_at: "2026-08-10T11:00:02Z".to_string(),
+            private_state_exposed: false,
+            exit_code: None,
+        };
+        let completed = recover_coordinator_run_after_exact_process_death(
+            &store,
+            &recovery,
+            objective,
+        )?;
+        assert_eq!(completed.status, EpiphanyRuntimeSessionStatus::Completed);
+        assert_eq!(
+            recover_coordinator_run_after_exact_process_death(&store, &recovery, objective)?,
+            completed
+        );
+        let mut substituted = recovery.clone();
+        substituted.process_creation_token += 1;
+        assert!(
+            recover_coordinator_run_after_exact_process_death(&store, &substituted, objective)
+                .is_err()
+        );
+        let archived = archive_completed_coordinator_session(
+            &store,
+            &recovery.session_id,
+            "2026-08-10T11:00:03Z",
+        )?;
+        assert_eq!(archived.retired_envelope_count, 4);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorDeathRecovery>(&recovery.recovery_id)?
+                .is_none()
+        );
+
+        let raced_launch_digest = format!("sha256:{}", "b".repeat(64));
+        let raced_session_id =
+            coordinator_run_session_id("thread-raced-death", Some(&raced_launch_digest))?;
+        open_coordinator_run(
+            &store,
+            &raced_session_id,
+            "thread-raced-death",
+            Some(&raced_launch_digest),
+            objective,
+            "2026-08-10T11:01:01Z",
+        )?;
+        let mut raced = recovery.clone();
+        raced.recovery_id = format!("coordinator-death-recovery-{raced_session_id}");
+        raced.session_id = raced_session_id;
+        raced.thread_id = "thread-raced-death".to_string();
+        raced.resident_launch_digest = raced_launch_digest;
+        let result = recover_coordinator_run_after_exact_process_death_with_before_commit(
+            &store,
+            &raced,
+            objective,
+            || {
+                append_runtime_event(
+                    &store,
+                    RuntimeSpineEventOptions {
+                        event_id: "event-racing-death-recovery".to_string(),
+                        occurred_at: "2026-08-10T11:01:02Z".to_string(),
+                        event_type: "test.concurrent".to_string(),
+                        source: "test".to_string(),
+                        session_id: None,
+                        job_id: None,
+                        summary: "Invalidate death recovery snapshot.".to_string(),
+                    },
+                )?;
+                Ok(())
+            },
+        );
+        assert!(result.is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<EpiphanyRuntimeSession>(&raced.session_id)?
+                .expect("raced active session")
+                .status,
+            EpiphanyRuntimeSessionStatus::Active
+        );
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorDeathRecovery>(&raced.recovery_id)?
+                .is_none()
         );
         Ok(())
     }
