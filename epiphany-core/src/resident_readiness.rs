@@ -103,10 +103,8 @@ pub fn acquire_resident_process_singleton(
     #[cfg(unix)]
     {
         let path = resident_process_singleton_lock_path(role, &store)?;
-        if !path.exists() {
-            return Ok(false);
-        }
         let file = File::options()
+            .create(true)
             .read(true)
             .write(true)
             .open(path)?;
@@ -165,8 +163,10 @@ fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool>
     #[cfg(unix)]
     {
         let path = resident_process_singleton_lock_path(role, &store)?;
+        if !path.exists() {
+            return Ok(false);
+        }
         let file = File::options()
-            .create(true)
             .read(true)
             .write(true)
             .open(path)?;
