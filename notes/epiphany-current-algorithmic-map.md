@@ -1670,6 +1670,16 @@ The release witness remains the only packaged-output authority: exact commit,
 runtime, target, toolchain, sorted binary roles, lengths, and byte digests.
 Caches accelerate reconstruction; they cannot certify it.
 
+Exact `0ef0c0b8` is the accepted no-force source-preparation proof. The
+source-changing pass compiled only six first-party crates and no vendored or
+external crate, reducing Cargo time from `a4756857`'s 11m04s to 7m19s. An
+identical replay completed in 5.8s wall / 0.77s Cargo and reproduced release
+`sha256-032af7baa251caf32c1843eeace8990001557fe916988d8d1e2f0a27093a2b36`
+and witness
+`sha256-c0b8dbac33f821e9adc15218ea22a9133e0b9ea78f1981916b403fcad79f3d3b`
+exactly across all 24 binaries. Receipts are under
+`.epiphany-run/linux-package-0ef0c0b8` and its `-warm` sibling.
+
 Exact `8bb8b7d3` is the steady-state acceptance proof. After the stable source
 cache's one-time local population, a documentation/state-only successor kept
 the same graph and checkout identity; Cargo completed the exact release build

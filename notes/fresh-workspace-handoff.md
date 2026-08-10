@@ -45,9 +45,16 @@ nonterminal, and exactly matches Heartbeat's running schedule/action. The brake
 is coherently holding pending authority; there is no orphan repair to perform.
 The release source guard now pre-cleans cached submodules, updates only changed
 pins without `--force`, then re-cleans and verifies the exact tree. Its twenty
-focused tests pass. Commit and package this cut, compare it with the 11m04s
-`a4756857` baseline, and require an identical warm replay before waking c006.
-Yggdrasil never builds.
+focused tests pass. Exact pushed `0ef0c0b8` packages 24 Linux binaries as
+`sha256-032af7baa251caf32c1843eeace8990001557fe916988d8d1e2f0a27093a2b36`
+with witness
+`sha256-c0b8dbac33f821e9adc15218ea22a9133e0b9ea78f1981916b403fcad79f3d3b`
+and zero warnings. The source-changing Cargo pass fell from 11m04s to 7m19s,
+compiling six first-party crates and no vendored or external crate. An exact
+warm replay finished in 5.8s wall / 0.77s Cargo with identical release and
+witness. Publish this body to actual c006 under the brake, authenticate it, then
+wake Heartbeat and resident Self and prove the retained grant is consumed at
+most once through its typed lifecycle. Yggdrasil never builds.
 
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 
