@@ -19,16 +19,26 @@ transitions, provider logs, and status projections are under
 The live run exposed one readiness ownership fault. Both providers were alive,
 but status reported warming because its early snapshot time raced continuously
 refreshed rows and because one container cannot observe the other's PID
-incarnation. The cognitive brake was re-engaged at the clean sleeping boundary;
-both exact processes remain alive. The current source cut makes the shared-store
-role singleton own cross-container liveness and keeps the exact fresh provider
-row as release/witness/source/executable identity. PID sight is diagnostic.
-Evaluation time is sampled only after loading each exact row, so slow witness
-authentication cannot race a provider refresh. Rows more than one second beyond
-that observation still refuse. Fifteen focused
-tests and all 666 non-ignored core library tests pass. Commit/package this cut,
-prove active/warming transitions with two copied-state containers, then publish
-under brake and resume endurance. Yggdrasil never builds.
+incarnation. The accepted source cut makes the shared-store role singleton own
+cross-container liveness and keeps the exact fresh provider row as
+release/witness/source/executable identity. PID sight is diagnostic. Evaluation
+time is sampled only after loading each exact row, so slow witness authentication
+cannot race a provider refresh. Rows more than one second beyond that observation
+still refuse. Fifteen focused tests and all 666 non-ignored core library tests
+pass.
+
+Exact `16407f7e` packages this cut as 24-binary release
+`sha256-66cf1c2f4d88e7885a36870277cf4b143204de9c9b0dad0ed8f809983b3c55af`
+with witness
+`sha256-5f41248bb11c01f19125f16bf39f3dfcc2a802de211f3eae7e2caf292d59e4b3`.
+On copied c006 stores, two distinct PID namespaces projected active; stopping
+only Heartbeat immediately projected warming with exact `role-singleton`
+failure while its row remained fresh; restart restored active; both owners then
+accepted SIGTERM and exited zero. Actual c006 now runs the same exact body under
+its engaged cognitive brake and projects active with no reasons. Receipts are
+under `.epiphany-run/readiness-16407f7e` and
+`.epiphany-run/c006-readiness-16407f7e`. Run the 900-pulse braked plateau next.
+Yggdrasil never builds.
 
 ## Direct proposal Modeling and archived fulfillment accepted — 2026-08-10
 

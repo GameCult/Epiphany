@@ -1167,6 +1167,15 @@ future-dated row. Status and supervisor aggregation share this derivation.
 Neither a fresh row without the role lock nor a role lock without the exact
 fresh row can become ready.
 
+Exact packaged `16407f7e` proves the two-container implementation. With
+Heartbeat and resident Self in distinct PID namespaces, a third observer
+projected `active` with both providers fresh. Stopping only Heartbeat immediately
+projected `warming` and named `role-singleton` while its identity row was still
+fresh; restarting that exact container restored `active`. Actual c006 now runs
+the same release under brake and projects `active` with no reasons. Receipts are
+under `.epiphany-run/readiness-16407f7e` and
+`.epiphany-run/c006-readiness-16407f7e`.
+
 Yggdrasil separates provenance from Body. `/srv/epiphany/source/current` is
 immutable release source. `/var/lib/gamecult/epiphany/workspace` is the writable
 domain Body carrying repository binding, persistent Modeling map, Mind state,
