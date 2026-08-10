@@ -39,6 +39,10 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
@@ -549,8 +553,13 @@ fn main() -> Result<()> {
             let mut completed_iterations = highest_pulse_artifact_sequence(&artifact_dir)?;
             let mut completed_routines = 0_u64;
             let mut refused_pulses = 0_u64;
+            let shutdown_requested = install_shutdown_signal_owner()?;
             loop {
-                if max_iterations > 0 && completed_iterations >= max_iterations {
+                if heartbeat_serve_should_stop(
+                    &shutdown_requested,
+                    max_iterations,
+                    completed_iterations,
+                ) {
                     break;
                 }
                 let iteration = completed_iterations + 1;
@@ -617,7 +626,10 @@ fn main() -> Result<()> {
                         if max_iterations > 0 && completed_iterations >= max_iterations {
                             break;
                         }
-                        thread::sleep(Duration::from_secs(interval_seconds));
+                        wait_for_shutdown(
+                            &shutdown_requested,
+                            Duration::from_secs(interval_seconds),
+                        );
                         continue;
                     }
                 }
@@ -650,7 +662,7 @@ fn main() -> Result<()> {
                     if max_iterations > 0 && completed_iterations >= max_iterations {
                         break;
                     }
-                    thread::sleep(Duration::from_secs(interval_seconds));
+                    wait_for_shutdown(&shutdown_requested, Duration::from_secs(interval_seconds));
                     continue;
                 }
                 let persona_pulse = pulse_persona_heartbeat(
@@ -681,7 +693,7 @@ fn main() -> Result<()> {
                     if max_iterations > 0 && completed_iterations >= max_iterations {
                         break;
                     }
-                    thread::sleep(Duration::from_secs(interval_seconds));
+                    wait_for_shutdown(&shutdown_requested, Duration::from_secs(interval_seconds));
                     continue;
                 }
                 let result = run_void_routine_store(
@@ -720,7 +732,7 @@ fn main() -> Result<()> {
                 if max_iterations > 0 && completed_iterations >= max_iterations {
                     break;
                 }
-                thread::sleep(Duration::from_secs(interval_seconds));
+                wait_for_shutdown(&shutdown_requested, Duration::from_secs(interval_seconds));
             }
             println!(
                 "{}",
@@ -736,6 +748,7 @@ fn main() -> Result<()> {
                     "completedRoutines": completed_routines,
                     "refusedPulses": refused_pulses,
                     "bounded": max_iterations > 0,
+                    "shutdownRequested": shutdown_requested.load(Ordering::SeqCst),
                     "privateStateExposed": false
                 })
             );
@@ -753,6 +766,36 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn install_shutdown_signal_owner() -> Result<Arc<AtomicBool>> {
+    let requested = Arc::new(AtomicBool::new(false));
+    let signal = Arc::clone(&requested);
+    ctrlc::try_set_handler(move || {
+        signal.store(true, Ordering::SeqCst);
+    })
+    .context("failed to install Heartbeat shutdown signal owner")?;
+    Ok(requested)
+}
+
+fn heartbeat_serve_should_stop(
+    shutdown_requested: &AtomicBool,
+    max_iterations: u64,
+    completed_iterations: u64,
+) -> bool {
+    shutdown_requested.load(Ordering::SeqCst)
+        || (max_iterations > 0 && completed_iterations >= max_iterations)
+}
+
+fn wait_for_shutdown(requested: &AtomicBool, duration: Duration) {
+    let deadline = std::time::Instant::now() + duration;
+    while !requested.load(Ordering::SeqCst) {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        thread::sleep(remaining.min(Duration::from_millis(50)));
+    }
 }
 
 fn next_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
@@ -878,6 +921,24 @@ fn active_swarm_brake(
 #[cfg(test)]
 mod brake_tests {
     use super::*;
+
+    #[test]
+    fn heartbeat_serve_stops_for_signal_or_bounded_completion() {
+        let requested = AtomicBool::new(false);
+        assert!(!heartbeat_serve_should_stop(&requested, 0, 42));
+        assert!(!heartbeat_serve_should_stop(&requested, 43, 42));
+        assert!(heartbeat_serve_should_stop(&requested, 42, 42));
+        requested.store(true, Ordering::SeqCst);
+        assert!(heartbeat_serve_should_stop(&requested, 0, 42));
+    }
+
+    #[test]
+    fn heartbeat_shutdown_interrupts_interval_wait() {
+        let requested = AtomicBool::new(true);
+        let started = std::time::Instant::now();
+        wait_for_shutdown(&requested, Duration::from_secs(1));
+        assert!(started.elapsed() < Duration::from_millis(100));
+    }
 
     #[test]
     fn heartbeat_brake_lookup_uses_the_exact_requested_namespace() -> Result<()> {

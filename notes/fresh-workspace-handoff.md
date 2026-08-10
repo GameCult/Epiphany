@@ -1,5 +1,23 @@
 # Fresh workspace handoff
 
+## Heartbeat graceful SIGTERM source complete — 2026-08-10
+
+Heartbeat `serve` now owns SIGINT/SIGTERM with one process-local atomic signal
+owner. Shutdown is observed before admitting the next pulse, all interval waits
+are interruptible, and signal or bounded completion converge on the existing
+typed serve receipt. The receipt now states `shutdownRequested`; an in-flight
+atomic pulse is allowed to finish before closure. No persisted shutdown command,
+retry writer, or Docker-timeout compensator was added.
+
+Six focused Heartbeat binary tests pass, including signal/boundary stopping and
+immediate interruption of the interval wait. The Heartbeat binary checks without
+warnings and `git diff --check` passes. This cut is not yet committed, packaged,
+or accepted on Linux. Next: commit/push, package exactly once on Starfire, and
+run packaged serve on copied c006 state under its cognitive brake. Send SIGTERM
+during an interval and require exit zero, a final typed receipt with
+`shutdownRequested=true`, no new grant, and byte-identical resident/runtime
+authority. Do not release actual c006. Yggdrasil never builds.
+
 ## Typed-attempt non-resurrection accepted and actual c006 settled — 2026-08-10
 
 Exact pushed source `c693aaeadbb17204724c9986f16952e2f93e8fc9` packages

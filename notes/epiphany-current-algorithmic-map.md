@@ -3135,3 +3135,28 @@ three. Exact live replay remains the package acceptance boundary.
   package inspection; copied active-attempt settlement; actual corrupted-state
   intervention; two bounded actual Heartbeat pulses with brake present and grant
   absent.
+
+# Heartbeat graceful shutdown authority map — 2026-08-10
+
+- Owner: the Heartbeat serve process owns its termination signal and the point
+  at which its scheduling loop stops.
+- Inputs: SIGINT/SIGTERM, the current atomic pulse transaction, the configured
+  interval, and an optional bounded iteration ceiling.
+- Outputs: no new pulse after shutdown is observed, interruptible idle wait, one
+  final `epiphany.heartbeat.serve_receipt.v0` with `shutdownRequested=true`, and
+  process exit zero.
+- Derived state: Docker stop timeout is supervision pressure only; it is no
+  longer the termination mechanism. A signal cannot roll back an in-flight
+  atomic pulse and therefore takes effect at the next transaction boundary.
+- Forbidden writers: Docker's eventual SIGKILL, artifact sequence, provider
+  readiness, and the resident Self process do not decide Heartbeat closure.
+- Shared paths: bounded completion and signal completion converge on the same
+  final typed serve receipt. Every interval wait observes the same atomic signal
+  owner.
+- Cut line: install one process-local signal owner before entering `serve`; stop
+  before the next pulse after a signal and replace every blocking interval sleep
+  with a signal-aware wait. Do not add persisted shutdown authority or a repair
+  loop.
+- Verification layer: pure stop/wait tests, focused Heartbeat binary tests, then
+  exact packaged Linux serve under the copied c006 cognitive brake with SIGTERM,
+  exit zero, final shutdown receipt, and no new grant.
