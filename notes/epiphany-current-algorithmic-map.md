@@ -3358,6 +3358,16 @@ keeps the configured newest attempt, and archives the older eligible family.
 The worker job is explicitly distinct from the coordinator's jobless
 Continuity session; mixing those authorities is rejected.
 
+Before retirement, runtime spine now authenticates the immutable failed launch
+with the same lane facts that made it admissible: persisted typed request,
+producer proposal where applicable, exact role/binding, runtime and thread,
+launch-document digest, and exact typed context projection. Proposal Modeling
+also binds repository/workspace/payload and Body-bearing Modeling carrier;
+Imagination binds its one launch record and request/model projection; admitted
+model direction binds the request/model projection directly. Failed terminal
+status is not permission to launder malformed launch state into a tombstone.
+Model-direction result admission now checks the same projected model hash.
+
 - Owner: runtime spine owns archival of one immutable outer worker attempt.
   Resident Self supplies cross-store liveness but cannot delete runtime rows.
 - Inputs: exact typed request identity; worker launch; lane-specific launch

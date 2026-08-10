@@ -3956,6 +3956,10 @@ pub fn put_runtime_role_worker_result(
                 .as_deref()
                 != Some(request_id)
             || projection.map(|projection| &projection.request) != Some(&request)
+            || projection
+                .map(|projection| crate::memory_graph_model_hash(&projection.model))
+                .transpose()?
+                != Some(request.model_hash.clone())
         {
             return Err(anyhow!(
                 "model direction result does not exactly bind request and launch"
@@ -10571,6 +10575,140 @@ pub fn archive_fulfilled_runtime_worker_attempt(
     )
 }
 
+fn validate_archivable_typed_worker_launch(
+    cache: &CultCache,
+    launch: &EpiphanyRuntimeWorkerLaunchRequest,
+    request_kind: &str,
+    request_id: &str,
+) -> Result<()> {
+    if launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
+        || launch.job_id.trim().is_empty()
+    {
+        return Err(anyhow!("worker attempt archive found invalid immutable launch"));
+    }
+    let document = launch.launch_document()?;
+    let identity = require_identity(cache)?;
+    let launch_sha256 = format!("{:x}", Sha256::digest(&launch.launch_document_msgpack));
+    match request_kind {
+        "proposal-modeling" => {
+            validate_proposal_modeling_launch_carrier(
+                &launch.role,
+                &launch.binding_id,
+                Some(request_id),
+                &document,
+            )?;
+            validate_repository_body_launch_carrier(&launch.role, &document)?;
+            let request = cache.get::<RepoFrontierProposalModelingRequest>(request_id)?
+                .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its request"))?;
+            validate_repo_frontier_proposal_modeling_request(&request)?;
+            let proposal = cache.get::<RepoFrontierWorkProposal>(&request.proposal_id)?
+                .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its proposal"))?;
+            validate_repo_frontier_work_proposal(&proposal)?;
+            let bindings = cache.get_all::<RepoFrontierProposalModelingLaunchBinding>()?
+                .into_iter().filter(|binding| binding.job_id == launch.job_id).collect::<Vec<_>>();
+            if bindings.len() != 1 {
+                return Err(anyhow!("archived proposal Modeling launch requires one binding"));
+            }
+            let binding = &bindings[0];
+            let projection = match &document {
+                EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
+                EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+            }.ok_or_else(|| anyhow!("archived proposal Modeling launch lost its context"))?;
+            if request.runtime_id != identity.runtime_id
+                || request.proposal_payload_sha256 != proposal.payload_sha256
+                || request.repository != proposal.repository
+                || request.workspace != proposal.workspace
+                || binding.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION
+                || binding.contract != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT
+                || binding.binding_record_id != format!("repo-frontier-proposal-modeling-launch-{}", launch.job_id)
+                || binding.proposal_modeling_request_id != request.request_id
+                || binding.proposal_id != proposal.proposal_id
+                || binding.proposal_payload_sha256 != proposal.payload_sha256
+                || binding.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID
+                || binding.runtime_id != request.runtime_id
+                || binding.thread_id != request.thread_id
+                || binding.worker_launch_document_sha256 != launch_sha256
+                || projection.request_id != request.request_id
+                || projection.proposal_id != proposal.proposal_id
+                || projection.proposal_payload_sha256 != proposal.payload_sha256
+                || projection.runtime_id != request.runtime_id
+                || projection.thread_id != request.thread_id
+                || projection.repository != request.repository
+                || projection.workspace != request.workspace
+            {
+                return Err(anyhow!("archived proposal Modeling launch provenance mismatch"));
+            }
+        }
+        "imagination-consideration" => {
+            validate_imagination_consideration_launch_carrier(
+                &launch.role,
+                &launch.binding_id,
+                Some(request_id),
+                &document,
+            )?;
+            let request = cache.get::<crate::ImaginationConsiderationRequest>(request_id)?
+                .ok_or_else(|| anyhow!("archived Imagination launch lost its request"))?;
+            if request.schema_version != crate::IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION
+                || request.contract != crate::IMAGINATION_CONSIDERATION_REQUEST_CONTRACT
+                || request.request_id != request_id
+                || request.private_state_included
+                || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+            {
+                return Err(anyhow!("archived Imagination launch request is invalid"));
+            }
+            let bindings = cache.get_all::<crate::ImaginationConsiderationLaunchBinding>()?
+                .into_iter().filter(|binding| binding.job_id == launch.job_id).collect::<Vec<_>>();
+            if bindings.len() != 1 {
+                return Err(anyhow!("archived Imagination launch requires one binding"));
+            }
+            let binding = &bindings[0];
+            let projection = match &document {
+                EpiphanyWorkerLaunchDocument::Role(document) => document.imagination_consideration_context.as_ref(),
+                EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+            }.ok_or_else(|| anyhow!("archived Imagination launch lost its context"))?;
+            if request.runtime_id != identity.runtime_id
+                || binding.request_id != request.request_id
+                || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+                || binding.runtime_id != request.runtime_id
+                || binding.thread_id != request.thread_id
+                || binding.worker_launch_document_sha256 != launch_sha256
+                || projection.request != request
+                || crate::memory_graph_model_hash(&projection.model)? != request.model_hash
+            {
+                return Err(anyhow!("archived Imagination launch provenance mismatch"));
+            }
+        }
+        "admitted-model-direction" => {
+            let request = cache.get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
+                .ok_or_else(|| anyhow!("archived model-direction launch lost its request"))?;
+            if request.schema_version
+                != crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION
+                || request.contract
+                    != crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_CONTRACT
+                || request.request_id != request_id
+                || request.private_state_included
+                || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+            {
+                return Err(anyhow!("archived model-direction launch request is invalid"));
+            }
+            let projection = match &document {
+                EpiphanyWorkerLaunchDocument::Role(document) => document.admitted_model_direction_consideration_context.as_ref(),
+                EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+            }.ok_or_else(|| anyhow!("archived model-direction launch lost its context"))?;
+            if launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+                || launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+                || request.runtime_id != identity.runtime_id
+                || projection.request != request
+                || crate::memory_graph_model_hash(&projection.model)? != request.model_hash
+            {
+                return Err(anyhow!("archived model-direction launch provenance mismatch"));
+            }
+        }
+        _ => return Err(anyhow!("worker attempt archive found unsupported typed request")),
+    }
+    Ok(())
+}
+
 fn archive_runtime_worker_attempt<F>(
     store_path: impl AsRef<Path>,
     job_id: &str,
@@ -10617,6 +10755,7 @@ where
         return Err(anyhow!("worker attempt archive requires exactly one supported typed request"));
     }
     let (request_kind, request_id) = typed[0];
+    validate_archivable_typed_worker_launch(&cache, &launch, request_kind, request_id)?;
     if live_resident_request_ids.contains(request_id) {
         return Err(anyhow!("worker attempt archive refuses resident-live typed request"));
     }
@@ -20067,6 +20206,18 @@ pub(crate) mod tests {
         assert!(archive_failed_runtime_worker_attempt(&store, &job_id,
             &BTreeSet::from([request_id.clone()]), "2026-08-10T20:00:03Z").is_err());
         assert_eq!(std::fs::read(&store)?, before);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let binding = cache.get_all::<RepoFrontierProposalModelingLaunchBinding>()?
+            .into_iter().find(|binding| binding.job_id == job_id).expect("proposal launch binding");
+        let mut hostile_binding = binding.clone();
+        hostile_binding.worker_launch_document_sha256 = "0".repeat(64);
+        cache.put(&hostile_binding.binding_record_id, &hostile_binding)?;
+        let hostile_bytes = std::fs::read(&store)?;
+        assert!(archive_failed_runtime_worker_attempt(
+            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z").is_err());
+        assert_eq!(std::fs::read(&store)?, hostile_bytes);
+        cache.put(&binding.binding_record_id, &binding)?;
         assert!(archive_runtime_worker_attempt(
             &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z", false,
             || {

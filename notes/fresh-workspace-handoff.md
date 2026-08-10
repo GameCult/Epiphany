@@ -2697,3 +2697,18 @@ outer-worker session identity. Failed production enumeration also now proves
 two terminal attempts retain the newest and archive the older without
 resurrection. The archive tombstone is published in the runtime CultNet schema
 catalog. Source packaging and copied-state live proof are next.
+## Mechanical package rejected; failed archive provenance cut — 2026-08-10
+
+Exact `452c250e` mechanically packaged in 7m14s as release
+`sha256-e585f91054e3333d6fe7d52912e0338fdd4793f413eaebd9a278eb3836a97d63`
+with witness
+`sha256-1f3087d589499c73a98fdfb5909850c8c0ae416d7e97d0a20998dfb644f774f0`,
+24 binaries, and zero warnings. It is not accepted for runtime proof: inspection
+found that failed-attempt archival trusted the typed request echo without
+authenticating the persisted request, lane binding, launch hash, role, runtime,
+thread, and projected context. Source now validates that immutable chain for
+all three lanes before any archive. A hostile proposal binding hash refuses
+byte-identically. The stronger check also exposed a model-direction fixture
+that projected a default model; the fixture now uses the admitted model and
+result admission itself requires the projected model hash. Repackage the new
+commit; do not publish or use the 452c release as accepted evidence.

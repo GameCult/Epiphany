@@ -3034,6 +3034,8 @@ mod tests {
         result: &crate::AdmittedModelDirectionConsiderationResult,
         job_id: &str,
     ) -> Result<()> {
+        let model = crate::runtime_current_repo_model(store)?
+            .ok_or_else(|| anyhow!("model direction fixture lost admitted model"))?;
         let document =
             crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: request.thread_id.clone(),
@@ -3050,7 +3052,7 @@ mod tests {
                 admitted_model_direction_consideration_context: Some(
                     crate::AdmittedModelDirectionConsiderationContextProjection::new(
                         request,
-                        &crate::EpiphanyMemoryGraphSnapshot::default(),
+                        &model,
                     ),
                 ),
                 active_subgoal_id: None,
