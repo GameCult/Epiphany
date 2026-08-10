@@ -1059,6 +1059,7 @@ pub use runtime_spine::create_runtime_job;
 pub use runtime_spine::create_runtime_session;
 pub use runtime_spine::ensure_runtime_repo_model;
 pub use runtime_spine::ensure_runtime_session;
+pub use runtime_spine::finalize_coordinator_run;
 pub use runtime_spine::initialize_runtime_spine;
 pub use runtime_spine::intake_user_repo_frontier_proposal;
 pub use runtime_spine::migrate_legacy_repo_model_projection_obligation;

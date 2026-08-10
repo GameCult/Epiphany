@@ -18,10 +18,10 @@ use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
+use epiphany_core::finalize_coordinator_run;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
-use epiphany_core::put_coordinator_run_receipt;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_repo_frontier_hands_authority;
@@ -1043,7 +1043,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     }
 
     let operator_final_status = status_cli::sanitize_for_operator(final_status);
-    let runtime_status = runtime_spine_status(&runtime_store)?;
     let final_rendered = status_cli::render_status(&operator_final_status);
     let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
     let artifact_manifest = vec![
@@ -1106,7 +1105,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             .cloned(),
         resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
     };
-    put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
+    finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
+    let runtime_status = runtime_spine_status(&runtime_store)?;
     let summary = json!({
         "objective": "Coordinate the Epiphany MVP lanes through native typed state and runtime organs.",
         "artifactDir": artifact_dir,

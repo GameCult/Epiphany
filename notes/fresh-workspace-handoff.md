@@ -1948,3 +1948,25 @@ refusals or infer terminality from age.
 
 Next: implement the owner cut with hostile CAS/replay/legacy tests, then package
 and prove copied-state plateau. Preserve active c005. Yggdrasil never builds.
+
+## Atomic coordinator terminalization implemented — 2026-08-10
+
+`finalize_coordinator_run` now commits the immutable coordinator receipt,
+Completed runtime session, and deterministic `session.completed` event as one
+full-snapshot-fenced transaction. Exact replay is idempotent. A concurrent
+unknown row, any session job, partial terminal receipt/event, or non-Active
+session refuses the complete write. `epiphany-mvp-coordinator` uses this owner
+and records post-terminal runtime status.
+
+The first attempted implementation exposed a real CultCache gap: scoped CAS
+could not fence unknown identities, while the compaction primitive required a
+deletion. No dummy deletion was added. CultCache exact `e1fc4c0` introduces
+`replace_and_append_if_snapshot_unchanged` for snapshot, keyed, and owned-keyed
+stores, with a hostile concurrent-row test. All 38 CultCache tests and the full
+Epiphany core library (647 passed, one ignored) are green; the coordinator
+release target checks with `coordinator-runtime` enabled.
+
+Next: repair only exact legacy false-Active coordinator sessions, archive the
+whole completed coordinator family under one owner, and make generic receipt
+retention preserve receipts still bound to runtime sessions. This source is not
+yet packaged. Active c005 remains untouched; Yggdrasil never builds.

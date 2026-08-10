@@ -2765,6 +2765,21 @@ Authority map for the cut:
   package proof that terminal coordinator sessions plateau without changing
   resident authority.
 
+The first owner cut is implemented. `finalize_coordinator_run` validates the
+exact active jobless session and absence of partial terminal authority, then
+uses CultCache's full-snapshot-fenced replace-and-append transaction to persist
+the receipt, Completed session, and deterministic completion event together.
+Exact replay returns the same terminal session; a changed snapshot, a session
+job, partial prior receipt/event, or non-Active state refuses every write. The
+coordinator now derives runtime status after this transaction. CultCache exact
+`e1fc4c0` owns the new primitive for snapshot, keyed, and owned-keyed stores;
+its hostile concurrency test proves an unknown row invalidates the transaction.
+The full core library passes 647 tests with one intentional ignored helper.
+
+Legacy repair and completed coordinator-family archival remain deliberately
+separate follow-up work. The source still must not let generic receipt retention
+delete a receipt while its runtime session survives.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

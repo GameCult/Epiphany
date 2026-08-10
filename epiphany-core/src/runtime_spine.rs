@@ -9783,6 +9783,15 @@ pub fn put_coordinator_run_receipt(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyCoordinatorRunReceipt,
 ) -> Result<()> {
+    validate_coordinator_run_receipt(receipt)?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> Result<()> {
     validate_non_empty(&receipt.receipt_id, "coordinator run receipt id")?;
     validate_non_empty(&receipt.session_id, "coordinator run receipt session id")?;
     validate_non_empty(&receipt.thread_id, "coordinator run receipt thread id")?;
@@ -9793,11 +9802,114 @@ pub fn put_coordinator_run_receipt(
         "coordinator run receipt final action",
     )?;
     validate_non_empty(&receipt.created_at, "coordinator run receipt created at")?;
+    chrono::DateTime::parse_from_rfc3339(&receipt.created_at)
+        .map_err(|error| anyhow!("coordinator run receipt timestamp is invalid: {error}"))?;
+    Ok(())
+}
+
+pub fn finalize_coordinator_run(
+    store_path: impl AsRef<Path>,
+    receipt: &EpiphanyCoordinatorRunReceipt,
+) -> Result<EpiphanyRuntimeSession> {
+    finalize_coordinator_run_with_before_commit(store_path, receipt, || Ok(()))
+}
+
+fn finalize_coordinator_run_with_before_commit<F>(
+    store_path: impl AsRef<Path>,
+    receipt: &EpiphanyCoordinatorRunReceipt,
+    before_commit: F,
+) -> Result<EpiphanyRuntimeSession>
+where
+    F: FnOnce() -> Result<()>,
+{
+    validate_coordinator_run_receipt(receipt)?;
+    let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    let mut session = cache
+        .get::<EpiphanyRuntimeSession>(&receipt.session_id)?
+        .ok_or_else(|| {
+            anyhow!(
+                "coordinator run receipt session {:?} does not exist",
+                receipt.session_id
+            )
+        })?;
+    let completion_event_id = format!("event-session-completed-{}", receipt.session_id);
+    let completion_summary = format!(
+        "Coordinator run {:?} terminalized with status {:?}.",
+        receipt.receipt_id, receipt.status
+    );
+    let expected_event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: completion_event_id.clone(),
+        occurred_at: receipt.created_at.clone(),
+        event_type: "session.completed".to_string(),
+        source: "epiphany-mvp-coordinator".to_string(),
+        session_id: Some(receipt.session_id.clone()),
+        job_id: None,
+        summary: completion_summary.clone(),
+        metadata: BTreeMap::new(),
+    };
+    if session.status == EpiphanyRuntimeSessionStatus::Completed {
+        let existing_receipt = cache.get::<EpiphanyCoordinatorRunReceipt>(&receipt.receipt_id)?;
+        let existing_event = cache.get::<EpiphanyRuntimeEvent>(&completion_event_id)?;
+        if existing_receipt.as_ref() == Some(receipt)
+            && existing_event.as_ref() == Some(&expected_event)
+            && session.updated_at == receipt.created_at
+            && session.coordinator_note == completion_summary
+        {
+            return Ok(session);
+        }
+        return Err(anyhow!(
+            "completed coordinator session does not match the terminal run transaction"
+        ));
+    }
+    if session.status != EpiphanyRuntimeSessionStatus::Active {
+        return Err(anyhow!(
+            "coordinator run session {:?} is not active",
+            receipt.session_id
+        ));
+    }
+    if cache
+        .get_all::<EpiphanyRuntimeJob>()?
+        .iter()
+        .any(|job| job.session_id == receipt.session_id)
+    {
+        return Err(anyhow!(
+            "coordinator run finalization refuses a session with runtime jobs"
+        ));
+    }
+    if cache
+        .get_all::<EpiphanyCoordinatorRunReceipt>()?
+        .iter()
+        .any(|existing| existing.session_id == receipt.session_id)
+        || cache
+            .get::<EpiphanyRuntimeEvent>(&completion_event_id)?
+            .is_some()
+    {
+        return Err(anyhow!(
+            "coordinator run session already has partial terminal authority"
+        ));
+    }
+    let snapshot = cache.snapshot_envelopes();
+    session.status = EpiphanyRuntimeSessionStatus::Completed;
+    session.updated_at = receipt.created_at.clone();
+    session.coordinator_note = completion_summary;
+    let replacements = vec![
+        cache.prepare_entry(&session.session_id, &session)?.0,
+        cache.prepare_entry(&receipt.receipt_id, receipt)?.0,
+        cache.prepare_entry(&completion_event_id, &expected_event)?.0,
+    ];
+    before_commit()?;
+    if !runtime_spine_backing_store(store_path)?
+        .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+    {
+        return Err(anyhow!(
+            "coordinator run finalization lost its full snapshot fence"
+        ));
+    }
+    Ok(session)
 }
 
 pub fn coordinator_run_receipts(
@@ -15235,6 +15347,163 @@ pub(crate) mod tests {
             cache
                 .get::<EpiphanyCoordinatorRunReceipt>("coordinator-receipt-1")?
                 .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn coordinator_run_finalization_is_atomic_idempotent_and_snapshot_fenced() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-coordinator-finalization-test".to_string(),
+                display_name: "Epiphany Coordinator Finalization Test".to_string(),
+                created_at: "2026-08-10T08:00:00Z".to_string(),
+            },
+        )?;
+        let receipt_for = |session_id: &str, receipt_id: &str, thread_id: &str| {
+            EpiphanyCoordinatorRunReceipt {
+                schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: receipt_id.to_string(),
+                session_id: session_id.to_string(),
+                thread_id: thread_id.to_string(),
+                mode: "default".to_string(),
+                status: "completed".to_string(),
+                final_action: "manualRegather".to_string(),
+                final_reason: None,
+                step_count: 1,
+                created_at: "2026-08-10T08:01:00Z".to_string(),
+                model_provider: None,
+                runtime_store: store.display().to_string(),
+                artifact_refs: Vec::new(),
+                sealed_artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+                resident_grant_id: None,
+                resident_launch_digest: None,
+                resident_policy_digest: None,
+                resident_argv_digest: None,
+                resident_objective_digest: None,
+                resident_release_commit: None,
+                resident_release_manifest_digest: None,
+                resident_executable_digest: None,
+            }
+        };
+        let create_coordinator_session = |session_id: &str| -> Result<()> {
+            create_runtime_session(
+                &store,
+                RuntimeSpineSessionOptions {
+                    session_id: session_id.to_string(),
+                    objective: "Coordinate one terminal run.".to_string(),
+                    created_at: "2026-08-10T08:00:01Z".to_string(),
+                    coordinator_note: "Native coordinator session opened.".to_string(),
+                },
+            )?;
+            append_runtime_event(
+                &store,
+                RuntimeSpineEventOptions {
+                    event_id: format!("event-coordinator-started-{session_id}"),
+                    occurred_at: "2026-08-10T08:00:01Z".to_string(),
+                    event_type: "coordinator.started".to_string(),
+                    source: "epiphany-mvp-coordinator".to_string(),
+                    session_id: Some(session_id.to_string()),
+                    job_id: None,
+                    summary: "Native coordinator session opened.".to_string(),
+                },
+            )?;
+            Ok(())
+        };
+
+        create_coordinator_session("coordinator-thread-1")?;
+        let receipt = receipt_for(
+            "coordinator-thread-1",
+            "coordinator-receipt-1",
+            "thread-1",
+        );
+        let completed = finalize_coordinator_run(&store, &receipt)?;
+        assert_eq!(completed.status, EpiphanyRuntimeSessionStatus::Completed);
+        assert_eq!(finalize_coordinator_run(&store, &receipt)?, completed);
+        let status = runtime_spine_status(&store)?;
+        assert_eq!(status.sessions, 1);
+        assert_eq!(status.active_sessions, 0);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache.get::<EpiphanyCoordinatorRunReceipt>(&receipt.receipt_id)?,
+            Some(receipt.clone())
+        );
+        assert_eq!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(
+                    "event-session-completed-coordinator-thread-1"
+                )?
+                .as_ref()
+                .map(|event| event.source.as_str()),
+            Some("epiphany-mvp-coordinator")
+        );
+
+        create_coordinator_session("coordinator-thread-jobs")?;
+        create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: "coordinator-job".to_string(),
+                session_id: "coordinator-thread-jobs".to_string(),
+                role: "unexpected".to_string(),
+                created_at: "2026-08-10T08:00:02Z".to_string(),
+                summary: "Must block coordinator finalization.".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        let job_receipt = receipt_for(
+            "coordinator-thread-jobs",
+            "coordinator-receipt-jobs",
+            "thread-jobs",
+        );
+        assert!(finalize_coordinator_run(&store, &job_receipt).is_err());
+
+        create_coordinator_session("coordinator-thread-race")?;
+        let raced_receipt = receipt_for(
+            "coordinator-thread-race",
+            "coordinator-receipt-race",
+            "thread-race",
+        );
+        let race = finalize_coordinator_run_with_before_commit(&store, &raced_receipt, || {
+            append_runtime_event(
+                &store,
+                RuntimeSpineEventOptions {
+                    event_id: "unrelated-racing-event".to_string(),
+                    occurred_at: "2026-08-10T08:00:59Z".to_string(),
+                    event_type: "unrelated".to_string(),
+                    source: "test".to_string(),
+                    session_id: None,
+                    job_id: None,
+                    summary: "Changes the full snapshot.".to_string(),
+                },
+            )?;
+            Ok(())
+        });
+        assert!(race.is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-race")?
+                .expect("raced session")
+                .status,
+            EpiphanyRuntimeSessionStatus::Active
+        );
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorRunReceipt>(&raced_receipt.receipt_id)?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(
+                    "event-session-completed-coordinator-thread-race"
+                )?
+                .is_none()
         );
         Ok(())
     }
