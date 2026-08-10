@@ -55,23 +55,16 @@ actual c006 behavior are the live gates.
 7. Persona feedback crossing -> bounded consideration -> speech audit -> signed
    permit/refusal/no-repost boundary.
 
-## Active rites
+## Accepted latest-body endurance
 
-### Latest-body braked endurance
+Actual c006 completed the detached latest-body plateau from iteration 572 to
+1496. Thirty samples observed a 923-pulse delta with zero authority violations,
+exact-zero state/workspace growth, Heartbeat RSS 28.63-28.88 MiB, resident RSS
+54.11-55.50 MiB, both role owners alive, and final authenticated readiness
+`active` under the engaged brake. Receipts:
+`.epiphany-run/c006-endurance-16407f7e`.
 
-Actual c006 is running a detached 900-pulse plateau from iteration 572 to 1472.
-The monitor samples both container CPU/RSS/block I/O, state/workspace size,
-Heartbeat status, resident revision, grant identity, and active turn every 30
-seconds. Acceptance requires:
-
-- both role owners remain alive;
-- readiness remains `active`;
-- every Heartbeat pulse remains braked with no grant;
-- resident revision remains 26 with no active turn;
-- state/workspace growth is bounded and explained by retained artifacts;
-- RSS reaches a plateau rather than monotonic growth.
-
-Receipts: `.epiphany-run/c006-endurance-16407f7e`.
+## Active rite
 
 ### Narrow local Verse consumers
 
@@ -83,22 +76,14 @@ actually enumerates daemon rows. Continue classifying remaining
 `query_epiphany_local_verse_context` production callers by output ownership;
 do not replace a legitimate aggregate projection with a pile of ad hoc reads.
 
-## Next selection after endurance
+## Selected next broad circuit
 
-Choose one broad faculty circuit, not another indefinite hardening loop:
-
-1. autonomous frontier turnover across Self, Eyes, Modeling, Imagination, and
-   Mind on the live Body;
-2. non-repo-work actuator audit across Substrate Gate, Hands, and Soul;
-3. Persona projector/interpreter and public-mouth audit while the external
-   credential remains absent;
-4. Eve/Aquarium lowering of the organ graph and receipt chains without renderer
-   ownership;
-5. remaining legacy Mind writers and whole-Verse consumer cuts.
-
-The exact next rite is selected from fresh source and live state after the
-endurance receipts close. `state/map.yaml` remains the canonical current-state
-owner.
+Run autonomous frontier turnover across Self, Eyes, Modeling, Imagination, and
+Mind. Map the current live frontier owner, then use copied exact `16407f7e`
+state to prove several consecutive causal grants and typed settlements without
+Hands or Persona consequence. Only after copied-state acceptance may actual
+c006 receive an explicit bounded brake window; the brake must be re-engaged and
+readiness re-proven at closure. `state/map.yaml` owns the exact current action.
 
 ## Completion standard
 

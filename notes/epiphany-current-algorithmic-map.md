@@ -3553,3 +3553,39 @@ resident coordinator session. Production gates refused each shape. The
 accepted fixture uses authenticated Body state, the exact persisted model,
 distinct worker and coordinator sessions, a claimed/active worker incarnation,
 typed result admission, generic job completion, and closed resident authority.
+
+## Actual c006 braked endurance plateau
+
+The deployed physiology now has a long-duration proof for the exact latest
+body, not merely older idle and active releases.
+
+- Owner: Heartbeat owns scheduling pulses; resident Self owns the active-turn
+  state machine; the cognitive swarm brake owns whether either may launch new
+  cognition. The detached monitor owns observation only.
+- Inputs: exact `16407f7e` Heartbeat and Self executables, authenticated release
+  and witness, separate role-singleton locks, named-volume state, and the
+  engaged cognitive brake.
+- Outputs: Heartbeat pulse projections, resident operator projections,
+  process/resource samples, store-size observations, and one final exact
+  packaged readiness projection.
+- Derived state: CPU, RSS, block I/O, pulse count, and store sizes are sight.
+  They do not schedule, brake, complete, retain, or repair work.
+- Forbidden writers: the monitor cannot release the brake, author grants,
+  alter resident state, restart owners, or interpret growth as permission to
+  compact authority.
+- Shared paths: all 923 observed pulses traversed the production Heartbeat serve
+  loop and every resident observation came from the production Self serve
+  projection. Final readiness used the same packaged binary and mounted stores.
+- Cut line: there is no watchdog or repair writer in the plateau. Any stopped
+  owner, grant, lease, revision change, wrong brake, or readiness degradation
+  fails the rite and preserves the receipts.
+- Verification: 30 samples spanning iterations 573-1496 contain zero invariant
+  violations. `/state` stayed exactly 18,161,109 bytes and `/workspace` exactly
+  114,209,526 bytes. Heartbeat RSS stayed 28.63-28.88 MiB and resident RSS
+  54.11-55.50 MiB. Both containers remained alive. Final readiness was
+  authenticated, brake-engaged, `active`, and reason-free.
+
+Receipts live under `.epiphany-run/c006-endurance-16407f7e`. The next broad
+gate is autonomous frontier turnover across Self, Eyes, Modeling, Imagination,
+and Mind; it must first run on copied exact state and must not acquire Hands or
+Persona consequence authority.

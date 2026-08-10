@@ -1,5 +1,33 @@
 # Fresh workspace handoff
 
+## Actual c006 braked endurance accepted - 2026-08-10
+
+Exact `16407f7e` remained alive in separate Heartbeat and resident Self
+containers for a detached 900-pulse target window. The monitor began at
+iteration 572 and completed at 1496. Thirty samples observed iterations
+573-1496, a 923-pulse delta. Every sample was
+`braked-after-ack-reconciliation` with the canonical brake, no grant, resident
+revision 26, no active turn, and no authority deviation. `/state` remained
+exactly 18,161,109 bytes and `/workspace` exactly 114,209,526 bytes. Heartbeat
+RSS stayed within 28.63-28.88 MiB; resident Self stayed within 54.11-55.50 MiB.
+Both owners remained live. An exact packaged final status authenticated the
+release and witness, reported the cognitive runtime
+`epiphany-starfire-linux-eyes-tools`, observed the brake engaged, and projected
+readiness `active` with no reasons. Receipts are under
+`.epiphany-run/c006-endurance-16407f7e`.
+
+The stale July audit roadmap was replaced with the current organ authority
+matrix. Commit `5fbb8690` also narrows managed-task lifecycle, service-runbook,
+and repo-work service-audit brake decisions to the canonical typed brake loader;
+cluster and prompt paths retain full Verse context only where their outputs
+actually aggregate it. Twenty-six daemon-supervisor tests pass.
+
+Next: map and run bounded autonomous frontier turnover across Self, Eyes,
+Modeling, Imagination, and Mind on copied exact state before opening an explicit
+actual-c006 brake window. Require several causal grants, no Hands or Persona
+consequence, preserved typed chains, and a final re-engaged-brake readiness
+proof. Yggdrasil never builds.
+
 ## Actual c006 woke and completed retained Modeling once — 2026-08-10
 
 Exact `0ef0c0b8` was published into actual c006 under its cognitive brake. Exact
