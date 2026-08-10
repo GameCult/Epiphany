@@ -1,11 +1,21 @@
 use std::path::Path;
 
 use anyhow::{Result, anyhow};
-use cultcache_rs::DatabaseEntry;
+use cultcache_rs::{
+    CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
+    SingleFileMessagePackBackingStore,
+};
 use cultnet_rs::{GameCultServiceTrustAnchorRecord, ServiceIdentitySigner};
 use sha2::{Digest, Sha256};
 
 use crate::agent_memory::SelfPatchMemory;
+use crate::heartbeat_state::{
+    PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION,
+    PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION, PersonaConversationRetentionEnvelope,
+    PersonaConversationRetentionHead, PersonaConversationRetentionMember,
+    PersonaConversationRetentionPlan, commit_heartbeat_state_transaction,
+    load_heartbeat_state_transaction,
+};
 use crate::{
     AgentSelfPatch, EpiphanyPersonaDeliveryRequestIdentity, PersonaInterpreterEffect,
     PersonaInterpreterEffectDocument, PersonaModelStageReceipt, PersonaModelTerminalReceipt,
@@ -21,6 +31,8 @@ pub const PERSONA_CONVERSATION_EXECUTION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.persona_conversation_execution_receipt.v0";
 pub const PERSONA_EFFECT_EXECUTION_INTENT_SCHEMA_VERSION: &str =
     "epiphany.persona_effect_execution_intent.v0";
+pub const PERSONA_CONVERSATION_STORE_RETIREMENT_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.persona_conversation_store_retirement_receipt.v0";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -450,6 +462,30 @@ pub fn persona_delivery_receipt_exists_for_turn(
     Ok(false)
 }
 
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.persona_conversation_store_retirement_receipt.v0",
+    schema = "PersonaConversationStoreRetirementReceipt"
+)]
+pub struct PersonaConversationStoreRetirementReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub store_role: String,
+    #[cultcache(key = 3)]
+    pub plan_id: String,
+    #[cultcache(key = 4)]
+    pub deleted_envelope_count: u64,
+    #[cultcache(key = 5)]
+    pub deleted_envelopes_sha256: String,
+    #[cultcache(key = 6)]
+    pub completed_at: String,
+    #[cultcache(key = 7)]
+    pub private_state_exposed: bool,
+}
+
 pub fn pending_persona_discord_delivery_request_for_turn(
     request_store: &Path,
     request_id: &str,
@@ -463,6 +499,512 @@ pub fn pending_persona_discord_delivery_request_for_turn(
         }
     }
     Ok(None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn retain_terminal_persona_conversations(
+    runtime_store: &Path,
+    heartbeat_store: &Path,
+    request_store: &Path,
+    receipt_store: &Path,
+    receipt_anchor: &GameCultServiceTrustAnchorRecord,
+    retain_turns: usize,
+    retained_at: &str,
+) -> Result<Option<PersonaConversationRetentionHead>> {
+    chrono::DateTime::parse_from_rfc3339(retained_at)
+        .map_err(|_| anyhow!("Persona conversation retention time must be RFC3339"))?;
+    let (loaded, expected) = load_heartbeat_state_transaction(heartbeat_store)?;
+    let mut state = loaded.ok_or_else(|| anyhow!("heartbeat state is missing"))?;
+    if state.persona_conversation_retention_plan.is_none() {
+        let mut terminal = state
+            .persona_turn_requests
+            .iter()
+            .filter(|request| request.terminal_receipt.is_some())
+            .collect::<Vec<_>>();
+        terminal.sort_by(|left, right| left.reserved_at.cmp(&right.reserved_at));
+        let oldest_live = state
+            .persona_turn_requests
+            .iter()
+            .filter(|request| request.terminal_receipt.is_none())
+            .map(|request| request.reserved_at.as_str())
+            .min();
+        let eligible = terminal
+            .into_iter()
+            .filter(|request| {
+                oldest_live.is_none_or(|frontier| request.reserved_at.as_str() < frontier)
+            })
+            .filter_map(|request| {
+                build_persona_retention_member(
+                    runtime_store,
+                    request_store,
+                    receipt_store,
+                    receipt_anchor,
+                    request,
+                )
+                .transpose()
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let retire_count = eligible.len().saturating_sub(retain_turns);
+        if retire_count == 0 {
+            return Ok(None);
+        }
+        let members = eligible.into_iter().take(retire_count).collect::<Vec<_>>();
+        let mut digest = Sha256::new();
+        digest.update(b"epiphany.persona-conversation-retention-plan.v0\0");
+        digest.update(rmp_serde::to_vec(&members)?);
+        let plan = PersonaConversationRetentionPlan {
+            schema_version: PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION.into(),
+            plan_id: format!("sha256:{:x}", digest.finalize()),
+            members,
+            planned_at: retained_at.into(),
+            private_state_exposed: false,
+        };
+        state.persona_conversation_retention_plan = Some(plan);
+        commit_heartbeat_state_transaction(heartbeat_store, expected, &state)?;
+    }
+    reconcile_persona_conversation_retention(
+        runtime_store,
+        heartbeat_store,
+        request_store,
+        receipt_store,
+        retained_at,
+    )
+    .map(Some)
+}
+
+fn build_persona_retention_member(
+    runtime_store: &Path,
+    request_store: &Path,
+    receipt_store: &Path,
+    receipt_anchor: &GameCultServiceTrustAnchorRecord,
+    request: &PersonaTurnRequest,
+) -> Result<Option<PersonaConversationRetentionMember>> {
+    let terminal = request
+        .terminal_receipt
+        .as_ref()
+        .ok_or_else(|| anyhow!("Persona retention candidate is not terminal"))?;
+    if !matches!(
+        terminal.outcome.as_str(),
+        "delivered" | "silence" | "dropped"
+    ) {
+        return Ok(None);
+    }
+    let receipt_id = format!("persona-conversation:{}", request.request_id);
+    let Some(conversation) =
+        runtime_document::<PersonaConversationExecutionReceipt>(runtime_store, &receipt_id)?
+    else {
+        return Ok(None);
+    };
+    if conversation.request_id != request.request_id
+        || conversation.outcome != terminal.outcome
+        || conversation.heartbeat_terminal_receipt_id.as_deref()
+            != Some(terminal.receipt_id.as_str())
+        || conversation.private_state_exposed
+    {
+        return Err(anyhow!(
+            "Persona conversation retention receipt binding is invalid"
+        ));
+    }
+    let Some(effects) = runtime_document::<PersonaInterpreterEffectDocument>(
+        runtime_store,
+        &conversation.effect_document_id,
+    )?
+    else {
+        return Ok(None);
+    };
+    validate_model_terminal(runtime_store, request, &effects)?;
+    let model_terminal_id = format!("persona-terminal:{}", request.request_id);
+    let model_terminal =
+        runtime_document::<PersonaModelTerminalReceipt>(runtime_store, &model_terminal_id)?
+            .ok_or_else(|| anyhow!("Persona model terminal disappeared during retention"))?;
+    let mut runtime_ids = vec![
+        (
+            <PersonaConversationExecutionReceipt as DatabaseEntry>::TYPE,
+            receipt_id,
+        ),
+        (
+            <PersonaInterpreterEffectDocument as DatabaseEntry>::TYPE,
+            effects.document_id.clone(),
+        ),
+        (
+            <PersonaModelTerminalReceipt as DatabaseEntry>::TYPE,
+            model_terminal_id,
+        ),
+    ];
+    runtime_ids.extend(
+        model_terminal
+            .stage_receipt_ids
+            .iter()
+            .cloned()
+            .map(|id| (<PersonaModelStageReceipt as DatabaseEntry>::TYPE, id)),
+    );
+    for (index, effect) in effects.effects.iter().enumerate() {
+        if matches!(effect, PersonaInterpreterEffect::Drop { .. }) {
+            continue;
+        }
+        let id = format!("persona-effect-intent:{}:{index}", effects.document_id);
+        let Some(intent) = runtime_document::<PersonaEffectExecutionIntent>(runtime_store, &id)?
+        else {
+            return Ok(None);
+        };
+        if intent.status != "completed" || intent.private_state_exposed {
+            return Ok(None);
+        }
+        runtime_ids.push((<PersonaEffectExecutionIntent as DatabaseEntry>::TYPE, id));
+    }
+    if let Some(evidence_id) = &terminal.delivery_evidence_id {
+        let Some(evidence) =
+            runtime_document::<PersonaDiscordDeliveryEvidence>(runtime_store, evidence_id)?
+        else {
+            return Ok(None);
+        };
+        if conversation.delivery_evidence_ids != [evidence_id.clone()]
+            || evidence.private_state_exposed
+        {
+            return Err(anyhow!("Persona retained delivery evidence is invalid"));
+        }
+        runtime_ids.push((
+            <PersonaDiscordDeliveryEvidence as DatabaseEntry>::TYPE,
+            evidence_id.clone(),
+        ));
+    } else if terminal.outcome == "delivered" || !conversation.delivery_evidence_ids.is_empty() {
+        return Err(anyhow!(
+            "delivered Persona retention candidate lacks evidence"
+        ));
+    }
+    let mut runtime_cache = runtime_spine_cache(runtime_store)?;
+    runtime_cache.pull_all_backing_stores()?;
+    let runtime_snapshot = runtime_cache.snapshot_envelopes();
+    let runtime_envelopes = retention_envelopes(&runtime_snapshot, &runtime_ids)?;
+
+    let mut crossing_request_envelopes = Vec::new();
+    let mut crossing_receipt_envelopes = Vec::new();
+    if terminal.outcome == "delivered" {
+        let say_index = effects
+            .effects
+            .iter()
+            .position(|effect| matches!(effect, PersonaInterpreterEffect::Say { .. }))
+            .ok_or_else(|| anyhow!("delivered Persona turn has no speech effect"))?;
+        let crossing_id = format!("persona-discord:{}:{say_index}", request.request_id);
+        let Some(crossing_request) =
+            crate::load_persona_discord_delivery_request(request_store, &crossing_id)?
+        else {
+            return Ok(None);
+        };
+        let Some(crossing_receipt) =
+            crate::load_persona_discord_delivery_receipt(receipt_store, &crossing_id)?
+        else {
+            return Ok(None);
+        };
+        verify_persona_discord_delivery_receipt(
+            &crossing_receipt,
+            &crossing_request,
+            receipt_anchor,
+        )?;
+        if crossing_receipt.status != "completed" {
+            return Ok(None);
+        }
+        crossing_request_envelopes = retention_envelopes(
+            &SingleFileMessagePackBackingStore::new(request_store).pull_all()?,
+            &[(
+                <crate::PersonaDiscordDeliveryRequest as DatabaseEntry>::TYPE,
+                crossing_id.clone(),
+            )],
+        )?;
+        crossing_receipt_envelopes = retention_envelopes(
+            &SingleFileMessagePackBackingStore::new(receipt_store).pull_all()?,
+            &[(
+                <crate::PersonaDiscordDeliveryReceipt as DatabaseEntry>::TYPE,
+                crossing_id,
+            )],
+        )?;
+    }
+    Ok(Some(PersonaConversationRetentionMember {
+        request_id: request.request_id.clone(),
+        reserved_at: request.reserved_at.clone(),
+        completed_at: terminal.completed_at.clone(),
+        outcome: terminal.outcome.clone(),
+        terminal_receipt_sha256: digest_value(terminal)?,
+        runtime_envelopes,
+        crossing_request_envelopes,
+        crossing_receipt_envelopes,
+    }))
+}
+
+fn retention_envelopes(
+    snapshot: &[CultCacheEnvelope],
+    identities: &[(&str, String)],
+) -> Result<Vec<PersonaConversationRetentionEnvelope>> {
+    identities
+        .iter()
+        .map(|(envelope_type, key)| {
+            let envelope = snapshot
+                .iter()
+                .find(|envelope| envelope.r#type == *envelope_type && envelope.key == *key)
+                .ok_or_else(|| {
+                    anyhow!("Persona retention envelope {envelope_type:?}/{key:?} is missing")
+                })?;
+            Ok(PersonaConversationRetentionEnvelope {
+                envelope_type: (*envelope_type).into(),
+                key: key.clone(),
+                envelope_sha256: digest_value(envelope)?,
+            })
+        })
+        .collect()
+}
+
+fn reconcile_persona_conversation_retention(
+    runtime_store: &Path,
+    heartbeat_store: &Path,
+    request_store: &Path,
+    receipt_store: &Path,
+    retained_at: &str,
+) -> Result<PersonaConversationRetentionHead> {
+    let state = crate::heartbeat_state::load_heartbeat_state_entry(heartbeat_store)?
+        .ok_or_else(|| anyhow!("heartbeat state is missing"))?;
+    let plan = state
+        .persona_conversation_retention_plan
+        .clone()
+        .ok_or_else(|| anyhow!("Persona conversation retention plan is missing"))?;
+    let runtime_members = plan
+        .members
+        .iter()
+        .flat_map(|member| member.runtime_envelopes.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    delete_runtime_retention_envelopes(
+        runtime_store,
+        &plan.plan_id,
+        &plan.planned_at,
+        &runtime_members,
+    )?;
+    delete_snapshot_retention_envelopes(
+        request_store,
+        "crossing-request",
+        &plan.plan_id,
+        &plan.planned_at,
+        &plan
+            .members
+            .iter()
+            .flat_map(|member| member.crossing_request_envelopes.iter())
+            .cloned()
+            .collect::<Vec<_>>(),
+    )?;
+    delete_snapshot_retention_envelopes(
+        receipt_store,
+        "crossing-receipt",
+        &plan.plan_id,
+        &plan.planned_at,
+        &plan
+            .members
+            .iter()
+            .flat_map(|member| member.crossing_receipt_envelopes.iter())
+            .cloned()
+            .collect::<Vec<_>>(),
+    )?;
+
+    let (loaded, expected) = load_heartbeat_state_transaction(heartbeat_store)?;
+    let mut state = loaded.ok_or_else(|| anyhow!("heartbeat state is missing"))?;
+    if state.persona_conversation_retention_plan.as_ref() != Some(&plan) {
+        return Err(anyhow!(
+            "Persona conversation retention plan changed before commit"
+        ));
+    }
+    let ids = plan
+        .members
+        .iter()
+        .map(|member| member.request_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    for member in &plan.members {
+        let request = state
+            .persona_turn_requests
+            .iter()
+            .find(|request| request.request_id == member.request_id)
+            .ok_or_else(|| anyhow!("Persona retention turn disappeared before commit"))?;
+        if digest_value(
+            request
+                .terminal_receipt
+                .as_ref()
+                .ok_or_else(|| anyhow!("Persona retention turn lost terminal receipt"))?,
+        )? != member.terminal_receipt_sha256
+        {
+            return Err(anyhow!(
+                "Persona terminal receipt changed before retention commit"
+            ));
+        }
+    }
+    state
+        .persona_turn_requests
+        .retain(|request| !ids.contains(request.request_id.as_str()));
+    let prior = state.persona_conversation_retention_head.as_ref();
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany.persona-conversation-retention-head.v0\0");
+    digest.update(
+        prior
+            .map(|head| head.chained_digest.as_str())
+            .unwrap_or("persona-conversation-retention-root")
+            .as_bytes(),
+    );
+    digest.update(plan.plan_id.as_bytes());
+    digest.update(rmp_serde::to_vec(&plan.members)?);
+    let retired_through = plan
+        .members
+        .iter()
+        .map(|member| member.reserved_at.as_str())
+        .max()
+        .unwrap_or_default();
+    let through_reserved_at = prior
+        .map(|head| head.through_reserved_at.as_str())
+        .into_iter()
+        .chain(std::iter::once(retired_through))
+        .max()
+        .unwrap_or_default()
+        .to_string();
+    let head = PersonaConversationRetentionHead {
+        schema_version: PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION.into(),
+        revision: prior.map_or(1, |head| head.revision.saturating_add(1)),
+        retired_turn_count: prior.map_or(plan.members.len() as u64, |head| {
+            head.retired_turn_count
+                .saturating_add(plan.members.len() as u64)
+        }),
+        through_reserved_at,
+        chained_digest: format!("sha256:{:x}", digest.finalize()),
+        retained_at: retained_at.into(),
+        private_state_exposed: false,
+    };
+    state.persona_conversation_retention_head = Some(head.clone());
+    state.persona_conversation_retention_plan = None;
+    commit_heartbeat_state_transaction(heartbeat_store, expected, &state)?;
+    Ok(head)
+}
+
+fn delete_runtime_retention_envelopes(
+    store: &Path,
+    plan_id: &str,
+    completed_at: &str,
+    members: &[PersonaConversationRetentionEnvelope],
+) -> Result<()> {
+    let mut cache = runtime_spine_cache(store)?;
+    cache.pull_all_backing_stores()?;
+    let snapshot = cache.snapshot_envelopes();
+    let deletions = matching_retention_envelopes(&snapshot, members)?;
+    let receipt = store_retirement_receipt("runtime", plan_id, completed_at, members)?;
+    if deletions.is_empty() {
+        require_store_retirement_receipt(&snapshot, &receipt)?;
+        return Ok(());
+    }
+    let (replacement, _) = cache.prepare_entry(&receipt.receipt_id, &receipt)?;
+    if !crate::runtime_store_backend::runtime_spine_backing_store(store)?
+        .replace_and_delete_if_snapshot_unchanged(&snapshot, vec![replacement], &deletions)?
+    {
+        return Err(anyhow!("Persona runtime retention lost its snapshot fence"));
+    }
+    Ok(())
+}
+
+fn delete_snapshot_retention_envelopes(
+    store: &Path,
+    store_role: &str,
+    plan_id: &str,
+    completed_at: &str,
+    members: &[PersonaConversationRetentionEnvelope],
+) -> Result<()> {
+    if members.is_empty() {
+        return Ok(());
+    }
+    let backing = SingleFileMessagePackBackingStore::new(store);
+    let snapshot = backing.pull_all()?;
+    let deletions = matching_retention_envelopes(&snapshot, members)?;
+    let receipt = store_retirement_receipt(store_role, plan_id, completed_at, members)?;
+    if deletions.is_empty() {
+        require_store_retirement_receipt(&snapshot, &receipt)?;
+        return Ok(());
+    }
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<PersonaConversationStoreRetirementReceipt>()?;
+    let (replacement, _) = cache.prepare_entry(&receipt.receipt_id, &receipt)?;
+    if !backing.replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &deletions,
+    )? {
+        return Err(anyhow!(
+            "Persona crossing retention lost its snapshot fence"
+        ));
+    }
+    Ok(())
+}
+
+fn require_store_retirement_receipt(
+    snapshot: &[CultCacheEnvelope],
+    expected: &PersonaConversationStoreRetirementReceipt,
+) -> Result<()> {
+    let envelope = snapshot
+        .iter()
+        .find(|envelope| {
+            envelope.r#type == <PersonaConversationStoreRetirementReceipt as DatabaseEntry>::TYPE
+                && envelope.key == expected.receipt_id
+        })
+        .ok_or_else(|| {
+            anyhow!("Persona detail rows disappeared without a typed retirement receipt")
+        })?;
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<PersonaConversationStoreRetirementReceipt>()?;
+    cache.load_envelope::<PersonaConversationStoreRetirementReceipt>(envelope.clone())?;
+    if cache
+        .get::<PersonaConversationStoreRetirementReceipt>(&expected.receipt_id)?
+        .as_ref()
+        != Some(expected)
+    {
+        return Err(anyhow!(
+            "Persona store retirement receipt does not match the pending plan"
+        ));
+    }
+    Ok(())
+}
+
+fn store_retirement_receipt(
+    store_role: &str,
+    plan_id: &str,
+    completed_at: &str,
+    members: &[PersonaConversationRetentionEnvelope],
+) -> Result<PersonaConversationStoreRetirementReceipt> {
+    Ok(PersonaConversationStoreRetirementReceipt {
+        schema_version: PERSONA_CONVERSATION_STORE_RETIREMENT_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("persona-conversation-retirement:{store_role}"),
+        store_role: store_role.into(),
+        plan_id: plan_id.into(),
+        deleted_envelope_count: members.len() as u64,
+        deleted_envelopes_sha256: digest_value(&members)?,
+        completed_at: completed_at.into(),
+        private_state_exposed: false,
+    })
+}
+
+fn matching_retention_envelopes(
+    snapshot: &[CultCacheEnvelope],
+    members: &[PersonaConversationRetentionEnvelope],
+) -> Result<Vec<CultCacheEnvelope>> {
+    let mut deletions = Vec::new();
+    for member in members {
+        if let Some(envelope) = snapshot
+            .iter()
+            .find(|envelope| envelope.r#type == member.envelope_type && envelope.key == member.key)
+        {
+            if digest_value(envelope)? != member.envelope_sha256 {
+                return Err(anyhow!("Persona retention envelope changed after planning"));
+            }
+            deletions.push(envelope.clone());
+        }
+    }
+    Ok(deletions)
+}
+
+fn digest_value<T: serde::Serialize>(value: &T) -> Result<String> {
+    Ok(format!(
+        "sha256:{:x}",
+        Sha256::digest(rmp_serde::to_vec(value)?)
+    ))
 }
 
 fn admit_state_notes(
@@ -734,6 +1276,136 @@ fn stable_memory_id(document_id: &str, index: usize) -> String {
 mod tests {
     use super::*;
 
+    fn unused_anchor() -> GameCultServiceTrustAnchorRecord {
+        GameCultServiceTrustAnchorRecord {
+            schema_version: cultnet_rs::GAMECULT_SERVICE_TRUST_ANCHOR_SCHEMA.into(),
+            trust_anchor_id: "unused".into(),
+            service_id: "unused".into(),
+            runtime_id: "unused".into(),
+            signer_identity_id: "unused".into(),
+            signer_public_key: vec![],
+            signature_algorithm: "ed25519".into(),
+            signing_purpose: "unused".into(),
+            signed_schema: "unused".into(),
+            binding_authority: "root".into(),
+            bound_at_unix_millis: 1,
+            expires_at_unix_millis: None,
+            private_state_exposed: false,
+        }
+    }
+
+    fn seed_closed_silence_turn(
+        runtime_store: &Path,
+        state: &mut crate::heartbeat_state::EpiphanyHeartbeatStateEntry,
+        suffix: &str,
+        reserved_at: &str,
+    ) -> Result<()> {
+        let request_id = format!("turn-{suffix}");
+        let effect_id = format!("persona-effects:{request_id}");
+        let stage_ids = ["projector", "persona", "interpreter"]
+            .map(|stage| format!("persona-stage:{request_id}:{stage}"));
+        let terminal = crate::heartbeat_state::PersonaTurnTerminalReceipt {
+            schema_version: crate::heartbeat_state::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION
+                .into(),
+            receipt_id: format!("{request_id}:terminal"),
+            request_id: request_id.clone(),
+            schedule_id: format!("schedule-{suffix}"),
+            action_id: format!("action-{suffix}"),
+            outcome: "dropped".into(),
+            mention_disposition: "consumed".into(),
+            mention_ids: vec![],
+            mention_cargo_sha256: format!("sha256-{}", "0".repeat(64)),
+            completed_at: reserved_at.into(),
+            private_state_exposed: false,
+            ..Default::default()
+        };
+        state.persona_turn_requests.push(PersonaTurnRequest {
+            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
+            request_id: request_id.clone(),
+            schedule_id: format!("schedule-{suffix}"),
+            action_id: format!("action-{suffix}"),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            status: "terminal".into(),
+            reserved_at: reserved_at.into(),
+            mentions: vec![],
+            semantic_memory_recall: serde_json::Value::Null,
+            terminal_receipt: Some(terminal.clone()),
+            private_state_exposed: false,
+        });
+        let effects = PersonaInterpreterEffectDocument {
+            schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
+            document_id: effect_id.clone(),
+            turn_id: request_id.clone(),
+            identity_id: "epiphany.Persona".into(),
+            interpreter_request_id: format!("persona:{request_id}:interpreter"),
+            created_at: reserved_at.into(),
+            effects: vec![PersonaInterpreterEffect::Drop {
+                reason: "quiet".into(),
+            }],
+            private_state_exposed: false,
+        };
+        put_runtime_document(runtime_store, &effect_id, &effects)?;
+        let outputs = ["1", "2", "3"].map(|digit| format!("sha256:{}", digit.repeat(64)));
+        for (index, stage) in ["projector", "persona", "interpreter"].iter().enumerate() {
+            put_runtime_document(
+                runtime_store,
+                &stage_ids[index],
+                &PersonaModelStageReceipt {
+                    schema_version: crate::PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION.into(),
+                    receipt_id: stage_ids[index].clone(),
+                    turn_id: request_id.clone(),
+                    stage: (*stage).into(),
+                    request_id: format!("persona:{request_id}:{stage}"),
+                    output_sha256: outputs[index].clone(),
+                    private_output_ref: format!("model-events:persona:{request_id}:{stage}"),
+                    completed_at: reserved_at.into(),
+                    private_state_exposed: false,
+                    provider: "test".into(),
+                    model: "test".into(),
+                    prompt_sha256: format!("sha256:{}", "a".repeat(64)),
+                },
+            )?;
+        }
+        put_runtime_document(
+            runtime_store,
+            &format!("persona-terminal:{request_id}"),
+            &PersonaModelTerminalReceipt {
+                schema_version: crate::PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+                receipt_id: format!("persona-terminal:{request_id}"),
+                turn_id: request_id.clone(),
+                identity_id: "epiphany.Persona".into(),
+                effect_document_id: effect_id.clone(),
+                stage_receipt_ids: stage_ids.to_vec(),
+                completed_at: reserved_at.into(),
+                private_state_exposed: false,
+                downstream_status: "effects_pending_mind_admission_and_mouth_routing".into(),
+                effect_document_sha256: format!(
+                    "sha256:{:x}",
+                    Sha256::digest(serde_json::to_vec(&effects)?)
+                ),
+                stage_output_sha256: outputs.to_vec(),
+            },
+        )?;
+        put_runtime_document(
+            runtime_store,
+            &format!("persona-conversation:{request_id}"),
+            &PersonaConversationExecutionReceipt {
+                schema_version: PERSONA_CONVERSATION_EXECUTION_RECEIPT_SCHEMA_VERSION.into(),
+                receipt_id: format!("persona-conversation:{request_id}"),
+                request_id: request_id.clone(),
+                effect_document_id: effect_id,
+                outcome: "dropped".into(),
+                state_effect_status: "none".into(),
+                state_effect_reasons: vec![],
+                delivery_evidence_ids: vec![],
+                heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
+                private_state_exposed: false,
+            },
+        )?;
+        Ok(())
+    }
+
     fn request() -> PersonaTurnRequest {
         PersonaTurnRequest {
             request_id: "turn-1".into(),
@@ -772,6 +1444,173 @@ mod tests {
         )?
         .unwrap();
         assert_eq!(quarantined.status, "quarantined_ambiguous_local_effect");
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_retention_bounds_detail_and_leaves_an_irreversible_replay_frontier() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime = temp.path().join("runtime.cc");
+        let heartbeat = temp.path().join("heartbeat.cc");
+        let requests = temp.path().join("requests.cc");
+        let receipts = temp.path().join("receipts.cc");
+        let mut state = crate::heartbeat_state::default_heartbeat_state(1.0);
+        state.persona_turn_requests.push(PersonaTurnRequest {
+            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "turn-failed".into(),
+            schedule_id: "schedule-failed".into(),
+            action_id: "action-failed".into(),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            status: "terminal".into(),
+            reserved_at: "2026-08-09T23:59:59Z".into(),
+            mentions: vec![],
+            semantic_memory_recall: serde_json::Value::Null,
+            terminal_receipt: Some(crate::heartbeat_state::PersonaTurnTerminalReceipt {
+                schema_version:
+                    crate::heartbeat_state::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+                receipt_id: "turn-failed:terminal".into(),
+                request_id: "turn-failed".into(),
+                schedule_id: "schedule-failed".into(),
+                action_id: "action-failed".into(),
+                outcome: "failed".into(),
+                mention_disposition: "retained".into(),
+                mention_ids: vec!["mention-failed".into()],
+                mention_cargo_sha256: format!("sha256-{}", "f".repeat(64)),
+                completed_at: "2026-08-09T23:59:59Z".into(),
+                private_state_exposed: false,
+                ..Default::default()
+            }),
+            private_state_exposed: false,
+        });
+        seed_closed_silence_turn(&runtime, &mut state, "old", "2026-08-10T00:00:00Z")?;
+        seed_closed_silence_turn(&runtime, &mut state, "new", "2026-08-10T00:00:01Z")?;
+        crate::heartbeat_state::write_heartbeat_state_entry(&heartbeat, &state)?;
+
+        let head = retain_terminal_persona_conversations(
+            &runtime,
+            &heartbeat,
+            &requests,
+            &receipts,
+            &unused_anchor(),
+            1,
+            "2026-08-10T00:01:00Z",
+        )?
+        .expect("oldest closed turn should retire");
+        assert_eq!(head.retired_turn_count, 1);
+        assert_eq!(head.through_reserved_at, "2026-08-10T00:00:00Z");
+        let retained = crate::heartbeat_state::load_heartbeat_state_entry(&heartbeat)?.unwrap();
+        assert_eq!(retained.persona_turn_requests.len(), 2);
+        assert!(retained.persona_turn_requests.iter().any(|request| {
+            request.request_id == "turn-failed"
+                && request
+                    .terminal_receipt
+                    .as_ref()
+                    .is_some_and(|receipt| receipt.mention_disposition == "retained")
+        }));
+        assert!(
+            retained
+                .persona_turn_requests
+                .iter()
+                .any(|request| request.request_id == "turn-new")
+        );
+        assert!(retained.persona_conversation_retention_plan.is_none());
+        assert!(
+            runtime_document::<PersonaConversationExecutionReceipt>(
+                &runtime,
+                "persona-conversation:turn-old"
+            )?
+            .is_none()
+        );
+        assert!(
+            runtime_document::<PersonaConversationExecutionReceipt>(
+                &runtime,
+                "persona-conversation:turn-new"
+            )?
+            .is_some()
+        );
+        assert!(
+            retain_terminal_persona_conversations(
+                &runtime,
+                &heartbeat,
+                &requests,
+                &receipts,
+                &unused_anchor(),
+                1,
+                "2026-08-10T00:02:00Z",
+            )?
+            .is_none()
+        );
+
+        let mut hostile = retained;
+        hostile.persona_turn_requests.push(PersonaTurnRequest {
+            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "turn-old".into(),
+            schedule_id: "schedule-old".into(),
+            action_id: "action-old".into(),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            status: "reserved".into(),
+            reserved_at: "2026-08-10T00:00:00Z".into(),
+            mentions: vec![],
+            semantic_memory_recall: serde_json::Value::Null,
+            terminal_receipt: None,
+            private_state_exposed: false,
+        });
+        assert!(crate::heartbeat_state::validate_heartbeat_state(&hostile).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn retry_requires_the_exact_store_cleanup_receipt_when_detail_is_already_absent() -> Result<()>
+    {
+        let temp = tempfile::tempdir()?;
+        let runtime = temp.path().join("runtime.cc");
+        let receipt = PersonaConversationExecutionReceipt {
+            schema_version: PERSONA_CONVERSATION_EXECUTION_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "persona-conversation:retry".into(),
+            request_id: "retry".into(),
+            effect_document_id: "persona-effects:retry".into(),
+            outcome: "dropped".into(),
+            state_effect_status: "none".into(),
+            state_effect_reasons: vec![],
+            delivery_evidence_ids: vec![],
+            heartbeat_terminal_receipt_id: Some("retry:terminal".into()),
+            private_state_exposed: false,
+        };
+        put_runtime_document(&runtime, &receipt.receipt_id, &receipt)?;
+        let mut cache = runtime_spine_cache(&runtime)?;
+        cache.pull_all_backing_stores()?;
+        let members = retention_envelopes(
+            &cache.snapshot_envelopes(),
+            &[(
+                <PersonaConversationExecutionReceipt as DatabaseEntry>::TYPE,
+                receipt.receipt_id.clone(),
+            )],
+        )?;
+        delete_runtime_retention_envelopes(
+            &runtime,
+            "plan-retry",
+            "2026-08-10T00:00:00Z",
+            &members,
+        )?;
+        delete_runtime_retention_envelopes(
+            &runtime,
+            "plan-retry",
+            "2026-08-10T00:00:00Z",
+            &members,
+        )?;
+
+        let hostile = temp.path().join("hostile.cc");
+        assert!(
+            delete_runtime_retention_envelopes(
+                &hostile,
+                "plan-retry",
+                "2026-08-10T00:00:00Z",
+                &members,
+            )
+            .is_err()
+        );
         Ok(())
     }
 }

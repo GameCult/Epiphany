@@ -1356,6 +1356,17 @@ fn reserve_persona_turn_request(
         terminal_receipt: None,
         private_state_exposed: false,
     };
+    if let Some(head) = &state.persona_conversation_retention_head {
+        let frontier = chrono::DateTime::parse_from_rfc3339(&head.through_reserved_at)
+            .map_err(|_| anyhow!("Persona conversation retention frontier is invalid"))?;
+        let reserved = chrono::DateTime::parse_from_rfc3339(&request.reserved_at)
+            .map_err(|_| anyhow!("Persona turn reservation time is invalid"))?;
+        if reserved <= frontier {
+            return Err(anyhow!(
+                "Persona turn reservation is at or behind the retired replay frontier"
+            ));
+        }
+    }
     if let Some(existing) = state
         .persona_turn_requests
         .iter()

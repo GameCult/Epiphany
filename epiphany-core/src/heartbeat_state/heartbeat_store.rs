@@ -14,6 +14,8 @@ use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::LegacyHeartbeatStateWithCognition;
 use super::PARTICIPANT_KIND_AGENT;
 use super::PARTICIPANT_KIND_CHARACTER;
+use super::PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION;
+use super::PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION;
 use super::PERSONA_TURN_REQUEST_SCHEMA_VERSION;
 use super::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION;
 use super::now_iso;
@@ -475,6 +477,75 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
             }
         }
     }
+    if let Some(head) = &state.persona_conversation_retention_head {
+        if head.schema_version != PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION
+            || head.revision == 0
+            || head.retired_turn_count == 0
+            || chrono::DateTime::parse_from_rfc3339(&head.through_reserved_at).is_err()
+            || chrono::DateTime::parse_from_rfc3339(&head.retained_at).is_err()
+            || !head
+                .chained_digest
+                .strip_prefix("sha256:")
+                .is_some_and(|digest| {
+                    digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            || head.private_state_exposed
+        {
+            return Err(anyhow!("Persona conversation retention head is invalid"));
+        }
+        let frontier = chrono::DateTime::parse_from_rfc3339(&head.through_reserved_at)?;
+        if state.persona_turn_requests.iter().any(|request| {
+            request.terminal_receipt.is_none()
+                && chrono::DateTime::parse_from_rfc3339(&request.reserved_at)
+                    .is_ok_and(|reserved| reserved <= frontier)
+        }) {
+            return Err(anyhow!(
+                "Persona conversation retention frontier overlaps a live turn request"
+            ));
+        }
+    }
+    if let Some(plan) = &state.persona_conversation_retention_plan {
+        if plan.schema_version != PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION
+            || plan.plan_id.trim().is_empty()
+            || plan.members.is_empty()
+            || chrono::DateTime::parse_from_rfc3339(&plan.planned_at).is_err()
+            || plan.private_state_exposed
+        {
+            return Err(anyhow!("Persona conversation retention plan is invalid"));
+        }
+        let mut planned = std::collections::BTreeSet::new();
+        for member in &plan.members {
+            let request = state
+                .persona_turn_requests
+                .iter()
+                .find(|request| request.request_id == member.request_id)
+                .ok_or_else(|| anyhow!("Persona retention plan member has no turn request"))?;
+            let terminal = request
+                .terminal_receipt
+                .as_ref()
+                .ok_or_else(|| anyhow!("Persona retention plan member is not terminal"))?;
+            if !planned.insert(member.request_id.as_str())
+                || member.reserved_at != request.reserved_at
+                || member.completed_at != terminal.completed_at
+                || member.outcome != terminal.outcome
+                || !matches!(member.outcome.as_str(), "delivered" | "silence" | "dropped")
+                || member.runtime_envelopes.is_empty()
+                || !valid_persona_retention_digest(&member.terminal_receipt_sha256)
+                || member
+                    .runtime_envelopes
+                    .iter()
+                    .chain(&member.crossing_request_envelopes)
+                    .chain(&member.crossing_receipt_envelopes)
+                    .any(|envelope| {
+                        envelope.envelope_type.trim().is_empty()
+                            || envelope.key.trim().is_empty()
+                            || !valid_persona_retention_digest(&envelope.envelope_sha256)
+                    })
+            {
+                return Err(anyhow!("Persona conversation retention member is invalid"));
+            }
+        }
+    }
     let mut quarantine_ids = std::collections::BTreeSet::new();
     for pressure in &state.blocked_persona_pressures {
         if pressure.schema_version != "epiphany.persona_blocked_conversation_pressure.v0"
@@ -515,6 +586,12 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
         }
     }
     Ok(())
+}
+
+fn valid_persona_retention_digest(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(|digest| {
+        digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+    })
 }
 
 #[cfg(test)]

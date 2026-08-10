@@ -32,6 +32,10 @@ pub const HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_LATEST_KEY: &str =
 pub const PERSONA_TURN_REQUEST_SCHEMA_VERSION: &str = "epiphany.persona_turn_request.v0";
 pub const PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.persona_turn_terminal_receipt.v0";
+pub const PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION: &str =
+    "epiphany.persona_conversation_retention_head.v0";
+pub const PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION: &str =
+    "epiphany.persona_conversation_retention_plan.v0";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -65,6 +69,10 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub persona_turn_requests: Vec<PersonaTurnRequest>,
     #[cultcache(key = 21, default)]
     pub blocked_persona_pressures: Vec<PersonaBlockedConversationPressure>,
+    #[cultcache(key = 22, default)]
+    pub persona_conversation_retention_head: Option<PersonaConversationRetentionHead>,
+    #[cultcache(key = 23, default)]
+    pub persona_conversation_retention_plan: Option<PersonaConversationRetentionPlan>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -953,6 +961,49 @@ pub struct PersonaTurnTerminalOptions {
     pub outcome: String,
     pub delivery_evidence: Option<crate::PersonaDiscordDeliveryEvidence>,
     pub blocked_evidence: Option<PersonaTurnBlockedEvidence>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaConversationRetentionHead {
+    pub schema_version: String,
+    pub revision: u64,
+    pub retired_turn_count: u64,
+    pub through_reserved_at: String,
+    pub chained_digest: String,
+    pub retained_at: String,
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaConversationRetentionEnvelope {
+    pub envelope_type: String,
+    pub key: String,
+    pub envelope_sha256: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaConversationRetentionMember {
+    pub request_id: String,
+    pub reserved_at: String,
+    pub completed_at: String,
+    pub outcome: String,
+    pub terminal_receipt_sha256: String,
+    pub runtime_envelopes: Vec<PersonaConversationRetentionEnvelope>,
+    pub crossing_request_envelopes: Vec<PersonaConversationRetentionEnvelope>,
+    pub crossing_receipt_envelopes: Vec<PersonaConversationRetentionEnvelope>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaConversationRetentionPlan {
+    pub schema_version: String,
+    pub plan_id: String,
+    pub members: Vec<PersonaConversationRetentionMember>,
+    pub planned_at: String,
+    pub private_state_exposed: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

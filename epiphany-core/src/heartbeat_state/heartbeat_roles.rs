@@ -58,6 +58,8 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
         pending_mentions: Vec::new(),
         persona_turn_requests: Vec::new(),
         blocked_persona_pressures: Vec::new(),
+        persona_conversation_retention_head: None,
+        persona_conversation_retention_plan: None,
     }
 }
 

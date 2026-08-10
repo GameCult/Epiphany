@@ -1856,3 +1856,26 @@ exact canonical obligation/hash/generation and remained failed only because the
 copied proof deliberately withheld Ollama. The temporary Qdrant container was
 removed after its persisted proof data was sealed. Active `c005` was untouched;
 Yggdrasil did not build.
+## Persona conversation retention source complete — 2026-08-10
+
+Heartbeat now owns a typed Persona conversation cleanup plan and cumulative
+replay frontier. The production Persona service uses that plan to retire only
+fully closed `delivered`, `silence`, or `dropped` families. Runtime, Epiphany
+delivery-request, and Bifrost delivery-receipt stores delete only exact planned
+envelopes under full-snapshot fences and leave singleton typed cleanup receipts;
+retry refuses unexplained absence. Heartbeat removes the terminal requests only
+after all detail cleanup succeeds, then advances the monotonic chained-digest
+frontier. Reservation rejects nonterminal work at or behind that frontier.
+
+Failed/unknown delivery, retained mentions, blocked conversation quarantine,
+missing model or execution evidence, started/quarantined effects, pending
+feedback, consent/disclosure state, Persona state, semantic memory, and
+relationship memory do not qualify. Three focused tests pass, the full core
+library passes 646/0 with one ignored helper, all 15 OpenAI runtime library
+tests pass, and the production Persona service checks cleanly.
+
+Next: commit/push this source, package and inspect the exact commit on Starfire,
+then prove against copied state and signed synthetic crossing fixtures that one
+completed speech lifecycle retires, pending/failed/unknown/quarantined neighbors
+survive, crash retry is exact, replay is inert, and the head cannot reserve or
+repost the old turn. Preserve active c005. Yggdrasil never builds.

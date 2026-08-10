@@ -2628,6 +2628,43 @@ Persona conversation retention therefore follows semantic lifecycle retention.
 It requires a cross-store preservation map and replay barrier; it is not a safe
 extension of completed model-session archival.
 
+### Persona conversation retention implementation
+
+The production Persona service now runs one shared retention primitive in both
+loop and `--once` modes before selecting new work. Heartbeat remains the owner:
+it first persists an exact cleanup plan inside the singleton state, including
+the terminal receipt digest and exact runtime/request/receipt envelope
+identities and hashes. Runtime, Epiphany delivery-request, and Bifrost
+delivery-receipt stores each delete only those named envelopes under their full
+snapshot fence and replace a singleton typed local cleanup receipt. A retry
+that finds detail already absent must authenticate that exact local receipt;
+absence cannot impersonate successful cleanup.
+
+Only `delivered`, `silence`, and `dropped` turns with an exact conversation
+receipt, full three-stage model chain, exact effect document, terminal effect
+intents, and (for speech) a verified signed completed delivery request/receipt
+qualify. Failed or unknown delivery, retained mentions, blocked/quarantined
+pressure, missing detail, started or ambiguous effects, feedback, Persona
+state, semantic memory, relationship memory, and disclosure/consent state are
+outside the deletion set.
+
+After every planned store cleanup is receipted, Heartbeat atomically removes
+the exact terminal requests, clears the plan, and advances a cumulative
+chained-digest head with a monotonic `through_reserved_at` frontier. Reservation
+and state validation reject any nonterminal turn at or behind that frontier.
+The head is death evidence only; it cannot model a turn, issue a signed
+delivery request, satisfy a crossing receipt, or reschedule speech. A crash
+before the Heartbeat commit leaves terminal authority and the exact plan for
+retry. A crash after it cannot replay the retired turn.
+
+Three focused retention tests pass: bounded terminal detail with stable replay
+and hostile old-request rejection; preservation of an older failed/retained
+turn while a neighboring clean turn retires; and refusal to accept already
+absent detail without the exact store cleanup receipt. The full core library is
+green at 646 passed / 1 ignored, the OpenAI runtime is green at 15 passed, and
+the production Persona daemon compiles. Exact packaged copied-state proof,
+especially the signed completed-delivery path, remains the acceptance gate.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

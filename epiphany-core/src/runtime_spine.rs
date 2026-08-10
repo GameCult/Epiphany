@@ -1110,6 +1110,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::PersonaDiscordDeliveryEvidence>()?;
     cache.register_entry_type::<crate::PersonaConversationExecutionReceipt>()?;
     cache.register_entry_type::<crate::PersonaEffectExecutionIntent>()?;
+    cache.register_entry_type::<crate::PersonaConversationStoreRetirementReceipt>()?;
     cache.register_entry_type::<EpiphanyToolCapability>()?;
     cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
     cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;

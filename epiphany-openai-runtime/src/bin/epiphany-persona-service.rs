@@ -10,8 +10,8 @@ use epiphany_core::{
     load_persona_discord_service_anchor, open_persona_discord_request_identity,
     pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
     persona_model_terminal_exists, poll_persona_discord_crossing,
-    reconcile_terminal_persona_conversation, semantic_memory_recall_from_heartbeat_action,
-    validate_persona_discord_request_anchor,
+    reconcile_terminal_persona_conversation, retain_terminal_persona_conversations,
+    semantic_memory_recall_from_heartbeat_action, validate_persona_discord_request_anchor,
 };
 use epiphany_openai_runtime::{
     NativePersonaModelRunner, PersonaModelExecutionPlan, execute_persona_model_turn,
@@ -38,6 +38,16 @@ async fn poll_once(options: &Options) -> Result<bool> {
     if brake.status != "released" {
         return Ok(false);
     }
+    let receipt_anchor = load_persona_discord_receipt_anchor(&options.mouth_receipt_anchor)?;
+    retain_terminal_persona_conversations(
+        &options.runtime_store,
+        &options.heartbeat_store,
+        &options.mouth_request_store,
+        &options.mouth_receipt_store,
+        &receipt_anchor,
+        options.retained_terminal_conversations,
+        &chrono::Utc::now().to_rfc3339(),
+    )?;
     let Some(state) = load_heartbeat_state_entry(&options.heartbeat_store)? else {
         return Ok(false);
     };
@@ -173,7 +183,6 @@ async fn poll_once(options: &Options) -> Result<bool> {
             "Persona mouth identity does not match its root-bound request anchor"
         ));
     }
-    let receipt_anchor = load_persona_discord_receipt_anchor(&options.mouth_receipt_anchor)?;
     let mut result = poll_persona_discord_crossing(
         &options.runtime_store,
         &options.heartbeat_store,
@@ -243,6 +252,7 @@ struct Options {
     mouth_receipt_anchor: PathBuf,
     mouth_rudp: SocketAddr,
     mouth_timeout_ms: u64,
+    retained_terminal_conversations: usize,
     poll_ms: u64,
     once: bool,
 }
@@ -284,6 +294,12 @@ impl Options {
                 .parse()
                 .context("--mouth-rudp must be an IP:port socket address")?,
             mouth_timeout_ms: value(&values, "--mouth-timeout-ms", "10000").parse()?,
+            retained_terminal_conversations: value(
+                &values,
+                "--retained-terminal-conversations",
+                "256",
+            )
+            .parse()?,
             runtime_id: value(&values, "--runtime-id", "epiphany-local"),
             provider: value(&values, "--provider", "openai-codex"),
             model: value(&values, "--model", "gpt-5.4"),
