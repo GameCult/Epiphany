@@ -2601,3 +2601,24 @@ Next: proposal Modeling is the remaining fulfilled-before-receipt variant. Its
 immutable proposal/request/context/patch/launch/result chain is stronger and
 must be mapped before constructing live state. Runtime terminal-attempt
 retention follows. Actual c006 remains braked and stopped.
+
+## Proposal Modeling fulfilled-before-receipt source gate — 2026-08-10
+
+The real runtime proposal-admission fixture now crosses the resident boundary.
+It preserves the full immutable chain: user proposal and payload, selected
+request, runtime/thread/Body-bound Modeling context, exact launch binding and
+launch-document hash, successful Modeling result, Evolution patch, and one
+safe proposal-citing routeable frontier. No parallel fulfillment schema exists.
+
+With zero coordinator receipts, resident Self verifies that runtime-owned chain,
+records exact coordinator death recovery, closes the original grant once, and
+refuses replay with byte-identical resident state. Heartbeat consumes the ack;
+retention removes the lifecycle; and no later grant can appear. Full core tests
+pass 663 with one intentional ignore and all seven swarm tests pass.
+
+Direct packaged proposal evidence remains open. Unlike the two consideration
+lanes, its immutable worker launch includes authenticated repository Body basis,
+so a faithful fixture must construct it inside the Linux path namespace after
+packaged Body binding. Do not add a test-only production writer merely to make
+that receipt convenient. Next map terminal-worker-attempt retention and then
+choose the smallest Linux-native construction path.

@@ -3308,3 +3308,13 @@ reopening authority. This proves the candidate companion remains producer-owned:
 the first fixture attempt without it failed closed before resident settlement.
 Proposal Modeling remains separate because its fulfillment validator also owns
 the immutable proposal payload, Modeling context, and Evolution patch shape.
+
+The proposal Modeling variant now crosses the full resident boundary in source
+verification by reusing the runtime admission fixture rather than copying its
+policy. Runtime remains owner of proposal/request/payload, Body-bound launch
+context and hash, successful Modeling result, Evolution patch, and the single
+safe routeable frontier. Resident Self sees only authenticated fulfillment and
+owns exact zero-receipt death settlement, replay refusal, lifecycle retirement,
+and non-resurrection. Core 663/1 ignored and swarm 7 pass. Direct packaged proof
+still requires Linux-native construction because the worker launch's Body basis
+cannot truthfully be minted under a Windows path and rebound later.

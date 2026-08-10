@@ -13723,6 +13723,153 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    #[test]
+    fn typed_proposal_fulfillment_settles_receipt_free_resident_authority_once() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (runtime_store, result, _) =
+            proposal_admission_fixture(root.path(), "resident-fulfillment")?;
+        let request_id = result
+            .proposal_modeling_request_id
+            .clone()
+            .expect("proposal request echo");
+        put_runtime_role_worker_result(&runtime_store, &result)?;
+        assert!(coordinator_run_receipts(&runtime_store)?.is_empty());
+
+        let resident_store = root.path().join("resident.cc");
+        crate::enqueue_resident_self_pressure(
+            &resident_store,
+            &crate::ResidentSelfPressure {
+                schema_version: crate::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "proposal-modeling-resident-pressure".into(),
+                kind: "repo-frontier-proposal-modeling".into(),
+                provenance_ref: format!(
+                    "cultcache://repo-frontier-proposal-modeling/{request_id}"
+                ),
+                objective: "Settle the exact authenticated proposal Modeling result.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let grant = crate::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "proposal-modeling-heartbeat",
+            "proposal-modeling-action",
+            2,
+        )?
+        .expect("proposal Modeling grant");
+        let coordinator = root.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let policy = crate::ResidentSelfPolicy {
+            workspace: root.path().to_path_buf(),
+            coordinator_bin: coordinator.clone(),
+            model_runtime_bin: root.path().join("epiphany-model-runtime"),
+            tool_adapter_bin: root.path().join("epiphany-tool-mcp-runtime"),
+            runtime_store: runtime_store.clone(),
+            local_verse_store: root.path().join("local-verse.cc"),
+            agent_memory_store: root.path().join("mind.cc"),
+            artifact_root: root.path().join("artifacts"),
+            codex_home: root.path().join("codex-home"),
+            mcp_config: root.path().join("mcp.toml"),
+            model_provider: "local".into(),
+            max_steps: 2,
+            turn_timeout_seconds: 60,
+            cooldown_seconds: 10,
+            idle_sleep_seconds: 5,
+            failure_backoff_seconds: 20,
+            release_commit: "proposal-modeling-test-release".into(),
+            release_manifest_digest: "sha256:proposal-modeling-test-manifest".into(),
+            release_store: root.path().join("release.cc"),
+            release_runtime_id: "deployment-runtime".into(),
+            release_id: "proposal-modeling-test-release".into(),
+            release_witness_sha256: "sha256:proposal-modeling-test-witness".into(),
+        };
+        let prepared = crate::prepare_resident_self_launch(&resident_store, &policy, 3)?
+            .expect("proposal Modeling preparation");
+        let process = crate::LaunchedCoordinator {
+            process_id: u32::MAX - 13,
+            process_creation_token: 79,
+            process_executable_path: coordinator,
+        };
+        crate::claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = crate::acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        open_coordinator_run(
+            &runtime_store,
+            &coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?,
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+            &format!("Resident coordinator launch {}.", lease.objective_digest),
+            "1970-01-01T00:00:00.005Z",
+        )?;
+        assert_eq!(
+            crate::verify_resident_self_grant_fulfillment(
+                &resident_store,
+                &runtime_store,
+                &grant.grant_id,
+            )?,
+            crate::ResidentSelfGrantFulfillment::Fulfilled
+        );
+        assert_eq!(
+            crate::settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                crate::ChildObservation::Missing,
+                false,
+                false,
+                false,
+                6,
+                policy.cooldown_seconds,
+            )?,
+            crate::ResidentSelfOutcome::Completed
+        );
+        assert!(crate::load_resident_self_state(&resident_store)?.active_turn.is_none());
+        let settled = std::fs::read(&resident_store)?;
+        assert!(
+            crate::settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                crate::ChildObservation::Missing,
+                false,
+                false,
+                false,
+                7,
+                policy.cooldown_seconds,
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&resident_store)?, settled);
+        for ack in crate::pending_resident_self_acks(&resident_store)? {
+            crate::heartbeat_consume_resident_self_ack(&resident_store, &ack.ack_id, 8)?;
+        }
+        let head = crate::retain_resident_self_lifecycles(&resident_store, 0, 9)?
+            .expect("closed proposal Modeling lifecycle");
+        assert_eq!(head.retired_lifecycle_count, 1);
+        assert!(crate::pending_resident_self_grant(&resident_store)?.is_none());
+        assert!(
+            crate::heartbeat_issue_resident_self_grant(
+                &resident_store,
+                "proposal-modeling-after-retention",
+                "proposal-modeling-after-retention-action",
+                10,
+            )?
+            .is_none()
+        );
+        Ok(())
+    }
+
     fn claim_repair_admission_fixture(
         root: &Path,
         suffix: &str,
