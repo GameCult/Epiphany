@@ -1,5 +1,30 @@
 # Fresh workspace handoff
 
+## Starfire reboot exposed non-atomic CultCache publication — 2026-08-10
+
+Live c005 and the copied e97 Continuity harness independently lost only
+`resident-self.cc` during the same host restart. The files were replaced 0.563
+seconds apart at `09:15:18Z`/`09:15:19Z`, each became a nonempty file consisting
+entirely of zero bytes, Windows booted at `09:16:52.500Z`, and Docker later
+reported c005 exited 255. Every sibling c005 `.cc` store remained nonzero. The
+exact corrupt c005 bytes, hashes, container state, and host-event correlation
+are preserved under
+`.epiphany-run/interventions/c005-zero-store-20260810T091926Z/`. Do not restart
+c005 and do not describe this as a clean shutdown.
+
+The source owner was CultCache's single-file publisher: it deleted the committed
+destination before renaming a staged snapshot. Upstream CultCache `e8a9f2d`
+now flushes a unique staging file, atomically replaces the sibling destination,
+and performs the Unix parent-directory durability barrier; Windows uses
+write-through replacement. Forty ordinary tests pass, with two explicit
+operator crash probes ignored. Linux overlayfs and the exact writable Starfire
+`F:` bind both pass replacement, failure-preservation, and directory-sync
+checks. Thirty randomized writer SIGKILL/reopen passes on the bind and ten on a
+Docker named volume always decoded one complete typed snapshot. The remaining
+gate is to advance Epiphany to this dependency, package once, recover into a new
+resident incarnation from surviving typed authority, and prove clean
+restart/non-resurrection. The zero file is evidence, not a migration input.
+
 ## Cross-container resident ownership accepted — 2026-08-09
 
 Exact `c930f505` release
