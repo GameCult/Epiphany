@@ -4,6 +4,7 @@ use epiphany_core::{
     EpiphanyCultMeshDaemonHeartbeatEventEntry, EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
     MemorySemanticIndexConfig, MemorySemanticProjectionInput, MemorySemanticProjectorPulseStatus,
     SemanticProjectorServiceBody, authenticate_epiphany_cultmesh_semantic_projector_launch,
+    authorize_memory_semantic_physical_retirements, execute_memory_semantic_physical_retirement,
     load_epiphany_cultmesh_daemon_service_lifecycle_receipt,
     publish_epiphany_cultmesh_semantic_projection_health,
     retain_memory_semantic_projection_lifecycles, write_epiphany_cultmesh_daemon_heartbeat_event,
@@ -54,8 +55,11 @@ fn main() -> Result<()> {
     semantic_config.qdrant_url = args.qdrant_url.clone();
     semantic_config.ollama_base_url = args.ollama_base_url.clone();
     semantic_config.ollama_model = args.ollama_model.clone();
-    let projector =
-        SemanticProjectorServiceBody::new(&args.agent_store, &args.runtime_store, semantic_config)?;
+    let projector = SemanticProjectorServiceBody::new(
+        &args.agent_store,
+        &args.runtime_store,
+        semantic_config.clone(),
+    )?;
     let provider_incarnation = projector.provider_incarnation().to_string();
     let mut cursor = None;
     let mut sequence = 0_u64;
@@ -74,6 +78,33 @@ fn main() -> Result<()> {
         let mut retention_mutation_count = 0_u32;
         for input in &inputs {
             let store = source_store(&args, input)?;
+            match authorize_memory_semantic_physical_retirements(
+                store,
+                input,
+                args.retained_generations,
+                &chrono::Utc::now().to_rfc3339(),
+            ) {
+                Ok(retirements) => {
+                    for retirement in retirements {
+                        if let Err(error) = execute_memory_semantic_physical_retirement(
+                            store,
+                            input,
+                            &retirement.retirement_id,
+                            &semantic_config,
+                            &chrono::Utc::now().to_rfc3339(),
+                        ) {
+                            retention_faults.push(format!(
+                                "{} physical: {error:#}",
+                                input.obligation().partition
+                            ));
+                        }
+                    }
+                }
+                Err(error) => retention_faults.push(format!(
+                    "{} physical authorization: {error:#}",
+                    input.obligation().partition
+                )),
+            }
             match retain_memory_semantic_projection_lifecycles(
                 store,
                 input,

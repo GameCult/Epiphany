@@ -16,6 +16,29 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+trait MemorySemanticPhysicalRetirementPort {
+    fn point_ids_for_scope(
+        &mut self,
+        collection: &str,
+        scope: &[(&str, &str)],
+    ) -> Result<Vec<String>>;
+    fn delete_points(&mut self, collection: &str, point_ids: &[String]) -> Result<()>;
+}
+
+impl MemorySemanticPhysicalRetirementPort for crate::semantic_backend::QdrantBackend {
+    fn point_ids_for_scope(
+        &mut self,
+        collection: &str,
+        scope: &[(&str, &str)],
+    ) -> Result<Vec<String>> {
+        crate::semantic_backend::QdrantBackend::point_ids_for_scope(self, collection, scope)
+    }
+
+    fn delete_points(&mut self, collection: &str, point_ids: &[String]) -> Result<()> {
+        crate::semantic_backend::QdrantBackend::delete_points(self, collection, point_ids)
+    }
+}
+
 pub const MEMORY_SEMANTIC_PROJECTION_CLAIM_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projection_claim.v1";
 pub const MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION: &str =
@@ -24,6 +47,10 @@ pub const MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION: &str 
     "gamecult.epiphany.memory_semantic_projector_recovery_authorization.v2";
 pub const MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projection_retention_head.v0";
+pub const MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_OBLIGATION_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_physical_retirement_obligation.v0";
+pub const MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_physical_retirement_receipt.v0";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -50,6 +77,64 @@ pub struct MemorySemanticProjectionRetentionHead {
     #[cultcache(key = 8)]
     pub retained_at: String,
     #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_physical_retirement_obligation",
+    schema = "MemorySemanticPhysicalRetirementObligation"
+)]
+pub struct MemorySemanticPhysicalRetirementObligation {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub retirement_id: String,
+    #[cultcache(key = 2)]
+    pub scope_id: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub partition: String,
+    #[cultcache(key = 5)]
+    pub obligation_id: String,
+    #[cultcache(key = 6)]
+    pub attempt_id: String,
+    #[cultcache(key = 7)]
+    pub claim_id: String,
+    #[cultcache(key = 8)]
+    pub claim_epoch: u64,
+    #[cultcache(key = 9)]
+    pub physical_backend_url: String,
+    #[cultcache(key = 10)]
+    pub collection_name: String,
+    #[cultcache(key = 11)]
+    pub retention_authorization_sha256: String,
+    #[cultcache(key = 12)]
+    pub authorized_at: String,
+    #[cultcache(key = 13)]
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_physical_retirement_receipt",
+    schema = "MemorySemanticPhysicalRetirementReceipt"
+)]
+pub struct MemorySemanticPhysicalRetirementReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub retirement_id: String,
+    #[cultcache(key = 3)]
+    pub observed_point_count: u64,
+    #[cultcache(key = 4)]
+    pub deleted_point_count: u64,
+    #[cultcache(key = 5)]
+    pub completed_at: String,
+    #[cultcache(key = 6)]
     pub private_state_exposed: bool,
 }
 
@@ -2451,6 +2536,507 @@ pub fn validate_memory_semantic_projector_recovery_authorization(
     Ok(())
 }
 
+pub fn validate_memory_semantic_physical_retirement_obligation(
+    obligation: &MemorySemanticPhysicalRetirementObligation,
+) -> Result<()> {
+    if obligation.schema_version != MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_OBLIGATION_SCHEMA_VERSION
+        || !obligation
+            .retirement_id
+            .starts_with("memory-semantic-physical-retirement-")
+        || !is_opaque_identity(&obligation.retirement_id)
+        || !is_opaque_identity(&obligation.scope_id)
+        || !is_opaque_identity(&obligation.swarm_id)
+        || !matches!(obligation.partition.as_str(), "mind" | "modeling")
+        || !is_opaque_identity(&obligation.obligation_id)
+        || !is_opaque_identity(&obligation.attempt_id)
+        || !is_opaque_identity(&obligation.claim_id)
+        || obligation.claim_epoch == 0
+        || obligation.physical_backend_url.trim().is_empty()
+        || obligation.collection_name.trim().is_empty()
+        || !obligation
+            .retention_authorization_sha256
+            .starts_with("sha256:")
+        || obligation.retention_authorization_sha256.len() != 71
+        || !valid_rfc3339(&obligation.authorized_at)
+        || obligation.private_state_exposed
+    {
+        return Err(anyhow!(
+            "semantic physical-retirement obligation is invalid"
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_memory_semantic_physical_retirement_receipt(
+    receipt: &MemorySemanticPhysicalRetirementReceipt,
+) -> Result<()> {
+    if receipt.schema_version != MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_RECEIPT_SCHEMA_VERSION
+        || !receipt
+            .receipt_id
+            .starts_with("memory-semantic-physical-retirement-receipt-")
+        || !is_opaque_identity(&receipt.receipt_id)
+        || !is_opaque_identity(&receipt.retirement_id)
+        || receipt.deleted_point_count != receipt.observed_point_count
+        || !valid_rfc3339(&receipt.completed_at)
+        || receipt.private_state_exposed
+    {
+        return Err(anyhow!("semantic physical-retirement receipt is invalid"));
+    }
+    Ok(())
+}
+
+fn retirement_authorization_digest(envelopes: &[CultCacheEnvelope]) -> String {
+    let mut rows = envelopes.to_vec();
+    rows.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+            .then(left.payload.cmp(&right.payload))
+    });
+    let mut digest = Sha256::new();
+    for row in rows {
+        digest.update((row.r#type.len() as u64).to_le_bytes());
+        digest.update(row.r#type.as_bytes());
+        digest.update((row.key.len() as u64).to_le_bytes());
+        digest.update(row.key.as_bytes());
+        digest.update((row.payload.len() as u64).to_le_bytes());
+        digest.update(&row.payload);
+    }
+    format!("sha256:{:x}", digest.finalize())
+}
+
+fn physical_retirement_attempt_authority_rows(
+    snapshot: &[CultCacheEnvelope],
+    attempt: &MemorySemanticProjectionAttempt,
+) -> Result<Vec<CultCacheEnvelope>> {
+    if let Some(grant) =
+        decode_one::<MemorySemanticProjectorExecutorGrant>(snapshot, &attempt.authority_id)?
+    {
+        validate_memory_semantic_projector_executor_grant(&grant)?;
+        if grant.obligation_id != attempt.obligation_id
+            || grant.executor_id != attempt.executor_id
+            || grant.executor_incarnation != attempt.executor_incarnation
+            || grant.resulting_claim_id.as_deref() != Some(attempt.claim_id.as_str())
+            || grant.resulting_claim_epoch != Some(attempt.claim_epoch)
+        {
+            return Err(anyhow!(
+                "semantic physical-retirement attempt grant disagrees"
+            ));
+        }
+        return Ok(vec![exact_envelope(
+            snapshot,
+            MemorySemanticProjectorExecutorGrant::TYPE,
+            &grant.grant_id,
+        )?]);
+    }
+    if let Some(authorization) =
+        decode_one::<MemorySemanticProjectorRecoveryAuthorization>(snapshot, &attempt.authority_id)?
+    {
+        validate_memory_semantic_projector_recovery_authorization(&authorization)?;
+        if authorization.obligation_id != attempt.obligation_id
+            || authorization.replacement_executor_id != attempt.executor_id
+            || authorization.replacement_executor_incarnation != attempt.executor_incarnation
+            || authorization.resulting_claim_id.as_deref() != Some(attempt.claim_id.as_str())
+            || authorization.resulting_claim_epoch != Some(attempt.claim_epoch)
+        {
+            return Err(anyhow!(
+                "semantic physical-retirement attempt recovery authority disagrees"
+            ));
+        }
+        return Ok(vec![exact_envelope(
+            snapshot,
+            MemorySemanticProjectorRecoveryAuthorization::TYPE,
+            &authorization.authorization_id,
+        )?]);
+    }
+    Err(anyhow!(
+        "semantic physical-retirement attempt lost exact issuance authority"
+    ))
+}
+
+pub fn authorize_memory_semantic_physical_retirements(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    retain_recent: usize,
+    authorized_at: &str,
+) -> Result<Vec<MemorySemanticPhysicalRetirementObligation>> {
+    if !valid_rfc3339(authorized_at) || input.authority.envelopes.is_empty() {
+        return Err(anyhow!(
+            "semantic physical retirement requires time and canonical authority"
+        ));
+    }
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    let store_path = store_path.as_ref();
+    let cache = semantic_projector_cache(store_path)?;
+    let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    for expected in &input.authority.envelopes {
+        if snapshot
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(expected)
+        {
+            return Err(anyhow!(
+                "semantic physical-retirement canonical authority advanced"
+            ));
+        }
+    }
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    if let Some(claim) = decode_one::<MemorySemanticProjectionClaim>(&snapshot, &scope_id)? {
+        validate_memory_semantic_projection_claim(&claim)?;
+        authenticate_claim_authority_from_envelopes(&snapshot, &claim)?;
+        let attempt = decode_one::<MemorySemanticProjectionAttempt>(&snapshot, &claim.attempt_id)?
+            .ok_or_else(|| anyhow!("semantic physical retirement current attempt disappeared"))?;
+        validate_memory_semantic_projection_attempt(&attempt)?;
+        if !attempt_authenticates_claim(&attempt, &claim) || attempt.status != claim.status {
+            return Err(anyhow!(
+                "semantic physical retirement current claim and attempt disagree"
+            ));
+        }
+        if claim.status == "running" {
+            return Err(anyhow!(
+                "semantic physical retirement refuses running scope authority"
+            ));
+        }
+    }
+    let mut obligations = decode_all::<MemorySemanticProjectionObligation>(&snapshot)?
+        .into_iter()
+        .filter(|row| {
+            row.swarm_id == input.obligation.swarm_id && row.partition == input.obligation.partition
+        })
+        .collect::<Vec<_>>();
+    obligations.sort_by(|left, right| {
+        left.source_generation
+            .cmp(&right.source_generation)
+            .then(left.created_at.cmp(&right.created_at))
+            .then(left.obligation_id.cmp(&right.obligation_id))
+    });
+    if obligations.iter().any(|row| {
+        row.obligation_id != input.obligation.obligation_id
+            && row.source_generation >= input.obligation.source_generation
+    }) {
+        return Err(anyhow!(
+            "semantic physical retirement refuses a non-stale generation"
+        ));
+    }
+    let recent = obligations
+        .iter()
+        .rev()
+        .take(retain_recent.max(1))
+        .map(|row| row.obligation_id.clone())
+        .collect::<BTreeSet<_>>();
+    let attempts = decode_all::<MemorySemanticProjectionAttempt>(&snapshot)?;
+    let existing = decode_all::<MemorySemanticPhysicalRetirementObligation>(&snapshot)?;
+    let completed = decode_all::<MemorySemanticPhysicalRetirementReceipt>(&snapshot)?
+        .into_iter()
+        .map(|row| row.retirement_id)
+        .collect::<BTreeSet<_>>();
+    let mut admitted = Vec::new();
+    let mut changed = false;
+    let mut insertions = Vec::new();
+    for obligation in obligations {
+        if obligation.source_generation >= input.obligation.source_generation
+            || recent.contains(&obligation.obligation_id)
+        {
+            continue;
+        }
+        let obligation_envelope = exact_envelope(
+            &snapshot,
+            MemorySemanticProjectionObligation::TYPE,
+            &obligation.obligation_id,
+        )?;
+        for attempt in attempts.iter().filter(|row| {
+            row.obligation_id == obligation.obligation_id
+                && row.status != "running"
+                && !row.physical_backend_url.trim().is_empty()
+                && !row.collection_name.trim().is_empty()
+        }) {
+            validate_memory_semantic_projection_attempt(attempt)?;
+            let attempt_envelope = exact_envelope(
+                &snapshot,
+                MemorySemanticProjectionAttempt::TYPE,
+                &attempt.attempt_id,
+            )?;
+            let mut authority_rows = vec![obligation_envelope.clone(), attempt_envelope.clone()];
+            authority_rows.extend(physical_retirement_attempt_authority_rows(
+                &snapshot, attempt,
+            )?);
+            for receipt in decode_all::<MemorySemanticIndexReceipt>(&snapshot)?
+                .into_iter()
+                .filter(|receipt| {
+                    receipt.obligation_id == attempt.obligation_id
+                        && receipt.claim_id == attempt.claim_id
+                        && receipt.claim_epoch == attempt.claim_epoch
+                })
+            {
+                authority_rows.push(exact_envelope(
+                    &snapshot,
+                    MemorySemanticIndexReceipt::TYPE,
+                    &receipt.receipt_id,
+                )?);
+            }
+            let digest = retirement_authorization_digest(
+                &input
+                    .authority
+                    .envelopes
+                    .iter()
+                    .cloned()
+                    .chain(authority_rows.iter().cloned())
+                    .collect::<Vec<_>>(),
+            );
+            let retirement_id = format!(
+                "memory-semantic-physical-retirement-{:x}",
+                Sha256::digest(format!("{}|{}", attempt.attempt_id, digest).as_bytes())
+            );
+            if completed.contains(&retirement_id) {
+                continue;
+            }
+            let candidate = MemorySemanticPhysicalRetirementObligation {
+                schema_version: MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_OBLIGATION_SCHEMA_VERSION
+                    .to_string(),
+                retirement_id: retirement_id.clone(),
+                scope_id: scope_id.clone(),
+                swarm_id: obligation.swarm_id.clone(),
+                partition: obligation.partition.clone(),
+                obligation_id: obligation.obligation_id.clone(),
+                attempt_id: attempt.attempt_id.clone(),
+                claim_id: attempt.claim_id.clone(),
+                claim_epoch: attempt.claim_epoch,
+                physical_backend_url: attempt.physical_backend_url.clone(),
+                collection_name: attempt.collection_name.clone(),
+                retention_authorization_sha256: digest,
+                authorized_at: authorized_at.to_string(),
+                private_state_exposed: false,
+            };
+            validate_memory_semantic_physical_retirement_obligation(&candidate)?;
+            if let Some(prior) = existing
+                .iter()
+                .find(|row| row.retirement_id == retirement_id)
+            {
+                let mut replay = candidate.clone();
+                replay.authorized_at = prior.authorized_at.clone();
+                if prior != &replay {
+                    return Err(anyhow!("semantic physical-retirement identity collision"));
+                }
+                admitted.push(prior.clone());
+                continue;
+            }
+            insertions.push(cache.prepare_entry(&retirement_id, &candidate)?.0);
+            admitted.push(candidate);
+            changed = true;
+        }
+    }
+    if !changed {
+        return Ok(admitted);
+    }
+    insertions.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    insertions.dedup_by(|left, right| left.r#type == right.r#type && left.key == right.key);
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .append_if_snapshot_unchanged(&snapshot, insertions)?
+    {
+        return Err(anyhow!(
+            "semantic physical-retirement authorization lost exact CAS"
+        ));
+    }
+    Ok(admitted)
+}
+
+pub fn execute_memory_semantic_physical_retirement(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    retirement_id: &str,
+    config: &super::MemorySemanticIndexConfig,
+    completed_at: &str,
+) -> Result<MemorySemanticPhysicalRetirementReceipt> {
+    let mut backend =
+        crate::semantic_backend::QdrantBackend::new(crate::semantic_backend::QdrantConfig {
+            url: config.qdrant_url.clone(),
+            api_key: config.qdrant_api_key.clone(),
+            timeout_ms: config.qdrant_timeout_ms,
+        })?;
+    execute_memory_semantic_physical_retirement_with_port(
+        store_path.as_ref(),
+        input,
+        retirement_id,
+        config,
+        completed_at,
+        &mut backend,
+    )
+}
+
+fn execute_memory_semantic_physical_retirement_with_port<P>(
+    store_path: &Path,
+    input: &MemorySemanticProjectionInput,
+    retirement_id: &str,
+    config: &super::MemorySemanticIndexConfig,
+    completed_at: &str,
+    port: &mut P,
+) -> Result<MemorySemanticPhysicalRetirementReceipt>
+where
+    P: MemorySemanticPhysicalRetirementPort,
+{
+    if !valid_rfc3339(completed_at) || input.authority.envelopes.is_empty() {
+        return Err(anyhow!(
+            "semantic physical retirement requires time and canonical authority"
+        ));
+    }
+    let cache = semantic_projector_cache(store_path)?;
+    let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let retirement =
+        decode_one::<MemorySemanticPhysicalRetirementObligation>(&snapshot, retirement_id)?
+            .ok_or_else(|| anyhow!("semantic physical-retirement obligation is missing"))?;
+    validate_memory_semantic_physical_retirement_obligation(&retirement)?;
+    let receipt_id = format!(
+        "memory-semantic-physical-retirement-receipt-{}",
+        retirement
+            .retirement_id
+            .trim_start_matches("memory-semantic-physical-retirement-")
+    );
+    if let Some(receipt) =
+        decode_one::<MemorySemanticPhysicalRetirementReceipt>(&snapshot, &receipt_id)?
+    {
+        validate_memory_semantic_physical_retirement_receipt(&receipt)?;
+        if receipt.retirement_id != retirement.retirement_id {
+            return Err(anyhow!(
+                "semantic physical-retirement receipt identity collision"
+            ));
+        }
+        return Ok(receipt);
+    }
+    if retirement.physical_backend_url != config.qdrant_url
+        || retirement.collection_name
+            != config.collection(match retirement.partition.as_str() {
+                "mind" => super::SemanticPartition::Mind,
+                "modeling" => super::SemanticPartition::Modeling,
+                _ => return Err(anyhow!("semantic physical-retirement partition is invalid")),
+            })
+    {
+        return Err(anyhow!(
+            "semantic physical-retirement namespace is not permitted by current projector policy"
+        ));
+    }
+    for expected in &input.authority.envelopes {
+        if snapshot
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(expected)
+        {
+            return Err(anyhow!(
+                "semantic physical-retirement canonical authority advanced"
+            ));
+        }
+    }
+    let source =
+        decode_one::<MemorySemanticProjectionObligation>(&snapshot, &retirement.obligation_id)?
+            .ok_or_else(|| anyhow!("semantic physical-retirement source obligation disappeared"))?;
+    let attempt = decode_one::<MemorySemanticProjectionAttempt>(&snapshot, &retirement.attempt_id)?
+        .ok_or_else(|| anyhow!("semantic physical-retirement source attempt disappeared"))?;
+    validate_memory_semantic_projection_obligation(&source)?;
+    validate_memory_semantic_projection_attempt(&attempt)?;
+    if source.swarm_id != retirement.swarm_id
+        || source.partition != retirement.partition
+        || source.source_generation >= input.obligation.source_generation
+        || attempt.status == "running"
+        || attempt.obligation_id != source.obligation_id
+        || attempt.claim_id != retirement.claim_id
+        || attempt.claim_epoch != retirement.claim_epoch
+        || attempt.physical_backend_url != retirement.physical_backend_url
+        || attempt.collection_name != retirement.collection_name
+    {
+        return Err(anyhow!(
+            "semantic physical-retirement source authority disagrees"
+        ));
+    }
+    let mut source_rows = vec![
+        exact_envelope(
+            &snapshot,
+            MemorySemanticProjectionObligation::TYPE,
+            &source.obligation_id,
+        )?,
+        exact_envelope(
+            &snapshot,
+            MemorySemanticProjectionAttempt::TYPE,
+            &attempt.attempt_id,
+        )?,
+    ];
+    source_rows.extend(physical_retirement_attempt_authority_rows(
+        &snapshot, &attempt,
+    )?);
+    for index_receipt in decode_all::<MemorySemanticIndexReceipt>(&snapshot)?
+        .into_iter()
+        .filter(|index_receipt| {
+            index_receipt.obligation_id == attempt.obligation_id
+                && index_receipt.claim_id == attempt.claim_id
+                && index_receipt.claim_epoch == attempt.claim_epoch
+        })
+    {
+        source_rows.push(exact_envelope(
+            &snapshot,
+            MemorySemanticIndexReceipt::TYPE,
+            &index_receipt.receipt_id,
+        )?);
+    }
+    let digest = retirement_authorization_digest(
+        &input
+            .authority
+            .envelopes
+            .iter()
+            .cloned()
+            .chain(source_rows.iter().cloned())
+            .collect::<Vec<_>>(),
+    );
+    if digest != retirement.retention_authorization_sha256 {
+        return Err(anyhow!(
+            "semantic physical-retirement authorization digest disagrees"
+        ));
+    }
+    let claim_epoch = retirement.claim_epoch.to_string();
+    let scope = [
+        ("swarmId", retirement.swarm_id.as_str()),
+        ("partition", retirement.partition.as_str()),
+        ("obligationId", retirement.obligation_id.as_str()),
+        ("claimId", retirement.claim_id.as_str()),
+        ("claimEpoch", claim_epoch.as_str()),
+    ];
+    let observed = port.point_ids_for_scope(&retirement.collection_name, &scope)?;
+    port.delete_points(&retirement.collection_name, &observed)?;
+    if !port
+        .point_ids_for_scope(&retirement.collection_name, &scope)?
+        .is_empty()
+    {
+        return Err(anyhow!(
+            "semantic physical retirement left points in the exact namespace"
+        ));
+    }
+    let receipt = MemorySemanticPhysicalRetirementReceipt {
+        schema_version: MEMORY_SEMANTIC_PHYSICAL_RETIREMENT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        retirement_id: retirement.retirement_id.clone(),
+        observed_point_count: observed.len() as u64,
+        deleted_point_count: observed.len() as u64,
+        completed_at: completed_at.to_string(),
+        private_state_exposed: false,
+    };
+    validate_memory_semantic_physical_retirement_receipt(&receipt)?;
+    exact_envelope(
+        &snapshot,
+        MemorySemanticPhysicalRetirementObligation::TYPE,
+        &retirement.retirement_id,
+    )?;
+    let receipt_envelope = cache.prepare_entry(&receipt.receipt_id, &receipt)?.0;
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .append_if_snapshot_unchanged(&snapshot, vec![receipt_envelope])?
+    {
+        return Err(anyhow!(
+            "semantic physical-retirement receipt lost exact CAS"
+        ));
+    }
+    Ok(receipt)
+}
+
 pub fn retain_memory_semantic_projection_lifecycles(
     store_path: impl AsRef<Path>,
     input: &MemorySemanticProjectionInput,
@@ -2567,6 +3153,14 @@ where
     let receipts = decode_all::<MemorySemanticIndexReceipt>(&snapshot)?;
     let grants = decode_all::<MemorySemanticProjectorExecutorGrant>(&snapshot)?;
     let authorizations = decode_all::<MemorySemanticProjectorRecoveryAuthorization>(&snapshot)?;
+    let physical_obligations = decode_all::<MemorySemanticPhysicalRetirementObligation>(&snapshot)?;
+    let physical_receipts = decode_all::<MemorySemanticPhysicalRetirementReceipt>(&snapshot)?;
+    for retirement in &physical_obligations {
+        validate_memory_semantic_physical_retirement_obligation(retirement)?;
+    }
+    for receipt in &physical_receipts {
+        validate_memory_semantic_physical_retirement_receipt(receipt)?;
+    }
     let mut retired_status_counts = BTreeMap::<String, u64>::new();
     let mut retired_obligation_ids = BTreeSet::new();
     for obligation in &obligations {
@@ -2589,8 +3183,34 @@ where
             .iter()
             .filter(|authorization| authorization.obligation_id == obligation.obligation_id)
             .collect::<Vec<_>>();
-        if !obligation_attempts.is_empty()
-            || !obligation_receipts.is_empty()
+        if !obligation_attempts.is_empty() {
+            let physically_closed = obligation_attempts.iter().all(|attempt| {
+                attempt.status != "running"
+                    && !attempt.physical_backend_url.trim().is_empty()
+                    && !attempt.collection_name.trim().is_empty()
+                    && physical_obligations.iter().any(|retirement| {
+                        retirement.attempt_id == attempt.attempt_id
+                            && retirement.obligation_id == attempt.obligation_id
+                            && retirement.claim_id == attempt.claim_id
+                            && retirement.claim_epoch == attempt.claim_epoch
+                            && retirement.physical_backend_url == attempt.physical_backend_url
+                            && retirement.collection_name == attempt.collection_name
+                            && physical_receipts.iter().any(|receipt| {
+                                receipt.retirement_id == retirement.retirement_id
+                                    && receipt.deleted_point_count == receipt.observed_point_count
+                            })
+                    })
+            });
+            if !physically_closed {
+                continue;
+            }
+            *retired_status_counts
+                .entry("physically_retired_attempted".to_string())
+                .or_default() += 1;
+            retired_obligation_ids.insert(obligation.obligation_id.clone());
+            continue;
+        }
+        if !obligation_receipts.is_empty()
             || !obligation_grants.is_empty()
             || !obligation_authorizations.is_empty()
         {
@@ -2624,6 +3244,21 @@ where
                 authorizations.iter().any(|authorization| {
                     authorization.authorization_id == entry.key
                         && retired_obligation_ids.contains(&authorization.obligation_id)
+                })
+            }
+            MemorySemanticPhysicalRetirementObligation::TYPE => {
+                physical_obligations.iter().any(|retirement| {
+                    retirement.retirement_id == entry.key
+                        && retired_obligation_ids.contains(&retirement.obligation_id)
+                })
+            }
+            MemorySemanticPhysicalRetirementReceipt::TYPE => {
+                physical_receipts.iter().any(|receipt| {
+                    receipt.receipt_id == entry.key
+                        && physical_obligations.iter().any(|retirement| {
+                            retirement.retirement_id == receipt.retirement_id
+                                && retired_obligation_ids.contains(&retirement.obligation_id)
+                        })
                 })
             }
             _ => false,
@@ -2730,6 +3365,8 @@ pub(crate) fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<MemorySemanticProjectorExecutorGrant>()?;
     cache.register_entry_type::<MemorySemanticProjectorRecoveryAuthorization>()?;
     cache.register_entry_type::<MemorySemanticProjectionRetentionHead>()?;
+    cache.register_entry_type::<MemorySemanticPhysicalRetirementObligation>()?;
+    cache.register_entry_type::<MemorySemanticPhysicalRetirementReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
 }
@@ -3167,6 +3804,41 @@ mod retention_tests {
     use super::*;
     use tempfile::tempdir;
 
+    #[derive(Default)]
+    struct FakePhysicalRetirementPort {
+        point_ids: Vec<String>,
+        observed_scopes: Vec<Vec<(String, String)>>,
+        delete_calls: Vec<(String, Vec<String>)>,
+        fail_delete: bool,
+    }
+
+    impl MemorySemanticPhysicalRetirementPort for FakePhysicalRetirementPort {
+        fn point_ids_for_scope(
+            &mut self,
+            _collection: &str,
+            scope: &[(&str, &str)],
+        ) -> Result<Vec<String>> {
+            self.observed_scopes.push(
+                scope
+                    .iter()
+                    .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                    .collect(),
+            );
+            Ok(self.point_ids.clone())
+        }
+
+        fn delete_points(&mut self, collection: &str, point_ids: &[String]) -> Result<()> {
+            self.delete_calls
+                .push((collection.to_string(), point_ids.to_vec()));
+            if self.fail_delete {
+                return Err(anyhow!("fixture backend deletion failure"));
+            }
+            self.point_ids
+                .retain(|point_id| !point_ids.contains(point_id));
+            Ok(())
+        }
+    }
+
     fn obligation(swarm_id: &str, generation: u64) -> MemorySemanticProjectionObligation {
         MemorySemanticProjectionObligation {
             schema_version: super::super::MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION
@@ -3210,7 +3882,7 @@ mod retention_tests {
         );
         claim.status = "failed".to_string();
         claim.completed_at = Some(format!("2026-08-10T04:02:{epoch:02}Z"));
-        let mut attempt = running_attempt(&claim, "http://qdrant", "epiphany_mind_v1");
+        let mut attempt = running_attempt(&claim, "http://qdrant", "epiphany_modeling_v1");
         attempt.status = "failed".to_string();
         attempt.completed_at = claim.completed_at.clone();
         attempt.error = Some("fixture failure".to_string());
@@ -3274,6 +3946,148 @@ mod retention_tests {
                 envelopes: vec![authority],
             },
         }
+    }
+
+    #[test]
+    fn physical_retirement_is_policy_bound_receipted_and_then_logically_compactable() -> Result<()>
+    {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic.cc");
+        let old = obligation("swarm-physical", 1);
+        let current = obligation("swarm-physical", 3);
+        let (_claim, attempt, grant) = failed_lifecycle(&old, 1);
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&old.obligation_id, &old)?;
+        cache.put(&current.obligation_id, &current)?;
+        cache.put(&attempt.attempt_id, &attempt)?;
+        cache.put(&grant.grant_id, &grant)?;
+        let input = input_for(&store, &current);
+        let retirements = authorize_memory_semantic_physical_retirements(
+            &store,
+            &input,
+            1,
+            "2026-08-10T09:00:00Z",
+        )?;
+        assert_eq!(retirements.len(), 1);
+        let retirement = &retirements[0];
+        assert_eq!(retirement.attempt_id, attempt.attempt_id);
+        assert_eq!(retirement.physical_backend_url, "http://qdrant");
+        assert_eq!(retirement.collection_name, "epiphany_modeling_v1");
+        assert_eq!(
+            authorize_memory_semantic_physical_retirements(
+                &store,
+                &input,
+                1,
+                "2026-08-10T09:00:30Z",
+            )?,
+            retirements,
+            "pending retirement authority must replay without a new timestamp identity"
+        );
+
+        let mut config = super::super::MemorySemanticIndexConfig::from_env();
+        config.qdrant_url = "http://foreign-qdrant".into();
+        config.modeling_collection = "epiphany_modeling_v1".into();
+        let mut untouched = FakePhysicalRetirementPort {
+            point_ids: vec!["point-a".into()],
+            ..Default::default()
+        };
+        let error = execute_memory_semantic_physical_retirement_with_port(
+            &store,
+            &input,
+            &retirement.retirement_id,
+            &config,
+            "2026-08-10T09:01:00Z",
+            &mut untouched,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("not permitted"));
+        assert!(untouched.observed_scopes.is_empty());
+        assert!(untouched.delete_calls.is_empty());
+
+        config.qdrant_url = "http://qdrant".into();
+        let mut failing = FakePhysicalRetirementPort {
+            point_ids: vec!["point-a".into(), "point-b".into()],
+            fail_delete: true,
+            ..Default::default()
+        };
+        assert!(
+            execute_memory_semantic_physical_retirement_with_port(
+                &store,
+                &input,
+                &retirement.retirement_id,
+                &config,
+                "2026-08-10T09:01:30Z",
+                &mut failing,
+            )
+            .is_err()
+        );
+        let after_failure = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(after_failure.iter().any(|row| {
+            row.r#type == MemorySemanticPhysicalRetirementObligation::TYPE
+                && row.key == retirement.retirement_id
+        }));
+        assert!(
+            !after_failure
+                .iter()
+                .any(|row| { row.r#type == MemorySemanticPhysicalRetirementReceipt::TYPE })
+        );
+        assert!(
+            retain_memory_semantic_projection_lifecycles(
+                &store,
+                &input,
+                1,
+                "2026-08-10T09:01:31Z",
+            )?
+            .is_none(),
+            "backend failure must preserve logical retry authority"
+        );
+        let mut backend = FakePhysicalRetirementPort {
+            point_ids: vec!["point-a".into(), "point-b".into()],
+            ..Default::default()
+        };
+        let receipt = execute_memory_semantic_physical_retirement_with_port(
+            &store,
+            &input,
+            &retirement.retirement_id,
+            &config,
+            "2026-08-10T09:02:00Z",
+            &mut backend,
+        )?;
+        assert_eq!(receipt.observed_point_count, 2);
+        assert_eq!(receipt.deleted_point_count, 2);
+        assert_eq!(backend.delete_calls.len(), 1);
+        assert_eq!(backend.observed_scopes.len(), 2);
+        assert!(
+            backend.observed_scopes[0]
+                .contains(&("obligationId".into(), old.obligation_id.clone()))
+        );
+        assert!(
+            backend.observed_scopes[0]
+                .contains(&("claimEpoch".into(), attempt.claim_epoch.to_string()))
+        );
+
+        let head = retain_memory_semantic_projection_lifecycles(
+            &store,
+            &input,
+            1,
+            "2026-08-10T09:03:00Z",
+        )?
+        .expect("receipted physical namespace should permit logical compaction");
+        assert_eq!(
+            head.retired_status_counts
+                .get("physically_retired_attempted"),
+            Some(&1)
+        );
+        let after = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(!after.iter().any(|row| {
+            row.key == old.obligation_id
+                || row.key == attempt.attempt_id
+                || row.key == grant.grant_id
+                || row.key == retirement.retirement_id
+                || row.key == receipt.receipt_id
+        }));
+        assert!(after.iter().any(|row| row.key == current.obligation_id));
+        Ok(())
     }
 
     #[test]

@@ -1791,3 +1791,27 @@ Ten focused semantic authority tests pass, including exact namespace persistence
 and substituted-endpoint refusal before backend I/O. The next move is the typed
 physical-retirement obligation/receipt CAS and policy-bound executor. This source
 foundation is not yet packaged or accepted live.
+
+## Typed semantic physical retirement implemented — 2026-08-10
+
+Source now contains the complete typed circuit: full-snapshot authorization of
+inactive old attempts, immutable exact-namespace obligations, current-policy
+endpoint/collection gating before backend I/O, full five-field Qdrant scope
+deletion, empty-scope verification, terminal receipts, retry preservation on
+backend failure, and logical compaction only after every attempted epoch is
+physically receipted. Pending obligation replay keeps its original timestamp and
+identity. General Mind and runtime readers register both new evidence schemas.
+
+The end-to-end fake-backend test proves foreign endpoints cause zero reads or
+deletes, backend failure leaves the obligation without a receipt and blocks
+logical compaction, retry deletes only the exact scope, and the receipt then
+permits bounded lifecycle retirement. The complete library sweep passes 644
+tests with one intentional ignored helper after three stale `.ccmp` test fixtures
+were corrected to the current explicit runtime-store extension contract.
+
+This phase is source-complete but not yet packaged or accepted live. Next:
+commit/push, produce one exact cached package, then use copied canonical state
+and an isolated Qdrant body to prove physical points disappear, unrelated
+namespaces remain byte/ID-identical, failure retries, ordinary semantic health
+survives, and replay is inert. Active `c005` remains untouchable; Yggdrasil never
+builds.

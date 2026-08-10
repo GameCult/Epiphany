@@ -4386,7 +4386,7 @@ mod tests {
             .args(["add", "."])
             .current_dir(&repo)
             .output()?;
-        let runtime = temp.path().join("runtime.ccmp");
+        let runtime = temp.path().join("runtime.cc");
         let agents = temp.path().join("agents.ccmp");
         let body_store = temp.path().join("body.ccmp");
         crate::initialize_runtime_spine(

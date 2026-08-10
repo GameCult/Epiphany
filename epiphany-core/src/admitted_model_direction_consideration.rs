@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn cold_runtime_without_thread_has_no_direction_request_yet() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("runtime.ccmp");
+        let store = temp.path().join("runtime.cc");
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.put(
             crate::RUNTIME_IDENTITY_KEY,
@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn bootstrap_model_without_admission_receipt_has_no_direction_request_yet() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("bootstrap-runtime.ccmp");
+        let store = temp.path().join("bootstrap-runtime.cc");
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.put(
             crate::RUNTIME_IDENTITY_KEY,

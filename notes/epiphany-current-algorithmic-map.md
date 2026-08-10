@@ -2732,6 +2732,32 @@ typed physical-retirement obligations for inactive attempted epochs, process
 only obligations whose endpoint is permitted by current projector policy, and
 admit exact deletion receipts before logical lifecycle compaction.
 
+The typed physical cut is now implemented in source. A full-snapshot-fenced
+authorization pass considers only generations below the retained window and
+refuses future or running authority. Each exact terminal attempt must retain its
+authenticated Idunn grant or recovery authorization. The immutable retirement
+obligation binds the old source obligation, attempt, claim and epoch, swarm and
+partition, Qdrant endpoint and collection, plus a digest over current canonical
+authority and the exact historical lifecycle rows. A changed timestamp replays
+the existing obligation rather than minting a new identity.
+
+The executor first requires the recorded endpoint and collection to equal the
+current managed projector configuration. Foreign persisted endpoints are
+refused before backend reads. It then reauthenticates the source rows and digest,
+scrolls only the full five-field namespace `(swarm, partition, obligation,
+claim, epoch)`, deletes those exact point IDs, rescrolls to prove absence, and
+appends a terminal receipt under a full-snapshot fence. Backend failure writes
+no receipt and preserves retry authority. Logical compaction accepts attempted
+history only when every attempt has a matching terminal physical receipt; it
+then retires lifecycle and cleanup documents into the cumulative head in the
+same fenced compaction.
+
+The daemon runs authorization and pending cleanup before logical retention on
+each pulse. The endpoint gate is deliberately policy-bound: a historical
+endpoint no longer present in current managed policy remains pending rather
+than turning canonical state into arbitrary network deletion authority. Exact
+package and copied-live Qdrant proof remain the acceptance boundary.
+
 The copied-live physical audit sharpened the next ownership boundary. A durable
 physical-retirement obligation must be emitted before an attempted lifecycle can
 retire. It must carry exact collection name, obligation ID, claim ID, claim
