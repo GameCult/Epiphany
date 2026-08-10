@@ -3290,3 +3290,12 @@ replacement grant. Replay had neither retired work nor retry authority. The
 full-backing fence is therefore accepted; Imagination and proposal Modeling
 remain independent typed-fulfillment variants, not reasons to reopen retention
 ownership.
+
+The Imagination variant now has the same complete source-level proof. Runtime
+accepts fulfillment only after the exact request, model basis, deterministic
+candidate, launch binding, worker launch hash, and terminal role result agree.
+Resident Self then settles the zero-receipt dead coordinator once, terminalizes
+the original grant `recovered-fulfilled`, preserves consumed pressure, refuses
+replay byte-identically, and permits lifecycle retirement without reopening a
+grant. This changes no owner or production mechanism; it closes the missing
+variant test. Exact packaged Imagination state remains the next evidence gate.

@@ -3846,10 +3846,23 @@ mod tests {
     }
 
     #[test]
-    fn feedback_imagination_grant_waits_for_exact_bound_candidate() -> Result<()> {
+    fn feedback_imagination_grant_settles_only_for_exact_bound_candidate() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let resident_store = temp.path().join("resident-self.cc");
         let runtime_store = temp.path().join("runtime.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        crate::initialize_runtime_spine(
+            &runtime_store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "test-runtime".into(),
+                display_name: "Imagination fulfillment runtime".into(),
+                created_at: "2026-07-18T00:00:00Z".into(),
+            },
+        )?;
+        let mut resident_policy = policy();
+        resident_policy.coordinator_bin = coordinator.clone();
+        resident_policy.runtime_store = runtime_store.clone();
         let runtime = crate::runtime_spine_cache(&runtime_store)?;
         let mut model = crate::EpiphanyMemoryGraphSnapshot::default();
         model.model_revision = 1;
@@ -3940,6 +3953,37 @@ mod tests {
             2,
         )?
         .expect("Imagination consideration grant");
+        let prepared = prepare_resident_self_launch(&resident_store, &resident_policy, 3)?
+            .expect("Imagination consideration preparation");
+        let process = LaunchedCoordinator {
+            process_id: u32::MAX - 12,
+            process_creation_token: 78,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        let session_id = crate::coordinator_run_session_id(
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+        )?;
+        crate::open_coordinator_run(
+            &runtime_store,
+            &session_id,
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+            &format!("Resident coordinator launch {}.", lease.objective_digest),
+            "1970-01-01T00:00:00.005Z",
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -3999,6 +4043,81 @@ mod tests {
                 &grant.grant_id,
             )?,
             ResidentSelfGrantFulfillment::Fulfilled
+        );
+        assert!(crate::coordinator_run_receipts(&runtime_store)?.is_empty());
+        assert_eq!(
+            settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                false,
+                false,
+                false,
+                6,
+                resident_policy.cooldown_seconds,
+            )?,
+            ResidentSelfOutcome::Completed
+        );
+        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
+        let cache = state_cache(&resident_store)?;
+        let terminal_grant = cache
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("terminal Imagination grant");
+        assert_eq!(
+            terminal_grant.terminal_status.as_deref(),
+            Some("recovered-fulfilled")
+        );
+        let pressure = cache
+            .get::<ResidentSelfPressure>("pressure-imagination-fulfillment")?
+            .expect("consumed Imagination pressure");
+        assert_eq!(pressure.status, "consumed");
+        assert_eq!(
+            pressure.consumed_by_grant_id.as_deref(),
+            Some(grant.grant_id.as_str())
+        );
+        let settled_bytes = std::fs::read(&resident_store)?;
+        assert!(
+            settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                false,
+                false,
+                false,
+                8,
+                resident_policy.cooldown_seconds,
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&resident_store)?, settled_bytes);
+        assert!(
+            heartbeat_issue_resident_self_grant(
+                &resident_store,
+                "heartbeat-imagination-must-not-retry",
+                "action-imagination-must-not-retry",
+                7,
+            )?
+            .is_none()
+        );
+        for ack in pending_resident_self_acks(&resident_store)? {
+            heartbeat_consume_resident_self_ack(&resident_store, &ack.ack_id, 9)?;
+        }
+        let head = retain_resident_self_lifecycles(&resident_store, 0, 10)?
+            .expect("closed Imagination lifecycle must retire");
+        assert_eq!(head.retired_lifecycle_count, 1);
+        assert!(resident_self_pressures(&resident_store)?.is_empty());
+        assert!(pending_resident_self_grant(&resident_store)?.is_none());
+        assert!(pending_resident_self_acks(&resident_store)?.is_empty());
+        assert!(
+            heartbeat_issue_resident_self_grant(
+                &resident_store,
+                "heartbeat-imagination-after-retention",
+                "action-imagination-after-retention",
+                11,
+            )?
+            .is_none()
         );
         Ok(())
     }

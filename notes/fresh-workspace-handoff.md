@@ -2561,3 +2561,20 @@ Imagination candidate chain, including exact request, launch binding, worker
 launch/result, death recovery, retention, and no-retry proof. Proposal Modeling
 and runtime retention of terminal worker attempts follow. Actual c006 remains
 braked and stopped; Yggdrasil never builds.
+
+## Imagination fulfilled-before-receipt source gate — 2026-08-10
+
+The existing Imagination fulfillment test now crosses the complete resident
+ownership boundary. It opens a real typed request and lease, proves a candidate
+without its exact launch binding remains pending, admits the authenticated
+worker launch/binding/result companion, and requires zero coordinator receipts.
+Exact missing-child recovery then closes the original grant
+`recovered-fulfilled`, preserves its pressure as consumed, refuses replay with
+byte-identical resident state, and yields no retry. After Heartbeat consumes the
+ack, lifecycle retention removes the exact family and still yields no retry.
+Full core tests pass 662 with one intentional ignore; all seven swarm tests pass.
+
+This is a source verification pass only; `52ee6b53` already contains the generic
+runtime and resident behavior, but a fresh exact packaged Imagination state run
+is still required for direct binary provenance. Proposal Modeling and terminal
+worker-attempt retention follow.
