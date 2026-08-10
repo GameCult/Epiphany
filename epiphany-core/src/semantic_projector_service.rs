@@ -1,6 +1,7 @@
 use crate::memory_graph::semantic_projector::{
     classify_memory_semantic_projection_for_pulse, execute_memory_semantic_projection,
-    idunn_acquire_memory_semantic_projection, owned_running_memory_semantic_projection_claim,
+    idunn_acquire_memory_semantic_projection_with_config,
+    owned_running_memory_semantic_projection_claim,
 };
 use crate::memory_graph::{
     MemorySemanticProjectorPulseClassification, MemorySemanticProjectorPulseOutcome,
@@ -262,7 +263,7 @@ impl MemorySemanticProjectorPulsePort for LocalIdunnSemanticProjectorSession {
         purpose: &str,
     ) -> Result<Option<String>> {
         let store = self.store_for(input)?;
-        match idunn_acquire_memory_semantic_projection(
+        match idunn_acquire_memory_semantic_projection_with_config(
             store,
             input,
             &self.executor_id,
@@ -270,6 +271,7 @@ impl MemorySemanticProjectorPulsePort for LocalIdunnSemanticProjectorSession {
             purpose,
             &self.idunn_incarnation,
             &Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+            &self.config,
         ) {
             Ok(acquisition) => Ok(Some(acquisition.claim.claim_id)),
             Err(_error)

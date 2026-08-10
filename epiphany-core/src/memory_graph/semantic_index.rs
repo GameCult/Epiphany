@@ -70,7 +70,7 @@ impl MemorySemanticIndexConfig {
         }
     }
 
-    fn collection(&self, partition: SemanticPartition) -> &str {
+    pub(crate) fn collection(&self, partition: SemanticPartition) -> &str {
         match partition {
             SemanticPartition::Mind => &self.mind_collection,
             SemanticPartition::Modeling => &self.modeling_collection,
@@ -170,6 +170,10 @@ pub struct MemorySemanticProjectionAttempt {
     pub executor_incarnation: String,
     #[cultcache(key = 11)]
     pub authority_id: String,
+    #[cultcache(key = 12, default)]
+    pub physical_backend_url: String,
+    #[cultcache(key = 13, default)]
+    pub collection_name: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -424,6 +428,11 @@ pub fn validate_memory_semantic_projection_attempt(
     }) {
         return Err(anyhow!(
             "semantic projection attempt completes before it starts"
+        ));
+    }
+    if attempt.physical_backend_url.trim().is_empty() != attempt.collection_name.trim().is_empty() {
+        return Err(anyhow!(
+            "semantic projection attempt has a partial physical namespace"
         ));
     }
     match attempt.status.as_str() {
@@ -1670,6 +1679,8 @@ mod tests {
             executor_id: "executor-a".to_string(),
             executor_incarnation: "executor-a-incarnation".to_string(),
             authority_id: "authority-a".to_string(),
+            physical_backend_url: "http://qdrant".to_string(),
+            collection_name: "epiphany_modeling_v1".to_string(),
         }
     }
 

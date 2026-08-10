@@ -1131,6 +1131,8 @@ mod tests {
             executor_id: claim.executor_id.clone(),
             executor_incarnation: claim.executor_incarnation.clone(),
             authority_id: claim.authority_id.clone(),
+            physical_backend_url: "http://qdrant".into(),
+            collection_name: "semantic-modeling".into(),
         };
         let rows = vec![
             envelope(crate::MEMORY_GRAPH_KEY, &model_entry),

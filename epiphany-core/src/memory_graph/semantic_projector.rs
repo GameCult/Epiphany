@@ -264,6 +264,8 @@ pub fn migrate_memory_semantic_projection_attempts_v0(
             executor_id: claim.executor_id.clone(),
             executor_incarnation: claim.executor_incarnation.clone(),
             authority_id: claim.authority_id.clone(),
+            physical_backend_url: String::new(),
+            collection_name: String::new(),
         };
         validate_memory_semantic_projection_attempt(&upgraded)?;
         let mut replacement: CultCacheEnvelope = envelope.clone();
@@ -382,6 +384,77 @@ mod authority_tests {
                 envelopes: vec![authority],
             },
         })
+    }
+
+    #[test]
+    fn acquisition_persists_exact_physical_namespace() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("physical-namespace.cc");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let input = input(&store, &obligation)?;
+        let mut config = super::super::MemorySemanticIndexConfig::from_env();
+        config.qdrant_url = "http://qdrant-history:6333".into();
+        config.modeling_collection = "modeling-history-v9".into();
+        let acquisition = idunn_acquire_memory_semantic_projection_with_config(
+            &store,
+            &input,
+            "executor-a",
+            "executor-incarnation-a",
+            "execute",
+            "idunn-a",
+            "2026-07-15T04:01:00Z",
+            &config,
+        )?;
+        let rows = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let attempt =
+            decode_one::<MemorySemanticProjectionAttempt>(&rows, &acquisition.claim.attempt_id)?
+                .context("acquired attempt missing")?;
+        assert_eq!(attempt.physical_backend_url, config.qdrant_url);
+        assert_eq!(attempt.collection_name, config.modeling_collection);
+        Ok(())
+    }
+
+    #[test]
+    fn execution_refuses_a_substituted_physical_namespace_before_backend_io() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("substituted-namespace.cc");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let input = input(&store, &obligation)?;
+        let mut acquired = super::super::MemorySemanticIndexConfig::from_env();
+        acquired.qdrant_url = "http://qdrant-history:6333".into();
+        acquired.modeling_collection = "modeling-history-v9".into();
+        let acquisition = idunn_acquire_memory_semantic_projection_with_config(
+            &store,
+            &input,
+            "executor-a",
+            "executor-incarnation-a",
+            "execute",
+            "idunn-a",
+            "2026-07-15T04:01:00Z",
+            &acquired,
+        )?;
+        let mut substituted = acquired.clone();
+        substituted.qdrant_url = "http://foreign-qdrant:6333".into();
+        let error = execute_memory_semantic_projection(
+            &store,
+            &input,
+            &acquisition.claim.claim_id,
+            &substituted,
+        )
+        .expect_err("substituted physical namespace must fail closed");
+        assert!(error.to_string().contains("acquired physical namespace"));
+        let rows = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let attempt =
+            decode_one::<MemorySemanticProjectionAttempt>(&rows, &acquisition.claim.attempt_id)?
+                .context("failed attempt missing")?;
+        assert_eq!(attempt.status, "failed");
+        assert_eq!(attempt.physical_backend_url, acquired.qdrant_url);
+        assert_eq!(attempt.collection_name, acquired.modeling_collection);
+        Ok(())
     }
 
     #[test]
@@ -1579,7 +1652,7 @@ pub(crate) fn owned_running_memory_semantic_projection_claim(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn idunn_acquire_memory_semantic_projection(
+pub(crate) fn idunn_acquire_memory_semantic_projection_with_config(
     store_path: impl AsRef<Path>,
     input: &MemorySemanticProjectionInput,
     executor_id: &str,
@@ -1587,6 +1660,7 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
     purpose: &str,
     idunn_incarnation: &str,
     acquired_at: &str,
+    config: &super::MemorySemanticIndexConfig,
 ) -> Result<MemorySemanticProjectorAcquisition> {
     let obligation = &input.obligation;
     validate_memory_semantic_projection_obligation(obligation)?;
@@ -1665,7 +1739,19 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
         epoch,
         acquired_at,
     );
-    let attempt = running_attempt(&claim);
+    let partition = match obligation.partition.as_str() {
+        "mind" => super::SemanticPartition::Mind,
+        "modeling" => super::SemanticPartition::Modeling,
+        _ => {
+            return Err(anyhow!(
+                "semantic projection obligation partition is invalid"
+            ));
+        }
+    };
+    if config.qdrant_url.trim().is_empty() || config.collection(partition).trim().is_empty() {
+        return Err(anyhow!("semantic projection physical namespace is invalid"));
+    }
+    let attempt = running_attempt(&claim, &config.qdrant_url, config.collection(partition));
     let grant = MemorySemanticProjectorExecutorGrant {
         schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
         grant_id: grant_id.clone(),
@@ -1749,6 +1835,28 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
     Ok(MemorySemanticProjectorAcquisition { grant, claim })
 }
 
+#[cfg(test)]
+pub(crate) fn idunn_acquire_memory_semantic_projection(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    executor_id: &str,
+    executor_incarnation: &str,
+    purpose: &str,
+    idunn_incarnation: &str,
+    acquired_at: &str,
+) -> Result<MemorySemanticProjectorAcquisition> {
+    idunn_acquire_memory_semantic_projection_with_config(
+        store_path,
+        input,
+        executor_id,
+        executor_incarnation,
+        purpose,
+        idunn_incarnation,
+        acquired_at,
+        &super::MemorySemanticIndexConfig::from_env(),
+    )
+}
+
 pub(crate) fn execute_memory_semantic_projection(
     store_path: impl AsRef<Path>,
     input: &MemorySemanticProjectionInput,
@@ -1766,13 +1874,27 @@ pub(crate) fn execute_memory_semantic_projection(
     };
     let store_path = store_path.as_ref();
     let started_at = now_rfc3339();
-    let (_, _, claim, _) = load_running_claim(store_path, claim_id)?;
+    let (_, _, claim, attempt) = load_running_claim(store_path, claim_id)?;
     if claim.obligation_id != input.obligation.obligation_id {
         return Err(anyhow!(
             "semantic projection claim does not bind input obligation"
         ));
     }
     authenticate_claim_authority(store_path, &claim)?;
+    if attempt.physical_backend_url != config.qdrant_url
+        || attempt.collection_name != config.collection(partition)
+    {
+        let error = anyhow!(
+            "semantic projection execution config disagrees with acquired physical namespace"
+        );
+        let _ = fail_memory_semantic_projection_claim(
+            store_path,
+            &claim.claim_id,
+            &now_rfc3339(),
+            &format!("{error:#}"),
+        );
+        return Err(error);
+    }
     let raw_receipt = match super::semantic_index::index_memory_semantic_partition(
         &input.snapshot,
         &input.obligation.swarm_id,
@@ -1938,7 +2060,11 @@ pub(crate) fn idunn_recover_memory_semantic_projection(
         current.epoch + 1,
         recovered_at,
     );
-    let next_attempt = running_attempt(&next);
+    let next_attempt = running_attempt(
+        &next,
+        &old_attempt.physical_backend_url,
+        &old_attempt.collection_name,
+    );
     let failed_attempt = MemorySemanticProjectionAttempt {
         completed_at: Some(recovered_at.to_string()),
         status: "failed".to_string(),
@@ -2649,7 +2775,11 @@ fn running_claim(
     }
 }
 
-fn running_attempt(claim: &MemorySemanticProjectionClaim) -> MemorySemanticProjectionAttempt {
+fn running_attempt(
+    claim: &MemorySemanticProjectionClaim,
+    physical_backend_url: &str,
+    collection_name: &str,
+) -> MemorySemanticProjectionAttempt {
     MemorySemanticProjectionAttempt {
         schema_version: MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION.to_string(),
         attempt_id: claim.attempt_id.clone(),
@@ -2663,6 +2793,8 @@ fn running_attempt(claim: &MemorySemanticProjectionClaim) -> MemorySemanticProje
         executor_id: claim.executor_id.clone(),
         executor_incarnation: claim.executor_incarnation.clone(),
         authority_id: claim.authority_id.clone(),
+        physical_backend_url: physical_backend_url.to_string(),
+        collection_name: collection_name.to_string(),
     }
 }
 
@@ -3078,7 +3210,7 @@ mod retention_tests {
         );
         claim.status = "failed".to_string();
         claim.completed_at = Some(format!("2026-08-10T04:02:{epoch:02}Z"));
-        let mut attempt = running_attempt(&claim);
+        let mut attempt = running_attempt(&claim, "http://qdrant", "epiphany_mind_v1");
         attempt.status = "failed".to_string();
         attempt.completed_at = claim.completed_at.clone();
         attempt.error = Some("fixture failure".to_string());
@@ -3384,7 +3516,7 @@ mod retention_tests {
             1,
             "2026-08-10T06:00:00Z",
         );
-        let attempt = running_attempt(&claim);
+        let attempt = running_attempt(&claim, "http://qdrant", "epiphany_mind_v1");
         let grant = MemorySemanticProjectorExecutorGrant {
             schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
             grant_id: grant_id.to_string(),

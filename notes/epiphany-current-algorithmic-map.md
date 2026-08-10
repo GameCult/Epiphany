@@ -2716,6 +2716,22 @@ zero retention mutation. Receipts live under
   collection/configuration identity required for failed partial writes; resolve
   that ownership seam from source before implementation.
 
+Source inspection resolved the first half of that seam. The Qdrant endpoint and
+collection are selected by `MemorySemanticIndexConfig` in the resident projector
+body, after Idunn previously created the attempt. The attempt therefore owned
+claim/epoch identity but not the physical address used by its writes. Acquisition
+now receives the same exact config used by execution and persists both endpoint
+and collection on the attempt before backend I/O. Execution compares its live
+config with that acquired namespace and terminally fails the claim before any
+backend call when they differ. Migrated historical attempts retain empty paired
+fields rather than receiving invented history; they remain non-retirable until
+operator-grounded evidence can name their old backend.
+
+This is only the address-ownership foundation. The next cut must atomically emit
+typed physical-retirement obligations for inactive attempted epochs, process
+only obligations whose endpoint is permitted by current projector policy, and
+admit exact deletion receipts before logical lifecycle compaction.
+
 The copied-live physical audit sharpened the next ownership boundary. A durable
 physical-retirement obligation must be emitted before an attempted lifecycle can
 retire. It must carry exact collection name, obligation ID, claim ID, claim

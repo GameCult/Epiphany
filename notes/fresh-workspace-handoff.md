@@ -1776,3 +1776,18 @@ The accepted boundary is deliberately narrow: unattempted superseded semantic
 obligations are bounded; every attempted generation remains durable. The next
 cut is a physical-retirement obligation and executor receipt carrying exact
 backend namespace. Active `c005` was untouched. Yggdrasil did not build.
+
+## Physical namespace ownership foundation — 2026-08-10
+
+The physical audit found that collection identity alone was insufficient: a
+historical Qdrant endpoint is also part of the address. Projector acquisition
+now persists the exact configured endpoint and partition collection on each new
+semantic attempt before backend I/O. Execution refuses and terminally fails a
+claim when its current config differs, without touching either backend. Legacy
+attempt rows remain readable with both fields empty; no migration fabricates a
+physical address that was never recorded.
+
+Ten focused semantic authority tests pass, including exact namespace persistence
+and substituted-endpoint refusal before backend I/O. The next move is the typed
+physical-retirement obligation/receipt CAS and policy-bound executor. This source
+foundation is not yet packaged or accepted live.
