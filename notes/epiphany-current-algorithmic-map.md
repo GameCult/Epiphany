@@ -3206,4 +3206,9 @@ after exact native process observation.
   includes exact process/result race tests, activation CLI ordering, typed retry
   for proposal/Imagination/model direction, stale-link demotion, canonical Self
   settlement, core 660 passed/1 ignored, swarm 9, coordinator 17, and OpenAI
-  runtime 10. Packaged Linux kill boundaries remain open.
+  runtime 10. Exact 75b84180 package inspection authenticates 24 binaries,
+  release sha256-3959bcb3, witness sha256-6e34eb0a, and zero warnings. Packaged
+  Linux proves terminal-unactivated without provider work plus durable claimed
+  and active orphan shapes after SIGKILL/no OOM. Resident terminal-death,
+  canonical requeue/retry, valid-result-before-receipt, and retention replay
+  remain the open packaged boundaries.

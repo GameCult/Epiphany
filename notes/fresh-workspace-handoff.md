@@ -1,5 +1,41 @@
 # Fresh workspace handoff
 
+## Packaged worker start gate accepted — recovery/retry still open — 2026-08-10
+
+Exact pushed source `75b841808bb5f693acfe4513befd430fbaf65b75`
+passed core 660/1 ignored, swarm 9/9, coordinator 17/17, and OpenAI runtime
+10/10. It packaged in 6m32s without warnings as the 24-binary release
+`sha256-3959bcb3705a59a3a881e248b71e245faa5cf16f6dcc93ce49968957fb2a0301`
+with witness
+`sha256-6e34eb0aa60e4427ca45f42d02705ff5b87aef4dfb18644c03c7dcb1895bc39d`.
+Independent inspection authenticated exact source, runtime, witness, and all
+24 binaries. Package receipts are under
+`.epiphany-run/linux-package-75b84180/`. Three earlier containers in that
+directory are preserved pre-build source-preflight refusals caused by an
+uninitialized submodule clone and a staging-only URL override; only container
+`epiphany-linux-package-75b84180-4` entered Cargo and completed the release.
+
+The exact packaged `epiphany-model-runtime` then ran against quarantined copied
+CultCache fixtures under `.epiphany-run/worker-continuity-75b84180/`:
+
+- no activation: the claim remained `claimed`, no model-adapter job appeared,
+  and the ten-second gate replaced it once with `terminal-unactivated` plus one
+  outer-job failure;
+- SIGKILL while `claimed`: exit 137/no OOM, exact claim durable, outer job still
+  queued, no result or model-adapter job;
+- explicit capability activation then immediate SIGKILL: the activation API
+  returned `active`, exit 137/no OOM, exact active claim durable, outer job
+  queued, and no result or model-adapter job.
+
+This accepts the deployed worker start gate and both orphan shapes. It does not
+yet accept resident death recovery or retry. Next extend the quarantined fixture
+with exact typed grant/lease authority and run packaged Self/Runtime Continuity
+over both orphan stores. Require `terminal-death` only after exact Linux process
+observation, canonical `process-failed` settlement and one requeue, a distinct
+retry incarnation for the same request, no dual worker, exact replay, and
+retention non-resurrection. Then prove valid result before coordinator receipt
+closes once without retry. Actual c006 stays braked. Yggdrasil never builds.
+
 ## Orphan-worker Continuity source complete — 2026-08-10
 
 The runtime now persists one `EpiphanyRuntimeWorkerProcessClaim` per immutable
