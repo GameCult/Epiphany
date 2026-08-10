@@ -3335,11 +3335,20 @@ terminal authority. It deletes only the matching launch, claim, lane binding,
 job, generic result, and job events under the full physical snapshot fence.
 The request and all unrelated envelopes remain live.
 
-This cut deliberately refuses `terminal-result`: successful result/binding
-authority still answers `runtime_typed_request_fulfillment`, so deleting it
-without a fulfillment-capable tombstone would create false Pending state. That
-reader migration, stale-CAS proof, and all-lane production retention proof are
-the next cut.
+### Fulfillment-capable tombstone cut
+
+`archive_fulfilled_runtime_worker_attempt` first asks the runtime-owned typed
+fulfillment verifier to authenticate the complete live attempt. It requires a
+Completed generic job and a terminal-result claim bound to that exact result.
+Proposal Modeling additionally requires exact Mind admission before the worker
+scaffolding stops being the only owner of its patch. The atomic archive records
+request kind, request ID, job ID, result ID, terminal status, exact retired type
+counts, and chained digest. `runtime_typed_request_fulfillment` recognizes that
+narrow tombstone only when no live launch, claim, or worker result coexists.
+Thus resident settlement sees the same fulfillment before and after retention.
+Producer-owned semantic companions and admission receipts are not retirement
+cargo. Successful Imagination and admitted-model-direction live proofs remain
+required before this cut is packaged.
 
 - Owner: runtime spine owns archival of one immutable outer worker attempt.
   Resident Self supplies cross-store liveness but cannot delete runtime rows.
@@ -3371,9 +3380,7 @@ the next cut.
   archived success; duplicate archive replay; and negative proof that restoring
   or deleting one old envelope cannot resurrect work.
 
-Source finding: current completed-session archival explicitly accepts only
-terminal `openai-model-adapter` jobs and refuses outer-worker authority.
-`runtime_typed_request_attempt_exists` treats a launch without a claim as live,
-while `runtime_typed_request_fulfillment` requires the terminal result. Thus
-claim-only or result-only deletion would respectively revive retry exclusion or
-erase fulfillment. No production outer-worker retention primitive exists yet.
+The completed-session archive remains separate and accepts only terminal
+`openai-model-adapter` jobs. Outer worker attempts are owned by the dedicated
+per-attempt archive above; retry and fulfillment readers consume its tombstone
+rather than inferring state from independently missing claim/result rows.

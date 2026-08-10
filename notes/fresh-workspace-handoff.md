@@ -2671,3 +2671,15 @@ tombstone. A focused proposal-Modeling test proves refusal, retirement,
 idempotence, and that deletion cannot recreate retry suppression. Successful
 attempt retirement remains open because its tombstone must preserve the same
 authenticated fulfillment answer currently owned by the result/binding chain.
+## Successful proposal worker archive preserves fulfillment — 2026-08-10
+
+The worker-attempt tombstone can now carry a validated terminal result ID and
+answer `runtime_typed_request_fulfillment` after live worker launch, claim,
+result, binding, job, generic result, and events are retired. Proposal Modeling
+retirement additionally requires a `RepoModelAdmissionReceipt` for that exact
+worker result, so runtime retention cannot delete a patch still awaiting Mind.
+The admitted model receipt remains byte-live. Focused proof covers resident
+liveness refusal, exact live fulfillment before retirement, identical archived
+fulfillment afterward, and a concurrent unrelated write that defeats the full
+snapshot CAS without losing either side. Imagination and admitted-direction
+successful companion preservation plus production enumeration remain open.

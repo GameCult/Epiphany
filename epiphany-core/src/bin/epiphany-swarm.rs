@@ -18,7 +18,7 @@ use epiphany_core::{
     resident_self_local_provider_status,
     retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
-    retain_resident_self_lifecycles,
+    retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
     settle_resident_self_exited_coordinator,
     settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
     validate_persona_feedback_store_separation,
@@ -161,11 +161,19 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
 }
 
 fn retain_runtime_worker_attempts(args: &Args) -> Result<()> {
+    let live_request_ids = live_resident_self_typed_request_ids(&args.state_store)?;
+    let archived_at = Utc::now().to_rfc3339();
     retain_failed_runtime_worker_attempts(
         &args.policy.runtime_store,
-        args.retained_failed_runtime_worker_attempts,
-        &live_resident_self_typed_request_ids(&args.state_store)?,
-        &Utc::now().to_rfc3339(),
+        args.retained_runtime_worker_attempts,
+        &live_request_ids,
+        &archived_at,
+    )?;
+    retain_fulfilled_runtime_worker_attempts(
+        &args.policy.runtime_store,
+        args.retained_runtime_worker_attempts,
+        &live_request_ids,
+        &archived_at,
     )?;
     Ok(())
 }
@@ -459,7 +467,7 @@ struct Args {
     retained_closed_lifecycles: usize,
     retained_coordinator_receipts: usize,
     retained_completed_runtime_sessions: usize,
-    retained_failed_runtime_worker_attempts: usize,
+    retained_runtime_worker_attempts: usize,
     persona_feedback_source_store: PathBuf,
     persona_feedback_store: PathBuf,
     bifrost_feedback_trust_anchor: PathBuf,
@@ -573,12 +581,12 @@ impl Args {
             )?
             .try_into()
             .context("--retained-completed-runtime-sessions exceeds platform size")?,
-            retained_failed_runtime_worker_attempts: u64v(
-                "--retained-failed-runtime-worker-attempts",
+            retained_runtime_worker_attempts: u64v(
+                "--retained-runtime-worker-attempts",
                 256,
             )?
             .try_into()
-            .context("--retained-failed-runtime-worker-attempts exceeds platform size")?,
+            .context("--retained-runtime-worker-attempts exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,
