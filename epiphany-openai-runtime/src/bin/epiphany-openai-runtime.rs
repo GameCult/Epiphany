@@ -37,6 +37,7 @@ use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_openai_model_turn;
 use epiphany_openai_runtime::run_tool_followup_model_turn;
 use epiphany_openai_runtime::run_worker_launch;
+use epiphany_openai_runtime::worker_model_session_id;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use serde_json::json;
@@ -663,7 +664,7 @@ async fn run_worker_launch_with_tool_continuation(
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home.clone(),
-        session_id: format!("openai-worker-session-{}", launch_request.binding_id),
+        session_id: worker_model_session_id(&launch_request.job_id),
         job_id: format!("openai-worker-{}", launch_request.job_id),
         objective: format!(
             "Run Epiphany worker {} for {}",
@@ -750,6 +751,17 @@ async fn run_worker_launch_with_tool_continuation(
         &openai_summary,
         &assistant_text,
     )?;
+    epiphany_core::close_runtime_session(
+        &options.store_path,
+        epiphany_core::RuntimeSpineSessionClosureOptions {
+            session_id: openai_options.session_id.clone(),
+            completed_at: chrono::Utc::now().to_rfc3339(),
+            summary: format!(
+                "Worker model execution {} reached terminal result {}.",
+                launch_request.job_id, worker_result.result_id
+            ),
+        },
+    )?;
 
     Ok(json!({
         "store": options.store_path,
@@ -814,6 +826,11 @@ fn fail_worker_for_tool_round_limit(
         "worker {} still requested tools after {} automatic tool rounds",
         launch_request.job_id, max_tool_rounds
     );
+    terminalize_unexecuted_tool_intents(
+        store_path,
+        &openai_summary.tool_intent_ids,
+        "worker tool round limit closed this intent before execution",
+    )?;
     let result = fail_worker_job(
         store_path,
         &launch_request.job_id,
@@ -821,6 +838,7 @@ fn fail_worker_for_tool_round_limit(
         "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
             .to_string(),
     )?;
+    close_worker_model_session(store_path, &launch_request.job_id, &summary)?;
     Ok(json!({
         "status": "tool-round-limit",
         "store": store_path.display().to_string(),
@@ -853,6 +871,11 @@ fn fail_worker_for_repeated_tool_loop(
         "worker {} repeated the same pending tool request set for {} consecutive follow-up rounds",
         launch_request.job_id, consecutive_rounds
     );
+    terminalize_unexecuted_tool_intents(
+        store_path,
+        &openai_summary.tool_intent_ids,
+        "worker repeated an identical tool round; intent closed before execution",
+    )?;
     let result = fail_worker_job(
         store_path,
         &launch_request.job_id,
@@ -860,6 +883,7 @@ fn fail_worker_for_repeated_tool_loop(
         "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
             .to_string(),
     )?;
+    close_worker_model_session(store_path, &launch_request.job_id, &summary)?;
     Ok(json!({
         "status": "tool-loop-stalled",
         "store": store_path,
@@ -878,6 +902,45 @@ fn fail_worker_for_repeated_tool_loop(
         "pendingToolFingerprints": tool_fingerprints,
         "toolRounds": tool_rounds,
     }))
+}
+
+fn terminalize_unexecuted_tool_intents(
+    store_path: &Path,
+    intent_ids: &[String],
+    reason: &str,
+) -> Result<()> {
+    let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    for intent_id in intent_ids {
+        let intent = cache
+            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(intent_id))?
+            .ok_or_else(|| anyhow!("pending tool intent {intent_id:?} disappeared"))?;
+        let mut receipt = epiphany_tool_adapter::EpiphanyToolInvocationReceipt::new(
+            format!("receipt-{intent_id}-worker-closure"),
+            intent_id.clone(),
+            intent.adapter,
+            intent.server,
+            intent.tool_name,
+            "failed",
+            chrono::Utc::now().to_rfc3339(),
+        );
+        receipt.error = Some(reason.to_string());
+        epiphany_core::put_runtime_tool_execution_receipt(store_path, &receipt)?;
+        cache.pull_all_backing_stores()?;
+    }
+    Ok(())
+}
+
+fn close_worker_model_session(store_path: &Path, worker_job_id: &str, summary: &str) -> Result<()> {
+    epiphany_core::close_runtime_session(
+        store_path,
+        epiphany_core::RuntimeSpineSessionClosureOptions {
+            session_id: worker_model_session_id(worker_job_id),
+            completed_at: chrono::Utc::now().to_rfc3339(),
+            summary: summary.to_string(),
+        },
+    )?;
+    Ok(())
 }
 
 fn tool_intent_fingerprints(store_path: &Path, intent_ids: &[String]) -> Result<Vec<String>> {
@@ -928,6 +991,84 @@ mod tests {
     use epiphany_core::runtime_worker_launch_request;
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
+
+    fn seed_pending_tool_summary(
+        store: &Path,
+        worker_job_id: &str,
+        request_id: &str,
+        tool_name: &str,
+        arguments: &str,
+    ) -> Result<epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary> {
+        let session_id = worker_model_session_id(worker_job_id);
+        let job_id = format!("openai-worker-{worker_job_id}");
+        let model_request = EpiphanyModelRequest::new(
+            request_id,
+            format!("worker-{worker_job_id}"),
+            DEFAULT_PROVIDER,
+            "gpt-test",
+            "Call one source tool.",
+        );
+        let provider_request = EpiphanyOpenAiModelRequest::new(
+            request_id,
+            format!("worker-{worker_job_id}"),
+            "gpt-test",
+            "Call one source tool.",
+        );
+        epiphany_core::open_runtime_model_execution(
+            store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: session_id.clone(),
+                objective: format!("Run model execution for {worker_job_id}."),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                coordinator_note: "test".to_string(),
+            },
+            epiphany_core::RuntimeSpineJobOptions {
+                job_id: job_id.clone(),
+                session_id: session_id.clone(),
+                role: OPENAI_RUNTIME_ROLE.to_string(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                summary: "Pending tool fixture.".to_string(),
+                artifact_refs: Vec::new(),
+            },
+            &model_request,
+            &provider_request,
+            &chrono::Utc::now().to_rfc3339(),
+        )?;
+        let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, "gpt-test");
+        receipt.response_id = Some(format!("response-{request_id}"));
+        receipt.transport = Some("test".to_string());
+        record_openai_events(
+            store,
+            &EpiphanyOpenAiRuntimeOptions {
+                store_path: store.to_path_buf(),
+                codex_home: PathBuf::from(".codex"),
+                session_id,
+                job_id,
+                objective: format!("Run model execution for {worker_job_id}."),
+                coordinator_note: "test".to_string(),
+                default_model: Some("gpt-test".to_string()),
+            },
+            &provider_request,
+            &[
+                EpiphanyOpenAiStreamEvent {
+                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                    request_id: request_id.to_string(),
+                    sequence: 0,
+                    payload: EpiphanyOpenAiStreamPayload::ToolCall {
+                        call_id: format!("call-{request_id}"),
+                        name: tool_name.to_string(),
+                        arguments: arguments.to_string(),
+                    },
+                },
+                EpiphanyOpenAiStreamEvent {
+                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                    request_id: request_id.to_string(),
+                    sequence: 1,
+                    payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+                },
+            ],
+        )
+    }
 
     #[test]
     fn same_nonempty_tool_request_round_requires_real_repetition() {
@@ -1035,18 +1176,13 @@ mod tests {
         )?;
         let launch_request =
             runtime_worker_launch_request(&store, "worker-job-loop")?.expect("launch request");
-        let openai_summary = epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary {
-            store: store.display().to_string(),
-            session_id: "openai-worker-session-verification-review-worker".to_string(),
-            job_id: "openai-worker-worker-job-loop".to_string(),
-            request_id: "request-3".to_string(),
-            event_count: 1,
-            verdict: "pass".to_string(),
-            summary: "Model requested the same tool again.".to_string(),
-            result_id: "result-openai-worker-job-loop".to_string(),
-            receipt_id: Some("request-3".to_string()),
-            tool_intent_ids: vec!["intent-readme".to_string()],
-        };
+        let openai_summary = seed_pending_tool_summary(
+            &store,
+            "worker-job-loop",
+            "request-3",
+            "mcp__epiphany_source__read_file",
+            r#"{"path":"README.md"}"#,
+        )?;
 
         let status = fail_worker_for_repeated_tool_loop(
             &store,
@@ -1062,6 +1198,24 @@ mod tests {
         let snapshot = runtime_job_snapshot(&store, "worker-job-loop")?.expect("worker snapshot");
         assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
         assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        let mut cache = epiphany_core::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<epiphany_core::EpiphanyRuntimeSession>(
+                    "openai-worker-session-worker-job-loop"
+                )?
+                .expect("worker model session")
+                .status,
+            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        );
+        assert!(cache
+            .get::<epiphany_tool_adapter::EpiphanyToolInvocationReceipt>(
+                &epiphany_tool_adapter::tool_invocation_receipt_key(
+                    &openai_summary.tool_intent_ids[0]
+                )
+            )?
+            .is_some());
         Ok(())
     }
 
@@ -1213,18 +1367,14 @@ mod tests {
         )?;
         let launch_request = runtime_worker_launch_request(&store, "worker-job-round-limit")?
             .expect("launch request");
-        let openai_summary = epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary {
-            store: store.display().to_string(),
-            session_id: "openai-worker-session-verification-review-worker".to_string(),
-            job_id: "openai-worker-worker-job-round-limit".to_string(),
-            request_id: "request-limit".to_string(),
-            event_count: 1,
-            verdict: "pass".to_string(),
-            summary: "Model still requested another nonrepeating tool.".to_string(),
-            result_id: "result-openai-worker-job-round-limit".to_string(),
-            receipt_id: Some("request-limit".to_string()),
-            tool_intent_ids: vec!["intent-git-show".to_string()],
-        };
+        let openai_summary = seed_pending_tool_summary(
+            &store,
+            "worker-job-round-limit",
+            "request-limit",
+            "mcp__epiphany_source__git_show",
+            r#"{"commit":"HEAD"}"#,
+        )?;
+        let pending_intent_id = openai_summary.tool_intent_ids[0].clone();
         let tool_rounds = vec![
             json!({"round": 0, "toolFingerprints": ["epiphany_source::read_file::{\"path\":\"README.md\"}"]}),
             json!({"round": 1, "toolFingerprints": ["epiphany_source::git_show::{\"commit\":\"HEAD\"}"]}),
@@ -1240,12 +1390,23 @@ mod tests {
         )?;
 
         assert_eq!(status["status"], "tool-round-limit");
-        assert_eq!(status["pendingToolIntentIds"][0], "intent-git-show");
+        assert_eq!(status["pendingToolIntentIds"][0], pending_intent_id);
         assert_ne!(status["status"], "tool-loop-stalled");
         let snapshot =
             runtime_job_snapshot(&store, "worker-job-round-limit")?.expect("worker snapshot");
         assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
         assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        let mut cache = epiphany_core::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<epiphany_core::EpiphanyRuntimeSession>(
+                    "openai-worker-session-worker-job-round-limit"
+                )?
+                .expect("worker model session")
+                .status,
+            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        );
         Ok(())
     }
 

@@ -2416,6 +2416,28 @@ receipt IDs at read time. Those readers either preserve exact execution
 members or must first own a self-contained immutable evidence projection. No
 generic string scan or age rule may substitute for typed references.
 
+That classification exposed and repaired the archive-unit fault. Worker model
+sessions were formerly role-long (`openai-worker-session-{binding}`), so future
+workers kept the session live forever and a session tombstone could never
+bound the dominant prompt/stream family. Worker execution now derives one
+session from the exact outer worker `job_id`; all model/tool-followup jobs for
+that worker share it, while later workers receive different sessions.
+Successful completion closes the inner model session after the outer typed
+worker result is admitted. Tool-loop stall and round-limit closure first write
+failed receipts for the exact unexecuted pending intents, then fail the outer
+worker and close the same inner session. Tests prove terminal outer job,
+terminal tool receipt, and completed unique inner session. Conversation-wide
+model sessions remain intentionally long-lived and cannot be archived until
+their own owner closes them.
+
+The initial tombstone can therefore be narrow and honest: archive only a
+completed session whose jobs are model-adapter jobs, each job has an explicit
+model execution binding and terminal result, every model stream is terminal,
+and every tool binding is receipted. Outer worker launch/results and all
+semantic/Mind/consequence families remain untouched. The tombstone must retain
+the exact session, job/result, model-request, and tool-intent identities as an
+ID-reuse barrier plus counts and a digest of bulky retired envelopes.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set

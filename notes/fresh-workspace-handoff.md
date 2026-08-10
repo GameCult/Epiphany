@@ -1501,3 +1501,14 @@ runtime tests pass warning-free. The next pass is source-grounded retained
 reference classification across semantic, frontier, Hands/Soul, Persona,
 memory, resident, and coordinator readers before any archived-session deletion
 is implemented.
+
+Retained-reference inspection found the archive unit itself was false: worker
+model sessions were role-long and remained open for later workers. They now
+derive from the exact outer worker job ID, so one session owns that worker's
+initial and tool-followup model jobs only. Success closes it after typed outer
+result admission. Loop-stall and round-limit paths terminalize the exact
+unexecuted tool intents, fail the outer job, and close the same inner session.
+Six OpenAI CLI and 15 library tests pass, including terminal receipt/session
+assertions. The next cut is the narrow archived model-session tombstone; it
+must retain exact IDs and delete only inner execution envelopes, never outer
+worker or semantic authority.

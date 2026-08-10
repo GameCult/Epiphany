@@ -7,6 +7,7 @@ use anyhow::Result;
 use chrono::SecondsFormat;
 use epiphany_core::append_runtime_event;
 use epiphany_core::complete_runtime_job;
+use epiphany_core::close_runtime_session;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
@@ -23,6 +24,7 @@ use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::RuntimeSpineSessionClosureOptions;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -52,6 +54,10 @@ pub use persona_executor::*;
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
+
+pub fn worker_model_session_id(worker_job_id: &str) -> String {
+    format!("openai-worker-session-{worker_job_id}")
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyOpenAiRuntimeOptions {
@@ -314,7 +320,7 @@ pub async fn run_worker_launch(
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home,
-        session_id: format!("openai-worker-session-{}", launch_request.binding_id),
+        session_id: worker_model_session_id(&launch_request.job_id),
         job_id: format!("openai-worker-{}", launch_request.job_id),
         objective: format!(
             "Run Epiphany worker {} for {}",
@@ -338,6 +344,17 @@ pub async fn run_worker_launch(
         &model_request.request_id,
         &openai_summary,
         &assistant_text,
+    )?;
+    close_runtime_session(
+        &openai_options.store_path,
+        RuntimeSpineSessionClosureOptions {
+            session_id: openai_options.session_id.clone(),
+            completed_at: now(),
+            summary: format!(
+                "Worker model execution {} reached terminal result {}.",
+                launch_request.job_id, worker_result.result_id
+            ),
+        },
     )?;
     Ok(EpiphanyWorkerRuntimeRunSummary {
         store: openai_options.store_path.display().to_string(),
