@@ -1640,3 +1640,26 @@ Next map semantic and conversation-wide history retention before editing. Name
 the producer, live-authority preservation set, closure predicate, retirement
 evidence, and negative non-resurrection proof for each family. Active c005 stays
 untouched and Yggdrasil never builds.
+
+## Next retention owners mapped — 2026-08-10
+
+Semantic projection lifecycle and Persona conversation lifecycle are distinct
+cuts. For semantic projection, the canonical source store owns logical history:
+preserve the authenticated current obligation, singleton scope claim, current
+claim authority, running attempt, and exact readiness chain; retire only older
+source generations and their terminal/consumed lifecycle documents under a full
+snapshot fence. A typed per-scope head is evidence only. Physical Qdrant epoch
+garbage is a second semantic-executor action bound to exact retired epoch
+identity; backend failure may leak space but cannot change readiness.
+
+Persona conversation retirement is cross-store and comes later. Heartbeat owns
+terminal scheduling, runtime owns stage/effect/execution evidence, and Bifrost
+owns signed delivery audit. A durable archived-turn identity barrier is required
+before runtime details can retire, otherwise the model executor can recreate a
+previously consequential turn. Failed/unknown delivery evidence must continue
+to prevent automatic retry.
+
+Implement semantic logical lifecycle retention first. Refuse while the current
+claim/attempt is running, preserve every current-chain reference explicitly,
+replace only exact older terminal generations plus one typed head under a full
+snapshot fence, and prove the head cannot open readiness or claim authority.

@@ -2552,3 +2552,78 @@ construction/inspection under `.epiphany-run/linux-package-16c4b19f`.
 
 Coordinator receipt retention is accepted. It does not pretend to solve
 runtime session/model/event/tool retention.
+
+## Remaining semantic and conversation retention owner map
+
+The remaining histories are not one family and must not share a generic age
+deleter.
+
+### Semantic projection lifecycle
+
+- Owner: each canonical Mind or Modeling source store owns its semantic
+  obligations, scope claim, executor grants, attempts, recovery authorizations,
+  and index receipts. The semantic executor owns physical Qdrant epoch cleanup
+  only after canonical evidence proves an epoch is inactive.
+- Live inputs: the authenticated current source head and its exact obligation;
+  the singleton scope claim; any running attempt; the grant or recovery
+  authorization named by that claim; and the exact succeeded attempt/receipt
+  admitted by the current query-readiness gate.
+- Retirable inputs: older obligations whose source generation is no longer the
+  authenticated head, plus their terminal attempts, receipts, and consumed
+  grant/recovery documents, provided none is referenced by the current claim or
+  current readiness chain.
+- Output: one typed per-scope retention head with cumulative type/status counts,
+  retired generation count, and chained digest, replacing the exact old
+  lifecycle envelopes under the source store's full-snapshot fence. It is
+  evidence only and cannot deserialize as obligation, claim, grant, attempt,
+  authorization, or receipt.
+- Fail-closed cut: skip logical retirement while the current scope claim or its
+  attempt is running. Never retire the current obligation, scope claim, current
+  claim authority, or current readiness receipt. Unknown rows remain
+  byte-identical.
+- Physical cut: after logical retirement proves an epoch inactive, Qdrant may
+  delete only points carrying that exact retired
+  `(obligation_id, claim_id, claim_epoch)` namespace. It cannot infer deletion
+  from age or collection membership, cannot touch the active receipt namespace,
+  and cannot decide query readiness. A missing backend leaves harmless garbage,
+  not incorrect canonical state.
+- Negative proof: the retention head cannot make query readiness true, cannot
+  acquire/recover a claim, and cannot resurrect an obligation. Current semantic
+  query results remain identical; stale CAS refuses; unrelated canonical rows
+  and the active physical epoch remain byte-identical.
+
+Current source grounds this cut: readiness and execution authenticate the
+current obligation and singleton scope claim, while attempts and receipts are
+enumerated history filtered back to that chain. The executor grant and recovery
+authorization are claim authorities and therefore enter the preservation set
+through the claim rather than through recency.
+
+### Persona conversation lifecycle
+
+- Owner: Heartbeat owns whether the Persona turn is terminal and no longer
+  schedulable. Runtime owns the Projector/Persona/Interpreter stage receipts,
+  effect document, effect intents, delivery evidence, terminal model receipt,
+  and conversation execution receipt. Bifrost crossing stores own signed
+  request/receipt audit evidence. No one store can infer whole-chain closure
+  alone.
+- Live inputs: a reserved/nonterminal `PersonaTurnRequest`, missing conversation
+  execution receipt, started effect intent, pending signed delivery, absent or
+  unverified crossing receipt, or terminal Heartbeat state still needed for
+  reconciliation.
+- Retirable family: only a turn with exact model terminal, effect document and
+  stage receipts, terminal Heartbeat receipt, terminal conversation execution
+  receipt, every effect intent terminal, and any external consequence bound to
+  signed terminal delivery evidence. Failed/unknown delivery remains durable
+  non-retry evidence, not disposable failure noise.
+- Required tombstone: exact turn/request/effect/stage/delivery identities and
+  terminal outcome must remain sufficient to reject replay after detailed rows
+  retire. Deleting runtime rows without this identity barrier would let
+  `execute_persona_model_turn` recreate a previously consequential turn.
+- Shared cut: terminalization and later reconciliation must consult the same
+  archived-turn barrier. Runtime retention cannot delete Heartbeat or Bifrost
+  rows; their owners need corresponding bounded audit policies before the whole
+  conversation family is physically bounded.
+
+Persona conversation retention therefore follows semantic lifecycle retention.
+It requires a cross-store preservation map and replay barrier; it is not a safe
+extension of completed model-session archival.
