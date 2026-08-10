@@ -1607,3 +1607,36 @@ also passes warning-free. The source is not accepted until its exact pushed
 commit is packaged from Starfire's warm cache and a copied-live run proves one
 published object completes while the old positional array cannot mutate state.
 Active c005 remains outside this rite; Yggdrasil never builds.
+
+## Model-turn JSON boundary accepted live — 2026-08-10
+
+Exact pushed source `eea15e82` produced a warning-free 24-binary release
+`sha256-6a45bef43ef9f4ecbdc2ba69b8dfee9edf9bb085ce0d482c1ad1649b35464186`
+with witness
+`sha256-088393f4eb9784819250f6a6b44d73bc92c9d889c4eaa2a0a13868c6c71f7cda`.
+Construction and inspection receipts are under
+`.epiphany-run/linux-package-eea15e82`.
+
+The persistent package source was refreshed from an immutable Git bundle after
+the Windows bind-mounted object store lost a temporary pack. Packaging then
+found a 48,104,292-byte cached source worktree whose `.git` pointed at a vanished
+source repo. That exact cache entry was removed under
+`.epiphany-run/interventions/package-cache-stale-worktree-20260810T0145Z`;
+Cargo home and graph artifacts remained. The reconstructed package completed in
+8m43s. Both preflight refusals and the contaminated old-source launch are
+preserved beside the accepted logs.
+
+Copied-live receipts are under `.epiphany-run/model-json-ingress-eea15e82`.
+The exact packaged binary accepted one published native JSON object and completed
+it through `epiphany_direct_responses_http` in 5.9 seconds: pass verdict, two
+events, zero tools, and the exact typed request persisted. Its copied session was
+then closed. The old positional CultCache array exited 1 with `model-turn request
+must be an object with string schema_id`, created no request, and left runtime
+SHA-256
+`944494eeb6416e3123a2cb65e00e9e130c130f7c1ec8988f810bb48d55dc83da`
+unchanged. JSON ingress is accepted; CultCache remains persistence-only.
+
+Next map semantic and conversation-wide history retention before editing. Name
+the producer, live-authority preservation set, closure predicate, retirement
+evidence, and negative non-resurrection proof for each family. Active c005 stays
+untouched and Yggdrasil never builds.

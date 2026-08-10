@@ -2510,6 +2510,16 @@ CultCache persistence path.
   shapes and negative array/unknown/ToolCall cases. Exact package inspection and
   copied-live execution remain required before acceptance.
 
+Exact `eea15e82` closes that acceptance boundary. Its authenticated 24-binary
+release is
+`sha256-6a45bef43ef9f4ecbdc2ba69b8dfee9edf9bb085ce0d482c1ad1649b35464186`
+with witness
+`sha256-088393f4eb9784819250f6a6b44d73bc92c9d889c4eaa2a0a13868c6c71f7cda`.
+A published native object completed on copied live state through direct Responses
+transport and persisted its exact typed request. The positional persistence
+array failed before mutation, produced no request identity, and preserved the
+runtime file hash exactly. The boundary is accepted live.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set
