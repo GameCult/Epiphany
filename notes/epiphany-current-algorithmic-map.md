@@ -3160,3 +3160,45 @@ three. Exact live replay remains the package acceptance boundary.
 - Verification layer: pure stop/wait tests, focused Heartbeat binary tests, then
   exact packaged Linux serve under the copied c006 cognitive brake with SIGTERM,
   exit zero, final shutdown receipt, and no new grant.
+
+# Orphan worker Continuity authority map — 2026-08-10
+
+Current mechanism: the coordinator persists an immutable runtime worker launch,
+spawns `epiphany-openai-runtime run-worker` detached, and records the returned
+PID only in its artifact JSON. The runtime store has no durable binding between
+that launch/job and the worker process incarnation. Coordinator death after
+spawn therefore leaves resident Self unable to prove whether the worker may
+still publish terminal output.
+
+- Owner: the worker runtime owns claiming its exact native process incarnation
+  before model or tool work. Runtime Continuity owns activation, terminalization,
+  and exact-death recovery of that claim. Resident Self only decides whether the
+  authenticated typed request is fulfilled after those runtime facts exist.
+- Inputs: immutable worker launch/job, captured PID/creation token/executable,
+  explicit activation bound to that claim, native exact-process observation,
+  and authenticated terminal worker result.
+- Outputs: `claimed` before consequence-capable work, `active` only after one
+  explicit activation, then exactly one `terminal-result` or `terminal-death`.
+  A terminal-death attempt may be superseded by a new ordinal without deleting
+  the prior launch family.
+- Derived state: coordinator artifact PID and detached `Child` handle are
+  diagnostic only. Request identity remains retry-stable; launch, worker claim,
+  process, session, and artifact directory are attempt-incarnation state.
+- Forbidden writers: receipt absence, coordinator death alone, elapsed time,
+  generic resident cancellation, and `roleFailureReview` prose cannot declare an
+  orphan worker dead or authorize a retry. A worker without an activated exact
+  claim cannot invoke model/tools or publish a terminal result.
+- Shared paths: proposal Modeling, Imagination consideration, and admitted model
+  direction must use the same worker start gate and terminal claim primitive.
+  The worker itself claims before all provider/tool routes; no coordinator-only
+  happy path may bypass it.
+- Cut line: persist a typed worker process claim from inside `run-worker`, gate
+  work on exact activation, make terminal result close that claim atomically,
+  and let Continuity write terminal death only after exact native observation.
+  Then extend each typed launch family with ordinal/supersession bound to that
+  terminal-death authority. Do not reuse the current unbound artifact PID.
+- Verification layer: kill before claim, after claim/before activation, after
+  activation/before result, and after valid result/before coordinator receipt;
+  prove no model/tool work before activation, no dual live attempts, same typed
+  request with distinct attempt/process/artifact identities, exact replay, and
+  retention non-resurrection across all three typed lanes.

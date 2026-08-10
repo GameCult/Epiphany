@@ -1,5 +1,26 @@
 # Fresh workspace handoff
 
+## Orphan-worker ownership mapped — 2026-08-10
+
+The receipt-free pre-open coordinator boundary already has a focused source
+test and fails closed on exact runtime-incarnation absence. The remaining
+post-open fault is deeper than resident retry policy. Detached worker launch
+persists the immutable runtime job/document, but the spawned worker PID exists
+only in coordinator artifact JSON. No typed runtime state binds job, launch,
+PID, creation token, executable, activation, and terminal state. After
+coordinator death, neither resident Self nor Runtime Continuity can prove that
+the worker is dead; supersession would permit two workers to publish for one
+typed request.
+
+The authority map is now explicit in the algorithmic map. `run-worker` must
+claim its own exact process before provider/tool work and wait for an exact
+runtime activation. Authenticated result or exact observed process death then
+terminalizes that same claim. Only terminal death can ground a new attempt
+ordinal. Proposal Modeling, Imagination consideration, and admitted model
+direction must share this primitive. Coordinator artifact PID is sight only;
+do not promote it or infer death from time/receipt absence. Actual c006 remains
+braked. Yggdrasil never builds.
+
 ## Heartbeat graceful SIGTERM accepted on Linux — 2026-08-10
 
 Exact pushed source `bfb92cbb96e8ac085222844d3aa51681d15e18d1`
