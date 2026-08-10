@@ -145,6 +145,8 @@ use epiphany_state_model::EpiphanyThreadState;
 use epiphany_tool_adapter::EpiphanyToolCapability;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
+use epiphany_tool_adapter::tool_invocation_intent_key;
+use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -160,6 +162,8 @@ pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str =
     "epiphany.runtime.model_execution_binding";
+pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str =
+    "epiphany.runtime.tool_execution_binding";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
@@ -187,6 +191,8 @@ pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_b
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
+pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
+    "epiphany.runtime.tool_execution_binding.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -339,6 +345,28 @@ pub struct EpiphanyRuntimeModelExecutionBinding {
     pub job_id: String,
     #[cultcache(key = 5)]
     pub provider: String,
+    #[cultcache(key = 6)]
+    pub bound_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.tool_execution_binding",
+    schema = "EpiphanyRuntimeToolExecutionBinding"
+)]
+pub struct EpiphanyRuntimeToolExecutionBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub session_id: String,
+    #[cultcache(key = 4)]
+    pub job_id: String,
+    #[cultcache(key = 5, default)]
+    pub model_request_id: Option<String>,
     #[cultcache(key = 6)]
     pub bound_at: String,
 }
@@ -976,6 +1004,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
+    cache.register_entry_type::<EpiphanyRuntimeToolExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
@@ -1568,6 +1597,258 @@ pub fn open_runtime_model_execution(
         ));
     }
     Ok(binding)
+}
+
+pub fn put_runtime_tool_execution_intent(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    job_id: &str,
+    intent: &EpiphanyToolInvocationIntent,
+    bound_at: &str,
+) -> Result<EpiphanyRuntimeToolExecutionBinding> {
+    validate_non_empty(session_id, "tool execution session id")?;
+    validate_non_empty(job_id, "tool execution job id")?;
+    validate_non_empty(&intent.intent_id, "tool execution intent id")?;
+    validate_non_empty(&intent.adapter, "tool execution adapter")?;
+    validate_non_empty(&intent.server, "tool execution server")?;
+    validate_non_empty(&intent.tool_name, "tool execution tool name")?;
+    chrono::DateTime::parse_from_rfc3339(bound_at)
+        .map_err(|error| anyhow!("tool execution binding time is invalid: {error}"))?;
+
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(session_id)?
+        .ok_or_else(|| anyhow!("tool execution session {session_id:?} does not exist"))?;
+    if matches!(
+        session.status,
+        EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
+    ) {
+        return Err(anyhow!("tool execution session {session_id:?} is terminal"));
+    }
+    let job = cache
+        .get::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("tool execution job {job_id:?} does not exist"))?;
+    if job.session_id != session_id
+        || matches!(
+            job.status,
+            EpiphanyRuntimeJobStatus::Completed
+                | EpiphanyRuntimeJobStatus::Failed
+                | EpiphanyRuntimeJobStatus::Cancelled
+        )
+    {
+        return Err(anyhow!(
+            "tool execution job {job_id:?} is foreign or terminal"
+        ));
+    }
+    if cache
+        .get::<EpiphanyRuntimeToolExecutionBinding>(&intent.intent_id)?
+        .is_some()
+        || cache
+            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(&intent.intent_id))?
+            .is_some()
+        || cache
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(&intent.intent_id))?
+            .is_some()
+    {
+        return Err(anyhow!(
+            "tool execution intent {:?} already exists",
+            intent.intent_id
+        ));
+    }
+
+    let identity_envelope = cache
+        .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("tool execution lost runtime identity envelope"))?;
+    let session_envelope = cache
+        .get_envelope::<EpiphanyRuntimeSession>(session_id)?
+        .ok_or_else(|| anyhow!("tool execution lost session envelope"))?;
+    let job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("tool execution lost job envelope"))?;
+    let mut expected = vec![
+        identity_envelope.clone(),
+        session_envelope.clone(),
+        job_envelope.clone(),
+    ];
+    let mut replacements = expected.clone();
+    if let Some(model_request_id) = intent.model_request_id.as_deref() {
+        let model_binding = cache
+            .get::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?
+            .ok_or_else(|| {
+                anyhow!(
+                    "model-derived tool intent {:?} has no execution binding",
+                    intent.intent_id
+                )
+            })?;
+        if model_binding.request_id != model_request_id
+            || model_binding.session_id != session_id
+            || model_binding.job_id != job_id
+        {
+            return Err(anyhow!(
+                "model-derived tool intent {:?} has foreign execution ownership",
+                intent.intent_id
+            ));
+        }
+        for envelope in [
+            cache
+                .get_envelope::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?,
+            cache.get_envelope::<EpiphanyModelRequest>(model_request_id)?,
+            cache.get_envelope::<EpiphanyOpenAiModelRequest>(model_request_id)?,
+        ] {
+            let envelope = envelope.ok_or_else(|| {
+                anyhow!(
+                    "model-derived tool intent {:?} lost its model execution family",
+                    intent.intent_id
+                )
+            })?;
+            expected.push(envelope.clone());
+            replacements.push(envelope);
+        }
+    }
+    let binding = EpiphanyRuntimeToolExecutionBinding {
+        schema_version: RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION.to_string(),
+        binding_id: intent.intent_id.clone(),
+        intent_id: intent.intent_id.clone(),
+        session_id: session_id.to_string(),
+        job_id: job_id.to_string(),
+        model_request_id: intent.model_request_id.clone(),
+        bound_at: bound_at.to_string(),
+    };
+    replacements.push(cache.prepare_entry(&binding.binding_id, &binding)?.0);
+    replacements.push(
+        cache
+            .prepare_entry(&tool_invocation_intent_key(&intent.intent_id), intent)?
+            .0,
+    );
+    if !runtime_spine_backing_store(store_path)?
+        .compare_and_swap_batch(&expected, replacements)?
+    {
+        return Err(anyhow!(
+            "tool execution intent publication lost its ownership fence"
+        ));
+    }
+    Ok(binding)
+}
+
+pub fn require_runtime_tool_execution_binding(
+    store_path: impl AsRef<Path>,
+    intent_id: &str,
+) -> Result<EpiphanyRuntimeToolExecutionBinding> {
+    validate_non_empty(intent_id, "tool execution intent id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let binding = cache
+        .get::<EpiphanyRuntimeToolExecutionBinding>(intent_id)?
+        .ok_or_else(|| anyhow!("tool execution intent {intent_id:?} is unbound"))?;
+    if binding.schema_version != RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION
+        || binding.binding_id != intent_id
+        || binding.intent_id != intent_id
+        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
+    {
+        return Err(anyhow!(
+            "tool execution intent {intent_id:?} has an invalid binding"
+        ));
+    }
+    let intent = cache
+        .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(intent_id))?
+        .ok_or_else(|| anyhow!("tool execution binding {intent_id:?} lost its intent"))?;
+    if intent.intent_id != intent_id || intent.model_request_id != binding.model_request_id {
+        return Err(anyhow!(
+            "tool execution binding {intent_id:?} disagrees with its intent"
+        ));
+    }
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(&binding.session_id)?
+        .ok_or_else(|| anyhow!("tool execution binding {intent_id:?} lost its session"))?;
+    let job = cache
+        .get::<EpiphanyRuntimeJob>(&binding.job_id)?
+        .ok_or_else(|| anyhow!("tool execution binding {intent_id:?} lost its job"))?;
+    if session.status == EpiphanyRuntimeSessionStatus::Archived
+        || job.session_id != binding.session_id
+    {
+        return Err(anyhow!(
+            "tool execution binding {intent_id:?} has foreign or archived ownership"
+        ));
+    }
+    if let Some(model_request_id) = binding.model_request_id.as_deref() {
+        let model_binding = cache
+            .get::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?
+            .ok_or_else(|| anyhow!("tool execution binding lost its model execution"))?;
+        if model_binding.session_id != binding.session_id
+            || model_binding.job_id != binding.job_id
+            || model_binding.request_id != model_request_id
+        {
+            return Err(anyhow!(
+                "tool execution binding {intent_id:?} has foreign model ownership"
+            ));
+        }
+    }
+    Ok(binding)
+}
+
+pub fn put_runtime_tool_execution_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "tool execution receipt id")?;
+    validate_non_empty(&receipt.intent_id, "tool execution receipt intent id")?;
+    validate_non_empty(&receipt.status, "tool execution receipt status")?;
+    validate_non_empty(&receipt.completed_at, "tool execution receipt completion time")?;
+    if !matches!(receipt.status.as_str(), "completed" | "failed") {
+        return Err(anyhow!("tool execution receipt status is not terminal"));
+    }
+    let store_path = store_path.as_ref();
+    let binding = require_runtime_tool_execution_binding(store_path, &receipt.intent_id)?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let intent = cache
+        .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
+            &receipt.intent_id,
+        ))?
+        .ok_or_else(|| anyhow!("tool execution receipt lost its intent"))?;
+    if receipt.adapter != intent.adapter
+        || receipt.server != intent.server
+        || receipt.tool_name != intent.tool_name
+    {
+        return Err(anyhow!(
+            "tool execution receipt disagrees with its immutable intent"
+        ));
+    }
+    let receipt_key = tool_invocation_receipt_key(&receipt.intent_id);
+    if cache
+        .get::<EpiphanyToolInvocationReceipt>(&receipt_key)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "tool execution intent {:?} already has a receipt",
+            receipt.intent_id
+        ));
+    }
+    let binding_envelope = cache
+        .get_envelope::<EpiphanyRuntimeToolExecutionBinding>(&binding.binding_id)?
+        .ok_or_else(|| anyhow!("tool execution receipt lost its binding envelope"))?;
+    let intent_envelope = cache
+        .get_envelope::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
+            &receipt.intent_id,
+        ))?
+        .ok_or_else(|| anyhow!("tool execution receipt lost its intent envelope"))?;
+    if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(
+        &[binding_envelope.clone(), intent_envelope.clone()],
+        vec![
+            binding_envelope,
+            intent_envelope,
+            cache.prepare_entry(&receipt_key, receipt)?.0,
+        ],
+    )? {
+        return Err(anyhow!(
+            "tool execution receipt publication lost its ownership fence"
+        ));
+    }
+    Ok(())
 }
 
 pub fn plan_runtime_spine_heartbeat_launch(
@@ -10180,6 +10461,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            RUNTIME_TOOL_EXECUTION_BINDING_TYPE,
+            RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Runtime spine atomically binds a tool intent to its session and job before the tool runtime may execute it.",
+                "Model-derived tool intents must inherit the exact owning model execution; direct intents require explicit runtime ownership.",
+            ],
+        ),
+        mutation_contract(
             MODEL_ADAPTER_STATUS_TYPE,
             MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -14664,6 +14957,171 @@ pub(crate) mod tests {
         assert!(cache
             .get::<EpiphanyRuntimeEvent>("event-job-opened-job-foreign")?
             .is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_tool_execution_binding_owns_model_and_direct_intents() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-08-10T02:00:00Z".to_string(),
+            },
+        )?;
+        let session_options = RuntimeSpineSessionOptions {
+            session_id: "session-tools".to_string(),
+            objective: "Own tool execution membership.".to_string(),
+            created_at: "2026-08-10T02:00:01Z".to_string(),
+            coordinator_note: "test".to_string(),
+        };
+        let model_job_options = RuntimeSpineJobOptions {
+            job_id: "job-tools".to_string(),
+            session_id: "session-tools".to_string(),
+            role: "openai-model-adapter".to_string(),
+            created_at: "2026-08-10T02:00:02Z".to_string(),
+            summary: "Bound model tool execution.".to_string(),
+            artifact_refs: Vec::new(),
+        };
+        let model_request = EpiphanyModelRequest::new(
+            "request-tools",
+            "conversation-tools",
+            "openai-codex",
+            "gpt-test",
+            "Call one tool.",
+        );
+        let provider_request = EpiphanyOpenAiModelRequest::new(
+            "request-tools",
+            "conversation-tools",
+            "gpt-test",
+            "Call one tool.",
+        );
+        open_runtime_model_execution(
+            &store,
+            session_options.clone(),
+            model_job_options,
+            &model_request,
+            &provider_request,
+            "2026-08-10T02:00:03Z",
+        )?;
+        let model_intent = EpiphanyToolInvocationIntent::new(
+            "intent-model-tool",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "{}",
+            "model-runtime",
+            "Read source.",
+            "2026-08-10T02:00:04Z",
+        )
+        .with_model_call("call-1", "request-tools");
+        let model_binding = put_runtime_tool_execution_intent(
+            &store,
+            "session-tools",
+            "job-tools",
+            &model_intent,
+            "2026-08-10T02:00:04Z",
+        )?;
+        assert_eq!(
+            require_runtime_tool_execution_binding(&store, "intent-model-tool")?,
+            model_binding
+        );
+
+        let hostile_intent = EpiphanyToolInvocationIntent::new(
+            "intent-hostile",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "{}",
+            "model-runtime",
+            "Read foreign source.",
+            "2026-08-10T02:00:05Z",
+        )
+        .with_model_call("call-2", "request-missing");
+        assert!(put_runtime_tool_execution_intent(
+            &store,
+            "session-tools",
+            "job-tools",
+            &hostile_intent,
+            "2026-08-10T02:00:05Z",
+        )
+        .is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(cache
+            .get::<EpiphanyRuntimeToolExecutionBinding>("intent-hostile")?
+            .is_none());
+        assert!(cache
+            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
+                "intent-hostile"
+            ))?
+            .is_none());
+
+        create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: "job-direct-tool".to_string(),
+                session_id: "session-tools".to_string(),
+                role: "tool-runtime".to_string(),
+                created_at: "2026-08-10T02:00:06Z".to_string(),
+                summary: "Direct tool execution.".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        let direct_intent = EpiphanyToolInvocationIntent::new(
+            "intent-direct-tool",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "{}",
+            "operator",
+            "Read source directly.",
+            "2026-08-10T02:00:07Z",
+        );
+        let direct_binding = put_runtime_tool_execution_intent(
+            &store,
+            "session-tools",
+            "job-direct-tool",
+            &direct_intent,
+            "2026-08-10T02:00:07Z",
+        )?;
+        assert_eq!(direct_binding.model_request_id, None);
+        assert_eq!(
+            require_runtime_tool_execution_binding(&store, "intent-direct-tool")?,
+            direct_binding
+        );
+        let receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-direct-tool",
+            "intent-direct-tool",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "completed",
+            "unix-ms:1",
+        );
+        put_runtime_tool_execution_receipt(&store, &receipt)?;
+        assert!(put_runtime_tool_execution_receipt(&store, &receipt).is_err());
+        let hostile_receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-hostile",
+            "intent-model-tool",
+            "epiphany-tool-runtime",
+            "foreign",
+            "read",
+            "completed",
+            "unix-ms:2",
+        );
+        assert!(put_runtime_tool_execution_receipt(&store, &hostile_receipt).is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(cache
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
+                "intent-model-tool"
+            ))?
+            .is_none());
+        assert!(require_runtime_tool_execution_binding(&store, "unbound").is_err());
         Ok(())
     }
 

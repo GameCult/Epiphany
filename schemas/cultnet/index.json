@@ -49,6 +49,17 @@
       "path": "epiphany.runtime.model-execution-binding.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.tool-execution-binding.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime.tool_execution_binding.v0",
+      "documentType": "epiphany.runtime.tool_execution_binding",
+      "title": "Epiphany Runtime Tool Execution Binding",
+      "path": "epiphany.runtime.tool-execution-binding.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
       "kind": "document_payload",
       "wireContracts": [

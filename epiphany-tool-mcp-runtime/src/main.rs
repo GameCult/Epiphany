@@ -55,7 +55,7 @@ impl Cli {
 }
 
 async fn run(options: RunOptions) -> Result<RunSummary> {
-    let mut cache = open_store(&options.store)?;
+    let cache = open_store(&options.store)?;
     let intent = cache
         .get_required::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
             &options.intent_id,
@@ -64,9 +64,11 @@ async fn run(options: RunOptions) -> Result<RunSummary> {
     if intent.intent_id != options.intent_id {
         return Err(anyhow!("loaded intent identity mismatch"));
     }
+    epiphany_core::require_runtime_tool_execution_binding(&options.store, &intent.intent_id)
+        .with_context(|| format!("validating tool intent ownership {:?}", intent.intent_id))?;
 
     let receipt = execute_to_receipt(&intent, &options).await;
-    cache.put(tool_invocation_receipt_key(&intent.intent_id), &receipt)?;
+    epiphany_core::put_runtime_tool_execution_receipt(&options.store, &receipt)?;
     Ok(RunSummary {
         adapter: EPIPHANY_TOOL_RUNTIME_ADAPTER_ID.into(),
         store: options.store.display().to_string(),
@@ -294,8 +296,33 @@ mod tests {
             "prove provider-independent native tools",
             "now",
         );
-        let mut cache = open_store(&store)?;
-        cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
+        epiphany_core::create_runtime_session(
+            &store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: "native-tool-session".into(),
+                objective: "Prove owned native tool execution.".into(),
+                created_at: "2026-08-10T01:00:01Z".into(),
+                coordinator_note: "test".into(),
+            },
+        )?;
+        epiphany_core::create_runtime_job(
+            &store,
+            epiphany_core::RuntimeSpineJobOptions {
+                job_id: "native-tool-job".into(),
+                session_id: "native-tool-session".into(),
+                role: "tool-runtime".into(),
+                created_at: "2026-08-10T01:00:02Z".into(),
+                summary: "Owned native tool execution.".into(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        epiphany_core::put_runtime_tool_execution_intent(
+            &store,
+            "native-tool-session",
+            "native-tool-job",
+            &intent,
+            "2026-08-10T01:00:03Z",
+        )?;
 
         let summary = run(RunOptions {
             store: store.clone(),
@@ -312,6 +339,52 @@ mod tests {
         )?;
         assert_eq!(receipt.adapter, EPIPHANY_TOOL_RUNTIME_ADAPTER_ID);
         assert!(receipt.result_json.as_deref().unwrap().contains("awake"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unbound_intent_is_refused_before_tool_execution() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        epiphany_core::initialize_runtime_spine(
+            &store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "unbound-tool-test".into(),
+                display_name: "Unbound Tool Test".into(),
+                created_at: "now".into(),
+            },
+        )?;
+        let intent = EpiphanyToolInvocationIntent::new(
+            "unbound-read",
+            EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+            "epiphany_source",
+            "read_file",
+            r#"{"path":"missing.txt"}"#,
+            "test",
+            "prove unbound refusal",
+            "now",
+        );
+        let mut cache = open_store(&store)?;
+        cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
+
+        let error = match run(RunOptions {
+            store: store.clone(),
+            intent_id: intent.intent_id.clone(),
+            mcp_config: None,
+            cwd: Some(temp.path().to_path_buf()),
+        })
+        .await
+        {
+            Ok(_) => panic!("unbound tool intent unexpectedly executed"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("validating tool intent ownership"));
+        let cache = open_store(&store)?;
+        assert!(cache
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
+                &intent.intent_id
+            ))?
+            .is_none());
         Ok(())
     }
 }

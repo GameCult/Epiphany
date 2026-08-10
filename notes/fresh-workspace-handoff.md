@@ -1489,3 +1489,15 @@ runtime library tests pass. No archive deletion is authorized yet. Next, give
 model-derived and direct tool intents explicit execution ownership atomically;
 then map retained semantic references before building the archived-session
 tombstone.
+
+Tool execution ownership is now cut too. Runtime spine owns
+`EpiphanyRuntimeToolExecutionBinding`; intent plus owner edge publish atomically,
+model-derived intents must inherit the exact model execution, and direct
+intents require explicit session/job ownership. The tool runtime refuses
+unbound intents before execution. Terminal receipts are immutable and CAS
+fenced against the exact binding and intent, so a hostile/duplicate receipt
+cannot supply closure. Core hostile tests, all 15 OpenAI tests, and all 10 tool
+runtime tests pass warning-free. The next pass is source-grounded retained
+reference classification across semantic, frontier, Hands/Soul, Persona,
+memory, resident, and coordinator readers before any archived-session deletion
+is implemented.

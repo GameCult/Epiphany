@@ -2397,11 +2397,24 @@ request writers remain available only as unbound compatibility surfaces; their
 rows are deliberately ineligible for archival. Core hostile membership tests,
 the CultNet Hello/catalog tests, and all 15 OpenAI runtime library tests pass.
 
-Tool execution ownership is the next cut. Model-derived intents can inherit
-the exact model binding through `model_request_id`; direct intents need their
-own explicit session/job binding. Intent publication and its execution-owner
-edge must become one CAS before an archive tombstone or any broad deletion is
-implemented.
+Tool execution ownership now shares the same cut. Runtime spine owns
+`EpiphanyRuntimeToolExecutionBinding`. One CAS publishes an intent with its
+exact session/job edge; model-derived intents additionally require the exact
+native/provider model execution binding and request family in the fence.
+Direct intents require an explicit session/job owner. The tool runtime rejects
+an unbound intent before native or MCP execution. Its terminal receipt is also
+immutable: runtime spine validates adapter/server/tool identity and publishes
+it under a CAS fence containing the exact binding and intent. A hostile or
+duplicate receipt cannot become closure evidence. Core tests prove model,
+direct, foreign, missing, hostile-receipt, and replay cases; all 15 OpenAI
+runtime tests and all 10 tool-runtime tests pass without warnings.
+
+The next archive prerequisite is retained-reference classification. Before a
+session family can be deleted, source inspection must enumerate which semantic
+documents resolve session job, worker result, model request, tool intent, or
+receipt IDs at read time. Those readers either preserve exact execution
+members or must first own a self-contained immutable evidence projection. No
+generic string scan or age rule may substitute for typed references.
 
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced

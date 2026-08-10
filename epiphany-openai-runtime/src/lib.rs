@@ -7,11 +7,10 @@ use anyhow::Result;
 use chrono::SecondsFormat;
 use epiphany_core::append_runtime_event;
 use epiphany_core::complete_runtime_job;
-use epiphany_core::create_runtime_job;
-use epiphany_core::ensure_runtime_session;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
+use epiphany_core::put_runtime_tool_execution_intent;
 use epiphany_core::open_runtime_model_execution;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
@@ -41,7 +40,6 @@ pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
-use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -365,18 +363,23 @@ pub fn record_openai_events(
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
     let events = compact_openai_events_for_storage(events);
+    let tool_intents = tool_invocation_intents_from_openai_events(DEFAULT_MODEL_PROVIDER, &events);
+    for intent in &tool_intents {
+        put_runtime_tool_execution_intent(
+            store_path,
+            &options.session_id,
+            &options.job_id,
+            intent,
+            &now(),
+        )?;
+    }
     let mut receipt = None;
     let mut failure = None;
     {
         let mut cache = runtime_spine_cache(store_path)?;
         cache.pull_all_backing_stores()?;
-        let model_request = model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, request);
-        cache.put(model_request_key(&model_request.request_id), &model_request)?;
         for event in &events {
             let model_event = model_event_from_openai_event(DEFAULT_MODEL_PROVIDER, event);
-            if let Some(intent) = tool_invocation_intent_from_model_event(&model_event) {
-                cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
-            }
             cache.put(
                 model_event_key(&model_event.request_id, model_event.sequence),
                 &model_event,
@@ -465,13 +468,10 @@ pub fn record_openai_events(
         summary,
         result_id,
         receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
-        tool_intent_ids: tool_invocation_intents_from_openai_events(
-            DEFAULT_MODEL_PROVIDER,
-            &events,
-        )
-        .into_iter()
-        .map(|intent| intent.intent_id)
-        .collect(),
+        tool_intent_ids: tool_intents
+            .into_iter()
+            .map(|intent| intent.intent_id)
+            .collect(),
     })
 }
 
@@ -2452,7 +2452,7 @@ mod tests {
         );
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
-        ensure_runtime_session(
+        open_runtime_model_execution(
             &store,
             RuntimeSpineSessionOptions {
                 session_id: options.session_id.clone(),
@@ -2460,9 +2460,6 @@ mod tests {
                 created_at: now(),
                 coordinator_note: options.coordinator_note.clone(),
             },
-        )?;
-        create_runtime_job(
-            &store,
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
@@ -2471,8 +2468,10 @@ mod tests {
                 summary: "test job".to_string(),
                 artifact_refs: Vec::new(),
             },
+            &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
+            &request,
+            &now(),
         )?;
-        store_openai_request(&store, &request)?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4");
         receipt.response_id = Some("resp-1".to_string());
         receipt.transport = Some("test".to_string());
@@ -2858,7 +2857,7 @@ mod tests {
             Some(r#"{"type":"object","required":["statePatch"]}"#.to_string());
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
-        ensure_runtime_session(
+        open_runtime_model_execution(
             &store,
             RuntimeSpineSessionOptions {
                 session_id: options.session_id.clone(),
@@ -2866,9 +2865,6 @@ mod tests {
                 created_at: now(),
                 coordinator_note: options.coordinator_note.clone(),
             },
-        )?;
-        create_runtime_job(
-            &store,
             RuntimeSpineJobOptions {
                 job_id: options.job_id.clone(),
                 session_id: options.session_id.clone(),
@@ -2877,6 +2873,9 @@ mod tests {
                 summary: "tool test job".to_string(),
                 artifact_refs: Vec::new(),
             },
+            &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
+            &request,
+            &now(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-tools", "gpt-5.4");
         receipt.response_id = Some("resp-tools".to_string());
@@ -2907,6 +2906,13 @@ mod tests {
             .clone();
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
+        let tool_binding = epiphany_core::require_runtime_tool_execution_binding(
+            &store,
+            &intent_id,
+        )?;
+        assert_eq!(tool_binding.session_id, options.session_id);
+        assert_eq!(tool_binding.job_id, options.job_id);
+        assert_eq!(tool_binding.model_request_id.as_deref(), Some("req-tools"));
         let mut tool_receipt = EpiphanyToolInvocationReceipt::new(
             "receipt-tool",
             intent_id.clone(),
@@ -2917,10 +2923,8 @@ mod tests {
             now(),
         );
         tool_receipt.result_json = Some(r#"{"ok":true}"#.to_string());
-        cache.put(
-            tool_invocation_receipt_key(&tool_receipt.intent_id),
-            &tool_receipt,
-        )?;
+        drop(cache);
+        epiphany_core::put_runtime_tool_execution_receipt(&store, &tool_receipt)?;
 
         let followup =
             build_tool_followup_model_request(&store, "req-tools", "req-tools-followup")?;
