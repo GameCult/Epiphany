@@ -1,5 +1,46 @@
 # Fresh workspace handoff
 
+## c006 live scheduling exposed typed retry resurrection — 2026-08-10
+
+Exact pushed source `8d92c8266b07a98b5c6b2e8d6bdbded5661e8cbb` packaged
+without warnings as 24-binary release
+`sha256-e0f5b6084ea779dd0a7e22536b2cf371c0579b8ab06e52f728ddc8912caf2dab`
+with witness
+`sha256-8a8833b7a501a774173debe6b93658f1885691b3f35a1c7534e907d26d8860ea`.
+The integrated copied-state negative proved that resident Heartbeat observes
+the mounted cognitive brake namespace even when release identity differs.
+
+On actual c006, Heartbeat consumed the historical terminal acknowledgement
+without reissuing either old grant. The first admitted-model-direction grant
+completed exactly once. Proposal Modeling then completed one valid request and
+advanced to another. That later worker persisted an immutable launch and a
+terminal result which failed runtime fulfillment validation. Resident Self
+cancelled and requeued the same typed request; Heartbeat issued attempt two;
+the coordinator correctly refused it because attempt one's launch remained
+unsuperseded. The resulting fully bound `failed` coordinator receipt then
+crashed resident settlement because the receipt lookup incorrectly used the
+success-only validator before status classification.
+
+The cognitive brake is engaged on
+`epiphany-starfire-linux-eyes-tools`. Both c006 processes are stopped. Heartbeat
+still lacks graceful SIGTERM and stopped with exit 137 after observing the
+brake. Exact copied stores, container inspection, and logs are preserved under
+`.epiphany-run/interventions/c006-unsuperseded-relaunch-20260810T1044Z/`.
+Do not release the brake or restart c006 from `8d92c826`.
+
+Current source moves both decisions to their owners. Receipt binding is checked
+independently of terminal success, so a fully bound failed receipt reaches
+settlement. Once a typed attempt exists, pending work retains the active lease
+and hostile terminal output closes the exact grant as unfulfilled without
+returning its pressure to Heartbeat. Generic cancellation may requeue only
+before a typed attempt exists. The live-shaped regression proves a bound failed
+receipt plus hostile terminal claimant cannot mint attempt three. The full core
+suite passes 654 tests with one intentional ignore; nine swarm binary tests and
+warning-free lib/swarm checks pass. Commit/package this cut once, then replay
+against a copy of the sealed c006 failure state. Require exact settlement,
+consumed pressure, no new grant, parseable stores, and clean resident restart
+under the cognitive brake before touching actual c006.
+
 ## c006 recovery exposed Heartbeat identity and legacy-session residue — 2026-08-10
 
 Exact `9bf985fc4ab5a7f75de26493ed6e122524c71775` packaged in 6m46s as

@@ -1302,9 +1302,44 @@ pub fn settle_resident_self_exited_coordinator(
     now_millis: u64,
     cooldown_seconds: u64,
 ) -> Result<ResidentSelfOutcome> {
+    validate_resident_self_coordinator_receipt_binding(lease, receipt)?;
+    let typed = resident_self_grant_has_typed_request(resident_store, &lease.grant_id)?;
+    let typed_attempt = typed
+        && resident_self_typed_attempt_exists(resident_store, runtime_store, &lease.grant_id)?;
+    let successful_receipt = matches!(
+        receipt.status.as_str(),
+        "planned" | "needsReview" | "completed"
+    );
+    if !typed
+        && !successful_receipt
+    {
+        cancel_resident_self_turn(
+            resident_store,
+            lease,
+            if shutdown_requested {
+                "shutdown-cancelled"
+            } else if brake_engaged {
+                "brake-cancelled"
+            } else if timed_out {
+                "timed-out"
+            } else {
+                "process-failed"
+            },
+            "exact coordinator terminal receipt reports failure",
+            now_millis,
+        )?;
+        return Ok(if shutdown_requested {
+            ResidentSelfOutcome::Braked
+        } else {
+            ResidentSelfOutcome::Failed
+        });
+    }
     match verify_resident_self_grant_fulfillment(resident_store, runtime_store, &lease.grant_id) {
         Ok(ResidentSelfGrantFulfillment::Pending)
-            if !(shutdown_requested || brake_engaged || timed_out) =>
+            if typed
+                && (typed_attempt
+                    || (successful_receipt
+                        && !(shutdown_requested || brake_engaged || timed_out))) =>
         {
             Ok(ResidentSelfOutcome::AwaitingFulfillment)
         }
@@ -1332,22 +1367,36 @@ pub fn settle_resident_self_exited_coordinator(
             })
         }
         Err(error) => {
-            cancel_resident_self_turn(
-                resident_store,
-                lease,
-                "unfulfilled",
-                &error.to_string(),
-                now_millis,
-            )?;
+            if typed_attempt {
+                complete_resident_self_turn_with_terminal(
+                    resident_store,
+                    lease,
+                    &format!("resident-self-runtime-unfulfilled-{}", lease.grant_id),
+                    "unfulfilled",
+                    now_millis,
+                    cooldown_seconds,
+                    true,
+                )?;
+            } else {
+                cancel_resident_self_turn(
+                    resident_store,
+                    lease,
+                    "unfulfilled",
+                    &error.to_string(),
+                    now_millis,
+                )?;
+            }
             Ok(ResidentSelfOutcome::Failed)
         }
         Ok(ResidentSelfGrantFulfillment::Fulfilled) => {
-            complete_resident_self_turn(
+            complete_resident_self_turn_with_terminal(
                 resident_store,
                 lease,
-                receipt,
+                &receipt.receipt_id,
+                &receipt.status,
                 now_millis,
                 cooldown_seconds,
+                false,
             )?;
             Ok(ResidentSelfOutcome::Completed)
         }
@@ -1773,6 +1822,7 @@ pub fn resident_self_child_claim(
         .get::<ResidentSelfChildClaim>(&format!("resident-self-child-claim-{preparation_id}"))
 }
 
+#[cfg(test)]
 fn complete_resident_self_turn(
     path: &Path,
     lease: &ResidentSelfTurnLease,
@@ -1788,6 +1838,7 @@ fn complete_resident_self_turn(
         &coordinator.status,
         now_millis,
         cooldown_seconds,
+        false,
     )
 }
 
@@ -1795,13 +1846,25 @@ pub fn validate_resident_self_coordinator_receipt(
     lease: &ResidentSelfTurnLease,
     coordinator: &crate::EpiphanyCoordinatorRunReceipt,
 ) -> Result<()> {
+    validate_resident_self_coordinator_receipt_binding(lease, coordinator)?;
+    if !matches!(
+        coordinator.status.as_str(),
+        "planned" | "needsReview" | "completed"
+    ) {
+        return Err(anyhow!(
+            "coordinator terminal receipt is not successful"
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_resident_self_coordinator_receipt_binding(
+    lease: &ResidentSelfTurnLease,
+    coordinator: &crate::EpiphanyCoordinatorRunReceipt,
+) -> Result<()> {
     if coordinator.thread_id != lease.turn_id
         || coordinator.session_id
             != crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?
-        || !matches!(
-            coordinator.status.as_str(),
-            "planned" | "needsReview" | "completed"
-        )
         || coordinator.resident_grant_id.as_deref() != Some(&lease.grant_id)
         || coordinator.resident_launch_digest.as_deref() != Some(&lease.launch_digest)
         || coordinator.resident_policy_digest.as_deref() != Some(&lease.policy_digest)
@@ -1848,6 +1911,7 @@ pub fn complete_resident_self_turn_after_death(
         "recovered-fulfilled",
         now_millis,
         cooldown_seconds,
+        false,
     )
 }
 
@@ -1858,6 +1922,7 @@ fn complete_resident_self_turn_with_terminal(
     terminal_status: &str,
     now_millis: u64,
     cooldown_seconds: u64,
+    count_failure: bool,
 ) -> Result<ResidentSelfTerminalAck> {
     let cache = state_cache(path)?;
     let mut state = cache
@@ -1905,6 +1970,7 @@ fn complete_resident_self_turn_with_terminal(
     state.last_coordinator_receipt_id = Some(terminal_id.to_string());
     state.next_eligible_at_millis =
         now_millis.saturating_add(cooldown_seconds.saturating_mul(1000));
+    state.consecutive_failures += u64::from(count_failure);
     state.revision += 1;
     grant.schema_version = RESIDENT_SELF_GRANT_SCHEMA_VERSION.into();
     grant.terminal_at_millis = Some(now_millis);
@@ -3124,6 +3190,13 @@ mod tests {
         let mut wrong_session = receipt.clone();
         wrong_session.session_id = format!("{}-substituted", receipt.session_id);
         assert!(validate_resident_self_coordinator_receipt(&lease, &wrong_session).is_err());
+        let mut bound_failure = receipt.clone();
+        bound_failure.status = "failed".into();
+        assert!(
+            validate_resident_self_coordinator_receipt_binding(&lease, &bound_failure).is_ok(),
+            "terminal status does not decide whether a receipt belongs to the lease"
+        );
+        assert!(validate_resident_self_coordinator_receipt(&lease, &bound_failure).is_err());
         assert_eq!(
             settle_resident_self_exited_coordinator(
                 &store,
@@ -3663,6 +3736,95 @@ mod tests {
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         assert!(retry_grant.grant_id.contains("-attempt-2-"));
+
+        let prepared = prepare_resident_self_launch(&store, &policy, 9)?.expect("retry preparation");
+        let retry_process = LaunchedCoordinator {
+            process_id: 45,
+            process_creation_token: 56,
+            process_executable_path: process.process_executable_path.clone(),
+        };
+        claim_resident_self_preparation_as_child(
+            &store,
+            &prepared.preparation_id,
+            &retry_process,
+            10,
+        )?;
+        let retry_lease = acknowledge_resident_self_launch(
+            &store,
+            &prepared.preparation_id,
+            &retry_process,
+            11,
+        )?;
+        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
+        runtime.pull_all_backing_stores()?;
+        let request = runtime
+            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-retry-1")?
+            .expect("retry request");
+        let result = crate::AdmittedModelDirectionConsiderationResult {
+            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
+                .into(),
+            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
+                &request.request_id,
+                "job-retry-hostile",
+            ),
+            request_id: request.request_id.clone(),
+            runtime_id: request.runtime_id.clone(),
+            thread_id: request.thread_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            model_admission_receipt_id: request.model_admission_receipt_id.clone(),
+            disposition: crate::AdmittedModelDirectionDisposition::Hold,
+            summary: "Hostile terminal claimant fixture.".into(),
+            option_drafts: vec![],
+            uncertainties: vec![],
+            evidence_refs: vec![request.model_admission_receipt_id.clone()],
+            proposed_at: "2026-07-18T00:00:01Z".into(),
+            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
+            proposal_only: true,
+            terminal: true,
+        };
+        admit_test_model_direction_result(
+            &policy.runtime_store,
+            &request,
+            &result,
+            "job-retry-hostile",
+        )?;
+        let mut hostile = crate::runtime_role_worker_result(
+            &policy.runtime_store,
+            "job-retry-hostile",
+        )?
+        .expect("persisted worker result");
+        hostile.item_error = Some("terminal typed output failed validation".into());
+        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
+        runtime.put("job-retry-hostile", &hostile)?;
+        let mut receipt = coordinator_receipt_for_lease(&retry_lease, &policy.runtime_store);
+        receipt.status = "failed".into();
+        assert_eq!(
+            settle_resident_self_exited_coordinator(
+                &store,
+                &policy.runtime_store,
+                &retry_lease,
+                &receipt,
+                false,
+                false,
+                false,
+                12,
+                policy.cooldown_seconds,
+            )?,
+            ResidentSelfOutcome::Failed
+        );
+        let pressure = state_cache(&store)?
+            .get::<ResidentSelfPressure>("pressure-retry-1")?
+            .expect("terminal attempted pressure");
+        assert_eq!(pressure.status, "consumed");
+        assert_eq!(
+            pressure.consumed_by_grant_id.as_deref(),
+            Some(retry_grant.grant_id.as_str())
+        );
+        assert!(
+            heartbeat_issue_resident_self_grant(&store, "heartbeat-3", "action-3", 13)?.is_none(),
+            "a hostile terminal typed claimant cannot resurrect its request as another grant"
+        );
         Ok(())
     }
 

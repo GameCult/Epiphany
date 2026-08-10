@@ -21,7 +21,8 @@ use epiphany_core::{
     retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_resident_self_lifecycles,
     settle_resident_self_exited_coordinator, terminate_process_instance,
-    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt,
+    validate_persona_feedback_store_separation,
+    validate_resident_self_coordinator_receipt_binding,
     validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
 };
 use serde_json::json;
@@ -269,7 +270,7 @@ fn exact_resident_coordinator_receipt(
     let Some(receipt) = receipts.pop() else {
         return Ok(None);
     };
-    validate_resident_self_coordinator_receipt(lease, &receipt)?;
+    validate_resident_self_coordinator_receipt_binding(lease, &receipt)?;
     Ok(Some(receipt))
 }
 
@@ -447,12 +448,7 @@ fn cycle(
             observation => {
                 let receipt =
                     exact_resident_coordinator_receipt(&args.policy.runtime_store, &lease)?;
-                if let Some(receipt) = receipt.as_ref().filter(|receipt| {
-                    matches!(
-                        receipt.status.as_str(),
-                        "planned" | "needsReview" | "completed"
-                    )
-                }) {
+                if let Some(receipt) = receipt.as_ref() {
                     let outcome = settle_resident_self_exited_coordinator(
                         &args.state_store,
                         &args.policy.runtime_store,
@@ -467,26 +463,15 @@ fn cycle(
                     *state = load_resident_self_state(&args.state_store)?;
                     return Ok(outcome);
                 }
-                let outcome = if receipt.is_some() {
-                    cancel_resident_self_turn(
-                        &args.state_store,
-                        &lease,
-                        cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
-                        "exact coordinator terminal receipt reports failure",
-                        now,
-                    )?;
-                    outcome_after_cancel(shutdown_requested)
-                } else {
-                    settle_receipt_free_dead_coordinator(
-                        args,
-                        &lease,
-                        observation,
-                        shutdown_requested,
-                        brake_engaged,
-                        timed_out,
-                        now,
-                    )?
-                };
+                let outcome = settle_receipt_free_dead_coordinator(
+                    args,
+                    &lease,
+                    observation,
+                    shutdown_requested,
+                    brake_engaged,
+                    timed_out,
+                    now,
+                )?;
                 *state = load_resident_self_state(&args.state_store)?;
                 Ok(outcome)
             }

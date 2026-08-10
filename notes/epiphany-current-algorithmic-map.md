@@ -3083,3 +3083,29 @@ that entire namespace and then write a terminal receipt. Backend failure leaves
 the obligation pending and cannot affect readiness. The logical retention owner
 must preserve attempted lifecycle until that obligation exists; a cumulative
 digest is evidence, not a retry address.
+### Typed attempts own retry eligibility
+
+The c006 live run exposed a split between typed runtime authority and resident
+cancellation. A coordinator process receipt owns process closure, but it does
+not own whether a typed request may launch again. The immutable typed launch
+and runtime-owned fulfillment chain own that decision.
+
+- Receipt binding is structural: exact session incarnation, thread, grant,
+  launch, policy, argv, objective, release, and executable digests. Terminal
+  status is classified only after that binding succeeds.
+- A successful coordinator receipt with no observed attempt may briefly retain
+  the active lease while asynchronous typed publication arrives.
+- Once an exact typed attempt exists, missing terminal fulfillment remains
+  `awaiting-fulfillment`, including across brake, shutdown, or timeout. Those
+  signals cannot manufacture supersession.
+- A hostile terminal typed claimant closes the exact resident grant as
+  `unfulfilled` and leaves its pressure consumed. It cannot become another
+  Heartbeat grant.
+- Generic cancellation may return a typed pressure to Heartbeat only when no
+  immutable typed attempt exists. Explicit runtime-owned supersession remains
+  the sole route to a later attempt.
+
+The negative verification is the c006 failure shape itself: a fully bound
+`failed` coordinator receipt plus an invalid terminal proposal Modeling result
+must settle once, must not crash resident Self, and must not issue attempt
+three. Exact live replay remains the package acceptance boundary.
