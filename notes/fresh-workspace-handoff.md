@@ -1,5 +1,41 @@
 # Fresh workspace handoff
 
+## Exact packaged outer-worker retention accepted — 2026-08-10
+
+Exact pushed source `53678374adbab1552605817f41d9978ba587c52e`
+packages from the stable Docker source clone `/source/repo-live` as the 24-binary
+release
+`sha256-5d50fa7dab6bbfae78982d6dd8e8a21f2c3642bb6678686660c59fb42aa97d05`
+with witness
+`sha256-1814d2b7ee0bd93ab93a2878beb6ab7916fa7e1a476b8bde6dc7e06cd79bda73`.
+The one-time stable-path cache migration took 15m50s; inspection found exact
+source and zero warnings. Package receipts are under
+`.epiphany-run/linux-package-53678374`.
+
+Copied Linux state under `.epiphany-run/worker-retention-53678374` is bound to
+an authenticated generation-one Body at exact source `53678374`. Exact packaged
+`epiphany-swarm once`, under the copied cognitive brake and retention window
+one, exited zero twice. The failed pass archived only `failed-old-clean2`,
+replacing its exact seven-envelope launch/job/claim/binding/event family with a
+typed tombstone; `failed-new-clean2` remained terminal and live. The fulfilled
+pass archived only `fulfilled-a5`; `fulfilled-z5` remained a Completed job with
+a terminal-result claim. Runtime fulfillment still resolves the archived and
+live admitted-model-direction requests to their exact job/result IDs. The
+tombstone preserves evidence but cannot become a launchable attempt.
+
+Several fixture mistakes failed closed and are useful receipts: a foreign
+Persona document source, a missing Body route, a Modeling carrier without Body
+basis, a direction projection with the wrong model hash, and a worker job mixed
+into the coordinator's jobless Continuity session. None weakened production
+gates. Actual c006 was never mounted writable and remains braked/stopped.
+
+Next construct one direct Linux-native packaged proposal Modeling lifecycle.
+Require exact proposal/request/payload, Body-bearing launch and hash, successful
+Modeling result, admitted Evolution patch with one safe routeable frontier,
+zero-receipt recovered-fulfilled settlement, resident and worker retention,
+archived fulfillment replay, and no retry. Then return to deployed log ownership
+and randomized bind-store interruption proof. Yggdrasil never builds.
+
 ## Worker terminal-failure ownership exposed live and repaired in source — 2026-08-10
 
 Exact packaged `75b84180` copied-state runs now prove both claimed and active

@@ -3402,3 +3402,25 @@ The completed-session archive remains separate and accepts only terminal
 `openai-model-adapter` jobs. Outer worker attempts are owned by the dedicated
 per-attempt archive above; retry and fulfillment readers consume its tombstone
 rather than inferring state from independently missing claim/result rows.
+
+### Exact packaged retention evidence
+
+Exact `53678374` closes the Linux package gate. Release `sha256-5d50fa7d` and
+witness `sha256-1814d2b7` authenticate 24 binaries and zero warnings. On copied
+state bound to an exact generation-one Repository Body, packaged swarm window
+one archived the older of two failed proposal-Modeling attempts and the older
+of two fulfilled admitted-model-direction attempts. Each archive replaced
+seven exact envelopes with one tombstone; the configured newest family stayed
+live. The failed tombstone does not satisfy attempt-exists. The fulfilled
+tombstone returns the same exact job/result through
+`runtime_typed_request_fulfillment` as the retained live family. Both packaged
+cycles exited zero under the cognitive brake, so no coordinator or worker was
+launched as an accidental side effect.
+
+The live construction also falsified several invalid fixture shapes: a
+Body-less Modeling carrier, a direction launch projecting the wrong model, a
+worker without a terminal job family, and a worker job placed in the jobless
+resident coordinator session. Production gates refused each shape. The
+accepted fixture uses authenticated Body state, the exact persisted model,
+distinct worker and coordinator sessions, a claimed/active worker incarnation,
+typed result admission, generic job completion, and closed resident authority.
