@@ -1589,3 +1589,21 @@ DatabaseEntry positional-array representation. Two object-shaped requests
 failed before store mutation; only the native CultCache array shape passed.
 Repair this xenos JSON boundary with an explicit schema-shaped ingress type and
 typed conversion. Do not change CultCache persistence to accommodate JSON.
+
+## Model-turn JSON boundary implemented — 2026-08-10
+
+`epiphany-model-runtime model-turn` now parses the two published object-shaped
+contracts through explicit boundary DTOs and dispatches by exact `schema_id`.
+The boundary accepts only the fields and input variants published by
+`epiphany.model_request.v0` and `epiphany.openai_model_request.v0`, then converts
+them into the existing typed requests. Positional CultCache arrays, unknown
+fields, malformed variants, and unpublished `ToolCall` cargo refuse before the
+runtime path. DatabaseEntry serialization remains solely the persistence
+authority.
+
+All nine model-runtime binary tests pass, including published native/provider
+object acceptance and the negative boundary cases. Production `cargo check`
+also passes warning-free. The source is not accepted until its exact pushed
+commit is packaged from Starfire's warm cache and a copied-live run proves one
+published object completes while the old positional array cannot mutate state.
+Active c005 remains outside this rite; Yggdrasil never builds.

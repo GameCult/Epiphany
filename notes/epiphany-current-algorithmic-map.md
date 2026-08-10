@@ -2487,6 +2487,29 @@ that rejects unknown/malformed fields and converts into the typed persisted
 request. CultCache serialization remains the persistence owner; JSON does not
 get to reshape it.
 
+The implemented CLI boundary now owns JSON syntax only. It first requires an
+object with an exact string `schema_id`, then deserializes into one of two
+`deny_unknown_fields` DTOs matching the published native and OpenAI request
+schemas. Their three published input variants convert into the corresponding
+typed adapter request. The adapter request then enters the unchanged runtime and
+CultCache persistence path.
+
+- Owner: the published CultNet JSON schema owns accepted boundary shape; the
+  typed adapter request owns runtime meaning; DatabaseEntry owns persistence.
+- Inputs: one native or provider object with the exact schema ID and published
+  fields.
+- Output: an `EpiphanyModelRequest` or `EpiphanyOpenAiModelRequest` with
+  persistence-only fields left at typed defaults.
+- Forbidden cargo: positional CultCache arrays, unknown top-level or variant
+  fields, malformed variants, unsupported schema IDs, and `ToolCall` until a
+  published contract owns it.
+- Shared path: both native and provider objects converge on the existing model
+  runtime after conversion; neither can deserialize persistence representation
+  directly.
+- Verification: all nine binary tests pass, including both positive object
+  shapes and negative array/unknown/ToolCall cases. Exact package inspection and
+  copied-live execution remain required before acceptance.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set

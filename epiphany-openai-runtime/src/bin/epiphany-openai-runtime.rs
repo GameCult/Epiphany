@@ -15,10 +15,13 @@ use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelRequest;
+use epiphany_model_adapter::MODEL_ADAPTER_REQUEST_SCHEMA_ID;
+use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_adapter::OPENAI_ADAPTER_REQUEST_SCHEMA_ID;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
@@ -40,6 +43,7 @@ use epiphany_openai_runtime::run_worker_launch;
 use epiphany_openai_runtime::worker_model_session_id;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::tool_invocation_intent_key;
+use serde::Deserialize;
 use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
@@ -118,23 +122,23 @@ async fn main() -> Result<()> {
             let request_text = fs::read_to_string(&options.request_path)
                 .with_context(|| format!("failed to read {}", options.request_path.display()))?;
             let output_last_message_path = options.output_last_message_path.clone();
-            let (request_id, runtime_options, summary) =
-                if let Ok(request) = serde_json::from_str::<EpiphanyModelRequest>(&request_text) {
+            let request = parse_model_turn_request_json(&request_text)
+                .with_context(|| format!("failed to parse {}", options.request_path.display()))?;
+            let (request_id, runtime_options, summary) = match request {
+                ModelTurnJsonRequest::Native(request) => {
                     let runtime_options = options.clone().into_runtime_options_for_model(&request);
                     let summary =
                         run_model_turn(&options.provider, runtime_options.clone(), request.clone())
                             .await?;
                     (request.request_id, runtime_options, summary)
-                } else {
-                    let request: EpiphanyOpenAiModelRequest = serde_json::from_str(&request_text)
-                        .with_context(|| {
-                        format!("failed to parse {}", options.request_path.display())
-                    })?;
+                }
+                ModelTurnJsonRequest::OpenAi(request) => {
                     let runtime_options = options.into_runtime_options(&request);
                     let summary =
                         run_openai_model_turn(runtime_options.clone(), request.clone()).await?;
                     (request.request_id, runtime_options, summary)
-                };
+                }
+            };
             if let Some(path) = output_last_message_path {
                 let text =
                     assistant_text_from_model_events(&runtime_options.store_path, &request_id)?;
@@ -327,6 +331,150 @@ struct ModelTurnCliOptions {
     objective: Option<String>,
     default_model: Option<String>,
     output_last_message_path: Option<PathBuf>,
+}
+
+enum ModelTurnJsonRequest {
+    Native(EpiphanyModelRequest),
+    OpenAi(EpiphanyOpenAiModelRequest),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeModelRequestJson {
+    schema_id: String,
+    request_id: String,
+    conversation_id: String,
+    provider: String,
+    model: String,
+    instructions: String,
+    input: Vec<ModelInputItemJson>,
+    reasoning_effort: Option<String>,
+    reasoning_summary: Option<String>,
+    service_tier: Option<String>,
+    output_contract_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OpenAiModelRequestJson {
+    schema_id: String,
+    request_id: String,
+    conversation_id: String,
+    model: String,
+    instructions: String,
+    input: Vec<ModelInputItemJson>,
+    reasoning_effort: Option<String>,
+    reasoning_summary: Option<String>,
+    service_tier: Option<String>,
+    output_contract_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+enum ModelInputItemJson {
+    UserText(ModelTextJson),
+    AssistantText(ModelTextJson),
+    ToolResult(ModelToolResultJson),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ModelTextJson {
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ModelToolResultJson {
+    call_id: String,
+    output: String,
+}
+
+impl ModelInputItemJson {
+    fn into_native(self) -> EpiphanyModelInputItem {
+        match self {
+            Self::UserText(item) => EpiphanyModelInputItem::UserText { text: item.text },
+            Self::AssistantText(item) => EpiphanyModelInputItem::AssistantText { text: item.text },
+            Self::ToolResult(item) => EpiphanyModelInputItem::ToolResult {
+                call_id: item.call_id,
+                output: item.output,
+            },
+        }
+    }
+
+    fn into_openai(self) -> EpiphanyOpenAiInputItem {
+        match self {
+            Self::UserText(item) => EpiphanyOpenAiInputItem::UserText { text: item.text },
+            Self::AssistantText(item) => EpiphanyOpenAiInputItem::AssistantText { text: item.text },
+            Self::ToolResult(item) => EpiphanyOpenAiInputItem::ToolResult {
+                call_id: item.call_id,
+                output: item.output,
+            },
+        }
+    }
+}
+
+fn parse_model_turn_request_json(text: &str) -> Result<ModelTurnJsonRequest> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).context("model-turn request is not valid JSON")?;
+    let schema_id = value
+        .as_object()
+        .and_then(|object| object.get("schema_id"))
+        .and_then(serde_json::Value::as_str)
+        .context("model-turn request must be an object with string schema_id")?;
+    match schema_id {
+        MODEL_ADAPTER_REQUEST_SCHEMA_ID => {
+            let request: NativeModelRequestJson = serde_json::from_value(value)
+                .context("model-turn native request violates epiphany.model_request.v0")?;
+            anyhow::ensure!(
+                request.schema_id == MODEL_ADAPTER_REQUEST_SCHEMA_ID,
+                "native model request schema_id is invalid"
+            );
+            let mut typed = EpiphanyModelRequest::new(
+                request.request_id,
+                request.conversation_id,
+                request.provider,
+                request.model,
+                request.instructions,
+            );
+            typed.input = request
+                .input
+                .into_iter()
+                .map(ModelInputItemJson::into_native)
+                .collect();
+            typed.reasoning_effort = request.reasoning_effort;
+            typed.reasoning_summary = request.reasoning_summary;
+            typed.service_tier = request.service_tier;
+            typed.output_contract_id = request.output_contract_id;
+            Ok(ModelTurnJsonRequest::Native(typed))
+        }
+        OPENAI_ADAPTER_REQUEST_SCHEMA_ID => {
+            let request: OpenAiModelRequestJson = serde_json::from_value(value)
+                .context("model-turn provider request violates epiphany.openai_model_request.v0")?;
+            anyhow::ensure!(
+                request.schema_id == OPENAI_ADAPTER_REQUEST_SCHEMA_ID,
+                "OpenAI model request schema_id is invalid"
+            );
+            let mut typed = EpiphanyOpenAiModelRequest::new(
+                request.request_id,
+                request.conversation_id,
+                request.model,
+                request.instructions,
+            );
+            typed.input = request
+                .input
+                .into_iter()
+                .map(ModelInputItemJson::into_openai)
+                .collect();
+            typed.reasoning_effort = request.reasoning_effort;
+            typed.reasoning_summary = request.reasoning_summary;
+            typed.service_tier = request.service_tier;
+            typed.output_contract_id = request.output_contract_id;
+            Ok(ModelTurnJsonRequest::OpenAi(typed))
+        }
+        other => Err(anyhow!(
+            "unsupported model-turn request schema_id {other:?}"
+        )),
+    }
 }
 
 impl ModelTurnCliOptions {
@@ -992,6 +1140,95 @@ mod tests {
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
 
+    #[test]
+    fn model_turn_json_ingress_accepts_published_native_object() -> Result<()> {
+        let request = parse_model_turn_request_json(
+            r#"{
+                "schema_id":"epiphany.model_request.v0",
+                "request_id":"request-json-native",
+                "conversation_id":"conversation-json-native",
+                "provider":"openai-codex",
+                "model":"gpt-test",
+                "instructions":"Return awake.",
+                "input":[{"UserText":{"text":"awake"}}],
+                "reasoning_effort":"low"
+            }"#,
+        )?;
+        let ModelTurnJsonRequest::Native(request) = request else {
+            panic!("native schema selected provider request");
+        };
+        assert_eq!(request.request_id, "request-json-native");
+        assert_eq!(request.reasoning_effort.as_deref(), Some("low"));
+        assert_eq!(request.input.len(), 1);
+        assert!(request.tools.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn model_turn_json_ingress_accepts_published_provider_object() -> Result<()> {
+        let request = parse_model_turn_request_json(
+            r#"{
+                "schema_id":"epiphany.openai_model_request.v0",
+                "request_id":"request-json-provider",
+                "conversation_id":"conversation-json-provider",
+                "model":"gpt-test",
+                "instructions":"Return awake.",
+                "input":[{"ToolResult":{"call_id":"call-1","output":"awake"}}],
+                "output_contract_id":"contract-1"
+            }"#,
+        )?;
+        let ModelTurnJsonRequest::OpenAi(request) = request else {
+            panic!("provider schema selected native request");
+        };
+        assert_eq!(request.request_id, "request-json-provider");
+        assert_eq!(request.output_contract_id.as_deref(), Some("contract-1"));
+        assert_eq!(request.input.len(), 1);
+        assert!(request.tools.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn model_turn_json_ingress_refuses_persistence_arrays_and_unknown_fields() {
+        assert!(parse_model_turn_request_json(r#"["epiphany.model_request.v0"]"#).is_err());
+        assert!(
+            parse_model_turn_request_json(
+                r#"{
+                    "schema_id":"epiphany.model_request.v0",
+                    "request_id":"request-json-hostile",
+                    "conversation_id":"conversation-json-hostile",
+                    "provider":"openai-codex",
+                    "model":"gpt-test",
+                    "instructions":"Return awake.",
+                    "input":[],
+                    "reasoning_effort":null,
+                    "reasoning_summary":null,
+                    "service_tier":null,
+                    "output_contract_id":null,
+                    "persistence_payload":"forbidden"
+                }"#,
+            )
+            .is_err()
+        );
+        assert!(
+            parse_model_turn_request_json(
+                r#"{
+                    "schema_id":"epiphany.model_request.v0",
+                    "request_id":"request-json-toolcall",
+                    "conversation_id":"conversation-json-toolcall",
+                    "provider":"openai-codex",
+                    "model":"gpt-test",
+                    "instructions":"Return awake.",
+                    "input":[{"ToolCall":{"call_id":"call-1","name":"x","arguments":"{}"}}],
+                    "reasoning_effort":null,
+                    "reasoning_summary":null,
+                    "service_tier":null,
+                    "output_contract_id":null
+                }"#,
+            )
+            .is_err()
+        );
+    }
+
     fn seed_pending_tool_summary(
         store: &Path,
         worker_job_id: &str,
@@ -1209,13 +1446,15 @@ mod tests {
                 .status,
             epiphany_core::EpiphanyRuntimeSessionStatus::Completed
         );
-        assert!(cache
-            .get::<epiphany_tool_adapter::EpiphanyToolInvocationReceipt>(
-                &epiphany_tool_adapter::tool_invocation_receipt_key(
-                    &openai_summary.tool_intent_ids[0]
-                )
-            )?
-            .is_some());
+        assert!(
+            cache
+                .get::<epiphany_tool_adapter::EpiphanyToolInvocationReceipt>(
+                    &epiphany_tool_adapter::tool_invocation_receipt_key(
+                        &openai_summary.tool_intent_ids[0]
+                    )
+                )?
+                .is_some()
+        );
         Ok(())
     }
 
