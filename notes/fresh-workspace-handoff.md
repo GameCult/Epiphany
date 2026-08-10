@@ -2038,3 +2038,40 @@ Receipts for the falsification and first package are under
 
 Next: commit/push the corrected owner, package it exactly, then repeat the
 copied-live error closure, repair, archival, replay, and plateau proof.
+
+## Corrected coordinator lifecycle accepted live — 2026-08-10
+
+Corrected source `497df4586cd59411e51c75c245bbb2c32ac30d91` is pushed and packaged as
+`sha256-3563c90961cd9404d7c0d2c12cfa5e87859960d583c3789e7bcf80a6eab2435a`
+with witness
+`sha256-d02d2fe59160ae83036befd345a52e5ce8704abf372c804644ee1e252e13d341`.
+Inspection authenticated all 24 binaries with no warnings. The changed-core
+package took 7m11s. An identical warm replay took 13.82s wall, Cargo 0.83s,
+and reproduced the release and witness exactly. Persistent caching is healthy;
+the remaining cold-edge cost is core-to-24-binary optimized link fan-out.
+
+The copied-live proof started from an exact runtime-store copy of accepted
+b8138a6b evidence. The packaged coordinator deliberately failed after opening
+and returned exit 1 only after emitting failed receipt
+`coordinator-run-retention-proof-error-newer-failed-1786346833003`, its
+completion event, and a Completed session. Runtime status then showed two
+sessions with exactly one Active: the new failure was closed and only the old
+legacy session remained live.
+
+With the copied swarm braked, packaged Self repaired the older one-receipt
+legacy session and archived that exact family while retaining the newer failed
+session. Post-retention runtime status was one session, zero Active, zero jobs,
+zero open jobs, zero actionable Eyes/Hands frontiers, and the newer start plus
+completion events. An immediate replay left runtime SHA-256
+`669f3de53ef38d06248503151bca6d7dac216f794c9e62c92af4fa994c385461`
+byte-identical. A subsequent 30-second serve advanced from 7 to 33 operator
+projections while preserving that exact runtime digest; memory stayed around
+27.6–28.4 MiB, two processes, and SIGTERM ended at exit zero with final braked
+projection. Receipts are under
+`.epiphany-run/coordinator-session-live-497df458` and both exact package dirs.
+Active c005 was untouched.
+
+Normal coordinator lifecycle ownership is accepted. The next distinct fault is
+a hard process death after atomic opening but before any receipt. Continuity
+must ground that repair in exact process/lease authority; age, retention, and
+absence of a receipt cannot infer death.

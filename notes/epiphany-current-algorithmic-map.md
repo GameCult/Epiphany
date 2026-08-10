@@ -2844,6 +2844,22 @@ coordinator-binary tests, both 8-test swarm suites, and 650 core library tests
 with one intentional ignore. Exact corrected packaging and copied-live replay
 remain open.
 
+Exact corrected package `497df458` closes that acceptance boundary. A live
+post-open input failure terminalized before returning exit 1. Braked Self then
+repaired and archived an older receipt-grounded legacy family, retained the
+newer failed family, and projected one remaining Completed session with no jobs
+or actionable frontiers. Replay and 26 further serve cycles preserved runtime
+SHA-256 `669f3de5...5461` exactly; the short soak stayed near 28 MiB and stopped
+on SIGTERM with exit zero. This proves the retention head/archive cannot
+resurrect coordinator work and normal error exits do not leak false liveness.
+
+The remaining cut is intentionally narrower: abrupt process death can occur
+after atomic opening and before the coordinator can author any terminal
+receipt. Retention has no authority to guess that boundary. Continuity must
+bind the opened session to exact process or resident lease identity, prove that
+identity dead, and terminalize or quarantine the session through a dedicated
+receipt-grounded recovery path before retention can see it as closed.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted
