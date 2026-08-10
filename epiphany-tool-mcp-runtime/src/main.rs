@@ -3,7 +3,6 @@ use epiphany_tool_adapter::{
     EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
     TOOL_ADAPTER_CAPABILITY_SCHEMA_ID, TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID,
     TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID, tool_invocation_intent_key,
-    tool_invocation_receipt_key,
 };
 use epiphany_tool_mcp_runtime::{
     McpRuntimeConfig, execute_epiphany_source, invoke, validate_intent,
@@ -233,6 +232,7 @@ fn bound(value: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_tool_adapter::tool_invocation_receipt_key;
 
     #[test]
     fn parses_production_cli_without_legacy_codex_flags() -> Result<()> {

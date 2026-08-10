@@ -1538,3 +1538,17 @@ parse. This cut is not yet committed, packaged, or exercised on copied live
 state. Next commit/push it, package only that exact commit with Starfire's
 persistent Linux cache, then prove tombstone non-resurrection and byte identity
 on copied state. Active c005 remains untouchable. Yggdrasil never builds.
+
+Commit `c137e16b` contains that cut and is pushed. Exact packaging completed in
+7m17s with 24 binaries, release
+`sha256-44cdf05f7f2e4830702d211006914e9ac27875f1340abd74b72756e262beddce`,
+and witness
+`sha256-c7ecb23021a49d63f2893053c5653146688c0884f3eac0c6808bb29b6489abdf`,
+but the candidate is rejected: production compilation emitted one unused
+`tool_invocation_receipt_key` import warning from the tool-runtime binary. Logs
+are under `.epiphany-run/linux-package-c137e16b`.
+
+The import was used only by binary tests and now lives inside `cfg(test)`.
+Production `cargo check` and all four tool-runtime binary tests pass without
+warnings. Commit/push this follow-up and package that new exact source; do not
+accept or publish the warning-bearing c137 package as shakedown evidence.

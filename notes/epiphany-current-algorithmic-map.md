@@ -2458,6 +2458,12 @@ shared no-active/no-prepared authority gate. The default retained window is
 the newest remains live. Exact package and copied-state proof remain required;
 conversation-wide sessions and semantic history remain separate owners.
 
+Source commit `c137e16b` packages the owner but is not an accepted release: its
+24-binary build emitted one unused-import warning in the tool-runtime binary.
+That import belonged exclusively to `cfg(test)` and has been moved there; the
+production check and all four tool-runtime binary tests pass. Exact repackaging
+of the follow-up commit is required before live archive evidence.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set
