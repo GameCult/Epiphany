@@ -1,5 +1,30 @@
 # Fresh workspace handoff
 
+## Internal cognition continuation implemented; live proof pending - 2026-08-11
+
+The post-endurance audit found actual c006 coherently asleep but unable to turn
+over its next frontier. Exact packaged status says `reviewModelingResult` for
+proposal Modeling job `5ff2704b-64eb-42f1-9ca4-ca7144e33ae4`; runtime has no
+actionable Hands or Eyes frontier, Imagination eligibility is empty, planning
+is terminal, and resident pressure is empty. Releasing the brake would do
+nothing.
+
+The source cut makes the last exact resident-bound coordinator receipt own one
+possible internal-cognition continuation. Only safe Research, Modeling,
+Verification, Imagination-planning, and Mind-planning actions can become an
+idempotent pressure. Its coordinator launch is objective-free, execute-mode,
+auto-review, exactly one step, and fenced by `--required-action`. Live routing
+drift records a no-consequence refusal before the action match; it does not fail
+and requeue the stale pressure. Hands, Persona, deployment, external
+consequence, waits without terminal results, and failure review cannot create a
+continuation. Thirty resident tests and all 18 coordinator tests pass.
+
+Next: commit and package this exact source with the persistent Starfire cache,
+then run copied c006 under its brake. Require one pressure from the stranded
+receipt, exact Modeling review/admission, a genuinely newer causal receipt and
+grant, no Hands/Persona authority, bounded resource behavior, and clean
+re-engagement. Actual c006 remains exact `16407f7e`, braked and unchanged.
+
 ## Actual c006 braked endurance accepted - 2026-08-10
 
 Exact `16407f7e` remained alive in separate Heartbeat and resident Self

@@ -3589,3 +3589,45 @@ Receipts live under `.epiphany-run/c006-endurance-16407f7e`. The next broad
 gate is autonomous frontier turnover across Self, Eyes, Modeling, Imagination,
 and Mind; it must first run on copied exact state and must not acquire Hands or
 Persona consequence authority.
+
+## Receipt-bound internal cognition continuation
+
+The first live frontier audit found a scheduling silence, not a permission
+failure. A proposal-Modeling worker fulfilled its typed request and resident
+Self correctly closed that grant, but the exact coordinator receipt ended at
+`reviewModelingResult`. No domain-pressure owner converted that already-derived
+Mind review into another grant, so a brake release could not advance c006.
+
+- Owner: the exact fully resident-bound coordinator receipt owns one proposed
+  internal continuation. The coordinator remains the owner of live action
+  derivation; Heartbeat owns delivery order only.
+- Inputs: the last settled receipt ID in resident state, the matching runtime
+  receipt, its authenticated thread and final action, terminal typed role state
+  for wait-to-review transitions, and the current planning lifecycle.
+- Outputs: at most one idempotent
+  `coordinator-internal-continuation` pressure. Its launch is objective-free,
+  uses the receipt thread and mounted cognitive runtime, executes exactly one
+  step with auto-review, and carries the receipt-derived required action.
+- Derived state: receipt reason prose, rendered status, pulse artifacts,
+  readiness rows, timers, and operator projections are observations. They do
+  not create continuation authority.
+- Forbidden writers: idle polling, retention, old role lanes, Hands, Persona,
+  deployment, and external consequence paths cannot create these pressures.
+  The safe action vocabulary excludes `continueImplementation`, Persona,
+  deployment, waiting states, and failure-review actions.
+- Shared paths: proposal Modeling review, Research/Modeling/Verification launch
+  and review, and successful Imagination-to-Mind planning stages use the same
+  receipt-to-pressure primitive. Wait receipts become review pressure only
+  after their exact typed result is terminal.
+- Cut line: there is no generic coordinator retry loop. A continuation starts
+  execute mode only when its exact action is safe. Before any action match, the
+  coordinator rederives live status; disagreement emits a no-consequence
+  required-action refusal, closes the stale pressure, and publishes the newly
+  derived action without executing it.
+- Verification: 30 resident tests and all 18 coordinator tests pass. Exact
+  receipt replay creates one pressure and one objective-free execution argv;
+  repeated ingestion is idempotent; a Hands final action creates no pressure;
+  and source order proves required-action refusal precedes every action effect.
+
+Packaging and copied-c006 turnover remain required before this source cut is
+accepted live. Actual c006 remains on exact `16407f7e`, braked and unchanged.

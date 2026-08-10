@@ -9,6 +9,7 @@ use epiphany_core::{
     bridge_admitted_persona_feedback_to_heartbeat, capture_process_instance,
     coordinator_run_receipts, derive_resident_cognition_readiness,
     enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
+    ingest_resident_self_coordinator_continuation_pressure,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
     live_resident_self_typed_request_ids, load_resident_self_state, observe_process_instance,
     pending_resident_self_acks,
@@ -307,6 +308,11 @@ fn cycle(
             &args.policy.release_runtime_id,
             &args.feedback_target_repository,
             &args.policy.workspace.display().to_string(),
+            now,
+        )?;
+        ingest_resident_self_coordinator_continuation_pressure(
+            &args.state_store,
+            &args.policy.runtime_store,
             now,
         )?;
         Ok(())

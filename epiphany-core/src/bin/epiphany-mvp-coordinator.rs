@@ -98,6 +98,7 @@ struct Args {
     resident_state_store: Option<PathBuf>,
     resident_preparation_id: Option<String>,
     runtime_id: Option<String>,
+    required_action: Option<String>,
 }
 
 impl Args {
@@ -139,6 +140,7 @@ impl Args {
             resident_state_store: None,
             resident_preparation_id: None,
             runtime_id: None,
+            required_action: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -194,6 +196,9 @@ impl Args {
                         Some(take_string(&mut args, "--resident-preparation-id")?)
                 }
                 "--runtime-id" => parsed.runtime_id = Some(take_string(&mut args, "--runtime-id")?),
+                "--required-action" => {
+                    parsed.required_action = Some(take_string(&mut args, "--required-action")?)
+                }
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--mcp-config" => parsed.mcp_config = take_path(&mut args, "--mcp-config")?,
@@ -240,6 +245,13 @@ impl Args {
         if parsed.runtime_id.as_deref().is_none_or(str::is_empty) {
             return Err(anyhow!(
                 "coordinator requires exact --runtime-id for local Verse authority"
+            ));
+        }
+        if parsed.required_action.is_some()
+            && (parsed.mode != "execute" || parsed.max_steps != 1)
+        {
+            return Err(anyhow!(
+                "--required-action requires execute mode with exactly one step"
             ));
         }
         Ok(parsed)
@@ -547,6 +559,23 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         });
         final_status = status.clone();
         final_action = coordinator.clone();
+
+        if let Some(required_action) = args.required_action.as_deref()
+            && action != required_action
+        {
+            push_event(
+                &mut step,
+                json!({
+                    "type": "requiredActionRefusal",
+                    "requiredAction": required_action,
+                    "derivedAction": action,
+                    "consequence": "none"
+                }),
+            );
+            append_operator_step_jsonl(&steps_path, &step)?;
+            steps.push(step);
+            break;
+        }
 
         if args.mode == "plan" {
             append_operator_step_jsonl(&steps_path, &step)?;
@@ -2391,6 +2420,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resident_required_action_refusal_precedes_the_action_match() {
+        let source = include_str!("epiphany-mvp-coordinator.rs");
+        let refusal = source
+            .find("requiredActionRefusal")
+            .expect("required-action refusal");
+        let action_match = source
+            .find("match action.as_str()")
+            .expect("coordinator action match");
+        assert!(refusal < action_match);
+        let refusal_body = &source[refusal..action_match];
+        assert!(refusal_body.contains("consequence\": \"none"));
+        assert!(refusal_body.contains("break;"));
+    }
+
+    #[test]
     fn proposal_cli_argument_is_only_an_assertion_over_self_derived_authority() {
         let request = "repo-frontier-proposal-modeling-request";
         assert_eq!(
@@ -2456,6 +2500,7 @@ mod tests {
             resident_state_store: None,
             resident_preparation_id: None,
             runtime_id: Some("epiphany-error-terminalization".to_string()),
+            required_action: None,
         };
 
         let error = run_coordinator(&args)
