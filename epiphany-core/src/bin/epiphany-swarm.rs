@@ -60,7 +60,6 @@ fn main() -> Result<()> {
         ));
     }
     if matches!(args.command, CommandKind::Status) {
-        let now = Utc::now().timestamp_millis().max(0) as u64;
         let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
             release_store: &args.policy.release_store,
             heartbeat_store: &args.heartbeat_store,
@@ -69,7 +68,6 @@ fn main() -> Result<()> {
             release_runtime_id: &args.policy.release_runtime_id,
             release_id: &args.policy.release_id,
             release_witness_sha256: &args.policy.release_witness_sha256,
-            now_millis: now,
             freshness_millis: args.provider_freshness_seconds.saturating_mul(1000),
         });
         println!("{}", serde_json::to_string_pretty(&projection)?);

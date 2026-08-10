@@ -1159,8 +1159,10 @@ mounted store. The provider's CAS-replaced readiness row binds that live role
 to exact release, witness, source, executable, status, monotonic sequence, and
 bounded freshness. PID/creation-token observation is same-namespace diagnostic
 evidence; it is not a cross-container liveness owner because PID namespaces do
-not preserve that observation. Readiness may accept only a narrowly bounded
-future skew around its snapshot time and must still reject a genuinely
+not preserve that observation. Each predicate samples its evaluation time only
+after loading the exact provider row; release authentication time cannot make a
+concurrent refresh appear future-dated. Readiness may accept only a narrowly
+bounded future skew around that observation and must still reject a genuinely
 future-dated row. Status and supervisor aggregation share this derivation.
 Neither a fresh row without the role lock nor a role lock without the exact
 fresh row can become ready.

@@ -23,7 +23,9 @@ incarnation. The cognitive brake was re-engaged at the clean sleeping boundary;
 both exact processes remain alive. The current source cut makes the shared-store
 role singleton own cross-container liveness and keeps the exact fresh provider
 row as release/witness/source/executable identity. PID sight is diagnostic.
-Rows more than one second beyond snapshot time still refuse. Fifteen focused
+Evaluation time is sampled only after loading each exact row, so slow witness
+authentication cannot race a provider refresh. Rows more than one second beyond
+that observation still refuse. Fifteen focused
 tests and all 666 non-ignored core library tests pass. Commit/package this cut,
 prove active/warming transitions with two copied-state containers, then publish
 under brake and resume endurance. Yggdrasil never builds.

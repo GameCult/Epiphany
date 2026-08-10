@@ -22,6 +22,7 @@ use std::os::fd::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::{
@@ -362,7 +363,6 @@ pub struct ResidentReadinessRequest<'a> {
     pub release_runtime_id: &'a str,
     pub release_id: &'a str,
     pub release_witness_sha256: &'a str,
-    pub now_millis: u64,
     pub freshness_millis: u64,
 }
 
@@ -582,7 +582,6 @@ pub fn authenticate_resident_provider_pair(
     witness: &str,
     heartbeat_store: &Path,
     resident_store: &Path,
-    now_millis: u64,
     freshness_millis: u64,
 ) -> ResidentProviderPairHealth {
     let mut result = ResidentProviderPairHealth {
@@ -631,7 +630,7 @@ pub fn authenticate_resident_provider_pair(
             witness,
             Some(&release.source_commit_sha),
             executable.as_deref(),
-            now_millis,
+            current_time_millis(),
             freshness_millis,
             role_owner_present,
         ) {
@@ -683,7 +682,7 @@ fn provider_is_fresh(
         request.release_witness_sha256,
         expected_source_commit,
         expected_executable,
-        request.now_millis,
+        current_time_millis(),
         request.freshness_millis,
         role_owner_present,
     );
@@ -780,6 +779,14 @@ fn distinct_physical_paths(left: &Path, right: &Path) -> bool {
 
 fn canonical_or_absolute(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn current_time_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64
 }
 
 fn directory_ready(path: &Path) -> bool {
@@ -1147,7 +1154,6 @@ mod tests {
             release_runtime_id: &policy.release_runtime_id,
             release_id: &policy.release_id,
             release_witness_sha256: &policy.release_witness_sha256,
-            now_millis: 0,
             freshness_millis: 1,
         });
 
@@ -1268,7 +1274,7 @@ mod tests {
         };
         let witness = format!("sha256-{}", "a".repeat(64));
         let missing =
-            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10, 10);
+            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10);
         assert_eq!(missing.warming, 2);
         let process = crate::capture_process_instance(std::process::id())?;
         let mut wrong = provider();
@@ -1282,7 +1288,7 @@ mod tests {
         wrong.process_executable_path = process.executable_path.display().to_string();
         publish_resident_provider_readiness(&heartbeat, wrong)?;
         let rejected =
-            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10, 10);
+            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10);
         assert!(
             rejected
                 .contradictions

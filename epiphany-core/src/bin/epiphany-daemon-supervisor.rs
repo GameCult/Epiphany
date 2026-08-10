@@ -988,7 +988,6 @@ fn publish_managed_service_iteration_health(
             authenticated_release_witness_sha256,
             heartbeat_store,
             resident_store,
-            Utc::now().timestamp_millis().max(0) as u64,
             args.resident_provider_stale_seconds.saturating_mul(1000),
         );
         terminal_current += pair.terminal_current;
