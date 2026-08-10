@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.archived-session.schema.json",
+  "title": "Epiphany Archived Runtime Session",
+  "description": "Permanent tombstone and evidence accumulator for one fully closed model-session execution generation.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "epiphany.runtime.archived_session.v0" },
+    "archiveId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "archivedAt": { "type": "string", "format": "date-time" },
+    "jobIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "jobResultIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "modelRequestIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "toolIntentIds": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "terminalJobStatusCounts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "retiredTypeCounts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+    "retiredEnvelopeCount": { "type": "integer", "minimum": 1 },
+    "retiredChainDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "required": [
+    "schemaVersion",
+    "archiveId",
+    "sessionId",
+    "archivedAt",
+    "jobIds",
+    "jobResultIds",
+    "modelRequestIds",
+    "toolIntentIds",
+    "terminalJobStatusCounts",
+    "retiredTypeCounts",
+    "retiredEnvelopeCount",
+    "retiredChainDigest"
+  ]
+}

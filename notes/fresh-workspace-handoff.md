@@ -1512,3 +1512,29 @@ Six OpenAI CLI and 15 library tests pass, including terminal receipt/session
 assertions. The next cut is the narrow archived model-session tombstone; it
 must retain exact IDs and delete only inner execution envelopes, never outer
 worker or semantic authority.
+
+## Narrow model-generation archive — source-proven 2026-08-10
+
+Runtime spine now owns `EpiphanyArchivedRuntimeSession`. Archive admission is
+deliberately narrow: the session is Completed; every member job is an
+`openai-model-adapter` job with exactly one model-execution binding and terminal
+job result; native and OpenAI requests, streams, and receipts agree and are
+terminal; and every bound tool intent has one authenticated terminal receipt.
+Outer worker launches/results, coordinator receipts, semantic/Mind/consequence
+documents, unknown rows, and unrelated runtime envelopes are not members.
+
+One full-snapshot-fenced replacement writes a tombstone containing the exact
+session/job/result/request/intent IDs, terminal counts, retired-family counts,
+and chained envelope digest while deleting only that inner execution family.
+Those retained IDs are the permanent reuse barrier. A stale snapshot refuses;
+an unreceipted tool refuses; exact replay is idempotent; and unrelated envelopes
+remain byte-identical. Resident Self calls the bounded owner only while neither
+active nor prepared launch authority exists. The configurable default window
+is 256 and at least the newest completed model generation always survives.
+
+The exact archive test and two-generation retention-window test pass, as do all
+eight `epiphany-swarm` tests and `cargo check`. The schema and CultNet catalog
+parse. This cut is not yet committed, packaged, or exercised on copied live
+state. Next commit/push it, package only that exact commit with Starfire's
+persistent Linux cache, then prove tombstone non-resurrection and byte identity
+on copied state. Active c005 remains untouchable. Yggdrasil never builds.

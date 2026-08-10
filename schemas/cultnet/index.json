@@ -60,6 +60,17 @@
       "path": "epiphany.runtime.tool-execution-binding.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.archived-session.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime.archived_session.v0",
+      "documentType": "epiphany.runtime.archived_session",
+      "title": "Epiphany Archived Runtime Session",
+      "path": "epiphany.runtime.archived-session.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
       "kind": "document_payload",
       "wireContracts": [

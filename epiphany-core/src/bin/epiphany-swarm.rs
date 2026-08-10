@@ -13,10 +13,10 @@ use epiphany_core::{
     load_resident_self_state, observe_process_instance, pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_local_provider_status, retain_coordinator_run_receipts,
-    retain_resident_self_lifecycles, settle_resident_self_exited_coordinator,
-    terminate_process_instance, validate_persona_feedback_store_separation,
-    validate_resident_self_store_separation,
+    resident_self_local_provider_status, retain_completed_model_sessions,
+    retain_coordinator_run_receipts, retain_resident_self_lifecycles,
+    settle_resident_self_exited_coordinator, terminate_process_instance,
+    validate_persona_feedback_store_separation, validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -139,6 +139,11 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
         &args.policy.runtime_store,
         args.retained_coordinator_receipts,
         &preserved,
+        &Utc::now().to_rfc3339(),
+    )?;
+    retain_completed_model_sessions(
+        &args.policy.runtime_store,
+        args.retained_completed_model_sessions,
         &Utc::now().to_rfc3339(),
     )?;
     Ok(())
@@ -449,6 +454,7 @@ struct Args {
     provider_freshness_seconds: u64,
     retained_closed_lifecycles: usize,
     retained_coordinator_receipts: usize,
+    retained_completed_model_sessions: usize,
     persona_feedback_source_store: PathBuf,
     persona_feedback_store: PathBuf,
     bifrost_feedback_trust_anchor: PathBuf,
@@ -556,6 +562,9 @@ impl Args {
             retained_coordinator_receipts: u64v("--retained-coordinator-receipts", 256)?
                 .try_into()
                 .context("--retained-coordinator-receipts exceeds platform size")?,
+            retained_completed_model_sessions: u64v("--retained-completed-model-sessions", 256)?
+                .try_into()
+                .context("--retained-completed-model-sessions exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,

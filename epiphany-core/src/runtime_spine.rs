@@ -134,10 +134,12 @@ use epiphany_model_adapter::EpiphanyModelAdapterStatus;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
+use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
+use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_state_model::EpiphanyJobBinding;
 use epiphany_state_model::EpiphanyJobKind;
 use epiphany_state_model::EpiphanyRuntimeLink;
@@ -160,10 +162,9 @@ use std::path::PathBuf;
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
-pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str =
-    "epiphany.runtime.model_execution_binding";
-pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str =
-    "epiphany.runtime.tool_execution_binding";
+pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.model_execution_binding";
+pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.tool_execution_binding";
+pub const ARCHIVED_RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.archived_session";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
@@ -193,6 +194,7 @@ pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
 pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.tool_execution_binding.v0";
+pub const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -369,6 +371,38 @@ pub struct EpiphanyRuntimeToolExecutionBinding {
     pub model_request_id: Option<String>,
     #[cultcache(key = 6)]
     pub bound_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.archived_session",
+    schema = "EpiphanyArchivedRuntimeSession"
+)]
+pub struct EpiphanyArchivedRuntimeSession {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub archive_id: String,
+    #[cultcache(key = 2)]
+    pub session_id: String,
+    #[cultcache(key = 3)]
+    pub archived_at: String,
+    #[cultcache(key = 4)]
+    pub job_ids: Vec<String>,
+    #[cultcache(key = 5)]
+    pub job_result_ids: Vec<String>,
+    #[cultcache(key = 6)]
+    pub model_request_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub tool_intent_ids: Vec<String>,
+    #[cultcache(key = 8)]
+    pub terminal_job_status_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 9)]
+    pub retired_type_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 10)]
+    pub retired_envelope_count: u64,
+    #[cultcache(key = 11)]
+    pub retired_chain_digest: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -1005,6 +1039,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyRuntimeToolExecutionBinding>()?;
+    cache.register_entry_type::<EpiphanyArchivedRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
@@ -1260,6 +1295,7 @@ pub fn create_runtime_session(
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    require_runtime_identity_not_archived(&cache, "session", &options.session_id)?;
     if cache
         .get::<EpiphanyRuntimeSession>(&options.session_id)?
         .is_some()
@@ -1293,6 +1329,7 @@ pub fn ensure_runtime_session(
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    require_runtime_identity_not_archived(&cache, "session", &options.session_id)?;
     if let Some(existing) = cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
         if matches!(
             existing.status,
@@ -1399,6 +1436,7 @@ pub fn create_runtime_job(
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    require_runtime_identity_not_archived(&cache, "job", &options.job_id)?;
     let session = cache
         .get::<EpiphanyRuntimeSession>(&options.session_id)?
         .ok_or_else(|| anyhow!("runtime session {:?} does not exist", options.session_id))?;
@@ -1452,7 +1490,10 @@ pub fn open_runtime_model_execution(
 ) -> Result<EpiphanyRuntimeModelExecutionBinding> {
     validate_non_empty(&session_options.session_id, "model execution session id")?;
     validate_non_empty(&session_options.objective, "model execution objective")?;
-    validate_non_empty(&session_options.created_at, "model execution session creation time")?;
+    validate_non_empty(
+        &session_options.created_at,
+        "model execution session creation time",
+    )?;
     validate_non_empty(&job_options.job_id, "model execution job id")?;
     validate_non_empty(&job_options.role, "model execution job role")?;
     validate_non_empty(&job_options.created_at, "model execution job creation time")?;
@@ -1479,17 +1520,22 @@ pub fn open_runtime_model_execution(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    require_runtime_identity_not_archived(&cache, "session", &session_options.session_id)?;
+    require_runtime_identity_not_archived(&cache, "job", &job_options.job_id)?;
+    require_runtime_identity_not_archived(&cache, "model-request", &model_request.request_id)?;
     let existing_session = cache.get::<EpiphanyRuntimeSession>(&session_options.session_id)?;
-    let session = existing_session.clone().unwrap_or_else(|| EpiphanyRuntimeSession {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        session_id: session_options.session_id.clone(),
-        objective: session_options.objective.clone(),
-        status: EpiphanyRuntimeSessionStatus::Active,
-        created_at: session_options.created_at.clone(),
-        updated_at: session_options.created_at.clone(),
-        coordinator_note: session_options.coordinator_note.clone(),
-        metadata: BTreeMap::new(),
-    });
+    let session = existing_session
+        .clone()
+        .unwrap_or_else(|| EpiphanyRuntimeSession {
+            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+            session_id: session_options.session_id.clone(),
+            objective: session_options.objective.clone(),
+            status: EpiphanyRuntimeSessionStatus::Active,
+            created_at: session_options.created_at.clone(),
+            updated_at: session_options.created_at.clone(),
+            coordinator_note: session_options.coordinator_note.clone(),
+            metadata: BTreeMap::new(),
+        });
     if matches!(
         session.status,
         EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
@@ -1499,7 +1545,10 @@ pub fn open_runtime_model_execution(
             session.session_id
         ));
     }
-    if cache.get::<EpiphanyRuntimeJob>(&job_options.job_id)?.is_some() {
+    if cache
+        .get::<EpiphanyRuntimeJob>(&job_options.job_id)?
+        .is_some()
+    {
         return Err(anyhow!(
             "model execution job {:?} already exists",
             job_options.job_id
@@ -1589,9 +1638,7 @@ pub fn open_runtime_model_execution(
             .prepare_entry(&provider_request.request_id, provider_request)?
             .0,
     ];
-    if !runtime_spine_backing_store(store_path)?
-        .compare_and_swap_batch(&expected, replacements)?
-    {
+    if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
             "model execution request publication lost its snapshot fence"
         ));
@@ -1619,6 +1666,7 @@ pub fn put_runtime_tool_execution_intent(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    require_runtime_identity_not_archived(&cache, "tool-intent", &intent.intent_id)?;
     let session = cache
         .get::<EpiphanyRuntimeSession>(session_id)?
         .ok_or_else(|| anyhow!("tool execution session {session_id:?} does not exist"))?;
@@ -1693,8 +1741,7 @@ pub fn put_runtime_tool_execution_intent(
             ));
         }
         for envelope in [
-            cache
-                .get_envelope::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?,
+            cache.get_envelope::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?,
             cache.get_envelope::<EpiphanyModelRequest>(model_request_id)?,
             cache.get_envelope::<EpiphanyOpenAiModelRequest>(model_request_id)?,
         ] {
@@ -1723,9 +1770,7 @@ pub fn put_runtime_tool_execution_intent(
             .prepare_entry(&tool_invocation_intent_key(&intent.intent_id), intent)?
             .0,
     );
-    if !runtime_spine_backing_store(store_path)?
-        .compare_and_swap_batch(&expected, replacements)?
-    {
+    if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
             "tool execution intent publication lost its ownership fence"
         ));
@@ -1797,7 +1842,10 @@ pub fn put_runtime_tool_execution_receipt(
     validate_non_empty(&receipt.receipt_id, "tool execution receipt id")?;
     validate_non_empty(&receipt.intent_id, "tool execution receipt intent id")?;
     validate_non_empty(&receipt.status, "tool execution receipt status")?;
-    validate_non_empty(&receipt.completed_at, "tool execution receipt completion time")?;
+    validate_non_empty(
+        &receipt.completed_at,
+        "tool execution receipt completion time",
+    )?;
     if !matches!(receipt.status.as_str(), "completed" | "failed") {
         return Err(anyhow!("tool execution receipt status is not terminal"));
     }
@@ -1806,9 +1854,7 @@ pub fn put_runtime_tool_execution_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let intent = cache
-        .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
-            &receipt.intent_id,
-        ))?
+        .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(&receipt.intent_id))?
         .ok_or_else(|| anyhow!("tool execution receipt lost its intent"))?;
     if receipt.adapter != intent.adapter
         || receipt.server != intent.server
@@ -1849,6 +1895,521 @@ pub fn put_runtime_tool_execution_receipt(
         ));
     }
     Ok(())
+}
+
+pub fn archive_completed_model_session(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    archived_at: &str,
+) -> Result<EpiphanyArchivedRuntimeSession> {
+    archive_completed_model_session_with_before_commit(store_path, session_id, archived_at, || {
+        Ok(())
+    })
+}
+
+pub fn retain_completed_model_sessions(
+    store_path: impl AsRef<Path>,
+    retain_recent: usize,
+    archived_at: &str,
+) -> Result<Vec<EpiphanyArchivedRuntimeSession>> {
+    chrono::DateTime::parse_from_rfc3339(archived_at)
+        .map_err(|error| anyhow!("runtime session retention timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+
+    let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+    let bindings = cache.get_all::<EpiphanyRuntimeModelExecutionBinding>()?;
+    let mut candidates = cache
+        .get_all::<EpiphanyRuntimeSession>()?
+        .into_iter()
+        .filter(|session| session.status == EpiphanyRuntimeSessionStatus::Completed)
+        .filter(|session| {
+            let session_jobs = jobs
+                .iter()
+                .filter(|job| job.session_id == session.session_id)
+                .collect::<Vec<_>>();
+            !session_jobs.is_empty()
+                && session_jobs.iter().all(|job| {
+                    job.role == "openai-model-adapter"
+                        && bindings.iter().any(|binding| binding.job_id == job.job_id)
+                })
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        right
+            .updated_at
+            .cmp(&left.updated_at)
+            .then_with(|| right.session_id.cmp(&left.session_id))
+    });
+
+    let mut archived = Vec::new();
+    for session in candidates.into_iter().skip(retain_recent.max(1)) {
+        archived.push(archive_completed_model_session(
+            store_path,
+            &session.session_id,
+            archived_at,
+        )?);
+    }
+    Ok(archived)
+}
+
+fn archive_completed_model_session_with_before_commit<F>(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    archived_at: &str,
+    before_commit: F,
+) -> Result<EpiphanyArchivedRuntimeSession>
+where
+    F: FnOnce() -> Result<()>,
+{
+    validate_non_empty(session_id, "archived runtime session id")?;
+    chrono::DateTime::parse_from_rfc3339(archived_at)
+        .map_err(|error| anyhow!("runtime session archive timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeSession>(session_id)? {
+        if existing.schema_version != ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION
+            || existing.archive_id != session_id
+            || existing.session_id != session_id
+            || !existing.retired_chain_digest.starts_with("sha256:")
+        {
+            return Err(anyhow!("archived runtime session tombstone is invalid"));
+        }
+        if cache.get::<EpiphanyRuntimeSession>(session_id)?.is_some() {
+            return Err(anyhow!(
+                "archived runtime session still has live session authority"
+            ));
+        }
+        return Ok(existing);
+    }
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(session_id)?
+        .ok_or_else(|| anyhow!("runtime session {session_id:?} does not exist"))?;
+    if session.status != EpiphanyRuntimeSessionStatus::Completed {
+        return Err(anyhow!("runtime session {session_id:?} is not completed"));
+    }
+    let mut jobs = cache
+        .get_all::<EpiphanyRuntimeJob>()?
+        .into_iter()
+        .filter(|job| job.session_id == session_id)
+        .collect::<Vec<_>>();
+    jobs.sort_by(|left, right| left.job_id.cmp(&right.job_id));
+    if jobs.is_empty()
+        || jobs.iter().any(|job| {
+            job.role != "openai-model-adapter"
+                || matches!(
+                    job.status,
+                    EpiphanyRuntimeJobStatus::Queued
+                        | EpiphanyRuntimeJobStatus::Running
+                        | EpiphanyRuntimeJobStatus::WaitingForReview
+                )
+        })
+    {
+        return Err(anyhow!(
+            "runtime session archive accepts only terminal model-adapter jobs"
+        ));
+    }
+    let job_ids = jobs
+        .iter()
+        .map(|job| job.job_id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut job_results = cache
+        .get_all::<EpiphanyRuntimeJobResult>()?
+        .into_iter()
+        .filter(|result| result.session_id == session_id)
+        .collect::<Vec<_>>();
+    job_results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
+    if jobs.iter().any(|job| {
+        job_results
+            .iter()
+            .filter(|result| result.job_id == job.job_id)
+            .count()
+            != 1
+    }) || job_results
+        .iter()
+        .any(|result| !job_ids.contains(&result.job_id))
+    {
+        return Err(anyhow!(
+            "runtime session archive requires exactly one terminal result per job"
+        ));
+    }
+    if cache
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
+        .iter()
+        .any(|item| job_ids.contains(&item.job_id))
+        || cache
+            .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+            .iter()
+            .any(|item| job_ids.contains(&item.job_id))
+        || cache
+            .get_all::<EpiphanyRuntimeReorientWorkerResult>()?
+            .iter()
+            .any(|item| job_ids.contains(&item.job_id))
+        || cache
+            .get_all::<EpiphanyCoordinatorRunReceipt>()?
+            .iter()
+            .any(|item| item.session_id == session_id)
+    {
+        return Err(anyhow!(
+            "runtime session archive refuses outer-worker or coordinator authority"
+        ));
+    }
+
+    let mut model_bindings = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.session_id == session_id)
+        .collect::<Vec<_>>();
+    model_bindings.sort_by(|left, right| left.request_id.cmp(&right.request_id));
+    if jobs.iter().any(|job| {
+        model_bindings
+            .iter()
+            .filter(|binding| binding.job_id == job.job_id)
+            .count()
+            != 1
+    }) || model_bindings
+        .iter()
+        .any(|binding| !job_ids.contains(&binding.job_id))
+    {
+        return Err(anyhow!(
+            "runtime session archive requires one model execution binding per job"
+        ));
+    }
+    let model_request_ids = model_bindings
+        .iter()
+        .map(|binding| binding.request_id.clone())
+        .collect::<BTreeSet<_>>();
+    for request_id in &model_request_ids {
+        let native_request = cache
+            .get::<EpiphanyModelRequest>(request_id)?
+            .ok_or_else(|| anyhow!("archived model execution lost native request"))?;
+        let provider_request = cache
+            .get::<EpiphanyOpenAiModelRequest>(request_id)?
+            .ok_or_else(|| anyhow!("archived model execution lost provider request"))?;
+        if native_request.request_id != *request_id
+            || provider_request.request_id != *request_id
+            || native_request.conversation_id != provider_request.conversation_id
+            || native_request.model != provider_request.model
+        {
+            return Err(anyhow!(
+                "archived model execution request family is inconsistent"
+            ));
+        }
+        let mut native_events = cache
+            .get_all::<EpiphanyModelStreamEvent>()?
+            .into_iter()
+            .filter(|event| event.request_id == *request_id)
+            .collect::<Vec<_>>();
+        native_events.sort_by_key(|event| event.sequence);
+        let native_terminals = native_events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    &event.payload,
+                    EpiphanyModelStreamPayload::Completed { .. }
+                        | EpiphanyModelStreamPayload::Failed { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut provider_events = cache
+            .get_all::<EpiphanyOpenAiStreamEvent>()?
+            .into_iter()
+            .filter(|event| event.request_id == *request_id)
+            .collect::<Vec<_>>();
+        provider_events.sort_by_key(|event| event.sequence);
+        let provider_terminals = provider_events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    &event.payload,
+                    EpiphanyOpenAiStreamPayload::Completed { .. }
+                        | EpiphanyOpenAiStreamPayload::Failed { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        if native_terminals.len() != 1
+            || provider_terminals.len() != 1
+            || native_events.last().map(|event| event.sequence)
+                != native_terminals.first().map(|event| event.sequence)
+            || provider_events.last().map(|event| event.sequence)
+                != provider_terminals.first().map(|event| event.sequence)
+        {
+            return Err(anyhow!(
+                "runtime session archive requires one native and provider terminal stream event"
+            ));
+        }
+        match &native_terminals[0].payload {
+            EpiphanyModelStreamPayload::Completed { receipt } => {
+                if cache.get::<EpiphanyModelReceipt>(request_id)?.as_ref() != Some(receipt) {
+                    return Err(anyhow!(
+                        "runtime session archive found inconsistent native model receipt"
+                    ));
+                }
+            }
+            EpiphanyModelStreamPayload::Failed { .. } => {
+                if cache.get::<EpiphanyModelReceipt>(request_id)?.is_some() {
+                    return Err(anyhow!(
+                        "failed native model stream retained a success receipt"
+                    ));
+                }
+            }
+            _ => unreachable!("terminal event filtered above"),
+        }
+        match &provider_terminals[0].payload {
+            EpiphanyOpenAiStreamPayload::Completed { receipt } => {
+                if cache
+                    .get::<EpiphanyOpenAiModelReceipt>(request_id)?
+                    .as_ref()
+                    != Some(receipt)
+                {
+                    return Err(anyhow!(
+                        "runtime session archive found inconsistent provider model receipt"
+                    ));
+                }
+            }
+            EpiphanyOpenAiStreamPayload::Failed { .. } => {
+                if cache
+                    .get::<EpiphanyOpenAiModelReceipt>(request_id)?
+                    .is_some()
+                {
+                    return Err(anyhow!(
+                        "failed provider model stream retained a success receipt"
+                    ));
+                }
+            }
+            _ => unreachable!("terminal event filtered above"),
+        }
+    }
+
+    let mut tool_bindings = cache
+        .get_all::<EpiphanyRuntimeToolExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.session_id == session_id)
+        .collect::<Vec<_>>();
+    tool_bindings.sort_by(|left, right| left.intent_id.cmp(&right.intent_id));
+    if tool_bindings.iter().any(|binding| {
+        !job_ids.contains(&binding.job_id)
+            || binding
+                .model_request_id
+                .as_ref()
+                .is_some_and(|request_id| !model_request_ids.contains(request_id))
+    }) {
+        return Err(anyhow!(
+            "runtime session archive found foreign tool execution ownership"
+        ));
+    }
+    let tool_intent_ids = tool_bindings
+        .iter()
+        .map(|binding| binding.intent_id.clone())
+        .collect::<BTreeSet<_>>();
+    let unbound_model_intent = cache
+        .get_all::<EpiphanyToolInvocationIntent>()?
+        .into_iter()
+        .any(|intent| {
+            intent
+                .model_request_id
+                .as_ref()
+                .is_some_and(|request_id| model_request_ids.contains(request_id))
+                && !tool_intent_ids.contains(&intent.intent_id)
+        });
+    if unbound_model_intent {
+        return Err(anyhow!(
+            "runtime session archive found a legacy unbound model tool intent"
+        ));
+    }
+    for binding in &tool_bindings {
+        require_runtime_tool_execution_binding(store_path, &binding.intent_id)?;
+        let receipt = cache
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(&binding.intent_id))?
+            .ok_or_else(|| anyhow!("runtime session archive found pending tool authority"))?;
+        if receipt.intent_id != binding.intent_id
+            || !matches!(receipt.status.as_str(), "completed" | "failed")
+        {
+            return Err(anyhow!(
+                "runtime session archive found invalid tool terminal evidence"
+            ));
+        }
+    }
+
+    let events = cache
+        .get_all::<EpiphanyRuntimeEvent>()?
+        .into_iter()
+        .filter(|event| event.session_id.as_deref() == Some(session_id))
+        .collect::<Vec<_>>();
+    if events
+        .iter()
+        .filter(|event| event.event_type == "session.completed" && event.job_id.is_none())
+        .count()
+        != 1
+    {
+        return Err(anyhow!(
+            "runtime session archive requires one session completion event"
+        ));
+    }
+
+    let snapshot = cache.snapshot_envelopes();
+    let mut retired_identities = BTreeSet::<(String, String)>::new();
+    retired_identities.insert((
+        EpiphanyRuntimeSession::TYPE.to_string(),
+        session_id.to_string(),
+    ));
+    for job in &jobs {
+        retired_identities.insert((EpiphanyRuntimeJob::TYPE.to_string(), job.job_id.clone()));
+    }
+    for result in &job_results {
+        retired_identities.insert((
+            EpiphanyRuntimeJobResult::TYPE.to_string(),
+            result.result_id.clone(),
+        ));
+    }
+    for event in &events {
+        retired_identities.insert((
+            EpiphanyRuntimeEvent::TYPE.to_string(),
+            event.event_id.clone(),
+        ));
+    }
+    for binding in &model_bindings {
+        retired_identities.insert((
+            EpiphanyRuntimeModelExecutionBinding::TYPE.to_string(),
+            binding.binding_id.clone(),
+        ));
+        retired_identities.insert((
+            EpiphanyModelRequest::TYPE.to_string(),
+            binding.request_id.clone(),
+        ));
+        retired_identities.insert((
+            EpiphanyOpenAiModelRequest::TYPE.to_string(),
+            binding.request_id.clone(),
+        ));
+        for event in cache
+            .get_all::<EpiphanyModelStreamEvent>()?
+            .into_iter()
+            .filter(|event| event.request_id == binding.request_id)
+        {
+            retired_identities.insert((
+                EpiphanyModelStreamEvent::TYPE.to_string(),
+                format!("{}:{:08}", event.request_id, event.sequence),
+            ));
+        }
+        for event in cache
+            .get_all::<EpiphanyOpenAiStreamEvent>()?
+            .into_iter()
+            .filter(|event| event.request_id == binding.request_id)
+        {
+            retired_identities.insert((
+                EpiphanyOpenAiStreamEvent::TYPE.to_string(),
+                format!("{}:{:08}", event.request_id, event.sequence),
+            ));
+        }
+        if cache
+            .get::<EpiphanyModelReceipt>(&binding.request_id)?
+            .is_some()
+        {
+            retired_identities.insert((
+                EpiphanyModelReceipt::TYPE.to_string(),
+                binding.request_id.clone(),
+            ));
+        }
+        if cache
+            .get::<EpiphanyOpenAiModelReceipt>(&binding.request_id)?
+            .is_some()
+        {
+            retired_identities.insert((
+                EpiphanyOpenAiModelReceipt::TYPE.to_string(),
+                binding.request_id.clone(),
+            ));
+        }
+    }
+    for binding in &tool_bindings {
+        retired_identities.insert((
+            EpiphanyRuntimeToolExecutionBinding::TYPE.to_string(),
+            binding.binding_id.clone(),
+        ));
+        retired_identities.insert((
+            EpiphanyToolInvocationIntent::TYPE.to_string(),
+            tool_invocation_intent_key(&binding.intent_id),
+        ));
+        retired_identities.insert((
+            EpiphanyToolInvocationReceipt::TYPE.to_string(),
+            tool_invocation_receipt_key(&binding.intent_id),
+        ));
+    }
+    let mut deletions = retired_identities
+        .iter()
+        .map(|(document_type, key)| {
+            snapshot
+                .iter()
+                .find(|entry| entry.r#type == *document_type && entry.key == *key)
+                .cloned()
+                .ok_or_else(|| {
+                    anyhow!("runtime session archive lost exact envelope {document_type:?}/{key:?}")
+                })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    deletions.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    let mut retired_type_counts = BTreeMap::new();
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany-runtime-archived-session-root");
+    for entry in &deletions {
+        *retired_type_counts.entry(entry.r#type.clone()).or_default() += 1;
+        for bytes in [
+            entry.r#type.as_bytes(),
+            entry.key.as_bytes(),
+            entry.payload.as_slice(),
+        ] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+    }
+    let mut terminal_job_status_counts = BTreeMap::new();
+    for job in &jobs {
+        let status = match job.status {
+            EpiphanyRuntimeJobStatus::Completed => "completed",
+            EpiphanyRuntimeJobStatus::Failed => "failed",
+            EpiphanyRuntimeJobStatus::Cancelled => "cancelled",
+            _ => unreachable!("open jobs refused above"),
+        };
+        *terminal_job_status_counts
+            .entry(status.to_string())
+            .or_default() += 1;
+    }
+    let archive = EpiphanyArchivedRuntimeSession {
+        schema_version: ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION.to_string(),
+        archive_id: session_id.to_string(),
+        session_id: session_id.to_string(),
+        archived_at: archived_at.to_string(),
+        job_ids: job_ids.into_iter().collect(),
+        job_result_ids: job_results
+            .iter()
+            .map(|result| result.result_id.clone())
+            .collect(),
+        model_request_ids: model_request_ids.into_iter().collect(),
+        tool_intent_ids: tool_intent_ids.into_iter().collect(),
+        terminal_job_status_counts,
+        retired_type_counts,
+        retired_envelope_count: deletions.len() as u64,
+        retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+    };
+    let (replacement, _) = cache.prepare_entry(session_id, &archive)?;
+    before_commit()?;
+    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &deletions,
+    )? {
+        return Err(anyhow!(
+            "runtime session archive lost its full snapshot fence"
+        ));
+    }
+    Ok(archive)
 }
 
 pub fn plan_runtime_spine_heartbeat_launch(
@@ -3244,8 +3805,7 @@ fn validate_proposal_modeling_worker_fulfillment(
             "Hands" | "Eyes" | "Imagination"
         )
         || (proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
-            && (upserts[0].recommended_next_organ == "Hands"
-                || upserts[0].adopted_plan.is_some()))
+            && (upserts[0].recommended_next_organ == "Hands" || upserts[0].adopted_plan.is_some()))
     {
         return Err(anyhow!(
             "proposal Modeling fulfillment result is not one safe proposal-citing routeable frontier"
@@ -9738,6 +10298,33 @@ fn require_identity(cache: &CultCache) -> Result<EpiphanyRuntimeIdentity> {
         .ok_or_else(|| anyhow!("runtime spine is missing identity; run init first"))
 }
 
+fn require_runtime_identity_not_archived(
+    cache: &CultCache,
+    identity_kind: &str,
+    identity: &str,
+) -> Result<()> {
+    let collision = cache
+        .get_all::<EpiphanyArchivedRuntimeSession>()?
+        .into_iter()
+        .find(|archive| match identity_kind {
+            "session" => archive.session_id == identity,
+            "job" => archive.job_ids.iter().any(|item| item == identity),
+            "model-request" => archive
+                .model_request_ids
+                .iter()
+                .any(|item| item == identity),
+            "tool-intent" => archive.tool_intent_ids.iter().any(|item| item == identity),
+            _ => false,
+        });
+    if let Some(archive) = collision {
+        return Err(anyhow!(
+            "runtime {identity_kind} identity {identity:?} was retired by archive {:?}",
+            archive.archive_id
+        ));
+    }
+    Ok(())
+}
+
 pub fn runtime_registered_document_types() -> Vec<String> {
     let mut document_types = Vec::new();
     for contract in epiphany_mutation_contracts() {
@@ -10473,6 +11060,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            ARCHIVED_RUNTIME_SESSION_TYPE,
+            ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Runtime spine alone archives an exact completed model-session generation under a full snapshot fence.",
+                "The tombstone preserves retired identities and digest evidence, blocks ID reuse, and cannot satisfy execution authority.",
+            ],
+        ),
+        mutation_contract(
             MODEL_ADAPTER_STATUS_TYPE,
             MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -10918,6 +11517,101 @@ pub(crate) mod tests {
     use cultnet_rs::CultNetWireContract;
     use cultnet_rs::decode_cultnet_message_from_slice;
     use tempfile::tempdir;
+
+    fn close_test_model_generation(
+        store: &Path,
+        suffix: &str,
+        created_at: &str,
+        completed_at: &str,
+    ) -> Result<()> {
+        let session_id = format!("session-{suffix}");
+        let job_id = format!("job-{suffix}");
+        let request_id = format!("request-{suffix}");
+        let model_request = EpiphanyModelRequest::new(
+            request_id.clone(),
+            format!("conversation-{suffix}"),
+            "openai-codex",
+            "gpt-test",
+            "Return one terminal result.",
+        );
+        let provider_request = EpiphanyOpenAiModelRequest::new(
+            request_id.clone(),
+            format!("conversation-{suffix}"),
+            "gpt-test",
+            "Return one terminal result.",
+        );
+        open_runtime_model_execution(
+            store,
+            RuntimeSpineSessionOptions {
+                session_id: session_id.clone(),
+                objective: format!("Close model generation {suffix}."),
+                created_at: created_at.to_string(),
+                coordinator_note: "retention test".to_string(),
+            },
+            RuntimeSpineJobOptions {
+                job_id: job_id.clone(),
+                session_id: session_id.clone(),
+                role: "openai-model-adapter".to_string(),
+                created_at: created_at.to_string(),
+                summary: "Bound model generation.".to_string(),
+                artifact_refs: Vec::new(),
+            },
+            &model_request,
+            &provider_request,
+            created_at,
+        )?;
+        let native_receipt = EpiphanyModelReceipt::new(&request_id, "openai-codex", "gpt-test");
+        let provider_receipt = EpiphanyOpenAiModelReceipt::new(&request_id, "gpt-test");
+        let mut cache = runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(
+            &format!("{request_id}:00000000"),
+            &EpiphanyModelStreamEvent {
+                schema_id: MODEL_STREAM_EVENT_SCHEMA_VERSION.to_string(),
+                request_id: request_id.clone(),
+                provider: "openai-codex".to_string(),
+                sequence: 0,
+                payload: EpiphanyModelStreamPayload::Completed {
+                    receipt: native_receipt.clone(),
+                },
+            },
+        )?;
+        cache.put(
+            &format!("{request_id}:00000000"),
+            &EpiphanyOpenAiStreamEvent {
+                schema_id: OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION.to_string(),
+                request_id: request_id.clone(),
+                sequence: 0,
+                payload: EpiphanyOpenAiStreamPayload::Completed {
+                    receipt: provider_receipt.clone(),
+                },
+            },
+        )?;
+        cache.put(&request_id, &native_receipt)?;
+        cache.put(&request_id, &provider_receipt)?;
+        complete_runtime_job(
+            store,
+            RuntimeSpineJobResultOptions {
+                result_id: format!("result-{suffix}"),
+                job_id,
+                completed_at: completed_at.to_string(),
+                verdict: "pass".to_string(),
+                summary: "Model generation completed.".to_string(),
+                next_safe_move: "Close the session.".to_string(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        close_runtime_session(
+            store,
+            RuntimeSpineSessionClosureOptions {
+                session_id,
+                completed_at: completed_at.to_string(),
+                summary: "Model generation closed.".to_string(),
+            },
+        )?;
+        Ok(())
+    }
 
     fn repo_model_bootstrap() -> crate::EpiphanyMemoryGraphSnapshot {
         crate::EpiphanyMemoryGraphSnapshot {
@@ -12179,8 +12873,7 @@ pub(crate) mod tests {
         hostile_result.admitted_model_direction_consideration_request_id = None;
         hostile_result.admitted_model_direction_consideration_result_msgpack = None;
         let mut eyes_patch = hostile_patch.clone();
-        let crate::RepoModelPatchOperation::UpsertFrontier { item } =
-            &mut eyes_patch.operations[0]
+        let crate::RepoModelPatchOperation::UpsertFrontier { item } = &mut eyes_patch.operations[0]
         else {
             panic!("autonomous fixture must upsert one frontier")
         };
@@ -14896,25 +15589,35 @@ pub(crate) mod tests {
             Some(provider_request.clone())
         );
         assert_eq!(
-            cache.get::<EpiphanyRuntimeSession>("session-model")?.unwrap().status,
+            cache
+                .get::<EpiphanyRuntimeSession>("session-model")?
+                .unwrap()
+                .status,
             EpiphanyRuntimeSessionStatus::Active
         );
         assert_eq!(
-            cache.get::<EpiphanyRuntimeJob>("job-model")?.unwrap().status,
+            cache
+                .get::<EpiphanyRuntimeJob>("job-model")?
+                .unwrap()
+                .status,
             EpiphanyRuntimeJobStatus::Queued
         );
-        assert!(cache
-            .get::<EpiphanyRuntimeEvent>("event-job-opened-job-model")?
-            .is_some());
-        assert!(open_runtime_model_execution(
-            &store,
-            session_options.clone(),
-            job_options.clone(),
-            &model_request,
-            &provider_request,
-            "2026-08-10T00:00:04Z",
-        )
-        .is_err());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>("event-job-opened-job-model")?
+                .is_some()
+        );
+        assert!(
+            open_runtime_model_execution(
+                &store,
+                session_options.clone(),
+                job_options.clone(),
+                &model_request,
+                &provider_request,
+                "2026-08-10T00:00:04Z",
+            )
+            .is_err()
+        );
 
         let foreign_provider = EpiphanyOpenAiModelRequest::new(
             "request-foreign",
@@ -14931,32 +15634,40 @@ pub(crate) mod tests {
         );
         let mut foreign_job_options = job_options;
         foreign_job_options.job_id = "job-foreign".to_string();
-        assert!(open_runtime_model_execution(
-            &store,
-            session_options,
-            foreign_job_options,
-            &foreign_model,
-            &foreign_provider,
-            "2026-08-10T00:00:05Z",
-        )
-        .is_err());
+        assert!(
+            open_runtime_model_execution(
+                &store,
+                session_options,
+                foreign_job_options,
+                &foreign_model,
+                &foreign_provider,
+                "2026-08-10T00:00:05Z",
+            )
+            .is_err()
+        );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        assert!(cache
-            .get::<EpiphanyRuntimeModelExecutionBinding>("request-foreign")?
-            .is_none());
-        assert!(cache
-            .get::<EpiphanyModelRequest>("request-foreign")?
-            .is_none());
-        assert!(cache
-            .get::<EpiphanyOpenAiModelRequest>("request-foreign")?
-            .is_none());
-        assert!(cache
-            .get::<EpiphanyRuntimeJob>("job-foreign")?
-            .is_none());
-        assert!(cache
-            .get::<EpiphanyRuntimeEvent>("event-job-opened-job-foreign")?
-            .is_none());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeModelExecutionBinding>("request-foreign")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyModelRequest>("request-foreign")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyOpenAiModelRequest>("request-foreign")?
+                .is_none()
+        );
+        assert!(cache.get::<EpiphanyRuntimeJob>("job-foreign")?.is_none());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>("event-job-opened-job-foreign")?
+                .is_none()
+        );
         Ok(())
     }
 
@@ -15041,24 +15752,28 @@ pub(crate) mod tests {
             "2026-08-10T02:00:05Z",
         )
         .with_model_call("call-2", "request-missing");
-        assert!(put_runtime_tool_execution_intent(
-            &store,
-            "session-tools",
-            "job-tools",
-            &hostile_intent,
-            "2026-08-10T02:00:05Z",
-        )
-        .is_err());
+        assert!(
+            put_runtime_tool_execution_intent(
+                &store,
+                "session-tools",
+                "job-tools",
+                &hostile_intent,
+                "2026-08-10T02:00:05Z",
+            )
+            .is_err()
+        );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        assert!(cache
-            .get::<EpiphanyRuntimeToolExecutionBinding>("intent-hostile")?
-            .is_none());
-        assert!(cache
-            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
-                "intent-hostile"
-            ))?
-            .is_none());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeToolExecutionBinding>("intent-hostile")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key("intent-hostile"))?
+                .is_none()
+        );
 
         create_runtime_job(
             &store,
@@ -15116,12 +15831,337 @@ pub(crate) mod tests {
         assert!(put_runtime_tool_execution_receipt(&store, &hostile_receipt).is_err());
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        assert!(cache
-            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
-                "intent-model-tool"
-            ))?
-            .is_none());
+        assert!(
+            cache
+                .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
+                    "intent-model-tool"
+                ))?
+                .is_none()
+        );
         assert!(require_runtime_tool_execution_binding(&store, "unbound").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn archived_model_session_is_exact_terminal_tombstone() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-08-10T03:00:00Z".to_string(),
+            },
+        )?;
+        append_runtime_event(
+            &store,
+            RuntimeSpineEventOptions {
+                event_id: "event-unrelated".to_string(),
+                occurred_at: "2026-08-10T03:00:00Z".to_string(),
+                event_type: "semantic.observation".to_string(),
+                source: "test".to_string(),
+                session_id: None,
+                job_id: None,
+                summary: "Unrelated retained runtime evidence.".to_string(),
+            },
+        )?;
+        let session_options = RuntimeSpineSessionOptions {
+            session_id: "session-archive".to_string(),
+            objective: "Archive one closed model generation.".to_string(),
+            created_at: "2026-08-10T03:00:01Z".to_string(),
+            coordinator_note: "test".to_string(),
+        };
+        let job_options = RuntimeSpineJobOptions {
+            job_id: "job-archive".to_string(),
+            session_id: "session-archive".to_string(),
+            role: "openai-model-adapter".to_string(),
+            created_at: "2026-08-10T03:00:02Z".to_string(),
+            summary: "Archive model job.".to_string(),
+            artifact_refs: Vec::new(),
+        };
+        let model_request = EpiphanyModelRequest::new(
+            "request-archive",
+            "conversation-archive",
+            "openai-codex",
+            "gpt-test",
+            "Return one terminal result.",
+        );
+        let provider_request = EpiphanyOpenAiModelRequest::new(
+            "request-archive",
+            "conversation-archive",
+            "gpt-test",
+            "Return one terminal result.",
+        );
+        open_runtime_model_execution(
+            &store,
+            session_options.clone(),
+            job_options.clone(),
+            &model_request,
+            &provider_request,
+            "2026-08-10T03:00:03Z",
+        )?;
+        let tool_intent = EpiphanyToolInvocationIntent::new(
+            "intent-archive",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "{}",
+            "model-runtime",
+            "Read one source.",
+            "2026-08-10T03:00:04Z",
+        )
+        .with_model_call("call-archive", "request-archive");
+        put_runtime_tool_execution_intent(
+            &store,
+            "session-archive",
+            "job-archive",
+            &tool_intent,
+            "2026-08-10T03:00:04Z",
+        )?;
+        let native_receipt =
+            EpiphanyModelReceipt::new("request-archive", "openai-codex", "gpt-test");
+        let provider_receipt = EpiphanyOpenAiModelReceipt::new("request-archive", "gpt-test");
+        let native_event = EpiphanyModelStreamEvent {
+            schema_id: MODEL_STREAM_EVENT_SCHEMA_VERSION.to_string(),
+            request_id: "request-archive".to_string(),
+            provider: "openai-codex".to_string(),
+            sequence: 0,
+            payload: EpiphanyModelStreamPayload::Completed {
+                receipt: native_receipt.clone(),
+            },
+        };
+        let provider_event = EpiphanyOpenAiStreamEvent {
+            schema_id: OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION.to_string(),
+            request_id: "request-archive".to_string(),
+            sequence: 0,
+            payload: EpiphanyOpenAiStreamPayload::Completed {
+                receipt: provider_receipt.clone(),
+            },
+        };
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put("request-archive:00000000", &native_event)?;
+        cache.put("request-archive:00000000", &provider_event)?;
+        cache.put("request-archive", &native_receipt)?;
+        cache.put("request-archive", &provider_receipt)?;
+        complete_runtime_job(
+            &store,
+            RuntimeSpineJobResultOptions {
+                result_id: "result-archive".to_string(),
+                job_id: "job-archive".to_string(),
+                completed_at: "2026-08-10T03:00:05Z".to_string(),
+                verdict: "pass".to_string(),
+                summary: "Model generation completed.".to_string(),
+                next_safe_move: "Close the session.".to_string(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        close_runtime_session(
+            &store,
+            RuntimeSpineSessionClosureOptions {
+                session_id: "session-archive".to_string(),
+                completed_at: "2026-08-10T03:00:06Z".to_string(),
+                summary: "Model generation closed.".to_string(),
+            },
+        )?;
+        assert!(
+            archive_completed_model_session(&store, "session-archive", "2026-08-10T03:00:07Z")
+                .is_err()
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-archive")?
+                .is_some()
+        );
+
+        let tool_receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-archive",
+            "intent-archive",
+            "epiphany-tool-runtime",
+            "source",
+            "read",
+            "completed",
+            "unix-ms:3",
+        );
+        put_runtime_tool_execution_receipt(&store, &tool_receipt)?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let identity_before = cache
+            .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+            .expect("identity envelope");
+        let unrelated_before = cache
+            .get_envelope::<EpiphanyRuntimeEvent>("event-unrelated")?
+            .expect("unrelated event envelope");
+        assert!(
+            archive_completed_model_session_with_before_commit(
+                &store,
+                "session-archive",
+                "2026-08-10T03:00:07Z",
+                || {
+                    append_runtime_event(
+                        &store,
+                        RuntimeSpineEventOptions {
+                            event_id: "event-archive-race".to_string(),
+                            occurred_at: "2026-08-10T03:00:07Z".to_string(),
+                            event_type: "concurrent.observation".to_string(),
+                            source: "test".to_string(),
+                            session_id: None,
+                            job_id: None,
+                            summary: "Invalidate the archive snapshot.".to_string(),
+                        },
+                    )?;
+                    Ok(())
+                }
+            )
+            .is_err()
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyArchivedRuntimeSession>("session-archive")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-archive")?
+                .is_some()
+        );
+        let race_before = cache
+            .get_envelope::<EpiphanyRuntimeEvent>("event-archive-race")?
+            .expect("concurrent event envelope");
+        let archive =
+            archive_completed_model_session(&store, "session-archive", "2026-08-10T03:00:07Z")?;
+        assert_eq!(archive.job_ids, vec!["job-archive"]);
+        assert_eq!(archive.job_result_ids, vec!["result-archive"]);
+        assert_eq!(archive.model_request_ids, vec!["request-archive"]);
+        assert_eq!(archive.tool_intent_ids, vec!["intent-archive"]);
+        assert!(archive.retired_envelope_count >= 15);
+        assert!(archive.retired_chain_digest.starts_with("sha256:"));
+        assert_eq!(
+            archive_completed_model_session(&store, "session-archive", "2026-08-10T03:00:08Z")?,
+            archive
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+                .expect("identity envelope"),
+            identity_before
+        );
+        assert_eq!(
+            cache
+                .get_envelope::<EpiphanyRuntimeEvent>("event-unrelated")?
+                .expect("unrelated event envelope"),
+            unrelated_before
+        );
+        assert_eq!(
+            cache
+                .get_envelope::<EpiphanyRuntimeEvent>("event-archive-race")?
+                .expect("concurrent event envelope"),
+            race_before
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-archive")?
+                .is_none()
+        );
+        assert!(cache.get::<EpiphanyRuntimeJob>("job-archive")?.is_none());
+        assert!(
+            cache
+                .get::<EpiphanyModelRequest>("request-archive")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key("intent-archive"))?
+                .is_none()
+        );
+        assert!(create_runtime_session(&store, session_options).is_err());
+        assert!(
+            create_runtime_session(
+                &store,
+                RuntimeSpineSessionOptions {
+                    session_id: "session-other".to_string(),
+                    objective: "Try archived IDs.".to_string(),
+                    created_at: "2026-08-10T03:00:09Z".to_string(),
+                    coordinator_note: "test".to_string(),
+                }
+            )
+            .is_ok()
+        );
+        assert!(
+            create_runtime_job(
+                &store,
+                RuntimeSpineJobOptions {
+                    session_id: "session-other".to_string(),
+                    ..job_options
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(runtime_spine_status(&store)?.pending_tool_invocations, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn completed_model_session_retention_keeps_newest_generation() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-08-10T04:00:00Z".to_string(),
+            },
+        )?;
+        close_test_model_generation(
+            &store,
+            "older",
+            "2026-08-10T04:00:01Z",
+            "2026-08-10T04:00:02Z",
+        )?;
+        close_test_model_generation(
+            &store,
+            "newer",
+            "2026-08-10T04:00:03Z",
+            "2026-08-10T04:00:04Z",
+        )?;
+
+        let archived = retain_completed_model_sessions(&store, 1, "2026-08-10T04:00:05Z")?;
+        assert_eq!(archived.len(), 1);
+        assert_eq!(archived[0].session_id, "session-older");
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-older")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyArchivedRuntimeSession>("session-older")?
+                .is_some()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-newer")?
+                .is_some()
+        );
+        assert!(retain_completed_model_sessions(&store, 0, "2026-08-10T04:00:06Z")?.is_empty());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("session-newer")?
+                .is_some()
+        );
         Ok(())
     }
 

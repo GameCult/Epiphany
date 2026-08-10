@@ -2438,6 +2438,26 @@ semantic/Mind/consequence families remain untouched. The tombstone must retain
 the exact session, job/result, model-request, and tool-intent identities as an
 ID-reuse barrier plus counts and a digest of bulky retired envelopes.
 
+That narrow owner now exists in source as
+`EpiphanyArchivedRuntimeSession` and `archive_completed_model_session`.
+Runtime spine admits only the closed model-generation shape above, verifies the
+native/provider terminal streams and receipts plus every bound tool receipt,
+and refuses outer worker/coordinator membership. One full-snapshot-fenced
+replacement writes the exact-ID tombstone and deletes only its enumerated inner
+execution envelopes. Tombstone IDs block later session, job, model-request, or
+tool-intent aliasing; the tombstone itself is never enumerated as runnable
+authority. Stale-snapshot, missing-tool-receipt, byte-identity, idempotence, and
+ID-reuse negatives pass.
+
+`retain_completed_model_sessions` selects only completed generations whose
+jobs are all model-adapter jobs with explicit model bindings, orders them by
+session closure time, and keeps at least the newest even when configured zero.
+Resident Self invokes it beside coordinator-receipt retention only after the
+shared no-active/no-prepared authority gate. The default retained window is
+256. A two-generation test proves the older generation becomes a tombstone and
+the newest remains live. Exact package and copied-state proof remain required;
+conversation-wide sessions and semantic history remain separate owners.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set
