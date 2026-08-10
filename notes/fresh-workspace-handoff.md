@@ -1751,3 +1751,28 @@ semantic executor writes a terminal deletion receipt. Backend failure may then
 delay space recovery without losing retry identity or changing readiness. Four
 focused tests pass after the fail-closed cut. Package that exact source and
 repeat the same copied-state proof before accepting this phase.
+
+## Semantic unattempted retention accepted live — 2026-08-10
+
+Exact pushed source `b1e8c89a` produced a warning-free 24-binary release
+`sha256-3ce86fa7ce0ce15d78756d1f57b56e972d9bc37be3115b302ec567ce5e9b202e`
+with witness
+`sha256-fb1dd5599340a2e94600994d68661ed53820ba7fc605ac5b753f5e9632b46baf`.
+Construction and inspection receipts are under
+`.epiphany-run/linux-package-b1e8c89a`.
+
+The pristine copied-state proof under
+`.epiphany-run/semantic-retention-b1e8c89a` retired exactly the same three
+superseded unattempted Modeling obligations into revision-1 digest
+`sha256:1cbb209d0cac9decf0715fd91faf07d1c0261805a04c0e6c0af9f3c3d7b5bb54`.
+No unrelated envelope changed or disappeared. All 20 Mind envelopes retained
+byte-identical digest
+`sha256:910d2a8fd06030045f0e72864a80f5cb6571d66aa49a99002e2f2d0286cb388d`.
+Packaged health preserved the exact ready Mind obligation, receipt, hashes,
+generation 1, and 43-document count. Normal readers accepted the retention
+head. Replay made zero retention mutations and left the head at revision 1.
+
+The accepted boundary is deliberately narrow: unattempted superseded semantic
+obligations are bounded; every attempted generation remains durable. The next
+cut is a physical-retirement obligation and executor receipt carrying exact
+backend namespace. Active `c005` was untouched. Yggdrasil did not build.

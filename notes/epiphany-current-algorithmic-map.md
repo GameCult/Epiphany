@@ -2677,6 +2677,45 @@ source catalogs now register the head as evidence-only. Projection-input tests
 persist a head and prove current Mind and Modeling derivation remains unchanged.
 This is schema legibility, not shared decision authority.
 
+### Accepted semantic logical-retention boundary
+
+Exact pushed source `b1e8c89a` is accepted live. Its warning-free 24-binary
+release is
+`sha256-3ce86fa7ce0ce15d78756d1f57b56e972d9bc37be3115b302ec567ce5e9b202e`
+with witness
+`sha256-fb1dd5599340a2e94600994d68661ed53820ba7fc605ac5b753f5e9632b46baf`.
+On pristine copied state it retired exactly three superseded unattempted
+Modeling obligations, changed no unrelated envelope, preserved all 20 Mind
+envelopes byte-identically, preserved exact semantic health, and replayed with
+zero retention mutation. Receipts live under
+`.epiphany-run/semantic-retention-b1e8c89a` and
+`.epiphany-run/linux-package-b1e8c89a`.
+
+### Semantic physical-retirement authority map
+
+- Owner: canonical logical retention emits immutable physical-retirement
+  authority; the semantic executor owns exact Qdrant deletion; the canonical
+  source store owns terminal receipt admission.
+- Inputs: an exact historical obligation and attempt namespace, exact collection
+  identity, swarm and partition, obligation ID, claim ID and epoch, plus the
+  canonical retention authorization proving that namespace inactive.
+- Outputs: one durable retryable physical-retirement obligation, deletion of
+  only points matching the full namespace, and one terminal receipt recording
+  observed/deleted count and completion time.
+- Derived state: the cumulative logical retention head remains evidence only.
+  It is not a retry address and cannot authorize backend deletion.
+- Forbidden writers: backend age scans, current collection configuration, and
+  inferred naming conventions cannot invent historical identity. Logical
+  retention cannot delete an attempted lifecycle before durable physical
+  authority exists. Qdrant failure cannot alter semantic readiness.
+- Shared paths: every daemon pulse retries the same pending typed obligations.
+  Only a terminal physical receipt permits later logical compaction of that
+  attempted family; receipt retention is a later bounded cut.
+- Cut line: do not mass-delete attempted history or infer an old collection from
+  current configuration. The current attempt schema does not yet persist the
+  collection/configuration identity required for failed partial writes; resolve
+  that ownership seam from source before implementation.
+
 The copied-live physical audit sharpened the next ownership boundary. A durable
 physical-retirement obligation must be emitted before an attempted lifecycle can
 retire. It must carry exact collection name, obligation ID, claim ID, claim
