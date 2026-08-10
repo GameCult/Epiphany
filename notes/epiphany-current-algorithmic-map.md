@@ -3299,3 +3299,12 @@ the original grant `recovered-fulfilled`, preserves consumed pressure, refuses
 replay byte-identically, and permits lifecycle retirement without reopening a
 grant. This changes no owner or production mechanism; it closes the missing
 variant test. Exact packaged Imagination state remains the next evidence gate.
+
+Exact packaged `52ee6b53` closes the Imagination evidence gate. The fresh Linux
+state carried the complete runtime-owned candidate chain and zero coordinator
+receipts; packaged Self settled the original grant `recovered-fulfilled` and
+packaged retention later removed the Heartbeat-consumed lifecycle without
+reopening authority. This proves the candidate companion remains producer-owned:
+the first fixture attempt without it failed closed before resident settlement.
+Proposal Modeling remains separate because its fulfillment validator also owns
+the immutable proposal payload, Modeling context, and Evolution patch shape.

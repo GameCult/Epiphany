@@ -2578,3 +2578,26 @@ This is a source verification pass only; `52ee6b53` already contains the generic
 runtime and resident behavior, but a fresh exact packaged Imagination state run
 is still required for direct binary provenance. Proposal Modeling and terminal
 worker-attempt retention follow.
+
+## Imagination fulfilled-before-receipt accepted packaged — 2026-08-10
+
+Fresh state under `.epiphany-run/imagination-fulfillment-52ee6b53` contains an
+authenticated Imagination request, admitted model basis, deterministic candidate,
+exact launch binding and launch-document hash, and terminal role result with zero
+coordinator receipts. After exact packaged Body bind/observation and release
+publication, exact `52ee6b53` `epiphany-swarm once` exited zero `completed`,
+closed the original grant `recovered-fulfilled`, preserved its pressure consumed
+by that grant, and cleared active authority.
+
+Heartbeat consumed the terminal ack. A second exact packaged cycle with
+closed-lifecycle retention zero exited zero `sleeping`, removed the complete
+pressure/grant/ack family, and retained no active turn. Replay reported no
+lifecycle to retire and no retry grant. The fixture's first result admission
+failed closed because the producer-owned candidate companion was absent; the
+corrected attempt persisted that typed evidence before result admission. No
+production gate was weakened.
+
+Next: proposal Modeling is the remaining fulfilled-before-receipt variant. Its
+immutable proposal/request/context/patch/launch/result chain is stronger and
+must be mapped before constructing live state. Runtime terminal-attempt
+retention follows. Actual c006 remains braked and stopped.
