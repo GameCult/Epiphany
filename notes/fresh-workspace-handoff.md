@@ -1,5 +1,32 @@
 # Fresh workspace handoff
 
+## Heartbeat graceful SIGTERM accepted on Linux — 2026-08-10
+
+Exact pushed source `bfb92cbb96e8ac085222844d3aa51681d15e18d1`
+packaged in 6m12s without warnings as 24-binary release
+`sha256-6f1f4eff32fab17cf3ffa2c7be7b911138c18cc09fad7d3271e1ca02559fe54f`
+with witness
+`sha256-fda39e34d6f30a606f19736f96769613262997a35db63560165049a7db2e12da`.
+Independent inspection authenticated exact source, runtime, witness, destination,
+and all 24 sibling binaries. Package receipts are under
+`.epiphany-run/linux-package-bfb92cbb/`.
+
+On copied c006 state, packaged Heartbeat authenticated the published release and
+mounted cognitive runtime, observed the engaged cognitive brake, and emitted no
+grant. SIGTERM arrived during its configured 30-second interval. The process
+stopped in 0.358 seconds with exit zero and no OOM; its final
+`epiphany.heartbeat.serve_receipt.v0` states `stopped-cleanly` and
+`shutdownRequested:true`. Resident, runtime, and cognitive local-Verse SHA-256
+values were byte-identical before and after. Receipts are under
+`.epiphany-run/heartbeat-sigterm-bfb92cbb/`.
+
+Heartbeat graceful termination is accepted. Actual c006 remains braked and its
+old resident/Heartbeat containers remain stopped. Next resume copied
+receipt-free coordinator death: prove the pre-open boundary and then resolve the
+post-open split between already-authenticated typed fulfillment and an orphaned
+immutable worker launch. Do not manufacture retry authority or delete launch
+history. Yggdrasil never builds.
+
 ## Heartbeat graceful SIGTERM source complete — 2026-08-10
 
 Heartbeat `serve` now owns SIGINT/SIGTERM with one process-local atomic signal
