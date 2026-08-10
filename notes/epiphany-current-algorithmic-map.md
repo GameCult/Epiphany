@@ -1154,6 +1154,17 @@ exact heartbeat/Self provider pair. Wrong-release evidence contradicts;
 missing evidence warms; stale or incoherent evidence degrades. Readiness,
 health, systemd, and PID sight cannot write deployment admission.
 
+Provider liveness is owned by each role's cross-process singleton beside its
+mounted store. The provider's CAS-replaced readiness row binds that live role
+to exact release, witness, source, executable, status, monotonic sequence, and
+bounded freshness. PID/creation-token observation is same-namespace diagnostic
+evidence; it is not a cross-container liveness owner because PID namespaces do
+not preserve that observation. Readiness may accept only a narrowly bounded
+future skew around its snapshot time and must still reject a genuinely
+future-dated row. Status and supervisor aggregation share this derivation.
+Neither a fresh row without the role lock nor a role lock without the exact
+fresh row can become ready.
+
 Yggdrasil separates provenance from Body. `/srv/epiphany/source/current` is
 immutable release source. `/var/lib/gamecult/epiphany/workspace` is the writable
 domain Body carrying repository binding, persistent Modeling map, Mind state,

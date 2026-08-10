@@ -1,5 +1,33 @@
 # Fresh workspace handoff
 
+## Actual c006 woke and completed retained Modeling once — 2026-08-10
+
+Exact `0ef0c0b8` was published into actual c006 under its cognitive brake. Exact
+Self authenticated it at revision 23 with no active lease. Heartbeat and Self
+then started as distinct long-lived container owners. An explicit typed brake
+release created no grant; it allowed the already-retained, unconsumed
+proposal-Modeling grant to launch exactly once. Coordinator thread
+`linux-eyes-tools-c005` opened runtime job
+`5ff2704b-64eb-42f1-9ca4-ca7144e33ae4`; the detached Modeling worker published
+valid typed fulfillment. Self advanced 23 -> 25 -> 26 through launched,
+awaiting-fulfillment, completed, then sleeping. Heartbeat returned to bounded
+void routines without a replacement grant. No Hands, Persona, deployment, or
+other external consequence occurred. Exact before/after manifests, brake
+transitions, provider logs, and status projections are under
+`.epiphany-run/c006-wake-0ef0c0b8`.
+
+The live run exposed one readiness ownership fault. Both providers were alive,
+but status reported warming because its early snapshot time raced continuously
+refreshed rows and because one container cannot observe the other's PID
+incarnation. The cognitive brake was re-engaged at the clean sleeping boundary;
+both exact processes remain alive. The current source cut makes the shared-store
+role singleton own cross-container liveness and keeps the exact fresh provider
+row as release/witness/source/executable identity. PID sight is diagnostic.
+Rows more than one second beyond snapshot time still refuse. Fifteen focused
+tests and all 666 non-ignored core library tests pass. Commit/package this cut,
+prove active/warming transitions with two copied-state containers, then publish
+under brake and resume endurance. Yggdrasil never builds.
+
 ## Direct proposal Modeling and archived fulfillment accepted — 2026-08-10
 
 The exact `53678374` Linux body now carries a direct proposal Modeling proof in

@@ -24,13 +24,17 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
-use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
+use windows_sys::Win32::Foundation::{
+    CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0,
+    WAIT_TIMEOUT,
+};
 #[cfg(windows)]
-use windows_sys::Win32::System::Threading::{CreateMutexW, ReleaseMutex};
+use windows_sys::Win32::System::Threading::{CreateMutexW, ReleaseMutex, WaitForSingleObject};
 
 pub const RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION: &str =
     "epiphany.resident_cognition.provider_readiness.v0";
 const PROVIDER_READINESS_KEY: &str = "provider-readiness";
+const MAX_PROVIDER_CLOCK_SKEW_MILLIS: u64 = 1_000;
 
 pub struct ResidentProcessSingletonGuard {
     #[cfg(windows)]
@@ -99,8 +103,10 @@ pub fn acquire_resident_process_singleton(
     #[cfg(unix)]
     {
         let path = resident_process_singleton_lock_path(role, &store)?;
+        if !path.exists() {
+            return Ok(false);
+        }
         let file = File::options()
-            .create(true)
             .read(true)
             .write(true)
             .open(path)?;
@@ -115,6 +121,70 @@ pub fn acquire_resident_process_singleton(
     #[allow(unreachable_code)]
     Err(anyhow!(
         "resident process singleton is unsupported on this platform"
+    ))
+}
+
+fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool> {
+    if !matches!(role, "heartbeat" | "resident-self") {
+        bail!("unsupported resident singleton role: {role}");
+    }
+    let store = canonical_or_absolute(store);
+    #[cfg(windows)]
+    {
+        let identity = format!(
+            "{:x}",
+            Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
+        );
+        let name = OsStr::new(&format!("Global\\EpiphanyResident-{role}-{identity}"))
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 0, name.as_ptr()) };
+        if handle.is_null() {
+            bail!("resident {role} singleton mutex probe failed: {}", unsafe {
+                GetLastError()
+            });
+        }
+        let observation = unsafe { WaitForSingleObject(handle, 0) };
+        let owned = match observation {
+            WAIT_TIMEOUT => true,
+            WAIT_OBJECT_0 | WAIT_ABANDONED => {
+                unsafe {
+                    let _ = ReleaseMutex(handle);
+                }
+                false
+            }
+            other => {
+                unsafe { CloseHandle(handle) };
+                bail!("resident {role} singleton mutex probe returned {other}");
+            }
+        };
+        unsafe { CloseHandle(handle) };
+        return Ok(owned);
+    }
+    #[cfg(unix)]
+    {
+        let path = resident_process_singleton_lock_path(role, &store)?;
+        let file = File::options()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(path)?;
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+            unsafe {
+                let _ = libc::flock(file.as_raw_fd(), libc::LOCK_UN);
+            }
+            return Ok(false);
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::WouldBlock {
+            return Ok(true);
+        }
+        return Err(error.into());
+    }
+    #[allow(unreachable_code)]
+    Err(anyhow!(
+        "resident process singleton probe is unsupported on this platform"
     ))
 }
 
@@ -544,12 +614,15 @@ pub fn authenticate_resident_provider_pair(
                 continue;
             }
         };
-        let exact_process = observe_process_instance(&ProcessInstanceIdentity {
-            process_id: value.process_id,
-            creation_token: value.process_creation_token,
-            created_at_rfc3339: None,
-            executable_path: PathBuf::from(&value.process_executable_path),
-        }) == ProcessInstanceObservation::ExactAlive;
+        let role_owner_present = match resident_process_singleton_is_owned(owner, store) {
+            Ok(value) => value,
+            Err(error) => {
+                result.contradictions.push(format!(
+                    "{owner} provider singleton observation failed: {error:#}"
+                ));
+                continue;
+            }
+        };
         if provider_matches_authority(
             &value,
             owner,
@@ -560,7 +633,7 @@ pub fn authenticate_resident_provider_pair(
             executable.as_deref(),
             now_millis,
             freshness_millis,
-            exact_process,
+            role_owner_present,
         ) {
             result.terminal_current += 1;
         } else if value.runtime_id == release.runtime_id && value.release_id == release.release_id {
@@ -593,12 +666,15 @@ fn provider_is_fresh(
             return false;
         }
     };
-    let exact_process = observe_process_instance(&ProcessInstanceIdentity {
-        process_id: value.process_id,
-        creation_token: value.process_creation_token,
-        created_at_rfc3339: None,
-        executable_path: PathBuf::from(&value.process_executable_path),
-    }) == ProcessInstanceObservation::ExactAlive;
+    let role_owner_present = match resident_process_singleton_is_owned(owner, store) {
+        Ok(value) => value,
+        Err(error) => {
+            reasons.push(format!(
+                "{owner} provider singleton observation failed: {error:#}"
+            ));
+            return false;
+        }
+    };
     let failures = provider_authority_failures(
         &value,
         owner,
@@ -609,7 +685,7 @@ fn provider_is_fresh(
         expected_executable,
         request.now_millis,
         request.freshness_millis,
-        exact_process,
+        role_owner_present,
     );
     if !failures.is_empty() {
         reasons.push(format!(
@@ -631,7 +707,7 @@ fn provider_authority_failures(
     executable: Option<&Path>,
     now_millis: u64,
     freshness_millis: u64,
-    exact_process_alive: bool,
+    role_owner_present: bool,
 ) -> Vec<&'static str> {
     let mut failures = Vec::new();
     if value.provider != owner {
@@ -658,10 +734,10 @@ fn provider_authority_failures(
     if value.status != "ready" {
         failures.push("provider-status");
     }
-    if !exact_process_alive {
-        failures.push("process-incarnation");
+    if !role_owner_present {
+        failures.push("role-singleton");
     }
-    if now_millis < value.observed_at_millis {
+    if value.observed_at_millis > now_millis.saturating_add(MAX_PROVIDER_CLOCK_SKEW_MILLIS) {
         failures.push("future-observation");
     } else if now_millis.saturating_sub(value.observed_at_millis) > freshness_millis {
         failures.push("freshness");
@@ -680,7 +756,7 @@ fn provider_matches_authority(
     executable: Option<&Path>,
     now_millis: u64,
     freshness_millis: u64,
-    exact_process_alive: bool,
+    role_owner_present: bool,
 ) -> bool {
     provider_authority_failures(
         value,
@@ -692,7 +768,7 @@ fn provider_matches_authority(
         executable,
         now_millis,
         freshness_millis,
-        exact_process_alive,
+        role_owner_present,
     )
     .is_empty()
 }
@@ -813,7 +889,7 @@ mod tests {
     }
 
     #[test]
-    fn stale_wrong_release_and_nonexact_process_cannot_be_ready() {
+    fn stale_wrong_release_and_absent_role_owner_cannot_be_ready() {
         let value = provider();
         let executable = std::env::current_exe().unwrap();
         assert!(provider_matches_authority(
@@ -864,6 +940,28 @@ mod tests {
             100,
             false
         ));
+    }
+
+    #[test]
+    fn role_singleton_probe_observes_only_a_live_owner() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("heartbeat.cc");
+        assert!(!resident_process_singleton_is_owned("heartbeat", &store)?);
+        let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(0);
+        let (release_tx, release_rx) = std::sync::mpsc::sync_channel(0);
+        let owned_store = store.clone();
+        let owner = std::thread::spawn(move || -> Result<()> {
+            let _guard = acquire_resident_process_singleton("heartbeat", &owned_store)?;
+            ready_tx.send(())?;
+            release_rx.recv()?;
+            Ok(())
+        });
+        ready_rx.recv()?;
+        assert!(resident_process_singleton_is_owned("heartbeat", &store)?);
+        release_tx.send(())?;
+        owner.join().expect("singleton owner thread")?;
+        assert!(!resident_process_singleton_is_owned("heartbeat", &store)?);
+        Ok(())
     }
 
     #[test]
@@ -1084,7 +1182,7 @@ mod tests {
         value.runtime_id = "wrong-runtime".into();
         value.release_id = "wrong-release".into();
         value.status = "warming".into();
-        value.observed_at_millis = 2_000;
+        value.observed_at_millis = 3_000;
         let executable = PathBuf::from(&value.process_executable_path);
 
         assert_eq!(
@@ -1104,10 +1202,42 @@ mod tests {
                 "runtime",
                 "release",
                 "provider-status",
-                "process-incarnation",
+                "role-singleton",
                 "future-observation",
             ]
         );
+    }
+
+    #[test]
+    fn bounded_snapshot_skew_is_fresh_but_a_future_row_is_not() {
+        let mut value = provider();
+        value.observed_at_millis = 1_500;
+        let executable = PathBuf::from(&value.process_executable_path);
+        assert!(provider_matches_authority(
+            &value,
+            "heartbeat",
+            "ygg",
+            "release-a",
+            &value.release_witness_sha256,
+            Some("commit-a"),
+            Some(&executable),
+            1_000,
+            100,
+            true,
+        ));
+        value.observed_at_millis = 2_001;
+        assert!(!provider_matches_authority(
+            &value,
+            "heartbeat",
+            "ygg",
+            "release-a",
+            &value.release_witness_sha256,
+            Some("commit-a"),
+            Some(&executable),
+            1_000,
+            100,
+            true,
+        ));
     }
 
     #[test]
