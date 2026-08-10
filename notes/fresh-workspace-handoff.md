@@ -1992,9 +1992,9 @@ byte-identical.
 
 Focused coordinator tests pass 58/58. The full core library passes 649 tests
 with one intentional ignore, both release/core swarm binary suites pass 8/8,
-and the coordinator release target checks with `coordinator-runtime`. The cut
-is source-verified but not yet committed, packaged, or exercised on copied live
-state. Active c005 was untouched.
+and the coordinator release target checks with `coordinator-runtime`. Commit
+`0ce5a800` contains the source cut and is pushed. It is not yet packaged or
+exercised on copied live state. Active c005 was untouched.
 
 Next: commit and push this exact source, package it once with the persistent
 Starfire cache, then prove copied-live repair, archival, non-resurrection, and
