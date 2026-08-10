@@ -1815,3 +1815,44 @@ and an isolated Qdrant body to prove physical points disappear, unrelated
 namespaces remain byte/ID-identical, failure retries, ordinary semantic health
 survives, and replay is inert. Active `c005` remains untouchable; Yggdrasil never
 builds.
+
+## Semantic physical retirement accepted live — 2026-08-10
+
+Exact pushed source `6bc3ec3f2493c75b6fa7f61ad3b675b10b67ab0f`
+packaged warning-free in 8m11s with 24 binaries as release
+`sha256-fb1bf9258a7d977fd92d6f8ee17bb540fa870477cdf1d3cea9707ec8d582d4aa`
+and witness
+`sha256-b42dba7296739dc48ecf0d8014a16f9d232cd723ed0292830d50879f546c0e6d`.
+The exact packaged inspector authenticated source, destination, witness, and all
+24 sibling binaries. Package receipts are under
+`.epiphany-run/linux-package-6bc3ec3f`.
+
+The isolated copied-live proof under
+`.epiphany-run/semantic-physical-6bc3ec3f` seeded one old failed Modeling epoch
+and four Qdrant points: two in its exact five-field namespace, one with a foreign
+claim epoch, and one with a foreign obligation. Exact packaged execution deleted
+only the two target points. Both hostile neighbors survived. The old obligation,
+attempt, grant, physical obligation, and terminal receipt then compacted into a
+revision-1 head with four retired generations, eight retired envelopes, and
+digest
+`sha256:eb447221ee3344eb75e50cc47097c42aa6479a7afe9f3be9a87dba352f51a01b`.
+All physical proof rows were absent afterward; replay reported zero retention
+mutations and preserved both hostile Qdrant points.
+
+A second pristine copy proved failure continuity. With Qdrant stopped, exact
+packaged execution reported one physical retention fault, preserved all three
+old lifecycle rows plus one durable physical obligation, wrote no terminal
+receipt, and refused logical compaction of that attempted epoch. After the same
+Qdrant body restarted, the next exact pulse deleted only the target namespace,
+wrote the receipt, and compacted the family into revision-2 digest
+`sha256:113c5057dc66f6393a4548d89ad3d177e4d43cce2a4cd12bc340430f013df2c7`.
+The two hostile points again survived.
+
+Mind remained byte-identical at
+`sha256:d9d9e61af5fe3f71272754e8fa07dde2a94083fc4bc2c1cbf086d4691bf9a19e`
+and exact packaged health remained ready with its original obligation, receipt,
+hashes, generation 1, 43 documents, and 1024 dimensions. Modeling retained its
+exact canonical obligation/hash/generation and remained failed only because the
+copied proof deliberately withheld Ollama. The temporary Qdrant container was
+removed after its persisted proof data was sealed. Active `c005` was untouched;
+Yggdrasil did not build.

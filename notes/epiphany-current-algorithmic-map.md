@@ -2758,6 +2758,26 @@ endpoint no longer present in current managed policy remains pending rather
 than turning canonical state into arbitrary network deletion authority. Exact
 package and copied-live Qdrant proof remain the acceptance boundary.
 
+Exact `6bc3ec3f` closes that boundary. Release
+`sha256-fb1bf9258a7d977fd92d6f8ee17bb540fa870477cdf1d3cea9707ec8d582d4aa`
+with witness
+`sha256-b42dba7296739dc48ecf0d8014a16f9d232cd723ed0292830d50879f546c0e6d`
+passed exact 24-binary inspection. In copied live state, the packaged daemon
+deleted two points in the exact old `(swarm, partition, obligation, claim,
+epoch)` namespace while preserving a same-obligation foreign epoch and a
+same-claim foreign obligation. It compacted all logical and physical lifecycle
+rows only after the terminal receipt; replay was inert. With Qdrant absent, the
+same package preserved the durable obligation without a receipt or attempted
+logical compaction; restart consumed that same authority and completed exactly
+once. Ordinary Mind health and all canonical hashes remained unchanged.
+
+Semantic retention is therefore bounded at both logical and physical layers for
+new namespace-bearing attempts. Historical migrated attempts without recorded
+endpoint/collection remain deliberately durable; no inference path may retire
+them. This is honest residual evidence, not active growth. The next retention
+organ is Persona conversation history, followed by the remaining broad organ
+matrix and stable Starfire network ownership.
+
 The copied-live physical audit sharpened the next ownership boundary. A durable
 physical-retirement obligation must be emitted before an attempted lifecycle can
 retire. It must carry exact collection name, obligation ID, claim ID, claim
