@@ -3403,6 +3403,47 @@ The completed-session archive remains separate and accepts only terminal
 per-attempt archive above; retry and fulfillment readers consume its tombstone
 rather than inferring state from independently missing claim/result rows.
 
+## CultCache single-file publication substrate
+
+Single-file CultCache publication is owned by the exclusive writer. It encodes
+one complete sorted snapshot, stages it beside the destination, syncs the staged
+file, atomically replaces the destination, and then performs the parent
+directory durability barrier. The committed destination is never deliberately
+removed before replacement. A post-replacement durability error is ambiguous
+commit evidence: callers must reread typed identity before considering any
+retry; the error itself cannot authorize a duplicate consequence.
+
+- Owner: `SingleFileMessagePackBackingStore::write_all_unlocked`, while holding
+  the destination's exclusive sibling lock.
+- Inputs: the complete encoded snapshot, canonical destination, and existing
+  sibling directory.
+- Outputs: one old-or-new complete destination snapshot; the next exclusive
+  write also removes abandoned regular staging siblings named exactly
+  `<destination>.<UUID>.tmp`.
+- Derived state: staging files and the sibling lock are mechanics, never typed
+  recovery, replay, or work authority.
+- Forbidden writers: destination truncation/removal, lockless repair, stale
+  staging publication, wildcard temp deletion, or error-code-driven retry.
+- Shared paths: single-file push, delete, conditional replacement, append, and
+  compaction all converge on the same publisher and cleanup boundary.
+- Cut line: cleanup is confined to the destination parent and exact destination
+  prefix plus valid UUID suffix; foreign names, other stores, directories, and
+  symlinks survive. The F: bind is not repaired by this cleanup and remains
+  rejected as a mutable authority substrate.
+- Verification layer: exact packaged writers killed across randomized publish
+  boundaries, concurrent lockless decoding, reopen after every kill, monotonic
+  typed counts, file mode/ownership, abandoned-staging cleanup, and explicit
+  negative preservation of foreign siblings.
+
+The exact Starfire Docker Desktop `F:` bind failed this layer: during packaged
+writer interruption a lockless reader observed an empty published snapshot,
+even though the later store decoded. Capability probes for rename and directory
+fsync were therefore insufficient. A Docker named volume passed sixty
+independent randomized writer kills and 5,000,000 concurrent lockless reads
+without an empty, partial, undecodable, or regressing snapshot. Mutable resident
+state must use the accepted Linux volume substrate; the Windows bind may carry
+immutable package inputs and receipts, not live CultCache authority.
+
 ### Direct proposal Modeling closure
 
 The Linux-native `53678374` fixture now constructs the remaining strong lane

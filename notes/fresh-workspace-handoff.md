@@ -26,10 +26,18 @@ or active resident turn exists.
 Rejected fixture shapes remain preserved: missing model schema, revision-one
 model without an exact self-hash, and a recovery timestamp earlier than its
 coordinator start. Each failed closed. Actual c006 stayed untouched and remains
-braked/stopped. Direct proposal fulfillment is accepted. Next map deployed
-supervisor/projector stdout-stderr ownership, then run randomized packaged
-CultCache interruption and concurrent-read proof on the Starfire bind substrate
-before any c005 recovery. Yggdrasil never builds.
+braked/stopped. Direct proposal fulfillment is accepted. Deployed
+supervisor/projector stdout-stderr ownership was already accepted under
+`gamecult-ops` `059821f`: both projector policies inherit `/dev/stdout` and
+`/dev/stderr`, while systemd-journald is the sole deployed retention owner.
+Exact packaged interruption falsified the Starfire `F:` bind as a mutable
+authority substrate: a lockless reader observed an empty published snapshot
+while an exact packaged writer was being killed. A Docker named volume instead
+survived sixty randomized writer kills and five million concurrent lockless
+reads with only parseable, monotonically nondecreasing snapshots. CultCache now
+removes only its own UUID-shaped abandoned staging files on the next exclusive
+write. Finish packaging and repeat that exact cleanup proof on the named volume
+before migrating any resident state. Yggdrasil never builds.
 
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 
@@ -368,14 +376,33 @@ The source owner was CultCache's single-file publisher: it deleted the committed
 destination before renaming a staged snapshot. Upstream CultCache `e8a9f2d`
 now flushes a unique staging file, atomically replaces the sibling destination,
 and performs the Unix parent-directory durability barrier; Windows uses
-write-through replacement. Forty ordinary tests pass, with two explicit
-operator crash probes ignored. Linux overlayfs and the exact writable Starfire
-`F:` bind both pass replacement, failure-preservation, and directory-sync
-checks. Thirty randomized writer SIGKILL/reopen passes on the bind and ten on a
-Docker named volume always decoded one complete typed snapshot. The remaining
-gate is to advance Epiphany to this dependency, package once, recover into a new
-resident incarnation from surviving typed authority, and prove clean
-restart/non-resurrection. The zero file is evidence, not a migration input.
+write-through replacement. The individual replacement and directory-sync calls
+work on Linux overlayfs and the writable Starfire `F:` bind, but the full
+packaged interruption test rejected the bind. A concurrent lockless reader
+observed an empty published snapshot while the exact packaged runtime writer was
+killed; the store later decoded with 90 events. Two abandoned UUID staging files
+remained. `F:` therefore cannot own mutable Epiphany state.
+
+The same exact release on Docker named volume
+`epiphany-cultcache-interruption-53678374` survived sixty independently named
+writer containers killed at randomized 1-150 ms boundaries. Exact packaged
+status decoded after every kill and the event count never rolled back. A
+concurrent lockless reader completed 5,000,000 reads, observing 136-164
+envelopes with no empty, partial, undecodable, or regressing snapshot. The final
+store contained 163 events, retained mode 0644 and uid/gid 0, and hashed
+`39026d9d5d432ab24ca3f2a737ed2498728006e89b794d18a4f9cf371f5fb9b7`.
+Three abandoned UUID staging files remained after killed writers.
+
+CultCache now assigns bounded staging cleanup to the next exclusive writer. It
+deletes only regular siblings named exactly `<destination>.<UUID>.tmp`; unknown
+suffixes, other destinations, directories, and symlinks are not cleanup
+authority. Forty-one library tests and 664 core library tests pass. A stale
+supervisor source-shape test was corrected to verify exact call arguments
+without claiming indentation authority; all 25 supervisor tests pass. The
+remaining gate is to commit/package this dependency, prove a final successful
+named-volume write removes the killed writers' staging corpses without touching
+foreign files, then migrate copied resident state and prove clean restart and
+non-resurrection. The zero file is evidence, not a migration input.
 
 ## Cross-container resident ownership accepted — 2026-08-09
 

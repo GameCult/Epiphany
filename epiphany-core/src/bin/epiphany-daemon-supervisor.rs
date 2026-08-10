@@ -4710,9 +4710,18 @@ mod semantic_projector_authority_tests {
             .map(|offset| start + offset)
             .unwrap();
         let branch = &source[start..end];
-        assert!(branch.contains(
-            "authenticate_current_workspace_coverage_terminal_sight(\n        &runtime_store,\n        &args.store,"
-        ));
+        let terminal_call = branch
+            .split_once("authenticate_current_workspace_coverage_terminal_sight(")
+            .map(|(_, tail)| tail)
+            .unwrap();
+        assert_eq!(
+            terminal_call
+                .lines()
+                .take(3)
+                .map(str::trim)
+                .collect::<Vec<_>>(),
+            vec!["", "&runtime_store,", "&args.store,"]
+        );
         let lineage = branch
             .find("authenticate_workspace_coverage_replacement_lineage")
             .unwrap();
