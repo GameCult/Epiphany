@@ -1,5 +1,40 @@
 # Fresh workspace handoff
 
+## Typed-attempt non-resurrection accepted and actual c006 settled — 2026-08-10
+
+Exact pushed source `c693aaeadbb17204724c9986f16952e2f93e8fc9` packages
+without warnings as 24-binary release
+`sha256-fd46323a0164d33dd5f71f557aa9406b4bec699f453a74aee428c99b2c252e71`
+with witness
+`sha256-8ad95c0a08fe1fe7398f62a94ca10c1da56170b36e552c1700968efc2a7ac16d`.
+The cut validates structural coordinator-receipt binding before classifying
+status and forbids an immutable typed attempt from returning its pressure to
+Heartbeat.
+
+On an exact copy of the sealed c006 failure stores, packaged Self settled the
+attempt-two lease with exit zero at resident revision 22. The exact grant is
+terminal `unfulfilled`, its pressure remains `consumed`, and bounded Heartbeat
+replay under the cognitive brake issued no third grant. Resident serve projected
+braked state and handled SIGTERM with exit zero. Receipts are under
+`.epiphany-run/replay-c006-c693aaea/`.
+
+Standing corrupted-state intervention authority was then exercised on actual
+c006. The authenticated c693 release replaced only the release publication,
+and packaged Self settled the same exact lease with exit zero, no OOM, and no
+active turn. Bounded Heartbeat pulses 138 and 139 both reported
+`braked-after-ack-reconciliation` with no grant. Pre-intervention stores and
+container evidence remain under
+`.epiphany-run/interventions/c006-unsuperseded-relaunch-20260810T1044Z/`;
+post-settlement logs are under
+`.epiphany-run/interventions/c006-c693aaea-settlement/`.
+
+The cognitive brake remains engaged. Old c006 resident and Heartbeat containers
+remain stopped; do not release the brake. The next source cut is Heartbeat
+graceful SIGTERM ownership: the old continuous Heartbeat body required Docker's
+kill timeout and exited 137. Map that nervous-system lifecycle, make termination
+produce an exact clean receipt, package once, and replay on copied state before
+resuming receipt-free death/orphan-worker Continuity. Yggdrasil never builds.
+
 ## c006 live scheduling exposed typed retry resurrection — 2026-08-10
 
 Exact pushed source `8d92c8266b07a98b5c6b2e8d6bdbded5661e8cbb` packaged

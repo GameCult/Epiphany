@@ -3109,3 +3109,29 @@ The negative verification is the c006 failure shape itself: a fully bound
 `failed` coordinator receipt plus an invalid terminal proposal Modeling result
 must settle once, must not crash resident Self, and must not issue attempt
 three. Exact live replay remains the package acceptance boundary.
+# Accepted typed-attempt terminality and c006 settlement — 2026-08-10
+
+- Owner: runtime spine owns whether typed worker output is authentic; resident
+  Self owns settlement of the exact grant and pressure after coordinator process
+  closure.
+- Inputs: the exact active lease and grant, structurally bound coordinator
+  receipt, immutable typed launch attempt, and runtime-owned fulfillment result.
+- Outputs: fulfilled work closes normally; hostile terminal output closes the
+  exact grant as `unfulfilled`; pending attempted work retains its active lease.
+- Derived state: coordinator success is a classification after binding, not part
+  of receipt identity. Heartbeat acknowledgement is notification, not authority
+  to recreate a typed attempt.
+- Forbidden writers: generic cancellation cannot return a pressure after an
+  immutable typed attempt exists; Heartbeat cannot issue a replacement attempt
+  from a terminal acknowledgement; a failed coordinator receipt cannot bypass
+  structural binding.
+- Shared paths: `once` and `serve` use the same settlement path. Copied and actual
+  c006 replay used exact packaged `c693aaea` and converged at resident revision
+  22 with no third grant under the cognitive brake.
+- Cut line: source `c693aaea`; release `sha256-fd46323a`; witness
+  `sha256-8ad95c0a`. Exact pre/post receipts are under the c006 intervention and
+  replay directories named in the fresh-workspace handoff.
+- Verification layer: 654 core tests plus nine swarm tests; exact 24-binary
+  package inspection; copied active-attempt settlement; actual corrupted-state
+  intervention; two bounded actual Heartbeat pulses with brake present and grant
+  absent.
