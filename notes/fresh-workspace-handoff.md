@@ -1879,3 +1879,28 @@ then prove against copied state and signed synthetic crossing fixtures that one
 completed speech lifecycle retires, pending/failed/unknown/quarantined neighbors
 survive, crash retry is exact, replay is inert, and the head cannot reserve or
 repost the old turn. Preserve active c005. Yggdrasil never builds.
+
+## Persona conversation retention accepted live — 2026-08-10
+
+Exact pushed source `44230a05390065f3826506619c7eaa099a0ebd88` packaged
+warning-free with 24 binaries as release
+`sha256-aed15bfb419c6c76ad09e1020e0c3e3d0f6dee52f5d615e18bbc61095aa76ea9`
+and witness
+`sha256-77d3b45e2cd48f5785f02539ba92238013f2385537a776d45514ac13e704706e`.
+The copied signed fixture retired one completed speech turn and eight runtime
+detail envelopes. A newer dropped turn, failed retained turn, signed unknown
+quarantine, pending delivery, blocked pressure, and pending model evidence all
+survived. The five store hashes and typed inspection were identical on replay;
+the completed crossing request and receipt were not recreated or reposted.
+
+The crash boundary was forced by mounting the receipt store read-only. Runtime
+and request cleanup completed, receipt replacement failed with `EBUSY`, and
+Heartbeat retained both the exact cleanup plan and old terminal turn with no
+retention head. Normal retry authenticated the existing local cleanup receipts,
+deleted only the exact signed receipt, cleared the plan, removed the old turn,
+and produced a revision-1 head. Pending and hostile neighbors remained intact.
+Receipts are under `.epiphany-run/persona-retention-44230a05`; active c005 was
+untouched and Yggdrasil did not build.
+
+Next: establish stable Starfire firewall ownership, then continue the broad
+remaining organ-coordination matrix. Preserve active c005.

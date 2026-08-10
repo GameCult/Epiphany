@@ -2662,8 +2662,25 @@ and hostile old-request rejection; preservation of an older failed/retained
 turn while a neighboring clean turn retires; and refusal to accept already
 absent detail without the exact store cleanup receipt. The full core library is
 green at 646 passed / 1 ignored, the OpenAI runtime is green at 15 passed, and
-the production Persona daemon compiles. Exact packaged copied-state proof,
-especially the signed completed-delivery path, remains the acceptance gate.
+the production Persona daemon compiles.
+
+Exact `44230a05` packaged copied-state proof accepts the cut. Release
+`sha256-aed15bfb419c6c76ad09e1020e0c3e3d0f6dee52f5d615e18bbc61095aa76ea9`
+with witness
+`sha256-77d3b45e2cd48f5785f02539ba92238013f2385537a776d45514ac13e704706e`
+retired one signed completed speech family and eight exact runtime envelopes.
+The newer dropped turn, failed retained turn, signed unknown/quarantined turn,
+pending delivery turn, blocked pressure, and pending model evidence survived.
+All five stores and their typed inspection were byte-identical on replay.
+
+A forced read-only receipt-store replacement failed after runtime and request
+cleanup. Heartbeat still held the exact plan and terminal turn, the local
+runtime/request cleanup receipts authenticated the partial progress, and no
+head existed. A normal retry deleted the exact crossing receipt, cleared the
+plan, removed the old terminal turn, and advanced one revision. Thus a crash
+cannot turn partial deletion into completion, and the accepted frontier plus
+reservation validation prevents either reservation or repost of the retired
+turn. Receipts are under `.epiphany-run/persona-retention-44230a05`.
 
 ### Semantic logical lifecycle implementation
 
