@@ -34,10 +34,15 @@ Exact packaged interruption falsified the Starfire `F:` bind as a mutable
 authority substrate: a lockless reader observed an empty published snapshot
 while an exact packaged writer was being killed. A Docker named volume instead
 survived sixty randomized writer kills and five million concurrent lockless
-reads with only parseable, monotonically nondecreasing snapshots. CultCache now
-removes only its own UUID-shaped abandoned staging files on the next exclusive
-write. Finish packaging and repeat that exact cleanup proof on the named volume
-before migrating any resident state. Yggdrasil never builds.
+reads with only parseable, monotonically nondecreasing snapshots. Exact
+`a4756857` then repeated the stronger test: forty real writer incarnations died
+with SIGKILL 137 while a lockless verifier completed ten million reads spanning
+102-201 envelopes without empty, partial, decode, or rollback. CultCache removes
+only its own UUID-shaped abandoned staging files on the next exclusive write.
+A copied c006 restart is clean and actual c006 remains untouched, but the copy
+exposed one consumed nonterminal legacy grant paired with a stale running
+Heartbeat turn. Repair that exact ownership split before waking c006.
+Yggdrasil never builds.
 
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 
@@ -393,16 +398,43 @@ store contained 163 events, retained mode 0644 and uid/gid 0, and hashed
 `39026d9d5d432ab24ca3f2a737ed2498728006e89b794d18a4f9cf371f5fb9b7`.
 Three abandoned UUID staging files remained after killed writers.
 
-CultCache now assigns bounded staging cleanup to the next exclusive writer. It
+CultCache `0ba8745` assigns bounded staging cleanup to the next exclusive writer. It
 deletes only regular siblings named exactly `<destination>.<UUID>.tmp`; unknown
 suffixes, other destinations, directories, and symlinks are not cleanup
 authority. Forty-one library tests and 664 core library tests pass. A stale
 supervisor source-shape test was corrected to verify exact call arguments
 without claiming indentation authority; all 25 supervisor tests pass. The
-remaining gate is to commit/package this dependency, prove a final successful
-named-volume write removes the killed writers' staging corpses without touching
-foreign files, then migrate copied resident state and prove clean restart and
-non-resurrection. The zero file is evidence, not a migration input.
+exact package is source `a4756857`, release
+`sha256-b2e2793ea7205d497e8f1b85b3a23488f844213dd913b08fd9082ede26a76e07`,
+and witness
+`sha256-4bdb22ff7a4363176aaef325222c55c08b75ee464c98a57be5a983bc43dd9917`.
+Forty looping packaged writer containers ended with SIGKILL 137; exact status
+decoded monotonically after each. A concurrent lockless verifier completed
+10,000,000 reads spanning 102-201 envelopes with no empty, partial, undecodable,
+or regressing state. The final clean write produced 200 typed events, preserved
+0644 root:root, hashed
+`5e3518da84cabac4afa1f22187f8e90a9a02ea820b5a13eab32627c1e375c875`,
+and preserved the hostile unknown, foreign-store, directory, and symlink shapes.
+Named-volume mutable publication and staging cleanup are accepted. The zero file
+is evidence, not a migration input.
+
+Copied c006 state, workspace, and Codex home matched 26-file, 4,301-file, and
+one-file SHA-256 manifests before mutation. The new release published only into
+the copy; exact swarm `once` remained braked with no active turn, and bounded
+`serve` accepted SIGTERM with exit zero and final braked state. Original c006
+state and workspace manifests remained
+`3bef83075f18f9ebaff30c432fd9429b6b3dd7bdf00ea10a0913ee06a7a04d2f` and
+`eb3de02d206b61b741816907e4653d155b9bec1a2dd7089d44eeec393d1e1b70`.
+
+Heartbeat then exposed a pre-existing inconsistent lifecycle in the copied
+state. Self has no prepared or active lease, yet Heartbeat still has a running
+`epiphany-starfire-linux-c006-bounded` coordinator turn. Its exact grant for
+proposal request `ef710ca4...` is consumed but has neither grant-owned terminal
+state nor a terminal acknowledgement. Braked Heartbeat correctly issued no new
+grant, but Self remains initiative-frozen. Do not use generic age repair: map a
+typed exact-grant repair that proves no prepared/active lease or child claim,
+terminalizes the grant and pressure deliberately, and closes only the matching
+Heartbeat turn. Actual c006 remains untouched.
 
 ## Cross-container resident ownership accepted — 2026-08-09
 

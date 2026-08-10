@@ -3444,6 +3444,45 @@ without an empty, partial, undecodable, or regressing snapshot. Mutable resident
 state must use the accepted Linux volume substrate; the Windows bind may carry
 immutable package inputs and receipts, not live CultCache authority.
 
+Exact source `a4756857` packages CultCache `0ba8745` as release
+`sha256-b2e2793e` with witness `sha256-4bdb22ff`. On a fresh named volume,
+forty continuously writing packaged process incarnations were killed at real
+publication boundaries and all exited 137. Exact packaged status decoded after
+each and never regressed. The concurrent lockless verifier completed 10,000,000
+reads spanning 102-201 envelopes without an empty or invalid sight. The next
+successful write left 200 typed events, mode 0644, uid/gid 0, and no regular
+UUID staging sibling while preserving foreign-store, unknown-suffix, directory,
+and symlink lookalikes.
+
+### Consumed-grant / Heartbeat recovery frontier
+
+Copied c006 proves the storage and process restart body but exposes an older
+cross-store lifecycle split. Resident Self has no prepared or active lease;
+Heartbeat retains one running coordinator pending turn; and its exact resident
+grant is consumed but lacks grant-owned terminal state and a terminal ack. The
+brake prevents new actuation, yet Self remains scheduler-frozen.
+
+- Owner: the exact resident grant and Resident Self state own whether execution
+  can still exist; Heartbeat owns only its matching scheduler turn.
+- Inputs: exact pressure/grant schedule and action binding, consumed timestamp,
+  grant terminal fields, resident prepared/active lease, exact child claim, and
+  matching Heartbeat pending turn.
+- Outputs: an explicit typed repair must terminalize only that grant/pressure
+  lifecycle and close only that Heartbeat turn, with a replayable receipt.
+- Derived state: Heartbeat `running`, elapsed age, brake state, and absence of an
+  ack are observations, not grant-death authority.
+- Forbidden writers: generic stale-age repair, retention, a new grant, or a
+  scheduler-only completion cannot decide that execution died.
+- Shared paths: startup recovery and operator-authorized corruption repair must
+  use the same exact-grant proof; normal success/cancellation retains its current
+  atomic terminalization path.
+- Cut line: refuse repair if any prepared/active lease or child claim names the
+  grant, if pressure/grant binding differs, or if Heartbeat schedule/action does
+  not match. Do not resurrect the consumed pressure implicitly.
+- Verification layer: copied exact state; stale snapshot refusal; hostile
+  swapped grant/pressure/schedule/action; child/prepared/active refusal; exact
+  replay; Heartbeat unfreeze; no pending grant; and unchanged unrelated rows.
+
 ### Direct proposal Modeling closure
 
 The Linux-native `53678374` fixture now constructs the remaining strong lane
