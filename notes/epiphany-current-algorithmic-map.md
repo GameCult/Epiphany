@@ -2568,10 +2568,10 @@ deleter.
   the singleton scope claim; any running attempt; the grant or recovery
   authorization named by that claim; and the exact succeeded attempt/receipt
   admitted by the current query-readiness gate.
-- Retirable inputs: older obligations whose source generation is no longer the
-  authenticated head, plus their terminal attempts, receipts, and consumed
-  grant/recovery documents, provided none is referenced by the current claim or
-  current readiness chain.
+- Retirable inputs in the current safe cut: only older obligations whose source
+  generation is no longer the authenticated head and which have no attempt,
+  receipt, executor grant, or recovery authorization. Attempted generations
+  remain durable until physical retirement has its own crash-safe obligation.
 - Output: one typed per-scope retention head with cumulative type/status counts,
   retired generation count, and chained digest, replacing the exact old
   lifecycle envelopes under the source store's full-snapshot fence. It is
@@ -2630,7 +2630,8 @@ extension of completed model-session archival.
 
 ### Semantic logical lifecycle implementation
 
-`retain_memory_semantic_projection_lifecycles` now realizes the logical half of
+`retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted
+portion of the logical half of
 the semantic retention map in each canonical source store. Its one snapshot is
 the authority basis for current-obligation equality, canonical authority
 equality, singleton claim/attempt authentication, historical lifecycle
@@ -2650,11 +2651,11 @@ it would fall inside the configured recent window. This prevents a stale caller
 from blessing a future row through retention.
 
 Retirable state is limited to lower-generation obligations outside the
-preservation set. Every associated attempt must be terminal and bound to an
-exact grant or recovery authorization; every grant must be consumed; every
-receipt must authenticate the obligation and a succeeded attempt. The one CAS
-deletes only those exact lifecycle envelopes and replaces the singleton typed
-retention head. Unknown families and the scope claim remain byte-identical.
+preservation set that have no attempt, receipt, executor grant, or recovery
+authorization. The one CAS deletes only those exact unattempted obligations and
+replaces the singleton typed retention head. Unknown families and the scope
+claim remain byte-identical. Attempted history remains intact because the
+digest-only head cannot preserve the physical Qdrant namespace needed later.
 Retention faults are reported as degraded daemon physiology; they neither
 change projection completion nor suppress the health projection.
 
@@ -2675,3 +2676,13 @@ refuse the entire store after the first successful retirement. Both canonical
 source catalogs now register the head as evidence-only. Projection-input tests
 persist a head and prove current Mind and Modeling derivation remains unchanged.
 This is schema legibility, not shared decision authority.
+
+The copied-live physical audit sharpened the next ownership boundary. A durable
+physical-retirement obligation must be emitted before an attempted lifecycle can
+retire. It must carry exact collection name, obligation ID, claim ID, claim
+epoch, partition/swarm, and the canonical retention authorization that proved
+the namespace inactive. The semantic executor alone may delete points matching
+that entire namespace and then write a terminal receipt. Backend failure leaves
+the obligation pending and cannot affect readiness. The logical retention owner
+must preserve attempted lifecycle until that obligation exists; a cumulative
+digest is evidence, not a retry address.

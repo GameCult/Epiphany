@@ -1719,3 +1719,35 @@ a retention head beside the canonical source family and still derive the exact
 current projection input. Both pass. Commit/push, repackage, and repeat the proof
 from a pristine copy; `6740fc2a` is evidence of the caught fault, not an accepted
 release.
+
+## Semantic live proof and physical cut correction — 2026-08-10
+
+Exact `7e320b5d` packaged warning-free with 24 binaries as release
+`sha256-0f0ff0883f1d84e07fb0485a1d5a4357036b49fad350a041c35a254a09c15441`
+and witness
+`sha256-96fbe50a32d915eaa23c4260b3c2734b71dc8341fc3248eff56151ae8fefcebc`.
+On a pristine copy of `active-cognition6-a987d2f7` Eyes-tools state, window-one
+retention retired three superseded unattempted Modeling obligations into a
+revision-1 head with digest
+`sha256:1cbb209d0cac9decf0715fd91faf07d1c0261805a04c0e6c0af9f3c3d7b5bb54`.
+The comparator found zero missing or changed unrelated envelopes. Mind remained
+byte-identical across all 20 envelopes and retained exact ready status, receipt,
+hashes, generation, and 43-document count. The ordinary packaged semantic
+consumer read both retained stores. Replay reported zero retention mutations;
+the head remained revision 1. Receipts are under
+`.epiphany-run/semantic-retention-7e320b5d`.
+
+The following physical audit found a cut error before final acceptance. A
+digest/count head cannot tell a later Qdrant collector the exact collection,
+obligation, claim, and epoch whose points are safe to delete. Deleting a failed
+or succeeded attempt first would therefore strand physical garbage, especially
+across crash or collection-config change. The source cut now preserves any old
+obligation that has an attempt, receipt, executor grant, or recovery
+authorization. Only genuinely unattempted superseded obligations compact.
+
+Attempted lifecycle retirement remains open until retention atomically emits a
+durable physical-retirement obligation carrying the exact namespace and the
+semantic executor writes a terminal deletion receipt. Backend failure may then
+delay space recovery without losing retry identity or changing readiness. Four
+focused tests pass after the fail-closed cut. Package that exact source and
+repeat the same copied-state proof before accepting this phase.

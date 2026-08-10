@@ -2451,89 +2451,28 @@ where
             .iter()
             .filter(|attempt| attempt.obligation_id == obligation.obligation_id)
             .collect::<Vec<_>>();
-        for attempt in &obligation_attempts {
-            validate_memory_semantic_projection_attempt(attempt)?;
-            if attempt.status == "running" {
-                return Err(anyhow!(
-                    "semantic projection retention refuses a running historical attempt"
-                ));
-            }
-            let authority_matches = grants.iter().any(|grant| {
-                grant.grant_id == attempt.authority_id
-                    && grant.obligation_id == obligation.obligation_id
-                    && grant.resulting_claim_id.as_deref() == Some(attempt.claim_id.as_str())
-                    && grant.resulting_claim_epoch == Some(attempt.claim_epoch)
-            }) || authorizations.iter().any(|authorization| {
-                authorization.authorization_id == attempt.authority_id
-                    && authorization.obligation_id == obligation.obligation_id
-                    && authorization.resulting_claim_id.as_deref()
-                        == Some(attempt.claim_id.as_str())
-                    && authorization.resulting_claim_epoch == Some(attempt.claim_epoch)
-            });
-            if !authority_matches {
-                return Err(anyhow!(
-                    "semantic projection retention found an unauthenticated historical attempt"
-                ));
-            }
-        }
         let obligation_receipts = receipts
             .iter()
             .filter(|receipt| receipt.obligation_id == obligation.obligation_id)
             .collect::<Vec<_>>();
-        let stale_head = MemorySemanticProjectionSourceHead {
-            swarm_id: obligation.swarm_id.clone(),
-            partition: obligation.partition.clone(),
-            canonical_source_id: obligation.canonical_source_id.clone(),
-            source_commit_id: obligation.source_commit_id.clone(),
-            graph_id: obligation.graph_id.clone(),
-            source_generation: obligation.source_generation,
-            source_model_hash: obligation.source_model_hash.clone(),
-            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
-        };
-        for receipt in &obligation_receipts {
-            if !memory_semantic_projection_terminal_success(obligation, &stale_head, receipt) {
-                return Err(anyhow!(
-                    "semantic projection retention found an invalid historical receipt"
-                ));
-            }
-            if !obligation_attempts.iter().any(|attempt| {
-                attempt.status == "succeeded"
-                    && attempt.claim_id == receipt.claim_id
-                    && attempt.claim_epoch == receipt.claim_epoch
-            }) {
-                return Err(anyhow!(
-                    "semantic projection retention receipt lost its succeeded attempt"
-                ));
-            }
-        }
-        for grant in grants
+        let obligation_grants = grants
             .iter()
             .filter(|grant| grant.obligation_id == obligation.obligation_id)
-        {
-            validate_memory_semantic_projector_executor_grant(grant)?;
-            if grant.status != "consumed" || grant.consumed_at.is_none() {
-                return Err(anyhow!(
-                    "semantic projection retention refuses unconsumed historical grant"
-                ));
-            }
-        }
-        for authorization in authorizations
+            .collect::<Vec<_>>();
+        let obligation_authorizations = authorizations
             .iter()
             .filter(|authorization| authorization.obligation_id == obligation.obligation_id)
+            .collect::<Vec<_>>();
+        if !obligation_attempts.is_empty()
+            || !obligation_receipts.is_empty()
+            || !obligation_grants.is_empty()
+            || !obligation_authorizations.is_empty()
         {
-            validate_memory_semantic_projector_recovery_authorization(authorization)?;
+            continue;
         }
-        let status = if !obligation_receipts.is_empty() {
-            "succeeded"
-        } else if obligation_attempts
-            .iter()
-            .any(|attempt| attempt.status == "failed")
-        {
-            "failed"
-        } else {
-            "superseded_unattempted"
-        };
-        *retired_status_counts.entry(status.to_string()).or_default() += 1;
+        *retired_status_counts
+            .entry("superseded_unattempted".to_string())
+            .or_default() += 1;
         retired_obligation_ids.insert(obligation.obligation_id.clone());
     }
     if retired_obligation_ids.is_empty() {
@@ -3274,26 +3213,26 @@ mod retention_tests {
             "2026-08-10T05:00:01Z",
         )?
         .expect("older semantic generations should retire");
-        assert_eq!(head.retired_generation_count, 2);
-        assert_eq!(head.retired_status_counts.get("failed"), Some(&1));
+        assert_eq!(head.retired_generation_count, 1);
+        assert_eq!(head.retired_status_counts.get("failed"), None);
         assert_eq!(
             head.retired_status_counts.get("superseded_unattempted"),
             Some(&1)
         );
         let after = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
-        for retired in [
-            &older_failed.obligation_id,
-            &older_unattempted.obligation_id,
-        ] {
-            assert!(!after.iter().any(|entry| {
-                entry.r#type == MemorySemanticProjectionObligation::TYPE && &entry.key == retired
-            }));
-        }
         assert!(!after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionObligation::TYPE
+                && entry.key == older_unattempted.obligation_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionObligation::TYPE
+                && entry.key == older_failed.obligation_id
+        }));
+        assert!(after.iter().any(|entry| {
             entry.r#type == MemorySemanticProjectionAttempt::TYPE
                 && entry.key == older_attempt.attempt_id
         }));
-        assert!(!after.iter().any(|entry| {
+        assert!(after.iter().any(|entry| {
             entry.r#type == MemorySemanticProjectorExecutorGrant::TYPE
                 && entry.key == older_grant.grant_id
         }));
