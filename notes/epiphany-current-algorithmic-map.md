@@ -3250,3 +3250,12 @@ only after exact native process observation.
   pressure, byte-identical replay refusal, and no Heartbeat retry. Source passes
   661 core tests with one ignore plus seven swarm tests. Exact package and copied
   Linux proof remain.
+
+Exact `2e66433f` closes the source and Linux function-level gate. Its release is
+`sha256-1863385b` with witness `sha256-02f1d04f`, 24 binaries, and zero warnings.
+The Linux fixture proved fulfillment with zero coordinator receipts, one
+recovered-fulfilled original grant, consumed pressure, byte-identical replay
+refusal, exact closed-lifecycle retention, and no retry before or after
+retention. The fixture linked exact pushed source; it did not execute the
+packaged swarm CLI. Direct packaged-binary provenance remains open alongside
+the proposal Modeling and Imagination variants.

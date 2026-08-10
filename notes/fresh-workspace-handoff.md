@@ -2477,3 +2477,32 @@ refused with byte-identical resident state, and Heartbeat cannot issue a retry.
 Full core verification passes 661 tests with one intentional ignore; all seven
 swarm tests pass without warnings. Commit, exact package, and copied Linux proof
 remain. Actual c006 is still braked and stopped.
+
+## Fulfilled-before-receipt Linux fixture accepted — 2026-08-10
+
+Source `2e66433f519327623614d26e46ac8ff5d75bbd0a` is pushed. Exact package
+`sha256-1863385b98acfb2017eb9df8401941073fef59f08ce0555c396fbd612f35ff73`
+with witness
+`sha256-02f1d04fb10f804206302dbe20ea0298af7690a4887fc6eddd12cfc7d2d68822`
+authenticated 24 binaries with zero warnings. Cargo took 7m03s and the successful
+container took 7m14s. The first package invocation failed before Cargo because
+the source volume was read-only; that receipt is preserved beside the success
+under `.epiphany-run/linux-package-2e66433f`.
+
+A fresh quarantined Linux fixture linked against exact source `2e66433f` built
+an authenticated admitted-model-direction request, launch, and terminal result;
+atomically opened the exact resident coordinator incarnation; and confirmed
+typed fulfillment with zero coordinator receipts. Resident settlement returned
+`completed`, wrote one `recovered-fulfilled` grant/ack, left the pressure
+consumed by the original grant, and cleared the lease. Replay exited 1 with a
+byte-identical resident store. After Heartbeat consumed the ack, retention
+retired exactly one lifecycle and still produced no retry grant. Accepted
+receipts are under `.epiphany-run/fulfilled-before-receipt-2e66433f-r4`; r1-r3
+are preserved fixture failures that exposed missing cache-pull, consumed-grant,
+and immutable-child-claim setup.
+
+The Linux transition was executed by a fixture linked against exact pushed
+source, while the corresponding release was separately authenticated. Do not
+claim packaged CLI execution yet. Next drive the same state through the exact
+packaged `epiphany-swarm`, then cover proposal Modeling and Imagination and
+runtime retention of terminal worker attempts. Actual c006 stays braked.
