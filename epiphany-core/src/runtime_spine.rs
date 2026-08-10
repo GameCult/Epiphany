@@ -1035,6 +1035,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectorExecutorGrant>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectionRetentionHead>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
@@ -11773,6 +11774,23 @@ pub(crate) mod tests {
             Some(obligation.clone())
         );
         assert_eq!(runtime_current_repo_model(&store)?, Some(snapshot.clone()));
+        let scope_id = format!("{}:{}", obligation.swarm_id, obligation.partition);
+        cache.put(
+            &scope_id,
+            &crate::MemorySemanticProjectionRetentionHead {
+                schema_version:
+                    crate::MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION.to_string(),
+                scope_id: scope_id.clone(),
+                revision: 1,
+                retired_generation_count: 1,
+                retired_envelope_count: 1,
+                retired_type_counts: BTreeMap::from([("test.retired".to_string(), 1)]),
+                retired_status_counts: BTreeMap::from([("failed".to_string(), 1)]),
+                retired_chain_digest: format!("sha256:{}", "0".repeat(64)),
+                retained_at: "2026-07-15T00:00:02Z".to_string(),
+                private_state_exposed: false,
+            },
+        )?;
         let input = runtime_modeling_semantic_projection_input(&store)?;
         assert_eq!(input.snapshot, snapshot);
         assert_eq!(input.obligation, obligation);

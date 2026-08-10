@@ -1692,3 +1692,30 @@ Next commit and push this source, package and inspect that exact commit from the
 persistent Starfire cache, then prove it against copied state only. Preserve
 active c005. Physical Qdrant epoch garbage collection and Persona conversation
 retirement remain later, separate ownership cuts. Yggdrasil never builds.
+
+## Copied-live semantic consumer fault and repair — 2026-08-10
+
+Exact source `6740fc2a` packaged warning-free in 6m52s with 24 binaries as
+release
+`sha256-38b9153d3cad5c2460522278c1e7ce863e5b9a35499611b1f6926cc2f6937d1c`
+and witness
+`sha256-092d9b0f4174131705aabdf77620b196ff69ddec1affcf4d58e9a2b7a1d54593`.
+Construction and inspection receipts are under
+`.epiphany-run/linux-package-6740fc2a`. The first shell-wrapped launch failed
+before Cargo and is preserved in `failed-state.json`; the direct authenticated
+packager command succeeded.
+
+On copied `active-cognition6-a987d2f7` Eyes-tools state, the exact packaged
+projector retired one real semantic lifecycle family with zero retention faults.
+The subsequent exact packaged semantic health reader then refused the retained
+runtime store because `runtime_spine_cache` did not register the typed retention
+head. The corresponding `agent_memory_cache` omission had the same defect. This
+was a consumer catalog integration failure, not corrupt retained state.
+
+The repair registers `MemorySemanticProjectionRetentionHead` in both canonical
+source-store catalogs as a known evidence type. It gains no query, claim, or
+readiness authority. Focused Mind and Modeling projection-input tests now place
+a retention head beside the canonical source family and still derive the exact
+current projection input. Both pass. Commit/push, repackage, and repeat the proof
+from a pristine copy; `6740fc2a` is evidence of the caught fault, not an accepted
+release.

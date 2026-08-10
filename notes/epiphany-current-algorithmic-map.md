@@ -2664,3 +2664,14 @@ ready-chain preservation, and rejection of hostile future generations even
 inside the recent window. A warning-free production binary check covers the
 daemon wiring. Exact packaged copied-live proof remains the acceptance boundary;
 physical Qdrant epoch cleanup remains a distinct executor-owned action.
+
+The first exact packaged copied-state run exposed a catalog crossing omitted by
+the initial map. Logical retention writes into the canonical Mind and Modeling
+stores, so every general reader of those stores must recognize the evidence-head
+schema even though only the retention owner may write or interpret it. The
+projector cache already registered the head; `agent_memory_cache` and
+`runtime_spine_cache` did not, causing current semantic input/health reads to
+refuse the entire store after the first successful retirement. Both canonical
+source catalogs now register the head as evidence-only. Projection-input tests
+persist a head and prove current Mind and Modeling derivation remains unchanged.
+This is schema legibility, not shared decision authority.
