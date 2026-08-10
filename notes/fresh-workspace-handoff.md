@@ -1970,3 +1970,32 @@ Next: repair only exact legacy false-Active coordinator sessions, archive the
 whole completed coordinator family under one owner, and make generic receipt
 retention preserve receipts still bound to runtime sessions. This source is not
 yet packaged. Active c005 remains untouched; Yggdrasil never builds.
+
+## Coordinator session lifecycle owner implemented — 2026-08-10
+
+Runtime spine now owns the rest of the native coordinator lifecycle. Before
+retention, it repairs only a jobless `coordinator-{thread_id}` session that has
+one exact bound terminal receipt and only authenticated `coordinator.started`
+events. Ambiguous receipts, jobs, malformed events, or changed snapshots refuse
+without mutation. Completed coordinator archival then replaces the exact
+session, receipt, start/completion events, and their digest with one typed
+archive tombstone under the same full-snapshot fence used by model-session
+archival. Exact replay is inert and the archive prevents recreation.
+
+The deletion boundary is single-owner. Completed-session archival runs before
+generic receipt retention; it receives resident cross-store liveness and will
+not archive a family whose receipt remains named by Self. Generic receipt
+retention independently preserves every receipt bound to any surviving runtime
+session and therefore owns only orphan history. A hostile concurrent event
+invalidates the archive snapshot, and unrelated runtime envelopes remain
+byte-identical.
+
+Focused coordinator tests pass 58/58. The full core library passes 649 tests
+with one intentional ignore, both release/core swarm binary suites pass 8/8,
+and the coordinator release target checks with `coordinator-runtime`. The cut
+is source-verified but not yet committed, packaged, or exercised on copied live
+state. Active c005 was untouched.
+
+Next: commit and push this exact source, package it once with the persistent
+Starfire cache, then prove copied-live repair, archival, non-resurrection, and
+bounded idle/active session counts. Yggdrasil never builds.

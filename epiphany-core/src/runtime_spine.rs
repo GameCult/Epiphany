@@ -1911,50 +1911,72 @@ pub fn archive_completed_model_session(
     })
 }
 
-pub fn retain_completed_model_sessions(
+pub fn retain_completed_runtime_sessions(
     store_path: impl AsRef<Path>,
     retain_recent: usize,
+    preserve_coordinator_receipt_ids: &BTreeSet<String>,
     archived_at: &str,
 ) -> Result<Vec<EpiphanyArchivedRuntimeSession>> {
     chrono::DateTime::parse_from_rfc3339(archived_at)
         .map_err(|error| anyhow!("runtime session retention timestamp is invalid: {error}"))?;
     let store_path = store_path.as_ref();
+    repair_legacy_terminal_coordinator_sessions(store_path)?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
 
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let bindings = cache.get_all::<EpiphanyRuntimeModelExecutionBinding>()?;
+    let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+    let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
     let mut candidates = cache
         .get_all::<EpiphanyRuntimeSession>()?
         .into_iter()
         .filter(|session| session.status == EpiphanyRuntimeSessionStatus::Completed)
-        .filter(|session| {
+        .filter_map(|session| {
             let session_jobs = jobs
                 .iter()
                 .filter(|job| job.session_id == session.session_id)
                 .collect::<Vec<_>>();
-            !session_jobs.is_empty()
+            let model_family = !session_jobs.is_empty()
                 && session_jobs.iter().all(|job| {
                     job.role == "openai-model-adapter"
                         && bindings.iter().any(|binding| binding.job_id == job.job_id)
+                });
+            let coordinator_family = session_jobs.is_empty()
+                && session.session_id.starts_with("coordinator-")
+                && receipts
+                    .iter()
+                    .filter(|receipt| receipt.session_id == session.session_id)
+                    .count()
+                    == 1
+                && !receipts.iter().any(|receipt| {
+                    receipt.session_id == session.session_id
+                        && preserve_coordinator_receipt_ids.contains(&receipt.receipt_id)
                 })
+                && events.iter().any(|event| {
+                    event.session_id.as_deref() == Some(session.session_id.as_str())
+                        && event.event_type == "session.completed"
+                        && event.job_id.is_none()
+                });
+            (model_family || coordinator_family).then_some((session, coordinator_family))
         })
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
         right
+            .0
             .updated_at
-            .cmp(&left.updated_at)
-            .then_with(|| right.session_id.cmp(&left.session_id))
+            .cmp(&left.0.updated_at)
+            .then_with(|| right.0.session_id.cmp(&left.0.session_id))
     });
 
     let mut archived = Vec::new();
-    for session in candidates.into_iter().skip(retain_recent.max(1)) {
-        archived.push(archive_completed_model_session(
-            store_path,
-            &session.session_id,
-            archived_at,
-        )?);
+    for (session, coordinator_family) in candidates.into_iter().skip(retain_recent.max(1)) {
+        archived.push(if coordinator_family {
+            archive_completed_coordinator_session(store_path, &session.session_id, archived_at)?
+        } else {
+            archive_completed_model_session(store_path, &session.session_id, archived_at)?
+        });
     }
     Ok(archived)
 }
@@ -2411,6 +2433,285 @@ where
     )? {
         return Err(anyhow!(
             "runtime session archive lost its full snapshot fence"
+        ));
+    }
+    Ok(archive)
+}
+
+pub fn repair_legacy_terminal_coordinator_sessions(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<EpiphanyRuntimeSession>> {
+    let store_path = store_path.as_ref();
+    let mut repaired = Vec::new();
+    loop {
+        let mut cache = runtime_spine_cache(store_path)?;
+        cache.pull_all_backing_stores()?;
+        require_identity(&cache)?;
+        let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+        let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+        let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
+        let mut candidate = None;
+        for session in cache
+            .get_all::<EpiphanyRuntimeSession>()?
+            .into_iter()
+            .filter(|session| {
+                session.status == EpiphanyRuntimeSessionStatus::Active
+                    && session.session_id.starts_with("coordinator-")
+            })
+        {
+            let session_receipts = receipts
+                .iter()
+                .filter(|receipt| receipt.session_id == session.session_id)
+                .collect::<Vec<_>>();
+            if session_receipts.is_empty() {
+                continue;
+            }
+            if session_receipts.len() != 1 {
+                return Err(anyhow!(
+                    "legacy coordinator session {:?} has ambiguous terminal receipts",
+                    session.session_id
+                ));
+            }
+            let receipt = session_receipts[0];
+            if session
+                .session_id
+                .strip_prefix("coordinator-")
+                .is_none_or(|thread_id| thread_id != receipt.thread_id)
+                || jobs.iter().any(|job| job.session_id == session.session_id)
+            {
+                return Err(anyhow!(
+                    "legacy coordinator session terminal authority is inconsistent"
+                ));
+            }
+            let session_events = events
+                .iter()
+                .filter(|event| event.session_id.as_deref() == Some(&session.session_id))
+                .collect::<Vec<_>>();
+            if session_events.is_empty()
+                || session_events.iter().any(|event| {
+                    event.event_type != "coordinator.started"
+                        || event.source != "epiphany-mvp-coordinator"
+                        || event.job_id.is_some()
+                })
+            {
+                return Err(anyhow!(
+                    "legacy coordinator session start evidence is inconsistent"
+                ));
+            }
+            candidate = Some((session, receipt.clone()));
+            break;
+        }
+        let Some((mut session, receipt)) = candidate else {
+            break;
+        };
+        let snapshot = cache.snapshot_envelopes();
+        let event = coordinator_completion_event(&receipt);
+        session.status = EpiphanyRuntimeSessionStatus::Completed;
+        session.updated_at = receipt.created_at.clone();
+        session.coordinator_note = event.summary.clone();
+        let replacements = vec![
+            cache.prepare_entry(&session.session_id, &session)?.0,
+            cache.prepare_entry(&event.event_id, &event)?.0,
+        ];
+        if !runtime_spine_backing_store(store_path)?
+            .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+        {
+            return Err(anyhow!(
+                "legacy coordinator session repair lost its full snapshot fence"
+            ));
+        }
+        repaired.push(session);
+    }
+    Ok(repaired)
+}
+
+pub fn archive_completed_coordinator_session(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    archived_at: &str,
+) -> Result<EpiphanyArchivedRuntimeSession> {
+    archive_completed_coordinator_session_with_before_commit(
+        store_path,
+        session_id,
+        archived_at,
+        || Ok(()),
+    )
+}
+
+fn archive_completed_coordinator_session_with_before_commit<F>(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    archived_at: &str,
+    before_commit: F,
+) -> Result<EpiphanyArchivedRuntimeSession>
+where
+    F: FnOnce() -> Result<()>,
+{
+    validate_non_empty(session_id, "archived coordinator session id")?;
+    chrono::DateTime::parse_from_rfc3339(archived_at)
+        .map_err(|error| anyhow!("coordinator session archive timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeSession>(session_id)? {
+        if existing.schema_version != ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION
+            || existing.archive_id != session_id
+            || existing.session_id != session_id
+            || !existing.retired_chain_digest.starts_with("sha256:")
+            || !existing.job_ids.is_empty()
+            || !existing.model_request_ids.is_empty()
+            || !existing.tool_intent_ids.is_empty()
+        {
+            return Err(anyhow!("archived coordinator session tombstone is invalid"));
+        }
+        if cache.get::<EpiphanyRuntimeSession>(session_id)?.is_some() {
+            return Err(anyhow!(
+                "archived coordinator session still has live session authority"
+            ));
+        }
+        if cache
+            .get_all::<EpiphanyCoordinatorRunReceipt>()?
+            .iter()
+            .any(|receipt| receipt.session_id == session_id)
+            || cache
+                .get_all::<EpiphanyRuntimeEvent>()?
+                .iter()
+                .any(|event| event.session_id.as_deref() == Some(session_id))
+        {
+            return Err(anyhow!(
+                "archived coordinator session retained executable family evidence"
+            ));
+        }
+        return Ok(existing);
+    }
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(session_id)?
+        .ok_or_else(|| anyhow!("coordinator session {session_id:?} does not exist"))?;
+    if session.status != EpiphanyRuntimeSessionStatus::Completed
+        || !session_id.starts_with("coordinator-")
+        || cache
+            .get_all::<EpiphanyRuntimeJob>()?
+            .iter()
+            .any(|job| job.session_id == session_id)
+    {
+        return Err(anyhow!(
+            "coordinator session archive requires a completed jobless coordinator session"
+        ));
+    }
+    let receipts = cache
+        .get_all::<EpiphanyCoordinatorRunReceipt>()?
+        .into_iter()
+        .filter(|receipt| receipt.session_id == session_id)
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "coordinator session archive requires one exact run receipt"
+        ));
+    }
+    let receipt = &receipts[0];
+    if session_id
+        .strip_prefix("coordinator-")
+        .is_none_or(|thread_id| thread_id != receipt.thread_id)
+    {
+        return Err(anyhow!(
+            "coordinator session archive found a substituted thread binding"
+        ));
+    }
+    let mut events = cache
+        .get_all::<EpiphanyRuntimeEvent>()?
+        .into_iter()
+        .filter(|event| event.session_id.as_deref() == Some(session_id))
+        .collect::<Vec<_>>();
+    events.sort_by(|left, right| left.event_id.cmp(&right.event_id));
+    let expected_completion = coordinator_completion_event(receipt);
+    if events
+        .iter()
+        .filter(|event| **event == expected_completion)
+        .count()
+        != 1
+        || !events.iter().any(|event| {
+            event.event_type == "coordinator.started"
+                && event.source == "epiphany-mvp-coordinator"
+                && event.job_id.is_none()
+        })
+        || events.iter().any(|event| {
+            event != &expected_completion
+                && (event.event_type != "coordinator.started"
+                    || event.source != "epiphany-mvp-coordinator"
+                    || event.job_id.is_some())
+        })
+        || session.updated_at != receipt.created_at
+        || session.coordinator_note != expected_completion.summary
+    {
+        return Err(anyhow!(
+            "coordinator session archive found inconsistent terminal evidence"
+        ));
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let mut deletions = Vec::new();
+    for (document_type, key) in
+        std::iter::once((EpiphanyRuntimeSession::TYPE, session_id.to_string()))
+            .chain(std::iter::once((
+                EpiphanyCoordinatorRunReceipt::TYPE,
+                receipt.receipt_id.clone(),
+            )))
+            .chain(
+                events
+                    .iter()
+                    .map(|event| (EpiphanyRuntimeEvent::TYPE, event.event_id.clone())),
+            )
+    {
+        deletions.push(
+            snapshot
+                .iter()
+                .find(|entry| entry.r#type == document_type && entry.key == key)
+                .cloned()
+                .ok_or_else(|| anyhow!("coordinator session archive lost an exact envelope"))?,
+        );
+    }
+    deletions.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    let mut retired_type_counts = BTreeMap::new();
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany-runtime-archived-session-root");
+    for entry in &deletions {
+        *retired_type_counts.entry(entry.r#type.clone()).or_default() += 1;
+        for bytes in [
+            entry.r#type.as_bytes(),
+            entry.key.as_bytes(),
+            entry.payload.as_slice(),
+        ] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+    }
+    let archive = EpiphanyArchivedRuntimeSession {
+        schema_version: ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION.to_string(),
+        archive_id: session_id.to_string(),
+        session_id: session_id.to_string(),
+        archived_at: archived_at.to_string(),
+        job_ids: Vec::new(),
+        job_result_ids: Vec::new(),
+        model_request_ids: Vec::new(),
+        tool_intent_ids: Vec::new(),
+        terminal_job_status_counts: BTreeMap::new(),
+        retired_type_counts,
+        retired_envelope_count: deletions.len() as u64,
+        retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+    };
+    let replacement = cache.prepare_entry(session_id, &archive)?.0;
+    before_commit()?;
+    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &deletions,
+    )? {
+        return Err(anyhow!(
+            "coordinator session archive lost its full snapshot fence"
         ));
     }
     Ok(archive)
@@ -9807,6 +10108,23 @@ fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> 
     Ok(())
 }
 
+fn coordinator_completion_event(receipt: &EpiphanyCoordinatorRunReceipt) -> EpiphanyRuntimeEvent {
+    EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-session-completed-{}", receipt.session_id),
+        occurred_at: receipt.created_at.clone(),
+        event_type: "session.completed".to_string(),
+        source: "epiphany-mvp-coordinator".to_string(),
+        session_id: Some(receipt.session_id.clone()),
+        job_id: None,
+        summary: format!(
+            "Coordinator run {:?} terminalized with status {:?}.",
+            receipt.receipt_id, receipt.status
+        ),
+        metadata: BTreeMap::new(),
+    }
+}
+
 pub fn finalize_coordinator_run(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyCoordinatorRunReceipt,
@@ -9835,22 +10153,9 @@ where
                 receipt.session_id
             )
         })?;
-    let completion_event_id = format!("event-session-completed-{}", receipt.session_id);
-    let completion_summary = format!(
-        "Coordinator run {:?} terminalized with status {:?}.",
-        receipt.receipt_id, receipt.status
-    );
-    let expected_event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: completion_event_id.clone(),
-        occurred_at: receipt.created_at.clone(),
-        event_type: "session.completed".to_string(),
-        source: "epiphany-mvp-coordinator".to_string(),
-        session_id: Some(receipt.session_id.clone()),
-        job_id: None,
-        summary: completion_summary.clone(),
-        metadata: BTreeMap::new(),
-    };
+    let expected_event = coordinator_completion_event(receipt);
+    let completion_event_id = expected_event.event_id.clone();
+    let completion_summary = expected_event.summary.clone();
     if session.status == EpiphanyRuntimeSessionStatus::Completed {
         let existing_receipt = cache.get::<EpiphanyCoordinatorRunReceipt>(&receipt.receipt_id)?;
         let existing_event = cache.get::<EpiphanyRuntimeEvent>(&completion_event_id)?;
@@ -9899,7 +10204,9 @@ where
     let replacements = vec![
         cache.prepare_entry(&session.session_id, &session)?.0,
         cache.prepare_entry(&receipt.receipt_id, receipt)?.0,
-        cache.prepare_entry(&completion_event_id, &expected_event)?.0,
+        cache
+            .prepare_entry(&completion_event_id, &expected_event)?
+            .0,
     ];
     before_commit()?;
     if !runtime_spine_backing_store(store_path)?
@@ -9934,6 +10241,16 @@ pub fn retain_coordinator_run_receipts(
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     let mut receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+    let session_bound_receipt_ids = cache
+        .get_all::<EpiphanyRuntimeSession>()?
+        .into_iter()
+        .flat_map(|session| {
+            receipts
+                .iter()
+                .filter(move |receipt| receipt.session_id == session.session_id)
+                .map(|receipt| receipt.receipt_id.clone())
+        })
+        .collect::<BTreeSet<_>>();
     let created_at_by_receipt = receipts
         .iter()
         .map(|receipt| {
@@ -9964,6 +10281,7 @@ pub fn retain_coordinator_run_receipts(
         .filter(|receipt| {
             !recent_ids.contains(receipt.receipt_id.as_str())
                 && !preserve_receipt_ids.contains(&receipt.receipt_id)
+                && !session_bound_receipt_ids.contains(&receipt.receipt_id)
         })
         .collect::<Vec<_>>();
     if retired.is_empty() {
@@ -15509,6 +15827,285 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn coordinator_session_retention_repairs_legacy_and_owns_the_exact_family() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-coordinator-retention-test".to_string(),
+                display_name: "Epiphany Coordinator Retention Test".to_string(),
+                created_at: "2026-08-10T09:00:00Z".to_string(),
+            },
+        )?;
+        let create_session = |session_id: &str, created_at: &str| -> Result<()> {
+            create_runtime_session(
+                &store,
+                RuntimeSpineSessionOptions {
+                    session_id: session_id.to_string(),
+                    objective: "Coordinate one terminal run.".to_string(),
+                    created_at: created_at.to_string(),
+                    coordinator_note: "Native coordinator session opened.".to_string(),
+                },
+            )?;
+            append_runtime_event(
+                &store,
+                RuntimeSpineEventOptions {
+                    event_id: format!("event-coordinator-started-{session_id}"),
+                    occurred_at: created_at.to_string(),
+                    event_type: "coordinator.started".to_string(),
+                    source: "epiphany-mvp-coordinator".to_string(),
+                    session_id: Some(session_id.to_string()),
+                    job_id: None,
+                    summary: "Native coordinator session opened.".to_string(),
+                },
+            )?;
+            Ok(())
+        };
+        let receipt_for =
+            |session_id: &str, thread_id: &str, created_at: &str| EpiphanyCoordinatorRunReceipt {
+                schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: format!("receipt-{thread_id}"),
+                session_id: session_id.to_string(),
+                thread_id: thread_id.to_string(),
+                mode: "default".to_string(),
+                status: "completed".to_string(),
+                final_action: "manualRegather".to_string(),
+                final_reason: None,
+                step_count: 1,
+                created_at: created_at.to_string(),
+                model_provider: None,
+                runtime_store: store.display().to_string(),
+                artifact_refs: Vec::new(),
+                sealed_artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+                resident_grant_id: None,
+                resident_launch_digest: None,
+                resident_policy_digest: None,
+                resident_argv_digest: None,
+                resident_objective_digest: None,
+                resident_release_commit: None,
+                resident_release_manifest_digest: None,
+                resident_executable_digest: None,
+            };
+
+        create_session("coordinator-thread-old", "2026-08-10T09:00:01Z")?;
+        let old_receipt = receipt_for(
+            "coordinator-thread-old",
+            "thread-old",
+            "2026-08-10T09:01:00Z",
+        );
+        put_coordinator_run_receipt(&store, &old_receipt)?;
+        create_session("coordinator-thread-new", "2026-08-10T09:02:00Z")?;
+        let new_receipt = receipt_for(
+            "coordinator-thread-new",
+            "thread-new",
+            "2026-08-10T09:03:00Z",
+        );
+        finalize_coordinator_run(&store, &new_receipt)?;
+        append_runtime_event(
+            &store,
+            RuntimeSpineEventOptions {
+                event_id: "unrelated-runtime-event".to_string(),
+                occurred_at: "2026-08-10T09:03:01Z".to_string(),
+                event_type: "unrelated".to_string(),
+                source: "test".to_string(),
+                session_id: None,
+                job_id: None,
+                summary: "Must remain byte-identical.".to_string(),
+            },
+        )?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let unrelated_before = cache
+            .get_envelope::<EpiphanyRuntimeEvent>("unrelated-runtime-event")?
+            .expect("unrelated event envelope");
+
+        assert!(
+            retain_completed_runtime_sessions(
+                &store,
+                1,
+                &BTreeSet::from([old_receipt.receipt_id.clone()]),
+                "2026-08-10T09:03:59Z",
+            )?
+            .is_empty(),
+            "cross-store resident liveness must preserve the named coordinator family"
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-old")?
+                .expect("repaired legacy session")
+                .status,
+            EpiphanyRuntimeSessionStatus::Completed
+        );
+
+        let archived =
+            retain_completed_runtime_sessions(&store, 1, &BTreeSet::new(), "2026-08-10T09:04:00Z")?;
+        assert_eq!(archived.len(), 1);
+        assert_eq!(archived[0].session_id, "coordinator-thread-old");
+        assert_eq!(archived[0].job_ids, Vec::<String>::new());
+        assert_eq!(archived[0].retired_envelope_count, 4);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-old")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorRunReceipt>(&old_receipt.receipt_id)?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyArchivedRuntimeSession>("coordinator-thread-old")?
+                .is_some()
+        );
+        assert_eq!(
+            cache
+                .get_envelope::<EpiphanyRuntimeEvent>("unrelated-runtime-event")?
+                .as_ref(),
+            Some(&unrelated_before)
+        );
+        assert!(
+            create_runtime_session(
+                &store,
+                RuntimeSpineSessionOptions {
+                    session_id: "coordinator-thread-old".to_string(),
+                    objective: "Resurrect retired authority.".to_string(),
+                    created_at: "2026-08-10T09:05:00Z".to_string(),
+                    coordinator_note: String::new(),
+                },
+            )
+            .is_err()
+        );
+        assert!(
+            retain_completed_runtime_sessions(
+                &store,
+                1,
+                &BTreeSet::new(),
+                "2026-08-10T09:05:01Z",
+            )?
+            .is_empty()
+        );
+
+        assert!(
+            retain_coordinator_run_receipts(&store, 0, &BTreeSet::new(), "2026-08-10T09:05:02Z",)?
+                .is_none(),
+            "generic receipt retention must preserve a session-bound receipt"
+        );
+        let race = archive_completed_coordinator_session_with_before_commit(
+            &store,
+            "coordinator-thread-new",
+            "2026-08-10T09:06:00Z",
+            || {
+                append_runtime_event(
+                    &store,
+                    RuntimeSpineEventOptions {
+                        event_id: "archive-racing-event".to_string(),
+                        occurred_at: "2026-08-10T09:05:59Z".to_string(),
+                        event_type: "unrelated".to_string(),
+                        source: "test".to_string(),
+                        session_id: None,
+                        job_id: None,
+                        summary: "Invalidates the archive snapshot.".to_string(),
+                    },
+                )?;
+                Ok(())
+            },
+        );
+        assert!(race.is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-new")?
+                .is_some()
+        );
+        assert_eq!(
+            cache.get::<EpiphanyCoordinatorRunReceipt>(&new_receipt.receipt_id)?,
+            Some(new_receipt)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_coordinator_repair_refuses_ambiguous_terminal_authority() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-hostile-legacy-test".to_string(),
+                display_name: "Epiphany Hostile Legacy Test".to_string(),
+                created_at: "2026-08-10T10:00:00Z".to_string(),
+            },
+        )?;
+        create_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: "coordinator-thread-hostile".to_string(),
+                objective: "Hostile legacy shape.".to_string(),
+                created_at: "2026-08-10T10:00:01Z".to_string(),
+                coordinator_note: String::new(),
+            },
+        )?;
+        append_runtime_event(
+            &store,
+            RuntimeSpineEventOptions {
+                event_id: "event-coordinator-started-hostile".to_string(),
+                occurred_at: "2026-08-10T10:00:01Z".to_string(),
+                event_type: "coordinator.started".to_string(),
+                source: "epiphany-mvp-coordinator".to_string(),
+                session_id: Some("coordinator-thread-hostile".to_string()),
+                job_id: None,
+                summary: "Started.".to_string(),
+            },
+        )?;
+        for receipt_id in ["hostile-1", "hostile-2"] {
+            put_coordinator_run_receipt(
+                &store,
+                &EpiphanyCoordinatorRunReceipt {
+                    schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                    receipt_id: receipt_id.to_string(),
+                    session_id: "coordinator-thread-hostile".to_string(),
+                    thread_id: "thread-hostile".to_string(),
+                    mode: "default".to_string(),
+                    status: "completed".to_string(),
+                    final_action: "manualRegather".to_string(),
+                    final_reason: None,
+                    step_count: 1,
+                    created_at: "2026-08-10T10:01:00Z".to_string(),
+                    model_provider: None,
+                    runtime_store: store.display().to_string(),
+                    artifact_refs: Vec::new(),
+                    sealed_artifact_refs: Vec::new(),
+                    metadata: BTreeMap::new(),
+                    resident_grant_id: None,
+                    resident_launch_digest: None,
+                    resident_policy_digest: None,
+                    resident_argv_digest: None,
+                    resident_objective_digest: None,
+                    resident_release_commit: None,
+                    resident_release_manifest_digest: None,
+                    resident_executable_digest: None,
+                },
+            )?;
+        }
+        let mut before = runtime_spine_cache(&store)?;
+        before.pull_all_backing_stores()?;
+        let snapshot = before.snapshot_envelopes();
+        assert!(repair_legacy_terminal_coordinator_sessions(&store).is_err());
+        let mut after = runtime_spine_cache(&store)?;
+        after.pull_all_backing_stores()?;
+        assert_eq!(after.snapshot_envelopes(), snapshot);
+        Ok(())
+    }
+
+    #[test]
     fn coordinator_run_receipt_retention_preserves_authority_and_cannot_resurrect_work()
     -> Result<()> {
         let temp = tempdir()?;
@@ -16424,7 +17021,8 @@ pub(crate) mod tests {
             "2026-08-10T04:00:04Z",
         )?;
 
-        let archived = retain_completed_model_sessions(&store, 1, "2026-08-10T04:00:05Z")?;
+        let archived =
+            retain_completed_runtime_sessions(&store, 1, &BTreeSet::new(), "2026-08-10T04:00:05Z")?;
         assert_eq!(archived.len(), 1);
         assert_eq!(archived[0].session_id, "session-older");
         let mut cache = runtime_spine_cache(&store)?;
@@ -16444,7 +17042,15 @@ pub(crate) mod tests {
                 .get::<EpiphanyRuntimeSession>("session-newer")?
                 .is_some()
         );
-        assert!(retain_completed_model_sessions(&store, 0, "2026-08-10T04:00:06Z")?.is_empty());
+        assert!(
+            retain_completed_runtime_sessions(
+                &store,
+                0,
+                &BTreeSet::new(),
+                "2026-08-10T04:00:06Z",
+            )?
+            .is_empty()
+        );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert!(

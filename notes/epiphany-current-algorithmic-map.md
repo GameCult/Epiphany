@@ -2776,9 +2776,36 @@ coordinator now derives runtime status after this transaction. CultCache exact
 its hostile concurrency test proves an unknown row invalidates the transaction.
 The full core library passes 647 tests with one intentional ignored helper.
 
-Legacy repair and completed coordinator-family archival remain deliberately
-separate follow-up work. The source still must not let generic receipt retention
-delete a receipt while its runtime session survives.
+The remainder of the owner cut is now implemented. Runtime retention first
+repairs only exact legacy jobless coordinator sessions: one matching receipt,
+an exact `coordinator-{thread_id}` binding, and authenticated start events are
+required before the session and deterministic completion event are replaced in
+one full-snapshot transaction. Zero, multiple, or mismatched receipts, any job,
+foreign events, or a stale snapshot refuse without mutation.
+
+Completed coordinator-session archival is a distinct exact-family validator,
+not a relaxation of model-session archival. It consumes the Completed session,
+its one bound receipt, and all authenticated start/completion events, then
+replaces those envelopes with one `EpiphanyArchivedRuntimeSession`. Its retired
+type counts and digest cover that exact family; unrelated runtime envelopes are
+outside the cut. Tombstone replay requires the family to remain absent, so the
+archive cannot coexist with recreated session authority.
+
+Deletion ownership is ordered and explicit. Resident Self supplies the receipt
+IDs that remain live across stores. Completed-session retention runs first and
+excludes those families. Generic coordinator-receipt retention then derives all
+receipt IDs bound to any surviving runtime session and preserves them in
+addition to resident liveness; it owns only orphan receipts. A receipt can no
+longer be independently retired while its session survives.
+
+The verification layer now covers exact repair and archive replay, ambiguous
+legacy refusal with an identical snapshot, cross-store preservation, newest
+retention, generic-retention refusal to consume a session-bound receipt,
+unrelated-envelope byte identity, tombstone recreation refusal, and hostile
+concurrent-event CAS refusal. Focused coordinator tests pass 58/58; the full
+core library passes 649 tests with one intentional ignore; both swarm binary
+suites and the coordinator release target are green. Exact package and copied
+live plateau proof remain the acceptance boundary.
 
 ### Semantic logical lifecycle implementation
 
