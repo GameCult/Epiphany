@@ -3403,6 +3403,26 @@ The completed-session archive remains separate and accepts only terminal
 per-attempt archive above; retry and fulfillment readers consume its tombstone
 rather than inferring state from independently missing claim/result rows.
 
+### Direct proposal Modeling closure
+
+The Linux-native `53678374` fixture now constructs the remaining strong lane
+without rebinding Windows-authored Body evidence. `commit_coordinator_job_launch`
+owns the generation-one Body carrier and exact proposal launch binding;
+`put_runtime_role_worker_result` authenticates the immutable proposal/request,
+payload, context, launch hash, result, and one safe proposal-citing frontier;
+`commit_repo_model_admission` owns Evolution adoption. Resident Self sees only
+that runtime-owned fulfillment and closes its zero-receipt jobless coordinator
+incarnation `recovered-fulfilled`.
+
+Packaged resident lifecycle retention then deletes only the consumed
+pressure/grant/ack family. Explicit worker archival replaces eight launch/job/
+claim/result/binding/event envelopes with the proposal tombstone while leaving
+the proposal, request, admitted model, frontier, and Mind receipt live.
+`runtime_typed_request_fulfillment` returns the same request/job/result tuple
+before and after that archive. The next Heartbeat grant names the independently
+created admitted-model-direction request, proving causal forward routing rather
+than proposal resurrection.
+
 ### Exact packaged retention evidence
 
 Exact `53678374` closes the Linux package gate. Release `sha256-5d50fa7d` and

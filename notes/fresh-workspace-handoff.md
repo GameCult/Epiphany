@@ -1,5 +1,36 @@
 # Fresh workspace handoff
 
+## Direct proposal Modeling and archived fulfillment accepted — 2026-08-10
+
+The exact `53678374` Linux body now carries a direct proposal Modeling proof in
+`.epiphany-run/worker-retention-53678374/runtime-proposal3.cc`. Production APIs
+own the immutable user proposal and selected request, generation-one Body
+carrier, exact Modeling launch binding and document hash, terminal worker
+result, accepted Evolution patch, and Mind receipt
+`repo-model-admission-review-proposal-direct-3`. The admitted patch contributes
+exactly one proposal-citing active frontier routed to Eyes; it grants no Hands
+authority.
+
+With zero coordinator receipts, exact runtime fulfillment closed the original
+resident grant `recovered-fulfilled`. Packaged `epiphany-swarm once` then exited
+zero `braked` and retired the consumed pressure/grant/ack lifecycle beside its
+readiness row. Explicit runtime archival replaced eight worker envelopes with
+one proposal-Modeling tombstone. Fulfillment before and after archival resolves
+to request
+`repo-frontier-proposal-modeling-a9807416c62a69eb7f8f4524fa75fe3fc1cb119b43813f62d3299300074c7e56`,
+job `proposal-direct-3`, and result `result-proposal-direct-3`; launch, job, and
+claim are absent afterward. A later Heartbeat issuance selected only the new
+admitted-model-direction pressure created by Mind admission. No proposal retry
+or active resident turn exists.
+
+Rejected fixture shapes remain preserved: missing model schema, revision-one
+model without an exact self-hash, and a recovery timestamp earlier than its
+coordinator start. Each failed closed. Actual c006 stayed untouched and remains
+braked/stopped. Direct proposal fulfillment is accepted. Next map deployed
+supervisor/projector stdout-stderr ownership, then run randomized packaged
+CultCache interruption and concurrent-read proof on the Starfire bind substrate
+before any c005 recovery. Yggdrasil never builds.
+
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 
 Exact pushed source `53678374adbab1552605817f41d9978ba587c52e`
