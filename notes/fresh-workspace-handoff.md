@@ -1,5 +1,32 @@
 # Fresh workspace handoff
 
+## c006 recovery exposed Heartbeat identity and legacy-session residue — 2026-08-10
+
+Exact `9bf985fc4ab5a7f75de26493ed6e122524c71775` packaged in 6m46s as
+24-binary release `sha256-eedde4e6257dbf9ad700ad6a8793599504ae4b7bbf86147ced1275fa8596e9d3`
+with witness `sha256-828949cd0a4ad865c5a43e68079f9b8db36d63b992a72d6f191b6c18bd241b73`.
+Inspection passed and no warnings were emitted.
+
+c006 first refused before cognition because the copied runtime retained one
+legacy active session ID reused across 24 unbound starts and 22 receipts. A
+proposed latest-timestamp repair was rejected: timestamps cannot bind a receipt
+to an incarnation. The exact pre-intervention runtime
+`sha256-8aace759c246bd45b86c32cf0f15ce518eab12e2b2aa91f57a8dc764f5d08c84`
+is preserved under
+`.epiphany-run/interventions/c006-ambiguous-legacy-receipts/`. The stopped-volume
+intervention removed the entire unbound session/start/receipt family under a
+full-snapshot fence; exact packaged runtime parsing passed and no remaining
+envelope references the legacy session. External typed receipt
+`quarantine-receipt.json` records the cut. No guessed completion was created.
+
+c006 then started sleeping and stopped by SIGTERM with exit 0, but no Heartbeat
+pulse was allowed: Heartbeat serve still selected the release runtime for its
+brake. Current source requires `--resident-runtime-store`, resolves mounted
+cognition for scheduling brake lookup, and retains release identity solely for
+provider/binary authentication. Four Heartbeat binary tests pass, including a
+deliberate deployment/cognitive identity split. Commit and package this final
+identity cut before pulsing c006.
+
 ## Cognitive brake identity cut — 2026-08-10
 
 Exact crash-atomic source `0e8cd91af1dae0b48c59a6c0985075279ee58a6b`

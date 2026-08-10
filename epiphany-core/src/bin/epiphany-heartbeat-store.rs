@@ -24,6 +24,7 @@ use epiphany_core::pulse_resident_self_heartbeat;
 use epiphany_core::pump_heartbeat_store;
 use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::recover_stale_heartbeat_store;
+use epiphany_core::resident_cognitive_runtime_id;
 use epiphany_core::retain_heartbeat_pulse_artifacts;
 use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
@@ -68,6 +69,7 @@ fn main() -> Result<()> {
     let mut limit = 8_usize;
     let mut agent_store: Option<PathBuf> = None;
     let mut resident_self_store: Option<PathBuf> = None;
+    let mut resident_runtime_store: Option<PathBuf> = None;
     let mut apply_rumination = false;
     let mut profile = "epiphany".to_string();
     let mut scene_id = "ghostlight.scene".to_string();
@@ -145,6 +147,9 @@ fn main() -> Result<()> {
             "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
             "--resident-self-store" => {
                 resident_self_store = Some(next_path(&mut args, "--resident-self-store")?)
+            }
+            "--resident-runtime-store" => {
+                resident_runtime_store = Some(next_path(&mut args, "--resident-runtime-store")?)
             }
             "--apply-rumination" => apply_rumination = true,
             "--profile" => profile = next_value(&mut args, "--profile")?,
@@ -521,6 +526,11 @@ fn main() -> Result<()> {
             } else {
                 None
             };
+            let brake_runtime_id = heartbeat_brake_runtime_id(
+                &resident_self_store,
+                &resident_runtime_store,
+                release_runtime_id.as_deref(),
+            )?;
             if let Some(agent_store) = &agent_store {
                 let errors = validate_agent_memory_store(agent_store)?;
                 if !errors.is_empty() {
@@ -572,13 +582,7 @@ fn main() -> Result<()> {
                     )?;
                 }
                 let iteration_dir = artifact_dir.join(format!("pulse-{iteration:06}"));
-                let brake = active_swarm_brake(
-                    &local_verse_store,
-                    provider_release
-                        .as_ref()
-                        .map(|release| release.runtime_id.as_str())
-                        .or(release_runtime_id.as_deref()),
-                )?;
+                let brake = active_swarm_brake(&local_verse_store, brake_runtime_id.as_deref())?;
                 if let Some(resident_store) = resident_self_store.as_deref() {
                     let pulse = pulse_resident_self_heartbeat(
                         &store_path,
@@ -817,7 +821,7 @@ fn usage() -> Result<()> {
         "       epiphany-heartbeat-store queue-mention --store <path> [options]\n",
         "       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n",
         "       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [options]\n",
-        "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--source <source>] [--no-dream] [--interval-seconds <n>] [--max-iterations <n>]\n",
+        "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--resident-self-store <path> --resident-runtime-store <path>] [--agent-store <path>] [--source <source>] [--no-dream] [--interval-seconds <n>] [--max-iterations <n>]\n",
         "       epiphany-heartbeat-store smoke [--agent-store <path>]"
     )))
 }
@@ -839,6 +843,20 @@ fn assert_swarm_brake_allows_heartbeat(
     Ok(())
 }
 
+fn heartbeat_brake_runtime_id(
+    resident_self_store: &Option<PathBuf>,
+    resident_runtime_store: &Option<PathBuf>,
+    release_runtime_id: Option<&str>,
+) -> Result<Option<String>> {
+    if resident_self_store.is_some() {
+        let runtime_store = resident_runtime_store
+            .as_deref()
+            .ok_or_else(|| anyhow!("resident heartbeat serve requires --resident-runtime-store"))?;
+        return Ok(Some(resident_cognitive_runtime_id(runtime_store)?));
+    }
+    Ok(release_runtime_id.map(str::to_string))
+}
+
 fn active_swarm_brake(
     local_verse_store: &Option<PathBuf>,
     runtime_id: Option<&str>,
@@ -849,9 +867,8 @@ fn active_swarm_brake(
     if !local_verse_store.exists() {
         return Ok(None);
     }
-    let runtime_id = runtime_id.ok_or_else(|| {
-        anyhow!("heartbeat local Verse brake lookup requires --release-runtime-id")
-    })?;
+    let runtime_id = runtime_id
+        .ok_or_else(|| anyhow!("heartbeat local Verse brake lookup requires runtime identity"))?;
     Ok(
         load_epiphany_cultmesh_swarm_brake(local_verse_store, runtime_id)?
             .filter(|brake| brake.status == "engaged"),
@@ -863,7 +880,7 @@ mod brake_tests {
     use super::*;
 
     #[test]
-    fn heartbeat_uses_exact_release_runtime_brake_namespace() -> Result<()> {
+    fn heartbeat_brake_lookup_uses_the_exact_requested_namespace() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("verse.cc");
         let store_arg = Some(store.clone());
@@ -880,6 +897,27 @@ mod brake_tests {
         assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_none());
         epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
         assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn resident_heartbeat_uses_mounted_cognitive_runtime_for_braking() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime_store = temp.path().join("runtime.cc");
+        epiphany_core::initialize_runtime_spine(
+            &runtime_store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "cognitive-runtime".into(),
+                display_name: "Cognitive runtime".into(),
+                created_at: "2026-08-10T00:00:00Z".into(),
+            },
+        )?;
+        let selected = heartbeat_brake_runtime_id(
+            &Some(temp.path().join("resident.cc")),
+            &Some(runtime_store),
+            Some("deployment-runtime"),
+        )?;
+        assert_eq!(selected.as_deref(), Some("cognitive-runtime"));
         Ok(())
     }
 

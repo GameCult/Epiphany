@@ -1320,9 +1320,10 @@ The live identity matrix is explicit:
 - mounted runtime-store identity owns coordinator execution, request identity,
   runtime mutation, and the coordinator's `--runtime-id`;
 - mounted runtime-store identity also owns the local-Verse brake namespace for
-  resident Self and its coordinator child. `NativePorts` resolves that identity
-  once from the immutable runtime envelope; release/provider identity cannot
-  choose a second kill switch merely because it authenticated the binary;
+  Heartbeat scheduling, resident Self, and its coordinator child. Each resident
+  process resolves that identity from the immutable runtime envelope;
+  release/provider identity cannot choose a second kill switch merely because
+  it authenticated the binary;
 - cognition readiness projects mounted cognition as `runtimeId`, authenticated
   binary provenance separately as `releaseRuntimeId`, and reads the brake only
   under mounted cognition. Operator sight and resident actuation therefore
