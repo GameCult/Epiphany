@@ -10125,6 +10125,98 @@ fn coordinator_completion_event(receipt: &EpiphanyCoordinatorRunReceipt) -> Epip
     }
 }
 
+pub fn open_coordinator_run(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    thread_id: &str,
+    objective: &str,
+    started_at: &str,
+) -> Result<(EpiphanyRuntimeSession, EpiphanyRuntimeEvent)> {
+    open_coordinator_run_with_before_commit(
+        store_path,
+        session_id,
+        thread_id,
+        objective,
+        started_at,
+        || Ok(()),
+    )
+}
+
+fn open_coordinator_run_with_before_commit<F>(
+    store_path: impl AsRef<Path>,
+    session_id: &str,
+    thread_id: &str,
+    objective: &str,
+    started_at: &str,
+    before_commit: F,
+) -> Result<(EpiphanyRuntimeSession, EpiphanyRuntimeEvent)>
+where
+    F: FnOnce() -> Result<()>,
+{
+    validate_non_empty(session_id, "coordinator run session id")?;
+    validate_non_empty(thread_id, "coordinator run thread id")?;
+    validate_non_empty(objective, "coordinator run objective")?;
+    chrono::DateTime::parse_from_rfc3339(started_at)
+        .map_err(|error| anyhow!("coordinator run start timestamp is invalid: {error}"))?;
+    if session_id != format!("coordinator-{thread_id}") {
+        return Err(anyhow!(
+            "coordinator run session id is not bound to its thread"
+        ));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let event_id = format!("event-coordinator-started-{session_id}");
+    if cache.get::<EpiphanyRuntimeSession>(session_id)?.is_some()
+        || cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some()
+        || cache
+            .get_all::<EpiphanyCoordinatorRunReceipt>()?
+            .iter()
+            .any(|receipt| receipt.session_id == session_id || receipt.thread_id == thread_id)
+    {
+        return Err(anyhow!(
+            "coordinator run session or thread authority already exists"
+        ));
+    }
+    let session = EpiphanyRuntimeSession {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        session_id: session_id.to_string(),
+        objective: objective.to_string(),
+        status: EpiphanyRuntimeSessionStatus::Active,
+        created_at: started_at.to_string(),
+        updated_at: started_at.to_string(),
+        coordinator_note: "Coordinator owns native runtime receipts before process exit."
+            .to_string(),
+        metadata: BTreeMap::new(),
+    };
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id,
+        occurred_at: started_at.to_string(),
+        event_type: "coordinator.started".to_string(),
+        source: "epiphany-mvp-coordinator".to_string(),
+        session_id: Some(session_id.to_string()),
+        job_id: None,
+        summary: "Native coordinator session opened.".to_string(),
+        metadata: BTreeMap::new(),
+    };
+    let snapshot = cache.snapshot_envelopes();
+    let replacements = vec![
+        cache.prepare_entry(session_id, &session)?.0,
+        cache.prepare_entry(&event.event_id, &event)?.0,
+    ];
+    before_commit()?;
+    if !runtime_spine_backing_store(store_path)?
+        .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+    {
+        return Err(anyhow!(
+            "coordinator run opening lost its full snapshot fence"
+        ));
+    }
+    Ok((session, event))
+}
+
 pub fn finalize_coordinator_run(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyCoordinatorRunReceipt,
@@ -15822,6 +15914,97 @@ pub(crate) mod tests {
                     "event-session-completed-coordinator-thread-race"
                 )?
                 .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn coordinator_run_opening_is_atomic_single_use_and_snapshot_fenced() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-coordinator-opening-test".to_string(),
+                display_name: "Epiphany Coordinator Opening Test".to_string(),
+                created_at: "2026-08-10T10:00:00Z".to_string(),
+            },
+        )?;
+
+        let (session, event) = open_coordinator_run(
+            &store,
+            "coordinator-thread-open",
+            "thread-open",
+            "Open one coordinator authority family.",
+            "2026-08-10T10:00:01Z",
+        )?;
+        assert_eq!(session.status, EpiphanyRuntimeSessionStatus::Active);
+        assert_eq!(event.session_id.as_deref(), Some(session.session_id.as_str()));
+        assert_eq!(event.event_type, "coordinator.started");
+        let exact_snapshot = fs::read(&store)?;
+        assert!(
+            open_coordinator_run(
+                &store,
+                "coordinator-thread-open",
+                "thread-open",
+                "Open one coordinator authority family.",
+                "2026-08-10T10:00:01Z",
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(&store)?, exact_snapshot);
+        assert!(
+            open_coordinator_run(
+                &store,
+                "coordinator-swapped",
+                "thread-bound",
+                "Refuse split identity.",
+                "2026-08-10T10:00:02Z",
+            )
+            .is_err()
+        );
+
+        let raced = open_coordinator_run_with_before_commit(
+            &store,
+            "coordinator-thread-raced-open",
+            "thread-raced-open",
+            "Lose the opening snapshot.",
+            "2026-08-10T10:00:03Z",
+            || {
+                append_runtime_event(
+                    &store,
+                    RuntimeSpineEventOptions {
+                        event_id: "event-concurrent-opening-observation".to_string(),
+                        occurred_at: "2026-08-10T10:00:03Z".to_string(),
+                        event_type: "test.concurrent".to_string(),
+                        source: "test".to_string(),
+                        session_id: None,
+                        job_id: None,
+                        summary: "Invalidate the opening snapshot.".to_string(),
+                    },
+                )?;
+                Ok(())
+            },
+        );
+        assert!(raced.is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-raced-open")?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(
+                    "event-coordinator-started-coordinator-thread-raced-open"
+                )?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>("event-concurrent-opening-observation")?
+                .is_some()
         );
         Ok(())
     }

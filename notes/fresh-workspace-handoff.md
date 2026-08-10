@@ -1999,3 +1999,42 @@ exercised on copied live state. Active c005 was untouched.
 Next: commit and push this exact source, package it once with the persistent
 Starfire cache, then prove copied-live repair, archival, non-resurrection, and
 bounded idle/active session counts. Yggdrasil never builds.
+
+## Copied-live coordinator lifecycle falsification and corrected owner — 2026-08-10
+
+Exact pushed `5a479522` packaged successfully as
+`sha256-7aadee7aeb651c480a7ac82248f03329e5ebded9a64d5332169b9d5f310a6619`
+with witness
+`sha256-89802be96d223c60b176cd69d144e691899f12110bc7747b0e79c5e67cc389bc`,
+24 binaries, no warnings, and authenticated inspection. The first changed-core
+package took 8m21s; an identical warm replay took 12.13s wall with Cargo at
+0.92s and reproduced the exact release and witness.
+
+Copied c005 state then falsified the source-complete claim. Its historical
+`coordinator-linux-eyes-tools-c005` has multiple terminal receipts, so exact
+repair correctly refused ambiguity without mutation. A cleaner exact copy from
+the accepted b8138a6b shutdown proof repaired one legacy Active session to
+Completed under the packaged binary. While creating a newer terminal session
+for archival proof, a deliberate coordinator input failure left a new Active
+session: coordinator startup still wrote session and start event separately,
+and ordinary `?` exits bypassed the success-only finalizer.
+
+The corrected source moves coordinator opening into runtime spine. Session and
+deterministic `coordinator.started` event now commit together under one full
+snapshot fence. Existing session, event, receipt, or thread authority refuses
+reuse rather than appending another start event. Once opening succeeds, every
+ordinary error is converted into a failed coordinator receipt and passed
+through the same atomic terminalizer before the error returns. Hard process
+death remains a distinct Continuity recovery boundary; retention does not
+invent a receipt from age.
+
+Verification is green: 59 focused coordinator tests; 17 coordinator-binary
+tests including deliberate conflicting intake and exact failed terminalization;
+both swarm binary suites at 8/8; and the full core library at 650 passed with
+one intentional ignore. The corrected source is not yet committed or packaged.
+Receipts for the falsification and first package are under
+`.epiphany-run/coordinator-session-live-5a479522*` and
+`.epiphany-run/linux-package-5a479522*`. Active c005 was untouched.
+
+Next: commit/push the corrected owner, package it exactly, then repeat the
+copied-live error closure, repair, archival, replay, and plateau proof.

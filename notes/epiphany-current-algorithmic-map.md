@@ -2807,6 +2807,43 @@ core library passes 649 tests with one intentional ignore; both swarm binary
 suites and the coordinator release target are green. Exact package and copied
 live plateau proof remain the acceptance boundary.
 
+Copied-live execution exposed a surviving opening/exit split after that map.
+The coordinator binary still created `EpiphanyRuntimeSession` and
+`coordinator.started` in separate calls, reused an existing Active session on
+the same thread, and invoked `finalize_coordinator_run` only at the bottom of
+the success path. Any ordinary error after opening could therefore leave false
+Active authority; repeated use of the thread could append start events and
+produce the ambiguous receipt family observed in copied c005 state.
+
+The corrected authority map is:
+
+- Owner: runtime spine owns both boundaries of a normal coordinator run.
+- Inputs: exact runtime identity, unique thread/session pair, objective, start
+  timestamp, and later either the success receipt or the captured run error.
+- Outputs: opening atomically appends the Active session plus deterministic
+  start event; every normal exit atomically appends one terminal receipt plus
+  completion event while replacing the session as Completed.
+- Derived state: CLI errors and process exit codes report the terminalized
+  failure; they do not own session status.
+- Forbidden writers: the coordinator binary no longer separately creates a
+  session, appends retry start events, or reuses an existing thread authority.
+  A catch-all error wrapper may construct the failed receipt but can only close
+  through `finalize_coordinator_run`.
+- Shared paths: successful plan/default execution and every ordinary post-open
+  error share the runtime finalizer. Failure before atomic opening writes no
+  session family. Hard kill after opening remains Continuity recovery work.
+- Cut line: remove `ensure_runtime_session`, the fallback UUID start event, and
+  success-only ownership of terminalization.
+- Verification: opening is single-use and full-snapshot fenced; an unrelated
+  concurrent event leaves neither proposed session nor start event; conflicting
+  typed/operator intake returns an error only after one failed receipt,
+  completion event, and Completed session exist.
+
+Corrected source verification passes 59 focused coordinator tests, 17 native
+coordinator-binary tests, both 8-test swarm suites, and 650 core library tests
+with one intentional ignore. Exact corrected packaging and copied-live replay
+remain open.
+
 ### Semantic logical lifecycle implementation
 
 `retain_memory_semantic_projection_lifecycles` now realizes the safe unattempted

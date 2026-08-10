@@ -13,14 +13,11 @@ use epiphany_core::HandsActionIntent;
 use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT;
 use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION;
 use epiphany_core::RepoFrontierHandsAuthority;
-use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::append_runtime_event;
-use epiphany_core::create_runtime_session;
 use epiphany_core::finalize_coordinator_run;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::open_coordinator_run;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
@@ -312,41 +309,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             now(),
         ),
     )?;
-    let runtime_session = ensure_runtime_session(
+    let (runtime_session, runtime_event) = open_coordinator_run(
         &runtime_store,
         &runtime_session_id,
+        &thread_id,
         "Coordinate the Epiphany MVP lanes with native runtime job receipts.",
+        &now(),
     )?;
-    let runtime_event = append_runtime_event(
-        &runtime_store,
-        RuntimeSpineEventOptions {
-            event_id: format!("event-coordinator-started-{}", sanitize_id(&thread_id)),
-            occurred_at: now(),
-            event_type: "coordinator.started".to_string(),
-            source: "epiphany-mvp-coordinator".to_string(),
-            session_id: Some(runtime_session_id.clone()),
-            job_id: None,
-            summary: "Native coordinator session opened.".to_string(),
-        },
-    )
-    .or_else(|_| {
-        append_runtime_event(
-            &runtime_store,
-            RuntimeSpineEventOptions {
-                event_id: format!(
-                    "event-coordinator-started-{}-{}",
-                    sanitize_id(&thread_id),
-                    uuid::Uuid::new_v4()
-                ),
-                occurred_at: now(),
-                event_type: "coordinator.started".to_string(),
-                source: "epiphany-mvp-coordinator".to_string(),
-                session_id: Some(runtime_session_id.clone()),
-                job_id: None,
-                summary: "Native coordinator session opened.".to_string(),
-            },
-        )
-    })?;
     startup_events.push(json!({
         "type": "runtimeSpineSession",
         "store": runtime_store,
@@ -354,6 +323,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "sessionId": runtime_session.session_id,
         "eventId": runtime_event.event_id,
     }));
+    let run_result = (|| -> Result<Value> {
     if let Some(objective) = args.objective.as_deref() {
         let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
         startup_events.push(json!({
@@ -1164,6 +1134,73 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         }),
     )?;
     Ok(summary)
+    })();
+    match run_result {
+        Ok(summary) => Ok(summary),
+        Err(run_error) => {
+            let failure_receipt = failed_coordinator_run_receipt(
+                args,
+                &runtime_session_id,
+                &thread_id,
+                &runtime_store,
+                &run_error,
+            );
+            match finalize_coordinator_run(&runtime_store, &failure_receipt) {
+                Ok(_) => Err(anyhow!(
+                    "coordinator run failed after opening and was terminalized by receipt {:?}: {run_error:#}",
+                    failure_receipt.receipt_id
+                )),
+                Err(finalize_error) => Err(anyhow!(
+                    "coordinator run failed after opening ({run_error:#}); failure terminalization also failed: {finalize_error:#}"
+                )),
+            }
+        }
+    }
+}
+
+fn failed_coordinator_run_receipt(
+    args: &Args,
+    session_id: &str,
+    thread_id: &str,
+    runtime_store: &Path,
+    error: &anyhow::Error,
+) -> EpiphanyCoordinatorRunReceipt {
+    let created_at = now();
+    EpiphanyCoordinatorRunReceipt {
+        schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: format!(
+            "coordinator-run-{}-failed-{}",
+            sanitize_id(thread_id),
+            chrono::Utc::now().timestamp_millis()
+        ),
+        session_id: session_id.to_string(),
+        thread_id: thread_id.to_string(),
+        mode: args.mode.clone(),
+        status: "failed".to_string(),
+        final_action: "failed".to_string(),
+        final_reason: Some(format!("{error:#}")),
+        step_count: 0,
+        created_at,
+        model_provider: Some(args.model_provider.clone()),
+        runtime_store: runtime_store.display().to_string(),
+        artifact_refs: Vec::new(),
+        sealed_artifact_refs: Vec::new(),
+        metadata: BTreeMap::from([(
+            "terminalizationOwner".to_string(),
+            "epiphany-mvp-coordinator-error-boundary".to_string(),
+        )]),
+        resident_grant_id: args.resident_binding.get("grant-id").cloned(),
+        resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
+        resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
+        resident_argv_digest: args.resident_binding.get("argv-digest").cloned(),
+        resident_objective_digest: args.resident_binding.get("objective-digest").cloned(),
+        resident_release_commit: args.resident_binding.get("release-commit").cloned(),
+        resident_release_manifest_digest: args
+            .resident_binding
+            .get("release-manifest-digest")
+            .cloned(),
+        resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
+    }
 }
 
 fn intake_operator_objective(
@@ -2079,31 +2116,6 @@ fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Res
     Ok(Some(output))
 }
 
-fn ensure_runtime_session(
-    runtime_store: &Path,
-    session_id: &str,
-    objective: &str,
-) -> Result<epiphany_core::EpiphanyRuntimeSession> {
-    match create_runtime_session(
-        runtime_store,
-        RuntimeSpineSessionOptions {
-            session_id: session_id.to_string(),
-            objective: objective.to_string(),
-            created_at: now(),
-            coordinator_note:
-                "Coordinator owns native runtime receipts before Codex execution dies.".to_string(),
-        },
-    ) {
-        Ok(session) => Ok(session),
-        Err(err) if err.to_string().contains("already exists") => {
-            let mut cache = epiphany_core::runtime_spine_cache(runtime_store)?;
-            cache.pull_all_backing_stores()?;
-            cache.get_required::<epiphany_core::EpiphanyRuntimeSession>(session_id)
-        }
-        Err(err) => Err(err),
-    }
-}
-
 fn first_string_at(value: &Value, paths: &[&[&str]]) -> Option<String> {
     'paths: for path in paths {
         let mut cursor = value;
@@ -2347,6 +2359,77 @@ mod tests {
         );
         assert_eq!(options.runtime_id, "epiphany-starfire");
         assert_eq!(options.display_name, "Epiphany epiphany-starfire");
+    }
+
+    #[test]
+    fn coordinator_error_after_opening_terminalizes_the_exact_session() -> Result<()> {
+        let smoke_root = env::current_dir()?.join(".epiphany-smoke");
+        fs::create_dir_all(&smoke_root)?;
+        let temp = tempfile::tempdir_in(smoke_root)?;
+        let cwd = temp.path().join("workspace");
+        fs::create_dir_all(&cwd)?;
+        let current_exe = env::current_exe()?;
+        let runtime_store = temp.path().join("runtime.cc");
+        let args = Args {
+            model_runtime_bin: current_exe.clone(),
+            tool_adapter_bin: current_exe,
+            model_provider: "test".to_string(),
+            thread_id: Some("error-terminalization".to_string()),
+            objective: Some("Exercise the coordinator error boundary.".to_string()),
+            cwd: cwd.clone(),
+            codex_home: temp.path().join("codex-home"),
+            mcp_config: cwd.join(".epiphany/mcp.toml"),
+            artifact_dir: cwd.join(".epiphany-smoke/error-terminalization"),
+            agent_memory_dir: temp.path().join("mind.cc"),
+            runtime_store: runtime_store.clone(),
+            local_verse_store: temp.path().join("local-verse.cc"),
+            mode: "plan".to_string(),
+            max_steps: 1,
+            poll_seconds: 0.01,
+            timeout_seconds: 1,
+            max_runtime_seconds: 1,
+            ephemeral: true,
+            auto_review: false,
+            supersede_failed_results: false,
+            approve_manual_regather: false,
+            auto_tools: false,
+            proposal_modeling_request_id: None,
+            imagination_consideration_request_id: Some("conflicting-request".to_string()),
+            admitted_model_direction_consideration_request_id: None,
+            resident_binding: BTreeMap::new(),
+            resident_state_store: None,
+            resident_preparation_id: None,
+            runtime_id: Some("epiphany-error-terminalization".to_string()),
+        };
+
+        let error = run_coordinator(&args)
+            .expect_err("conflicting typed and operator intake must fail after opening");
+        assert!(
+            error.to_string().contains("was terminalized by receipt"),
+            "unexpected coordinator error: {error:#}"
+        );
+        let mut cache = epiphany_core::runtime_spine_cache(&runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        let session = cache.get_required::<epiphany_core::EpiphanyRuntimeSession>(
+            "coordinator-error-terminalization",
+        )?;
+        assert_eq!(
+            session.status,
+            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        );
+        let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].status, "failed");
+        assert_eq!(receipts[0].session_id, session.session_id);
+        let events = cache
+            .get_all::<epiphany_core::EpiphanyRuntimeEvent>()?
+            .into_iter()
+            .filter(|event| event.session_id.as_deref() == Some(session.session_id.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(events.len(), 2);
+        assert!(events.iter().any(|event| event.event_type == "coordinator.started"));
+        assert!(events.iter().any(|event| event.event_type == "session.completed"));
+        Ok(())
     }
 
     #[test]
