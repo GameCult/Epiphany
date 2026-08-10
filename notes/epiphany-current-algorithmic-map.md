@@ -2627,3 +2627,40 @@ through the claim rather than through recency.
 Persona conversation retention therefore follows semantic lifecycle retention.
 It requires a cross-store preservation map and replay barrier; it is not a safe
 extension of completed model-session archival.
+
+### Semantic logical lifecycle implementation
+
+`retain_memory_semantic_projection_lifecycles` now realizes the logical half of
+the semantic retention map in each canonical source store. Its one snapshot is
+the authority basis for current-obligation equality, canonical authority
+equality, singleton claim/attempt authentication, historical lifecycle
+classification, prior-head validation, and the final fenced replacement. The
+production semantic projector calls it once per exact source input after the
+synchronous projection pulse and before health publication. The default
+retained window is 256 generations; a non-positive configured window is refused
+at argument parsing.
+
+Preserved state is explicit rather than inferred from recency: the canonical
+input obligation; the obligation named by the singleton scope claim; that
+claim's exact attempt and authenticated grant/recovery authority; and the
+current readiness family protected by those identities. Any running current
+claim refuses the whole mutation. Any other same-scope obligation at or beyond
+the canonical input generation also refuses the whole mutation, including when
+it would fall inside the configured recent window. This prevents a stale caller
+from blessing a future row through retention.
+
+Retirable state is limited to lower-generation obligations outside the
+preservation set. Every associated attempt must be terminal and bound to an
+exact grant or recovery authorization; every grant must be consumed; every
+receipt must authenticate the obligation and a succeeded attempt. The one CAS
+deletes only those exact lifecycle envelopes and replaces the singleton typed
+retention head. Unknown families and the scope claim remain byte-identical.
+Retention faults are reported as degraded daemon physiology; they neither
+change projection completion nor suppress the health projection.
+
+Four focused tests prove stale-snapshot refusal, unrelated-row identity,
+idempotent replay, type separation, running-authority refusal, exact current
+ready-chain preservation, and rejection of hostile future generations even
+inside the recent window. A warning-free production binary check covers the
+daemon wiring. Exact packaged copied-live proof remains the acceptance boundary;
+physical Qdrant epoch cleanup remains a distinct executor-owned action.

@@ -13,6 +13,7 @@ use cultcache_rs::{
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 pub const MEMORY_SEMANTIC_PROJECTION_CLAIM_SCHEMA_VERSION: &str =
@@ -21,6 +22,36 @@ pub const MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projector_executor_grant.v1";
 pub const MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projector_recovery_authorization.v2";
+pub const MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_projection_retention_head.v0";
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_projection_retention_head",
+    schema = "MemorySemanticProjectionRetentionHead"
+)]
+pub struct MemorySemanticProjectionRetentionHead {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub scope_id: String,
+    #[cultcache(key = 2)]
+    pub revision: u64,
+    #[cultcache(key = 3)]
+    pub retired_generation_count: u64,
+    #[cultcache(key = 4)]
+    pub retired_envelope_count: u64,
+    #[cultcache(key = 5)]
+    pub retired_type_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 6)]
+    pub retired_status_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 7)]
+    pub retired_chain_digest: String,
+    #[cultcache(key = 8)]
+    pub retained_at: String,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+}
 
 #[derive(Deserialize, Serialize)]
 struct LegacyMemorySemanticProjectionAttemptV0 {
@@ -2294,6 +2325,337 @@ pub fn validate_memory_semantic_projector_recovery_authorization(
     Ok(())
 }
 
+pub fn retain_memory_semantic_projection_lifecycles(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    retain_recent: usize,
+    retained_at: &str,
+) -> Result<Option<MemorySemanticProjectionRetentionHead>> {
+    retain_memory_semantic_projection_lifecycles_with_before_commit(
+        store_path.as_ref(),
+        input,
+        retain_recent,
+        retained_at,
+        || Ok(()),
+    )
+}
+
+fn retain_memory_semantic_projection_lifecycles_with_before_commit<F>(
+    store_path: &Path,
+    input: &MemorySemanticProjectionInput,
+    retain_recent: usize,
+    retained_at: &str,
+    before_commit: F,
+) -> Result<Option<MemorySemanticProjectionRetentionHead>>
+where
+    F: FnOnce() -> Result<()>,
+{
+    chrono::DateTime::parse_from_rfc3339(retained_at)
+        .map_err(|_| anyhow!("semantic projection retention time must be RFC3339"))?;
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    if input.authority.envelopes.is_empty() {
+        return Err(anyhow!(
+            "semantic projection retention requires canonical authority"
+        ));
+    }
+    let cache = semantic_projector_cache(store_path)?;
+    let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let persisted = decode_one::<MemorySemanticProjectionObligation>(
+        &snapshot,
+        &input.obligation.obligation_id,
+    )?
+    .ok_or_else(|| anyhow!("semantic projection retention obligation disappeared"))?;
+    if persisted != input.obligation {
+        return Err(anyhow!(
+            "semantic projection retention obligation identity collision"
+        ));
+    }
+    for expected in &input.authority.envelopes {
+        if snapshot
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(expected)
+        {
+            return Err(anyhow!(
+                "semantic projection retention canonical authority advanced"
+            ));
+        }
+    }
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    let current_claim = decode_one::<MemorySemanticProjectionClaim>(&snapshot, &scope_id)?;
+    let mut preserved_obligation_ids = BTreeSet::from([input.obligation.obligation_id.clone()]);
+    if let Some(claim) = &current_claim {
+        validate_memory_semantic_projection_claim(claim)?;
+        if claim.scope_id != scope_id {
+            return Err(anyhow!(
+                "semantic projection retention claim key disagrees with payload"
+            ));
+        }
+        authenticate_claim_authority_from_envelopes(&snapshot, claim)?;
+        let attempt = decode_one::<MemorySemanticProjectionAttempt>(&snapshot, &claim.attempt_id)?
+            .ok_or_else(|| anyhow!("semantic projection retention current attempt disappeared"))?;
+        validate_memory_semantic_projection_attempt(&attempt)?;
+        if !attempt_authenticates_claim(&attempt, claim) || attempt.status != claim.status {
+            return Err(anyhow!(
+                "semantic projection retention current claim and attempt disagree"
+            ));
+        }
+        if claim.status == "running" {
+            return Err(anyhow!(
+                "semantic projection retention refuses a running scope claim"
+            ));
+        }
+        preserved_obligation_ids.insert(claim.obligation_id.clone());
+    }
+
+    let mut obligations = decode_all::<MemorySemanticProjectionObligation>(&snapshot)?
+        .into_iter()
+        .filter(|obligation| {
+            obligation.swarm_id == input.obligation.swarm_id
+                && obligation.partition == input.obligation.partition
+        })
+        .collect::<Vec<_>>();
+    for obligation in &obligations {
+        validate_memory_semantic_projection_obligation(obligation)?;
+    }
+    obligations.sort_by(|left, right| {
+        left.source_generation
+            .cmp(&right.source_generation)
+            .then(left.created_at.cmp(&right.created_at))
+            .then(left.obligation_id.cmp(&right.obligation_id))
+    });
+    for obligation in &obligations {
+        if !preserved_obligation_ids.contains(&obligation.obligation_id)
+            && obligation.source_generation >= input.obligation.source_generation
+        {
+            return Err(anyhow!(
+                "semantic projection retention refuses a non-stale generation"
+            ));
+        }
+    }
+    for obligation in obligations.iter().rev().take(retain_recent.max(1)) {
+        preserved_obligation_ids.insert(obligation.obligation_id.clone());
+    }
+
+    let attempts = decode_all::<MemorySemanticProjectionAttempt>(&snapshot)?;
+    let receipts = decode_all::<MemorySemanticIndexReceipt>(&snapshot)?;
+    let grants = decode_all::<MemorySemanticProjectorExecutorGrant>(&snapshot)?;
+    let authorizations = decode_all::<MemorySemanticProjectorRecoveryAuthorization>(&snapshot)?;
+    let mut retired_status_counts = BTreeMap::<String, u64>::new();
+    let mut retired_obligation_ids = BTreeSet::new();
+    for obligation in &obligations {
+        if preserved_obligation_ids.contains(&obligation.obligation_id) {
+            continue;
+        }
+        let obligation_attempts = attempts
+            .iter()
+            .filter(|attempt| attempt.obligation_id == obligation.obligation_id)
+            .collect::<Vec<_>>();
+        for attempt in &obligation_attempts {
+            validate_memory_semantic_projection_attempt(attempt)?;
+            if attempt.status == "running" {
+                return Err(anyhow!(
+                    "semantic projection retention refuses a running historical attempt"
+                ));
+            }
+            let authority_matches = grants.iter().any(|grant| {
+                grant.grant_id == attempt.authority_id
+                    && grant.obligation_id == obligation.obligation_id
+                    && grant.resulting_claim_id.as_deref() == Some(attempt.claim_id.as_str())
+                    && grant.resulting_claim_epoch == Some(attempt.claim_epoch)
+            }) || authorizations.iter().any(|authorization| {
+                authorization.authorization_id == attempt.authority_id
+                    && authorization.obligation_id == obligation.obligation_id
+                    && authorization.resulting_claim_id.as_deref()
+                        == Some(attempt.claim_id.as_str())
+                    && authorization.resulting_claim_epoch == Some(attempt.claim_epoch)
+            });
+            if !authority_matches {
+                return Err(anyhow!(
+                    "semantic projection retention found an unauthenticated historical attempt"
+                ));
+            }
+        }
+        let obligation_receipts = receipts
+            .iter()
+            .filter(|receipt| receipt.obligation_id == obligation.obligation_id)
+            .collect::<Vec<_>>();
+        let stale_head = MemorySemanticProjectionSourceHead {
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            graph_id: obligation.graph_id.clone(),
+            source_generation: obligation.source_generation,
+            source_model_hash: obligation.source_model_hash.clone(),
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+        };
+        for receipt in &obligation_receipts {
+            if !memory_semantic_projection_terminal_success(obligation, &stale_head, receipt) {
+                return Err(anyhow!(
+                    "semantic projection retention found an invalid historical receipt"
+                ));
+            }
+            if !obligation_attempts.iter().any(|attempt| {
+                attempt.status == "succeeded"
+                    && attempt.claim_id == receipt.claim_id
+                    && attempt.claim_epoch == receipt.claim_epoch
+            }) {
+                return Err(anyhow!(
+                    "semantic projection retention receipt lost its succeeded attempt"
+                ));
+            }
+        }
+        for grant in grants
+            .iter()
+            .filter(|grant| grant.obligation_id == obligation.obligation_id)
+        {
+            validate_memory_semantic_projector_executor_grant(grant)?;
+            if grant.status != "consumed" || grant.consumed_at.is_none() {
+                return Err(anyhow!(
+                    "semantic projection retention refuses unconsumed historical grant"
+                ));
+            }
+        }
+        for authorization in authorizations
+            .iter()
+            .filter(|authorization| authorization.obligation_id == obligation.obligation_id)
+        {
+            validate_memory_semantic_projector_recovery_authorization(authorization)?;
+        }
+        let status = if !obligation_receipts.is_empty() {
+            "succeeded"
+        } else if obligation_attempts
+            .iter()
+            .any(|attempt| attempt.status == "failed")
+        {
+            "failed"
+        } else {
+            "superseded_unattempted"
+        };
+        *retired_status_counts.entry(status.to_string()).or_default() += 1;
+        retired_obligation_ids.insert(obligation.obligation_id.clone());
+    }
+    if retired_obligation_ids.is_empty() {
+        return Ok(None);
+    }
+
+    let mut deletions = snapshot
+        .iter()
+        .filter(|entry| match entry.r#type.as_str() {
+            MemorySemanticProjectionObligation::TYPE => retired_obligation_ids.contains(&entry.key),
+            MemorySemanticProjectionAttempt::TYPE => attempts.iter().any(|attempt| {
+                attempt.attempt_id == entry.key
+                    && retired_obligation_ids.contains(&attempt.obligation_id)
+            }),
+            MemorySemanticIndexReceipt::TYPE => receipts.iter().any(|receipt| {
+                receipt.receipt_id == entry.key
+                    && retired_obligation_ids.contains(&receipt.obligation_id)
+            }),
+            MemorySemanticProjectorExecutorGrant::TYPE => grants.iter().any(|grant| {
+                grant.grant_id == entry.key && retired_obligation_ids.contains(&grant.obligation_id)
+            }),
+            MemorySemanticProjectorRecoveryAuthorization::TYPE => {
+                authorizations.iter().any(|authorization| {
+                    authorization.authorization_id == entry.key
+                        && retired_obligation_ids.contains(&authorization.obligation_id)
+                })
+            }
+            _ => false,
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    deletions.sort_by(|left, right| {
+        left.r#type
+            .cmp(&right.r#type)
+            .then(left.key.cmp(&right.key))
+    });
+    let prior = decode_one::<MemorySemanticProjectionRetentionHead>(&snapshot, &scope_id)?;
+    if let Some(head) = &prior {
+        validate_memory_semantic_projection_retention_head(head, &scope_id)?;
+    }
+    let mut retired_type_counts = prior
+        .as_ref()
+        .map(|head| head.retired_type_counts.clone())
+        .unwrap_or_default();
+    for entry in &deletions {
+        *retired_type_counts.entry(entry.r#type.clone()).or_default() += 1;
+    }
+    let mut cumulative_status_counts = prior
+        .as_ref()
+        .map(|head| head.retired_status_counts.clone())
+        .unwrap_or_default();
+    for (status, count) in retired_status_counts {
+        *cumulative_status_counts.entry(status).or_default() += count;
+    }
+    let prior_digest = prior
+        .as_ref()
+        .map(|head| head.retired_chain_digest.as_str())
+        .unwrap_or("memory-semantic-projection-retention-root");
+    let mut digest = Sha256::new();
+    digest.update((prior_digest.len() as u64).to_le_bytes());
+    digest.update(prior_digest.as_bytes());
+    for entry in &deletions {
+        for bytes in [
+            entry.r#type.as_bytes(),
+            entry.key.as_bytes(),
+            entry.payload.as_slice(),
+        ] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+    }
+    let head = MemorySemanticProjectionRetentionHead {
+        schema_version: MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION.to_string(),
+        scope_id: scope_id.clone(),
+        revision: prior.as_ref().map_or(1, |head| head.revision + 1),
+        retired_generation_count: prior
+            .as_ref()
+            .map_or(retired_obligation_ids.len() as u64, |head| {
+                head.retired_generation_count + retired_obligation_ids.len() as u64
+            }),
+        retired_envelope_count: prior.as_ref().map_or(deletions.len() as u64, |head| {
+            head.retired_envelope_count + deletions.len() as u64
+        }),
+        retired_type_counts,
+        retired_status_counts: cumulative_status_counts,
+        retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+        retained_at: retained_at.to_string(),
+        private_state_exposed: false,
+    };
+    validate_memory_semantic_projection_retention_head(&head, &scope_id)?;
+    let (replacement, _) = cache.prepare_entry(&scope_id, &head)?;
+    before_commit()?;
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .replace_and_delete_if_snapshot_unchanged(&snapshot, vec![replacement], &deletions)?
+    {
+        return Err(anyhow!(
+            "semantic projection retention lost its full snapshot fence"
+        ));
+    }
+    Ok(Some(head))
+}
+
+fn validate_memory_semantic_projection_retention_head(
+    head: &MemorySemanticProjectionRetentionHead,
+    scope_id: &str,
+) -> Result<()> {
+    if head.schema_version != MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION
+        || head.scope_id != scope_id
+        || head.revision == 0
+        || head.retired_generation_count == 0
+        || head.retired_envelope_count == 0
+        || head.retired_type_counts.is_empty()
+        || head.retired_status_counts.is_empty()
+        || !head.retired_chain_digest.starts_with("sha256:")
+        || chrono::DateTime::parse_from_rfc3339(&head.retained_at).is_err()
+        || head.private_state_exposed
+    {
+        return Err(anyhow!("semantic projection retention head is invalid"));
+    }
+    Ok(())
+}
+
 pub(crate) fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<MemorySemanticProjectionObligation>()?;
@@ -2302,6 +2664,7 @@ pub(crate) fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<MemorySemanticIndexReceipt>()?;
     cache.register_entry_type::<MemorySemanticProjectorExecutorGrant>()?;
     cache.register_entry_type::<MemorySemanticProjectorRecoveryAuthorization>()?;
+    cache.register_entry_type::<MemorySemanticProjectionRetentionHead>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
 }
@@ -2726,4 +3089,424 @@ fn ensure_not_before(later: &str, earlier: &str, message: &str) -> Result<()> {
 
 fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+#[cfg(test)]
+mod retention_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn obligation(swarm_id: &str, generation: u64) -> MemorySemanticProjectionObligation {
+        MemorySemanticProjectionObligation {
+            schema_version: super::super::MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION
+                .to_string(),
+            obligation_id: format!("memory-semantic-projection-modeling-{swarm_id}-{generation}"),
+            swarm_id: swarm_id.to_string(),
+            partition: "modeling".to_string(),
+            canonical_source_id: "runtime-model".to_string(),
+            source_commit_id: format!("commit-{generation}"),
+            graph_id: "repo-model".to_string(),
+            source_generation: generation,
+            source_model_hash: format!("sha256:model-{generation}"),
+            canonical_content_set_hash: format!("sha256:content-{generation}"),
+            projection_schema_version: super::super::SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            created_at: format!("2026-08-10T04:00:{generation:02}Z"),
+        }
+    }
+
+    fn failed_lifecycle(
+        obligation: &MemorySemanticProjectionObligation,
+        epoch: u64,
+    ) -> (
+        MemorySemanticProjectionClaim,
+        MemorySemanticProjectionAttempt,
+        MemorySemanticProjectorExecutorGrant,
+    ) {
+        let scope_id = projection_scope_id(&obligation.swarm_id, &obligation.partition).unwrap();
+        let grant_id = format!(
+            "memory-semantic-executor-grant-{}-{}-{epoch}",
+            obligation.swarm_id, obligation.source_generation
+        );
+        let mut claim = running_claim(
+            &scope_id,
+            obligation,
+            "semantic-executor",
+            &format!("executor-incarnation-{epoch}"),
+            "executor_grant",
+            &grant_id,
+            epoch,
+            &format!("2026-08-10T04:01:{epoch:02}Z"),
+        );
+        claim.status = "failed".to_string();
+        claim.completed_at = Some(format!("2026-08-10T04:02:{epoch:02}Z"));
+        let mut attempt = running_attempt(&claim);
+        attempt.status = "failed".to_string();
+        attempt.completed_at = claim.completed_at.clone();
+        attempt.error = Some("fixture failure".to_string());
+        let grant = MemorySemanticProjectorExecutorGrant {
+            schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
+            grant_id,
+            scope_id,
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            obligation_id: obligation.obligation_id.clone(),
+            executor_id: claim.executor_id.clone(),
+            executor_incarnation: claim.executor_incarnation.clone(),
+            purpose: "execute".to_string(),
+            issuer_id: "idunn".to_string(),
+            issuer_incarnation: "idunn-incarnation".to_string(),
+            status: "consumed".to_string(),
+            issued_at: claim.claimed_at.clone(),
+            consumed_at: Some(claim.claimed_at.clone()),
+            resulting_claim_id: Some(claim.claim_id.clone()),
+            resulting_claim_epoch: Some(claim.epoch),
+            predecessor_claim_id: None,
+            predecessor_claim_epoch: None,
+            predecessor_claim_status: "absent".to_string(),
+        };
+        (claim, attempt, grant)
+    }
+
+    fn input_for(
+        store: &Path,
+        current: &MemorySemanticProjectionObligation,
+    ) -> MemorySemanticProjectionInput {
+        let envelopes = SingleFileMessagePackBackingStore::new(store)
+            .pull_all()
+            .unwrap();
+        let authority = envelopes
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == MemorySemanticProjectionObligation::TYPE
+                    && entry.key == current.obligation_id
+            })
+            .unwrap();
+        MemorySemanticProjectionInput {
+            snapshot: super::super::EpiphanyMemoryGraphSnapshot {
+                graph_id: current.graph_id.clone(),
+                model_revision: current.source_generation,
+                model_hash: current.source_model_hash.clone(),
+                ..Default::default()
+            },
+            obligation: current.clone(),
+            authority: MemorySemanticProjectionAuthoritySnapshot {
+                head: MemorySemanticProjectionSourceHead {
+                    swarm_id: current.swarm_id.clone(),
+                    partition: current.partition.clone(),
+                    canonical_source_id: current.canonical_source_id.clone(),
+                    source_commit_id: current.source_commit_id.clone(),
+                    graph_id: current.graph_id.clone(),
+                    source_generation: current.source_generation,
+                    source_model_hash: current.source_model_hash.clone(),
+                    canonical_content_set_hash: current.canonical_content_set_hash.clone(),
+                },
+                envelopes: vec![authority],
+            },
+        }
+    }
+
+    #[test]
+    fn semantic_lifecycle_retention_preserves_current_chain_and_refuses_stale_snapshot()
+    -> Result<()> {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic.cc");
+        let older_failed = obligation("swarm-a", 0);
+        let older_unattempted = obligation("swarm-a", 1);
+        let predecessor = obligation("swarm-a", 2);
+        let current = obligation("swarm-a", 3);
+        let unrelated = obligation("swarm-b", 1);
+        let (older_claim, older_attempt, older_grant) = failed_lifecycle(&older_failed, 1);
+        let (predecessor_claim, predecessor_attempt, predecessor_grant) =
+            failed_lifecycle(&predecessor, 1);
+        let mut cache = semantic_projector_cache(&store)?;
+        for obligation in [
+            &older_failed,
+            &older_unattempted,
+            &predecessor,
+            &current,
+            &unrelated,
+        ] {
+            cache.put(&obligation.obligation_id, obligation)?;
+        }
+        cache.put(&older_attempt.attempt_id, &older_attempt)?;
+        cache.put(&older_grant.grant_id, &older_grant)?;
+        cache.put(&predecessor_attempt.attempt_id, &predecessor_attempt)?;
+        cache.put(&predecessor_grant.grant_id, &predecessor_grant)?;
+        cache.put(&predecessor_claim.scope_id, &predecessor_claim)?;
+        let input = input_for(&store, &current);
+        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let unrelated_before = opening
+            .iter()
+            .find(|entry| {
+                entry.r#type == MemorySemanticProjectionObligation::TYPE
+                    && entry.key == unrelated.obligation_id
+            })
+            .cloned()
+            .unwrap();
+        let raced = obligation("swarm-b", 2);
+        let error = retain_memory_semantic_projection_lifecycles_with_before_commit(
+            &store,
+            &input,
+            1,
+            "2026-08-10T05:00:00Z",
+            || {
+                let mut race_cache = semantic_projector_cache(&store)?;
+                race_cache.put(&raced.obligation_id, &raced)?;
+                Ok(())
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("snapshot fence"), "{error:#}");
+        let after_race = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(after_race.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionObligation::TYPE
+                && entry.key == older_failed.obligation_id
+        }));
+        assert!(after_race.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionObligation::TYPE
+                && entry.key == raced.obligation_id
+        }));
+
+        let head = retain_memory_semantic_projection_lifecycles(
+            &store,
+            &input,
+            1,
+            "2026-08-10T05:00:01Z",
+        )?
+        .expect("older semantic generations should retire");
+        assert_eq!(head.retired_generation_count, 2);
+        assert_eq!(head.retired_status_counts.get("failed"), Some(&1));
+        assert_eq!(
+            head.retired_status_counts.get("superseded_unattempted"),
+            Some(&1)
+        );
+        let after = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        for retired in [
+            &older_failed.obligation_id,
+            &older_unattempted.obligation_id,
+        ] {
+            assert!(!after.iter().any(|entry| {
+                entry.r#type == MemorySemanticProjectionObligation::TYPE && &entry.key == retired
+            }));
+        }
+        assert!(!after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionAttempt::TYPE
+                && entry.key == older_attempt.attempt_id
+        }));
+        assert!(!after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectorExecutorGrant::TYPE
+                && entry.key == older_grant.grant_id
+        }));
+        for preserved in [&predecessor.obligation_id, &current.obligation_id] {
+            assert!(after.iter().any(|entry| {
+                entry.r#type == MemorySemanticProjectionObligation::TYPE && &entry.key == preserved
+            }));
+        }
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionClaim::TYPE
+                && entry.key == predecessor_claim.scope_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionAttempt::TYPE
+                && entry.key == predecessor_attempt.attempt_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectorExecutorGrant::TYPE
+                && entry.key == predecessor_grant.grant_id
+        }));
+        assert_eq!(
+            after.iter().find(|entry| {
+                entry.r#type == MemorySemanticProjectionObligation::TYPE
+                    && entry.key == unrelated.obligation_id
+            }),
+            Some(&unrelated_before)
+        );
+        assert!(
+            decode_one::<MemorySemanticProjectionObligation>(&after, &head.scope_id)?.is_none(),
+            "retention head must not deserialize as projection obligation"
+        );
+        assert!(decode_one::<MemorySemanticProjectionClaim>(&after, &head.scope_id)?.is_some());
+        assert!(decode_one::<MemorySemanticProjectionAttempt>(&after, &head.scope_id)?.is_none());
+        assert!(decode_one::<MemorySemanticIndexReceipt>(&after, &head.scope_id)?.is_none());
+        assert!(
+            decode_one::<MemorySemanticProjectorExecutorGrant>(&after, &head.scope_id)?.is_none()
+        );
+        assert!(
+            load_memory_semantic_projection_readiness(&store, &input)?.is_none(),
+            "retention head must not open semantic query readiness"
+        );
+        let stable = after.clone();
+        assert!(
+            retain_memory_semantic_projection_lifecycles(
+                &store,
+                &input,
+                1,
+                "2026-08-10T05:00:02Z",
+            )?
+            .is_none()
+        );
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            stable
+        );
+        let _ = older_claim;
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_lifecycle_retention_preserves_exact_ready_chain() -> Result<()> {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic.cc");
+        let older = obligation("swarm-ready", 1);
+        let current = obligation("swarm-ready", 2);
+        let (mut claim, mut attempt, grant) = failed_lifecycle(&current, 1);
+        claim.status = "succeeded".to_string();
+        attempt.status = "succeeded".to_string();
+        attempt.error = None;
+        let receipt = MemorySemanticIndexReceipt {
+            schema_version: super::super::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "memory-semantic-index-ready-fixture".to_string(),
+            swarm_id: current.swarm_id.clone(),
+            partition: current.partition.clone(),
+            collection_name: "epiphany_modeling_v1".to_string(),
+            graph_id: current.graph_id.clone(),
+            model_revision: current.source_generation,
+            model_hash: current.source_model_hash.clone(),
+            embedding_provider_id: "ollama".to_string(),
+            embedding_model: "qwen3-embedding".to_string(),
+            vector_dimensions: 3,
+            indexed_document_count: 1,
+            deleted_document_count: 0,
+            canonical_content_set_hash: current.canonical_content_set_hash.clone(),
+            indexed_at: "2026-08-10T04:01:01Z".to_string(),
+            status: "ready".to_string(),
+            obligation_id: current.obligation_id.clone(),
+            canonical_source_id: current.canonical_source_id.clone(),
+            source_commit_id: current.source_commit_id.clone(),
+            source_generation: current.source_generation,
+            projection_schema_version: current.projection_schema_version.clone(),
+            claim_id: claim.claim_id.clone(),
+            claim_epoch: claim.epoch,
+            observed_vector_binding_root_sha256: "a".repeat(64),
+        };
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&older.obligation_id, &older)?;
+        cache.put(&current.obligation_id, &current)?;
+        cache.put(&grant.grant_id, &grant)?;
+        cache.put(&attempt.attempt_id, &attempt)?;
+        cache.put(&claim.scope_id, &claim)?;
+        cache.put(&receipt.receipt_id, &receipt)?;
+        let input = input_for(&store, &current);
+        let ready_before = load_memory_semantic_projection_readiness(&store, &input)?
+            .expect("fixture should open exact readiness");
+        let head = retain_memory_semantic_projection_lifecycles(
+            &store,
+            &input,
+            1,
+            "2026-08-10T07:00:00Z",
+        )?
+        .expect("older generation should retire");
+        assert_eq!(head.retired_generation_count, 1);
+        let ready_after = load_memory_semantic_projection_readiness(&store, &input)?
+            .expect("retention must preserve exact readiness");
+        assert_eq!(ready_after.receipt, ready_before.receipt);
+        let after = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionClaim::TYPE && entry.key == claim.scope_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectionAttempt::TYPE && entry.key == attempt.attempt_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticIndexReceipt::TYPE && entry.key == receipt.receipt_id
+        }));
+        assert!(after.iter().any(|entry| {
+            entry.r#type == MemorySemanticProjectorExecutorGrant::TYPE
+                && entry.key == grant.grant_id
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_lifecycle_retention_refuses_running_current_claim() -> Result<()> {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic.cc");
+        let older = obligation("swarm-running", 1);
+        let current = obligation("swarm-running", 2);
+        let scope_id = projection_scope_id(&current.swarm_id, &current.partition)?;
+        let grant_id = "memory-semantic-executor-grant-running";
+        let claim = running_claim(
+            &scope_id,
+            &current,
+            "semantic-executor",
+            "executor-incarnation-running",
+            "executor_grant",
+            grant_id,
+            1,
+            "2026-08-10T06:00:00Z",
+        );
+        let attempt = running_attempt(&claim);
+        let grant = MemorySemanticProjectorExecutorGrant {
+            schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
+            grant_id: grant_id.to_string(),
+            scope_id: scope_id.clone(),
+            swarm_id: current.swarm_id.clone(),
+            partition: current.partition.clone(),
+            obligation_id: current.obligation_id.clone(),
+            executor_id: claim.executor_id.clone(),
+            executor_incarnation: claim.executor_incarnation.clone(),
+            purpose: "execute".to_string(),
+            issuer_id: "idunn".to_string(),
+            issuer_incarnation: "idunn-incarnation".to_string(),
+            status: "consumed".to_string(),
+            issued_at: claim.claimed_at.clone(),
+            consumed_at: Some(claim.claimed_at.clone()),
+            resulting_claim_id: Some(claim.claim_id.clone()),
+            resulting_claim_epoch: Some(claim.epoch),
+            predecessor_claim_id: None,
+            predecessor_claim_epoch: None,
+            predecessor_claim_status: "absent".to_string(),
+        };
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&older.obligation_id, &older)?;
+        cache.put(&current.obligation_id, &current)?;
+        cache.put(&grant.grant_id, &grant)?;
+        cache.put(&attempt.attempt_id, &attempt)?;
+        cache.put(&scope_id, &claim)?;
+        let input = input_for(&store, &current);
+        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let error =
+            retain_memory_semantic_projection_lifecycles(&store, &input, 1, "2026-08-10T06:00:01Z")
+                .unwrap_err();
+        assert!(error.to_string().contains("running scope claim"));
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            opening
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_lifecycle_retention_refuses_future_generation_even_inside_window() -> Result<()> {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic.cc");
+        let older = obligation("swarm-future", 1);
+        let current = obligation("swarm-future", 2);
+        let future = obligation("swarm-future", 3);
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&older.obligation_id, &older)?;
+        cache.put(&current.obligation_id, &current)?;
+        cache.put(&future.obligation_id, &future)?;
+        let input = input_for(&store, &current);
+        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let error =
+            retain_memory_semantic_projection_lifecycles(&store, &input, 1, "2026-08-10T08:00:00Z")
+                .unwrap_err();
+        assert!(error.to_string().contains("non-stale generation"));
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            opening
+        );
+        Ok(())
+    }
 }

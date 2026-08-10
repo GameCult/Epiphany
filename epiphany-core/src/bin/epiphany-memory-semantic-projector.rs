@@ -6,7 +6,7 @@ use epiphany_core::{
     SemanticProjectorServiceBody, authenticate_epiphany_cultmesh_semantic_projector_launch,
     load_epiphany_cultmesh_daemon_service_lifecycle_receipt,
     publish_epiphany_cultmesh_semantic_projection_health,
-    write_epiphany_cultmesh_daemon_heartbeat_event,
+    retain_memory_semantic_projection_lifecycles, write_epiphany_cultmesh_daemon_heartbeat_event,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -70,6 +70,24 @@ fn main() -> Result<()> {
             .clone()
             .or_else(|| outcome.inspections.last().map(|row| row.scope_id.clone()));
 
+        let mut retention_faults = Vec::new();
+        let mut retention_mutation_count = 0_u32;
+        for input in &inputs {
+            let store = source_store(&args, input)?;
+            match retain_memory_semantic_projection_lifecycles(
+                store,
+                input,
+                args.retained_generations,
+                &chrono::Utc::now().to_rfc3339(),
+            ) {
+                Ok(Some(_)) => retention_mutation_count += 1,
+                Ok(None) => {}
+                Err(error) => {
+                    retention_faults.push(format!("{}: {error:#}", input.obligation().partition))
+                }
+            }
+        }
+        let retention_fault_count = retention_faults.len() as u32;
         let mut health_publication_faults = Vec::new();
         for input in &inputs {
             let store = source_store(&args, input)?;
@@ -86,6 +104,7 @@ fn main() -> Result<()> {
         }
         let health_faults = health_publication_faults.len() as u32;
         let degraded = source_faults > 0
+            || retention_fault_count > 0
             || health_faults > 0
             || matches!(
                 outcome.status,
@@ -119,6 +138,9 @@ fn main() -> Result<()> {
                 "pulseStatus": pulse_status(outcome.status),
                 "inspectedSourceCount": outcome.inspections.len(),
                 "sourceFaultCount": source_faults,
+                "retentionMutationCount": retention_mutation_count,
+                "retentionFaultCount": retention_fault_count,
+                "retentionFaults": retention_faults,
                 "healthPublicationFaultCount": health_faults,
                 "healthPublicationFaults": health_publication_faults,
                 "selectedScopeId": outcome.selected_scope_id,
@@ -188,6 +210,7 @@ struct Args {
     runtime_id: String,
     interval_seconds: u64,
     max_iterations: u64,
+    retained_generations: usize,
     startup_lifecycle_receipt_id: String,
     qdrant_url: String,
     ollama_base_url: String,
@@ -212,6 +235,7 @@ impl Args {
         } else {
             0
         };
+        let mut retained_generations = 256_usize;
         let mut qdrant_url = None;
         let mut ollama_base_url = None;
         let mut ollama_model = "qwen3-embedding:0.6b".to_string();
@@ -228,6 +252,7 @@ impl Args {
                 "--runtime-id" => runtime_id = value()?,
                 "--interval-seconds" => interval_seconds = value()?.parse()?,
                 "--max-iterations" => max_iterations = value()?.parse()?,
+                "--retained-generations" => retained_generations = value()?.parse()?,
                 "--qdrant-url" => qdrant_url = Some(value()?),
                 "--ollama-base-url" => ollama_base_url = Some(value()?),
                 "--ollama-model" => ollama_model = value()?,
@@ -237,6 +262,9 @@ impl Args {
         if interval_seconds == 0 {
             return Err(anyhow!("--interval-seconds must be positive"));
         }
+        if retained_generations == 0 {
+            return Err(anyhow!("--retained-generations must be positive"));
+        }
         Ok(Self {
             agent_store: agent_store.context("missing --agent-store")?,
             runtime_store: runtime_store.context("missing --runtime-store")?,
@@ -244,6 +272,7 @@ impl Args {
             runtime_id,
             interval_seconds,
             max_iterations,
+            retained_generations,
             startup_lifecycle_receipt_id: env::var("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID")
                 .unwrap_or_default(),
             qdrant_url: qdrant_url.context("missing --qdrant-url")?,

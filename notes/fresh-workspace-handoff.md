@@ -1663,3 +1663,32 @@ Implement semantic logical lifecycle retention first. Refuse while the current
 claim/attempt is running, preserve every current-chain reference explicitly,
 replace only exact older terminal generations plus one typed head under a full
 snapshot fence, and prove the head cannot open readiness or claim authority.
+
+## Semantic logical lifecycle retention implemented — 2026-08-10
+
+The canonical semantic source store now owns bounded logical lifecycle history.
+After each projector pulse, the production daemon retains the newest 256 source
+generations by default. The cut preserves the exact current obligation, the
+singleton scope claim and authenticated claim authority, and every envelope in
+the current readiness family. It refuses retirement while current authority is
+running or when a same-scope future/non-stale obligation appears. Only older
+closed obligations and their terminal attempts, valid receipts, consumed
+executor grants, and recovery authorizations can retire.
+
+One typed per-scope retention head carries cumulative type/status counts and a
+chained digest. The head is evidence only. Head replacement and exact lifecycle
+deletion share the source store's full-snapshot fence; unknown rows are outside
+the deletion set. Retention faults degrade the projector heartbeat but cannot
+redefine semantic completion or suppress health publication.
+
+Four focused tests pass: current ready-chain preservation, running-current
+refusal, hostile future-generation refusal even inside the recency window, and
+stale-snapshot refusal with unrelated-row byte identity and stable replay. The
+production semantic-projector binary checks warning-free. An ignored readiness
+lookup that discarded its result was removed; exact claim, attempt, authority,
+and receipt contracts remain the real owners.
+
+Next commit and push this source, package and inspect that exact commit from the
+persistent Starfire cache, then prove it against copied state only. Preserve
+active c005. Physical Qdrant epoch garbage collection and Persona conversation
+retirement remain later, separate ownership cuts. Yggdrasil never builds.
