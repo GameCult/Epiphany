@@ -1,5 +1,36 @@
 # Fresh workspace handoff
 
+## Copied continuation exposed missing failure-review context - 2026-08-11
+
+Exact `4d6d269f` packaged 24 Linux binaries as
+`sha256-ff371697ce78a1daa3322c0cac988582d548747ae7fddbfb1d9f5626a37d3344`
+with witness
+`sha256-44c9d61787520a2f38fad1362230d283954a6019fd392600fe112115ca22c0fa`
+and no warnings. A clean stopped snapshot of actual c006 was copied into three
+named volumes with byte-identical manifests; the exact actual owners restarted
+unchanged with exit-zero stop receipts. Under the copied brake, exact typed
+inspection found one pending `coordinator-internal-continuation` pressure from
+receipt `coordinator-run-linux-eyes-tools-c005-1786396551246`, required action
+`reviewModelingResult`, zero continuation grants, revision 26, and no active
+turn.
+
+After copied brake release, Heartbeat granted the pressure exactly once, but
+Mind rejected the Modeling patch because `nodes[2]` had neither anchors nor a
+source-hash anchor. The continuation launch omitted the coordinator's existing
+`--supersede-failed-results` authority, so the rejection escaped as process
+failure and Heartbeat issued twelve attempts before intervention. The copied
+brake is engaged; attempt receipts and snapshots are under
+`.epiphany-run/continuation-4d6d269f`. Actual c006 remained braked on exact
+`16407f7e`.
+
+The source repair adds typed failed-result supersession only to receipt-bound
+internal continuations. Mind still rejects the malformed aggregate; coordinator
+failure review owns supersession and derives fresh work. The exact resident
+argv test and all 18 coordinator tests pass. Commit and package this repair,
+then replay from a fresh pre-fault clone. Require one rejection/supersession,
+a newer causal receipt and grant, no process-failure retry loop, and zero
+Hands/Persona/deployment consequence.
+
 ## Internal cognition continuation implemented; live proof pending - 2026-08-11
 
 The post-endurance audit found actual c006 coherently asleep but unable to turn

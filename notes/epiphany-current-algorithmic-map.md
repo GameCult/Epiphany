@@ -3607,7 +3607,8 @@ Mind review into another grant, so a brake release could not advance c006.
 - Outputs: at most one idempotent
   `coordinator-internal-continuation` pressure. Its launch is objective-free,
   uses the receipt thread and mounted cognitive runtime, executes exactly one
-  step with auto-review, and carries the receipt-derived required action.
+  step with auto-review and typed failed-result supersession, and carries the
+  receipt-derived required action.
 - Derived state: receipt reason prose, rendered status, pulse artifacts,
   readiness rows, timers, and operator projections are observations. They do
   not create continuation authority.
@@ -3623,11 +3624,23 @@ Mind review into another grant, so a brake release could not advance c006.
   execute mode only when its exact action is safe. Before any action match, the
   coordinator rederives live status; disagreement emits a no-consequence
   required-action refusal, closes the stale pressure, and publishes the newly
-  derived action without executing it.
+  derived action without executing it. If Mind rejects a terminal role result,
+  the coordinator's existing failure-review owner supersedes that exact result
+  and derives fresh work in the same bounded run; process failure is not the
+  rejection protocol.
 - Verification: 30 resident tests and all 18 coordinator tests pass. Exact
   receipt replay creates one pressure and one objective-free execution argv;
   repeated ingestion is idempotent; a Hands final action creates no pressure;
   and source order proves required-action refusal precedes every action effect.
 
-Packaging and copied-c006 turnover remain required before this source cut is
-accepted live. Actual c006 remains on exact `16407f7e`, braked and unchanged.
+Exact `4d6d269f` packaged the first cut as 24 binaries, release
+`sha256-ff371697ce78a1daa3322c0cac988582d548747ae7fddbfb1d9f5626a37d3344`,
+and witness
+`sha256-44c9d61787520a2f38fad1362230d283954a6019fd392600fe112115ca22c0fa`.
+Copied c006 proved the one pending pressure and zero grants under brake, then
+exposed the missing supersession launch context: Mind correctly rejected an
+unanchored Modeling patch, but twelve process-failed attempts requeued the same
+pressure before intervention. The copied brake is engaged and those receipts
+are preserved. Package and replay the supersession fix from a fresh pre-fault
+clone before acceptance. Actual c006 remains on exact `16407f7e`, braked and
+unchanged.

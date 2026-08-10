@@ -2052,6 +2052,7 @@ pub fn prepare_resident_self_launch(
         *mode_index = "execute".into();
         argv.extend([
             "--auto-review".into(),
+            "--supersede-failed-results".into(),
             "--required-action".into(),
             required_action,
         ]);
@@ -5069,6 +5070,10 @@ mod tests {
         assert_eq!(resident_prepared_launch_thread_id(&prepared)?, "thread-1");
         assert!(prepared.argv.windows(2).any(|pair| pair == ["--mode", "execute"]));
         assert!(prepared.argv.iter().any(|arg| arg == "--auto-review"));
+        assert!(prepared
+            .argv
+            .iter()
+            .any(|arg| arg == "--supersede-failed-results"));
         assert!(prepared.argv.windows(2).any(|pair| {
             pair == ["--required-action", "reviewModelingResult"]
         }));
