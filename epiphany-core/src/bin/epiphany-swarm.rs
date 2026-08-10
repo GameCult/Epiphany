@@ -10,13 +10,15 @@ use epiphany_core::{
     coordinator_run_receipts, derive_resident_cognition_readiness,
     enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
-    load_resident_self_state, observe_process_instance, pending_resident_self_acks,
+    live_resident_self_typed_request_ids, load_resident_self_state, observe_process_instance,
+    pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status,
     retain_completed_runtime_sessions,
-    retain_coordinator_run_receipts, retain_resident_self_lifecycles,
+    retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
+    retain_resident_self_lifecycles,
     settle_resident_self_exited_coordinator,
     settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
     validate_persona_feedback_store_separation,
@@ -88,6 +90,7 @@ fn main() -> Result<()> {
                 args.retained_closed_lifecycles,
                 Utc::now().timestamp_millis().max(0) as u64,
             )?;
+            retain_runtime_worker_attempts(&args)?;
             publish_self_readiness(&args)?;
             println!(
                 "{}",
@@ -105,6 +108,7 @@ fn main() -> Result<()> {
                     args.retained_closed_lifecycles,
                     Utc::now().timestamp_millis().max(0) as u64,
                 )?;
+                retain_runtime_worker_attempts(&args)?;
                 publish_self_readiness(&args)?;
                 println!(
                     "{}",
@@ -152,6 +156,16 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
         args.retained_coordinator_receipts,
         &preserved,
         &retained_at,
+    )?;
+    Ok(())
+}
+
+fn retain_runtime_worker_attempts(args: &Args) -> Result<()> {
+    retain_failed_runtime_worker_attempts(
+        &args.policy.runtime_store,
+        args.retained_failed_runtime_worker_attempts,
+        &live_resident_self_typed_request_ids(&args.state_store)?,
+        &Utc::now().to_rfc3339(),
     )?;
     Ok(())
 }
@@ -445,6 +459,7 @@ struct Args {
     retained_closed_lifecycles: usize,
     retained_coordinator_receipts: usize,
     retained_completed_runtime_sessions: usize,
+    retained_failed_runtime_worker_attempts: usize,
     persona_feedback_source_store: PathBuf,
     persona_feedback_store: PathBuf,
     bifrost_feedback_trust_anchor: PathBuf,
@@ -558,6 +573,12 @@ impl Args {
             )?
             .try_into()
             .context("--retained-completed-runtime-sessions exceeds platform size")?,
+            retained_failed_runtime_worker_attempts: u64v(
+                "--retained-failed-runtime-worker-attempts",
+                256,
+            )?
+            .try_into()
+            .context("--retained-failed-runtime-worker-attempts exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,

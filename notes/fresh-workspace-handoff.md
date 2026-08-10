@@ -2659,3 +2659,15 @@ consult tombstones before treating missing claims/results as live or pending.
 Next implement the archive and hostile/non-resurrection tests before packaging.
 Direct packaged proposal Modeling construction remains a later Linux-native
 evidence task. Actual c006 stays braked.
+## Failed outer-worker attempt retention cut in source — 2026-08-10
+
+Runtime spine now owns `EpiphanyArchivedRuntimeWorkerAttempt` for failed or
+cancelled typed attempts. Resident Self projects every typed request still
+named by a durable grant; serve/once compacts resident lifecycles first, then
+passes that surviving set into runtime retention. The runtime refuses a live
+request byte-identically and otherwise replaces the exact launch, terminal
+claim, lane binding, terminal job/result/events with one snapshot-fenced
+tombstone. A focused proposal-Modeling test proves refusal, retirement,
+idempotence, and that deletion cannot recreate retry suppression. Successful
+attempt retirement remains open because its tombstone must preserve the same
+authenticated fulfillment answer currently owned by the result/binding chain.

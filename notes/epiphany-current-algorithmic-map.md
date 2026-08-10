@@ -3321,6 +3321,26 @@ cannot truthfully be minted under a Windows path and rebound later.
 
 ## Outer worker-attempt retention authority map
 
+### Implemented failure-family cut
+
+`resident_self::live_resident_self_typed_request_ids` is the cross-store
+liveness owner: every surviving typed grant preserves its request. After
+resident lifecycle compaction, `epiphany-swarm` passes that set to
+`retain_failed_runtime_worker_attempts`. Runtime spine then retains the newest
+configured failed attempts and may atomically replace an older exact family
+with `EpiphanyArchivedRuntimeWorkerAttempt`. The archive accepts only one of
+the three resident typed request echoes, a failed/cancelled runtime job, and an
+exact terminal-death, terminal-unactivated, or terminal-failure claim with its
+terminal authority. It deletes only the matching launch, claim, lane binding,
+job, generic result, and job events under the full physical snapshot fence.
+The request and all unrelated envelopes remain live.
+
+This cut deliberately refuses `terminal-result`: successful result/binding
+authority still answers `runtime_typed_request_fulfillment`, so deleting it
+without a fulfillment-capable tombstone would create false Pending state. That
+reader migration, stale-CAS proof, and all-lane production retention proof are
+the next cut.
+
 - Owner: runtime spine owns archival of one immutable outer worker attempt.
   Resident Self supplies cross-store liveness but cannot delete runtime rows.
 - Inputs: exact typed request identity; worker launch; lane-specific launch

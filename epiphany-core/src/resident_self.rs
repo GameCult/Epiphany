@@ -4,7 +4,7 @@ use cultcache_rs::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
@@ -1206,6 +1206,24 @@ pub fn resident_self_pressures(path: &Path) -> Result<Vec<ResidentSelfPressure>>
     let mut pressure = state_cache(path)?.get_all::<ResidentSelfPressure>()?;
     pressure.sort_by(|left, right| left.pressure_id.cmp(&right.pressure_id));
     Ok(pressure)
+}
+
+/// Runtime retention consumes this resident-owned projection as its
+/// cross-store liveness fence.
+pub fn live_resident_self_typed_request_ids(path: &Path) -> Result<BTreeSet<String>> {
+    let cache = state_cache(path)?;
+    let mut request_ids = BTreeSet::new();
+    for grant in cache.get_all::<ResidentSelfHeartbeatGrant>()? {
+        if let Some(request) = resident_self_typed_request_ref(&grant)? {
+            let request_id = match request {
+                crate::RuntimeTypedRequestRef::ProposalModeling(id)
+                | crate::RuntimeTypedRequestRef::ImaginationConsideration(id)
+                | crate::RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
+            };
+            request_ids.insert(request_id.to_string());
+        }
+    }
+    Ok(request_ids)
 }
 
 pub fn verify_resident_self_grant_fulfillment(

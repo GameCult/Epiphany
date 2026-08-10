@@ -168,6 +168,8 @@ pub const ARCHIVED_RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.archived_sessi
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_TYPE: &str =
     "epiphany.runtime.worker_process_claim.v0";
+pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE: &str =
+    "epiphany.runtime.archived_worker_attempt.v0";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
@@ -201,6 +203,8 @@ pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_process_claim.v0";
+pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION: &str =
+    "epiphany.runtime.archived_worker_attempt.v0";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.role_worker_result.v3";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -485,6 +489,25 @@ pub struct EpiphanyRuntimeWorkerProcessClaim {
     pub terminal_at: Option<String>,
     #[cultcache(key = 11, default)]
     pub terminal_authority_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.archived_worker_attempt.v0",
+    schema = "EpiphanyArchivedRuntimeWorkerAttempt"
+)]
+pub struct EpiphanyArchivedRuntimeWorkerAttempt {
+    #[cultcache(key = 0)] pub schema_version: String,
+    #[cultcache(key = 1)] pub archive_id: String,
+    #[cultcache(key = 2)] pub job_id: String,
+    #[cultcache(key = 3)] pub request_kind: String,
+    #[cultcache(key = 4)] pub request_id: String,
+    #[cultcache(key = 5)] pub terminal_process_status: String,
+    #[cultcache(key = 6, default)] pub result_id: Option<String>,
+    #[cultcache(key = 7)] pub archived_at: String,
+    #[cultcache(key = 8)] pub retired_type_counts: BTreeMap<String, u64>,
+    #[cultcache(key = 9)] pub retired_envelope_count: u64,
+    #[cultcache(key = 10)] pub retired_chain_digest: String,
 }
 
 fn worker_process_claim_id(job_id: &str) -> String {
@@ -1085,6 +1108,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyArchivedRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerProcessClaim>()?;
+    cache.register_entry_type::<EpiphanyArchivedRuntimeWorkerAttempt>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
     cache.register_entry_type::<RepoModelAdmissionReview>()?;
@@ -10479,6 +10503,140 @@ pub fn runtime_typed_request_attempt_exists(
         }))
 }
 
+pub fn archive_failed_runtime_worker_attempt(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    live_resident_request_ids: &BTreeSet<String>,
+    archived_at: &str,
+) -> Result<EpiphanyArchivedRuntimeWorkerAttempt> {
+    validate_non_empty(job_id, "archived worker attempt job id")?;
+    chrono::DateTime::parse_from_rfc3339(archived_at)
+        .map_err(|error| anyhow!("worker attempt archive timestamp is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(job_id)? {
+        if existing.schema_version != ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION
+            || existing.archive_id != job_id
+            || existing.job_id != job_id
+            || !existing.retired_chain_digest.starts_with("sha256:")
+        {
+            return Err(anyhow!("archived worker attempt tombstone is invalid"));
+        }
+        if cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?.is_some()
+            || cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&worker_process_claim_id(job_id))?.is_some()
+            || cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?.is_some()
+        {
+            return Err(anyhow!("archived worker attempt retained live attempt authority"));
+        }
+        return Ok(existing);
+    }
+    let launch = cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("worker attempt archive requires its immutable launch"))?;
+    let typed = [
+        ("proposal-modeling", launch.proposal_modeling_request_id.as_deref()),
+        ("imagination-consideration", launch.imagination_consideration_request_id.as_deref()),
+        ("admitted-model-direction", launch.admitted_model_direction_consideration_request_id.as_deref()),
+    ].into_iter().filter_map(|(kind, id)| id.map(|id| (kind, id))).collect::<Vec<_>>();
+    if typed.len() != 1 {
+        return Err(anyhow!("worker attempt archive requires exactly one supported typed request"));
+    }
+    let (request_kind, request_id) = typed[0];
+    if live_resident_request_ids.contains(request_id) {
+        return Err(anyhow!("worker attempt archive refuses resident-live typed request"));
+    }
+    if cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?.is_some() {
+        return Err(anyhow!("failed worker attempt archive refuses terminal fulfillment authority"));
+    }
+    let claim_id = worker_process_claim_id(job_id);
+    let claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
+        .ok_or_else(|| anyhow!("worker attempt archive requires its process claim"))?;
+    if !matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated" | "terminal-failure")
+        || claim.terminal_at.is_none() || claim.terminal_authority_id.is_none()
+    {
+        return Err(anyhow!("failed worker attempt archive requires exact terminal process authority"));
+    }
+    let job = cache.get::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("worker attempt archive requires its runtime job"))?;
+    if !matches!(job.status, EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled) {
+        return Err(anyhow!("failed worker attempt archive requires a failed or cancelled runtime job"));
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let proposal_bindings = cache.get_all::<RepoFrontierProposalModelingLaunchBinding>()?.into_iter()
+        .filter(|item| item.job_id == job_id).map(|item| item.binding_record_id).collect::<BTreeSet<_>>();
+    let imagination_bindings = cache.get_all::<crate::ImaginationConsiderationLaunchBinding>()?.into_iter()
+        .filter(|item| item.job_id == job_id).map(|item| item.binding_record_id).collect::<BTreeSet<_>>();
+    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?.into_iter()
+        .filter(|item| item.job_id == job_id).map(|item| item.result_id).collect::<BTreeSet<_>>();
+    let events = cache.get_all::<EpiphanyRuntimeEvent>()?.into_iter()
+        .filter(|item| item.job_id.as_deref() == Some(job_id)).map(|item| item.event_id).collect::<BTreeSet<_>>();
+    let mut deletions = snapshot.iter().filter(|entry| {
+        (entry.r#type == EpiphanyRuntimeWorkerLaunchRequest::TYPE && entry.key == job_id)
+            || (entry.r#type == EpiphanyRuntimeWorkerProcessClaim::TYPE && entry.key == claim_id)
+            || (entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == job_id)
+            || (entry.r#type == EpiphanyRuntimeJobResult::TYPE && job_results.contains(&entry.key))
+            || (entry.r#type == EpiphanyRuntimeEvent::TYPE && events.contains(&entry.key))
+            || (entry.r#type == RepoFrontierProposalModelingLaunchBinding::TYPE && proposal_bindings.contains(&entry.key))
+            || (entry.r#type == crate::ImaginationConsiderationLaunchBinding::TYPE && imagination_bindings.contains(&entry.key))
+    }).cloned().collect::<Vec<_>>();
+    deletions.sort_by(|a, b| a.r#type.cmp(&b.r#type).then(a.key.cmp(&b.key)));
+    if !deletions.iter().any(|e| e.r#type == EpiphanyRuntimeWorkerLaunchRequest::TYPE && e.key == job_id)
+        || !deletions.iter().any(|e| e.r#type == EpiphanyRuntimeWorkerProcessClaim::TYPE && e.key == claim_id)
+        || !deletions.iter().any(|e| e.r#type == EpiphanyRuntimeJob::TYPE && e.key == job_id)
+    {
+        return Err(anyhow!("worker attempt archive lost its exact core family"));
+    }
+    let mut counts = BTreeMap::new();
+    let mut digest = Sha256::new();
+    digest.update(b"epiphany-archived-worker-attempt-root");
+    for entry in &deletions {
+        *counts.entry(entry.r#type.clone()).or_default() += 1;
+        for bytes in [entry.r#type.as_bytes(), entry.key.as_bytes(), entry.payload.as_slice()] {
+            digest.update((bytes.len() as u64).to_le_bytes());
+            digest.update(bytes);
+        }
+    }
+    let tombstone = EpiphanyArchivedRuntimeWorkerAttempt {
+        schema_version: ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION.into(), archive_id: job_id.into(),
+        job_id: job_id.into(), request_kind: request_kind.into(), request_id: request_id.into(),
+        terminal_process_status: claim.status, result_id: None, archived_at: archived_at.into(),
+        retired_type_counts: counts, retired_envelope_count: deletions.len() as u64,
+        retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+    };
+    let replacement = cache.prepare_entry(job_id, &tombstone)?.0;
+    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
+        &snapshot, vec![replacement], &deletions,
+    )? {
+        return Err(anyhow!("worker attempt archive lost its full snapshot fence"));
+    }
+    Ok(tombstone)
+}
+
+pub fn retain_failed_runtime_worker_attempts(
+    store_path: impl AsRef<Path>, retain_recent: usize,
+    live_resident_request_ids: &BTreeSet<String>, archived_at: &str,
+) -> Result<Vec<EpiphanyArchivedRuntimeWorkerAttempt>> {
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?.into_iter()
+        .map(|launch| (launch.job_id.clone(), launch)).collect::<BTreeMap<_, _>>();
+    let mut candidates = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?.into_iter()
+        .filter(|claim| matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated" | "terminal-failure"))
+        .filter_map(|claim| {
+            let launch = launches.get(&claim.job_id)?;
+            let request_id = [launch.proposal_modeling_request_id.as_deref(), launch.imagination_consideration_request_id.as_deref(), launch.admitted_model_direction_consideration_request_id.as_deref()]
+                .into_iter().flatten().next()?;
+            (!live_resident_request_ids.contains(request_id)).then_some(claim)
+        }).collect::<Vec<_>>();
+    candidates.sort_by(|a, b| b.terminal_at.cmp(&a.terminal_at).then(b.job_id.cmp(&a.job_id)));
+    candidates.into_iter().skip(retain_recent.max(1)).map(|claim| {
+        archive_failed_runtime_worker_attempt(store_path, &claim.job_id, live_resident_request_ids, archived_at)
+    }).collect()
+}
+
 fn coordinator_completion_event(receipt: &EpiphanyCoordinatorRunReceipt) -> EpiphanyRuntimeEvent {
     EpiphanyRuntimeEvent {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
@@ -19717,6 +19875,41 @@ pub(crate) mod tests {
             }),
             "Unity bridge schema is quarantined and should not be advertised in the active catalog"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn failed_typed_worker_attempt_archive_refuses_resident_liveness_and_cannot_resurrect() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, result, _) = proposal_admission_fixture(root.path(), "failed-archive")?;
+        let job_id = result.job_id.clone();
+        let request_id = result.proposal_modeling_request_id.clone().expect("request echo");
+        let process = crate::capture_process_instance(std::process::id())?;
+        let token = "failed-archive-token";
+        claim_runtime_worker_process(&store, &job_id, &process,
+            &format!("{:x}", Sha256::digest(token.as_bytes())), "2026-08-10T20:00:00Z")?;
+        activate_runtime_worker_process(&store, &job_id, &process, token, "2026-08-10T20:00:01Z")?;
+        complete_runtime_job(&store, RuntimeSpineJobResultOptions {
+            result_id: format!("generic-failure-{job_id}"), job_id: job_id.clone(),
+            completed_at: "2026-08-10T20:00:02Z".into(), verdict: "failed".into(),
+            summary: "Typed worker attempt failed.".into(), next_safe_move: "Retry after resident closure.".into(),
+            evidence_refs: Vec::new(), artifact_refs: Vec::new(),
+        })?;
+        let before = std::fs::read(&store)?;
+        assert!(archive_failed_runtime_worker_attempt(&store, &job_id,
+            &BTreeSet::from([request_id.clone()]), "2026-08-10T20:00:03Z").is_err());
+        assert_eq!(std::fs::read(&store)?, before);
+        let tombstone = archive_failed_runtime_worker_attempt(
+            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z")?;
+        assert_eq!(tombstone.request_id, request_id);
+        assert_eq!(tombstone.terminal_process_status, "terminal-failure");
+        assert!(tombstone.retired_envelope_count >= 5);
+        assert!(runtime_worker_launch_request(&store, &job_id)?.is_none());
+        assert!(runtime_worker_process_claim(&store, &job_id)?.is_none());
+        assert!(!runtime_typed_request_attempt_exists(
+            &store, RuntimeTypedRequestRef::ProposalModeling(&request_id))?);
+        assert_eq!(archive_failed_runtime_worker_attempt(
+            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z")?, tombstone);
         Ok(())
     }
 }
