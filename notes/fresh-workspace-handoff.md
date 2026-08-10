@@ -2622,3 +2622,40 @@ so a faithful fixture must construct it inside the Linux path namespace after
 packaged Body binding. Do not add a test-only production writer merely to make
 that receipt convenient. Next map terminal-worker-attempt retention and then
 choose the smallest Linux-native construction path.
+
+## Terminal worker-attempt retention ownership mapped — 2026-08-10
+
+There is no production retention owner for outer role-worker attempts. Existing
+completed-session archival deliberately accepts only model-adapter families and
+refuses outer worker launches/results. A narrow deletion of process claims is
+invalid: `runtime_typed_request_attempt_exists` interprets a launch with no
+claim as live, so deleting a terminal claim resurrects retry exclusion. A
+narrow deletion of a terminal result can turn fulfilled request state back into
+pending. A digest/count retention head cannot safely replace either authority.
+
+Owner: runtime spine owns one typed archive transaction per immutable worker
+attempt. Inputs are the exact typed request, launch, lane-specific launch
+binding, native process claim, terminal worker result and companion, job/event
+family, downstream references, and explicit resident cross-store liveness.
+Output is one per-attempt archive tombstone plus atomic deletion of only that
+exact attempt family. The tombstone is terminal evidence for retry and
+fulfillment readers; it is not a generic completion head and cannot satisfy a
+different request or job.
+
+The archive must refuse while resident prepared/active authority or an
+unconsumed terminal acknowledgement names the attempt's request/grant; while a
+claim is nonterminal; while a downstream review/admission still needs exact
+result bytes; or when the lane-specific family is incomplete. Proposal
+Modeling, Imagination consideration, and admitted-model-direction consideration
+share the archive primitive but supply distinct family validators. Unknown
+runtime rows remain byte-identical under a full-snapshot fence.
+
+Deletion line: launch, terminal claim, result, lane binding and companion, and
+terminal job/event rows may disappear only in the same CAS that creates the
+exact tombstone. Request/proposal/model/admission state remains producer-owned
+unless a later independently mapped lifecycle archive owns it. Readers must
+consult tombstones before treating missing claims/results as live or pending.
+
+Next implement the archive and hostile/non-resurrection tests before packaging.
+Direct packaged proposal Modeling construction remains a later Linux-native
+evidence task. Actual c006 stays braked.

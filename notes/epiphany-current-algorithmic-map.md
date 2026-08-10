@@ -3318,3 +3318,42 @@ owns exact zero-receipt death settlement, replay refusal, lifecycle retirement,
 and non-resurrection. Core 663/1 ignored and swarm 7 pass. Direct packaged proof
 still requires Linux-native construction because the worker launch's Body basis
 cannot truthfully be minted under a Windows path and rebound later.
+
+## Outer worker-attempt retention authority map
+
+- Owner: runtime spine owns archival of one immutable outer worker attempt.
+  Resident Self supplies cross-store liveness but cannot delete runtime rows.
+- Inputs: exact typed request identity; worker launch; lane-specific launch
+  binding; process claim; terminal role result and typed companion; runtime job
+  and terminal events; downstream result references; resident prepared/active
+  lease and terminal-ack liveness.
+- Outputs: one per-attempt typed archive tombstone committed atomically with
+  deletion of that exact attempt family. Retry and fulfillment readers consume
+  the tombstone as terminal evidence for only its request/job/result tuple.
+- Derived state: a cumulative retention head may count archives but cannot own
+  attempt death or request fulfillment. Missing launch/claim/result rows are not
+  evidence by themselves.
+- Forbidden writers: completed model-session archival, coordinator receipt
+  retention, resident lifecycle retention, semantic retention, wall-clock age,
+  and artifact cleanup cannot retire outer worker authority. No generic sweep
+  may delete a claim or result independently.
+- Shared paths: proposal Modeling, Imagination consideration, and admitted model
+  direction use the same archive commit primitive and common launch/claim/job
+  invariants, with lane-specific binding/companion validators.
+- Cut line: archive only exact launch, terminal claim, terminal result,
+  lane-specific attempt binding/companion, and terminal job/event rows. Preserve
+  request, proposal, model, admission, and unrelated runtime families until a
+  separately mapped lifecycle owns them. The tombstone must be written in the
+  same full-snapshot CAS as deletion.
+- Verification layer: terminal-result/failure/death attempts; prepared/active/
+  unconsumed-ack refusal; downstream-reference refusal; stale snapshot race;
+  unknown-row byte identity; retry after archived failure; fulfillment after
+  archived success; duplicate archive replay; and negative proof that restoring
+  or deleting one old envelope cannot resurrect work.
+
+Source finding: current completed-session archival explicitly accepts only
+terminal `openai-model-adapter` jobs and refuses outer-worker authority.
+`runtime_typed_request_attempt_exists` treats a launch without a claim as live,
+while `runtime_typed_request_fulfillment` requires the terminal result. Thus
+claim-only or result-only deletion would respectively revive retry exclusion or
+erase fulfillment. No production outer-worker retention primitive exists yet.
