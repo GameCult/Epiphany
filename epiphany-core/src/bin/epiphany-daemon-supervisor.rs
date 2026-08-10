@@ -411,8 +411,8 @@ fn absolutize_from(cwd: &Path, path: &Path) -> PathBuf {
 
 fn managed_service_task_install(args: Args, execute: bool) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let task_name = managed_service_task_name(&args);
     let (command, cwd, action_args) = managed_service_task_action(&args)?;
@@ -513,8 +513,8 @@ fn managed_service_task_control(args: Args, operation: &str) -> Result<()> {
 
 fn managed_service_task_operation(args: Args, operation: &str) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let task_name = managed_service_task_name(&args);
     let quoted = quote_powershell(&task_name);
@@ -3112,8 +3112,8 @@ fn finish_workspace_coverage_recovery(
 fn service_runbook(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
@@ -3165,8 +3165,8 @@ fn service_runbook(args: Args) -> Result<()> {
 fn repo_work_service_audit(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let receipts =
         load_epiphany_cultmesh_daemon_service_lifecycle_receipts(&args.store, &args.runtime_id)?;
@@ -4603,6 +4603,26 @@ mod semantic_projector_authority_tests {
         assert!(body.contains("receipt.startup_correlation_id = receipt_id"));
         assert!(body.contains("let _ = child.kill()"));
         assert!(body.contains("let _ = child.wait()"));
+    }
+
+    #[test]
+    fn narrow_lifecycle_commands_read_only_the_swarm_brake_family() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        for function in [
+            "managed_service_task_install",
+            "managed_service_task_operation",
+            "service_runbook",
+            "repo_work_service_audit",
+        ] {
+            let marker = format!("fn {function}(");
+            let start = source.find(&marker).unwrap();
+            let tail = &source[start..];
+            let end = tail.find("\nfn ").unwrap();
+            let body = &tail[..end];
+            assert!(body.contains("load_epiphany_cultmesh_swarm_brake"));
+            assert!(body.contains("assert_swarm_brake_allows_service_lifecycle_entry"));
+            assert!(!body.contains("query_epiphany_local_verse_context"));
+        }
     }
 
     #[test]

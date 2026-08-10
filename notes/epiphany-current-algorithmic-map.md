@@ -1176,6 +1176,18 @@ the same release under brake and projects `active` with no reasons. Receipts are
 under `.epiphany-run/readiness-16407f7e` and
 `.epiphany-run/c006-readiness-16407f7e`.
 
+### Narrow Idunn lifecycle brake sight
+
+Managed-task install/control, service-runbook construction, and repo-work
+service audit own lifecycle effects or lifecycle evidence. Their only local
+Verse gate is the canonical swarm brake. They load that one typed family and
+delegate to the shared lifecycle-brake predicate; they do not materialize
+daemon topology, provider state, tools, Eve surfaces, or unrelated receipts.
+Cluster reconciliation and cluster runbook paths retain the broader context
+only where their outputs actually enumerate daemon rows. The cut line removes
+full-context reads from the four narrow lifecycle commands without changing the
+brake decision or granting a new writer.
+
 Yggdrasil separates provenance from Body. `/srv/epiphany/source/current` is
 immutable release source. `/var/lib/gamecult/epiphany/workspace` is the writable
 domain Body carrying repository binding, persistent Modeling map, Mind state,
