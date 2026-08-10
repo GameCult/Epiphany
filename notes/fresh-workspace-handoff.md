@@ -1476,3 +1476,16 @@ model-request/result/stream-event, and tool-intent/receipt ownership and
 cross-store liveness before editing. No age-only deletion and no broad
 compaction are authorized until one typed archived-session owner can prove a
 fully closed, unreferenced generation cannot resurrect or erase work.
+
+The retention audit found the missing ownership edge: runtime sessions own
+jobs/events, but native/OpenAI model rows had only request/conversation IDs and
+tools were linked only optionally. Semantic Mind/consequence documents in the
+same store are not session exhaust. The current cut adds typed
+`EpiphanyRuntimeModelExecutionBinding` plus one runtime-spine CAS that publishes
+session, job, opened event, binding, native request, and provider request
+atomically before transport. Collision and mismatched provider pairs leave no
+partial rows. Core hostile membership, CultNet Hello/catalog, and all 15 OpenAI
+runtime library tests pass. No archive deletion is authorized yet. Next, give
+model-derived and direct tool intents explicit execution ownership atomically;
+then map retained semantic references before building the archived-session
+tombstone.

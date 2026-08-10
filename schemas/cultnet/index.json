@@ -38,6 +38,17 @@
       "path": "epiphany.runtime.session.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.model-execution-binding.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime.model_execution_binding.v0",
+      "documentType": "epiphany.runtime.model_execution_binding",
+      "title": "Epiphany Runtime Model Execution Binding",
+      "path": "epiphany.runtime.model-execution-binding.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
       "kind": "document_payload",
       "wireContracts": [

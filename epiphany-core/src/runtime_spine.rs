@@ -158,6 +158,8 @@ use std::path::PathBuf;
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
+pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str =
+    "epiphany.runtime.model_execution_binding";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
@@ -183,6 +185,8 @@ pub const RUNTIME_SWARM_BINDING_TYPE: &str = "epiphany.runtime.swarm_binding";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
+pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
+    "epiphany.runtime.model_execution_binding.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -315,6 +319,28 @@ pub struct EpiphanyRuntimeJob {
     pub artifact_refs: Vec<String>,
     #[cultcache(key = 9, default)]
     pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.model_execution_binding",
+    schema = "EpiphanyRuntimeModelExecutionBinding"
+)]
+pub struct EpiphanyRuntimeModelExecutionBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_id: String,
+    #[cultcache(key = 2)]
+    pub request_id: String,
+    #[cultcache(key = 3)]
+    pub session_id: String,
+    #[cultcache(key = 4)]
+    pub job_id: String,
+    #[cultcache(key = 5)]
+    pub provider: String,
+    #[cultcache(key = 6)]
+    pub bound_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -949,6 +975,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
+    cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
@@ -1384,6 +1411,163 @@ pub fn create_runtime_job(
     };
     cache.put(&event.event_id, &event)?;
     Ok(job)
+}
+
+pub fn open_runtime_model_execution(
+    store_path: impl AsRef<Path>,
+    session_options: RuntimeSpineSessionOptions,
+    job_options: RuntimeSpineJobOptions,
+    model_request: &EpiphanyModelRequest,
+    provider_request: &EpiphanyOpenAiModelRequest,
+    bound_at: &str,
+) -> Result<EpiphanyRuntimeModelExecutionBinding> {
+    validate_non_empty(&session_options.session_id, "model execution session id")?;
+    validate_non_empty(&session_options.objective, "model execution objective")?;
+    validate_non_empty(&session_options.created_at, "model execution session creation time")?;
+    validate_non_empty(&job_options.job_id, "model execution job id")?;
+    validate_non_empty(&job_options.role, "model execution job role")?;
+    validate_non_empty(&job_options.created_at, "model execution job creation time")?;
+    if job_options.session_id != session_options.session_id {
+        return Err(anyhow!(
+            "model execution job and session options disagree on session identity"
+        ));
+    }
+    validate_non_empty(&model_request.request_id, "model execution request id")?;
+    validate_non_empty(&model_request.provider, "model execution provider")?;
+    validate_non_empty(bound_at, "model execution binding time")?;
+    chrono::DateTime::parse_from_rfc3339(bound_at)
+        .map_err(|error| anyhow!("model execution binding time is invalid: {error}"))?;
+    if provider_request.request_id != model_request.request_id
+        || provider_request.conversation_id != model_request.conversation_id
+        || provider_request.model != model_request.model
+    {
+        return Err(anyhow!(
+            "native and provider model requests do not describe one execution"
+        ));
+    }
+
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let existing_session = cache.get::<EpiphanyRuntimeSession>(&session_options.session_id)?;
+    let session = existing_session.clone().unwrap_or_else(|| EpiphanyRuntimeSession {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        session_id: session_options.session_id.clone(),
+        objective: session_options.objective.clone(),
+        status: EpiphanyRuntimeSessionStatus::Active,
+        created_at: session_options.created_at.clone(),
+        updated_at: session_options.created_at.clone(),
+        coordinator_note: session_options.coordinator_note.clone(),
+        metadata: BTreeMap::new(),
+    });
+    if matches!(
+        session.status,
+        EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
+    ) {
+        return Err(anyhow!(
+            "model execution session {:?} is terminal",
+            session.session_id
+        ));
+    }
+    if cache.get::<EpiphanyRuntimeJob>(&job_options.job_id)?.is_some() {
+        return Err(anyhow!(
+            "model execution job {:?} already exists",
+            job_options.job_id
+        ));
+    }
+    let job = EpiphanyRuntimeJob {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        job_id: job_options.job_id.clone(),
+        session_id: session.session_id.clone(),
+        role: job_options.role,
+        status: EpiphanyRuntimeJobStatus::Queued,
+        created_at: job_options.created_at.clone(),
+        updated_at: job_options.created_at.clone(),
+        summary: job_options.summary,
+        artifact_refs: job_options.artifact_refs,
+        metadata: BTreeMap::new(),
+    };
+    let opened_event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-job-opened-{}", job.job_id),
+        occurred_at: job_options.created_at,
+        event_type: "job.opened".to_string(),
+        source: "runtime-spine".to_string(),
+        session_id: Some(session.session_id.clone()),
+        job_id: Some(job.job_id.clone()),
+        summary: "Native runtime job opened.".to_string(),
+        metadata: BTreeMap::new(),
+    };
+    if cache
+        .get::<EpiphanyRuntimeEvent>(&opened_event.event_id)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "model execution opened event {:?} already exists",
+            opened_event.event_id
+        ));
+    }
+
+    let binding_id = model_request.request_id.clone();
+    if cache
+        .get::<EpiphanyRuntimeModelExecutionBinding>(&binding_id)?
+        .is_some()
+        || cache
+            .get::<EpiphanyModelRequest>(&model_request.request_id)?
+            .is_some()
+        || cache
+            .get::<EpiphanyOpenAiModelRequest>(&provider_request.request_id)?
+            .is_some()
+    {
+        return Err(anyhow!(
+            "model execution request {:?} already exists",
+            model_request.request_id
+        ));
+    }
+    let binding = EpiphanyRuntimeModelExecutionBinding {
+        schema_version: RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION.to_string(),
+        binding_id: binding_id.clone(),
+        request_id: model_request.request_id.clone(),
+        session_id: session.session_id.clone(),
+        job_id: job.job_id.clone(),
+        provider: model_request.provider.clone(),
+        bound_at: bound_at.to_string(),
+    };
+    let identity_envelope = cache
+        .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("model execution lost its exact runtime identity envelope"))?;
+    let mut expected = vec![identity_envelope.clone()];
+    if existing_session.is_some() {
+        expected.push(
+            cache
+                .get_envelope::<EpiphanyRuntimeSession>(&session.session_id)?
+                .ok_or_else(|| anyhow!("model execution lost its exact session envelope"))?,
+        );
+    }
+    let replacements = vec![
+        identity_envelope,
+        cache.prepare_entry(&session.session_id, &session)?.0,
+        cache.prepare_entry(&job.job_id, &job)?.0,
+        cache
+            .prepare_entry(&opened_event.event_id, &opened_event)?
+            .0,
+        cache.prepare_entry(&binding_id, &binding)?.0,
+        cache
+            .prepare_entry(&model_request.request_id, model_request)?
+            .0,
+        cache
+            .prepare_entry(&provider_request.request_id, provider_request)?
+            .0,
+    ];
+    if !runtime_spine_backing_store(store_path)?
+        .compare_and_swap_batch(&expected, replacements)?
+    {
+        return Err(anyhow!(
+            "model execution request publication lost its snapshot fence"
+        ));
+    }
+    Ok(binding)
 }
 
 pub fn plan_runtime_spine_heartbeat_launch(
@@ -9984,6 +10168,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            RUNTIME_MODEL_EXECUTION_BINDING_TYPE,
+            RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Runtime spine atomically binds one native/provider model request pair to its owning session and job before transport begins.",
+                "Retention must reject unbound model rows rather than infer ownership from request names or conversation ids.",
+            ],
+        ),
+        mutation_contract(
             MODEL_ADAPTER_STATUS_TYPE,
             MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -14338,6 +14534,136 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         assert_eq!(events.len(), 1);
         assert_eq!(runtime_spine_status(&store)?.active_sessions, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_model_execution_binding_owns_atomic_request_membership() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-08-10T00:00:00Z".to_string(),
+            },
+        )?;
+        let session_options = RuntimeSpineSessionOptions {
+            session_id: "session-model".to_string(),
+            objective: "Own model execution membership.".to_string(),
+            created_at: "2026-08-10T00:00:01Z".to_string(),
+            coordinator_note: "test".to_string(),
+        };
+        let job_options = RuntimeSpineJobOptions {
+            job_id: "job-model".to_string(),
+            session_id: "session-model".to_string(),
+            role: "openai-model-adapter".to_string(),
+            created_at: "2026-08-10T00:00:02Z".to_string(),
+            summary: "Bound model execution.".to_string(),
+            artifact_refs: Vec::new(),
+        };
+        let model_request = EpiphanyModelRequest::new(
+            "request-model",
+            "conversation-model",
+            "openai-codex",
+            "gpt-test",
+            "Return typed evidence.",
+        );
+        let provider_request = EpiphanyOpenAiModelRequest::new(
+            "request-model",
+            "conversation-model",
+            "gpt-test",
+            "Return typed evidence.",
+        );
+        let binding = open_runtime_model_execution(
+            &store,
+            session_options.clone(),
+            job_options.clone(),
+            &model_request,
+            &provider_request,
+            "2026-08-10T00:00:03Z",
+        )?;
+        assert_eq!(binding.request_id, "request-model");
+        assert_eq!(binding.session_id, "session-model");
+        assert_eq!(binding.job_id, "job-model");
+
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache.get::<EpiphanyRuntimeModelExecutionBinding>("request-model")?,
+            Some(binding)
+        );
+        assert_eq!(
+            cache.get::<EpiphanyModelRequest>("request-model")?,
+            Some(model_request.clone())
+        );
+        assert_eq!(
+            cache.get::<EpiphanyOpenAiModelRequest>("request-model")?,
+            Some(provider_request.clone())
+        );
+        assert_eq!(
+            cache.get::<EpiphanyRuntimeSession>("session-model")?.unwrap().status,
+            EpiphanyRuntimeSessionStatus::Active
+        );
+        assert_eq!(
+            cache.get::<EpiphanyRuntimeJob>("job-model")?.unwrap().status,
+            EpiphanyRuntimeJobStatus::Queued
+        );
+        assert!(cache
+            .get::<EpiphanyRuntimeEvent>("event-job-opened-job-model")?
+            .is_some());
+        assert!(open_runtime_model_execution(
+            &store,
+            session_options.clone(),
+            job_options.clone(),
+            &model_request,
+            &provider_request,
+            "2026-08-10T00:00:04Z",
+        )
+        .is_err());
+
+        let foreign_provider = EpiphanyOpenAiModelRequest::new(
+            "request-foreign",
+            "conversation-foreign",
+            "gpt-other",
+            "Return typed evidence.",
+        );
+        let foreign_model = EpiphanyModelRequest::new(
+            "request-foreign",
+            "conversation-foreign",
+            "openai-codex",
+            "gpt-test",
+            "Return typed evidence.",
+        );
+        let mut foreign_job_options = job_options;
+        foreign_job_options.job_id = "job-foreign".to_string();
+        assert!(open_runtime_model_execution(
+            &store,
+            session_options,
+            foreign_job_options,
+            &foreign_model,
+            &foreign_provider,
+            "2026-08-10T00:00:05Z",
+        )
+        .is_err());
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(cache
+            .get::<EpiphanyRuntimeModelExecutionBinding>("request-foreign")?
+            .is_none());
+        assert!(cache
+            .get::<EpiphanyModelRequest>("request-foreign")?
+            .is_none());
+        assert!(cache
+            .get::<EpiphanyOpenAiModelRequest>("request-foreign")?
+            .is_none());
+        assert!(cache
+            .get::<EpiphanyRuntimeJob>("job-foreign")?
+            .is_none());
+        assert!(cache
+            .get::<EpiphanyRuntimeEvent>("event-job-opened-job-foreign")?
+            .is_none());
         Ok(())
     }
 

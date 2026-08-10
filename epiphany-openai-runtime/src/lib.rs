@@ -12,6 +12,7 @@ use epiphany_core::ensure_runtime_session;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
+use epiphany_core::open_runtime_model_execution;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
@@ -110,14 +111,18 @@ pub async fn run_openai_model_turn(
     options: EpiphanyOpenAiRuntimeOptions,
     request: EpiphanyOpenAiModelRequest,
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
+    let model_request = model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request);
+    run_openai_model_turn_bound(options, model_request, request).await
+}
+
+async fn run_openai_model_turn_bound(
+    options: EpiphanyOpenAiRuntimeOptions,
+    model_request: EpiphanyModelRequest,
+    request: EpiphanyOpenAiModelRequest,
+) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     ensure_openai_runtime_ready(&options)?;
     let auth_manager = auth_manager(options.codex_home.clone());
-    store_model_request(
-        &options.store_path,
-        &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
-    )?;
-    store_openai_request(&options.store_path, &request)?;
-    ensure_runtime_session(
+    open_runtime_model_execution(
         &options.store_path,
         RuntimeSpineSessionOptions {
             session_id: options.session_id.clone(),
@@ -125,9 +130,6 @@ pub async fn run_openai_model_turn(
             created_at: now(),
             coordinator_note: options.coordinator_note.clone(),
         },
-    )?;
-    create_runtime_job(
-        &options.store_path,
         RuntimeSpineJobOptions {
             job_id: options.job_id.clone(),
             session_id: options.session_id.clone(),
@@ -136,6 +138,9 @@ pub async fn run_openai_model_turn(
             summary: format!("OpenAI model request {}", request.request_id),
             artifact_refs: Vec::new(),
         },
+        &model_request,
+        &request,
+        &now(),
     )?;
     append_runtime_event(
         &options.store_path,
@@ -283,11 +288,8 @@ pub async fn run_model_turn(
             provider
         ));
     }
-    let store_path = options.store_path.clone();
-    let summary =
-        run_openai_model_turn(options, openai_request_from_model_request(&request)).await?;
-    store_model_request(&store_path, &request)?;
-    Ok(summary)
+    let provider_request = openai_request_from_model_request(&request);
+    run_openai_model_turn_bound(options, request, provider_request).await
 }
 
 pub async fn run_tool_followup_model_turn(

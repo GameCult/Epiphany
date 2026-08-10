@@ -2304,6 +2304,105 @@ These are not one retention family merely because they share a file.
   must not be removed merely because a model receipt exists; tool follow-up and
   review/recovery readers must first be closed.
 
+Source inspection after the accepted `6dd9b132` fulfillment run sharpens that
+boundary. `EpiphanyRuntimeSession` is currently a job-admission owner, not a
+complete storage generation. The runtime spine gives every job, generic job
+result, and runtime event an explicit `session_id`; worker launch requests and
+typed role/reorient results join through `job_id`; coordinator run receipts
+also carry `session_id`. Those families have a typed path back to one session.
+
+The model/tool families do not yet share that path:
+
+- Native and OpenAI model requests carry `conversation_id` and `request_id`,
+  but no runtime session or job identity. Worker request IDs happen to contain
+  a sanitized job ID and worker conversations happen to name a role binding;
+  both are naming conventions, not retention authority.
+- Native and OpenAI stream events and model receipts join exactly to their
+  request by `request_id`. A terminal event closes transport production, but
+  the native model request remains live while tool follow-up may reload it.
+- Tool intents join to a model request only when they came from a model tool
+  call. Tool receipts join exactly to an intent. Direct tool intents have no
+  session/job owner at all.
+- Runtime events emitted by the OpenAI runner name the session and job, but do
+  not authenticate which model request/event envelope they describe. Human
+  summaries and key-shape conventions cannot be promoted into a deletion
+  graph.
+- `EpiphanyRuntimeJobResult` may cite `openai-request:<id>` as an evidence ref,
+  but this is an artifact/evidence string, not a typed immutable membership
+  edge and is not present on every model execution path.
+
+The semantic families in the same `.cc` file are not session exhaust. Repo
+model admissions, frontier requests/routes, Hands/Soul receipts, Persona
+effects, memory graph/projection state, and accepted typed worker results may
+remain current Mind or consequence authority after the process session closes.
+Physical co-location is not ownership. Runtime archive must therefore leave
+semantic documents byte-identical unless an owning semantic compactor proves
+its own replacement contract. Conversely, if a retained semantic document
+still resolves an execution request/result by ID, that exact execution
+envelope remains live and runtime archive must refuse it rather than leave an
+ID-shaped hole that a later row could impersonate.
+
+The intended archive cut is now explicit:
+
+- **Owner:** one runtime-spine `ArchivedRuntimeSession` tombstone owns permanent
+  death of an exact completed session. Session status, operator counts, age,
+  and a digest-only retention head are no longer archive owners.
+- **Inputs:** the exact completed session; only terminal session-local jobs;
+  their typed job/launch/result/event closure; explicit model-execution
+  bindings to session and job; terminal native/OpenAI request streams and
+  receipts; fully receipted tool intents; coordinator receipts not live across
+  resident state; and a full-store scan proving no retained semantic/runtime
+  document references a member selected for retirement.
+- **Outputs:** one typed tombstone containing the session identity, terminal
+  outcome/counts, exact retired-family counts, a chained digest of exact
+  retired envelopes, and the retention timestamp; plus deletion of those exact
+  envelopes in the same full-snapshot-fenced transaction.
+- **Derived state:** runtime history counts and old stream text are observation
+  only after archival. The tombstone is evidence and an ID-reuse barrier; it
+  cannot satisfy a job, model request, tool call, coordinator receipt, or
+  semantic review.
+- **Forbidden writers:** model transport, tool runtime, coordinator receipt
+  retention, resident lifecycle retention, semantic projection, wall-clock
+  cleanup, and operator commands cannot mark a session archived or infer
+  membership from prefixes, timestamps, summaries, conversation names, or
+  evidence strings.
+- **Shared paths:** every native/OpenAI model execution must publish the same
+  typed request-to-session/job binding at request creation; every model-derived
+  and direct tool execution must publish an exact execution owner before an
+  intent can become pending. Bounded and unbounded runners use the same write
+  primitive. Legacy unbound rows are retained and make their candidate session
+  ineligible; migration may add a binding only from independently authenticated
+  typed evidence.
+- **Cut line:** first add the missing typed model/tool ownership edges and make
+  request/intent creation atomic with them. Then add the archive tombstone and
+  one snapshot-fenced replace/delete primitive. Do not begin with a generic
+  age window, a key-prefix crawler, or a repair registry assembled after the
+  fact.
+- **Negative verification:** an archived tombstone blocks recreation of its
+  session; missing/duplicate/foreign bindings refuse archive; a nonterminal
+  stream or unreceipted tool intent refuses archive; a retained semantic
+  reference refuses deletion; stale snapshots refuse; unknown rows and live
+  sessions remain byte-identical; the tombstone cannot resurrect work; and
+  exact replay is idempotent.
+
+The first ownership edge is now implemented. Runtime spine owns
+`EpiphanyRuntimeModelExecutionBinding` and one `open_runtime_model_execution`
+CAS. That transaction validates one native/provider request pair, preserves an
+exact runtime identity/session fence, and atomically publishes the session,
+queued job, deterministic opened event, immutable binding, and both request
+envelopes. The OpenAI runtime cannot begin transport before this succeeds.
+Collision, foreign request shape, concurrent session mutation, or terminal
+session state leaves no partial job/event/request family. Legacy standalone
+request writers remain available only as unbound compatibility surfaces; their
+rows are deliberately ineligible for archival. Core hostile membership tests,
+the CultNet Hello/catalog tests, and all 15 OpenAI runtime library tests pass.
+
+Tool execution ownership is the next cut. Model-derived intents can inherit
+the exact model binding through `model_request_id`; direct intents need their
+own explicit session/job binding. Intent publication and its execution-owner
+edge must become one CAS before an archive tombstone or any broad deletion is
+implemented.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set
