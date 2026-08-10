@@ -2464,6 +2464,29 @@ That import belonged exclusively to `cfg(test)` and has been moved there; the
 production check and all four tool-runtime binary tests pass. Exact repackaging
 of the follow-up commit is required before live archive evidence.
 
+Follow-up `cce2b8ac` is accepted. Its exact warning-free package contains 24
+binaries under release
+`sha256-1f29f33c495e8ba79ce8e23c1ac923c4ffcd5d86c97632a17d44566669de481e`
+and witness
+`sha256-25e48f9c79c51cd9853e826e2f9dfdb3b2570006fd37138fd36ac1555bc075e7`.
+On copied live state, two genuine terminal model generations supplied a
+newest-at-one test. Packaged Self retired the older exact 29-envelope family
+into tombstone digest
+`sha256:fc3658898d383333edff411f64999af7890cdeaf8fdce737589bc5667f65db33`,
+preserved the newer generation, left zero pending tools, refused old-session
+identity reuse, and replayed without moving the runtime file hash. All 1,427
+pre-existing envelopes survived and no pre-existing authority envelope changed.
+Narrow model-generation retention is accepted; semantic and conversation-wide
+families remain separate owners.
+
+The live fixture exposed an adjacent boundary fault. The `model-turn` CLI reads
+JSON, and the published `epiphany.model_request.v0` schema is object-shaped,
+but direct deserialization into the DatabaseEntry type expects its positional
+CultCache array. JSON ingress must use an explicit schema-shaped boundary DTO
+that rejects unknown/malformed fields and converts into the typed persisted
+request. CultCache serialization remains the persistence owner; JSON does not
+get to reshape it.
+
 The coordinator receipt accumulator is implemented in source. Runtime owns the
 typed head, cumulative status counts, chained digest, and full-snapshot-fenced
 replacement/deletion. Resident Self supplies the cross-store preservation set

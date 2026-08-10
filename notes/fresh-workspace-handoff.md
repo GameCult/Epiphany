@@ -1552,3 +1552,40 @@ The import was used only by binary tests and now lives inside `cfg(test)`.
 Production `cargo check` and all four tool-runtime binary tests pass without
 warnings. Commit/push this follow-up and package that new exact source; do not
 accept or publish the warning-bearing c137 package as shakedown evidence.
+
+## Packaged model-generation retention accepted — 2026-08-10
+
+Follow-up `cce2b8ac` is pushed. Its warm Starfire package took 20.70s, emitted
+zero warnings, contained 24 binaries, and authenticated as release
+`sha256-1f29f33c495e8ba79ce8e23c1ac923c4ffcd5d86c97632a17d44566669de481e`
+with witness
+`sha256-25e48f9c79c51cd9853e826e2f9dfdb3b2570006fd37138fd36ac1555bc075e7`.
+Package and inspect receipts are under `.epiphany-run/linux-package-cce2b8ac`.
+
+Copied live proof is under `.epiphany-run/model-session-retention-cce2b8ac`.
+Two exact packaged direct-OpenAI calls created unique model sessions, jobs,
+bindings, native/provider terminal streams and receipts; both returned `awake`,
+passed, and were closed by the packaged runtime spine. With no active or
+prepared resident lease and the copied brake engaged, packaged Self ran once
+with `--retained-completed-model-sessions 1`. The older session became one
+`epiphany.runtime.archived_session.v0` tombstone covering 29 exact envelopes
+with chained digest
+`sha256:fc3658898d383333edff411f64999af7890cdeaf8fdce737589bc5667f65db33`.
+The newer session/request survived; pending tool count stayed zero; recreation
+of the old session exited 1 with `was retired by archive`; and exact Self replay
+left runtime SHA-256
+`15e25ba3c21bed45fe48cb30034959de87b3f0cb973d7c80e4a7808dc91affb5`
+unchanged.
+
+A proof-local read-only CultCache comparator found all 1,427 envelopes from the
+copied pre-run store still present. Only the model/OpenAI adapter status rows
+changed, as owned consequences of the two genuine calls; zero pre-existing
+authority envelopes changed. Active c005 was never mounted or disturbed.
+
+The proof also exposed the next contract wound. `epiphany-model-runtime
+model-turn` claims JSON request ingestion and the published schema describes an
+object, but `serde_json::from_str::<EpiphanyModelRequest>` inherits the
+DatabaseEntry positional-array representation. Two object-shaped requests
+failed before store mutation; only the native CultCache array shape passed.
+Repair this xenos JSON boundary with an explicit schema-shaped ingress type and
+typed conversion. Do not change CultCache persistence to accommodate JSON.
