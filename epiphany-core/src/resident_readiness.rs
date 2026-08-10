@@ -302,6 +302,7 @@ pub struct ResidentCognitionReadinessProjection {
     pub schema_version: String,
     pub status: String,
     pub runtime_id: Option<String>,
+    pub release_runtime_id: Option<String>,
     pub release_id: Option<String>,
     pub release_witness_sha256: Option<String>,
     pub source_commit: Option<String>,
@@ -345,6 +346,16 @@ pub fn derive_resident_cognition_readiness(
     if let Err(error) = release.as_ref() {
         reasons.push(format!("packaged release authentication failed: {error:#}"));
     }
+    let cognitive_runtime_id =
+        match crate::resident_cognitive_runtime_id(&request.policy.runtime_store) {
+            Ok(runtime_id) => Some(runtime_id),
+            Err(error) => {
+                reasons.push(format!(
+                    "mounted cognitive runtime identity is invalid: {error:#}"
+                ));
+                None
+            }
+        };
     let physical_stores_separate =
         validate_resident_self_store_separation(request.resident_store, request.policy).is_ok()
             && distinct_physical_paths(request.heartbeat_store, request.resident_store);
@@ -397,10 +408,9 @@ pub fn derive_resident_cognition_readiness(
                 (false, "unreadable".into())
             }
         };
-    let brake_engaged = resident_brake_engaged(
-        &request.policy.local_verse_store,
-        &request.policy.release_runtime_id,
-    );
+    let brake_engaged = cognitive_runtime_id.as_deref().is_some_and(|runtime_id| {
+        resident_brake_engaged(&request.policy.local_verse_store, runtime_id)
+    });
     let workspace_ready = directory_ready(&request.policy.workspace);
     if !workspace_ready {
         reasons.push("workspace is absent, inaccessible, or read-only".into());
@@ -415,6 +425,7 @@ pub fn derive_resident_cognition_readiness(
         && heartbeat_provider_fresh
         && resident_provider_fresh
         && resident_state_coherent
+        && cognitive_runtime_id.is_some()
         && workspace_ready
         && credential_ready;
     ResidentCognitionReadinessProjection {
@@ -427,7 +438,8 @@ pub fn derive_resident_cognition_readiness(
             "degraded"
         }
         .into(),
-        runtime_id: release.as_ref().ok().map(|value| value.runtime_id.clone()),
+        runtime_id: cognitive_runtime_id,
+        release_runtime_id: release.as_ref().ok().map(|value| value.runtime_id.clone()),
         release_id: release.as_ref().ok().map(|value| value.release_id.clone()),
         release_witness_sha256: release
             .as_ref()
@@ -958,6 +970,7 @@ mod tests {
             schema_version: "epiphany.resident_cognition.readiness.v0".into(),
             status: "warming".into(),
             runtime_id: Some("epiphany-yggdrasil".into()),
+            release_runtime_id: Some("epiphany-release-yggdrasil".into()),
             release_id: Some("release-1".into()),
             release_witness_sha256: Some("sha256:witness".into()),
             source_commit: Some("commit-1".into()),
@@ -978,6 +991,72 @@ mod tests {
         assert!(!json.contains("systemd"));
         assert!(!json.contains("credentialPath"));
         assert!(!json.contains("secret"));
+    }
+
+    #[test]
+    fn readiness_uses_mounted_cognitive_identity_for_projection_and_brake() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let shared = temp.path().canonicalize()?;
+        let runtime_store = shared.join("runtime.cc");
+        let local_verse_store = shared.join("verse.cc");
+        crate::initialize_runtime_spine(
+            &runtime_store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "cognitive-runtime".into(),
+                display_name: "Cognitive Runtime".into(),
+                created_at: "2026-08-10T00:00:00Z".into(),
+            },
+        )?;
+        crate::engage_epiphany_cultmesh_swarm_brake(
+            &local_verse_store,
+            "cognitive-runtime",
+            "identity split proof",
+            "soul",
+            "2026-08-10T00:00:01Z",
+            false,
+        )?;
+        let policy = ResidentSelfPolicy {
+            workspace: shared.clone(),
+            coordinator_bin: shared.join("coordinator"),
+            model_runtime_bin: shared.join("model"),
+            tool_adapter_bin: shared.join("tool"),
+            runtime_store,
+            local_verse_store,
+            agent_memory_store: shared.join("mind.cc"),
+            artifact_root: shared.join("artifacts"),
+            codex_home: shared.join("codex-home"),
+            mcp_config: shared.join("mcp.toml"),
+            model_provider: "test".into(),
+            max_steps: 1,
+            turn_timeout_seconds: 1,
+            cooldown_seconds: 1,
+            idle_sleep_seconds: 1,
+            failure_backoff_seconds: 1,
+            release_commit: "release-commit".into(),
+            release_manifest_digest: "sha256:release".into(),
+            release_store: shared.join("release.cc"),
+            release_runtime_id: "deployment-runtime".into(),
+            release_id: "sha256:release".into(),
+            release_witness_sha256: "sha256:witness".into(),
+        };
+        let heartbeat_store = shared.join("heartbeat.cc");
+        let resident_store = shared.join("resident.cc");
+        let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
+            release_store: &policy.release_store,
+            heartbeat_store: &heartbeat_store,
+            resident_store: &resident_store,
+            policy: &policy,
+            release_runtime_id: &policy.release_runtime_id,
+            release_id: &policy.release_id,
+            release_witness_sha256: &policy.release_witness_sha256,
+            now_millis: 0,
+            freshness_millis: 1,
+        });
+
+        assert_eq!(projection.runtime_id.as_deref(), Some("cognitive-runtime"));
+        assert!(projection.brake_engaged);
+        assert_eq!(projection.release_runtime_id, None);
+        Ok(())
     }
 
     #[test]

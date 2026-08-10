@@ -14,6 +14,7 @@ use epiphany_core::{
     load_resident_self_state, observe_process_instance, pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
     recover_receipt_free_dead_coordinator_session,
+    resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_grant_has_typed_request, resident_self_local_provider_status,
     resident_self_typed_attempt_exists,
@@ -78,7 +79,7 @@ fn main() -> Result<()> {
         enqueue_resident_self_pressure(&args.state_store, pressure)?;
     }
     let mut state = load_resident_self_state(&args.state_store)?;
-    let mut ports = NativePorts::new(&args.policy);
+    let mut ports = NativePorts::new(&args.policy)?;
     match args.command {
         CommandKind::Once => {
             let outcome = cycle(&args, &mut state, &mut ports, false)?;
@@ -693,15 +694,17 @@ impl Args {
 
 struct NativePorts<'a> {
     policy: &'a ResidentSelfPolicy,
+    cognitive_runtime_id: String,
     children: BTreeMap<u32, Child>,
 }
 
 impl<'a> NativePorts<'a> {
-    fn new(policy: &'a ResidentSelfPolicy) -> Self {
-        Self {
+    fn new(policy: &'a ResidentSelfPolicy) -> Result<Self> {
+        Ok(Self {
             policy,
+            cognitive_runtime_id: resident_cognitive_runtime_id(&policy.runtime_store)?,
             children: BTreeMap::new(),
-        }
+        })
     }
 }
 
@@ -709,7 +712,7 @@ impl ResidentSelfPorts for NativePorts<'_> {
     fn brake_engaged(&mut self) -> Result<bool> {
         resident_self_brake_engaged(
             &self.policy.local_verse_store,
-            &self.policy.release_runtime_id,
+            &self.cognitive_runtime_id,
         )
     }
 
@@ -806,7 +809,7 @@ mod brake_tests {
     use super::*;
 
     #[test]
-    fn resident_self_uses_exact_release_runtime_brake_namespace() -> Result<()> {
+    fn brake_lookup_uses_the_exact_requested_runtime_namespace() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("verse.cc");
         let mut brake =
@@ -817,6 +820,64 @@ mod brake_tests {
         assert!(!resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
         epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
         assert!(resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
+        Ok(())
+    }
+
+    #[test]
+    fn native_resident_uses_mounted_cognitive_runtime_for_braking() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime_store = temp.path().join("runtime.cc");
+        let verse_store = temp.path().join("verse.cc");
+        epiphany_core::initialize_runtime_spine(
+            &runtime_store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "cognitive-runtime".into(),
+                display_name: "Cognitive runtime".into(),
+                created_at: "2026-08-10T00:00:00Z".into(),
+            },
+        )?;
+        let mut cognitive_brake =
+            epiphany_core::default_epiphany_cultmesh_swarm_brake("2026-08-10T00:00:00Z");
+        cognitive_brake.status = "engaged".into();
+        cognitive_brake.reason = "cognitive brake".into();
+        epiphany_core::write_epiphany_cultmesh_swarm_brake(
+            &verse_store,
+            "cognitive-runtime",
+            cognitive_brake,
+        )?;
+        let shared = temp.path().to_path_buf();
+        let policy = ResidentSelfPolicy {
+            workspace: shared.clone(),
+            coordinator_bin: shared.join("coordinator"),
+            model_runtime_bin: shared.join("model"),
+            tool_adapter_bin: shared.join("tool"),
+            runtime_store,
+            local_verse_store: verse_store,
+            agent_memory_store: shared.join("mind.cc"),
+            artifact_root: shared.join("artifacts"),
+            codex_home: shared.join("codex-home"),
+            mcp_config: shared.join("mcp.toml"),
+            model_provider: "test".into(),
+            max_steps: 1,
+            turn_timeout_seconds: 1,
+            cooldown_seconds: 1,
+            idle_sleep_seconds: 1,
+            failure_backoff_seconds: 1,
+            release_commit: "release-commit".into(),
+            release_manifest_digest: "sha256:release".into(),
+            release_store: shared.join("release.cc"),
+            release_runtime_id: "deployment-runtime".into(),
+            release_id: "sha256:release".into(),
+            release_witness_sha256: "sha256:witness".into(),
+        };
+
+        let mut ports = NativePorts::new(&policy)?;
+        assert_eq!(ports.cognitive_runtime_id, "cognitive-runtime");
+        assert!(ports.brake_engaged()?);
+        assert!(!resident_self_brake_engaged(
+            &policy.local_verse_store,
+            &policy.release_runtime_id,
+        )?);
         Ok(())
     }
 

@@ -1,5 +1,39 @@
 # Fresh workspace handoff
 
+## Cognitive brake identity cut — 2026-08-10
+
+Exact crash-atomic source `0e8cd91af1dae0b48c59a6c0985075279ee58a6b`
+packaged without warnings as 24-binary release
+`sha256-ff906f3850e3ceaf743ce330116d545d57efb3340a69da186d834392fa8f1dcf`
+with witness
+`sha256-ea0997317b82fae9117d96ef2cfc7289d0aa552405275b89160c4e30cb4fef2b`.
+Independent packaged inspection passed. Construction took seven minutes after
+the CultCache source hash invalidated the release graph. The first bootstrap
+attempt refused before compilation because its local submodule URLs still
+named the bundle mount; the corrected canonical-URL attempt is the accepted
+package. Receipts are under `.epiphany-run/linux-package-0e8cd91a/`.
+
+Do not start c006 from that release. Recovery preflight found that prepared
+coordinator argv already uses the mounted cognitive runtime identity, but
+resident `NativePorts` still read the local-Verse brake under release/provider
+identity. Current source resolves the immutable mounted runtime identity once
+and uses it for every resident brake observation, so resident and child share
+one kill-switch namespace. Readiness now projects mounted cognition as
+`runtimeId`, authenticated binary provenance as `releaseRuntimeId`, and reads
+the same cognitive brake. Release identity remains binary/provider provenance;
+Persona feedback target remains a crossing contract. Thirteen focused readiness
+tests and all nine swarm-binary tests pass, including deliberate
+`deployment-runtime` versus `cognitive-runtime` cases. Commit/package this
+narrow correction before c006.
+
+Recovery state is staged but inert in named volume
+`epiphany-resident-c006-state`. Its resident snapshot comes from
+`coordinator-session-live-5a479522`: heartbeat, top runtime, Eyes runtime, and
+Eyes local-Verse hashes prove that copied run descended from c005's surviving
+state. The snapshot records sleeping revision 6, both original grants terminal,
+and one typed admitted-model-direction pressure pending. Derived provider
+readiness will be republished. The zero file was not imported.
+
 ## Starfire reboot exposed non-atomic CultCache publication — 2026-08-10
 
 Live c005 and the copied e97 Continuity harness independently lost only

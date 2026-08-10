@@ -1319,8 +1319,14 @@ The live identity matrix is explicit:
 - packaged-release witness runtime authenticates the binary publication;
 - mounted runtime-store identity owns coordinator execution, request identity,
   runtime mutation, and the coordinator's `--runtime-id`;
-- local-Verse brake identity is the namespace read by the process using that
-  Verse store and must contain the canonical brake entry;
+- mounted runtime-store identity also owns the local-Verse brake namespace for
+  resident Self and its coordinator child. `NativePorts` resolves that identity
+  once from the immutable runtime envelope; release/provider identity cannot
+  choose a second kill switch merely because it authenticated the binary;
+- cognition readiness projects mounted cognition as `runtimeId`, authenticated
+  binary provenance separately as `releaseRuntimeId`, and reads the brake only
+  under mounted cognition. Operator sight and resident actuation therefore
+  observe the same kill switch;
 - Persona feedback target identity belongs to the feedback crossing contract
   and is not silently rewritten when cognition mounts a narrower runtime.
 
