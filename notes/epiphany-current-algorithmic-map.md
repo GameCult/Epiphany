@@ -3454,34 +3454,17 @@ successful write left 200 typed events, mode 0644, uid/gid 0, and no regular
 UUID staging sibling while preserving foreign-store, unknown-suffix, directory,
 and symlink lookalikes.
 
-### Consumed-grant / Heartbeat recovery frontier
+### Braked grant / Heartbeat coordination evidence
 
-Copied c006 proves the storage and process restart body but exposes an older
-cross-store lifecycle split. Resident Self has no prepared or active lease;
-Heartbeat retains one running coordinator pending turn; and its exact resident
-grant is consumed but lacks grant-owned terminal state and a terminal ack. The
-brake prevents new actuation, yet Self remains scheduler-frozen.
-
-- Owner: the exact resident grant and Resident Self state own whether execution
-  can still exist; Heartbeat owns only its matching scheduler turn.
-- Inputs: exact pressure/grant schedule and action binding, consumed timestamp,
-  grant terminal fields, resident prepared/active lease, exact child claim, and
-  matching Heartbeat pending turn.
-- Outputs: an explicit typed repair must terminalize only that grant/pressure
-  lifecycle and close only that Heartbeat turn, with a replayable receipt.
-- Derived state: Heartbeat `running`, elapsed age, brake state, and absence of an
-  ack are observations, not grant-death authority.
-- Forbidden writers: generic stale-age repair, retention, a new grant, or a
-  scheduler-only completion cannot decide that execution died.
-- Shared paths: startup recovery and operator-authorized corruption repair must
-  use the same exact-grant proof; normal success/cancellation retains its current
-  atomic terminalization path.
-- Cut line: refuse repair if any prepared/active lease or child claim names the
-  grant, if pressure/grant binding differs, or if Heartbeat schedule/action does
-  not match. Do not resurrect the consumed pressure implicitly.
-- Verification layer: copied exact state; stale snapshot refusal; hostile
-  swapped grant/pressure/schedule/action; child/prepared/active refusal; exact
-  replay; Heartbeat unfreeze; no pending grant; and unchanged unrelated rows.
+Copied c006 proves the storage and process restart body while preserving the
+existing pending authority. Heartbeat owns one running coordinator turn and the
+resident store owns its exact proposal grant. Typed payload inspection proves
+the grant is unconsumed and nonterminal, with exact Heartbeat schedule/action
+equality. Resident Self therefore correctly has no prepared or active lease and
+no child claim yet. The cognitive brake holds the grant without destroying or
+launching it; Heartbeat's initiative-frozen projection is expected physiology,
+not stale-turn evidence. Generic age repair or orphan terminalization would be
+corruption here.
 
 ### Direct proposal Modeling closure
 

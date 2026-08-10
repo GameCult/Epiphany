@@ -39,10 +39,12 @@ reads with only parseable, monotonically nondecreasing snapshots. Exact
 with SIGKILL 137 while a lockless verifier completed ten million reads spanning
 102-201 envelopes without empty, partial, decode, or rollback. CultCache removes
 only its own UUID-shaped abandoned staging files on the next exclusive write.
-A copied c006 restart is clean and actual c006 remains untouched, but the copy
-exposed one consumed nonterminal legacy grant paired with a stale running
-Heartbeat turn. Repair that exact ownership split before waking c006.
-Yggdrasil never builds.
+A copied c006 restart is clean and actual c006 remains untouched. Exact payload
+inspection corrected an initial false alarm: the retained grant is unconsumed,
+nonterminal, and exactly matches Heartbeat's running schedule/action. The brake
+is coherently holding pending authority; there is no orphan repair to perform.
+Remove the release source guard's unconditional submodule force-checkout and
+measure the next exact package before waking c006. Yggdrasil never builds.
 
 ## Exact packaged outer-worker retention accepted — 2026-08-10
 
@@ -426,15 +428,14 @@ state and workspace manifests remained
 `3bef83075f18f9ebaff30c432fd9429b6b3dd7bdf00ea10a0913ee06a7a04d2f` and
 `eb3de02d206b61b741816907e4653d155b9bec1a2dd7089d44eeec393d1e1b70`.
 
-Heartbeat then exposed a pre-existing inconsistent lifecycle in the copied
-state. Self has no prepared or active lease, yet Heartbeat still has a running
-`epiphany-starfire-linux-c006-bounded` coordinator turn. Its exact grant for
-proposal request `ef710ca4...` is consumed but has neither grant-owned terminal
-state nor a terminal acknowledgement. Braked Heartbeat correctly issued no new
-grant, but Self remains initiative-frozen. Do not use generic age repair: map a
-typed exact-grant repair that proves no prepared/active lease or child claim,
-terminalizes the grant and pressure deliberately, and closes only the matching
-Heartbeat turn. Actual c006 remains untouched.
+Heartbeat and resident state are coherent under the brake. Heartbeat retains a
+running `epiphany-starfire-linux-c006-bounded` coordinator turn; the resident
+store retains its exact proposal grant for request `ef710ca4...`. Forensic typed
+payload inspection proves `consumed_at_millis = None`, terminal fields absent,
+and exact schedule/action equality. No prepared/active lease or child claim
+should exist before Self consumes the grant. The generic heartbeat status makes
+the coordinator look frozen because that is precisely what pending braked
+authority means. Do not repair or terminalize it. Actual c006 remains untouched.
 
 ## Cross-container resident ownership accepted — 2026-08-09
 
