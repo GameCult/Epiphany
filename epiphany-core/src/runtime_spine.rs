@@ -11997,6 +11997,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE,
+            ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Runtime spine atomically replaces one exact terminal typed worker family with this per-attempt tombstone only after resident liveness clears.",
+                "A terminal-result tombstone preserves authenticated fulfillment identity; it does not own producer semantic companions or Mind admission.",
+            ],
+        ),
+        mutation_contract(
             RUNTIME_REORIENT_WORKER_RESULT_TYPE,
             RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -20071,8 +20083,44 @@ pub(crate) mod tests {
             },
         ).is_err());
         assert!(runtime_worker_launch_request(&store, &job_id)?.is_some());
-        let tombstone = archive_failed_runtime_worker_attempt(
-            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z")?;
+        let current = runtime_current_repo_model(&store)?.expect("current model");
+        let (newer_result, _) = repo_model_result_and_review(
+            &store,
+            "proposal-result-failed-archive-newer",
+            "proposal-job-failed-archive-newer",
+            &current,
+            "proposal-review-failed-archive-newer",
+        )?;
+        let newer_token = "failed-archive-newer-token";
+        claim_runtime_worker_process(
+            &store,
+            &newer_result.job_id,
+            &process,
+            &format!("{:x}", Sha256::digest(newer_token.as_bytes())),
+            "2026-08-10T20:00:03Z",
+        )?;
+        activate_runtime_worker_process(
+            &store,
+            &newer_result.job_id,
+            &process,
+            newer_token,
+            "2026-08-10T20:00:04Z",
+        )?;
+        complete_runtime_job(&store, RuntimeSpineJobResultOptions {
+            result_id: format!("generic-failure-{}", newer_result.job_id),
+            job_id: newer_result.job_id.clone(),
+            completed_at: "2026-08-10T20:00:05Z".into(),
+            verdict: "failed".into(),
+            summary: "Newer typed worker attempt failed.".into(),
+            next_safe_move: "Preserve the newest failed attempt.".into(),
+            evidence_refs: Vec::new(), artifact_refs: Vec::new(),
+        })?;
+        let retained = retain_failed_runtime_worker_attempts(
+            &store, 1, &BTreeSet::new(), "2026-08-10T20:00:06Z")?;
+        assert_eq!(retained.len(), 1);
+        let tombstone = retained[0].clone();
+        assert_eq!(tombstone.job_id, job_id);
+        assert!(runtime_worker_launch_request(&store, &newer_result.job_id)?.is_some());
         assert_eq!(tombstone.request_id, request_id);
         assert_eq!(tombstone.terminal_process_status, "terminal-failure");
         assert!(tombstone.retired_envelope_count >= 5);
@@ -20081,7 +20129,7 @@ pub(crate) mod tests {
         assert!(!runtime_typed_request_attempt_exists(
             &store, RuntimeTypedRequestRef::ProposalModeling(&request_id))?);
         assert_eq!(archive_failed_runtime_worker_attempt(
-            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:03Z")?, tombstone);
+            &store, &job_id, &BTreeSet::new(), "2026-08-10T20:00:06Z")?, tombstone);
         Ok(())
     }
 

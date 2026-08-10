@@ -3347,8 +3347,16 @@ counts, and chained digest. `runtime_typed_request_fulfillment` recognizes that
 narrow tombstone only when no live launch, claim, or worker result coexists.
 Thus resident settlement sees the same fulfillment before and after retention.
 Producer-owned semantic companions and admission receipts are not retirement
-cargo. Successful Imagination and admitted-model-direction live proofs remain
-required before this cut is packaged.
+cargo.
+
+The all-lane source proof is now closed. Imagination and admitted model
+direction each pass through real resident grant settlement, Heartbeat ack
+consumption, and lifecycle deletion before worker archival; their candidate or
+direction companion remains byte-identical and the tombstone answers the same
+fulfillment query. Failed retention enumeration sorts exact terminal claims,
+keeps the configured newest attempt, and archives the older eligible family.
+The worker job is explicitly distinct from the coordinator's jobless
+Continuity session; mixing those authorities is rejected.
 
 - Owner: runtime spine owns archival of one immutable outer worker attempt.
   Resident Self supplies cross-store liveness but cannot delete runtime rows.

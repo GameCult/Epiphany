@@ -2992,6 +2992,42 @@ mod tests {
         }
     }
 
+    fn seed_terminal_worker_archive_scaffolding(
+        store: &Path,
+        session_id: &str,
+        job_id: &str,
+        result_id: &str,
+    ) -> Result<()> {
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.put(job_id, &crate::EpiphanyRuntimeJob {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+            job_id: job_id.into(),
+            session_id: session_id.into(),
+            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            status: crate::EpiphanyRuntimeJobStatus::Completed,
+            created_at: "2026-07-18T00:00:01Z".into(),
+            updated_at: "2026-07-18T00:00:03Z".into(),
+            summary: "Typed Imagination worker completed.".into(),
+            artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+        })?;
+        cache.put(&format!("runtime-worker-process-{job_id}"), &crate::EpiphanyRuntimeWorkerProcessClaim {
+            schema_version: crate::RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION.into(),
+            claim_id: format!("runtime-worker-process-{job_id}"),
+            job_id: job_id.into(),
+            process_id: 42,
+            process_creation_token: 43,
+            process_executable_path: "/fixture/epiphany-role-worker".into(),
+            activation_token_sha256: "a".repeat(64),
+            status: "terminal-result".into(),
+            claimed_at: "2026-07-18T00:00:01Z".into(),
+            activated_at: Some("2026-07-18T00:00:02Z".into()),
+            terminal_at: Some("2026-07-18T00:00:03Z".into()),
+            terminal_authority_id: Some(result_id.into()),
+        })?;
+        Ok(())
+    }
+
     fn admit_test_model_direction_result(
         store: &Path,
         request: &crate::AdmittedModelDirectionConsiderationRequest,
@@ -3796,6 +3832,12 @@ mod tests {
             &result,
             "job-model-fulfillment",
         )?;
+        seed_terminal_worker_archive_scaffolding(
+            &runtime_store,
+            "worker-session-model-fulfillment",
+            "job-model-fulfillment",
+            &format!("result-{}", "job-model-fulfillment"),
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -3859,6 +3901,36 @@ mod tests {
                 7,
             )?
             .is_none()
+        );
+        for ack in pending_resident_self_acks(&resident_store)? {
+            heartbeat_consume_resident_self_ack(&resident_store, &ack.ack_id, 9)?;
+        }
+        retain_resident_self_lifecycles(&resident_store, 0, 10)?
+            .expect("closed model direction lifecycle must retire");
+        let companion_before = {
+            let mut cache = crate::runtime_spine_cache(&runtime_store)?;
+            cache.pull_all_backing_stores()?;
+            cache.get::<crate::AdmittedModelDirectionConsiderationResult>(&result.result_id)?
+                .expect("model direction companion")
+        };
+        crate::archive_fulfilled_runtime_worker_attempt(
+            &runtime_store,
+            "job-model-fulfillment",
+            &live_resident_self_typed_request_ids(&resident_store)?,
+            "2026-07-18T00:00:04Z",
+        )?;
+        assert_eq!(
+            crate::runtime_typed_request_fulfillment(
+                &runtime_store,
+                crate::RuntimeTypedRequestRef::AdmittedModelDirection(&request.request_id),
+            )?.expect("archived model direction fulfillment").result_id,
+            format!("result-{}", "job-model-fulfillment")
+        );
+        let mut cache = crate::runtime_spine_cache(&runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache.get::<crate::AdmittedModelDirectionConsiderationResult>(&result.result_id)?,
+            Some(companion_before)
         );
         Ok(())
     }
@@ -4054,6 +4126,12 @@ mod tests {
             &candidate,
             worker_job_id,
         )?;
+        seed_terminal_worker_archive_scaffolding(
+            &runtime_store,
+            "worker-session-imagination-fulfillment",
+            worker_job_id,
+            &format!("result-{worker_job_id}"),
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -4136,6 +4214,31 @@ mod tests {
                 11,
             )?
             .is_none()
+        );
+        let candidate_before = {
+            let mut cache = crate::runtime_spine_cache(&runtime_store)?;
+            cache.pull_all_backing_stores()?;
+            cache.get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?
+                .expect("Imagination candidate companion")
+        };
+        crate::archive_fulfilled_runtime_worker_attempt(
+            &runtime_store,
+            worker_job_id,
+            &live_resident_self_typed_request_ids(&resident_store)?,
+            "2026-07-18T00:00:04Z",
+        )?;
+        assert_eq!(
+            crate::runtime_typed_request_fulfillment(
+                &runtime_store,
+                crate::RuntimeTypedRequestRef::ImaginationConsideration(&request.request_id),
+            )?.expect("archived Imagination fulfillment").result_id,
+            format!("result-{worker_job_id}")
+        );
+        let mut cache = crate::runtime_spine_cache(&runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache.get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?,
+            Some(candidate_before)
         );
         Ok(())
     }

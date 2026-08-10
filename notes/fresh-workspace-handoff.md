@@ -2683,3 +2683,17 @@ liveness refusal, exact live fulfillment before retirement, identical archived
 fulfillment afterward, and a concurrent unrelated write that defeats the full
 snapshot CAS without losing either side. Imagination and admitted-direction
 successful companion preservation plus production enumeration remain open.
+## All three successful worker lanes preserve semantic companions — 2026-08-10
+
+The existing resident model-direction and feedback-Imagination fulfillment
+tests now continue through Heartbeat ack consumption, resident lifecycle
+retirement, and exact worker-attempt archival. Both prove archived fulfillment
+still resolves while the exact producer-owned
+`AdmittedModelDirectionConsiderationResult` or
+`ImaginationConsiderationCandidate` remains byte-equal. The fixture initially
+placed the worker job in the coordinator's jobless Continuity session and was
+correctly rejected as competing authority; the accepted proof uses a distinct
+outer-worker session identity. Failed production enumeration also now proves
+two terminal attempts retain the newest and archive the older without
+resurrection. The archive tombstone is published in the runtime CultNet schema
+catalog. Source packaging and copied-state live proof are next.
