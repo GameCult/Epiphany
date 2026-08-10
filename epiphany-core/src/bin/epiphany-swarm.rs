@@ -6,25 +6,22 @@ use epiphany_core::{
     ResidentSelfOutcome, ResidentSelfPolicy, ResidentSelfPorts, ResidentSelfPressure,
     ResidentSelfState, acknowledge_resident_self_launch, acquire_resident_process_singleton,
     authenticate_resident_self_policy, bind_runtime_repository_domain,
-    bridge_admitted_persona_feedback_to_heartbeat, cancel_resident_self_turn,
-    capture_process_instance, complete_resident_self_turn_after_death,
+    bridge_admitted_persona_feedback_to_heartbeat, capture_process_instance,
     coordinator_run_receipts, derive_resident_cognition_readiness,
     enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
     load_resident_self_state, observe_process_instance, pending_resident_self_acks,
     prepare_resident_self_launch, publish_resident_provider_readiness,
-    recover_receipt_free_dead_coordinator_session,
-    recover_dead_resident_typed_worker,
     resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_grant_has_typed_request, resident_self_local_provider_status,
-    resident_self_typed_attempt_exists,
+    resident_self_local_provider_status,
     retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_resident_self_lifecycles,
-    settle_resident_self_exited_coordinator, terminate_process_instance,
+    settle_resident_self_exited_coordinator,
+    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
     validate_persona_feedback_store_separation,
     validate_resident_self_coordinator_receipt_binding,
-    validate_resident_self_store_separation, verify_resident_self_grant_fulfillment,
+    validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -227,30 +224,6 @@ fn wait_for_shutdown(requested: &AtomicBool, duration: Duration) {
     }
 }
 
-fn cancelled_turn_status(
-    shutdown_requested: bool,
-    brake_engaged: bool,
-    timed_out: bool,
-) -> &'static str {
-    if shutdown_requested {
-        "shutdown-cancelled"
-    } else if brake_engaged {
-        "brake-cancelled"
-    } else if timed_out {
-        "timed-out"
-    } else {
-        "process-failed"
-    }
-}
-
-fn outcome_after_cancel(shutdown_requested: bool) -> ResidentSelfOutcome {
-    if shutdown_requested {
-        ResidentSelfOutcome::Braked
-    } else {
-        ResidentSelfOutcome::Failed
-    }
-}
-
 fn exact_resident_coordinator_receipt(
     runtime_store: &std::path::Path,
     lease: &epiphany_core::ResidentSelfTurnLease,
@@ -273,83 +246,6 @@ fn exact_resident_coordinator_receipt(
     };
     validate_resident_self_coordinator_receipt_binding(lease, &receipt)?;
     Ok(Some(receipt))
-}
-
-fn settle_receipt_free_dead_coordinator(
-    args: &Args,
-    lease: &epiphany_core::ResidentSelfTurnLease,
-    observation: ChildObservation,
-    shutdown_requested: bool,
-    brake_engaged: bool,
-    timed_out: bool,
-    now: u64,
-) -> Result<ResidentSelfOutcome> {
-    let typed = resident_self_grant_has_typed_request(&args.state_store, &lease.grant_id)?;
-    if typed {
-        match verify_resident_self_grant_fulfillment(
-            &args.state_store,
-            &args.policy.runtime_store,
-            &lease.grant_id,
-        )? {
-            epiphany_core::ResidentSelfGrantFulfillment::Fulfilled => {
-                let recovery = recover_receipt_free_dead_coordinator_session(
-                    &args.state_store,
-                    &args.policy.runtime_store,
-                    lease,
-                    observation,
-                    now,
-                )?
-                .ok_or_else(|| {
-                    anyhow!(
-                        "typed fulfillment cannot predate its coordinator runtime incarnation"
-                    )
-                })?;
-                complete_resident_self_turn_after_death(
-                    &args.state_store,
-                    lease,
-                    &recovery,
-                    now,
-                    args.policy.cooldown_seconds,
-                )?;
-                return Ok(ResidentSelfOutcome::Completed);
-            }
-            epiphany_core::ResidentSelfGrantFulfillment::Pending => {
-                if resident_self_typed_attempt_exists(
-                    &args.state_store,
-                    &args.policy.runtime_store,
-                    &lease.grant_id,
-                )? {
-                    if !recover_dead_resident_typed_worker(
-                        &args.state_store,
-                        &args.policy.runtime_store,
-                        &lease.grant_id,
-                        now,
-                    )? {
-                        return Ok(ResidentSelfOutcome::AwaitingFulfillment);
-                    }
-                }
-            }
-        }
-    }
-    let recovery = recover_receipt_free_dead_coordinator_session(
-        &args.state_store,
-        &args.policy.runtime_store,
-        lease,
-        observation,
-        now,
-    )?;
-    cancel_resident_self_turn(
-        &args.state_store,
-        lease,
-        cancelled_turn_status(shutdown_requested, brake_engaged, timed_out),
-        if recovery.is_some() {
-            "exact coordinator process died after atomic opening and before a terminal receipt"
-        } else {
-            "exact coordinator process died before atomic runtime opening"
-        },
-        now,
-    )?;
-    Ok(outcome_after_cancel(shutdown_requested))
 }
 
 fn cycle(
@@ -471,14 +367,16 @@ fn cycle(
                     *state = load_resident_self_state(&args.state_store)?;
                     return Ok(outcome);
                 }
-                let outcome = settle_receipt_free_dead_coordinator(
-                    args,
+                let outcome = settle_resident_self_receipt_free_dead_coordinator(
+                    &args.state_store,
+                    &args.policy.runtime_store,
                     &lease,
                     observation,
                     shutdown_requested,
                     brake_engaged,
                     timed_out,
                     now,
+                    args.policy.cooldown_seconds,
                 )?;
                 *state = load_resident_self_state(&args.state_store)?;
                 Ok(outcome)
@@ -889,23 +787,6 @@ mod brake_tests {
             .is_err()
         );
         Ok(())
-    }
-
-    #[test]
-    fn shutdown_preempts_other_cancellation_causes() {
-        assert_eq!(
-            cancelled_turn_status(true, true, true),
-            "shutdown-cancelled"
-        );
-        assert_eq!(cancelled_turn_status(false, true, true), "brake-cancelled");
-        assert_eq!(cancelled_turn_status(false, false, true), "timed-out");
-        assert_eq!(cancelled_turn_status(false, false, false), "process-failed");
-    }
-
-    #[test]
-    fn shutdown_cancellation_is_a_braked_outcome_not_a_failure() {
-        assert_eq!(outcome_after_cancel(true), ResidentSelfOutcome::Braked);
-        assert_eq!(outcome_after_cancel(false), ResidentSelfOutcome::Failed);
     }
 
     #[test]

@@ -2457,3 +2457,23 @@ Next: prove a valid typed result published before the coordinator receipt closes
 the original grant exactly once without retry. Then run retention against these
 terminal attempts and settled grant and require non-resurrection. Actual c006
 stays braked and stopped; Yggdrasil never builds.
+
+## Resident-owned fulfilled-before-receipt source cut — 2026-08-10
+
+The receipt-free settlement decision no longer lives as private policy in the
+`epiphany-swarm` binary. Resident Self now owns the whole transition; the binary
+supplies only exact child observation, brake/shutdown/timeout state, time, and
+configured cooldown. The old binary cancellation classifiers and settlement
+function are deleted.
+
+The admitted-model-direction fulfillment test now crosses the real ownership
+boundary: it persists the grant and active lease, atomically opens the resident
+coordinator incarnation, admits an authenticated typed terminal result, then
+observes the coordinator missing before any run receipt. Resident Self records
+the exact coordinator death recovery and closes the original grant as
+`recovered-fulfilled`. The pressure remains consumed by that grant, replay is
+refused with byte-identical resident state, and Heartbeat cannot issue a retry.
+
+Full core verification passes 661 tests with one intentional ignore; all seven
+swarm tests pass without warnings. Commit, exact package, and copied Linux proof
+remain. Actual c006 is still braked and stopped.

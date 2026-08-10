@@ -1394,6 +1394,94 @@ pub fn resident_self_grant_has_typed_request(
     Ok(resident_self_typed_request_ref(&grant)?.is_some())
 }
 
+pub fn settle_resident_self_receipt_free_dead_coordinator(
+    resident_store: &Path,
+    runtime_store: &Path,
+    lease: &ResidentSelfTurnLease,
+    observation: ChildObservation,
+    shutdown_requested: bool,
+    brake_engaged: bool,
+    timed_out: bool,
+    now_millis: u64,
+    cooldown_seconds: u64,
+) -> Result<ResidentSelfOutcome> {
+    let typed = resident_self_grant_has_typed_request(resident_store, &lease.grant_id)?;
+    if typed {
+        match verify_resident_self_grant_fulfillment(
+            resident_store,
+            runtime_store,
+            &lease.grant_id,
+        )? {
+            ResidentSelfGrantFulfillment::Fulfilled => {
+                let recovery = recover_receipt_free_dead_coordinator_session(
+                    resident_store,
+                    runtime_store,
+                    lease,
+                    observation,
+                    now_millis,
+                )?
+                .ok_or_else(|| anyhow!(
+                    "typed fulfillment cannot predate its coordinator runtime incarnation"
+                ))?;
+                complete_resident_self_turn_after_death(
+                    resident_store,
+                    lease,
+                    &recovery,
+                    now_millis,
+                    cooldown_seconds,
+                )?;
+                return Ok(ResidentSelfOutcome::Completed);
+            }
+            ResidentSelfGrantFulfillment::Pending => {
+                if resident_self_typed_attempt_exists(
+                    resident_store,
+                    runtime_store,
+                    &lease.grant_id,
+                )? && !recover_dead_resident_typed_worker(
+                    resident_store,
+                    runtime_store,
+                    &lease.grant_id,
+                    now_millis,
+                )? {
+                    return Ok(ResidentSelfOutcome::AwaitingFulfillment);
+                }
+            }
+        }
+    }
+    let recovery = recover_receipt_free_dead_coordinator_session(
+        resident_store,
+        runtime_store,
+        lease,
+        observation,
+        now_millis,
+    )?;
+    let status = if shutdown_requested {
+        "shutdown-cancelled"
+    } else if brake_engaged {
+        "brake-cancelled"
+    } else if timed_out {
+        "timed-out"
+    } else {
+        "process-failed"
+    };
+    cancel_resident_self_turn(
+        resident_store,
+        lease,
+        status,
+        if recovery.is_some() {
+            "exact coordinator process died after atomic opening and before a terminal receipt"
+        } else {
+            "exact coordinator process died before atomic runtime opening"
+        },
+        now_millis,
+    )?;
+    Ok(if shutdown_requested {
+        ResidentSelfOutcome::Braked
+    } else {
+        ResidentSelfOutcome::Failed
+    })
+}
+
 pub fn settle_resident_self_exited_coordinator(
     resident_store: &Path,
     runtime_store: &Path,
@@ -3562,6 +3650,11 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let resident_store = temp.path().join("resident-self.cc");
         let runtime_store = temp.path().join("runtime.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut resident_policy = policy();
+        resident_policy.coordinator_bin = coordinator.clone();
+        resident_policy.runtime_store = runtime_store.clone();
         seed_model_direction_request(
             &runtime_store,
             "request-model-fulfillment",
@@ -3591,6 +3684,37 @@ mod tests {
             2,
         )?
         .expect("model direction grant");
+        let prepared = prepare_resident_self_launch(&resident_store, &resident_policy, 3)?
+            .expect("model direction preparation");
+        let process = LaunchedCoordinator {
+            process_id: u32::MAX - 11,
+            process_creation_token: 77,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        let session_id = crate::coordinator_run_session_id(
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+        )?;
+        crate::open_coordinator_run(
+            &runtime_store,
+            &session_id,
+            &lease.turn_id,
+            Some(&lease.launch_digest),
+            &format!("Resident coordinator launch {}.", lease.objective_digest),
+            "1970-01-01T00:00:00.005Z",
+        )?;
         assert_eq!(
             verify_resident_self_grant_fulfillment(
                 &resident_store,
@@ -3641,6 +3765,62 @@ mod tests {
                 &grant.grant_id,
             )?,
             ResidentSelfGrantFulfillment::Fulfilled
+        );
+        assert_eq!(
+            settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                false,
+                false,
+                false,
+                6,
+                resident_policy.cooldown_seconds,
+            )?,
+            ResidentSelfOutcome::Completed
+        );
+        let settled = load_resident_self_state(&resident_store)?;
+        assert!(settled.active_turn.is_none());
+        let terminal_grant = state_cache(&resident_store)?
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("terminal model direction grant");
+        assert_eq!(
+            terminal_grant.terminal_status.as_deref(),
+            Some("recovered-fulfilled")
+        );
+        let pressure = state_cache(&resident_store)?
+            .get::<ResidentSelfPressure>("pressure-model-fulfillment")?
+            .expect("consumed model direction pressure");
+        assert_eq!(pressure.status, "consumed");
+        assert_eq!(
+            pressure.consumed_by_grant_id.as_deref(),
+            Some(grant.grant_id.as_str())
+        );
+        let settled_bytes = std::fs::read(&resident_store)?;
+        assert!(
+            settle_resident_self_receipt_free_dead_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                ChildObservation::Missing,
+                false,
+                false,
+                false,
+                8,
+                resident_policy.cooldown_seconds,
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&resident_store)?, settled_bytes);
+        assert!(
+            heartbeat_issue_resident_self_grant(
+                &resident_store,
+                "heartbeat-must-not-retry",
+                "action-must-not-retry",
+                7,
+            )?
+            .is_none()
         );
         Ok(())
     }

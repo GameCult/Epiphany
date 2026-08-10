@@ -3223,3 +3223,30 @@ only after exact native process observation.
   requeues once, and a distinct same-request attempt receives its own process
   and terminal authority while the first remains terminal. Valid-result-before-
   receipt and retention replay remain the open boundaries.
+
+## Receipt-free typed fulfillment settlement owner
+
+- Owner: resident Self owns whether a dead receipt-free coordinator completes,
+  waits, or cancels its exact grant. The swarm binary owns native observation
+  and supplies policy inputs only.
+- Inputs: exact resident lease and grant, authenticated runtime-owned typed
+  fulfillment, exact coordinator incarnation, native child observation,
+  shutdown/brake/timeout, time, and cooldown.
+- Outputs: fulfilled evidence plus exact coordinator death recovery closes the
+  original grant `recovered-fulfilled`; pending live worker authority remains
+  awaiting; terminal unfulfilled authority follows canonical cancellation.
+- Derived state: binary outcome projection and Heartbeat visibility do not own
+  settlement. A consumed pressure is historical request authority, not a retry
+  queue entry.
+- Forbidden writers: binary-local classifiers, receipt absence alone, elapsed
+  time, and terminal acknowledgement presence cannot manufacture completion or
+  retry.
+- Shared paths: `once` and `serve` both enter the same resident function through
+  `cycle`; all three typed request families use runtime-owned fulfillment.
+- Cut line: delete the private binary settlement function and cancellation
+  classifiers; resident Self performs recovery and the exact grant CAS.
+- Verification: admitted-model-direction result before coordinator receipt,
+  exact missing-child recovery, one recovered-fulfilled grant, consumed
+  pressure, byte-identical replay refusal, and no Heartbeat retry. Source passes
+  661 core tests with one ignore plus seven swarm tests. Exact package and copied
+  Linux proof remain.
