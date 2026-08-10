@@ -3216,6 +3216,10 @@ only after exact native process observation.
   active orphan shapes after SIGKILL/no OOM, native terminal-death, canonical
   requeue, and one same-request distinct retry without dual live authority. The
   retry exposed an activated generic-failure path that left its claim active;
-  source now closes that as terminal-failure atomically. Packaged
-  terminal-failure, valid-result-before-receipt, and retention replay remain the
-  open boundaries.
+  exact pushed 7637b1cf now closes that path atomically. Its authenticated Linux
+  package has release sha256-fa3a1e15, witness sha256-f5c3a576, 24 binaries,
+  and zero warnings. Fresh copied state proves model-transport failure produces
+  one Failed job plus terminal-failure claim, canonical resident settlement
+  requeues once, and a distinct same-request attempt receives its own process
+  and terminal authority while the first remains terminal. Valid-result-before-
+  receipt and retention replay remain the open boundaries.

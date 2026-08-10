@@ -2430,3 +2430,30 @@ fixture flakes; the archive bug is fixed, the serial suite removes the fixture
 contention, and the complete corrected source pass is green. Commit, exact
 packaging, and copied-live hard-death proof remain. Active c005 remains
 untouched.
+
+## Packaged worker terminal-failure ownership accepted — 2026-08-10
+
+Source `7637b1cf0ecb12a7eacffc77a835b30046c2975b` is pushed and packaged as
+`sha256-fa3a1e1528191012c051f1b431d5a5ae392c140ee6219700c041c517b347facc`
+with witness
+`sha256-f5c3a576cc1f740f271ee69fec1b27dc296c62b1be1cfc9fb075909337c59914`.
+Authenticated inspection found 24 binaries and zero warnings. Cargo took 7m19s
+and the container took 7m31s. Receipts are under
+`.epiphany-run/linux-package-7637b1cf`.
+
+Fresh copied Linux state exercised the exact packaged model runtime. After
+activation, missing model transport produced the expected typed failed worker
+result and process exit zero. The same runtime transaction left the job
+`Failed` and its exact claim `terminal-failure`, bound to
+`result-worker-packaged-terminal-failure-job`. Resident canonical settlement
+then cleared the active lease, terminalized the grant `process-failed`, emitted
+one cancellation acknowledgement, and returned the pressure to pending once.
+Heartbeat issued attempt two. Its distinct job and process creation token also
+terminated under its own generic result authority while the first claim stayed
+terminal. There was no dual live authority. Receipts are under
+`.epiphany-run/worker-terminal-failure-7637b1cf`.
+
+Next: prove a valid typed result published before the coordinator receipt closes
+the original grant exactly once without retry. Then run retention against these
+terminal attempts and settled grant and require non-resurrection. Actual c006
+stays braked and stopped; Yggdrasil never builds.
