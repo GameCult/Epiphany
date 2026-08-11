@@ -1278,6 +1278,15 @@ creates an inert frontier proposal and its Modeling selection. The generic
 proposal mouth rejects Imagination provenance so it cannot substitute for this
 causal crossing.
 
+One admitted Imagination result may expose at most three `option_drafts`.
+`MAX_OPTION_DRAFTS` is the single owner of that fan-out bound: the declared
+worker output schema rejects a larger array before admission, and
+`validate_result` rejects any substituted or legacy result that exceeds it.
+Promotion remains one preserved-authority CAS per option and resident ingestion
+still exposes only the current unbound selection. Scheduler ordering is not a
+backpressure substitute; the producer itself is bounded so one model turn
+cannot mint an unbounded durable proposal/selection/pressure queue.
+
 Proposal Modeling is structurally bounded: its sole frontier upsert must
 recommend `Imagination` and carry no adopted plan. Proposal Evolution is
 insert-only. Ordinary Modeling has one separate standing transition: the typed

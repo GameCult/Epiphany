@@ -9,6 +9,7 @@ pub const REQUEST_CONTRACT: &str = "epiphany.admitted_model_direction_considerat
 pub const RESULT_SCHEMA: &str =
     "epiphany.imagination.admitted_model_direction_consideration_result.v0";
 pub const RESULT_CONTRACT: &str = "epiphany.admitted_model_direction_consideration_result.v0";
+pub const MAX_OPTION_DRAFTS: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -252,6 +253,9 @@ pub fn validate_result(
     {
         bail!("model direction suggestion requires at least one option");
     }
+    if result.option_drafts.len() > MAX_OPTION_DRAFTS {
+        bail!("model direction result exceeds bounded option fan-out");
+    }
     Ok(())
 }
 
@@ -312,6 +316,20 @@ mod tests {
             proposal_only: true,
             terminal: true,
         }
+    }
+
+    #[test]
+    fn result_refuses_unbounded_autonomous_proposal_fanout() {
+        let request = request();
+        let mut result = result(&request);
+        result.disposition = AdmittedModelDirectionDisposition::Suggest;
+        result.option_drafts = (0..=MAX_OPTION_DRAFTS)
+            .map(|ordinal| crate::ImaginationOptionDraft {
+                title: format!("Option {ordinal}"),
+                summary: "Bounded option.".into(),
+            })
+            .collect();
+        assert!(validate_result(&request, &result).is_err());
     }
 
     #[test]

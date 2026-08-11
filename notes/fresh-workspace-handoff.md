@@ -3651,3 +3651,33 @@ Next map Native Imagination ingress, restart resident serve onto exact fb873927
 to prove its Body preflight live, then exercise one typed Imagination proposal
 through detached worker, typed candidate, resident fulfillment, and continuation
 without Hands or public consequence. Reengage the brake at the boundary.
+
+## c007d Native Imagination fan-out pressure — 2026-08-11
+
+c007c stopped Heartbeat and resident cleanly with exit zero. Exact fb873927 was
+published into the release Verse, the mounted workspace advanced to current
+`0a3ca20d`, and c007d restarted both owners from authenticated fb873927 with
+bounded Docker `local` logs. Resident production serve passed the new `git`
+Body preflight; both owners were healthy and braked before ingress.
+
+Proposal `proposal-c007-soul-verification-audit-20260811` selected request
+`repo-frontier-proposal-modeling-79838d351edef9f0346ec225377ca5609188b849a478038c0bc85c8b154a481b`.
+It completed one detached Modeling fulfillment. Native Imagination's
+admitted-direction lane then produced several authenticated option drafts;
+runtime promotion created inert autonomous proposals and exact Modeling
+selections one at a time. The first autonomous request
+`repo-frontier-proposal-modeling-460467352543b508aa784f3e110474220be3a037d9c8d066b232cf06bdaf9646`
+also fulfilled once. The brake settled at resident revision 294 with no active
+turn; request
+`repo-frontier-proposal-modeling-ef8245a7349c5cf78e3c2fbd6d4b570912aac522edb93dc695dd257ab448efe1`
+remains pending and untouched. No Hands, Persona, release, deployment, or
+external consequence authority was granted.
+
+The live cascade exposed an ownership gap: admitted Imagination
+`option_drafts` had no structural maximum in either declared output schema or
+runtime validation. Scheduler FIFO and one-at-a-time promotion cannot bound
+the durable queue a single worker result may mint. The active source cut adds
+shared `MAX_OPTION_DRAFTS = 3`, emits that as schema `maxItems`, and rejects
+larger admitted results in Rust. Both focused tests pass. Commit/push and exact
+package/warm replay remain next; c007d stays braked until the bounded body is
+authenticated. Yggdrasil never builds.

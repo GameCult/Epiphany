@@ -1083,7 +1083,7 @@ pub fn epiphany_admitted_model_direction_consideration_output_schema() -> serde_
                 "properties": {
                     "disposition": {"type": "string", "enum": ["suggest", "hold", "no_fit"]},
                     "summary": {"type": "string", "minLength": 1},
-                    "option_drafts": {"type": "array", "items": {"type": "object", "required": ["title", "summary"],
+                    "option_drafts": {"type": "array", "maxItems": crate::admitted_model_direction_consideration::MAX_OPTION_DRAFTS, "items": {"type": "object", "required": ["title", "summary"],
                         "properties": {"title": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1}},
                         "additionalProperties": false}},
                     "uncertainties": {"type": "array", "items": {"type": "string"}},
@@ -1689,6 +1689,16 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admitted_direction_schema_bounds_autonomous_proposal_fanout() {
+        let schema = epiphany_admitted_model_direction_consideration_output_schema();
+        assert_eq!(
+            schema["properties"]["admittedModelDirectionConsiderationResult"]["properties"]
+                ["option_drafts"]["maxItems"],
+            crate::admitted_model_direction_consideration::MAX_OPTION_DRAFTS
+        );
+    }
 
     #[test]
     fn live_worker_contracts_contain_no_codex_route_vocabulary() {
