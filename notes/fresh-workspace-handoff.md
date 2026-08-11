@@ -1,5 +1,34 @@
 # Fresh workspace handoff
 
+## Atomic Continuity repair and fast source-changing package accepted - 2026-08-11
+
+Exact pushed `aa841873` removes a partial-commit seam from legacy coordinator
+Continuity repair. The old loop could repair one valid session, encounter an
+ambiguous later family, return an error, and leave the caller with a partially
+mutated batch. Runtime Continuity now validates every observed candidate first
+and publishes all completed sessions plus deterministic completion events in
+one full-snapshot CAS. The hostile test includes a valid family before the
+ambiguous family and proves the entire snapshot, including the valid Active
+session, remains byte-identical. The full core library passes 670 tests with
+one intentional ignore.
+
+This genuine `epiphany-core` delta closed the release-iteration falsification
+gate. Using the persistent Starfire cache, exact source
+`aa8418734e5634077c830ab9b786322925857a9e` completed in 37.27s wall time with
+Cargo at 29.54s, down from the 5m02s source-changing baseline. Native inspection
+accepted all 24 binaries with zero warnings as release
+`sha256-dd4f05cb2e7f1b26156e7c9d5ed58f6d97ce5808d123b1bec343bfac59bf2ce7`
+and witness
+`sha256-793b29fcb7af4f8314a46f0fe0013cc8f5f382e7490a32c160385d29359adca5`.
+An identical replay took 8.65s wall/Cargo 0.69s and reproduced both identifiers
+exactly. Receipts are under `.epiphany-run/linux-package-aa841873` and
+`.epiphany-run/linux-package-aa841873-warm`.
+
+Release construction is no longer the active machine fault. Keep actual c006
+alive and cognitively braked; resume copied-state autonomous cross-organ
+turnover from its idle frontier. Recheck Yggdrasil's credential boundary before
+attempting the one missing public Persona consequence. Yggdrasil never builds.
+
 ## Genuine packaged Imagination option generation accepted - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked at resident

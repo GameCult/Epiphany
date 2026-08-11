@@ -3792,3 +3792,36 @@ frontier. Mind, Body, workspace coverage, and workspace Git state stayed exact;
 a braked restart issued no grant and resurrected no work. The rejected
 `af2581b5` and `b661ec4b` runs remain receipts for the full-snapshot and
 model-authored-provenance faults instead of being rewritten into victory prose.
+
+## Atomic legacy coordinator repair
+
+Legacy coordinator repair is one Continuity transaction over the complete
+observed runtime snapshot. It is not a loop of independently committed family
+repairs.
+
+- Owner: runtime Continuity owns the batch decision under one full-snapshot
+  fence.
+- Inputs: active legacy coordinator sessions, their sole exact receipts,
+  joblessness, coordinator-started event families, and immutable runtime
+  identity.
+- Outputs: every eligible session becomes Completed and receives its
+  deterministic completion event in one CAS.
+- Derived state: deterministic session ordering affects returned presentation
+  only; it owns no partial commit boundary.
+- Forbidden writers: an earlier valid family cannot publish before every
+  observed candidate family validates.
+- Cut line: any ambiguous receipt, foreign job, malformed start family, or
+  concurrent snapshot change refuses the whole batch without mutation.
+- Verification: exact `aa841873` adds a valid family before an ambiguous family
+  and proves the complete pre/post snapshot remains byte-identical. The full
+  core library passes 670 tests with one intentional ignore.
+
+The same genuine core delta proves restored release-profile ownership under
+source change. Persistent-cache packaging completed in 37.27s wall/Cargo
+29.54s versus the prior 5m02s baseline, producing 24-binary release
+`sha256-dd4f05cb2e7f1b26156e7c9d5ed58f6d97ce5808d123b1bec343bfac59bf2ce7`
+and witness
+`sha256-793b29fcb7af4f8314a46f0fe0013cc8f5f382e7490a32c160385d29359adca5`
+with zero warnings. An identical replay completed in 8.65s wall/Cargo 0.69s
+and reproduced both identifiers exactly. Incremental cache state therefore
+accelerates construction without becoming release authority.
