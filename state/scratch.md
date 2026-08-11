@@ -4,30 +4,37 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Verify, publish, package, and copied-state falsify the completed narrow
-local-Verse reader batch.
+Restore one owner for release incremental policy and measure the exact
+24-binary construction path without weakening witness authority.
 
-## Accepted actual finding
+## Current mechanism
 
-Exact `c9a2a979` reproduced copied turnover on actual c006. Two distinct grants
-completed; the first wrote the exact failed-result supersession, the second
-refused stale action with no consequence. Resident state is idle at revision
-34, protected consequence families are byte-identical, readiness is active,
-and the cognitive brake is engaged.
+The root release-bundle manifest declares `[profile.release]
+incremental = true`, but `release_build_command` force-sets
+`CARGO_INCREMENTAL=0`. The construction helper therefore overrides the profile
+owner and every `epiphany-core` change recompiles the broad crate and relinks the
+24-binary graph. Exact `acd91e6e` took 5m02s despite an otherwise warm graph.
 
-## Authority map for batch verification
+## Authority map
 
-- Owner: exact typed family loaders own single-target decisions; aggregate
-  context owns only explicit multi-family projections.
-- Inputs: exact status/policy/brake/topology/intent rows and unrelated hostile
-  envelopes in copied state.
-- Outputs: unchanged single-target decisions and receipts despite unrelated
-  state-family variation.
-- Derived state: aggregate reports are sight, not mutation authority.
-- Forbidden writers: hostile Persona, Hands, receipt, or telemetry envelopes
-  cannot influence the narrowed commands.
-- Shared paths: source unit tests, exact packaged binaries, and copied-state
-  probes must exercise the same loaders.
-- Cut line: no actual c006 body replacement before copied read-isolation proof.
-- Verification: full library/supervisor/verse-query suites, exact package
-  authentication, then before/after copied-state decision equality.
+- Owner: the root release-bundle Cargo profile owns optimization and
+  incremental policy for the one exact Cargo graph.
+- Inputs: exact source commit, frozen lockfile, target triple, toolchain
+  fingerprint, stable source worktree, and stable graph cache.
+- Outputs: all 24 witnessed release binaries and one exact packaged-release
+  witness.
+- Derived state: incremental objects and fingerprints are cache mechanics, not
+  release identity or publication authority.
+- Forbidden writers: release construction may select the exact manifest,
+  target, feature set, Cargo home, and target directory, but may not silently
+  override manifest profile policy. Cache contents cannot certify a release.
+- Shared paths: migration build, identical replay, and later source-changing
+  warm builds use the same `release_build_command` and witness inspection.
+- Cut line: remove the construction-owned `CARGO_INCREMENTAL=0` override; do
+  not add a weaker shakedown package, second build graph, or cache-derived
+  trust path.
+- Verification: command-shape test proves the override is absent; focused and
+  full construction tests pass; exact Linux migration package authenticates
+  24 binaries; identical replay reproduces release and witness; the next real
+  core-source successor must materially beat the 5m02s baseline while
+  retaining exact witness inspection.

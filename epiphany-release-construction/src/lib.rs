@@ -526,7 +526,6 @@ fn release_build_command(
 ) -> Result<std::process::Command> {
     let mut command = std::process::Command::new(cargo);
     command
-        .env("CARGO_INCREMENTAL", "0")
         .env("CARGO_HOME", cargo_home)
         .arg("build")
         .arg("--release")
@@ -1125,7 +1124,7 @@ mod tests {
             })
             .collect::<BTreeMap<_, _>>();
 
-        assert_eq!(envs.get("CARGO_INCREMENTAL"), Some(&Some("0".to_string())));
+        assert!(!envs.contains_key("CARGO_INCREMENTAL"));
         assert_eq!(
             envs.get("CARGO_HOME"),
             Some(&Some("cargo-home".to_string()))
