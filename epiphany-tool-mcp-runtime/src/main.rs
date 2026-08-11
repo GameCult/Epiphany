@@ -30,6 +30,7 @@ struct RunOptions {
     intent_id: String,
     mcp_config: Option<PathBuf>,
     cwd: Option<PathBuf>,
+    resident_store: Option<PathBuf>,
 }
 
 impl Cli {
@@ -40,12 +41,16 @@ impl Cli {
             "smoke" => Err(anyhow!("smoke accepts no arguments")),
             "run" => {
                 let flags = flags(rest)?;
-                reject_unknown(&flags, &["store", "intent-id", "mcp-config", "cwd"])?;
+                reject_unknown(
+                    &flags,
+                    &["store", "intent-id", "mcp-config", "cwd", "resident-store"],
+                )?;
                 Ok(Self::Run(RunOptions {
                     store: PathBuf::from(required(&flags, "store")?),
                     intent_id: required(&flags, "intent-id")?.to_string(),
                     mcp_config: flags.get("mcp-config").map(PathBuf::from),
                     cwd: flags.get("cwd").map(PathBuf::from),
+                    resident_store: flags.get("resident-store").map(PathBuf::from),
                 }))
             }
             _ => Err(anyhow!(usage())),
@@ -90,6 +95,33 @@ async fn execute_to_receipt(
                 None => std::env::current_dir()?,
             };
             execute_epiphany_source(intent, &options.store, &cwd)
+        } else if intent.server == "epiphany_state" {
+            let resident_store = options.resident_store.as_ref().ok_or_else(|| {
+                anyhow!("epiphany_state requires an explicitly bound --resident-store")
+            })?;
+            if intent.tool_name != "resident_grant_lifecycle" {
+                return Err(anyhow!("unknown epiphany_state tool {:?}", intent.tool_name));
+            }
+            let arguments: serde_json::Value = serde_json::from_str(&intent.arguments_json)
+                .context("arguments_json is not valid JSON")?;
+            let grant_id = arguments.get("grantId").and_then(serde_json::Value::as_str);
+            let limit = arguments
+                .get("limit")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(20)
+                .clamp(1, 100) as usize;
+            let grants = epiphany_core::resident_self_grant_lifecycle_projection(
+                resident_store,
+                grant_id,
+                limit,
+            )?;
+            Ok(serde_json::json!({
+                "schemaVersion": "epiphany.resident_self.grant_lifecycle_projection.v0",
+                "grantId": grant_id,
+                "limit": limit,
+                "grants": grants,
+                "privateStateExposed": false
+            }))
         } else {
             let path = options.mcp_config.as_ref().ok_or_else(|| {
                 anyhow!(
@@ -167,7 +199,7 @@ fn reject_unknown(flags: &BTreeMap<String, String>, allowed: &[&str]) -> Result<
     }
 }
 fn usage() -> &'static str {
-    "usage: epiphany-tool-mcp-runtime run --store PATH --intent-id ID [--mcp-config PATH] [--cwd PATH] | smoke"
+    "usage: epiphany-tool-mcp-runtime run --store PATH --intent-id ID [--mcp-config PATH] [--cwd PATH] [--resident-store PATH] | smoke"
 }
 
 #[derive(Serialize)]
@@ -329,6 +361,7 @@ mod tests {
             intent_id: intent.intent_id.clone(),
             mcp_config: None,
             cwd: Some(temp.path().to_path_buf()),
+            resident_store: None,
         })
         .await?;
 
@@ -339,6 +372,114 @@ mod tests {
         )?;
         assert_eq!(receipt.adapter, EPIPHANY_TOOL_RUNTIME_ADAPTER_ID);
         assert!(receipt.result_json.as_deref().unwrap().contains("awake"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resident_state_tool_requires_explicit_store_and_projects_grant_owner() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime_store = temp.path().join("runtime.cc");
+        let resident_store = temp.path().join("resident.cc");
+        epiphany_core::initialize_runtime_spine(
+            &runtime_store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "state-tool-test".into(),
+                display_name: "State Tool Test".into(),
+                created_at: "now".into(),
+            },
+        )?;
+        epiphany_core::enqueue_resident_self_pressure(
+            &resident_store,
+            &epiphany_core::ResidentSelfPressure {
+                schema_version: epiphany_core::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-state-tool".into(),
+                kind: "operator-objective".into(),
+                provenance_ref: "operator://state-tool-test".into(),
+                objective: "Observe exact grant lifecycle.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let grant = epiphany_core::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "schedule-state-tool",
+            "action-state-tool",
+            2,
+        )?
+        .expect("grant");
+        let intent = EpiphanyToolInvocationIntent::new(
+            "native-state-read",
+            EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+            "epiphany_state",
+            "resident_grant_lifecycle",
+            format!(r#"{{"grantId":"{}"}}"#, grant.grant_id),
+            "test",
+            "prove grant-owned state observation",
+            "now",
+        );
+        epiphany_core::create_runtime_session(
+            &runtime_store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: "state-tool-session".into(),
+                objective: "Observe resident state.".into(),
+                created_at: "2026-08-11T00:00:00Z".into(),
+                coordinator_note: "test".into(),
+            },
+        )?;
+        epiphany_core::create_runtime_job(
+            &runtime_store,
+            epiphany_core::RuntimeSpineJobOptions {
+                job_id: "state-tool-job".into(),
+                session_id: "state-tool-session".into(),
+                role: "tool-runtime".into(),
+                created_at: "2026-08-11T00:00:01Z".into(),
+                summary: "Observe resident state.".into(),
+                artifact_refs: vec![],
+            },
+        )?;
+        epiphany_core::put_runtime_tool_execution_intent(
+            &runtime_store,
+            "state-tool-session",
+            "state-tool-job",
+            &intent,
+            "2026-08-11T00:00:02Z",
+        )?;
+
+        let unbound = execute_to_receipt(
+            &intent,
+            &RunOptions {
+                store: runtime_store.clone(),
+                intent_id: intent.intent_id.clone(),
+                mcp_config: None,
+                cwd: None,
+                resident_store: None,
+            },
+        )
+        .await;
+        assert_eq!(unbound.status, "failed");
+        assert!(unbound.error.as_deref().unwrap().contains("explicitly bound"));
+
+        let summary = run(RunOptions {
+            store: runtime_store.clone(),
+            intent_id: intent.intent_id.clone(),
+            mcp_config: None,
+            cwd: None,
+            resident_store: Some(resident_store),
+        })
+        .await?;
+        assert_eq!(summary.status, "completed");
+        let cache = open_store(&runtime_store)?;
+        let receipt = cache.get_required::<EpiphanyToolInvocationReceipt>(
+            &tool_invocation_receipt_key(&intent.intent_id),
+        )?;
+        let body: serde_json::Value = serde_json::from_str(
+            receipt.result_json.as_deref().expect("state projection body"),
+        )?;
+        assert_eq!(body["grants"][0]["grantId"], grant.grant_id);
+        assert_eq!(body["grants"][0]["launchable"], true);
+        assert_eq!(body["privateStateExposed"], false);
         Ok(())
     }
 
@@ -372,6 +513,7 @@ mod tests {
             intent_id: intent.intent_id.clone(),
             mcp_config: None,
             cwd: Some(temp.path().to_path_buf()),
+            resident_store: None,
         })
         .await
         {

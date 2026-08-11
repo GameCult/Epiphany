@@ -593,11 +593,11 @@ pub fn build_worker_model_request(
     let mut instructions =
         worker_instructions(launch_request, &launch_document, &output_schema_json);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. Directory totals are authoritative only when the tool reports `complete=true`. If a tool fails, cite that failed tool result and the exact remaining blocker.");
+        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources before emitting evidence. Call the bounded read-only file, directory-inventory, or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`.");
+        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources or typed resident state before emitting evidence. Call the bounded read-only file, directory-inventory, Git, or `mcp__epiphany_state__resident_grant_lifecycle` tool appropriate to the claim; cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources before proposing repository anatomy. Call the bounded read-only file, directory-inventory, or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure. Directory totals are authoritative only when the inventory reports `complete=true`.");
+        instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources or typed resident state before proposing repository anatomy. Call the bounded read-only file, directory-inventory, Git, or `mcp__epiphany_state__resident_grant_lifecycle` tool appropriate to the claim; cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     }
     let mut request = EpiphanyModelRequest::new(
         request_id,
@@ -1148,6 +1148,19 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
                     "kind": {"type": "string", "enum": ["patch", "command", "commit"]}
                 },
                 "required": ["receiptId", "kind"]
+            })
+            .to_string(),
+        },
+        EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_state__resident_grant_lifecycle".to_string(),
+            description: "Read grant-owned resident Self lifecycle state from the explicitly launch-bound resident store. Use an exact grantId when known or a bounded recent limit. This is observation only; terminal and launchable fields remain derived from the typed grant/state owner.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "grantId": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+                }
             })
             .to_string(),
         },
@@ -2842,6 +2855,10 @@ mod tests {
             .tools
             .iter()
             .any(|tool| tool.name == "mcp__epiphany_source__directory_inventory"));
+        assert!(model_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_state__resident_grant_lifecycle"));
         assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -2993,12 +3010,16 @@ mod tests {
         assert!(tool_names.contains(&"mcp__epiphany_source__directory_inventory"));
         assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
         assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
+        assert!(tool_names.contains(&"mcp__epiphany_state__resident_grant_lifecycle"));
         assert!(model_request
             .instructions
             .contains("mcp__epiphany_source__read_file"));
         assert!(model_request
             .instructions
             .contains("mcp__epiphany_source__directory_inventory"));
+        assert!(model_request
+            .instructions
+            .contains("mcp__epiphany_state__resident_grant_lifecycle"));
         Ok(())
     }
 

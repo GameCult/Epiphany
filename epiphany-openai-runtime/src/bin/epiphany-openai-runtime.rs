@@ -525,6 +525,7 @@ struct RunWorkerCliOptions {
     auto_tools: bool,
     tool_adapter_bin: Option<PathBuf>,
     cwd: Option<PathBuf>,
+    resident_store: Option<PathBuf>,
     max_tool_rounds: usize,
     max_runtime_seconds: Option<u64>,
     activation_token_sha256: String,
@@ -626,6 +627,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut auto_tools = false;
     let mut tool_adapter_bin = None;
     let mut cwd = None;
+    let mut resident_store = None;
     let mut max_tool_rounds = 4usize;
     let mut max_runtime_seconds = None;
     let mut activation_token_sha256 = None;
@@ -645,6 +647,9 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
                 tool_adapter_bin = Some(PathBuf::from(next_value(&mut iter, "--tool-adapter-bin")?))
             }
             "--cwd" => cwd = Some(PathBuf::from(next_value(&mut iter, "--cwd")?)),
+            "--resident-store" => {
+                resident_store = Some(PathBuf::from(next_value(&mut iter, "--resident-store")?))
+            }
             "--max-tool-rounds" => {
                 max_tool_rounds = next_value(&mut iter, "--max-tool-rounds")?.parse()?
             }
@@ -668,6 +673,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         auto_tools,
         tool_adapter_bin,
         cwd,
+        resident_store,
         max_tool_rounds,
         max_runtime_seconds,
         activation_token_sha256: activation_token_sha256
@@ -917,6 +923,7 @@ async fn run_worker_launch_with_tool_continuation(
                 &options.store_path,
                 options.mcp_config.as_ref(),
                 options.cwd.as_ref(),
+                options.resident_store.as_ref(),
                 &intent_id,
             )?);
         }
@@ -1789,6 +1796,7 @@ fn run_tool_adapter(
     store_path: &PathBuf,
     mcp_config: Option<&PathBuf>,
     cwd: Option<&PathBuf>,
+    resident_store: Option<&PathBuf>,
     intent_id: &str,
 ) -> Result<serde_json::Value> {
     let mut command = Command::new(tool_adapter_bin);
@@ -1803,6 +1811,9 @@ fn run_tool_adapter(
     }
     if let Some(cwd) = cwd {
         command.arg("--cwd").arg(cwd);
+    }
+    if let Some(resident_store) = resident_store {
+        command.arg("--resident-store").arg(resident_store);
     }
     let output = command
         .output()

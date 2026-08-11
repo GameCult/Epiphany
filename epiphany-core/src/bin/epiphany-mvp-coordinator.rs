@@ -404,6 +404,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             &codex_home,
             &mcp_config,
             &cwd,
+            args.resident_state_store.as_deref(),
             &worker_job_id,
             "imagination",
             0,
@@ -463,6 +464,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             &codex_home,
             &mcp_config,
             &cwd,
+            args.resident_state_store.as_deref(),
             &worker_job_id,
             "imagination",
             0,
@@ -511,6 +513,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             &codex_home,
             &mcp_config,
             &cwd,
+            args.resident_state_store.as_deref(),
             &worker_job_id,
             "modeling",
             0,
@@ -674,6 +677,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &codex_home,
                     &mcp_config,
                     &cwd,
+                    args.resident_state_store.as_deref(),
                     &worker_job_id,
                     "imagination-frontier-planning",
                     index,
@@ -730,6 +734,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &codex_home,
                     &mcp_config,
                     &cwd,
+                    args.resident_state_store.as_deref(),
                     &worker_job_id,
                     "mind-frontier-plan-review",
                     index,
@@ -952,6 +957,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &codex_home,
                     &mcp_config,
                     &cwd,
+                    args.resident_state_store.as_deref(),
                     &worker_job_id,
                     role_id,
                     index,
@@ -1012,6 +1018,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &codex_home,
                     &mcp_config,
                     &cwd,
+                    args.resident_state_store.as_deref(),
                     &worker_job_id,
                     "reorient-worker",
                     index,
@@ -2055,6 +2062,7 @@ fn launch_worker_runtime_detached(
     codex_home: &Path,
     mcp_config: &Path,
     cwd: &Path,
+    resident_store: Option<&Path>,
     job_id: &str,
     role_id: &str,
     step_index: usize,
@@ -2098,6 +2106,9 @@ fn launch_worker_runtime_detached(
             .arg(cwd)
             .arg("--max-tool-rounds")
             .arg(WORKER_AUTO_TOOL_MAX_ROUNDS.to_string());
+        if let Some(resident_store) = resident_store {
+            command.arg("--resident-store").arg(resident_store);
+        }
     }
     let stdout_file = fs::File::create(&stdout_path)
         .with_context(|| format!("failed to create {}", stdout_path.display()))?;

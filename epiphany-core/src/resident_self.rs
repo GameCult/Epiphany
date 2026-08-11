@@ -119,6 +119,33 @@ pub struct ResidentSelfHeartbeatGrant {
     pub terminal_status: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidentSelfGrantLifecycleProjection {
+    pub grant_id: String,
+    pub pressure_id: String,
+    pub pressure_kind: String,
+    pub heartbeat_schedule_id: String,
+    pub heartbeat_action_id: String,
+    pub issued_at_millis: u64,
+    pub consumed_at_millis: Option<u64>,
+    pub terminal_at_millis: Option<u64>,
+    pub terminal_status: Option<String>,
+    pub active: bool,
+    pub prepared: bool,
+    pub launchable: bool,
+}
+
+fn resident_self_grant_is_pending(
+    grant: &ResidentSelfHeartbeatGrant,
+    legacy_terminal_grant_ids: &BTreeSet<String>,
+) -> bool {
+    grant.consumed_at_millis.is_none()
+        && grant.terminal_at_millis.is_none()
+        && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
+            && legacy_terminal_grant_ids.contains(&grant.grant_id))
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.resident_self.terminal_ack.v0",
@@ -1297,10 +1324,7 @@ pub fn heartbeat_issue_resident_self_grant(
     let grants = cache.get_all::<ResidentSelfHeartbeatGrant>()?;
     if grants.iter().any(|grant| {
         (grant.heartbeat_schedule_id == schedule_id && grant.heartbeat_action_id == action_id)
-            || (grant.consumed_at_millis.is_none()
-                && grant.terminal_at_millis.is_none()
-                && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
-                    && legacy_terminal_grant_ids.contains(&grant.grant_id)))
+            || resident_self_grant_is_pending(grant, &legacy_terminal_grant_ids)
     }) {
         return Ok(None);
     }
@@ -1386,6 +1410,63 @@ pub fn resident_self_pressures(path: &Path) -> Result<Vec<ResidentSelfPressure>>
     let mut pressure = state_cache(path)?.get_all::<ResidentSelfPressure>()?;
     pressure.sort_by(|left, right| left.pressure_id.cmp(&right.pressure_id));
     Ok(pressure)
+}
+
+pub fn resident_self_grant_lifecycle_projection(
+    path: &Path,
+    grant_id: Option<&str>,
+    limit: usize,
+) -> Result<Vec<ResidentSelfGrantLifecycleProjection>> {
+    let cache = state_cache(path)?;
+    let state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .unwrap_or_default();
+    let legacy_terminal_grant_ids = cache
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .map(|ack| ack.grant_id)
+        .collect::<BTreeSet<_>>();
+    let mut grants = cache
+        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .into_iter()
+        .filter(|grant| grant_id.is_none_or(|id| grant.grant_id == id))
+        .collect::<Vec<_>>();
+    grants.sort_by(|left, right| {
+        right
+            .issued_at_millis
+            .cmp(&left.issued_at_millis)
+            .then(right.grant_id.cmp(&left.grant_id))
+    });
+    grants.truncate(limit.clamp(1, 100));
+    Ok(grants
+        .into_iter()
+        .map(|grant| {
+            let active = state.active_turn.as_ref().map(|lease| lease.grant_id.as_str())
+                == Some(grant.grant_id.as_str());
+            let prepared = state
+                .prepared_launch
+                .as_ref()
+                .map(|prepared| prepared.grant.grant_id.as_str())
+                == Some(grant.grant_id.as_str());
+            let launchable = resident_self_grant_is_pending(&grant, &legacy_terminal_grant_ids)
+                && !active
+                && !prepared;
+            ResidentSelfGrantLifecycleProjection {
+                grant_id: grant.grant_id,
+                pressure_id: grant.pressure_id,
+                pressure_kind: grant.pressure_kind,
+                heartbeat_schedule_id: grant.heartbeat_schedule_id,
+                heartbeat_action_id: grant.heartbeat_action_id,
+                issued_at_millis: grant.issued_at_millis,
+                consumed_at_millis: grant.consumed_at_millis,
+                terminal_at_millis: grant.terminal_at_millis,
+                terminal_status: grant.terminal_status,
+                active,
+                prepared,
+                launchable,
+            }
+        })
+        .collect())
 }
 
 /// Runtime retention consumes this resident-owned projection as its
@@ -1951,12 +2032,7 @@ pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHea
     let mut grants = cache
         .get_all::<ResidentSelfHeartbeatGrant>()?
         .into_iter()
-        .filter(|grant| {
-            grant.consumed_at_millis.is_none()
-                && grant.terminal_at_millis.is_none()
-                && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
-                    && legacy_terminal_grant_ids.contains(&grant.grant_id))
-        })
+        .filter(|grant| resident_self_grant_is_pending(grant, &legacy_terminal_grant_ids))
         .collect::<Vec<_>>();
     grants.sort_by(|a, b| {
         a.issued_at_millis
@@ -4509,6 +4585,21 @@ mod tests {
         assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
         assert_ne!(retry_grant.grant_id, first_grant.grant_id);
         assert!(retry_grant.grant_id.contains("-attempt-2-"));
+        let projection = resident_self_grant_lifecycle_projection(&store, None, 10)?;
+        assert_eq!(projection.len(), 2);
+        assert_eq!(projection[0].grant_id, retry_grant.grant_id);
+        assert!(projection[0].launchable);
+        assert_eq!(projection[1].grant_id, first_grant.grant_id);
+        assert_eq!(projection[1].terminal_status.as_deref(), Some("unfulfilled"));
+        assert!(!projection[1].launchable);
+        assert_eq!(
+            resident_self_grant_lifecycle_projection(
+                &store,
+                Some(&first_grant.grant_id),
+                1,
+            )?[0],
+            projection[1]
+        );
 
         let prepared = prepare_resident_self_launch(&store, &policy, 9)?.expect("retry preparation");
         let retry_process = LaunchedCoordinator {
