@@ -468,6 +468,46 @@ pub fn admitted_persona_feedback(
     Ok(feedback)
 }
 
+/// Returns only admitted feedback whose exact Heartbeat bridge receipt proves
+/// that the configured provider disclosure policy allowed it to enter
+/// cognition. Admission authenticates transport; it does not grant disclosure.
+pub fn bridged_persona_feedback_ready_for_cognition(
+    path: &Path,
+    runtime_id: &str,
+) -> Result<Vec<LocalAdmittedPersonaFeedback>> {
+    let mut ready = Vec::new();
+    for feedback in admitted_persona_feedback(path, runtime_id)? {
+        if feedback.target_runtime_id != runtime_id {
+            bail!("admitted Persona feedback escaped its target runtime");
+        }
+        let receipt_id = format!("persona-feedback-heartbeat:{}", feedback.feedback_id);
+        let Some((receipt, _)) = load_persona_feedback_bridge_receipt(path, &receipt_id)? else {
+            continue;
+        };
+        let expected_mention_id = format!("bifrost-feedback:{}", feedback.feedback_id);
+        if receipt.schema_version != PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION
+            || receipt.receipt_id != receipt_id
+            || receipt.feedback_id != feedback.feedback_id
+            || receipt.admission_id != feedback.admission_id
+            || receipt.packet_sha256 != feedback.packet_sha256
+            || receipt.heartbeat_mention_id != expected_mention_id
+            || receipt.discord_channel_id != feedback.discord_channel_id
+            || receipt.discord_message_id != feedback.discord_message_id
+            || receipt.private_state_exposed
+        {
+            bail!("Persona feedback cognition bridge receipt is not exact");
+        }
+        if receipt.status == "pending" {
+            continue;
+        }
+        if receipt.status != "queued" {
+            bail!("Persona feedback cognition bridge receipt has invalid status");
+        }
+        ready.push(feedback);
+    }
+    Ok(ready)
+}
+
 pub fn import_bifrost_persona_feedback_deliveries(
     source_store: &Path,
     feedback_store: &Path,
@@ -932,6 +972,13 @@ mod tests {
             private_state_exposed: false,
         };
         insert_pending_persona_feedback_bridge_receipt(&feedback_store, &pending)?;
+        assert!(
+            bridged_persona_feedback_ready_for_cognition(
+                &feedback_store,
+                "epiphany-yggdrasil"
+            )?
+            .is_empty()
+        );
 
         let recovered = bridge_admitted_persona_feedback_to_heartbeat(
             &feedback_store,
@@ -942,6 +989,13 @@ mod tests {
         )?;
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].status, "queued");
+        assert_eq!(
+            bridged_persona_feedback_ready_for_cognition(
+                &feedback_store,
+                "epiphany-yggdrasil"
+            )?,
+            vec![admitted]
+        );
         let state = crate::load_heartbeat_state_entry(&heartbeat_store)?.expect("heartbeat state");
         assert_eq!(state.pending_mentions.len(), 1);
         assert_eq!(state.pending_mentions[0].source_surface, "bifrost-discord");
@@ -1011,6 +1065,13 @@ mod tests {
             },
         )?;
         assert!(
+            bridged_persona_feedback_ready_for_cognition(
+                &feedback_store,
+                "epiphany-yggdrasil"
+            )
+            .is_err()
+        );
+        assert!(
             bridge_admitted_persona_feedback_to_heartbeat(
                 &feedback_store,
                 &heartbeat_store,
@@ -1062,6 +1123,13 @@ mod tests {
         assert_eq!(
             admitted_persona_feedback(&feedback_store, "epiphany-yggdrasil")?.len(),
             1
+        );
+        assert!(
+            bridged_persona_feedback_ready_for_cognition(
+                &feedback_store,
+                "epiphany-yggdrasil"
+            )?
+            .is_empty()
         );
         assert!(
             crate::load_heartbeat_state_entry(&heartbeat_store)?

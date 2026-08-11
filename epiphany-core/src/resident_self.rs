@@ -1083,12 +1083,9 @@ pub fn ingest_resident_self_domain_pressure(
             },
         )?);
     }
-    for feedback in crate::admitted_persona_feedback(persona_feedback_store, runtime_id)? {
-        if feedback.target_runtime_id != runtime_id {
-            return Err(anyhow!(
-                "admitted Persona feedback escaped its target runtime"
-            ));
-        }
+    for feedback in
+        crate::bridged_persona_feedback_ready_for_cognition(persona_feedback_store, runtime_id)?
+    {
         let Some(request) = crate::commit_imagination_consideration_request(
             runtime_store,
             persona_feedback_store,

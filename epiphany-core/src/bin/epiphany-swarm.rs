@@ -277,19 +277,20 @@ fn cycle(
 ) -> Result<ResidentSelfOutcome> {
     let now = Utc::now().timestamp_millis().max(0) as u64;
     let brake_engaged = ports.brake_engaged()?;
+    let cognitive_runtime_id = ports.cognitive_runtime_id().to_string();
     run_feedback_import_if_released(brake_engaged || shutdown_requested, || {
         import_bifrost_persona_feedback_deliveries(
             &args.persona_feedback_source_store,
             &args.persona_feedback_store,
             &args.bifrost_feedback_trust_anchor,
-            &args.policy.release_runtime_id,
+            &cognitive_runtime_id,
             &args.feedback_target_repository,
             &args.feedback_target_persona,
         )?;
         bridge_admitted_persona_feedback_to_heartbeat(
             &args.persona_feedback_store,
             &args.heartbeat_store,
-            &args.policy.release_runtime_id,
+            &cognitive_runtime_id,
             &args.policy.model_provider,
             &args.persona_model_allowed_data_classifications,
         )?;
@@ -305,7 +306,7 @@ fn cycle(
             &args.state_store,
             &args.policy.runtime_store,
             &args.persona_feedback_store,
-            &args.policy.release_runtime_id,
+            &cognitive_runtime_id,
             &args.feedback_target_repository,
             &args.policy.workspace.display().to_string(),
             now,
@@ -630,6 +631,10 @@ impl<'a> NativePorts<'a> {
             children: BTreeMap::new(),
         })
     }
+
+    fn cognitive_runtime_id(&self) -> &str {
+        &self.cognitive_runtime_id
+    }
 }
 
 impl ResidentSelfPorts for NativePorts<'_> {
@@ -796,7 +801,7 @@ mod brake_tests {
         };
 
         let mut ports = NativePorts::new(&policy)?;
-        assert_eq!(ports.cognitive_runtime_id, "cognitive-runtime");
+        assert_eq!(ports.cognitive_runtime_id(), "cognitive-runtime");
         assert!(ports.brake_engaged()?);
         assert!(!resident_self_brake_engaged(
             &policy.local_verse_store,

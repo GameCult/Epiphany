@@ -923,6 +923,7 @@ pub use persona_feedback_admission::{
     PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION, PersonaFeedbackHeartbeatBridgeReceipt,
     PersonaFeedbackPacket, admit_bifrost_persona_feedback, admitted_persona_feedback,
     apply_bifrost_persona_feedback_snapshot, bridge_admitted_persona_feedback_to_heartbeat,
+    bridged_persona_feedback_ready_for_cognition,
     import_bifrost_persona_feedback_deliveries, persona_feedback_admission_signing_payload,
     persona_feedback_admission_signing_purpose, persona_feedback_packet_sha256,
     validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
