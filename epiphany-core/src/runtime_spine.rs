@@ -2513,85 +2513,85 @@ pub fn repair_legacy_terminal_coordinator_sessions(
     store_path: impl AsRef<Path>,
 ) -> Result<Vec<EpiphanyRuntimeSession>> {
     let store_path = store_path.as_ref();
-    let mut repaired = Vec::new();
-    loop {
-        let mut cache = runtime_spine_cache(store_path)?;
-        cache.pull_all_backing_stores()?;
-        require_identity(&cache)?;
-        let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
-        let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
-        let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
-        let mut candidate = None;
-        for session in cache
-            .get_all::<EpiphanyRuntimeSession>()?
-            .into_iter()
-            .filter(|session| {
-                session.status == EpiphanyRuntimeSessionStatus::Active
-                    && session.session_id.starts_with("coordinator-")
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+    let receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+    let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
+    let mut candidates = Vec::new();
+    let mut sessions = cache
+        .get_all::<EpiphanyRuntimeSession>()?
+        .into_iter()
+        .filter(|session| {
+            session.status == EpiphanyRuntimeSessionStatus::Active
+                && session.session_id.starts_with("coordinator-")
+        })
+        .collect::<Vec<_>>();
+    sessions.sort_by(|left, right| left.session_id.cmp(&right.session_id));
+    for session in sessions {
+        let session_receipts = receipts
+            .iter()
+            .filter(|receipt| receipt.session_id == session.session_id)
+            .collect::<Vec<_>>();
+        if session_receipts.is_empty() {
+            continue;
+        }
+        if session_receipts.len() != 1 {
+            return Err(anyhow!(
+                "legacy coordinator session {:?} has ambiguous terminal receipts",
+                session.session_id
+            ));
+        }
+        let receipt = session_receipts[0];
+        if session
+            .session_id
+            .strip_prefix("coordinator-")
+            .is_none_or(|thread_id| thread_id != receipt.thread_id)
+            || jobs.iter().any(|job| job.session_id == session.session_id)
+        {
+            return Err(anyhow!(
+                "legacy coordinator session terminal authority is inconsistent"
+            ));
+        }
+        let session_events = events
+            .iter()
+            .filter(|event| event.session_id.as_deref() == Some(&session.session_id))
+            .collect::<Vec<_>>();
+        if session_events.is_empty()
+            || session_events.iter().any(|event| {
+                event.event_type != "coordinator.started"
+                    || event.source != "epiphany-mvp-coordinator"
+                    || event.job_id.is_some()
             })
         {
-            let session_receipts = receipts
-                .iter()
-                .filter(|receipt| receipt.session_id == session.session_id)
-                .collect::<Vec<_>>();
-            if session_receipts.is_empty() {
-                continue;
-            }
-            if session_receipts.len() != 1 {
-                return Err(anyhow!(
-                    "legacy coordinator session {:?} has ambiguous terminal receipts",
-                    session.session_id
-                ));
-            }
-            let receipt = session_receipts[0];
-            if session
-                .session_id
-                .strip_prefix("coordinator-")
-                .is_none_or(|thread_id| thread_id != receipt.thread_id)
-                || jobs.iter().any(|job| job.session_id == session.session_id)
-            {
-                return Err(anyhow!(
-                    "legacy coordinator session terminal authority is inconsistent"
-                ));
-            }
-            let session_events = events
-                .iter()
-                .filter(|event| event.session_id.as_deref() == Some(&session.session_id))
-                .collect::<Vec<_>>();
-            if session_events.is_empty()
-                || session_events.iter().any(|event| {
-                    event.event_type != "coordinator.started"
-                        || event.source != "epiphany-mvp-coordinator"
-                        || event.job_id.is_some()
-                })
-            {
-                return Err(anyhow!(
-                    "legacy coordinator session start evidence is inconsistent"
-                ));
-            }
-            candidate = Some((session, receipt.clone()));
-            break;
+            return Err(anyhow!(
+                "legacy coordinator session start evidence is inconsistent"
+            ));
         }
-        let Some((mut session, receipt)) = candidate else {
-            break;
-        };
-        let snapshot = cache.snapshot_envelopes();
+        candidates.push((session, receipt.clone()));
+    }
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let mut replacements = Vec::with_capacity(candidates.len() * 2);
+    let mut repaired = Vec::with_capacity(candidates.len());
+    for (mut session, receipt) in candidates {
         let event = coordinator_completion_event(&receipt);
         session.status = EpiphanyRuntimeSessionStatus::Completed;
         session.updated_at = receipt.created_at.clone();
         session.coordinator_note = event.summary.clone();
-        let replacements = vec![
-            cache.prepare_entry(&session.session_id, &session)?.0,
-            cache.prepare_entry(&event.event_id, &event)?.0,
-        ];
-        if !runtime_spine_backing_store(store_path)?
-            .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
-        {
-            return Err(anyhow!(
-                "legacy coordinator session repair lost its full snapshot fence"
-            ));
-        }
+        replacements.push(cache.prepare_entry(&session.session_id, &session)?.0);
+        replacements.push(cache.prepare_entry(&event.event_id, &event)?.0);
         repaired.push(session);
+    }
+    if !runtime_spine_backing_store(store_path)?
+        .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+    {
+        return Err(anyhow!(
+            "legacy coordinator session repair lost its full snapshot fence"
+        ));
     }
     Ok(repaired)
 }
@@ -17997,6 +17997,55 @@ pub(crate) mod tests {
         create_runtime_session(
             &store,
             RuntimeSpineSessionOptions {
+                session_id: "coordinator-thread-valid".to_string(),
+                objective: "Valid legacy shape preceding hostile authority.".to_string(),
+                created_at: "2026-08-10T10:00:00Z".to_string(),
+                coordinator_note: String::new(),
+            },
+        )?;
+        append_runtime_event(
+            &store,
+            RuntimeSpineEventOptions {
+                event_id: "event-coordinator-started-valid".to_string(),
+                occurred_at: "2026-08-10T10:00:00Z".to_string(),
+                event_type: "coordinator.started".to_string(),
+                source: "epiphany-mvp-coordinator".to_string(),
+                session_id: Some("coordinator-thread-valid".to_string()),
+                job_id: None,
+                summary: "Started.".to_string(),
+            },
+        )?;
+        put_coordinator_run_receipt(
+            &store,
+            &EpiphanyCoordinatorRunReceipt {
+                schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "valid-terminal".to_string(),
+                session_id: "coordinator-thread-valid".to_string(),
+                thread_id: "thread-valid".to_string(),
+                mode: "default".to_string(),
+                status: "completed".to_string(),
+                final_action: "manualRegather".to_string(),
+                final_reason: None,
+                step_count: 1,
+                created_at: "2026-08-10T10:00:30Z".to_string(),
+                model_provider: None,
+                runtime_store: store.display().to_string(),
+                artifact_refs: Vec::new(),
+                sealed_artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+                resident_grant_id: None,
+                resident_launch_digest: None,
+                resident_policy_digest: None,
+                resident_argv_digest: None,
+                resident_objective_digest: None,
+                resident_release_commit: None,
+                resident_release_manifest_digest: None,
+                resident_executable_digest: None,
+            },
+        )?;
+        create_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
                 session_id: "coordinator-thread-hostile".to_string(),
                 objective: "Hostile legacy shape.".to_string(),
                 created_at: "2026-08-10T10:00:01Z".to_string(),
@@ -18052,6 +18101,14 @@ pub(crate) mod tests {
         let mut after = runtime_spine_cache(&store)?;
         after.pull_all_backing_stores()?;
         assert_eq!(after.snapshot_envelopes(), snapshot);
+        assert_eq!(
+            after
+                .get::<EpiphanyRuntimeSession>("coordinator-thread-valid")?
+                .expect("valid family must remain present")
+                .status,
+            EpiphanyRuntimeSessionStatus::Active,
+            "a later hostile family must prevent partial repair of an earlier valid family"
+        );
         Ok(())
     }
 

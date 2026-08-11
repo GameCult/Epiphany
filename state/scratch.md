@@ -4,37 +4,36 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Restore one owner for release incremental policy and measure the exact
-24-binary construction path without weakening witness authority.
+Make legacy coordinator Continuity repair atomic across the observed batch,
+then use that genuine `epiphany-core` source delta to falsify release iteration
+speed without weakening the 24-binary witness.
 
 ## Current mechanism
 
-The root release-bundle manifest declares `[profile.release]
-incremental = true`, but `release_build_command` force-sets
-`CARGO_INCREMENTAL=0`. The construction helper therefore overrides the profile
-owner and every `epiphany-core` change recompiles the broad crate and relinks the
-24-binary graph. Exact `acd91e6e` took 5m02s despite an otherwise warm graph.
+`repair_legacy_terminal_coordinator_sessions` previously validated and repaired
+one session per loop iteration. A valid earlier family could commit before a
+later ambiguous family made the call return an error. The caller therefore saw
+failure after a partial batch mutation.
 
 ## Authority map
 
-- Owner: the root release-bundle Cargo profile owns optimization and
-  incremental policy for the one exact Cargo graph.
-- Inputs: exact source commit, frozen lockfile, target triple, toolchain
-  fingerprint, stable source worktree, and stable graph cache.
-- Outputs: all 24 witnessed release binaries and one exact packaged-release
-  witness.
-- Derived state: incremental objects and fingerprints are cache mechanics, not
-  release identity or publication authority.
-- Forbidden writers: release construction may select the exact manifest,
-  target, feature set, Cargo home, and target directory, but may not silently
-  override manifest profile policy. Cache contents cannot certify a release.
-- Shared paths: migration build, identical replay, and later source-changing
-  warm builds use the same `release_build_command` and witness inspection.
-- Cut line: remove the construction-owned `CARGO_INCREMENTAL=0` override; do
-  not add a weaker shakedown package, second build graph, or cache-derived
-  trust path.
-- Verification: command-shape test proves the override is absent; focused and
-  full construction tests pass; exact Linux migration package authenticates
-  24 binaries; identical replay reproduces release and witness; the next real
-  core-source successor must materially beat the 5m02s baseline while
-  retaining exact witness inspection.
+- Owner: runtime Continuity owns the repair decision for the complete observed
+  legacy coordinator snapshot.
+- Inputs: immutable runtime identity, active legacy coordinator sessions, exact
+  session receipts, job families, and coordinator-started events.
+- Outputs: every eligible session becomes Completed and receives its
+  deterministic completion event in one full-snapshot CAS.
+- Derived state: iteration order is deterministic presentation only; it does
+  not create per-family commit authority.
+- Forbidden writers: the former per-session repair loop may not publish an
+  early family before all observed candidate families validate.
+- Shared paths: runtime bind/bootstrap and explicit repair use the same batch
+  primitive.
+- Cut line: validate and prepare the entire batch first, then make one
+  `replace_and_append_if_snapshot_unchanged` call. Any invalid or racing family
+  leaves all families unchanged.
+- Verification: the full 670-test core suite passes with one intentional
+  ignore. The hostile test now includes a valid family before an ambiguous
+  family and proves the complete snapshot, including the valid Active session,
+  stays byte-identical. Package this exact source with the persistent Linux
+  cache and compare it with the 5m02s source-changing baseline.
