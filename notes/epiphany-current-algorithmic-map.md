@@ -3699,3 +3699,18 @@ passes without warnings.
 The full classified batch then passed 669 library tests with one intentional
 ignore, 29 daemon-supervisor tests, and 19 verse-query tests. Detached logs and
 exit-zero status live under `.epiphany-run/narrow-verse-readers-161c6ec8`.
+
+Exact pushed `ec54666c` packages that cut as Linux release
+`sha256-4d7347980f2fad658ebc6206b0435f29e1151cfbb75ec2806a8df2d5eb7f63bd`
+with witness
+`sha256-d5e6671cd70e1aeb3df21d1e69fb015b831e2c63c272d7ef3e3bf5f61aac15d1`.
+The copied live gate added one valid Hands daemon status to two copies of actual
+c006 local-Verse state, then added a registered but deliberately undecodable
+Mind-contract payload to only one copy. Exact packaged status, policy, direct
+reconciliation, and single-target poke paths produced the same decisions on
+both copies; reconciliation differed only by observation time. Every input
+envelope remained byte-identical through the writes, including the hostile
+payload. This proves the decision-input cut at the deployed CultCache layer,
+not merely by source inspection: unrelated typed cargo can neither steer the
+decision nor be silently repaired by it. Receipts live under
+`.epiphany-run/narrow-verse-readers-ec54666c`.

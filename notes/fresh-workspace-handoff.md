@@ -1,5 +1,32 @@
 # Fresh workspace handoff
 
+## Exact local-Verse reader isolation accepted - 2026-08-11
+
+Exact pushed `ec54666c` packages 24 Linux binaries as release
+`sha256-4d7347980f2fad658ebc6206b0435f29e1151cfbb75ec2806a8df2d5eb7f63bd`
+with witness
+`sha256-d5e6671cd70e1aeb3df21d1e69fb015b831e2c63c272d7ef3e3bf5f61aac15d1`.
+The persistent Starfire cache completed the release build in 5m23s with no
+warnings; exact packaged inspection found all 24 binaries. Packaging receipts
+are under `.epiphany-run/linux-package-ec54666c`.
+
+The copied-state gate used two named volumes built from actual c006 local-Verse
+state. Both received one valid Hands daemon-status fixture; the hostile copy
+also received a registered Mind-contract envelope whose payload deliberately
+cannot decode as that type. Exact packaged `swarm-status`, single-target poke,
+restart-policy writing, and direct reconciliation all succeeded. Status, poke,
+and policy projections were identical; reconciliation differed only in its
+wall-clock field. Every original envelope remained byte-identical after all
+three mutations, including the hostile row and payload. Receipts and the
+verification script are under `.epiphany-run/narrow-verse-readers-ec54666c`.
+
+The nervous-system aggregate-reader audit is closed. Actual c006 remains exact
+`c9a2a979`, alive and braked at resident revision 34: `ec54666c` changes only
+operator query/supervisor paths, so replacing resident Heartbeat/Self bodies
+would be churn without an invariant. Next map the incomplete Imagination
+option-generation boundary from typed request through authenticated candidate,
+with adoption and Hands authority remaining absent. Yggdrasil never builds.
+
 ## Exact daemon-policy input cut - 2026-08-11
 
 The refreshed Perfect Machine roadmap no longer names exact `16407f7e`,
