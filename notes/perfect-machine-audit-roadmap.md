@@ -72,27 +72,39 @@ at revision 34, protected consequence families stayed byte-identical, and the
 cognitive brake was re-engaged. Receipts:
 `.epiphany-run/c006-continuation-c9a2a979`.
 
-## Active rite
+## Completed narrow local Verse consumer audit
 
-### Narrow local Verse consumers
+Lifecycle and single-target commands read only the state families that own
+their decisions. Managed-task install/control, generic service-runbook
+construction, and repo-work service audit read only the canonical brake.
+Single-daemon restart-policy writing reads exact daemon status. Direct
+reconciliation reads exact status, exact policy, and brake. Single-target
+`poke-daemon` reads exact status, brake, topology-family display metadata, and
+its exact written intent.
 
-Lifecycle commands may read only the state family that owns their decision.
-Managed-task install/control, service-runbook construction, and repo-work
-service audit now load only the canonical swarm brake instead of the whole
-local Verse. Cluster reconciliation retains broader context only where it
-actually enumerates daemon rows. Continue classifying remaining
-`query_epiphany_local_verse_context` production callers by output ownership;
-do not replace a legitimate aggregate projection with a pile of ad hoc reads.
+Every surviving production aggregate context read has an aggregate output:
+
+| Consumer | Why the aggregate is owned |
+|---|---|
+| coordinator launch context | assembles the bounded multi-organ prompt packet |
+| supervisor scheduler tick | enumerates restart policies, daemon statuses, and brake scope |
+| cluster daemon runbook | enumerates topology and matching status rows |
+| `seed` and `query` | explicitly emit the complete local Verse projection |
+| receipt directory | joins several receipt families into one operator report |
+| bulk poke and swarm triage | enumerate non-ready daemons and topology |
+| quarantined smokes/tests | falsify the aggregate projection itself without production authority |
+
+No remaining single-family decision reads the full context. Do not decompose
+these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Finish classifying production whole-Verse readers by the state families they
-actually own. Aggregate operator projections, cluster reconciliation, and
-commands that genuinely enumerate topology may retain the complete context.
-Single-daemon policy writes and lifecycle gates must use exact daemon-status
-and brake loaders instead of reading unrelated Persona, Hands, receipt, and
-telemetry families. Cut one owner at a time with source-order negatives; do not
-replace a legitimate aggregate with a collection of accidental queries.
+Run the full affected Rust suites, commit the classified source batch, package
+one exact Linux release through the persistent Starfire cache, and exercise the
+narrow loaders against copied state. The live gate is read isolation: adding
+unrelated hostile or malformed state families must not change policy,
+reconciliation, or single-target poke decisions. Actual c006 remains braked
+until the copied gate passes.
 
 ## Completion standard
 

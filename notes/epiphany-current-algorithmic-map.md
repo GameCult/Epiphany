@@ -3695,3 +3695,7 @@ owns post-write confirmation. Two aggregate queries and the obsolete
 context-shaped brake/topology wrappers are deleted. Bulk poke and triage remain
 aggregate enumeration paths. The complete 19-test verse-query binary suite
 passes without warnings.
+
+The full classified batch then passed 669 library tests with one intentional
+ignore, 29 daemon-supervisor tests, and 19 verse-query tests. Detached logs and
+exit-zero status live under `.epiphany-run/narrow-verse-readers-161c6ec8`.

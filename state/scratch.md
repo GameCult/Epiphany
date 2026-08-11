@@ -4,8 +4,8 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Classify the remaining production aggregate local-Verse readers outside the
-completed supervisor and single-target poke cuts.
+Verify, publish, package, and copied-state falsify the completed narrow
+local-Verse reader batch.
 
 ## Accepted actual finding
 
@@ -15,21 +15,19 @@ refused stale action with no consequence. Resident state is idle at revision
 34, protected consequence families are byte-identical, readiness is active,
 and the cognitive brake is engaged.
 
-## Authority map for remaining classification
+## Authority map for batch verification
 
-- Owner: each command's output contract decides whether one typed family or an
-  aggregate projection is legitimate.
-- Inputs: remaining production aggregate-query callers and their actual output
-  fields.
-- Outputs: a keep/cut classification, followed by one bounded owner cut when
-  justified.
-- Derived state: aggregate context is legitimate for prompts, operator reports,
-  and multi-daemon topology enumeration only.
-- Forbidden writers: convenience and post-write reassurance cannot justify
-  unrelated state-family reads.
-- Shared paths: single-target and bulk commands must remain distinct where
-  their information needs differ.
-- Cut line: delete context-shaped wrappers after their last legitimate caller
-  disappears.
-- Verification: source negatives for narrowed commands and complete affected
-  binary suites without warnings.
+- Owner: exact typed family loaders own single-target decisions; aggregate
+  context owns only explicit multi-family projections.
+- Inputs: exact status/policy/brake/topology/intent rows and unrelated hostile
+  envelopes in copied state.
+- Outputs: unchanged single-target decisions and receipts despite unrelated
+  state-family variation.
+- Derived state: aggregate reports are sight, not mutation authority.
+- Forbidden writers: hostile Persona, Hands, receipt, or telemetry envelopes
+  cannot influence the narrowed commands.
+- Shared paths: source unit tests, exact packaged binaries, and copied-state
+  probes must exercise the same loaders.
+- Cut line: no actual c006 body replacement before copied read-isolation proof.
+- Verification: full library/supervisor/verse-query suites, exact package
+  authentication, then before/after copied-state decision equality.

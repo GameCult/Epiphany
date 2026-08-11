@@ -30,6 +30,11 @@ now-dead context wrappers are deleted. Bulk poke, triage, and operator reports
 retain aggregate reads because they enumerate daemon state. All 19 verse-query
 tests pass with zero warnings.
 
+The complete batch verification is green: 669 library tests passed with one
+intentional ignore, 29 daemon-supervisor tests passed, and all 19 verse-query
+tests passed. Cargo emitted no warnings. Detached receipts are under
+`.epiphany-run/narrow-verse-readers-161c6ec8`.
+
 ## Actual receipt-bound turnover accepted - 2026-08-11
 
 Exact pushed `c9a2a979` is now the active actual c006 body. Under a bounded
