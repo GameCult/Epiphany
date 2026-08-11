@@ -4414,3 +4414,24 @@ and the next cycle reaped PID 275. Resident PID 1 again had no defunct child.
 Heartbeat returned to routine physiology and the result produced no further
 admitted work. This closes the successful-path reaper gate across Modeling and
 Imagination without adding a lifecycle-specific process rule.
+## Causal current-frontier Research routing - 2026-08-11
+
+- Owner: the exact actionable Eyes frontier in the uniquely admitted current
+  RepoModel owns whether Self must launch Research.
+- Inputs: current model revision/hash and admission receipt; exact frontier item
+  id/hash/source scope; authoritative runtime/thread identity; typed Research
+  worker launch; accepted Eyes packet source job.
+- Outputs: one immutable `RepoFrontierResearchRequest`, its exact typed launch
+  projection, and an uncovered/covered readiness decision.
+- Derived state: historical `research_result_accepted` is evidence about an old
+  pass, not authority over the current frontier.
+- Forbidden writers: timestamps, generic accepted Research state, and unrelated
+  Eyes packets cannot consume current readiness.
+- Shared path: status, direct coordinator execution, and resident execution use
+  the same current-frontier selector and worker-launch carrier.
+- Cut line: only an accepted Eyes packet whose source job carries the exact
+  current request may cover the frontier. Model or frontier advance makes the
+  old request inert.
+- Verification: deterministic selection/replay, exact carrier validation,
+  historical-acceptance routing, and the full 680-test library pass are green;
+  exact packaged copied-state public Eyes-to-Mind proof remains open.

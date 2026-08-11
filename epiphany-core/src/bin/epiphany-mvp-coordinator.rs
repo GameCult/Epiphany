@@ -1524,6 +1524,17 @@ fn launch_role(
     let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
     let mut repo_frontier_modeling_request_id = None;
+    let repo_frontier_research_request = if role
+        == epiphany_core::EpiphanyRoleResultRoleId::Research
+        && epiphany_core::runtime_has_actionable_eyes_frontier(runtime_store)?
+    {
+        Some(epiphany_core::select_and_commit_repo_frontier_research_request(
+            runtime_store,
+            &now(),
+        )?)
+    } else {
+        None
+    };
     let mut repo_frontier_verdict_modeling_authority = None;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
@@ -1578,6 +1589,18 @@ fn launch_role(
     .map_err(anyhow::Error::msg)?;
     request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
     request.repo_frontier_modeling_request_id = repo_frontier_modeling_request_id;
+    request.repo_frontier_research_request_id = repo_frontier_research_request
+        .as_ref()
+        .map(|selected| selected.request_id.clone());
+    if let (
+        Some(selected),
+        epiphany_core::EpiphanyWorkerLaunchDocument::Role(document),
+    ) = (
+        repo_frontier_research_request.as_ref(),
+        &mut request.launch_document,
+    ) {
+        document.frontier_research_context = Some(selected.into());
+    }
     request.repo_frontier_verdict_modeling_authority = repo_frontier_verdict_modeling_authority;
     let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(

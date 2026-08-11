@@ -281,6 +281,7 @@ mod tests {
                     proposal_modeling_context: None,
                     claim_repair_context: None,
                     frontier_planning_context: None,
+                    frontier_research_context: None,
                     frontier_plan_mind_context: None,
                     imagination_consideration_context: None,
                     admitted_model_direction_consideration_context: None,
@@ -313,6 +314,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority: None,
         };
         let grant = substrate_gate_repo_access_grant_for_launch(

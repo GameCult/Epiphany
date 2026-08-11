@@ -1139,7 +1139,6 @@ pub fn recommend_coordinator_action(
     }
 
     if input.eyes_frontier_ready
-        && !input.research_result_accepted
         && matches!(
             input.signals.research_result_status,
             EpiphanyCoordinatorRoleResultStatus::MissingBinding
@@ -2344,6 +2343,7 @@ mod tests {
 
         let eyes_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: modeling_done,
+            research_result_accepted: true,
             modeling_result_accepted: true,
             modeling_result_reviewable: true,
             hands_frontier_ready: false,

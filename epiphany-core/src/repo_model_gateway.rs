@@ -100,6 +100,10 @@ pub const LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_plan_decision_receipt.v0";
 pub const REPO_FRONTIER_PLAN_DECISION_CONTRACT: &str = "epiphany.repo_frontier_plan_decision.v0";
 pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v1";
+pub const REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.self.repo_frontier_research_request.v0";
+pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
+    "epiphany.repo_frontier_research_request.v0";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v0";
 pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION: &str =
@@ -554,6 +558,38 @@ pub struct RepoFrontierPlanningLaunchBinding {
     pub attempt_ordinal: u64,
     #[cultcache(key = 11, default)]
     pub superseded_failure_result_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.self.repo_frontier_research_request",
+    schema = "RepoFrontierResearchRequest"
+)]
+pub struct RepoFrontierResearchRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub model_revision: u64,
+    #[cultcache(key = 3)]
+    pub model_hash: String,
+    #[cultcache(key = 4)]
+    pub admission_receipt_id: String,
+    #[cultcache(key = 5)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 6)]
+    pub frontier_item_hash: String,
+    #[cultcache(key = 7)]
+    pub source_scope: Vec<String>,
+    #[cultcache(key = 8)]
+    pub requested_at: String,
+    #[cultcache(key = 9)]
+    pub runtime_id: String,
+    #[cultcache(key = 10)]
+    pub thread_id: String,
+    #[cultcache(key = 11)]
+    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

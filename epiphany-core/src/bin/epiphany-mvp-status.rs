@@ -38,7 +38,7 @@ use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
-use epiphany_core::runtime_has_actionable_eyes_frontier;
+use epiphany_core::runtime_has_uncovered_actionable_eyes_frontier;
 use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_self_policy::crrc_scene_action_to_coordinator_scene_action;
@@ -478,7 +478,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     };
     let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
-    let eyes_frontier_ready = runtime_has_actionable_eyes_frontier(&runtime_store_path)
+    let eyes_frontier_ready = runtime_has_uncovered_actionable_eyes_frontier(&runtime_store_path)
         .context("failed to derive actionable Eyes frontier from runtime-spine state")?;
     let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
         &runtime_store_path,

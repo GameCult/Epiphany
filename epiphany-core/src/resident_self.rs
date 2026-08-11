@@ -3710,6 +3710,7 @@ mod tests {
                 proposal_modeling_context: None,
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: Some(
@@ -3755,6 +3756,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: Some(request.request_id.clone()),
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let mut cache = crate::runtime_spine_cache(store)?;
@@ -3784,6 +3786,7 @@ mod tests {
                 proposal_modeling_context: None,
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: Some(
                     crate::ImaginationConsiderationContextProjection::new(request, model),
@@ -3827,6 +3830,7 @@ mod tests {
             imagination_consideration_request_id: Some(request.request_id.clone()),
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let binding = crate::ImaginationConsiderationLaunchBinding {
@@ -6016,6 +6020,7 @@ mod tests {
                 proposal_modeling_context: None,
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -6057,6 +6062,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
@@ -6165,6 +6171,7 @@ mod tests {
                 proposal_modeling_context: None,
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -6208,6 +6215,7 @@ mod tests {
                 "request-worker-death-settlement".into(),
             ),
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         crate::runtime_spine_cache(&policy.runtime_store)?.put(&launch.job_id, &launch)?;

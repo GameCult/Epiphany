@@ -158,7 +158,8 @@ pub struct EpiphanyCoordinatorInput {
     /// admission and an Active, dependency-ready Hands frontier item.
     pub hands_frontier_ready: bool,
     /// True only when the canonical runtime RepoModel has exactly one current
-    /// admission and an Active, dependency-ready Eyes frontier item.
+    /// admission and an Active, dependency-ready Eyes frontier item not yet
+    /// covered by an accepted packet from its typed Research request.
     pub eyes_frontier_ready: bool,
     /// Read-only projection of the single typed Imagination -> Mind planning
     /// lifecycle. Self may advance it, but only Mind's result can decide adoption.

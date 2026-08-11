@@ -38,6 +38,10 @@ pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_planning_context.v0";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_planning_context.v0";
+pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.repo_frontier_research_context.v0";
+pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
+    "epiphany.repo_frontier_research_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -109,6 +113,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontier_research_context: Option<RepoFrontierResearchContextProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_plan_mind_context: Option<RepoFrontierPlanMindContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub imagination_consideration_context: Option<ImaginationConsiderationContextProjection>,
@@ -141,6 +147,36 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub planning: Option<EpiphanyPlanningState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub churn: Option<EpiphanyChurnState>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierResearchContextProjection {
+    pub schema_version: String,
+    pub request_id: String,
+    pub model_revision: u64,
+    pub model_hash: String,
+    pub admission_receipt_id: String,
+    pub frontier_item_id: String,
+    pub frontier_item_hash: String,
+    pub source_scope: Vec<String>,
+    pub contract: String,
+}
+
+impl From<&crate::RepoFrontierResearchRequest> for RepoFrontierResearchContextProjection {
+    fn from(request: &crate::RepoFrontierResearchRequest) -> Self {
+        Self {
+            schema_version: REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION.to_string(),
+            request_id: request.request_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            admission_receipt_id: request.admission_receipt_id.clone(),
+            frontier_item_id: request.frontier_item_id.clone(),
+            frontier_item_hash: request.frontier_item_hash.clone(),
+            source_scope: request.source_scope.clone(),
+            contract: REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -441,6 +477,7 @@ pub fn build_reorient_job_launch_request(
         imagination_consideration_request_id: None,
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
+        repo_frontier_research_request_id: None,
         repo_frontier_verdict_modeling_authority: None,
     }
 }

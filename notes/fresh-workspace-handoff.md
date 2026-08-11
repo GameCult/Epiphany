@@ -2,7 +2,8 @@
 
 ## Public Eyes evidence is grant-bound and Mind-admissible - 2026-08-11
 
-Latest pushed source is exact `8fb61ac2`. Actual c011 remains exact
+Latest pushed source is exact `8fb61ac2`; a causal Eyes-frontier routing cut is
+implemented locally with 680/680 library tests passing. Actual c011 remains exact
 `465af24d`, alive, cognitively braked at resident revision 384, with no active
 lease or admitted work and zero defunct children. Do not disturb it before the
 new source passes copied-state gates.
@@ -32,12 +33,17 @@ as 8,162 bytes with SHA-256
 Core tests pass 680/680 with one intentional helper ignored; tool runtime tests
 pass 14/14 with one live network test ignored; OpenAI runtime tests pass 19/19.
 
-Next: package exact `8fb61ac2` once through the persistent Starfire cache. On
-copied named-volume state, run one real Research lane through the immutable
-public reader and accept its typed lookup plus Eyes packet into Mind. Then prove
-an otherwise exact public request without `publicSourceRead` refuses before
-adapter/network execution with byte-identical state. Only then replace c011.
-Yggdrasil never builds.
+Exact `8fb61ac2` packaged as release
+`sha256-1a00a080a793df9d9f8834ab6119678ee1855fc7cf9b2032a8868b4aa7d3b980`
+with witness `sha256-e9a5401f29bedc4526b3fa2fec087ca20b379be38e509beffa557f043bd3b627`.
+Copied c011 state then exposed a real routing fault: historical accepted
+Research masked a newer actionable Eyes frontier. The local cut makes the
+exact current frontier own an immutable `RepoFrontierResearchRequest`, carries
+its exact projection in the Research launch, and consumes readiness only
+through an accepted Eyes packet from that bound job. Next: commit, push, and
+package this cut; replay copied c011 state; accept one immutable public lookup
+through Eyes into Mind; and prove missing `publicSourceRead` refuses without
+consequence. Only then replace c011. Yggdrasil never builds.
 
 ## Braked resident physiology no longer runs cognition ingress - 2026-08-11
 
