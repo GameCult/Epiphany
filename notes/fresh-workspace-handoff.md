@@ -3225,6 +3225,47 @@ consult tombstones before treating missing claims/results as live or pending.
 Next implement the archive and hostile/non-resurrection tests before packaging.
 Direct packaged proposal Modeling construction remains a later Linux-native
 evidence task. Actual c006 stays braked.
+
+## Grant-owned lifecycle sight accepted; structured-output retry wound — 2026-08-11
+
+Exact pushed source `34d75d05d11852fdc9ebacc2d08f9f63a774114a` adds a
+bounded `epiphany_state.resident_grant_lifecycle` organ. It reads only an
+explicitly bound resident store. The exact `ResidentSelfHeartbeatGrant` plus
+resident active/prepared state remain the owners; scheduling and projection
+share `resident_self_grant_is_pending`. Acknowledgements, retention heads, and
+artifact names remain evidence or notification only.
+
+Focused reconstructed-diff tests passed across resident Self, the tool runtime,
+OpenAI/model runtime wiring, and the coordinator. The full core library passed
+670 tests with one intentional ignore before the exact reconstructed diff was
+rechecked by focused suites. Exact Linux packaging produced 24 binaries with
+zero warnings, release
+`sha256-718316c4372f3caf127579cd8a185fe11717f2370f1418d9a1f465a0efa54b8c`
+and witness
+`sha256-58d4c05c3de5b9c07ea76e06a2f60af94571a0f053da49de65629f413e0cbd92`.
+Cargo took 3m21s for the core-touching relink.
+
+On copied c006 state, proposal Modeling invoked the typed lifecycle tool. The
+first three worker attempts failed the strict `epiphany.worker.role_result.v3`
+contract: one duplicated `checkpointSummary`, then two duplicated `verdict`.
+Resident Self did not treat those failures as fulfillment and canonically
+requeued without Hands, Persona, or deployment authority. Attempt four produced
+an admitted result: sampled older terminal grants remained `launchable=false`,
+and the active consumed grant was also non-launchable while awaiting terminal
+settlement.
+
+The copied brake was engaged before intervention. Heartbeat stayed stopped;
+resident Self alone replayed the completed typed evidence, cleared the exact
+active turn once at revision 74, then projected `braked` with no new grant.
+Both copied owners exited zero. Actual c006 remained alive and cognitively
+braked throughout. Receipts are under
+`.epiphany-run/grant-sight-live-34d75d05` plus the sealed copied volumes.
+
+Next: inspect generated role-result schema, role prompt, provider response, and
+strict ingress decoder as one ownership boundary. Remove the cause of duplicate
+top-level fields without weakening admission or adding a repair parser. Repeat
+the copied proposal and require first-attempt completion, exact one-grant
+terminalization, and zero external consequence. Yggdrasil never builds.
 ## Failed outer-worker attempt retention cut in source — 2026-08-10
 
 Runtime spine now owns `EpiphanyArchivedRuntimeWorkerAttempt` for failed or

@@ -3853,3 +3853,36 @@ Directory observation is a bounded source faculty, not Heartbeat authority.
   tool in copied live cognition and measured 72 directories, 74 files, and
   3,975,362 bytes with `complete=true`. Modeling refused to infer post-brake
   grant terminality from artifact names, preserving the ownership boundary.
+
+## Grant-owned resident lifecycle sight
+
+Resident lifecycle observation and scheduling now read the same authority.
+
+- Owner: each exact `ResidentSelfHeartbeatGrant` owns its consumed and terminal
+  state; `ResidentSelfState` owns whether that grant is prepared or active.
+- Inputs: one explicitly bound resident store, an optional exact grant ID, and
+  a bounded recent-row limit.
+- Outputs: typed pressure/schedule/action identity, consumed and terminal
+  timestamps/status, active/prepared flags, and derived `launchable` state.
+- Derived state: the projection is read-only evidence. Terminal acknowledgements,
+  retention heads, filesystem artifacts, and pulse names cannot decide whether
+  a grant may launch.
+- Forbidden writers: the tool adapter cannot discover sibling stores, inspect
+  generic CultCache cargo, mutate resident state, or infer authority from
+  filenames.
+- Shared paths: Heartbeat issuance, pending-grant selection, and projection all
+  use `resident_self_grant_is_pending`; there is no observer-only definition of
+  launchability.
+- Cut line: the native `epiphany_state.resident_grant_lifecycle` tool is exposed
+  only to Eyes, Modeling, and Soul and only when the authenticated resident
+  launch forwards its exact state-store binding.
+- Verification: exact `34d75d05` unit coverage proves an older terminal grant
+  remains non-launchable beside a later retry. Exact packaged copied cognition
+  observed the same shape; after three strict duplicate-field result failures,
+  attempt four admitted typed evidence and resident Self terminalized the exact
+  original grant once under the brake. No new grant appeared.
+
+The three failed attempts are not accepted reliability evidence. The next cut
+belongs to role-result schema construction/model ingress: preserve strict
+duplicate-field rejection while making the first model-produced result conform
+to its one-owner schema.
