@@ -3955,3 +3955,15 @@ now braked at resident revision 372 with no active lease. The next live gap is
 coordination, not transport: status still says `regatherManually` because the
 historical Reorientation result failed, but Heartbeat/Self have no typed Eyes
 or Reorientation pressure. Map that owner before adding any route.
+
+Source inspection closes that apparent gap as an intentional authority
+boundary. `apply_manual_regather_approval` accepts only a current Self-derived
+`regatherManually` action and produces one `launchResearch` only when the
+coordinator receives explicit `--approve-manual-regather`. Resident safe
+continuation deliberately excludes this action; Heartbeat's reorientation role
+label is display derivation, not grant authority. Operator owns approval, Self
+owns the recommendation, and Heartbeat schedules only typed pressure. Generic
+operator objective text cannot impersonate approval. c010 is therefore
+correctly alive, idle, and braked at revision 372. Continue retention,
+supervisor/log ownership, and endurance. A live regather is a separate operator
+decision or a future mapped typed operator-ingress cut.

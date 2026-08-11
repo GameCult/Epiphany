@@ -4302,3 +4302,27 @@ Soul binding, and split-admission replay.
   request once, accepted its review, completed native admitted-direction
   Imagination, and completed two resulting proposal Modeling families. The
   brake is engaged at revision 364 with no active lease.
+
+## Manual regather authority boundary (2026-08-11)
+
+- Owner: the operator owns approval to cross a current Self-derived
+  `regatherManually` boundary. Self owns the recommendation; Heartbeat owns only
+  typed scheduling pressure.
+- Inputs: the exact current coordinator action and one explicit
+  `--approve-manual-regather` launch capability. The approval helper refuses
+  every other current action.
+- Outputs: one launch-local rewrite to `launchResearch`, consumed once by the
+  coordinator loop. It does not create durable resident pressure.
+- Derived state: Heartbeat's `reorientation` work-role label and coordinator
+  scene projections are observations, not grant authority.
+- Forbidden writers: Heartbeat, resident Self, historical failed
+  Reorientation, generic operator objective text, and retry loops may not mint
+  manual approval or Eyes pressure.
+- Shared path and cut line: direct coordinator operation currently carries the
+  explicit approval flag. Any future resident operator path must define typed,
+  authenticated approval ingress and make the flag only its launch carrier; it
+  must not parse prose or auto-convert idle status.
+- Verification: source inspection confirms exact-action refusal, single use,
+  and the hostile unrelated-action regression. Resident safe-continuation
+  routing excludes manual regather. c010 remains alive, braked, and without an
+  active lease after native Imagination produced no admitted work.
