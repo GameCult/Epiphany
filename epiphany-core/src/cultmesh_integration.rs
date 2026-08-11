@@ -6397,6 +6397,15 @@ pub fn load_epiphany_cultmesh_daemon_liveness(
     Ok(rows)
 }
 
+pub fn load_epiphany_cultmesh_daemon_status(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    daemon_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonStatusEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(daemon_id)
+}
+
 pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -9818,6 +9827,14 @@ mod tests {
             None
         );
         assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
+        assert_eq!(
+            load_epiphany_cultmesh_daemon_status(
+                &store,
+                "epiphany-test",
+                "epiphany-daemon-hands"
+            )?,
+            None
+        );
         assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
         assert!(
             load_epiphany_cultmesh_daemon_restart_policy_directory(&store, "epiphany-test")?
@@ -9837,6 +9854,39 @@ mod tests {
             .expect_err("a missing Verse cannot project a context");
         assert!(error.to_string().contains("store does not exist"));
         assert!(!missing_parent.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn exact_daemon_status_loader_reads_only_the_requested_envelope() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-status.ccmp");
+        let statuses = write_epiphany_cultmesh_daemon_statuses(
+            &store,
+            "epiphany-test",
+            "2026-06-17T00:00:00Z",
+        )?;
+        let expected = statuses
+            .into_iter()
+            .find(|status| status.daemon_id == "epiphany-daemon-hands")
+            .expect("Hands daemon status exists");
+
+        assert_eq!(
+            load_epiphany_cultmesh_daemon_status(
+                &store,
+                "epiphany-test",
+                "epiphany-daemon-hands"
+            )?,
+            Some(expected)
+        );
+        assert_eq!(
+            load_epiphany_cultmesh_daemon_status(
+                &store,
+                "epiphany-test",
+                "epiphany-daemon-absent"
+            )?,
+            None
+        );
         Ok(())
     }
 

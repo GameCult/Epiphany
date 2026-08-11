@@ -4,8 +4,8 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Inspect the remaining organ matrix after accepted actual receipt-bound turnover
-and select one bounded next audit from authoritative state.
+Cut direct single-daemon reconciliation away from the aggregate local Verse
+projection.
 
 ## Accepted actual finding
 
@@ -15,21 +15,20 @@ refused stale action with no consequence. Resident state is idle at revision
 34, protected consequence families are byte-identical, readiness is active,
 and the cognitive brake is engaged.
 
-## Authority map for next selection
+## Authority map for direct reconciliation input
 
-- Owner: the canonical map and live typed stores own what remains open; the
-  `awaitFrontierProposal` projection does not own backlog creation.
-- Inputs: current organ readiness, unresolved authority, typed runtime state,
-  retained receipts, live readiness, and the accepted evidence ledger.
-- Outputs: one named bounded audit with a single owner, exact body, negative
-  gate, and receipt path.
-- Derived state: historical phase prose and old action summaries are context,
-  not current authority.
-- Forbidden writers: idle Heartbeat, operator guesswork, or stale proposal
-  artifacts may not fabricate work merely to keep c006 busy.
-- Shared paths: map, handoff, algorithmic map, and live status must agree on the
-  chosen audit before the brake opens.
-- Cut line: delete or demote stale open-work claims before implementing another
-  mechanism.
-- Verification: the next audit must falsify a live invariant at its owning
-  layer and preserve the external-consequence gates.
+- Owner: the requested daemon's exact status and restart policy own direct
+  reconciliation; the canonical brake owns consequence refusal.
+- Inputs: one daemon status, one exact policy or explicit override, one brake,
+  and explicit CLI force/reason fields.
+- Outputs: one bounded daemon-poke attempt or a typed no-op/refusal.
+- Derived state: aggregate local Verse context is not direct reconciliation
+  authority.
+- Forbidden writers: Persona, Hands, unrelated receipts, telemetry, and other
+  daemon rows cannot influence or be read by this command.
+- Shared paths: direct `reconcile` and its action helper must consume the same
+  narrow brake input; scheduler enumeration remains separate.
+- Cut line: replace direct reconcile's whole-context query and context-shaped
+  brake helper without weakening scope/surface checks.
+- Verification: source-boundary negative, engaged/released brake behavior, and
+  exact-status absence refusal.

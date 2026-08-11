@@ -490,6 +490,7 @@ pub use cultmesh_integration::load_epiphany_cultmesh_daemon_poke_intent;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_poke_receipt;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_restart_policy;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_restart_policy_directory;
+pub use cultmesh_integration::load_epiphany_cultmesh_daemon_status;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_tool_directory;

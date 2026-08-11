@@ -1,6 +1,6 @@
 # Perfect Machine audit roadmap
 
-Updated: 2026-08-10
+Updated: 2026-08-11
 
 ## Objective
 
@@ -12,13 +12,13 @@ actual c006 behavior are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Accepted runtime implementation: exact `16407f7e`.
+- Accepted runtime implementation: exact `c9a2a979`.
 - Linux release:
-  `sha256-66cf1c2f4d88e7885a36870277cf4b143204de9c9b0dad0ed8f809983b3c55af`.
+  `sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218`.
 - Witness:
-  `sha256-5f41248bb11c01f19125f16bf39f3dfcc2a802de211f3eae7e2caf292d59e4b3`.
+  `sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24`.
 - Actual c006: Heartbeat and resident Self alive in distinct containers,
-  cognitive brake engaged, resident revision 26, readiness `active` with no
+  cognitive brake engaged, resident revision 34, readiness `active` with no
   reasons.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
@@ -27,7 +27,7 @@ actual c006 behavior are the live gates.
 
 | Faculty | Owner | Accepted proof | Remaining live gate |
 |---|---|---|---|
-| Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c006 completed its retained proposal-Modeling grant once | broader autonomous frontier turnover across several consecutive causal grants |
+| Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c006 completed two receipt-bound causal grants after its retained proposal-Modeling grant | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
 | Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths | audit remaining utility and compatibility actuators for bypasses |
 | Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit and governed Linux tool circuit accepted into Mind | one broader foreign/public Verse evidence adoption path |
 | Modeling | runtime-owned typed Modeling contracts | causal Eyes-to-Modeling acceptance, direct proposal Modeling, archived fulfillment | broader Body-map coverage across a changing live repository |
@@ -36,8 +36,8 @@ actual c006 behavior are the live gates.
 | Soul | Soul gateway | consequence-bound verdict, causal Modeling route, retention and replay | collapse remaining verifier-specific broad projections into narrow receipt reads |
 | Mind | canonical transactions and specialized admission | atomic RepoModel admission, launch-owned adjudication, semantic/runtime retention | audit remaining state families for legacy writers and run longer memory behavior |
 | Persona | Persona turn, speech audit, public mouth | cross-host request/permit/receipt, signed failure and unknown no-repost behavior, conversation retention | one completed public consequence; currently blocked by absent Yggdrasil Discord credential |
-| Continuity | runtime/resident recovery and retention | graceful shutdown, exact process-death recovery, session closure/archive, lifecycle retention, non-resurrection | latest-body long-duration plateau and later deployed restart supervision |
-| Nervous system | Heartbeat, runtime spine, Idunn, CultMesh | detached scheduling, typed jobs, provider readiness, active/warming transitions across PID namespaces | latest-body 900-pulse plateau; continue narrowing whole-Verse reads |
+| Continuity | runtime/resident recovery and retention | graceful shutdown, exact process-death recovery, session closure/archive, lifecycle retention, non-resurrection, and latest-body long-duration plateau | later deployed restart supervision |
+| Nervous system | Heartbeat, runtime spine, Idunn, CultMesh | detached scheduling, typed jobs, provider readiness, active/warming transitions across PID namespaces, latest-body 923-pulse plateau, and two consecutive causal grants | continue narrowing whole-Verse reads |
 | Body | Rust binaries, named-volume CultCache stores, model transport | deterministic 24-binary packaging, fast warm replay, named-volume interruption proof | deployment-sized endurance and remaining inspection surfaces |
 
 ## Accepted coordinated circuits
@@ -64,6 +64,14 @@ exact-zero state/workspace growth, Heartbeat RSS 28.63-28.88 MiB, resident RSS
 `active` under the engaged brake. Receipts:
 `.epiphany-run/c006-endurance-16407f7e`.
 
+Exact `c9a2a979` then completed two consecutive receipt-bound causal grants on
+actual c006. The first performed one exact Modeling failure-review supersession;
+the second refused stale action before consequence and settled on
+`awaitFrontierProposal`. Both grants terminalized, resident state returned idle
+at revision 34, protected consequence families stayed byte-identical, and the
+cognitive brake was re-engaged. Receipts:
+`.epiphany-run/c006-continuation-c9a2a979`.
+
 ## Active rite
 
 ### Narrow local Verse consumers
@@ -76,14 +84,15 @@ actually enumerates daemon rows. Continue classifying remaining
 `query_epiphany_local_verse_context` production callers by output ownership;
 do not replace a legitimate aggregate projection with a pile of ad hoc reads.
 
-## Selected next broad circuit
+## Selected next bounded cut
 
-Run autonomous frontier turnover across Self, Eyes, Modeling, Imagination, and
-Mind. Map the current live frontier owner, then use copied exact `16407f7e`
-state to prove several consecutive causal grants and typed settlements without
-Hands or Persona consequence. Only after copied-state acceptance may actual
-c006 receive an explicit bounded brake window; the brake must be re-engaged and
-readiness re-proven at closure. `state/map.yaml` owns the exact current action.
+Finish classifying production whole-Verse readers by the state families they
+actually own. Aggregate operator projections, cluster reconciliation, and
+commands that genuinely enumerate topology may retain the complete context.
+Single-daemon policy writes and lifecycle gates must use exact daemon-status
+and brake loaders instead of reading unrelated Persona, Hands, receipt, and
+telemetry families. Cut one owner at a time with source-order negatives; do not
+replace a legitimate aggregate with a collection of accidental queries.
 
 ## Completion standard
 

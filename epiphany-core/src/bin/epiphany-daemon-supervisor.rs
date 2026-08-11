@@ -31,6 +31,7 @@ use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
+use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
@@ -3586,12 +3587,12 @@ fn run_tick(args: &Args, iteration: u64, next_wake_utc: Option<String>) -> Resul
 fn write_policy(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    let daemon_status = context
-        .daemon_statuses
-        .iter()
-        .find(|status| status.daemon_id == args.daemon_id)
-        .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
+    let daemon_status = load_epiphany_cultmesh_daemon_status(
+        &args.store,
+        args.runtime_id.clone(),
+        &args.daemon_id,
+    )?
+    .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
     let command = args
         .restart_command
         .clone()
@@ -4623,6 +4624,17 @@ mod semantic_projector_authority_tests {
             assert!(body.contains("assert_swarm_brake_allows_service_lifecycle_entry"));
             assert!(!body.contains("query_epiphany_local_verse_context"));
         }
+    }
+
+    #[test]
+    fn policy_write_reads_only_the_exact_daemon_status_family() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn write_policy(").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        assert!(body.contains("load_epiphany_cultmesh_daemon_status"));
+        assert!(!body.contains("query_epiphany_local_verse_context"));
     }
 
     #[test]

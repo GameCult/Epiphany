@@ -1,5 +1,20 @@
 # Fresh workspace handoff
 
+## Exact daemon-policy input cut - 2026-08-11
+
+The refreshed Perfect Machine roadmap no longer names exact `16407f7e`,
+resident revision 26, or multi-grant turnover as current work. Exact
+`c9a2a979`, revision 34, and the accepted two-grant actual replay are current.
+
+The next nervous-system audit cut removes aggregate local-Verse context from
+the single-daemon restart-policy writer. One exact typed daemon-status envelope
+now owns the daemon and cluster identity copied into policy state. Persona,
+Hands, receipts, telemetry, and unrelated daemon rows are not loaded. Aggregate
+context remains with reconciliation and runbook paths that genuinely enumerate
+topology, policies, statuses, and brake state. The exact loader test and the
+negative source-boundary test pass. Continue classifying aggregate consumers;
+do not package until a meaningful bounded batch earns a live body.
+
 ## Actual receipt-bound turnover accepted - 2026-08-11
 
 Exact pushed `c9a2a979` is now the active actual c006 body. Under a bounded

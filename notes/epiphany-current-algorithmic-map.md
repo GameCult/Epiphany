@@ -3658,3 +3658,25 @@ terminal completed, resident state is idle at revision 34, the four protected
 Hands/Persona/deployment-family envelopes are byte-identical, and final
 authenticated readiness is active, brake-engaged, and reason-free. Actual
 receipt-bound turnover is accepted.
+
+## Narrow local Verse decision inputs
+
+Aggregate local Verse context is an operator and topology projection, not a
+default decision input. A command may read it only when its output genuinely
+depends on several state families.
+
+- Owner: each typed state family owns the decisions made from that family.
+- Inputs: the single-daemon restart-policy writer reads one exact daemon-status
+  envelope plus explicit CLI policy fields.
+- Outputs: one daemon restart policy bound to the status-owned daemon and
+  cluster identity.
+- Derived state: Persona, Hands, receipt, telemetry, and unrelated daemon rows
+  remain projection data and cannot influence this write.
+- Shared paths: `policy` and `write-policy` converge on the same writer.
+- Cut line: `write_policy` no longer calls
+  `query_epiphany_local_verse_context`; reconciliation and runbook construction
+  retain aggregate reads because they enumerate policies, statuses, topology,
+  and brake scope.
+- Verification: the exact loader returns only the requested typed envelope and
+  remains non-creating on an absent store; a source-boundary test refuses
+  aggregate-query regression in `write_policy`.
