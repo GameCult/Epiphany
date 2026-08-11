@@ -11414,7 +11414,8 @@ where
             "coordinator run session already has partial terminal authority"
         ));
     }
-    let snapshot = cache.snapshot_envelopes();
+    let expected_session = cache
+        .get_required_envelope::<EpiphanyRuntimeSession>(&receipt.session_id)?;
     session.status = EpiphanyRuntimeSessionStatus::Completed;
     session.updated_at = receipt.created_at.clone();
     session.coordinator_note = completion_summary;
@@ -11427,10 +11428,10 @@ where
     ];
     before_commit()?;
     if !runtime_spine_backing_store(store_path)?
-        .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
+        .compare_and_swap_batch(&[expected_session], replacements)?
     {
         return Err(anyhow!(
-            "coordinator run finalization lost its full snapshot fence"
+            "coordinator run finalization lost its exact session transaction"
         ));
     }
     Ok(session)
@@ -17394,7 +17395,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn coordinator_run_finalization_is_atomic_idempotent_and_snapshot_fenced() -> Result<()> {
+    fn coordinator_run_finalization_is_atomic_idempotent_and_identity_fenced() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         initialize_runtime_spine(
@@ -17510,7 +17511,7 @@ pub(crate) mod tests {
             "coordinator-receipt-race",
             "thread-race",
         );
-        let race = finalize_coordinator_run_with_before_commit(&store, &raced_receipt, || {
+        let raced = finalize_coordinator_run_with_before_commit(&store, &raced_receipt, || {
             append_runtime_event(
                 &store,
                 RuntimeSpineEventOptions {
@@ -17520,12 +17521,15 @@ pub(crate) mod tests {
                     source: "test".to_string(),
                     session_id: None,
                     job_id: None,
-                    summary: "Changes the full snapshot.".to_string(),
+                    summary: "Must coexist with the exact terminal transaction.".to_string(),
                 },
             )?;
             Ok(())
         });
-        assert!(race.is_err());
+        assert_eq!(
+            raced?.status,
+            EpiphanyRuntimeSessionStatus::Completed
+        );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(
@@ -17533,19 +17537,23 @@ pub(crate) mod tests {
                 .get::<EpiphanyRuntimeSession>("coordinator-thread-race")?
                 .expect("raced session")
                 .status,
-            EpiphanyRuntimeSessionStatus::Active
+            EpiphanyRuntimeSessionStatus::Completed
         );
-        assert!(
-            cache
-                .get::<EpiphanyCoordinatorRunReceipt>(&raced_receipt.receipt_id)?
-                .is_none()
+        assert_eq!(
+            cache.get::<EpiphanyCoordinatorRunReceipt>(&raced_receipt.receipt_id)?,
+            Some(raced_receipt)
         );
         assert!(
             cache
                 .get::<EpiphanyRuntimeEvent>(
                     "event-session-completed-coordinator-thread-race"
                 )?
-                .is_none()
+                .is_some()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>("unrelated-racing-event")?
+                .is_some()
         );
         Ok(())
     }

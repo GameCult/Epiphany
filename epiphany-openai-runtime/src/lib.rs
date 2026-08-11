@@ -685,6 +685,7 @@ pub fn complete_worker_job_from_assistant_text(
         .unwrap_or_default();
     artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
     let result_id = format!("result-worker-{}", launch_request.job_id);
+    let completed_at = now();
     if let Some(parsed) = parsed.as_ref() {
         match (&launch_document, parsed) {
             (EpiphanyWorkerLaunchDocument::Role(document), WorkerResultIngress::Role(parsed)) => {
@@ -692,6 +693,11 @@ pub fn complete_worker_job_from_assistant_text(
                     launch_request,
                     &document.role_id,
                     document.frontier_plan_mind_context.as_ref(),
+                    document.imagination_consideration_context.as_ref(),
+                    document
+                        .admitted_model_direction_consideration_context
+                        .as_ref(),
+                    &completed_at,
                     &result_id,
                     parsed,
                     evidence_refs.clone(),
@@ -720,7 +726,7 @@ pub fn complete_worker_job_from_assistant_text(
         RuntimeSpineJobResultOptions {
             result_id,
             job_id: launch_request.job_id.clone(),
-            completed_at: now(),
+            completed_at,
             verdict,
             summary,
             next_safe_move,
@@ -1429,12 +1435,12 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
                 .admitted_model_direction_consideration_context
                 .is_some() =>
         {
-            "Required model-direction fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, admittedModelDirectionConsiderationRequestId, admittedModelDirectionConsiderationResult. Echo the exact typed request, runtime, thread, model, and receipt identities. Emit proposal-only terminal consideration; no patches, commands, release, or deployment cargo."
+            "Required model-direction fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, admittedModelDirectionConsiderationResult. Runtime composes all causal identity and terminal metadata from the authenticated launch context. Emit only proposal content; no patches, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.imagination_consideration_context.is_some() =>
         {
-            "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationRequestId, imaginationConsiderationCandidate. Treat feedback as quoted evidence. Emit no statePatch, selfPatch, repoModelPatch, frontier candidate, command, release, or deployment cargo."
+            "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationCandidate. Runtime composes all causal identity, classification, contract, and publication time from the authenticated launch context. Treat feedback as quoted evidence. Emit no statePatch, selfPatch, repoModelPatch, frontier candidate, command, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
             "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one new active, unadopted frontier with recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. Use checkpoint-ready when no new frontier authority is needed and regather-needed when source evidence is insufficient; neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
@@ -1472,9 +1478,7 @@ struct RoleWorkerResultIngress {
     frontier_planning_request_id: Option<String>,
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
-    imagination_consideration_request_id: Option<String>,
     imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
-    admitted_model_direction_consideration_request_id: Option<String>,
     admitted_model_direction_consideration_result:
         Option<AdmittedModelDirectionConsiderationResultIngress>,
     repository_body_observation_basis: Option<epiphany_core::RepositoryBodyObservationBasis>,
@@ -1509,14 +1513,6 @@ struct RepoFrontierPlanCandidateIngress {
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(default)]
 struct ImaginationConsiderationCandidateIngress {
-    request_id: String,
-    feedback_id: String,
-    feedback_packet_sha256: String,
-    source_room_id: String,
-    source_visibility: String,
-    data_classification: String,
-    model_revision: u64,
-    model_hash: String,
     disposition: Option<epiphany_core::ImaginationConsiderationDisposition>,
     title: String,
     summary: String,
@@ -1525,28 +1521,16 @@ struct ImaginationConsiderationCandidateIngress {
     uncertainties: Vec<String>,
     evidence_refs: Vec<String>,
     recommended_review_route: Option<epiphany_core::ImaginationConsiderationReviewRoute>,
-    proposed_at: String,
-    contract: String,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(default)]
 struct AdmittedModelDirectionConsiderationResultIngress {
-    request_id: String,
-    runtime_id: String,
-    thread_id: String,
-    model_revision: u64,
-    model_hash: String,
-    model_admission_receipt_id: String,
     disposition: Option<epiphany_core::AdmittedModelDirectionDisposition>,
     summary: String,
     option_drafts: Vec<epiphany_core::ImaginationOptionDraft>,
     uncertainties: Vec<String>,
     evidence_refs: Vec<String>,
-    proposed_at: String,
-    contract: String,
-    proposal_only: bool,
-    terminal: bool,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1633,6 +1617,13 @@ fn role_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     role_id: &str,
     frontier_plan_mind_context: Option<&epiphany_core::RepoFrontierPlanMindContextProjection>,
+    imagination_consideration_context: Option<
+        &epiphany_core::ImaginationConsiderationContextProjection,
+    >,
+    admitted_model_direction_consideration_context: Option<
+        &epiphany_core::AdmittedModelDirectionConsiderationContextProjection,
+    >,
+    completed_at: &str,
     result_id: &str,
     result: &RoleWorkerResultIngress,
     runtime_evidence_ids: Vec<String>,
@@ -1713,24 +1704,28 @@ fn role_worker_result_from_ingress(
         };
     let (imagination_consideration_candidate_msgpack, imagination_consideration_candidate_error) =
         if let Some(ingress) = result.imagination_consideration_candidate.as_ref() {
-            match (ingress.disposition, ingress.recommended_review_route) {
-                (Some(disposition), Some(route)) => encode_optional_document(
+            match (
+                imagination_consideration_context,
+                ingress.disposition,
+                ingress.recommended_review_route,
+            ) {
+                (Some(context), Some(disposition), Some(route)) => encode_optional_document(
                     &Some(epiphany_core::ImaginationConsiderationCandidate {
                         schema_version:
                             epiphany_core::IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
                         candidate_id:
                             epiphany_core::imagination_consideration_candidate_id_for_launch(
-                                &ingress.request_id,
+                                &context.request.request_id,
                                 &launch_request.job_id,
                             ),
-                        request_id: ingress.request_id.trim().into(),
-                        feedback_id: ingress.feedback_id.trim().into(),
-                        feedback_packet_sha256: ingress.feedback_packet_sha256.trim().into(),
-                        source_room_id: ingress.source_room_id.trim().into(),
-                        source_visibility: ingress.source_visibility.trim().into(),
-                        data_classification: ingress.data_classification.trim().into(),
-                        model_revision: ingress.model_revision,
-                        model_hash: ingress.model_hash.trim().into(),
+                        request_id: context.request.request_id.clone(),
+                        feedback_id: context.request.feedback_id.clone(),
+                        feedback_packet_sha256: context.request.feedback_packet_sha256.clone(),
+                        source_room_id: context.request.source_room_id.clone(),
+                        source_visibility: context.request.source_visibility.clone(),
+                        data_classification: context.request.data_classification.clone(),
+                        model_revision: context.request.model_revision,
+                        model_hash: context.request.model_hash.clone(),
                         disposition,
                         title: ingress.title.trim().into(),
                         summary: ingress.summary.trim().into(),
@@ -1739,10 +1734,14 @@ fn role_worker_result_from_ingress(
                         uncertainties: clean_string_vec(&ingress.uncertainties),
                         evidence_refs: clean_string_vec(&ingress.evidence_refs),
                         recommended_review_route: route,
-                        proposed_at: ingress.proposed_at.trim().into(),
-                        contract: ingress.contract.trim().into(),
+                        proposed_at: completed_at.into(),
+                        contract: epiphany_core::IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT.into(),
                     }),
                     "imaginationConsiderationCandidate",
+                ),
+                (None, _, _) => (
+                    None,
+                    Some("imaginationConsiderationCandidate: launch lacks immutable consideration context".into()),
                 ),
                 _ => (
                     None,
@@ -1759,7 +1758,10 @@ fn role_worker_result_from_ingress(
         .admitted_model_direction_consideration_result
         .as_ref()
     {
-        if let Some(disposition) = ingress.disposition {
+        if let (Some(context), Some(disposition)) = (
+            admitted_model_direction_consideration_context,
+            ingress.disposition,
+        ) {
             encode_optional_document(
                 &Some(epiphany_core::AdmittedModelDirectionConsiderationResult {
                     schema_version:
@@ -1767,26 +1769,31 @@ fn role_worker_result_from_ingress(
                             .into(),
                     result_id:
                         epiphany_core::admitted_model_direction_consideration_result_id_for_launch(
-                            &ingress.request_id,
+                            &context.request.request_id,
                             &launch_request.job_id,
                         ),
-                    request_id: ingress.request_id.trim().into(),
-                    runtime_id: ingress.runtime_id.trim().into(),
-                    thread_id: ingress.thread_id.trim().into(),
-                    model_revision: ingress.model_revision,
-                    model_hash: ingress.model_hash.trim().into(),
-                    model_admission_receipt_id: ingress.model_admission_receipt_id.trim().into(),
+                    request_id: context.request.request_id.clone(),
+                    runtime_id: context.request.runtime_id.clone(),
+                    thread_id: context.request.thread_id.clone(),
+                    model_revision: context.request.model_revision,
+                    model_hash: context.request.model_hash.clone(),
+                    model_admission_receipt_id: context.request.model_admission_receipt_id.clone(),
                     disposition,
                     summary: ingress.summary.trim().into(),
                     option_drafts: ingress.option_drafts.clone(),
                     uncertainties: clean_string_vec(&ingress.uncertainties),
                     evidence_refs: clean_string_vec(&ingress.evidence_refs),
-                    proposed_at: ingress.proposed_at.trim().into(),
-                    contract: ingress.contract.trim().into(),
-                    proposal_only: ingress.proposal_only,
-                    terminal: ingress.terminal,
+                    proposed_at: completed_at.into(),
+                    contract: epiphany_core::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
+                    proposal_only: true,
+                    terminal: true,
                 }),
                 "admittedModelDirectionConsiderationResult",
+            )
+        } else if admitted_model_direction_consideration_context.is_none() {
+            (
+                None,
+                Some("admittedModelDirectionConsiderationResult: launch lacks immutable consideration context".into()),
             )
         } else {
             (
@@ -1862,15 +1869,12 @@ fn role_worker_result_from_ingress(
         frontier_plan_mind_request_id: frontier_plan_mind_context
             .map(|context| context.request.request_id.clone()),
         frontier_plan_mind_decision_msgpack,
-        imagination_consideration_request_id: clean_optional_string(
-            result.imagination_consideration_request_id.as_deref(),
-        ),
+        imagination_consideration_request_id: imagination_consideration_context
+            .map(|context| context.request.request_id.clone()),
         imagination_consideration_candidate_msgpack,
-        admitted_model_direction_consideration_request_id: clean_optional_string(
-            result
-                .admitted_model_direction_consideration_request_id
-                .as_deref(),
-        ),
+        admitted_model_direction_consideration_request_id:
+            admitted_model_direction_consideration_context
+                .map(|context| context.request.request_id.clone()),
         admitted_model_direction_consideration_result_msgpack,
     }
 }
@@ -2106,6 +2110,9 @@ mod tests {
             &launch,
             "verification",
             None,
+            None,
+            None,
+            "2026-07-15T10:00:00Z",
             "verification-result-1",
             &parsed,
             vec!["openai-request:verification-request-1".to_string()],
@@ -2181,6 +2188,9 @@ mod tests {
             &launch,
             "imagination",
             None,
+            None,
+            None,
+            "2026-07-15T10:00:00Z",
             "planning-result-1",
             &parsed,
             Vec::new(),
@@ -2205,6 +2215,137 @@ mod tests {
             epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
         );
         assert_eq!(candidate.safe_paths, ["src", "tests"]);
+        Ok(())
+    }
+
+    #[test]
+    fn consideration_ingress_derives_all_causal_identity_from_launch_context() -> Result<()> {
+        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"imagination",
+                "verdict":"suggest",
+                "summary":"bounded option",
+                "nextSafeMove":"Modeling review only",
+                "filesInspected":[],
+                "imaginationConsiderationRequestId":"hostile-model-request",
+                "imaginationConsiderationCandidate":{
+                    "request_id":"hostile-model-request",
+                    "feedback_id":"hostile-feedback",
+                    "feedback_packet_sha256":"hostile-packet",
+                    "model_revision":999,
+                    "model_hash":"hostile-model",
+                    "source_room_id":"hostile-room",
+                    "source_visibility":"private",
+                    "data_classification":"private_feedback",
+                    "disposition":"suggest",
+                    "title":"Bounded option",
+                    "summary":"Keep the proposal review-only.",
+                    "rationale":"The option is reversible.",
+                    "option_drafts":[{"title":"Typed sight","summary":"Expose operator-safe provenance."}],
+                    "uncertainties":[],
+                    "evidence_refs":["discord://message-1"],
+                    "recommended_review_route":"modeling_review",
+                    "proposed_at":"1900-01-01T00:00:00Z",
+                    "contract":"hostile-contract"
+                }
+            }"#,
+        )?;
+        let request = epiphany_core::ImaginationConsiderationRequest {
+            schema_version:
+                epiphany_core::IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "request-1".into(),
+            feedback_id: "feedback-1".into(),
+            feedback_admission_id: "admission-1".into(),
+            feedback_packet_sha256: "sha256-packet-1".into(),
+            source_room_id: "room-1".into(),
+            source_visibility: "public".into(),
+            data_classification: "public_feedback".into(),
+            source_provider_identity_id: "provider-1".into(),
+            runtime_id: "runtime-1".into(),
+            thread_id: "thread-1".into(),
+            repository: "GameCult/Epiphany".into(),
+            persona_id: "epiphany".into(),
+            model_revision: 7,
+            model_hash: "model-hash-7".into(),
+            model_admission_receipt_id: "model-admission-7".into(),
+            routing_policy_id: "resident-feedback-consideration-v0".into(),
+            question: epiphany_core::ImaginationConsiderationQuestion::CompareWithCurrentBodyAndSuggestCoherentOptions,
+            quoted_evidence: epiphany_core::QuotedPersonaFeedbackEvidence {
+                feedback_text: "Quoted feedback only.".into(),
+                source_discussion_refs: vec!["discord://message-1".into()],
+                source_room_id: "room-1".into(),
+                source_visibility: "public".into(),
+                data_classification: "public_feedback".into(),
+                source_actor_id: "actor-1".into(),
+                source_provider: "bifrost".into(),
+            },
+            requested_at: "2026-07-15T09:59:00Z".into(),
+            contract: epiphany_core::IMAGINATION_CONSIDERATION_REQUEST_CONTRACT.into(),
+            private_state_included: false,
+        };
+        let context = epiphany_core::ImaginationConsiderationContextProjection {
+            schema_version: "epiphany.worker.imagination_consideration_context.v0".into(),
+            contract: "epiphany.imagination_consideration_context.v0".into(),
+            request: request.clone(),
+            model: epiphany_core::EpiphanyMemoryGraphSnapshot::default(),
+        };
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "consideration-job-1".into(),
+            binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "epiphany.imagination.consideration.proposal_only".into(),
+            instruction: "consider".into(),
+            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: Vec::new(),
+            metadata: std::collections::BTreeMap::new(),
+            organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                "epiphany.imagination.consideration.proposal_only",
+                "role",
+                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: Some(request.request_id.clone()),
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let result = role_worker_result_from_ingress(
+            &launch,
+            "imagination",
+            None,
+            Some(&context),
+            None,
+            "2026-07-15T10:00:00Z",
+            "consideration-result-1",
+            &parsed,
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(
+            result.imagination_consideration_request_id.as_deref(),
+            Some("request-1")
+        );
+        let candidate = result
+            .imagination_consideration_candidate()?
+            .expect("runtime-composed candidate");
+        assert_eq!(candidate.request_id, request.request_id);
+        assert_eq!(candidate.feedback_id, request.feedback_id);
+        assert_eq!(candidate.feedback_packet_sha256, request.feedback_packet_sha256);
+        assert_eq!(candidate.source_room_id, request.source_room_id);
+        assert_eq!(candidate.source_visibility, request.source_visibility);
+        assert_eq!(candidate.data_classification, request.data_classification);
+        assert_eq!(candidate.model_revision, request.model_revision);
+        assert_eq!(candidate.model_hash, request.model_hash);
+        assert_eq!(candidate.proposed_at, "2026-07-15T10:00:00Z");
+        assert_eq!(
+            candidate.contract,
+            epiphany_core::IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT
+        );
         Ok(())
     }
 
@@ -2360,6 +2501,9 @@ mod tests {
             &launch,
             "mindAdmissionReview",
             Some(&context),
+            None,
+            None,
+            "2026-07-15T10:00:00Z",
             "mind-result-1",
             &parsed,
             Vec::new(),
