@@ -12,7 +12,7 @@ use epiphany_core::{
     ingest_resident_self_coordinator_continuation_pressure,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
     live_resident_self_typed_request_ids, load_resident_self_state, observe_process_instance,
-    pending_resident_self_acks,
+    pending_resident_self_acks, reap_exited_child_process,
     prepare_resident_self_launch, publish_resident_provider_readiness,
     resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
@@ -21,7 +21,8 @@ use epiphany_core::{
     retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
     retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
     settle_resident_self_exited_coordinator,
-    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
+    runtime_worker_process_claims, settle_resident_self_receipt_free_dead_coordinator,
+    terminate_process_instance,
     validate_persona_feedback_store_separation,
     validate_resident_self_coordinator_receipt_binding,
     validate_resident_self_store_separation,
@@ -310,6 +311,7 @@ fn cycle(
     ports: &mut NativePorts,
     shutdown_requested: bool,
 ) -> Result<ResidentSelfOutcome> {
+    ports.reap_adopted_worker_children()?;
     let now = Utc::now().timestamp_millis().max(0) as u64;
     let brake_engaged = ports.brake_engaged()?;
     let cognitive_runtime_id = ports.cognitive_runtime_id().to_string();
@@ -669,6 +671,16 @@ impl<'a> NativePorts<'a> {
 
     fn cognitive_runtime_id(&self) -> &str {
         &self.cognitive_runtime_id
+    }
+
+    fn reap_adopted_worker_children(&mut self) -> Result<usize> {
+        let mut reaped = 0;
+        for claim in runtime_worker_process_claims(&self.policy.runtime_store)? {
+            if reap_exited_child_process(claim.process_id)? {
+                reaped += 1;
+            }
+        }
+        Ok(reaped)
     }
 }
 

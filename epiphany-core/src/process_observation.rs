@@ -76,6 +76,38 @@ pub fn terminate_process_instance(expected: &ProcessInstanceIdentity) -> Result<
     platform::terminate(expected)
 }
 
+/// Reap one exact exited child of the current process without waiting.
+///
+/// This is OS lifecycle cleanup only. Callers must supply identity from their
+/// own typed authority; this function does not discover or classify processes.
+#[cfg(unix)]
+pub fn reap_exited_child_process(process_id: u32) -> Result<bool> {
+    let pid = i32::try_from(process_id).context("child process id exceeds Unix pid range")?;
+    loop {
+        let mut status = 0;
+        let observed = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+        if observed == pid {
+            return Ok(true);
+        }
+        if observed == 0 {
+            return Ok(false);
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        if error.raw_os_error() == Some(libc::ECHILD) {
+            return Ok(false);
+        }
+        return Err(error).context("failed to reap exact exited child process");
+    }
+}
+
+#[cfg(windows)]
+pub fn reap_exited_child_process(_process_id: u32) -> Result<bool> {
+    Ok(false)
+}
+
 /// Returns a boot-incarnation token only when the platform can prove it.
 pub fn native_boot_identity() -> Option<String> {
     platform::boot_identity()
@@ -588,5 +620,26 @@ mod tests {
                 exit_code: Some(17)
             } | ProcessInstanceObservation::Missing
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exact_exited_child_is_reaped_once_without_wildcard_waiting() {
+        let child = std::process::Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if reap_exited_child_process(child.id()).unwrap() {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "exact exited child was not reaped"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!reap_exited_child_process(child.id()).unwrap());
     }
 }

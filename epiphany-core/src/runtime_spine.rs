@@ -3527,6 +3527,16 @@ pub fn runtime_worker_process_claim(
     cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&worker_process_claim_id(job_id))
 }
 
+pub fn runtime_worker_process_claims(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<EpiphanyRuntimeWorkerProcessClaim>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut claims = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?;
+    claims.sort_by(|left, right| left.job_id.cmp(&right.job_id));
+    Ok(claims)
+}
+
 pub fn claim_runtime_worker_process(
     store_path: impl AsRef<Path>,
     job_id: &str,
