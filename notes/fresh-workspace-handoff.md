@@ -3842,3 +3842,17 @@ had exported standalone shape-only writers with no production caller. Those
 writers and re-exports are now test-only. The atomic state-and-witness test,
 the direct historical-family fixture test, and production library check pass.
 Commit/package this cut before selecting the next organ boundary.
+
+Exact `d4f4f145` packages the Mind portion as warning-free 24-binary release
+`sha256-b2490d04a1151d10b8a81b79cd7e56d5544d502829b9b51e1af6cea3a5477d11`
+with witness
+`sha256-3ac4f12aebe70ae854b9156969ee374838c1e48461357a57632035a18bafd058`.
+
+The same bounded audit then completed the acceptance prerequisite family.
+`EyesEvidencePacket` and `ContinuityRecoveryReceipt` are minted only beside an
+accepted Research or Reorientation state transition, yet their historical
+fixture writers were also public. They are now test-only and unexported.
+`SubstrateGateRepoAccessGrantReceipt` remains public because coordinator and
+Hands paths genuinely produce it independently. All seven coordinator
+acceptance tests, the historical-family fixture, and production library check
+pass. Package this final family cut, then move to a larger live matrix gate.

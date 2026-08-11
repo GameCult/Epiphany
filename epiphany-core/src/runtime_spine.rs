@@ -8801,7 +8801,10 @@ pub fn runtime_mind_state_commit_receipt(
     cache.get::<MindStateCommitReceipt>(receipt_id)
 }
 
-pub fn put_eyes_evidence_packet(
+// Eyes packets are accepted-research prerequisites and publish atomically with
+// the coordinator state transition. Direct insertion is fixture-only.
+#[cfg(test)]
+pub(crate) fn put_eyes_evidence_packet(
     store_path: impl AsRef<Path>,
     packet: &EyesEvidencePacket,
 ) -> Result<()> {
@@ -10565,7 +10568,11 @@ pub fn runtime_soul_verdict_receipt(
     cache.get::<SoulVerdictReceipt>(receipt_id)
 }
 
-pub fn put_continuity_recovery_receipt(
+// Continuity recovery receipts are accepted-reorientation prerequisites and
+// publish atomically with the coordinator state transition. Direct insertion
+// is fixture-only.
+#[cfg(test)]
+pub(crate) fn put_continuity_recovery_receipt(
     store_path: impl AsRef<Path>,
     receipt: &ContinuityRecoveryReceipt,
 ) -> Result<()> {

@@ -4221,3 +4221,16 @@ The release graph contains no standalone Soul-verdict actuator.
   writer functions; retain no compatibility route.
 - Verification: the atomic state-and-Mind-witness test, the historical-family
   fixture test, and warning-free production library check pass.
+
+Exact source `d4f4f145` packages the Mind portion as 24-binary release
+`sha256-b2490d04a1151d10b8a81b79cd7e56d5544d502829b9b51e1af6cea3a5477d11`
+with witness
+`sha256-3ac4f12aebe70ae854b9156969ee374838c1e48461357a57632035a18bafd058`.
+
+The same owner governs accepted Research and Reorientation prerequisites:
+`EyesEvidencePacket` and `ContinuityRecoveryReceipt` publish only in the state
+transaction and their direct writers are test-only. SubstrateGate is explicitly
+outside this cut because its coordinator and Hands producers own independent
+access grants before acceptance. Seven coordinator-acceptance tests prove the
+shared transaction, invalid-witness refusal, prerequisite co-publication, exact
+Soul binding, and split-admission replay.

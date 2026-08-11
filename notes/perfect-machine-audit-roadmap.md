@@ -120,10 +120,11 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Commit and package the Mind transaction-companion writer cut. Authenticate the
-exact release and confirm that no standalone Mind review/commit actuator enters
-the binary graph. Then select the next unproven organ matrix boundary. Actual
-c007h remains braked and untouched; do not manufacture frontier work.
+Commit and package the completed acceptance-family ownership cut, authenticate
+its exact release, then select a larger live organ-matrix gate from current
+source. Do not continue fixture-writer archaeology merely because another raw
+helper looks ugly. Actual c007h remains braked and untouched; do not manufacture
+frontier work.
 
 ## Completion standard
 
