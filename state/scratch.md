@@ -9,15 +9,16 @@ Keep actual c006 alive and cognitively braked; Yggdrasil never builds.
 
 ## Accepted braked physiology cut
 
-Exact pushed `3f37503e`, release
-`sha256-aec4ed9382adb45e354f00a7af330c5b28e45d07900175f4bb8dfb4535cb6624`,
-witness `sha256-348ae07ed5cda07b350d13aa02620286f80cd7cbce9c9b7dc0e562c59fe8600b`
-stops stable braked retention repetition and blocks repository/domain/
-continuation ingress under brake. On copied 23 MiB runtime state at one-second
-cadence, six samples held 0.29-0.33% CPU and about 47 MiB. Revision 66 and
-runtime/local-Verse hashes stayed exact, no grant appeared, and SIGTERM exited
-zero. The readiness-pacing hypothesis did not move CPU and was reverted; the
-ingress scan was the real owner.
+Exact pushed `3f37503e` blocks cognition ingress under brake; exact pushed
+`f04abd6b` makes runtime maintenance follow startup, resident revision, or a
+60-second deadline rather than poll cadence. Exact `f04abd6b` release
+`sha256-544b95404d9445b2af0fdd67495bcff5f284ab2d2a29e16450e90d50f72a3f84`
+and witness `sha256-79639e35da79f7038111234fa33e21829e88eddcb77eb702f8f53f5369e9def3`
+passed 24-binary inspection. Braked copied state held 0.29-0.33% CPU at
+one-second cadence; released sleeping state used 91 process ticks over 30
+seconds at five-second cadence (about 3.0% of one core). Revision 66, runtime
+hash, and no-grant state stayed exact; the brake was restored and both proofs
+exited zero. The readiness-pacing hypothesis did not move CPU and was reverted.
 
 ## Accepted live boundary
 

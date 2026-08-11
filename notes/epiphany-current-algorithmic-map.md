@@ -3966,10 +3966,11 @@ state is now the sole final-action owner for these review paths.
   own what may be retired, not how often a stable runtime is rescanned.
 - Inputs: cognitive brake, shutdown signal, resident revision, prepared/active
   lease state, and producer-owned typed source stores.
-- Outputs: the first stable braked revision receives normal bounded
-  maintenance; later identical braked pulses only observe/reconcile resident
-  authority and publish operator physiology. New domain and continuation
-  pressure are ingested only after brake release.
+- Outputs: maintenance runs on startup, resident revision change, or a bounded
+  60-second deadline. Stable braked pulses only observe/reconcile resident
+  authority and publish operator physiology. Stable released polls still scan
+  producer ingress at the configured wake cadence, but do not repeat retention.
+  New domain and continuation pressure are ingested only after brake release.
 - Derived state: poll interval, readiness projection, and pulse count are not
   retention or cognition-ingress authority.
 - Forbidden writers: a braked pulse cannot bind a new repository domain,
@@ -3978,9 +3979,11 @@ state is now the sole final-action owner for these review paths.
 - Shared paths: brake and shutdown use the same ingress refusal boundary;
   prepared/active child reconciliation remains live so the brake can drain and
   terminalize exact existing authority.
-- Cut line: unconditional retention scans no longer repeat at an unchanged
-  braked revision, and `cycle` no longer runs repository/domain/continuation
-  ingress while braked.
+- Cut line: unconditional retention scans no longer follow poll cadence, and
+  `cycle` no longer runs repository/domain/continuation ingress while braked.
 - Verification: exact packaged `3f37503e` on copied 23 MiB runtime state held
   revision and runtime/local-Verse hashes stable, created no grant, exited zero,
   and measured 0.29-0.33% CPU at one-second cadence versus prior 10-24% spikes.
+  Exact packaged `f04abd6b` then proved released sleeping at five-second
+  cadence: 91 process ticks over 30 seconds (about 3.0% of one core), stable
+  revision/runtime hash, no grant, restored brake, and clean exit zero.

@@ -34,6 +34,30 @@ revision remained 66, runtime SHA-256 remained
 under `.epiphany-run/linux-package-3f37503e`; stopped benchmark container logs
 remain on `epiphany-braked-cadence-resident-3f37503e`.
 
+Released idle exposed the same cadence coupling outside the brake: at a
+deliberately aggressive five-second poll, stable sleeping Self still paid a
+large full-store retention scan on every pulse. Pushed `f04abd6b` makes
+maintenance depend on startup, resident revision change, or a bounded
+60-second maintenance deadline. Pressure ingress still runs at the configured
+poll cadence, so wake latency and producer evidence ownership are unchanged.
+Exact release
+`sha256-544b95404d9445b2af0fdd67495bcff5f284ab2d2a29e16450e90d50f72a3f84`
+and witness
+`sha256-79639e35da79f7038111234fa33e21829e88eddcb77eb702f8f53f5369e9def3`
+passed 24-binary inspection with zero warnings; warm Cargo took 4.33s. On the
+same copied 23 MiB runtime, a released 30-second window at five-second cadence
+used 91 process clock ticks, about 3.0% of one core, and slept near 0% between
+scans. Revision stayed 66, no grant appeared, runtime SHA-256 remained
+`3cc2ef56...0bc6`, the brake was restored, and SIGTERM exited zero. At the
+production 15-second poll this scan cost scales to roughly 1% of one core.
+
+The live Yggdrasil Persona boundary was also rechecked read-only. The exact
+mouth service is active, enabled, restart-free, and listening on
+`10.77.0.1:17876`; `/srv/bifrost/env/persona-delivery.env` remains absent or
+empty, and no other root-managed bot-token file was found. This is still an
+external credential decision, not corrupted runtime state. Do not fabricate or
+borrow a bot identity.
+
 ## Runtime-owned proposal Modeling first-result accepted - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All live
