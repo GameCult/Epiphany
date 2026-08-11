@@ -3791,3 +3791,27 @@ preserved the exact local-Verse SHA-256, and created no marker. Receipts are
 Actual c007h remains exact `3a5d2b5e`, alive, braked at revision 312, and
 untouched. Continue classifying remaining non-repository actuators by their
 real owner; do not manufacture frontier work or build on Yggdrasil.
+
+The remaining process inventory found one additional bypass in the Windows
+Unity bridge. Its guidance claimed ownership of `-executeMethod`, but generic
+`run -- ...` accepted a caller replacement and could therefore invoke an
+arbitrary project static method. Commit `5ccf4cf8` separates caller command
+construction from internal named-probe construction and rejects
+`-executeMethod` case-insensitively. Commit `d7957b42` corrects the full smoke:
+harmless generic flags remain plannable, hostile method override returns
+`error`, and named probes alone carry the exact resident editor method. Two
+focused bridge tests and the full Windows bridge smoke pass. The rebuilt
+standalone executable SHA-256 is
+`e4a4c50eb575005f956cedb625386ec263cb973b08e8f51348cab539ef728034`;
+the hostile resolved-editor dry-run refuses exit 1 before command-artifact
+publication. Receipt:
+`.epiphany-run/unity-execute-method-refusal-5ccf4cf8-exact`.
+
+The other production `Command::new` paths retain coherent owners: release
+construction is explicit forge authority; resident Self launches witnessed
+coordinator/model binaries; Persona invokes Bifrost with speech audit,
+identity, and Heimdall capability; Rider opens only an in-project reference
+under explicit `--launch`; repo birth changes branches only under explicit
+create/switch flags; native process observation is sight. No authenticated
+agent tool-invocation surface exposes these utilities. The bounded actuator
+audit is complete; select the next Soul/Mind matrix gate from current source.

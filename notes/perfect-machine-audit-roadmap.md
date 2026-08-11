@@ -12,7 +12,7 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current source: exact `3fdff19f`.
+- Current source: exact `d7957b42`.
 - Accepted runtime implementation: exact `3a5d2b5e`.
 - Linux release:
   `sha256-84af3da8d2a2e170aa0611e48367eac4ecf5f66b2a2da763dc3045c5ad360177`.
@@ -33,11 +33,11 @@ the actual braked resident body are the live gates.
 | Faculty | Owner | Accepted proof | Remaining live gate |
 |---|---|---|---|
 | Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c007h superseded one overtaken unlaunched continuation and accepted the recovered proposal-Modeling result exactly once | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
-| Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths; canonical brake now covers direct daemon lifecycle actuation | finish classifying utility and compatibility actuators by their actual owner |
+| Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths; canonical brake covers direct daemon lifecycle actuation; non-repository process utilities retain explicit owners | one broader foreign/public Verse evidence adoption path with Eyes |
 | Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit and governed Linux tool circuit accepted into Mind | one broader foreign/public Verse evidence adoption path |
 | Modeling | runtime-owned typed Modeling contracts | causal Eyes-to-Modeling acceptance, direct proposal Modeling, archived fulfillment | broader Body-map coverage across a changing live repository |
 | Imagination | typed proposal/consideration producers | genuine packaged multi-option generation, proposal-only candidates, exact fulfillment, no Hands adoption leak | autonomous turnover from the next genuine eligible frontier |
-| Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts; Idunn restart commands remain separate typed deployment authority and now brake closed | finish non-repo actuator classification for bridges, bootstrap, crossing, and forge paths |
+| Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts; Idunn, crossing, forge, IDE, repo-birth, and model-runtime processes retain separate owners; Unity method override is structurally refused | audit the next Soul verifier boundary rather than adding Hands gates around non-Hands owners |
 | Soul | Soul gateway | consequence-bound verdict, causal Modeling route, retention and replay | collapse remaining verifier-specific broad projections into narrow receipt reads |
 | Mind | canonical transactions and specialized admission | atomic RepoModel admission, launch-owned adjudication, semantic/runtime retention | audit remaining state families for legacy writers and run longer memory behavior |
 | Persona | Persona turn, speech audit, public mouth | cross-host request/permit/receipt, signed failure and unknown no-repost behavior, conversation retention | one completed public consequence; currently blocked by absent Yggdrasil Discord credential |
@@ -120,16 +120,12 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Finish mapping the surviving non-repository process actuators. The supervisor
-boundary is now classified: specialized managed children bind witnessed
-executables and typed policies; explicit generic service launch is operator
-CLI authority; restart reconciliation is Idunn authority under status, policy,
-cooldown, brake, intent, and receipt; unauthenticated v0 tool capabilities are
-ignored and publish no invocation command. Continue with Rider, Unity,
-Persona/Bifrost, repo bootstrap, release construction, process observation,
-and model-runtime launch paths. Cut only a demonstrated autonomous bypass; do
-not wrap coherent operator, crossing, forge, or cognition authority in another
-gate. Actual c007h remains braked and untouched during the source audit.
+Audit the next Soul verifier boundary from current source: locate every
+production verifier that reads an aggregate projection, name the exact receipt
+or evidence family that owns its decision, and distinguish legitimate
+multi-family causal verification from convenience-wide reads. Cut only a
+demonstrated authority leak. Actual c007h remains braked and untouched; use
+copied state for falsification and do not manufacture frontier work.
 
 ## Completion standard
 

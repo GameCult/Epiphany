@@ -4132,3 +4132,41 @@ state is now the sole final-action owner for these review paths.
   `sha256-bd0062904fa8e7097946c6fd735191de43ff04a89d1c3c29c0c86f876815fb31`;
   witness
   `sha256-a051980f70b13d9dafa014fedc7fc636eb075a9fc85dc53e3a94081bcc3fe3e0`.
+
+## Non-repository process actuator ownership
+
+- Owner: each process family retains its existing consequence owner. Forge
+  commands belong to explicit release construction; resident cognition launches
+  only witnessed coordinator/model binaries; Persona launches the configured
+  Bifrost crossing under speech audit and capability reference; Idunn owns
+  typed service/restart actuation; Rider and repo birth are explicit operator
+  utilities; process observation is sight only; Unity owns editor execution.
+- Inputs: explicit CLI action or typed resident/crossing policy, witnessed or
+  discovered executable, scoped workspace/project, owner-specific arguments,
+  and the corresponding brake/permit where the path is unattended.
+- Outputs: owner-specific receipts or bounded artifacts. None of these paths
+  becomes generic Hands authority, and the ignored v0 daemon tool directory
+  publishes no invocation command.
+- Derived state: wrapper modes, command previews, IDE paths, and process
+  observations are operator sight. They cannot synthesize cognition, crossing,
+  deployment, or editor authority.
+- Forbidden writers: generic Unity caller arguments cannot replace
+  `-executeMethod`; Rider cannot open outside the project; repo birth cannot
+  mutate branches without explicit create/switch flags; Persona cannot bypass
+  Bifrost identity/capability arguments; release and observation helpers cannot
+  enter the resident scheduler.
+- Shared paths: generic Unity execution validates caller arguments before the
+  internal command builder; named probes alone derive
+  `GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe` and its artifact
+  contract.
+- Cut line: `-executeMethod` joined the bridge-owned flag set. The old smoke
+  happy path that blessed caller-authored method execution was replaced with a
+  hostile refusal plus an exact named-probe positive. No generic actuator
+  registry or compensating Hands gate was added.
+- Verification: exact source `d7957b42` passes two Unity bridge owner tests and
+  the full Windows bridge smoke. A rebuilt standalone bridge executable
+  (SHA-256
+  `e4a4c50eb575005f956cedb625386ec263cb973b08e8f51348cab539ef728034`)
+  refuses the resolved-editor hostile dry-run exit 1 before writing a command
+  artifact. Receipt:
+  `.epiphany-run/unity-execute-method-refusal-5ccf4cf8-exact`.
