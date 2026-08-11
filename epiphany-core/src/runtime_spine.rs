@@ -10515,7 +10515,12 @@ pub fn runtime_hands_receipt_chain_matches_current_model(
         && crate::memory_graph_model_hash(&model)? == route.model_hash)
 }
 
-pub fn put_soul_verdict_receipt(
+// Soul verdicts are terminal acceptance evidence. Production creates them only
+// as prerequisites inside the coordinator's atomic Mind acceptance
+// transaction; this crate-private writer exists for focused spine fixtures and
+// migration tests, not as an independent runtime actuator.
+#[cfg(test)]
+pub(crate) fn put_soul_verdict_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SoulVerdictReceipt,
 ) -> Result<()> {

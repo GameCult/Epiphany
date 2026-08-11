@@ -4170,3 +4170,27 @@ state is now the sole final-action owner for these review paths.
   refuses the resolved-editor hostile dry-run exit 1 before writing a command
   artifact. Receipt:
   `.epiphany-run/unity-execute-method-refusal-5ccf4cf8-exact`.
+
+## Soul verdict ownership and causal consumption
+
+- Owner: the coordinator's atomic Mind acceptance transaction creates a Soul
+  verdict from one authenticated Verification finding. The verdict is terminal
+  acceptance evidence, not an independently writable runtime command.
+- Inputs: the exact runtime worker result and launch contract, typed
+  verification request, frontier route, current item/model, accepted result
+  receipt, and exact Hands consequence chain.
+- Outputs: one immutable Soul verdict prerequisite; later Modeling derives a
+  typed frontier request and Mind may incorporate only the matching disposition.
+- Derived state: general Verse context and receipt-directory projections are
+  operator/prompt sight. They do not decide the verdict or its consequence.
+- Forbidden writers: external callers and unrelated runtime families cannot
+  publish a standalone Soul verdict. The former public writer is compiled only
+  for focused crate fixtures and is absent from the production API.
+- Shared paths: frontier Modeling request creation and verdict incorporation
+  both reload and compare the exact result, request, route, model/item, verdict,
+  acceptance, and evidence chain.
+- Cut line: remove the public re-export and production compilation of
+  `put_soul_verdict_receipt`; retain no compatibility writer.
+- Verification: ten `verdict` library tests, the focused atomic Soul acceptance
+  test, and production library check pass. Mixed request, route, result, and
+  illegal frontier edits remain byte-identical refusals.

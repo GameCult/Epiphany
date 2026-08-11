@@ -1109,7 +1109,8 @@ pub use runtime_spine::put_runtime_reorient_worker_result;
 pub use runtime_spine::put_runtime_role_worker_result;
 pub use runtime_spine::put_runtime_tool_execution_intent;
 pub use runtime_spine::put_runtime_tool_execution_receipt;
-pub use runtime_spine::put_soul_verdict_receipt;
+#[cfg(test)]
+pub(crate) use runtime_spine::put_soul_verdict_receipt;
 pub use runtime_spine::put_substrate_gate_repo_access_grant_receipt;
 pub use runtime_spine::relinquish_repo_frontier_hands_route;
 pub use runtime_spine::repair_legacy_terminal_coordinator_sessions;

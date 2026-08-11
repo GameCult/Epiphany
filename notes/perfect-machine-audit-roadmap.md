@@ -120,12 +120,10 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Audit the next Soul verifier boundary from current source: locate every
-production verifier that reads an aggregate projection, name the exact receipt
-or evidence family that owns its decision, and distinguish legitimate
-multi-family causal verification from convenience-wide reads. Cut only a
-demonstrated authority leak. Actual c007h remains braked and untouched; use
-copied state for falsification and do not manufacture frontier work.
+Package the Soul writer-ownership cut and prove the exact packaged verifier
+path on copied state where the binary graph exposes it. Then select the next
+unproven Soul/Mind matrix boundary. Actual c007h remains braked and untouched;
+do not manufacture frontier work.
 
 ## Completion standard
 

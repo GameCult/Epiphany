@@ -3815,3 +3815,14 @@ under explicit `--launch`; repo birth changes branches only under explicit
 create/switch flags; native process observation is sight. No authenticated
 agent tool-invocation surface exposes these utilities. The bounded actuator
 audit is complete; select the next Soul/Mind matrix gate from current source.
+
+The first Soul verifier audit found no aggregate-projection verdict shortcut.
+The causal consumers reload the exact accepted Verification result, typed
+verification request, frontier route, current item/model, and Hands chain; the
+mixed-chain and unrelated-verdict tests refuse substitution without mutation.
+One obsolete authority aperture did remain: `put_soul_verdict_receipt` was a
+public standalone writer even though production creates the verdict only as a
+prerequisite in the atomic Mind acceptance transaction. It is now compiled
+only for crate tests and no longer exported. Ten verdict tests, the focused
+Soul acceptance test, and warning-free library check pass. Package this cut,
+then continue with the next unproven Soul/Mind boundary.
