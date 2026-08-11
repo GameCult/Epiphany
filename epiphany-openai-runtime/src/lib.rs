@@ -1519,7 +1519,6 @@ struct ImaginationConsiderationCandidateIngress {
     rationale: String,
     option_drafts: Vec<epiphany_core::ImaginationOptionDraft>,
     uncertainties: Vec<String>,
-    evidence_refs: Vec<String>,
     recommended_review_route: Option<epiphany_core::ImaginationConsiderationReviewRoute>,
 }
 
@@ -1732,7 +1731,7 @@ fn role_worker_result_from_ingress(
                         rationale: ingress.rationale.trim().into(),
                         option_drafts: ingress.option_drafts.clone(),
                         uncertainties: clean_string_vec(&ingress.uncertainties),
-                        evidence_refs: clean_string_vec(&ingress.evidence_refs),
+                        evidence_refs: context.request.quoted_evidence.source_discussion_refs.clone(),
                         recommended_review_route: route,
                         proposed_at: completed_at.into(),
                         contract: epiphany_core::IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT.into(),
@@ -2341,6 +2340,10 @@ mod tests {
         assert_eq!(candidate.data_classification, request.data_classification);
         assert_eq!(candidate.model_revision, request.model_revision);
         assert_eq!(candidate.model_hash, request.model_hash);
+        assert_eq!(
+            candidate.evidence_refs,
+            request.quoted_evidence.source_discussion_refs
+        );
         assert_eq!(candidate.proposed_at, "2026-07-15T10:00:00Z");
         assert_eq!(
             candidate.contract,

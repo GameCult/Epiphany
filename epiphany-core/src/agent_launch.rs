@@ -993,7 +993,7 @@ pub fn epiphany_imagination_consideration_output_schema() -> serde_json::Value {
             "imaginationConsiderationCandidate": {
                 "type": "object",
                 "required": ["disposition", "title", "summary", "rationale", "option_drafts", "uncertainties",
-                    "evidence_refs", "recommended_review_route"],
+                    "recommended_review_route"],
                 "properties": {
                     "disposition": {"type": "string", "enum": ["suggest", "hold", "no_fit"]},
                     "title": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1},
@@ -1002,7 +1002,6 @@ pub fn epiphany_imagination_consideration_output_schema() -> serde_json::Value {
                         "properties": {"title": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1}},
                         "additionalProperties": false}},
                     "uncertainties": {"type": "array", "items": {"type": "string"}},
-                    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
                     "recommended_review_route": {"type": "string", "enum": ["modeling_review", "hold", "silence"]}
                 },
                 "additionalProperties": false
@@ -1999,6 +1998,7 @@ mod tests {
             "data_classification",
             "model_revision",
             "model_hash",
+            "evidence_refs",
             "proposed_at",
             "contract",
         ] {
