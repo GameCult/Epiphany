@@ -587,6 +587,7 @@ under `.epiphany-run/readiness-16407f7e` and
 `.epiphany-run/c006-readiness-16407f7e`. Run the 900-pulse braked plateau next.
 Yggdrasil never builds.
 
+
 ## Direct proposal Modeling and archived fulfillment accepted — 2026-08-10
 
 The exact `53678374` Linux body now carries a direct proposal Modeling proof in
@@ -3518,3 +3519,37 @@ byte-identically. The stronger check also exposed a model-direction fixture
 that projected a default model; the fixture now uses the admitted model and
 result admission itself requires the projected model hash. Repackage the new
 commit; do not publish or use the 452c release as accepted evidence.
+
+## Packaged supersession proof and construction wound — 2026-08-11
+
+Exact `b81b59a7` packages as release
+`sha256-7c1a739c4b287c49051ab7aaab9a9541320f2d768e6b846d84b7bf290acbecc2`
+with witness
+`sha256-c9d042a09b8fe105cceab1bc2c23c290cea94c8e7af11322ef030e34fb1c7573`,
+24 binaries, and zero warnings. The first package took 6m15s. An identical warm
+replay produced the same release and witness, but Cargo took 23.23s after
+transient fixture construction disturbed the shared source fingerprints.
+Receipts are `.epiphany-run/linux-package-b81b59a7` and
+`.epiphany-run/linux-package-b81b59a7-warm`.
+
+A purpose-built copied CultCache fixture held one active
+admitted-model-direction grant and exact receipt against RepoModel revision 1,
+then advanced the model to revision 2. Exact packaged Self terminalized that
+grant once as `superseded`, recorded the real receipt, left runtime bytes
+unchanged, and created no failure count, requeue, or external consequence.
+Exact packaged Heartbeat produced no grant through three braked and three
+released iterations. Receipts and before/after hashes are under
+`.epiphany-run/b81-superseded-fixture`.
+
+The earlier copied turnover fixture was rejected for this proof because it
+retained unrelated proposal authority. Its `activeLeaseObservation:none`
+projection described absence of a live process, not absence of a durable active
+lease. Do not use that projection as an authority-free predicate.
+
+The next rite maps build ownership before editing. Preserve the deterministic
+content-addressed package cache and single publisher, but separate transient
+test/fixture construction from release Cargo fingerprints and avoid linking a
+second monolithic release graph merely to create typed state. The native state
+reader itself required a 61-second debug build during this phase, confirming
+that operator sight still owns compilation work it should not need. Actual c006
+stays exact `c9a2a979`, alive and cognitively braked. Yggdrasil never builds.

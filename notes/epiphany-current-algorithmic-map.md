@@ -4017,6 +4017,11 @@ state is now the sole final-action owner for these review paths.
   `epiphany-work` acceptance remains inert and is not a fallback workflow.
 - Verification: focused source proof passes 31 resident tests, four
   admitted-model-direction contract tests, and all eight swarm tests. Exact
-  Linux packaging and copied-state replay remain open; acceptance requires one
-  superseded terminal acknowledgement, no regrant, and zero external
-  consequence.
+  `b81b59a7` packages as release
+  `sha256-7c1a739c4b287c49051ab7aaab9a9541320f2d768e6b846d84b7bf290acbecc2`
+  with 24 binaries and zero warnings. A purpose-built copied CultCache fixture
+  advanced RepoModel from revision 1 to 2 behind one active exact request; the
+  packaged resident emitted one `superseded` terminal acknowledgement bound to
+  the real receipt, left runtime bytes unchanged, and exact packaged Heartbeat
+  produced no replacement grant while braked or released. Receipts live under
+  `.epiphany-run/b81-superseded-fixture`.
