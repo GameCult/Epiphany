@@ -2691,23 +2691,44 @@ pub fn validate_resident_self_prepared_objective(
     let state = cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
         .ok_or_else(|| anyhow!("resident Self state is absent at objective bootstrap"))?;
-    let prepared = state
-        .prepared_launch
-        .as_ref()
-        .filter(|prepared| prepared.preparation_id == preparation_id)
-        .ok_or_else(|| anyhow!("resident Self preparation is absent at objective bootstrap"))?;
     let objective_digest = digest_parts([objective.as_bytes()]);
-    if prepared.grant.pressure_kind != "operator-objective"
-        || prepared.grant.grant_id != claim.grant_id
-        || prepared.launch_digest != claim.launch_digest
-        || prepared.grant.objective != objective
-        || prepared.objective_digest != objective_digest
-    {
+    if claim.preparation_id != preparation_id {
         return Err(anyhow!(
             "resident coordinator objective disagrees with its exact prepared grant"
         ));
     }
-    Ok(())
+    if let Some(prepared) = state
+        .prepared_launch
+        .as_ref()
+        .filter(|prepared| prepared.preparation_id == preparation_id)
+    {
+        if prepared.grant.pressure_kind == "operator-objective"
+            && prepared.grant.grant_id == claim.grant_id
+            && prepared.launch_digest == claim.launch_digest
+            && prepared.grant.objective == objective
+            && prepared.objective_digest == objective_digest
+        {
+            return Ok(());
+        }
+    }
+    if let Some(active) = state.active_turn.as_ref() {
+        let ResidentSelfWake::Explicit {
+            objective: active_objective,
+        } = &active.wake;
+        if active.grant_id == claim.grant_id
+            && active.launch_digest == claim.launch_digest
+            && active.process_id == claim.process_id
+            && active.process_creation_token == claim.process_creation_token
+            && active.process_executable_path == claim.executable_path
+            && active_objective == objective
+            && active.objective_digest == objective_digest
+        {
+            return Ok(());
+        }
+    }
+    Err(anyhow!(
+        "resident coordinator objective disagrees with its exact prepared grant or active lease"
+    ))
 }
 
 #[cfg(test)]
@@ -4503,6 +4524,13 @@ mod tests {
             &process,
             4,
         )?;
+        validate_resident_self_prepared_objective(
+            &store,
+            &prepared.preparation_id,
+            &claim,
+            "Run one bounded planning turn.",
+        )?;
+        acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
         validate_resident_self_prepared_objective(
             &store,
             &prepared.preparation_id,

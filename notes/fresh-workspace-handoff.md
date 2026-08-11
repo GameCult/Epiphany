@@ -3880,10 +3880,12 @@ cannot own later resident directives.
 
 The source cut separates those authorities. Standalone coordinator startup
 still atomically seeds the canonical Mind objective. A resident launch instead
-authenticates its argv objective against the exact persisted prepared grant,
-child claim, launch digest, and objective digest, then treats it as per-turn
+authenticates its argv objective against the exact persisted prepared grant or
+its canonically promoted active lease, plus child claim, process identity,
+launch digest, and objective digest. It then treats the directive as per-turn
 command context without changing the canonical objective. Wrong objective or
-non-operator pressure refuses. The focused resident test, standalone seed-only
-test, and coordinator-runtime binary check pass. Package/publish this cut,
+foreign launch refuses. The focused resident test proves both sides of the
+prepare-to-active transition; the standalone seed-only test and
+coordinator-runtime binary check pass. Package/publish this cut,
 restart c008, release only for committed attempt 2, and require exact settlement
 before re-engaging the brake.
