@@ -658,7 +658,7 @@ fn resident_coordinator_binding_for_grant(
     resident_store: &Path,
     policy: &ResidentSelfPolicy,
     grant: &ResidentSelfHeartbeatGrant,
-) -> Result<ResidentCoordinatorBinding> {
+) -> Result<Option<ResidentCoordinatorBinding>> {
     let mut cache = crate::runtime_spine_cache(&policy.runtime_store)?;
     cache.pull_all_backing_stores()?;
     let runtime_identity = cache
@@ -684,14 +684,16 @@ fn resident_coordinator_binding_for_grant(
                 &policy.runtime_store,
                 &receipt,
             )?
-        }
-        .ok_or_else(|| anyhow!("coordinator receipt no longer owns a safe continuation"))?;
-        return Ok(ResidentCoordinatorBinding {
+        };
+        let Some(required_action) = required_action else {
+            return Ok(None);
+        };
+        return Ok(Some(ResidentCoordinatorBinding {
             runtime_id: runtime_identity.runtime_id,
             thread_id: receipt.thread_id,
             typed_request: None,
             required_action: Some(required_action),
-        });
+        }));
     }
     let (prefix, request_flag) = match grant.pressure_kind.as_str() {
         "imagination-consideration" => (
@@ -707,12 +709,12 @@ fn resident_coordinator_binding_for_grant(
             "--proposal-modeling-request-id",
         ),
         _ => {
-            return Ok(ResidentCoordinatorBinding {
+            return Ok(Some(ResidentCoordinatorBinding {
                 thread_id: resident_coordinator_thread_id(&runtime_identity.runtime_id)?,
                 runtime_id: runtime_identity.runtime_id,
                 typed_request: None,
                 required_action: None,
-            });
+            }));
         }
     };
     let request_id = grant
@@ -748,12 +750,12 @@ fn resident_coordinator_binding_for_grant(
             runtime_identity.runtime_id,
         ));
     }
-    Ok(ResidentCoordinatorBinding {
+    Ok(Some(ResidentCoordinatorBinding {
         runtime_id: runtime_identity.runtime_id,
         thread_id,
         typed_request: Some((request_flag.into(), request_id.into())),
         required_action: None,
-    })
+    }))
 }
 
 fn prepared_coordinator_thread_id(argv: &[String]) -> Result<String> {
@@ -1193,6 +1195,30 @@ fn resident_self_safe_continuation_action(
             | "commitFrontierPlanDecision"
     );
     if direct {
+        let overtaken_by_terminal_result = match receipt.final_action.as_str() {
+            "launchResearch" => role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Research,
+                crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+            )?,
+            "launchModeling" => role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Modeling,
+                crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
+            )?,
+            "launchVerification" => role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Verification,
+                crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+            )?,
+            _ => false,
+        };
+        if overtaken_by_terminal_result {
+            return Ok(None);
+        }
         return Ok(Some(receipt.final_action.clone()));
     }
     let action = match receipt.final_action.as_str() {
@@ -2270,6 +2296,109 @@ pub fn resident_self_policy_digest(policy: &ResidentSelfPolicy) -> String {
     ])
 }
 
+fn supersede_unlaunched_resident_self_continuation(
+    path: &Path,
+    grant: &ResidentSelfHeartbeatGrant,
+    now_millis: u64,
+) -> Result<ResidentSelfTerminalAck> {
+    if grant.pressure_kind != RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
+        || grant.consumed_at_millis.is_some()
+        || grant.terminal_at_millis.is_some()
+    {
+        return Err(anyhow!(
+            "only an exact unlaunched coordinator continuation grant may be superseded"
+        ));
+    }
+    let receipt_id = grant
+        .provenance_ref
+        .strip_prefix(RESIDENT_SELF_COORDINATOR_CONTINUATION_PROVENANCE_PREFIX)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("superseded continuation lost receipt provenance"))?;
+    let cache = state_cache(path)?;
+    let mut state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .ok_or_else(|| anyhow!("resident Self state missing while superseding continuation"))?;
+    if state.active_turn.is_some() || state.prepared_launch.is_some() {
+        return Err(anyhow!(
+            "resident Self cannot supersede continuation while launch authority is active"
+        ));
+    }
+    let mut current_grant = cache
+        .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+        .ok_or_else(|| anyhow!("superseded continuation grant is missing"))?;
+    if current_grant != *grant {
+        return Err(anyhow!("superseded continuation grant authority changed"));
+    }
+    let pressure = cache
+        .get::<ResidentSelfPressure>(&grant.pressure_id)?
+        .ok_or_else(|| anyhow!("superseded continuation pressure is missing"))?;
+    if pressure.status != "consumed"
+        || pressure.consumed_by_grant_id.as_deref() != Some(grant.grant_id.as_str())
+    {
+        return Err(anyhow!(
+            "superseded continuation pressure no longer belongs to its exact grant"
+        ));
+    }
+    let launch_digest = digest_parts([
+        "resident-self-unlaunched-superseded",
+        grant.grant_id.as_str(),
+        receipt_id,
+    ]);
+    let ack = ResidentSelfTerminalAck {
+        schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
+        ack_id: format!("resident-self-superseded-{}", grant.grant_id),
+        grant_id: grant.grant_id.clone(),
+        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
+        heartbeat_action_id: grant.heartbeat_action_id.clone(),
+        launch_digest,
+        coordinator_receipt_id: receipt_id.into(),
+        terminal_status: "superseded".into(),
+        completed_at_millis: now_millis,
+        consumed_by_heartbeat_at_millis: None,
+        private_state_exposed: false,
+    };
+    let envelopes = cache.snapshot_envelopes();
+    let expected_state = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfState as DatabaseEntry>::TYPE
+                && entry.key == RESIDENT_SELF_STATE_KEY
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("superseded continuation state envelope is missing"))?;
+    let expected_pressure = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfPressure as DatabaseEntry>::TYPE
+                && entry.key == pressure.pressure_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("superseded continuation pressure envelope is missing"))?;
+    let expected_grant = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+                && entry.key == grant.grant_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("superseded continuation grant envelope is missing"))?;
+    state.revision = state.revision.saturating_add(1);
+    current_grant.consumed_at_millis = Some(now_millis);
+    current_grant.terminal_at_millis = Some(now_millis);
+    current_grant.terminal_status = Some("superseded".into());
+    let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
+    let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
+    let (grant_entry, _) = cache.prepare_entry(&current_grant.grant_id, &current_grant)?;
+    let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
+    if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
+        &[expected_state, expected_pressure, expected_grant],
+        vec![state_entry, pressure_entry, grant_entry, ack_entry],
+    )? {
+        return Err(anyhow!("resident Self lost superseded-continuation CAS"));
+    }
+    Ok(ack)
+}
+
 pub fn prepare_resident_self_launch(
     path: &Path,
     policy: &ResidentSelfPolicy,
@@ -2289,7 +2418,10 @@ pub fn prepare_resident_self_launch(
     let Some(mut grant) = pending_resident_self_grant(path)? else {
         return Ok(None);
     };
-    let binding = resident_coordinator_binding_for_grant(path, policy, &grant)?;
+    let Some(binding) = resident_coordinator_binding_for_grant(path, policy, &grant)? else {
+        supersede_unlaunched_resident_self_continuation(path, &grant, now_millis)?;
+        return Ok(None);
+    };
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
@@ -5502,15 +5634,65 @@ mod tests {
         })?;
         runtime.put(job_id, &role_worker_result(job_id, "modeling"))?;
 
+        let mut stale_receipt = receipt.clone();
+        stale_receipt.receipt_id = "receipt-stale-launch-modeling".into();
+        stale_receipt.status = "planned".into();
+        stale_receipt.final_action = "launchModeling".into();
+        runtime.put(&stale_receipt.receipt_id, &stale_receipt)?;
+        enqueue_resident_self_pressure(
+            &resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "pressure-stale-launch-modeling".into(),
+                kind: RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND.into(),
+                provenance_ref: format!(
+                    "{RESIDENT_SELF_COORDINATOR_CONTINUATION_PROVENANCE_PREFIX}{}",
+                    stale_receipt.receipt_id
+                ),
+                objective: "Stale launch must not outrank terminal Modeling evidence.".into(),
+                created_at_millis: 2,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let stale_grant = heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "stale-schedule",
+            "stale-action",
+            3,
+        )?
+        .expect("stale continuation grant");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator;
+        policy.runtime_store = runtime_store.clone();
+        policy.max_steps = 1;
+        assert!(prepare_resident_self_launch(&resident_store, &policy, 4)?.is_none());
+        let terminal = resident_self_grant_lifecycle_projection(
+            &resident_store,
+            Some(&stale_grant.grant_id),
+            1,
+        )?
+        .pop()
+        .expect("superseded stale continuation");
+        assert_eq!(terminal.terminal_status.as_deref(), Some("superseded"));
+        let stale_ack = pending_resident_self_acks(&resident_store)?
+            .pop()
+            .expect("superseded stale continuation acknowledgement");
+        assert_eq!(stale_ack.coordinator_receipt_id, stale_receipt.receipt_id);
+        heartbeat_consume_resident_self_ack(&resident_store, &stale_ack.ack_id, 5)?;
+
         assert!(ingest_resident_self_coordinator_continuation_pressure(
             &resident_store,
             &runtime_store,
-            2,
+            6,
         )?);
         assert!(!ingest_resident_self_coordinator_continuation_pressure(
             &resident_store,
             &runtime_store,
-            3,
+            7,
         )?);
         let pressure = resident_self_pressures(&resident_store)?
             .into_iter()
@@ -5520,15 +5702,9 @@ mod tests {
             pressure.kind,
             RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
         );
-        heartbeat_issue_resident_self_grant(&resident_store, "schedule", "action", 4)?
+        heartbeat_issue_resident_self_grant(&resident_store, "schedule", "action", 8)?
             .expect("one continuation grant");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator;
-        policy.runtime_store = runtime_store;
-        policy.max_steps = 1;
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 5)?
+        let prepared = prepare_resident_self_launch(&resident_store, &policy, 9)?
             .expect("continuation preparation");
         assert_eq!(resident_prepared_launch_thread_id(&prepared)?, "thread-1");
         assert!(prepared.argv.windows(2).any(|pair| pair == ["--mode", "execute"]));

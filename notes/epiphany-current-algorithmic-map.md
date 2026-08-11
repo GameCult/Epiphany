@@ -1432,6 +1432,15 @@ unset until acceptance and is not pre-acceptance evidence. The failed process re
 the typed result owns cognitive review readiness. This route cannot launch a
 second worker or continue into Hands.
 
+Receipt-derived launch actions are revalidated at preparation. A terminal role
+result overtakes an older `launchResearch`, `launchModeling`, or
+`launchVerification` continuation before process creation. Resident Self then
+atomically marks the exact unlaunched grant `superseded`, leaves its consumed
+pressure closed, and emits one Heartbeat acknowledgement bound to the
+originating receipt. The stale receipt remains evidence but no longer owns a
+launch; Heartbeat may then schedule the current typed review pressure. This is
+grant-owned closure, not deletion or retry repair.
+
 Exact packaged `6dd9b132` proves that ownership cut live. One autonomous
 proposal Modeling coordinator exited while its detached worker continued; Self
 held the same lease as `awaiting-fulfillment`. Runtime later admitted one exact

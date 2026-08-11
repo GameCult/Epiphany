@@ -3730,3 +3730,12 @@ receipts are `.epiphany-run/live-swap-c007f-2e1ccaf7`. The corrected source
 requires the exact Modeling job link plus runtime-owned typed fulfillment; its
 focused lifecycle test now explicitly proves recovery while link result ID is
 absent. Package/restart/live replay of this correction is next.
+
+Restarting exact fbd57b9b braked exposed a separately preserved grant from the
+older `launchModeling` continuation. The active source cut now revalidates
+receipt-derived launches at preparation: terminal Modeling evidence overtakes
+the stale launch, and one snapshot-fenced transaction terminalizes the exact
+unlaunched grant as `superseded`, preserves the consumed pressure, and emits a
+receipt-bound Heartbeat acknowledgement. The focused continuation test proves
+supersession and then proves the newer `reviewModelingResult` continuation can
+prepare normally. Commit/package/live replay remain next.
