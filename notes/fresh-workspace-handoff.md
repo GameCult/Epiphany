@@ -3678,6 +3678,40 @@ The live cascade exposed an ownership gap: admitted Imagination
 runtime validation. Scheduler FIFO and one-at-a-time promotion cannot bound
 the durable queue a single worker result may mint. The active source cut adds
 shared `MAX_OPTION_DRAFTS = 3`, emits that as schema `maxItems`, and rejects
-larger admitted results in Rust. Both focused tests pass. Commit/push and exact
-package/warm replay remain next; c007d stays braked until the bounded body is
-authenticated. Yggdrasil never builds.
+larger admitted results in Rust. Commit `bc0806b5` is pushed. A current Linux
+packager bootstrap (SHA-256
+`b14405aeacb008b0a075cf409ccf7239b2a48c8b5af5d380e8aed64ba2e8a34d`)
+then restored the already-designed stable `/source/repo-live` forge path. The
+one-time path migration compiled fb873927 in 4m36s; the distinct bc0806b5 core
+change completed in 1m34s, down from the stale per-commit clone path's 13m40s.
+An identical warm replay took 8.32s wall / 0.77s Cargo and reproduced release
+`sha256-3214699820704481268f3f52de9a9dd86948d424ff556177eb60e45330ad414f`
+and witness
+`sha256-6d03e787da348d9901aae72fa6fe94e1cbe31b4db97d95e8bf05303bc65029cc`
+across 24 binaries with zero warnings. Receipts are
+`.epiphany-run/forge-crosscommit-*` and
+`.epiphany-run/packager-bootstrap-bc0806b5`.
+
+c007d stopped both owners with exit zero. The workspace advanced to exact
+bc0806b5, the release was published, and c007e restarted the exact authenticated
+body with bounded Docker logs. After brake release, a stored safe continuation
+launched the pending proposal's Modeling worker. The already-enqueued typed
+proposal grant then correctly refused a duplicate unsuperseded launch, retained
+the same active lease as `awaiting-fulfillment`, authenticated worker result
+`result-worker-8ddf57c1-96b4-4a60-ae8b-b24404e9ce2f`, terminalized once, and
+was acknowledged by Heartbeat. The apparent duplicate-launch failure was
+therefore fail-closure, not corrupt state. The true wound was that the failed
+coordinator receipt could not derive review pressure for the valid unaccepted
+typed result. c007e is braked at resident revision 302 with no active turn;
+status derives `reviewModelingResult`, `modelingResultProposalBound=true`, and
+no pending proposal request.
+
+The active source cut preserves the failed receipt as process evidence but lets
+the exact fulfilled proposal result own review readiness. It requires the
+failed receipt, its grant and launch digest, one terminal acknowledgement, the
+runtime-owned typed fulfillment, the current Modeling result link, and absence
+of prior acceptance before deriving only `reviewModelingResult`. Typed
+completion now records terminal status `fulfilled` instead of copying the
+process receipt's status. Thirty-one resident tests, nine swarm tests, and the
+new hostile failed-receipt/valid-result lifecycle test pass. Commit/package and
+exact c007e continuation replay remain next. Yggdrasil never builds.

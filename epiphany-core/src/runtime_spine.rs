@@ -14453,6 +14453,199 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    #[test]
+    fn failed_coordinator_receipt_cannot_strand_authenticated_proposal_fulfillment()
+    -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (runtime_store, result, _) =
+            proposal_admission_fixture(root.path(), "failed-receipt-continuation")?;
+        let request_id = result
+            .proposal_modeling_request_id
+            .clone()
+            .expect("proposal request echo");
+        put_runtime_role_worker_result(&runtime_store, &result)?;
+        let mut runtime = runtime_spine_cache(&runtime_store)?;
+        runtime.pull_all_backing_stores()?;
+        let thread_entry = runtime
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .expect("proposal fixture thread state");
+        let mut thread_state = thread_entry.state()?;
+        let modeling_link = thread_state
+            .runtime_links
+            .iter_mut()
+            .find(|link| {
+                link.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                    && link.runtime_job_id == result.job_id
+            })
+            .expect("proposal fixture Modeling runtime link");
+        modeling_link.surface = "runtimeResult".into();
+        modeling_link.runtime_result_id = Some(result.result_id.clone());
+        runtime.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state(
+                &thread_entry.thread_id,
+                &thread_state,
+            )?,
+        )?;
+
+        let resident_store = root.path().join("resident.cc");
+        crate::enqueue_resident_self_pressure(
+            &resident_store,
+            &crate::ResidentSelfPressure {
+                schema_version: crate::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "failed-receipt-proposal-pressure".into(),
+                kind: "repo-frontier-proposal-modeling".into(),
+                provenance_ref: format!(
+                    "cultcache://repo-frontier-proposal-modeling/{request_id}"
+                ),
+                objective: "Settle exact proposal Modeling fulfillment despite process failure."
+                    .into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        crate::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "failed-receipt-heartbeat",
+            "failed-receipt-action",
+            2,
+        )?
+        .expect("proposal Modeling grant");
+        let coordinator = root.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let policy = crate::ResidentSelfPolicy {
+            workspace: root.path().to_path_buf(),
+            coordinator_bin: coordinator.clone(),
+            model_runtime_bin: root.path().join("epiphany-model-runtime"),
+            tool_adapter_bin: root.path().join("epiphany-tool-mcp-runtime"),
+            runtime_store: runtime_store.clone(),
+            local_verse_store: root.path().join("local-verse.cc"),
+            agent_memory_store: root.path().join("mind.cc"),
+            artifact_root: root.path().join("artifacts"),
+            codex_home: root.path().join("codex-home"),
+            mcp_config: root.path().join("mcp.toml"),
+            model_provider: "local".into(),
+            max_steps: 1,
+            turn_timeout_seconds: 60,
+            cooldown_seconds: 1,
+            idle_sleep_seconds: 5,
+            failure_backoff_seconds: 20,
+            release_commit: "failed-receipt-test-release".into(),
+            release_manifest_digest: "sha256:failed-receipt-test-manifest".into(),
+            release_store: root.path().join("release.cc"),
+            release_runtime_id: "deployment-runtime".into(),
+            release_id: "failed-receipt-test-release".into(),
+            release_witness_sha256: "sha256:failed-receipt-test-witness".into(),
+        };
+        let prepared = crate::prepare_resident_self_launch(&resident_store, &policy, 3)?
+            .expect("proposal Modeling preparation");
+        let process = crate::LaunchedCoordinator {
+            process_id: u32::MAX - 17,
+            process_creation_token: 83,
+            process_executable_path: coordinator,
+        };
+        crate::claim_resident_self_preparation_as_child(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        let lease = crate::acknowledge_resident_self_launch(
+            &resident_store,
+            &prepared.preparation_id,
+            &process,
+            5,
+        )?;
+        let receipt = EpiphanyCoordinatorRunReceipt {
+            schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "failed-receipt-with-valid-proposal-result".into(),
+            session_id: coordinator_run_session_id(
+                &lease.turn_id,
+                Some(&lease.launch_digest),
+            )?,
+            thread_id: lease.turn_id.clone(),
+            mode: "execute".into(),
+            status: "failed".into(),
+            final_action: "waitForModelingResult".into(),
+            final_reason: Some("redundant proposal launch refused".into()),
+            step_count: 0,
+            created_at: "2026-08-11T13:00:00Z".into(),
+            model_provider: Some("local".into()),
+            runtime_store: runtime_store.display().to_string(),
+            artifact_refs: Vec::new(),
+            sealed_artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+            resident_grant_id: Some(lease.grant_id.clone()),
+            resident_launch_digest: Some(lease.launch_digest.clone()),
+            resident_policy_digest: Some(lease.policy_digest.clone()),
+            resident_argv_digest: Some(lease.argv_digest.clone()),
+            resident_objective_digest: Some(lease.objective_digest.clone()),
+            resident_release_commit: Some(lease.release_commit.clone()),
+            resident_release_manifest_digest: Some(lease.release_manifest_digest.clone()),
+            resident_executable_digest: Some(lease.coordinator_executable_digest.clone()),
+        };
+        runtime_spine_cache(&runtime_store)?.put(&receipt.receipt_id, &receipt)?;
+        assert_eq!(
+            crate::settle_resident_self_exited_coordinator(
+                &resident_store,
+                &runtime_store,
+                &lease,
+                &receipt,
+                false,
+                false,
+                false,
+                6,
+                policy.cooldown_seconds,
+            )?,
+            crate::ResidentSelfOutcome::Completed
+        );
+        let terminal_grant = crate::resident_self_grant_lifecycle_projection(
+            &resident_store,
+            Some(&lease.grant_id),
+            1,
+        )?
+        .pop()
+        .expect("terminal proposal grant");
+        assert_eq!(terminal_grant.terminal_status.as_deref(), Some("fulfilled"));
+        assert!(crate::ingest_resident_self_coordinator_continuation_pressure(
+            &resident_store,
+            &runtime_store,
+            7,
+        )?);
+        assert!(!crate::ingest_resident_self_coordinator_continuation_pressure(
+            &resident_store,
+            &runtime_store,
+            8,
+        )?);
+        let continuation = crate::resident_self_pressures(&resident_store)?
+            .into_iter()
+            .find(|pressure| {
+                pressure.kind == crate::RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
+            })
+            .expect("typed fulfillment continuation pressure");
+        assert!(continuation.pressure_id.ends_with("-reviewModelingResult"));
+        assert_eq!(
+            continuation.provenance_ref,
+            format!("cultcache://coordinator-run-receipt/{}", receipt.receipt_id)
+        );
+        crate::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "failed-receipt-review-heartbeat",
+            "failed-receipt-review-action",
+            1_007,
+        )?
+        .expect("typed review continuation grant");
+        let review = crate::prepare_resident_self_launch(&resident_store, &policy, 1_008)?
+            .expect("typed review continuation preparation");
+        assert!(review.argv.windows(2).any(|pair| {
+            pair == ["--required-action", "reviewModelingResult"]
+        }));
+        assert!(!review.argv.iter().any(|arg| arg == "--objective"));
+        Ok(())
+    }
+
     fn claim_repair_admission_fixture(
         root: &Path,
         suffix: &str,

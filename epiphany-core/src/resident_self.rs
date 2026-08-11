@@ -655,6 +655,7 @@ pub fn resident_cognitive_runtime_id(runtime_store: &Path) -> Result<String> {
 }
 
 fn resident_coordinator_binding_for_grant(
+    resident_store: &Path,
     policy: &ResidentSelfPolicy,
     grant: &ResidentSelfHeartbeatGrant,
 ) -> Result<ResidentCoordinatorBinding> {
@@ -672,13 +673,18 @@ fn resident_coordinator_binding_for_grant(
         let receipt = cache
             .get::<crate::EpiphanyCoordinatorRunReceipt>(receipt_id)?
             .ok_or_else(|| anyhow!("coordinator continuation receipt is missing"))?;
-        if !matches!(receipt.status.as_str(), "planned" | "needsReview" | "completed") {
-            return Err(anyhow!("coordinator continuation receipt is not successful"));
+        let required_action = if matches!(
+            receipt.status.as_str(),
+            "planned" | "needsReview" | "completed"
+        ) {
+            resident_self_safe_continuation_action(&policy.runtime_store, &receipt)?
+        } else {
+            resident_self_failed_receipt_typed_continuation_action(
+                resident_store,
+                &policy.runtime_store,
+                &receipt,
+            )?
         }
-        let required_action = resident_self_safe_continuation_action(
-            &policy.runtime_store,
-            &receipt,
-        )?
         .ok_or_else(|| anyhow!("coordinator receipt no longer owns a safe continuation"))?;
         return Ok(ResidentCoordinatorBinding {
             runtime_id: runtime_identity.runtime_id,
@@ -1275,6 +1281,106 @@ fn resident_self_safe_continuation_action(
     Ok(action.map(str::to_string))
 }
 
+fn resident_self_failed_receipt_typed_continuation_action(
+    resident_store: &Path,
+    runtime_store: &Path,
+    receipt: &crate::EpiphanyCoordinatorRunReceipt,
+) -> Result<Option<String>> {
+    if matches!(
+        receipt.status.as_str(),
+        "planned" | "needsReview" | "completed"
+    ) {
+        return Ok(None);
+    }
+    let Some(grant_id) = receipt.resident_grant_id.as_deref() else {
+        return Ok(None);
+    };
+    let resident = state_cache(resident_store)?;
+    let Some(grant) = resident.get::<ResidentSelfHeartbeatGrant>(grant_id)? else {
+        return Ok(None);
+    };
+    if grant.consumed_at_millis.is_none()
+        || grant.terminal_at_millis.is_none()
+        || grant.private_state_exposed
+    {
+        return Ok(None);
+    }
+    let Some(crate::RuntimeTypedRequestRef::ProposalModeling(request_id)) =
+        resident_self_typed_request_ref(&grant)?
+    else {
+        return Ok(None);
+    };
+    let acknowledgements = resident
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .filter(|ack| ack.grant_id == grant.grant_id)
+        .collect::<Vec<_>>();
+    if acknowledgements.len() != 1 {
+        return Err(anyhow!(
+            "failed coordinator receipt typed continuation requires one exact terminal acknowledgement"
+        ));
+    }
+    let acknowledgement = &acknowledgements[0];
+    if acknowledgement.coordinator_receipt_id != receipt.receipt_id
+        || receipt.resident_launch_digest.as_deref()
+            != Some(acknowledgement.launch_digest.as_str())
+    {
+        return Err(anyhow!(
+            "failed coordinator receipt typed continuation lost its exact resident binding"
+        ));
+    }
+    let Some(evidence) = crate::runtime_typed_request_fulfillment(
+        runtime_store,
+        crate::RuntimeTypedRequestRef::ProposalModeling(request_id),
+    )?
+    else {
+        return Ok(None);
+    };
+    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
+    runtime.pull_all_backing_stores()?;
+    let thread = runtime
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("typed continuation requires authoritative thread state"))?;
+    let state = thread.state()?;
+    if thread.thread_id != receipt.thread_id {
+        return Err(anyhow!(
+            "failed coordinator receipt typed continuation crossed thread authority"
+        ));
+    }
+    let links = state
+        .runtime_links
+        .iter()
+        .filter(|link| {
+            link.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                && link.runtime_job_id == evidence.job_id
+                && link.runtime_result_id.as_deref() == Some(evidence.result_id.as_str())
+        })
+        .count();
+    if links != 1 {
+        return Err(anyhow!(
+            "typed proposal fulfillment does not own exactly one current Modeling result link"
+        ));
+    }
+    let acceptances = state
+        .acceptance_receipts
+        .iter()
+        .filter(|accepted| {
+            accepted.result_id == evidence.result_id
+                && accepted.job_id == evidence.job_id
+                && accepted.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                && accepted.surface == "roleAccept"
+                && accepted.role_id == "modeling"
+                && accepted.status == "accepted"
+        })
+        .count();
+    if acceptances > 1 {
+        return Err(anyhow!(
+            "typed proposal fulfillment has multiple Modeling acceptance authorities"
+        ));
+    }
+    Ok((acceptances == 0).then(|| "reviewModelingResult".to_string()))
+}
+
 pub fn ingest_resident_self_coordinator_continuation_pressure(
     resident_store: &Path,
     runtime_store: &Path,
@@ -1296,10 +1402,19 @@ pub fn ingest_resident_self_coordinator_continuation_pressure(
             "resident continuation lost its last exact coordinator receipt"
         ));
     };
-    if !matches!(receipt.status.as_str(), "planned" | "needsReview" | "completed") {
-        return Ok(false);
-    }
-    let Some(action) = resident_self_safe_continuation_action(runtime_store, &receipt)? else {
+    let action = if matches!(
+        receipt.status.as_str(),
+        "planned" | "needsReview" | "completed"
+    ) {
+        resident_self_safe_continuation_action(runtime_store, &receipt)?
+    } else {
+        resident_self_failed_receipt_typed_continuation_action(
+            resident_store,
+            runtime_store,
+            &receipt,
+        )?
+    };
+    let Some(action) = action else {
         return Ok(false);
     };
     let pressure_id = format!("resident-self-continuation-{receipt_id}-{action}");
@@ -1987,7 +2102,7 @@ pub fn settle_resident_self_exited_coordinator(
                 resident_store,
                 lease,
                 &receipt.receipt_id,
-                &receipt.status,
+                if typed { "fulfilled" } else { &receipt.status },
                 now_millis,
                 cooldown_seconds,
                 false,
@@ -2175,7 +2290,7 @@ pub fn prepare_resident_self_launch(
     let Some(mut grant) = pending_resident_self_grant(path)? else {
         return Ok(None);
     };
-    let binding = resident_coordinator_binding_for_grant(policy, &grant)?;
+    let binding = resident_coordinator_binding_for_grant(path, policy, &grant)?;
     let wake = ResidentSelfWake::Explicit {
         objective: grant.objective.clone(),
     };
@@ -3939,7 +4054,7 @@ mod tests {
             .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
             .expect("completed grant");
         assert_eq!(stale_grant.terminal_at_millis, Some(10));
-        assert_eq!(stale_grant.terminal_status.as_deref(), Some("planned"));
+        assert_eq!(stale_grant.terminal_status.as_deref(), Some("fulfilled"));
         let expected_grant = cache
             .snapshot_envelopes()
             .into_iter()

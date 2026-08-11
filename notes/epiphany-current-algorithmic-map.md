@@ -1418,6 +1418,19 @@ the lease once and return its exact pressure to Heartbeat; invalid or
 substituted evidence closes as `unfulfilled`. Coordinator process closure is
 therefore evidence, never cognitive completion authority.
 
+A failed coordinator receipt cannot erase a valid typed completion. This
+matters when a continuation launch claims a proposal immediately before an
+already-enqueued proposal grant is delivered: the second coordinator correctly
+refuses the duplicate launch, while the first detached worker may still finish
+the exact request. Resident settlement records that grant as `fulfilled`, not
+as the failed process status. Continuation ingress may derive
+`reviewModelingResult` only when the failed receipt, its exact resident grant
+and launch digest, one terminal acknowledgement, the authenticated proposal
+fulfillment, and the current Modeling runtime link all agree, and no acceptance
+receipt already exists. The failed process receipt remains process evidence;
+the typed result owns cognitive review readiness. This route cannot launch a
+second worker or continue into Hands.
+
 Exact packaged `6dd9b132` proves that ownership cut live. One autonomous
 proposal Modeling coordinator exited while its detached worker continued; Self
 held the same lease as `awaiting-fulfillment`. Runtime later admitted one exact
