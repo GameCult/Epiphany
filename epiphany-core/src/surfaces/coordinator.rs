@@ -1139,13 +1139,10 @@ pub fn recommend_coordinator_action(
     }
 
     if input.eyes_frontier_ready
-        && matches!(
+        && !matches!(
             input.signals.research_result_status,
-            EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                | EpiphanyCoordinatorRoleResultStatus::Failed
+            EpiphanyCoordinatorRoleResultStatus::Pending
+                | EpiphanyCoordinatorRoleResultStatus::Running
         )
     {
         return build(
@@ -2342,7 +2339,10 @@ mod tests {
         assert!(no_frontier.reason.contains("proposal selection"));
 
         let eyes_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: modeling_done,
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                ..modeling_done
+            },
             research_result_accepted: true,
             modeling_result_accepted: true,
             modeling_result_reviewable: true,

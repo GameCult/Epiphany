@@ -4424,7 +4424,9 @@ Imagination without adding a lifecycle-specific process rule.
 - Outputs: one immutable `RepoFrontierResearchRequest`, its exact typed launch
   projection, and an uncovered/covered readiness decision.
 - Derived state: historical `research_result_accepted` is evidence about an old
-  pass, not authority over the current frontier.
+  pass, and a terminal `Completed` role binding is evidence about its old job;
+  neither owns the current frontier. Only a currently `Pending` or `Running`
+  Research job suppresses another launch.
 - Forbidden writers: timestamps, generic accepted Research state, and unrelated
   Eyes packets cannot consume current readiness.
 - Shared path: status, direct coordinator execution, and resident execution use

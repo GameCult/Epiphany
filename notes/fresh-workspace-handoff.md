@@ -3,7 +3,8 @@
 ## Public Eyes evidence is grant-bound and Mind-admissible - 2026-08-11
 
 Latest pushed source is exact `8fb61ac2`; a causal Eyes-frontier routing cut is
-implemented locally with 680/680 library tests passing. Actual c011 remains exact
+implemented locally with 680/680 core library tests and 24/24 Self-policy tests
+passing. Actual c011 remains exact
 `465af24d`, alive, cognitively braked at resident revision 384, with no active
 lease or admitted work and zero defunct children. Do not disturb it before the
 new source passes copied-state gates.
@@ -40,8 +41,16 @@ Copied c011 state then exposed a real routing fault: historical accepted
 Research masked a newer actionable Eyes frontier. The local cut makes the
 exact current frontier own an immutable `RepoFrontierResearchRequest`, carries
 its exact projection in the Research launch, and consumes readiness only
-through an accepted Eyes packet from that bound job. Next: commit, push, and
-package this cut; replay copied c011 state; accept one immutable public lookup
+through an accepted Eyes packet from that bound job. Exact `18966e55` packaged
+cleanly as release `sha256-1e37ab44b403de1b7e2c59bce93caeadce18015204afbc783d310e382c1577f0`
+with witness `sha256-e90cbf24b3f1f149e27665ebde2dc697428b76e169b1b52d47ebb5b1f5dd5941`.
+Its copied-state replay exposed a second half of the same ownership fault: the
+static Research role binding was already `Completed`, and policy treated that
+historical terminal state as a reason not to launch against the newer request.
+The local policy now suppresses current Eyes readiness only while Research is
+`Pending` or `Running`; 24/24 Self-policy tests pass, including the exact
+completed-binding regression. Next: commit, push, and package this final cut;
+replay copied c011 state; accept one immutable public lookup
 through Eyes into Mind; and prove missing `publicSourceRead` refuses without
 consequence. Only then replace c011. Yggdrasil never builds.
 
