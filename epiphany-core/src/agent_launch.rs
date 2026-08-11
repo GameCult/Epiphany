@@ -824,7 +824,7 @@ pub fn epiphany_proposal_modeling_output_schema(
             "frontierNodeIds", "evidenceIds", "proposalFrontierDraft"
         ],
         "properties": {
-            "roleId": {"const": "modeling"},
+            "roleId": {"type": "string", "const": "modeling"},
             "verdict": {
                 "type": "string",
                 "enum": ["checkpoint-ready", "checkpoint-update-needed", "regather-needed"]
@@ -2099,6 +2099,17 @@ mod tests {
         assert!(draft_properties
             .keys()
             .all(|key| draft_required.iter().any(|item| item.as_str() == Some(key))));
+        fn every_const_has_a_type(value: &serde_json::Value) -> bool {
+            match value {
+                serde_json::Value::Object(map) => {
+                    (!map.contains_key("const") || map.contains_key("type"))
+                        && map.values().all(every_const_has_a_type)
+                }
+                serde_json::Value::Array(values) => values.iter().all(every_const_has_a_type),
+                _ => true,
+            }
+        }
+        assert!(every_const_has_a_type(&schema));
 
         let imagination = epiphany_proposal_modeling_output_schema(
             crate::RepoFrontierProposalSourceKind::Imagination,
