@@ -4,8 +4,8 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Package and replay the cut that makes receipt-bound role review continuation
-eligible only after the exact runtime-linked result becomes terminal.
+Package and replay the coordinator receipt cut that publishes the
+post-transaction role-review action rather than its stale pre-step action.
 
 ## Accepted live boundary
 
@@ -64,7 +64,10 @@ Hands/Eyes frontier. Both owners exited zero under the restored brake.
   Modeling job, at most one review continuation, exact settlement, zero open
   jobs, and no Hands, Persona, or deployment consequence.
 
-Current source removes direct role-review actions from the unconditional
-continuation set and makes Research, Modeling, and Soul review share the exact
-terminal-result predicate. The predicate now opens the mixed store through
-`runtime_spine_cache`; thirty resident tests pass. Package/live proof is open.
+Exact packaged `9f597ca2` proves pending results mint no review pressure, but
+one terminal review receipt retained stale `reviewModelingResult` after the
+transaction derived `awaitFrontierProposal`; that caused one consequence-free
+required-action refusal continuation. Current source refreshes final receipt
+action from post-review typed coordinator status after accept, supersede, or
+admission rejection. Nineteen coordinator tests pass. Commit/package/live proof
+is open.

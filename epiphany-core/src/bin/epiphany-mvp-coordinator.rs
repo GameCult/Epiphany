@@ -796,6 +796,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    refresh_final_action_from_status(&final_status, &mut final_action);
                     append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     continue;
@@ -837,6 +838,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             }),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        refresh_final_action_from_status(&final_status, &mut final_action);
                         append_operator_step_jsonl(&steps_path, &step)?;
                         steps.push(step);
                         continue;
@@ -857,6 +859,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     );
                 }
                 final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                refresh_final_action_from_status(&final_status, &mut final_action);
             }
             "reviewReorientResult" => {
                 let result = read_reorient_result(&runtime_store, &thread_id)?;
@@ -2360,6 +2363,15 @@ fn state_revision(status: &Value) -> Option<i64> {
         .and_then(Value::as_i64)
 }
 
+fn refresh_final_action_from_status(status: &Value, final_action: &mut Value) {
+    if let Some(coordinator) = status
+        .get("coordinator")
+        .filter(|value| value.get("action").and_then(Value::as_str).is_some())
+    {
+        *final_action = coordinator.clone();
+    }
+}
+
 fn push_event(step: &mut Value, event: Value) {
     step["events"].as_array_mut().unwrap().push(event);
 }
@@ -2429,6 +2441,22 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn role_review_receipt_uses_the_post_transaction_coordinator_action() {
+        let mut final_action = json!({"action": "reviewModelingResult"});
+        let status = json!({
+            "coordinator": {
+                "action": "awaitFrontierProposal",
+                "reason": "The proposal-bound result was terminally reviewed."
+            }
+        });
+        refresh_final_action_from_status(&status, &mut final_action);
+        assert_eq!(final_action["action"], "awaitFrontierProposal");
+
+        refresh_final_action_from_status(&json!({"coordinator": {}}), &mut final_action);
+        assert_eq!(final_action["action"], "awaitFrontierProposal");
+    }
 
     #[test]
     fn resident_required_action_refusal_precedes_the_action_match() {

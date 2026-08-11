@@ -58,6 +58,27 @@ resident tests pass, including a focused negative that pending review mints no
 pressure and the same receipt becomes eligible exactly once after terminal
 publication. Package and replay before accepting this coordination cut live.
 
+Exact pushed `9f597ca2`, release
+`sha256-7bcd1d40fd68ca3ae4a0ca6722f81b708a18867aff7e83ff6e928b6bd17d2d23`,
+witness
+`sha256-66bd4be740907ac23a1b126f5c73454298db20498a92cc219735576629534ca8`
+proved that pending-result fix live: no review grant existed while outer job
+`e8d56041-c2f9-4c05-8629-8b7d1b206211` was pending. The terminal result then
+received one legitimate review, but a second review was still issued. The
+first review transaction had already rejected/superseded the proposal-bound
+admission and derived `awaitFrontierProposal`; its coordinator receipt falsely
+retained the pre-step `reviewModelingResult` action. The second continuation
+performed only `requiredActionRefusal` with consequence `none`. The copy was
+braked and both owners exited zero. Receipts are under
+`.epiphany-run/proposal-review-live-9f597ca2`.
+
+Current source fixes the remaining owner: after role acceptance, failure
+supersession, or admission rejection, coordinator finalization refreshes the
+receipt action from the post-transaction typed coordinator status. The receipt
+therefore carries `awaitFrontierProposal` when that is what the transaction
+actually derived. Nineteen coordinator tests pass, including a direct stale-
+review-to-post-transaction-action check. Commit/package/live replay remain open.
+
 ## Governed directory inventory accepted live - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All work

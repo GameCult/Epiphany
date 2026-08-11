@@ -3947,3 +3947,12 @@ proposal-bound result before settlement. That route is the next ownership cut.
   no continuation, then the same exact receipt emits one after its linked job
   and typed result become terminal; repeated ingestion remains idempotent.
   Thirty resident tests pass. Exact packaged copied replay remains required.
+
+Exact packaged `9f597ca2` proved the pending gate but exposed a second owner:
+the role-review transaction updated typed coordinator state, while its run
+receipt retained the action captured before the transaction. Receipt action is
+now refreshed from post-transaction coordinator status after successful role
+acceptance, failure supersession, or admission rejection. The receipt remains
+the continuation source, but can no longer ask Heartbeat to replay an action
+the same transaction already consumed. Nineteen coordinator tests pass; exact
+packaged replay remains required.
