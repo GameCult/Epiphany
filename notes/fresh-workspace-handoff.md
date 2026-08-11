@@ -3616,3 +3616,38 @@ tests pass. This source is still uncommitted/unpackaged. Next commit/push,
 package exact source plus identical warm replay, then use only the authenticated
 repair CLI on the preserved c007 state before releasing the proposal once.
 Yggdrasil never builds.
+
+## c007 authenticated root recovery and resumed Modeling — 2026-08-11
+
+Commit `fb873927` packages the root-session ownership cut and resident `git`
+Body preflight. Exact release
+`sha256-b72fbae12b8d02fa00aee50bf41ee195a67d9564addcab5294dfc4a68fe816a2`
+with witness
+`sha256-38aadfd9dc94201fa1892658a6e91badd721058897b9f9177bb359125a99c2e6`
+passed 24-binary inspection with no warnings. The new content-addressed graph
+took 13m40s and peaked near 4.4 GiB on Starfire; identical warm replay took
+8.51s wall/0.83s Cargo. Warm iteration is accepted, while the cold per-source
+monolithic compile remains a named architectural cost. Yggdrasil never builds.
+
+Against preserved c007 state, exact packaged generic closure refused the root
+exit 1 and left runtime SHA-256
+`bc292cfb77cd9c575c92cd0e21fad04496ae8b509a4fcfd9da7ea3685fa318d8`
+unchanged. Exact `repair-root-session` restored `epiphany-main` Active, removed
+its deterministic completion event, and produced runtime SHA-256
+`00696a1ecfc9a5c52ead5ead7cd8587815cb2cb59b7d18242d819e7c35971e53`.
+
+Released c007 attempt 61 then opened a new coordinator job under the restored
+root, launched detached Modeling job `82f2e1d0-338b-43d0-91a2-915e9947c9b2`,
+and made resident Self hold `awaiting-fulfillment`. Exact typed fulfillment
+closed once, the continuation accepted Modeling, and a following admitted
+model-direction consideration also completed and acknowledged exactly once.
+The brake was reengaged during settlement; c007c is now braked at revision 286
+with no active turn. Final operator-safe action is `awaitFrontierProposal`,
+target Imagination: Mind accepted the model, no Hands frontier exists, and no
+further Modeling may launch without a new typed proposal. Receipts are
+`.epiphany-run/c007-root-repair-fb873927/`.
+
+Next map Native Imagination ingress, restart resident serve onto exact fb873927
+to prove its Body preflight live, then exercise one typed Imagination proposal
+through detached worker, typed candidate, resident fulfillment, and continuation
+without Hands or public consequence. Reengage the brake at the boundary.
