@@ -3945,3 +3945,13 @@ evidence before releasing another route. Receipts are
 `.epiphany-run/c008b-promotion-collision-a07f6541`,
 `.epiphany-run/c009-provenance-mismatch-d3e433fc`, and
 `.epiphany-run/forge-crosscommit-d3e433fc`.
+
+The pending Modeling review was then accepted exactly. A second native
+admitted-direction Imagination turn completed and settled, but produced no new
+admitted work; released Heartbeat returned to routine physiology. The one
+failed Modeling attempt in this phase was an operator-visible OpenAI adapter
+HTTP 503 before usable output, followed by one exact successful retry. c010 is
+now braked at resident revision 372 with no active lease. The next live gap is
+coordination, not transport: status still says `regatherManually` because the
+historical Reorientation result failed, but Heartbeat/Self have no typed Eyes
+or Reorientation pressure. Map that owner before adding any route.
