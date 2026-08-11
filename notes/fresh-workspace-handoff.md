@@ -3739,3 +3739,21 @@ unlaunched grant as `superseded`, preserves the consumed pressure, and emits a
 receipt-bound Heartbeat acknowledgement. The focused continuation test proves
 supersession and then proves the newer `reviewModelingResult` continuation can
 prepare normally. Commit/package/live replay remain next.
+
+Commit `3a5d2b5e` is pushed and packaged as release
+`sha256-84af3da8d2a2e170aa0611e48367eac4ecf5f66b2a2da763dc3045c5ad360177`
+with witness
+`sha256-589ff2ca11392b02fee9cb5d3a0209d958fc47cc3695f82bb6e5bed08d4c4463`;
+Cargo took 50.87s changed and 0.81s warm with identical output and no warnings.
+c007g stopped both owners exit zero and c007h restarted exact/authenticated.
+Live release terminalized the preserved launchModeling grant as `superseded`
+without a coordinator process, Heartbeat consumed that acknowledgement and
+issued the exact failed-receipt `reviewModelingResult` continuation, and the
+coordinator accepted `result-worker-8ddf57c1-96b4-4a60-ae8b-b24404e9ce2f`
+once. A previously admitted model-direction grant crossed the brake write but
+used existing fulfillment and completed canonically. c007h is now braked at
+revision 312 with no active lease. Exact status derives
+`awaitFrontierProposal`, Modeling accepted after Research, proposal bound, no
+pending proposal, no Imagination frontier, and no Hands consequence. Receipts
+are `.epiphany-run/forge-crosscommit-3a5d2b5e*` and
+`.epiphany-run/live-swap-c007f-2e1ccaf7`.
