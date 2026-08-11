@@ -834,18 +834,19 @@ fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
 fn reconcile(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    let daemon_status = context
-        .daemon_statuses
-        .iter()
-        .find(|status| status.daemon_id == args.daemon_id)
+    let daemon_status = load_epiphany_cultmesh_daemon_status(
+        &args.store,
+        args.runtime_id.clone(),
+        &args.daemon_id,
+    )?
         .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
 
-    let mut policy = load_policy_or_override(&args, daemon_status)?;
+    let mut policy = load_policy_or_override(&args, &daemon_status)?;
     let output = reconcile_daemon_status(
         &args,
-        &context,
-        daemon_status,
+        brake.as_ref(),
+        &daemon_status,
         &mut policy,
         args.force,
         false,
@@ -3509,7 +3510,7 @@ fn run_tick(args: &Args, iteration: u64, next_wake_utc: Option<String>) -> Resul
 
         match reconcile_daemon_status(
             &args,
-            &context,
+            context.swarm_brake.as_ref(),
             &scheduled_status,
             &mut policy,
             forced,
@@ -3697,14 +3698,14 @@ fn load_policy_or_override(
 
 fn reconcile_daemon_status(
     args: &Args,
-    context: &EpiphanyLocalVerseContext,
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
     daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
     policy: &mut EpiphanyCultMeshDaemonRestartPolicyEntry,
     force: bool,
     scheduled: bool,
     observed_heartbeat_stale: bool,
 ) -> Result<Value> {
-    assert_swarm_brake_allows_daemon_poke(context, daemon_status)?;
+    assert_swarm_brake_allows_daemon_poke(brake, daemon_status)?;
     let now = Utc::now();
     let needs_restart = force || daemon_status.status != "ready";
     if !needs_restart {
@@ -4281,10 +4282,10 @@ fn run_restart_command(
 }
 
 fn assert_swarm_brake_allows_daemon_poke(
-    context: &EpiphanyLocalVerseContext,
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
     daemon: &EpiphanyCultMeshDaemonStatusEntry,
 ) -> Result<()> {
-    let Some(brake) = context.swarm_brake.as_ref() else {
+    let Some(brake) = brake else {
         return Ok(());
     };
     if brake.status != "engaged" {
@@ -4449,6 +4450,23 @@ mod service_lifecycle_brake_authority_tests {
         }
     }
 
+    fn daemon() -> EpiphanyCultMeshDaemonStatusEntry {
+        EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: "epiphany.cultmesh.daemon_status.v0".into(),
+            daemon_id: "epiphany-daemon-hands".into(),
+            cluster_id: "local".into(),
+            body_domain: "repo:F:/Projects/Epiphany".into(),
+            daemon_surface_id: "cultmesh://daemon/hands".into(),
+            eve_surface_id: "eve://daemon/hands".into(),
+            status: "degraded".into(),
+            last_heartbeat_utc: "2026-08-11T00:00:00Z".into(),
+            supported_actions: vec!["pokeDaemon".into()],
+            operator_action: "pokeDaemon".into(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
     #[test]
     fn cognitive_scheduler_brake_does_not_claim_service_physiology() {
         let cognitive = brake(&[
@@ -4461,6 +4479,17 @@ mod service_lifecycle_brake_authority_tests {
         for surface in ["daemon.lifecycle_poke", "daemon.*", "*"] {
             let lifecycle = brake(&[surface]);
             assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&lifecycle)).is_err());
+        }
+    }
+
+    #[test]
+    fn daemon_poke_reads_the_narrow_brake_without_weakening_scope() {
+        let daemon = daemon();
+        let cognitive = brake(&["heartbeat.scheduler", "coordinator.run"]);
+        assert!(assert_swarm_brake_allows_daemon_poke(Some(&cognitive), &daemon).is_ok());
+        for surface in ["daemon.lifecycle_poke", "daemon.*", "*"] {
+            let lifecycle = brake(&[surface]);
+            assert!(assert_swarm_brake_allows_daemon_poke(Some(&lifecycle), &daemon).is_err());
         }
     }
 }
@@ -4634,6 +4663,19 @@ mod semantic_projector_authority_tests {
         let end = tail.find("\nfn ").unwrap();
         let body = &tail[..end];
         assert!(body.contains("load_epiphany_cultmesh_daemon_status"));
+        assert!(!body.contains("query_epiphany_local_verse_context"));
+    }
+
+    #[test]
+    fn direct_reconcile_reads_only_exact_status_policy_and_brake_families() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn reconcile(").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        assert!(body.contains("load_epiphany_cultmesh_daemon_status"));
+        assert!(body.contains("load_policy_or_override"));
+        assert!(body.contains("load_epiphany_cultmesh_swarm_brake"));
         assert!(!body.contains("query_epiphany_local_verse_context"));
     }
 

@@ -4,8 +4,8 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Cut direct single-daemon reconciliation away from the aggregate local Verse
-projection.
+Cut single-target `epiphany-verse-query poke-daemon` away from the aggregate
+local Verse projection.
 
 ## Accepted actual finding
 
@@ -15,20 +15,19 @@ refused stale action with no consequence. Resident state is idle at revision
 34, protected consequence families are byte-identical, readiness is active,
 and the cognitive brake is engaged.
 
-## Authority map for direct reconciliation input
+## Authority map for single-target poke input
 
-- Owner: the requested daemon's exact status and restart policy own direct
-  reconciliation; the canonical brake owns consequence refusal.
-- Inputs: one daemon status, one exact policy or explicit override, one brake,
-  and explicit CLI force/reason fields.
-- Outputs: one bounded daemon-poke attempt or a typed no-op/refusal.
-- Derived state: aggregate local Verse context is not direct reconciliation
-  authority.
+- Owner: the requested daemon's exact status owns target identity; the canonical
+  brake owns poke refusal; the exact written intent owns post-write existence.
+- Inputs: one daemon ID/status, one brake, and explicit operator reason/intent
+  fields.
+- Outputs: one typed daemon-poke intent and pending-lifecycle-owner projection.
+- Derived state: aggregate local Verse context is not single-target authority.
 - Forbidden writers: Persona, Hands, unrelated receipts, telemetry, and other
   daemon rows cannot influence or be read by this command.
-- Shared paths: direct `reconcile` and its action helper must consume the same
-  narrow brake input; scheduler enumeration remains separate.
-- Cut line: replace direct reconcile's whole-context query and context-shaped
-  brake helper without weakening scope/surface checks.
-- Verification: source-boundary negative, engaged/released brake behavior, and
-  exact-status absence refusal.
+- Shared paths: single poke uses the same narrow brake predicate as bulk poke;
+  bulk enumeration remains separate.
+- Cut line: remove both aggregate queries from the single-target command and
+  verify the exact intent by key after its write.
+- Verification: source-boundary negative, brake scope preservation, missing
+  daemon refusal, and exact intent round trip.

@@ -15,6 +15,14 @@ topology, policies, statuses, and brake state. The exact loader test and the
 negative source-boundary test pass. Continue classifying aggregate consumers;
 do not package until a meaningful bounded batch earns a live body.
 
+Direct single-daemon reconciliation now uses the same narrow anatomy: one exact
+daemon status, its exact policy, and the canonical brake. The brake helper no
+longer accepts an aggregate context; focused tests prove protected
+`daemon.lifecycle_poke` scope still refuses while the cognitive scheduler brake
+does not claim service physiology. Scheduler tick and cluster runbook retain
+aggregate reads because they genuinely enumerate several state families. The
+remaining supervisor aggregate consumers are therefore classified.
+
 ## Actual receipt-bound turnover accepted - 2026-08-11
 
 Exact pushed `c9a2a979` is now the active actual c006 body. Under a bounded

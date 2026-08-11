@@ -3680,3 +3680,10 @@ depends on several state families.
 - Verification: the exact loader returns only the requested typed envelope and
   remains non-creating on an absent store; a source-boundary test refuses
   aggregate-query regression in `write_policy`.
+
+Direct `reconcile` also reads only one exact daemon status, one exact policy,
+and the canonical brake. Its consequence helper accepts the brake itself, not
+an aggregate context. Scheduler tick and cluster runbook keep aggregate context
+because their output enumerates multiple daemon policies, statuses, topology
+rows, and brake scope. Focused tests prove the direct source boundary and that
+the narrow brake input preserves lifecycle-poke refusal semantics.
