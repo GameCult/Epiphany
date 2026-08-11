@@ -3825,3 +3825,31 @@ and witness
 with zero warnings. An identical replay completed in 8.65s wall/Cargo 0.69s
 and reproduced both identifiers exactly. Incremental cache state therefore
 accelerates construction without becoming release authority.
+
+## Governed directory inventory sight
+
+Directory observation is a bounded source faculty, not Heartbeat authority.
+
+- Owner: the native `epiphany_source` adapter owns workspace-confined,
+  read-only directory observation.
+- Inputs: one canonical path beneath the worker workspace plus explicit depth,
+  entry, and sample ceilings.
+- Outputs: deterministic counts of entries, files, directories, symlinks, and
+  regular-file bytes; bounded path samples; and explicit entry/depth
+  truncation state.
+- Derived state: samples are presentation evidence. Aggregate totals are
+  admissible only when `complete=true`; neither totals nor filenames decide
+  whether a Heartbeat grant is live or terminal.
+- Forbidden writers: shell execution, symlink traversal, outside-workspace
+  reads, mutation, operator-supplied counts, and arbitrary CultCache
+  inspection are absent from this organ.
+- Shared paths: Eyes, Modeling, and Soul receive the same model-tool contract,
+  native execution path, and completeness rule.
+- Cut line: `directory_inventory` is general source sight beside `read_file`;
+  it is not a special Heartbeat inspector and cannot become a second state
+  authority.
+- Verification: focused tests prove exact totals, deterministic order,
+  confinement, and explicit truncation. Exact packaged `31dcd351` invoked the
+  tool in copied live cognition and measured 72 directories, 74 files, and
+  3,975,362 bytes with `complete=true`. Modeling refused to infer post-brake
+  grant terminality from artifact names, preserving the ownership boundary.

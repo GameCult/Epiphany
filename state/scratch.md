@@ -4,39 +4,30 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Give Eyes, Modeling, and Soul a governed read-only directory inventory so they
-can source-ground artifact-retention claims instead of trusting operator prose.
+Map the typed authority that can prove a Heartbeat grant remains terminal and
+unlaunchable after later grants, retention, and restart. Route Eyes through
+that owner; do not mistake artifact inventory for lifecycle authority.
 
-## Live finding
+## Accepted live boundary
 
-Exact `aa841873` on copied c006 accepted one fresh user proposal and issued one
-proposal-bound Modeling grant. Self held `awaiting-fulfillment`, then completed
-once at revision 46 with zero retry. Runtime ended at 48 jobs/results, zero
-open jobs, and no Hands/Eyes frontier. Modeling used five governed source calls
-and correctly refused the operator-supplied `72 directories / 4.2 MiB` claim:
-the native source adapter could read files and Git objects but could not
-enumerate or measure `.epiphany-smoke/heartbeat-c006-c9a2a979`. The copied brake
-was re-engaged and both direct PID containers exited zero. Actual c006 was not
-touched.
+Exact packaged `31dcd351` gave Modeling governed directory inventory and it
+measured the copied actual Heartbeat artifact family as 72 directories, 74
+files, and 3,975,362 regular-file bytes with `complete=true`. It correctly
+refused to infer post-brake grant terminality from pulse names. Self settled the
+proposal grant and two receipt-bound continuations, ended sleeping at revision
+54 with 57/57 runtime jobs/results and zero open jobs, then both copied owners
+stopped cleanly under the restored brake. Actual c006 was untouched.
 
-## Authority map
+## Next authority map
 
-- Owner: the native `epiphany_source` adapter owns bounded read-only workspace
-  observation.
-- Inputs: one canonical workspace-confined directory plus explicit depth,
-  entry, and sample ceilings.
-- Outputs: deterministic entry/file/directory/symlink counts, total regular-file
-  bytes, bounded samples, and explicit entry/depth truncation state.
-- Derived state: samples are display only. Totals are admissible evidence only
-  when `complete=true`.
-- Forbidden writers: shell execution, symlink traversal, outside-workspace
-  reads, mutation, operator counts, and Heartbeat-specific policy.
-- Shared paths: Eyes, Modeling, and Soul receive the same model tool definition,
-  native execution path, and typed intent/receipt boundary.
-- Cut line: add one general `directory_inventory` beside `read_file`; do not
-  add a special Heartbeat inspector or teach prompts to trust proposal prose.
-- Verification: focused native execution tests must prove exact totals,
-  deterministic ordering, confinement, and explicit truncation; OpenAI request
-  tests must prove the tool and completeness mandate are visible to workers.
-  Then package and replay the copied proposal with the original operator counts
-  omitted so Epiphany itself measures the artifact family.
+- Candidate owner: the typed Heartbeat grant envelope and resident lifecycle
+  state, not filesystem artifacts.
+- Allowed inputs: exact grant identity, terminal state/acknowledgement,
+  resident active lease, retention head, and restart-visible pending selection.
+- Required output: a narrow operator-safe or Eyes-readable projection proving
+  whether each relevant grant is terminal, active, pending, retained, or
+  retired.
+- Forbidden cut: do not give `epiphany_source` generic CultCache access and do
+  not add a filename heuristic.
+- Verification: an older terminal grant must remain unlaunchable after a later
+  grant completes, acknowledgements compact, and copied owners restart.

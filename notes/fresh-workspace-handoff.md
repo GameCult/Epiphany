@@ -1,5 +1,47 @@
 # Fresh workspace handoff
 
+## Governed directory inventory accepted live - 2026-08-11
+
+Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All work
+below used copied named volumes; the actual providers and stores were not
+disturbed.
+
+The first copied turnover under exact `aa841873` exposed a sight gap rather
+than laundering operator prose into evidence. Proposal Modeling received an
+operator-supplied artifact count but correctly refused it because its governed
+source organ could read files and Git objects but could not enumerate a
+directory. Self nevertheless settled the typed Modeling request exactly once,
+the copied brake was restored, and both owners exited zero.
+
+Pushed `31dcd351` adds a general workspace-confined `directory_inventory`
+operation to `epiphany_source` and exposes it to Eyes, Modeling, and Soul. The
+operation has explicit depth, entry, and sample ceilings; does not follow
+symlinks; sorts paths deterministically; and marks totals admissible only when
+`complete=true`. Focused native and OpenAI-runtime suites pass. Exact packaging
+took 35.17s wall/Cargo 26.78s and produced 24 binaries with zero warnings,
+release
+`sha256-6cf496f71da98f07a5775c07a031108f643e0bd6081ac15bf338e109376fa6e8`
+and witness
+`sha256-5cca9d61b825bc2f54704c3d4f7b9049eec4d93de58e6d64f3f1d894b673966d`.
+Receipts are under `.epiphany-run/linux-package-31dcd351`.
+
+The exact packaged replay asked Modeling to measure the copied actual
+Heartbeat artifact family without operator counts. It invoked the new tool and
+reported a complete inventory of 72 directories, 74 files, and 3,975,362
+regular-file bytes. It inspected bounded coordinator-running and routine
+appraisal samples, but correctly refused the stronger claim that no post-brake
+grant existed: artifact names are observation, not grant-death authority. The
+model patch was rejected and its immutable selection consumed. Self then
+completed two receipt-bound internal continuations and ended sleeping at
+revision 54; runtime ended at 57 jobs/results, zero open jobs, and no Hands or
+Eyes frontier. The copied brake was re-engaged and both owners exited zero.
+
+Next inspect existing typed Heartbeat and resident projections on copied state.
+Identify the narrow owner that can prove a grant remains terminal and
+unlaunchable after later grants and retention. Do not grant arbitrary
+CultCache-reading authority to the source tool and do not infer from pulse
+filenames. Route Eyes through the typed owner once that boundary is mapped.
+
 ## Atomic Continuity repair and fast source-changing package accepted - 2026-08-11
 
 Exact pushed `aa841873` removes a partial-commit seam from legacy coordinator
