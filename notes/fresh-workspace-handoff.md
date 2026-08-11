@@ -1,5 +1,30 @@
 # Fresh workspace handoff
 
+## Actual receipt-bound turnover accepted - 2026-08-11
+
+Exact pushed `c9a2a979` is now the active actual c006 body. Under a bounded
+cognitive-brake release, the old `reviewModelingResult` receipt created grant
+44. Mind rejected the unanchored patch and coordinator failure review wrote
+exact supersession `role-failure-review-3e97a1f0-0511-4ab1-b84c-8132f2062042`
+inside successful receipt
+`coordinator-run-linux-eyes-tools-c005-1786407375735`. That receipt caused
+distinct grant 48. The second coordinator rederived `awaitFrontierProposal`,
+refused stale `reviewModelingResult` with `consequence:none`, and completed as
+receipt `coordinator-run-linux-eyes-tools-c005-1786407379115`.
+
+Both grants own terminal `completed` state and terminal acknowledgements.
+Resident state is revision 34 with no active lease and the second receipt as
+its last exact receipt. The four pre-existing Hands/Persona/deployment-family
+runtime envelopes are byte-identical to the before snapshot. The cognitive
+brake is engaged, both exact providers remain alive, and authenticated
+readiness is `active` with no reasons. Receipts are under
+`.epiphany-run/c006-continuation-c9a2a979`.
+
+Actual receipt-bound turnover is accepted. `awaitFrontierProposal` is a typed
+waiting state, not authority to fabricate backlog. Keep c006 braked while
+inspecting the remaining organ matrix and choose the next bounded audit from
+authoritative live state. Yggdrasil never builds.
+
 ## Copied receipt-bound turnover accepted - 2026-08-11
 
 Exact pushed `c9a2a979` packages 24 Linux binaries as release

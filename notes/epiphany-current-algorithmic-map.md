@@ -3644,5 +3644,17 @@ second run rederived `awaitFrontierProposal` and recorded a no-consequence
 required-action refusal. Both grants completed. No process-failure retry
 occurred, resident state ended idle at revision 34, and all existing
 Hands/Persona/deployment envelopes remained byte-identical. The copied brake is
-engaged and both copied owners exited zero. Copied turnover is accepted; actual
-c006 remains exact `16407f7e`, braked and unchanged pending the bounded replay.
+engaged and both copied owners exited zero.
+
+The same body then replaced the two actual c006 provider processes without
+changing their named stores. Bounded release reproduced the causal shape:
+grant 44 wrote one exact failed-result supersession inside receipt
+`coordinator-run-linux-eyes-tools-c005-1786407375735`; that receipt created
+distinct grant 48; and its coordinator refused stale `reviewModelingResult`
+because the live action was `awaitFrontierProposal`, with consequence `none`,
+before completing receipt
+`coordinator-run-linux-eyes-tools-c005-1786407379115`. Both exact grants are
+terminal completed, resident state is idle at revision 34, the four protected
+Hands/Persona/deployment-family envelopes are byte-identical, and final
+authenticated readiness is active, brake-engaged, and reason-free. Actual
+receipt-bound turnover is accepted.

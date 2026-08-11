@@ -36,16 +36,16 @@ invariants:
 
 current_status:
   summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact b8138a6b active-child SIGTERM and restart, exact 9f369528 deterministic warm packaging, exact c930f505 cross-container ownership, exact ed15f83a resident lifecycle retention, exact 16c4b19f coordinator receipt and Heartbeat artifact retention, exact cce2b8ac narrow model-generation retention, exact eea15e82 model-turn JSON ingress, exact b1e8c89a semantic unattempted-generation retention, exact 6bc3ec3f semantic physical-epoch retirement, and exact 44230a05 Persona conversation retention are proven. Gamecult-ops 059821f owns Yggdrasil stream retention and exact 6ee08a4 owns stable Starfire Persona-permit firewall ingress. Exact 16c4b19f genuine idle and exact a987d2f7 active cognition completed 900-pulse bounded plateaus. Runtime-owned typed fulfillment is accepted live under exact 6dd9b132. Yggdrasil is the small public crossing body, never the release forge.
-  latest_phase: Exact c9a2a979 packages 24 Linux binaries as release sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218 with witness sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24 and zero warnings. Fresh copied c006 proved receipt-bound internal turnover: Mind rejected one malformed Modeling patch, coordinator failure review superseded it exactly once inside a successful receipt, that newer receipt caused a distinct second grant, stale action drift refused with consequence none, both grants completed, resident state ended idle, and Hands/Persona/deployment envelopes stayed byte-identical.
+  latest_phase: Exact c9a2a979 is live on actual c006 as release sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218 with witness sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24. The bounded actual replay reproduced copied receipt-bound turnover: grant 44 superseded the malformed Modeling result once in receipt 1786407375735; distinct grant 48 then refused stale reviewModelingResult because live action was awaitFrontierProposal and closed in receipt 1786407379115. Both grants are terminal completed, resident state is idle at revision 34, the cognitive brake is engaged, readiness is active and reason-free, and Hands/Persona/deployment envelopes stayed byte-identical.
   operational_state:
-    local_worktree: exact_c9a2a979_copied_internal_turnover_accepted_actual_replay_next
+    local_worktree: exact_c9a2a979_actual_internal_turnover_accepted_next_organ_audit
     operator_wireguard: restored
     starfire_persona_permit_firewall: persistent_exact_gamecult_ops_6ee08a4
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
     starfire_swarm_brake: engaged_for_c006_shakedown
-    starfire_release: exact_16407f7e_sha256_66cf1c2f_active_c006
+    starfire_release: exact_c9a2a979_sha256_78b09d7c_active_c006
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
     starfire_native_status: supervised_shakedown_storage_recovery
@@ -68,9 +68,9 @@ current_status:
     starfire_linux_role_cognition: eyes_and_modeling_tools_results_and_acceptance_proven_zero_consequence
     starfire_linux_modeling_peak: 109887488_bytes_resident_body_plus_modeling_circuit
     yggdrasil_epiphany_service_contract: repaired_in_gamecult_ops_812b427_not_installed
-    resident_physiology: c006_exact_16407f7e_alive_braked_revision_26_after_one_fulfilled_proposal_modeling_grant_and_923_pulse_endurance
+    resident_physiology: c006_exact_c9a2a979_alive_braked_revision_34_after_two_receipt_bound_continuation_grants
   unresolved_authority: Coordinator receipt, Heartbeat pulse-artifact, genuine-idle and active resource plateaus, exact-grant terminality, restart-persistent cooldown refusal, schedule/action issuance cardinality, runtime-owned typed fulfillment, all three packaged fulfilled-before-receipt lanes, narrow model-generation retention, published model-turn JSON ingress, semantic logical/physical retention, Persona conversation retention, stable Starfire firewall ownership, completed model-adapter session archival, normal coordinator lifecycle opening/error closure/legacy repair/archival, co-resident resident lifecycle retention, authenticated outer-worker attempt retention, deployed supervisor/projector journald ownership, and Docker named-volume atomic snapshot visibility are accepted live. Starfire's Docker Desktop F: bind is rejected for mutable authority after an exact packaged lockless reader observed an empty published snapshot during writer interruption. Historical migrated semantic attempts without recorded physical namespace remain durable and non-retirable. One completed Discord consequence remains blocked by the absent Yggdrasil credential.
-  next_action: Publish exact c9a2a979 into actual c006 under its cognitive brake, replace both provider bodies without changing the named stores, authenticate readiness, run the bounded receipt-bound turnover path, and re-engage the brake. Require successful supersession/causal receipts, no process-failure retry, no Hands/Persona/deployment consequence, and clean owner shutdown/restart receipts. Then inspect the next typed action and continue the organ matrix. Yggdrasil never builds.
+  next_action: Treat actual c006 action awaitFrontierProposal as typed waiting state, not permission to invent a proposal. Keep exact c9a2a979 alive under the cognitive brake, inspect the remaining organ matrix and current authoritative stores, then select one bounded next audit with an existing owner and falsifiable completion condition. Yggdrasil never builds.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
