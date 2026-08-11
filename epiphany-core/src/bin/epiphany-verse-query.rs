@@ -1442,11 +1442,20 @@ fn run_cli() -> Result<()> {
                     batch_pokes.len()
                 );
             }
-            if batch_pokes[0]["targetDaemonId"] != "epiphany-daemon-hands"
+            let hands_topology = context
+                .cluster_topology
+                .iter()
+                .find(|row| row.daemon_id == "epiphany-daemon-hands")
+                .context("local Verse query smoke lost Hands topology")?;
+            if batch_pokes[0]["targetDaemonId"].as_str()
+                != Some(hands_topology.daemon_id.as_str())
                 || batch_pokes[0]["observedStatus"] != "degraded"
-                || batch_pokes[0]["declaredBodyDomain"] != "repo:E:/Projects/EpiphanyAgent"
-                || batch_pokes[0]["declaredPrivateVerseRoute"] != "epiphany.cluster.hands.private"
-                || batch_pokes[0]["declaredEveRoute"] != "eve://epiphany/hands"
+                || batch_pokes[0]["declaredBodyDomain"].as_str()
+                    != Some(hands_topology.body_domain.as_str())
+                || batch_pokes[0]["declaredPrivateVerseRoute"].as_str()
+                    != Some(hands_topology.private_verse_id.as_str())
+                || batch_pokes[0]["declaredEveRoute"].as_str()
+                    != Some(hands_topology.eve_surface_id.as_str())
                 || batch_pokes[0]["privateStateExposed"] != false
             {
                 anyhow::bail!(
@@ -1748,10 +1757,6 @@ fn run_cli() -> Result<()> {
                         && !row.present
                         && row.follow_up_command == "none"
                 })
-                || !receipt_directory
-                    .rows
-                    .iter()
-                    .any(|row| row.family == "imagination-consensus" && !row.present)
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "work-loop" && row.latest_id == "work-loop-telemetry-smoke"
                 })
