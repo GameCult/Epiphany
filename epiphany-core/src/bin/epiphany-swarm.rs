@@ -83,13 +83,7 @@ fn main() -> Result<()> {
     match args.command {
         CommandKind::Once => {
             let outcome = cycle(&args, &mut state, &mut ports, false)?;
-            retain_runtime_receipts(&args, &state)?;
-            retain_resident_self_lifecycles(
-                &args.state_store,
-                args.retained_closed_lifecycles,
-                Utc::now().timestamp_millis().max(0) as u64,
-            )?;
-            retain_runtime_worker_attempts(&args)?;
+            maintain_resident_runtime(&args, &state)?;
             publish_self_readiness(&args)?;
             println!(
                 "{}",
@@ -98,16 +92,18 @@ fn main() -> Result<()> {
         }
         CommandKind::Serve => {
             let shutdown_requested = install_shutdown_signal_owner()?;
+            let mut last_maintained_revision = None;
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
-                retain_runtime_receipts(&args, &state)?;
-                retain_resident_self_lifecycles(
-                    &args.state_store,
-                    args.retained_closed_lifecycles,
-                    Utc::now().timestamp_millis().max(0) as u64,
-                )?;
-                retain_runtime_worker_attempts(&args)?;
+                if resident_maintenance_required(
+                    &outcome,
+                    state.revision,
+                    last_maintained_revision,
+                ) {
+                    maintain_resident_runtime(&args, &state)?;
+                    last_maintained_revision = Some(state.revision);
+                }
                 publish_self_readiness(&args)?;
                 println!(
                     "{}",
@@ -127,6 +123,25 @@ fn main() -> Result<()> {
         CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
     Ok(())
+}
+
+fn maintain_resident_runtime(args: &Args, state: &ResidentSelfState) -> Result<()> {
+    retain_runtime_receipts(args, state)?;
+    retain_resident_self_lifecycles(
+        &args.state_store,
+        args.retained_closed_lifecycles,
+        Utc::now().timestamp_millis().max(0) as u64,
+    )?;
+    retain_runtime_worker_attempts(args)?;
+    Ok(())
+}
+
+fn resident_maintenance_required(
+    outcome: &ResidentSelfOutcome,
+    revision: u64,
+    last_maintained_revision: Option<u64>,
+) -> bool {
+    *outcome != ResidentSelfOutcome::Braked || last_maintained_revision != Some(revision)
 }
 
 fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()> {
@@ -865,5 +880,29 @@ mod brake_tests {
         assert!(!runtime_receipt_retention_allowed(true, false));
         assert!(!runtime_receipt_retention_allowed(false, true));
         assert!(!runtime_receipt_retention_allowed(true, true));
+    }
+
+    #[test]
+    fn stable_braked_revision_does_not_repeat_runtime_maintenance() {
+        assert!(resident_maintenance_required(
+            &ResidentSelfOutcome::Braked,
+            7,
+            None,
+        ));
+        assert!(!resident_maintenance_required(
+            &ResidentSelfOutcome::Braked,
+            7,
+            Some(7),
+        ));
+        assert!(resident_maintenance_required(
+            &ResidentSelfOutcome::Braked,
+            8,
+            Some(7),
+        ));
+        assert!(resident_maintenance_required(
+            &ResidentSelfOutcome::Sleeping,
+            7,
+            Some(7),
+        ));
     }
 }
