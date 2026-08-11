@@ -1,5 +1,46 @@
 # Fresh workspace handoff
 
+## Runtime-owned Imagination candidate publication packaged - 2026-08-11
+
+The Imagination option-generation audit found a production ownership hole:
+runtime result admission authenticated the request, candidate, launch binding,
+worker launch, model projection, and foreign-cargo exclusion, but persisted only
+the generic worker result. Resident fulfillment required a separate typed
+candidate envelope that tests wrote by hand. No production owner existed.
+
+Exact pushed `ff9dacf1` makes the existing runtime result-admission CAS own the
+candidate companion alongside the worker result and terminal process claim.
+Exact replay requires the companion to remain byte-equal. A pre-existing orphan
+candidate refuses the worker result without writing it. The resident settlement
+test no longer seeds candidate state manually. Focused atomic, orphan, and
+receipt-free settlement tests pass; the full core library passes 670 tests with
+one intentional cross-process helper ignored.
+
+Exact `ff9dacf1` packages 24 Linux binaries as release
+`sha256-6d237cda95de91d999de7403d843507fac89f1f2c091b114957a33118063a03b`
+with witness
+`sha256-3b37136d34e4d4b886544102ec43a258510e246d762640a686b02b29fb13fafc`.
+The release build took 5m11s with zero warnings and exact packaged inspection
+passed. One rejected launch accidentally retained stale `ec54666c` source after
+a bad expanded fetch SHA; it was stopped immediately and its logs/output remain
+quarantined in the same receipt directory. The corrected source volume was
+authenticated to the full `ff9dacf1` SHA before the accepted build. Receipts are
+under `.epiphany-run/linux-package-ff9dacf1`.
+
+On copied c006 volumes, the exact release published and `epiphany-swarm once`
+exited zero under the cognitive brake at resident revision 34 with no active
+turn. Runtime, Mind, and Heartbeat stores were byte-identical; only resident
+provider-readiness metadata advanced to the new release identity. The stopped
+one-shot then projected `warming`, correctly refusing to impersonate a live
+provider. Receipts are under `.epiphany-run/imagination-ff9dacf1`.
+
+Source and package ownership are accepted. A genuine model-produced copied
+turn remains required: admit one fresh Persona-feedback consideration through
+the existing typed ingress, run exact `ff9dacf1`, and prove result plus candidate
+appear atomically while model/frontier/Hands/release/deployment authority stays
+unchanged. Do not use a fixture candidate writer. Actual c006 remains exact
+`c9a2a979`, alive and braked. Yggdrasil never builds.
+
 ## Exact local-Verse reader isolation accepted - 2026-08-11
 
 Exact pushed `ec54666c` packages 24 Linux binaries as release

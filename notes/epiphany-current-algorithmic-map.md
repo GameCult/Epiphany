@@ -3714,3 +3714,39 @@ payload. This proves the decision-input cut at the deployed CultCache layer,
 not merely by source inspection: unrelated typed cargo can neither steer the
 decision nor be silently repaired by it. Receipts live under
 `.epiphany-run/narrow-verse-readers-ec54666c`.
+
+## Runtime-owned Imagination candidate publication
+
+The Imagination consideration result already entered through
+`put_runtime_role_worker_result`, which authenticates the current request,
+candidate causal fields and timestamp, deterministic candidate identity, exact
+single launch binding, worker launch document hash, Imagination role/binding,
+runtime/thread identity, current model projection, and absence of foreign
+authority cargo. Before `ff9dacf1`, that owner persisted the generic result and
+terminal process claim but not the candidate it had just authenticated.
+Resident fulfillment consequently required a typed candidate envelope with no
+production writer; tests supplied one directly and concealed the cut.
+
+Runtime result admission now owns one atomic publication:
+
+- Inputs: exact request, candidate bytes, launch binding, worker launch,
+  process claim, and current model projection.
+- Outputs: immutable worker result, terminal process claim, and exact typed
+  `ImaginationConsiderationCandidate` companion in one snapshot-fenced CAS.
+- Derived state: resident fulfillment observes the admitted result/candidate;
+  it does not write either document.
+- Forbidden writers: resident settlement, review routing, tests, and operator
+  projections cannot synthesize the candidate companion.
+- Cut line: an existing candidate without its worker result is an orphan and
+  refuses admission; exact result replay requires the persisted companion to
+  remain equal.
+
+The focused atomic/idempotent, orphan-refusal, and receipt-free resident tests
+pass, and the full core library passes 670 tests with one intentional ignore.
+Exact Linux release
+`sha256-6d237cda95de91d999de7403d843507fac89f1f2c091b114957a33118063a03b`
+with witness
+`sha256-3b37136d34e4d4b886544102ec43a258510e246d762640a686b02b29fb13fafc`
+passed 24-binary inspection and a copied c006 braked-once zero-exit gate without
+changing runtime, Mind, or Heartbeat stores. A genuine packaged model-produced
+consideration remains the verification layer for the new writer.
