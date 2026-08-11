@@ -229,11 +229,11 @@ fn run_feedback_import_if_released(
     import()
 }
 
-fn run_cycle_ingress_if_running(
-    shutdown_requested: bool,
+fn run_cycle_ingress_if_released(
+    blocked: bool,
     ingress: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
-    if shutdown_requested {
+    if blocked {
         return Ok(());
     }
     ingress()
@@ -311,7 +311,7 @@ fn cycle(
         )?;
         Ok(())
     })?;
-    run_cycle_ingress_if_running(shutdown_requested, || {
+    run_cycle_ingress_if_released(brake_engaged || shutdown_requested, || {
         bind_runtime_repository_domain(
             &args.policy.runtime_store,
             &args.feedback_target_repository,
@@ -859,14 +859,14 @@ mod brake_tests {
     }
 
     #[test]
-    fn shutdown_does_not_admit_new_cycle_ingress() -> Result<()> {
+    fn brake_or_shutdown_does_not_admit_new_cycle_ingress() -> Result<()> {
         let touched = std::cell::Cell::new(false);
-        run_cycle_ingress_if_running(true, || {
+        run_cycle_ingress_if_released(true, || {
             touched.set(true);
             Ok(())
         })?;
         assert!(!touched.get());
-        run_cycle_ingress_if_running(false, || {
+        run_cycle_ingress_if_released(false, || {
             touched.set(true);
             Ok(())
         })?;
