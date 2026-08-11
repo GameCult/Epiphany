@@ -1188,7 +1188,6 @@ fn validate_proposal_modeling_launch(
         || proposal.payload_sha256 != format!("{:x}", Sha256::digest(content))
         || selection.runtime_id != identity.runtime_id
         || selection.runtime_id != proposal.runtime_id
-        || selection.thread_id != persisted_state.thread_id
         || selection.thread_id != proposal.thread_id
         || persisted_state_value != *state
         || selection.repository != proposal.repository
@@ -2100,6 +2099,49 @@ pub(crate) mod tests {
             .is_err()
         );
         assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn proposal_launch_restores_its_admitted_thread_after_resident_projection_transition(
+    ) -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, request, selection) =
+            proposal_launch_fixture(root.path(), "resident-thread-transition")?;
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.put(
+            THREAD_STATE_KEY,
+            &EpiphanyThreadStateEntry::from_state("resident-self-thread-runtime-1", &state)?,
+        )?;
+
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &request,
+            &store,
+            "launcher-after-transition".into(),
+            "backend-after-transition".into(),
+        )?;
+        let committed = commit_coordinator_job_launch(
+            &store,
+            &selection.thread_id,
+            &state,
+            &request,
+            &plan,
+            "2026-07-13T05:00:04Z".into(),
+        )?;
+
+        let cache = coordinator_acceptance_cache(&store)?;
+        let restored = cache
+            .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .expect("launch restores admitted cognitive thread projection");
+        assert_eq!(restored.thread_id, selection.thread_id);
+        assert_eq!(restored.state()?, committed.epiphany_state);
+        let binding = cache
+            .get::<RepoFrontierProposalModelingLaunchBinding>(
+                "repo-frontier-proposal-modeling-launch-backend-after-transition",
+            )?
+            .expect("launch preserves admitted proposal lineage");
+        assert_eq!(binding.thread_id, selection.thread_id);
         Ok(())
     }
 
