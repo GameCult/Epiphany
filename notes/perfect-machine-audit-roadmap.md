@@ -12,7 +12,7 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current pushed source: exact `43dc865e`.
+- Current pushed source: exact `8fb61ac2`.
 - Accepted live runtime implementation: exact `465af24d` through resident PID 1
   reaping across genuine Modeling and Imagination worker families.
 - Audited/live release:

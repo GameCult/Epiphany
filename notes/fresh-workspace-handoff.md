@@ -1,5 +1,44 @@
 # Fresh workspace handoff
 
+## Public Eyes evidence is grant-bound and Mind-admissible - 2026-08-11
+
+Latest pushed source is exact `8fb61ac2`. Actual c011 remains exact
+`465af24d`, alive, cognitively braked at resident revision 384, with no active
+lease or admitted work and zero defunct children. Do not disturb it before the
+new source passes copied-state gates.
+
+The source-tool authority wound is closed in source. Research, Modeling, and
+Verification launches receive exact immutable read grants; Research alone
+receives `publicSourceRead` and sees `epiphany_public.github_file`. Every
+model-derived source-tool intent follows the inner model execution binding back
+to the outer typed worker launch and exact Substrate Gate grant before intent
+admission or adapter execution. The public reader accepts only one GitHub
+owner/repository, exact 40-hex commit, repository path, bounded 64 KiB UTF-8
+body, no redirects, and no proxy.
+
+Generic result JSON is not Mind evidence. Runtime authenticates the complete
+worker/model/tool/grant family, recomputes provider identity and content bytes,
+and derives an `EyesSourceLookupReceipt`. Coordinator acceptance revalidates
+that receipt inside the same full-snapshot CAS that commits the Eyes packet and
+Mind update. The Research finding must cite the exact `sourceRef` in
+`filesInspected` and `evidenceReceiptId` in `evidence`; invented `eyes-source-*`
+citations fail closed.
+
+Focused hostile substitution preserves the runtime snapshot byte-identically.
+The exact live reader fetched
+`github://GameCult/Epiphany@43dc865e0f332b82de4b95292d5c600f8b901706/README.md`
+as 8,162 bytes with SHA-256
+`0dfad0ab5211220f4126970be9d8dab66806d847efa21ba882dbffbb3eaf980c`.
+Core tests pass 680/680 with one intentional helper ignored; tool runtime tests
+pass 14/14 with one live network test ignored; OpenAI runtime tests pass 19/19.
+
+Next: package exact `8fb61ac2` once through the persistent Starfire cache. On
+copied named-volume state, run one real Research lane through the immutable
+public reader and accept its typed lookup plus Eyes packet into Mind. Then prove
+an otherwise exact public request without `publicSourceRead` refuses before
+adapter/network execution with byte-identical state. Only then replace c011.
+Yggdrasil never builds.
+
 ## Braked resident physiology no longer runs cognition ingress - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive, cognitively braked, and untouched.
