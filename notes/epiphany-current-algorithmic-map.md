@@ -3729,17 +3729,35 @@ production writer; tests supplied one directly and concealed the cut.
 
 Runtime result admission now owns one atomic publication:
 
-- Inputs: exact request, candidate bytes, launch binding, worker launch,
-  process claim, and current model projection.
+- Owner: authenticated runtime launch context owns candidate causality;
+  runtime terminal admission owns publication and timestamp; Imagination owns
+  only semantic proposal content.
+- Inputs: exact request and quoted evidence, model-supplied disposition/title/
+  summary/rationale/options/uncertainties/recommended route, launch binding,
+  worker launch, process claim, and current model projection.
 - Outputs: immutable worker result, terminal process claim, and exact typed
   `ImaginationConsiderationCandidate` companion in one snapshot-fenced CAS.
+  Runtime derives request, feedback, packet, room, visibility, classification,
+  model, evidence-reference, contract, deterministic candidate, and timestamp
+  fields; none are model echoes.
 - Derived state: resident fulfillment observes the admitted result/candidate;
   it does not write either document.
-- Forbidden writers: resident settlement, review routing, tests, and operator
-  projections cannot synthesize the candidate companion.
+- Forbidden writers: model output, resident settlement, review routing, tests,
+  and operator projections cannot synthesize candidate identity or evidence
+  provenance. Model output cannot choose an arbitrary evidence identifier.
+- Shared paths: direct provider completion and replay both use
+  `role_worker_result_from_ingress` followed by
+  `put_runtime_role_worker_result`; coordinator finalization independently
+  CAS-fences only its exact session so concurrent worker publication does not
+  become a false conflict.
 - Cut line: an existing candidate without its worker result is an orphan and
   refuses admission; exact result replay requires the persisted companion to
-  remain equal.
+  remain equal. The old candidate-causality output fields are absent from the
+  model schema rather than tolerated and checked downstream.
+- Verification layer: hostile model JSON containing every former causal field
+  and a substituted evidence reference produces a candidate whose complete
+  causal body comes from the authenticated request. Unrelated runtime writes
+  coexist with coordinator finalization while an exact session race refuses.
 
 The focused atomic/idempotent, orphan-refusal, and receipt-free resident tests
 pass, and the full core library passes 670 tests with one intentional ignore.
@@ -3748,5 +3766,17 @@ Exact Linux release
 with witness
 `sha256-3b37136d34e4d4b886544102ec43a258510e246d762640a686b02b29fb13fafc`
 passed 24-binary inspection and a copied c006 braked-once zero-exit gate without
-changing runtime, Mind, or Heartbeat stores. A genuine packaged model-produced
-consideration remains the verification layer for the new writer.
+changing runtime, Mind, or Heartbeat stores.
+
+The genuine packaged gate is now closed under exact `acd91e6e`, release
+`sha256-1c5a16efdfd02e453df0fc53c81cf1848ccaaca72e53c528f3385da9c8725085`,
+witness
+`sha256-b592d64ed0d0c3b7b1ef858ae96533a6e890e3805de94cf2aa6438b99eb39401`.
+Fresh copied c006 admitted one signed Bifrost public-feedback packet, issued one
+Heartbeat grant, completed Imagination job
+`12b670b7-e942-4390-98d7-54ab57908947`, and settled Self exactly once without
+retry. Runtime ended with zero open jobs and no actionable Hands or Eyes
+frontier. Mind, Body, workspace coverage, and workspace Git state stayed exact;
+a braked restart issued no grant and resurrected no work. The rejected
+`af2581b5` and `b661ec4b` runs remain receipts for the full-snapshot and
+model-authored-provenance faults instead of being rewritten into victory prose.

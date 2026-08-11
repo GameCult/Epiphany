@@ -1,5 +1,69 @@
 # Fresh workspace handoff
 
+## Genuine packaged Imagination option generation accepted - 2026-08-11
+
+Actual c006 remains exact `c9a2a979`, alive and cognitively braked at resident
+revision 34. All work below used fresh named-volume copies; no actual c006
+process or store was mutated or stopped.
+
+The first genuine copied run exposed two production ownership faults. Exact
+`af2581b5` asked the model to echo causal candidate identity, and coordinator
+finalization fenced the entire runtime snapshot. The model failed closed three
+times with `candidate substituted causal identity`; an unrelated worker write
+also caused `coordinator run finalization lost its full snapshot fence`.
+Receipts and sealed copied state remain under
+`.epiphany-run/imagination-af2581b5`.
+
+Pushed `b661ec4b` moved request, feedback, packet, classification, model,
+contract, and publication-time identity into the authenticated runtime launch
+context and changed coordinator finalization to CAS only its exact session.
+The full core library passed 670 tests with one intentional ignore, the OpenAI
+runtime passed 16 tests, coordinator passed 18, and swarm passed 7. Exact Linux
+release
+`sha256-61f1b2fb72f8869f79a0788bde09f7579d94572a2961ed55b8cac419b86d56ed`
+with witness
+`sha256-78567f04ffc182976debf0ad165f555a037324046a81a3daeae2673ba52e0b54`
+passed 24-binary inspection. Its copied live run proved the remaining wound:
+`evidence_refs` was still model-authored although candidate validation treated
+those identifiers as exact quoted-evidence provenance. Three attempts again
+failed closed; the copied runtime was braked and both direct-PID containers
+exited zero. The rejected state and containers remain preserved under the
+`b661ec4b` names.
+
+Pushed `acd91e6e` removes that final provenance mouth. The candidate schema no
+longer accepts evidence identifiers; runtime copies the exact authenticated
+`source_discussion_refs` from the request while the model owns only semantic
+proposal content. The full core library again passed 670 tests with one ignore
+and all 16 OpenAI runtime tests passed. Exact Linux release
+`sha256-1c5a16efdfd02e453df0fc53c81cf1848ccaaca72e53c528f3385da9c8725085`
+with witness
+`sha256-b592d64ed0d0c3b7b1ef858ae96533a6e890e3805de94cf2aa6438b99eb39401`
+passed 24-binary inspection with zero warnings.
+
+Fresh copied c006 then accepted the signed Bifrost `public_feedback` fixture,
+issued exactly one Heartbeat consideration grant, and completed Imagination
+job `12b670b7-e942-4390-98d7-54ab57908947` with result
+`result-worker-12b670b7-e942-4390-98d7-54ab57908947`. Runtime admission
+atomically published the deterministic candidate companion. Self moved
+`awaiting-fulfillment -> completed -> sleeping` at revision 38 with no retry.
+Runtime ended with 43 jobs, zero open, 43 results, `Hands=false`, and
+`Eyes=false`. Mind, Body, and workspace-coverage SHA-256 values exactly matched
+actual c006; copied workspace HEAD/status also remained identical. A braked
+restart emitted only `braked` and `braked-after-ack-reconciliation`, issued no
+grant, and both direct PID1 containers again exited zero on SIGTERM. No Persona
+service or speech actuator was running; Heartbeat merely reserved the retained
+copied mention before the brake was re-engaged. Full receipts are under
+`.epiphany-run/imagination-acd91e6e` and
+`.epiphany-run/linux-package-acd91e6e`.
+
+The Imagination live gate is accepted. Release iteration remains the next
+machine fault: after repairing the stable source/cache owner, the two-file
+`acd91e6e` change still took 5m02s because the broad `epiphany-core` and
+24-binary release graph relink together. Profile that exact warm graph, map the
+compile owner, and split only coherent ownership seams; require a materially
+faster exact 24-binary package before resuming broader autonomous turnover.
+Yggdrasil never builds.
+
 ## Runtime-owned Imagination candidate publication packaged - 2026-08-11
 
 The Imagination option-generation audit found a production ownership hole:
