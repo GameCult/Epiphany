@@ -38,6 +38,8 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
+const RESIDENT_MAINTENANCE_INTERVAL: Duration = Duration::from_secs(60);
+
 fn main() -> Result<()> {
     let mut args = Args::parse()?;
     authenticate_resident_self_policy(&mut args.policy)?;
@@ -93,16 +95,19 @@ fn main() -> Result<()> {
         CommandKind::Serve => {
             let shutdown_requested = install_shutdown_signal_owner()?;
             let mut last_maintained_revision = None;
+            let mut next_maintenance_at = std::time::Instant::now();
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
                 if resident_maintenance_required(
-                    &outcome,
                     state.revision,
                     last_maintained_revision,
+                    std::time::Instant::now() >= next_maintenance_at,
                 ) {
                     maintain_resident_runtime(&args, &state)?;
                     last_maintained_revision = Some(state.revision);
+                    next_maintenance_at =
+                        std::time::Instant::now() + RESIDENT_MAINTENANCE_INTERVAL;
                 }
                 publish_self_readiness(&args)?;
                 println!(
@@ -137,11 +142,11 @@ fn maintain_resident_runtime(args: &Args, state: &ResidentSelfState) -> Result<(
 }
 
 fn resident_maintenance_required(
-    outcome: &ResidentSelfOutcome,
     revision: u64,
     last_maintained_revision: Option<u64>,
+    interval_due: bool,
 ) -> bool {
-    *outcome != ResidentSelfOutcome::Braked || last_maintained_revision != Some(revision)
+    interval_due || last_maintained_revision != Some(revision)
 }
 
 fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()> {
@@ -883,26 +888,26 @@ mod brake_tests {
     }
 
     #[test]
-    fn stable_braked_revision_does_not_repeat_runtime_maintenance() {
+    fn maintenance_follows_revision_and_deadline_not_poll_outcome() {
         assert!(resident_maintenance_required(
-            &ResidentSelfOutcome::Braked,
             7,
             None,
+            false,
         ));
         assert!(!resident_maintenance_required(
-            &ResidentSelfOutcome::Braked,
             7,
             Some(7),
+            false,
         ));
         assert!(resident_maintenance_required(
-            &ResidentSelfOutcome::Braked,
             8,
             Some(7),
+            false,
         ));
         assert!(resident_maintenance_required(
-            &ResidentSelfOutcome::Sleeping,
             7,
             Some(7),
+            true,
         ));
     }
 }
