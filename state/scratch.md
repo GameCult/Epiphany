@@ -4,9 +4,20 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Continue the copied autonomous turnover from the accepted single-consumption
-proposal Modeling review boundary. Keep actual c006 alive and cognitively
-braked; Yggdrasil never builds.
+Continue organ shakedown after accepting exact braked resident physiology.
+Keep actual c006 alive and cognitively braked; Yggdrasil never builds.
+
+## Accepted braked physiology cut
+
+Exact pushed `3f37503e`, release
+`sha256-aec4ed9382adb45e354f00a7af330c5b28e45d07900175f4bb8dfb4535cb6624`,
+witness `sha256-348ae07ed5cda07b350d13aa02620286f80cd7cbce9c9b7dc0e562c59fe8600b`
+stops stable braked retention repetition and blocks repository/domain/
+continuation ingress under brake. On copied 23 MiB runtime state at one-second
+cadence, six samples held 0.29-0.33% CPU and about 47 MiB. Revision 66 and
+runtime/local-Verse hashes stayed exact, no grant appeared, and SIGTERM exited
+zero. The readiness-pacing hypothesis did not move CPU and was reverted; the
+ingress scan was the real owner.
 
 ## Accepted live boundary
 

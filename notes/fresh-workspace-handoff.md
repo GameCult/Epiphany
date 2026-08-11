@@ -1,5 +1,39 @@
 # Fresh workspace handoff
 
+## Braked resident physiology no longer runs cognition ingress - 2026-08-11
+
+Actual c006 remains exact `c9a2a979`, alive, cognitively braked, and untouched.
+Its eight-hour endurance window held resident revision 34 with no active turn,
+no restart, and no OOM, but read-only sampling exposed sustained resident CPU
+spikes between roughly 9% and 24% at the shakedown's one-second idle cadence.
+
+The first owner cut, pushed as `7a8ef10d`, stops repeated runtime/session,
+lifecycle, and worker-attempt retention after the first stable braked revision.
+That reduced some spikes but left roughly 6-12% CPU. A readiness-publication
+cadence hypothesis was packaged and falsified without improvement, then
+reverted by `11a9e05c`; do not resurrect it as the explanation.
+
+Source inspection found the real hot owner inside `epiphany-swarm::cycle`:
+the brake already blocked Bifrost import, but repository-domain binding plus
+domain-pressure and coordinator-continuation ingestion still ran on every
+braked pulse. Pushed `3f37503e` makes brake and shutdown block all new cycle
+ingress while preserving state load and prepared/active child reconciliation.
+Producer-owned typed evidence remains in its source store until release; the
+brake does not delete it or synthesize a terminal state.
+
+Exact release
+`sha256-aec4ed9382adb45e354f00a7af330c5b28e45d07900175f4bb8dfb4535cb6624`
+and witness
+`sha256-348ae07ed5cda07b350d13aa02620286f80cd7cbce9c9b7dc0e562c59fe8600b`
+passed 24-binary inspection with zero warnings; warm Cargo took 3.13s. On the
+same copied 23 MiB runtime store and one-second loop, six consecutive samples
+were 0.29-0.33% CPU at about 47 MiB, down from 10-24% and 80-93 MiB. Resident
+revision remained 66, runtime SHA-256 remained
+`3cc2ef56...0bc6`, cognitive local-Verse SHA-256 remained
+`d1efda5f...f395`, no grant appeared, and SIGTERM exited zero. Receipts are
+under `.epiphany-run/linux-package-3f37503e`; stopped benchmark container logs
+remain on `epiphany-braked-cadence-resident-3f37503e`.
+
 ## Runtime-owned proposal Modeling first-result accepted - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All live

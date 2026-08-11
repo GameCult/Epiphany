@@ -3960,3 +3960,27 @@ terminal review continuation, then `awaitFrontierProposal`; no second review
 grant appeared. Runtime had zero open jobs, Hands/Eyes remained false, the copy
 was braked, and both owners exited zero. Post-transaction typed coordinator
 state is now the sole final-action owner for these review paths.
+## Braked resident maintenance and ingress cadence
+
+- Owner: the resident serve loop owns maintenance cadence; retention organs
+  own what may be retired, not how often a stable runtime is rescanned.
+- Inputs: cognitive brake, shutdown signal, resident revision, prepared/active
+  lease state, and producer-owned typed source stores.
+- Outputs: the first stable braked revision receives normal bounded
+  maintenance; later identical braked pulses only observe/reconcile resident
+  authority and publish operator physiology. New domain and continuation
+  pressure are ingested only after brake release.
+- Derived state: poll interval, readiness projection, and pulse count are not
+  retention or cognition-ingress authority.
+- Forbidden writers: a braked pulse cannot bind a new repository domain,
+  derive resident pressure, import Bifrost delivery, or create a grant. It also
+  cannot erase producer-owned evidence waiting in runtime or crossing stores.
+- Shared paths: brake and shutdown use the same ingress refusal boundary;
+  prepared/active child reconciliation remains live so the brake can drain and
+  terminalize exact existing authority.
+- Cut line: unconditional retention scans no longer repeat at an unchanged
+  braked revision, and `cycle` no longer runs repository/domain/continuation
+  ingress while braked.
+- Verification: exact packaged `3f37503e` on copied 23 MiB runtime state held
+  revision and runtime/local-Verse hashes stable, created no grant, exited zero,
+  and measured 0.29-0.33% CPU at one-second cadence versus prior 10-24% spikes.
