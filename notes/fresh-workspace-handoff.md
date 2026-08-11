@@ -3553,3 +3553,31 @@ second monolithic release graph merely to create typed state. The native state
 reader itself required a 61-second debug build during this phase, confirming
 that operator sight still owns compilation work it should not need. Actual c006
 stays exact `c9a2a979`, alive and cognitively braked. Yggdrasil never builds.
+
+## c006 braked endurance retirement — 2026-08-11
+
+Actual c006 exact `c9a2a979` remained cognitively braked for 10h23m. Heartbeat
+stopped cleanly after 36,700 iterations: 36,624 brake refusals, 70 historical
+routine iterations, no new grant, and only 72 retained pulse directories / 4.2
+MiB. Resident stopped cleanly at revision 34, braked, with no active turn. Both
+containers exited zero. Runtime, cognitive local Verse/brake, and release Verse
+hashes remained byte-identical; only Heartbeat and resident published their
+canonical shutdown state. Containers and named volumes remain intact. Exact
+hashes and timestamps are in
+`.epiphany-run/c006-endurance-retirement-20260811/receipt.md`.
+
+The run also falsified its ad hoc container launch contract. Docker used
+unbounded `json-file` logging, producing about 22.0 MiB of resident output and
+15.3 MiB of Heartbeat output. c007 must have one bounded stdout/stderr owner:
+explicit Docker rotation or a proper supervised service. Do not restart c006
+merely to preserve the appearance of motion.
+
+The build audit found no new release-graph defect. The 23.23-second b81 warm
+Cargo run followed illicit transient edits inside the forge-owned exact-source
+cache; restoring bytes left different fingerprint mtimes. Separately, the
+bootstrap rite invoked `cargo run` without the mandated shared target and paid
+61 seconds to compile a duplicate debug graph. The existing shared-target
+`epiphany-state.exe` returned the same Mind status in 37.9ms. `AGENTS.md` now
+names that build-free path and the correct shared-target fallback. Preserve the
+single deterministic release publisher; do not split it to fix operator
+contamination. Yggdrasil never builds.

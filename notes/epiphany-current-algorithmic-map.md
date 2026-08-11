@@ -2198,6 +2198,16 @@ release `sha256-30caab9e...a1aec` and witness `sha256-89c2ad60...fdecf` in
 The packaged full publisher accepted the narrow tool's witness and advanced the
 resident release Verse hash from `b160c610...3909` to `83ed430f...ae81`.
 
+Routine operator sight must consume an already-built `epiphany-state` binary.
+On Starfire, the shared Codex target is the developer/operator binary cache;
+falling back to `cargo run` without naming it created a second repository-local
+debug graph and turned a read-only status check into 61 seconds of compilation.
+The existing shared binary returned the same typed state in 37.9ms. This is an
+operator-instruction ownership fault, not evidence that the deterministic
+release graph should be split. Exact-source release worktrees are likewise
+forge-owned: transient fixture code may not be written into them and then
+"restored," because byte restoration does not restore Cargo fingerprint state.
+
 ## Continuity retention authority map
 
 Retention is not a janitor allowed to erase old-looking rows. Each store owner

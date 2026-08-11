@@ -87,10 +87,15 @@ machine-spirit awake.
 
 ## Useful Commands
 
-Use the native Rust tools for state and compaction:
+Use the already-built native state tool for routine sight. On this Windows
+workstation the shared Codex target is the operator binary cache; do not make a
+read-only status check compile `epiphany-core` in the repository-local target.
+If the binary is absent or source work specifically requires rebuilding it,
+name the shared target explicitly:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status
+& 'C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe' status
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --
 ```
@@ -115,7 +120,10 @@ a servitor with a nail gun:
    - `notes/epiphany-fork-implementation-plan.md`
    - `notes/epiphany-safety-architecture.md` when the task touches capability growth, autonomy, permissions, governance, or deployment authority
 2. run:
-   - `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`
+   - `& 'C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe' status`
+   - if that binary is absent, set
+     `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'` before the
+     `cargo run` fallback
 3. restate the current next action from the persisted state before touching the
    machine
 4. if the user only asked to rehydrate or reorient, stop after orientation and
@@ -124,7 +132,8 @@ a servitor with a nail gun:
 
 After compaction, resume, or any suspicious loss of continuity:
 
-1. rerun `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`
+1. rerun the existing shared-target `epiphany-state.exe status`; rebuild it only
+   through `C:\Users\Meta\.cargo-target-codex` when absent or intentionally stale
 2. reread `state/map.yaml` and `notes/fresh-workspace-handoff.md`
 3. treat the persisted next action as authoritative unless fresh evidence in
    the repo contradicts the machine-map
