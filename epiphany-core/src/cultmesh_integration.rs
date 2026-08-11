@@ -4256,6 +4256,7 @@ pub fn canonical_epiphany_swarm_brake_protected_surfaces() -> Vec<String> {
         "coordinator.run".to_string(),
         "persona.public_speech".to_string(),
         "daemon.tool_invocation".to_string(),
+        "daemon.lifecycle_poke".to_string(),
     ]
 }
 
@@ -10064,6 +10065,30 @@ mod tests {
                 .as_ref()
                 .map(|brake| brake.status.as_str()),
             Some("released")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_engagement_protects_daemon_lifecycle_actuation() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-canonical-swarm-brake.ccmp");
+        let brake = engage_epiphany_cultmesh_swarm_brake(
+            &store,
+            "epiphany-test",
+            "Hold every consequence surface during shakedown.",
+            "Idunn",
+            "2026-08-11T00:00:00Z",
+            false,
+        )?;
+
+        assert_eq!(brake.status, "engaged");
+        assert_eq!(brake.scope, "all");
+        assert!(
+            brake
+                .protected_surfaces
+                .iter()
+                .any(|surface| surface == "daemon.lifecycle_poke")
         );
         Ok(())
     }
