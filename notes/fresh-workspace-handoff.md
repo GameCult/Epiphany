@@ -1,5 +1,41 @@
 # Fresh workspace handoff
 
+## Copied receipt-bound turnover accepted - 2026-08-11
+
+Exact pushed `c9a2a979` packages 24 Linux binaries as release
+`sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218`
+with witness
+`sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24`
+and zero warnings. Construction took 8m17s against the persistent Starfire
+cache. Receipts are under `.epiphany-run/linux-package-c9a2a979`.
+
+A second stopped snapshot of actual c006 copied all three named volumes with
+byte-identical manifests and restarted both exact actual owners after exit-zero
+stops. Under copied brake, exact `c9a2a979` created one pressure from the old
+`reviewModelingResult` receipt and no grant. Brake release issued grant 23.
+Mind rejected the unanchored patch; coordinator failure review wrote exact
+supersession `role-failure-review-5a612149-fc7f-4ea8-996a-a008547bfa2c`
+inside successful receipt
+`coordinator-run-linux-eyes-tools-c005-1786406310816`. That newer receipt
+created distinct pressure/grant 27. The second coordinator rederived
+`awaitFrontierProposal`, refused stale required action `reviewModelingResult`
+with `consequence:none`, and completed as receipt
+`coordinator-run-linux-eyes-tools-c005-1786406314165`.
+
+Both grants are terminal `completed`; resident state is revision 34 with no
+active lease and the second receipt as its last exact receipt. All four
+Hands/Persona/deployment-family runtime envelopes are byte-identical to the
+untouched actual baseline. The copied cognitive brake is engaged, exact
+readiness is active with no reasons, and both copied providers stopped with exit
+zero. The contaminated first experiment is also braked, preserved, and stopped.
+Receipts are under `.epiphany-run/continuation-c9a2a979` and
+`.epiphany-run/continuation-4d6d269f`.
+
+Copied receipt-bound turnover is accepted. Publish exact `c9a2a979` into actual
+c006 under its brake, replace the two provider bodies without changing stores,
+authenticate readiness, run the same bounded two-grant path, and re-engage the
+brake before continuing the next organ audit. Yggdrasil never builds.
+
 ## Copied continuation exposed missing failure-review context - 2026-08-11
 
 Exact `4d6d269f` packaged 24 Linux binaries as

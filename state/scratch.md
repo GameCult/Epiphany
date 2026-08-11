@@ -4,9 +4,10 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Replay copied c006 after repairing missing continuation failure-review context.
+Replay accepted receipt-bound turnover on actual c006 under a bounded brake
+window.
 
-## Live finding
+## Accepted copied finding
 
 Exact `4d6d269f` created one correct receipt-bound pressure and no grant under
 brake. After release, Mind rejected the old Modeling result because its patch
@@ -15,16 +16,16 @@ would create an unanchored node. The continuation argv lacked
 resident Self requeued the same pressure twelve times before the copied brake
 intervened.
 
-## Authority map for the repair
+## Authority map for actual replay
 
-- Owner: Mind owns patch admission and rejection. Coordinator failure review
-  owns superseding the exact rejected role result. Heartbeat owns neither.
+- Owner: the actual cognitive brake owns the replay window. Mind owns patch
+  rejection, coordinator failure review owns supersession, and each exact
+  receipt owns at most one next safe continuation pressure.
 - Inputs: the exact terminal Modeling result, its admission error, the existing
   coordinator supersession contract, the receipt-derived required action, and
   a one-step execution bound.
-- Outputs: one typed role-failure supersession followed by a successful bounded
-  coordinator receipt whose newly derived action can become a distinct causal
-  pressure.
+- Outputs: the same two completed actual grants and causal receipts proven on
+  copied state, followed by an engaged brake and idle coherent resident state.
 - Derived state: process exit, resident cancellation, retry count, and error
   log are evidence of the missing context; they are not rejection authority.
 - Forbidden writers: Mind may not accept the malformed aggregate; resident
@@ -33,9 +34,9 @@ intervened.
 - Shared paths: every safe receipt-bound role review launch carries the same
   existing failed-result supersession capability. Direct operator runs retain
   their explicit policy choice.
-- Cut line: add the existing coordinator capability to continuation argv. Do
-  not weaken memory-graph validation or add another retry state machine.
-- Verification: exact argv test plus all coordinator tests; package once; copy
-  pristine braked c006 again; require one rejection/supersession, a successful
-  receipt, a genuinely newer pressure/grant, no process-failure loop, and zero
-  Hands/Persona/deployment consequence.
+- Cut line: publish the authenticated body and replace provider processes only;
+  do not migrate or edit actual cognition stores. Stop the bounded window after
+  the copied terminal action shape is reproduced.
+- Verification: release/witness/source readiness before release; exact grant,
+  supersession, receipt, and no-consequence evidence; external-family byte
+  comparison; brake re-engagement; active readiness; clean owner receipts.

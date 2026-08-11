@@ -3633,14 +3633,16 @@ Mind review into another grant, so a brake release could not advance c006.
   repeated ingestion is idempotent; a Hands final action creates no pressure;
   and source order proves required-action refusal precedes every action effect.
 
-Exact `4d6d269f` packaged the first cut as 24 binaries, release
-`sha256-ff371697ce78a1daa3322c0cac988582d548747ae7fddbfb1d9f5626a37d3344`,
+Exact `c9a2a979` packages the corrected path as 24 binaries, release
+`sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218`,
 and witness
-`sha256-44c9d61787520a2f38fad1362230d283954a6019fd392600fe112115ca22c0fa`.
-Copied c006 proved the one pending pressure and zero grants under brake, then
-exposed the missing supersession launch context: Mind correctly rejected an
-unanchored Modeling patch, but twelve process-failed attempts requeued the same
-pressure before intervention. The copied brake is engaged and those receipts
-are preserved. Package and replay the supersession fix from a fresh pre-fault
-clone before acceptance. Actual c006 remains on exact `16407f7e`, braked and
-unchanged.
+`sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24`.
+On fresh copied c006, one old receipt created grant 23; Mind rejected the
+unanchored Modeling patch; coordinator failure review superseded it once inside
+a successful new receipt; that receipt created distinct grant 27; and the
+second run rederived `awaitFrontierProposal` and recorded a no-consequence
+required-action refusal. Both grants completed. No process-failure retry
+occurred, resident state ended idle at revision 34, and all existing
+Hands/Persona/deployment envelopes remained byte-identical. The copied brake is
+engaged and both copied owners exited zero. Copied turnover is accepted; actual
+c006 remains exact `16407f7e`, braked and unchanged pending the bounded replay.
