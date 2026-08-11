@@ -2394,10 +2394,58 @@ pub(crate) mod tests {
         );
         let result = consideration_result(&request, "backend-consideration")?;
         put_runtime_role_worker_result(&store, &result)?;
+        let candidate = result
+            .imagination_consideration_candidate()?
+            .expect("typed consideration candidate");
+        let cache = coordinator_acceptance_cache(&store)?;
+        assert_eq!(
+            cache.get::<ImaginationConsiderationCandidate>(&candidate.candidate_id)?,
+            Some(candidate)
+        );
+        put_runtime_role_worker_result(&store, &result)?;
         let mut cargo = consideration_result(&request, "backend-consideration")?;
         cargo.result_id = "cargo-result".into();
         cargo.state_patch_msgpack = Some(vec![0]);
         assert!(put_runtime_role_worker_result(&store, &cargo).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn consideration_result_refuses_orphan_candidate_companion() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, request) = consideration_launch_fixture(root.path(), "orphan")?;
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-consideration".into(),
+            "backend-consideration".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-18T00:00:01Z".into(),
+        )?;
+        let result = consideration_result(&request, "backend-consideration")?;
+        let candidate = result
+            .imagination_consideration_candidate()?
+            .expect("typed consideration candidate");
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.put(&candidate.candidate_id, &candidate)?;
+        assert!(put_runtime_role_worker_result(&store, &result).is_err());
+        let cache = coordinator_acceptance_cache(&store)?;
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+                .is_none()
+        );
+        assert_eq!(
+            cache.get::<ImaginationConsiderationCandidate>(&candidate.candidate_id)?,
+            Some(candidate)
+        );
         Ok(())
     }
 

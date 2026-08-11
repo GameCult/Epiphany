@@ -3967,6 +3967,7 @@ pub fn put_runtime_role_worker_result(
         }
         model_direction_companion = Some(direction_result);
     }
+    let mut imagination_candidate_companion = None;
     let has_consideration_echo = result.imagination_consideration_request_id.is_some();
     let has_consideration_candidate = result.imagination_consideration_candidate_msgpack.is_some();
     if has_consideration_echo != has_consideration_candidate {
@@ -4051,6 +4052,7 @@ pub fn put_runtime_role_worker_result(
                 "consideration result substituted request, launch, or context"
             ));
         }
+        imagination_candidate_companion = Some(candidate);
     }
     let has_mind_echo = result.frontier_plan_mind_request_id.is_some();
     let has_mind_decision = result.frontier_plan_mind_decision_msgpack.is_some();
@@ -4154,14 +4156,24 @@ pub fn put_runtime_role_worker_result(
             ));
         }
         if let Some(companion) = model_direction_companion.as_ref() {
-            return match cache
+            match cache
                 .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
             {
-                Some(existing) if existing == *companion => Ok(()),
-                _ => Err(anyhow!(
+                Some(existing) if existing == *companion => {}
+                _ => return Err(anyhow!(
                     "model direction worker result lost its exact typed companion"
                 )),
-            };
+            }
+        }
+        if let Some(companion) = imagination_candidate_companion.as_ref() {
+            match cache
+                .get::<crate::ImaginationConsiderationCandidate>(&companion.candidate_id)?
+            {
+                Some(existing) if existing == *companion => {}
+                _ => return Err(anyhow!(
+                    "Imagination worker result lost its exact typed candidate companion"
+                )),
+            }
         }
         return Ok(());
     }
@@ -4196,6 +4208,18 @@ pub fn put_runtime_role_worker_result(
         let (companion_envelope, _) = cache.prepare_entry(&companion.result_id, companion)?;
         writes.push(companion_envelope);
     }
+    if let Some(companion) = imagination_candidate_companion.as_ref() {
+        if cache
+            .get::<crate::ImaginationConsiderationCandidate>(&companion.candidate_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "Imagination candidate identity already exists without its worker result"
+            ));
+        }
+        let (companion_envelope, _) = cache.prepare_entry(&companion.candidate_id, companion)?;
+        writes.push(companion_envelope);
+    }
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     if backing.compare_and_swap_batch(&expected, writes)? {
         return Ok(());
@@ -4205,12 +4229,19 @@ pub fn put_runtime_role_worker_result(
     let worker_matches = reloaded
         .get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
         .is_some_and(|existing| existing == *result);
-    let companion_matches = match model_direction_companion.as_ref() {
+    let model_direction_companion_matches = match model_direction_companion.as_ref() {
         Some(companion) => reloaded
             .get::<crate::AdmittedModelDirectionConsiderationResult>(&companion.result_id)?
             .is_some_and(|existing| existing == *companion),
         None => true,
     };
+    let imagination_candidate_companion_matches =
+        match imagination_candidate_companion.as_ref() {
+            Some(companion) => reloaded
+                .get::<crate::ImaginationConsiderationCandidate>(&companion.candidate_id)?
+                .is_some_and(|existing| existing == *companion),
+            None => true,
+        };
     let claim_matches = match process_claim.as_ref() {
         Some(_) => reloaded
             .get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
@@ -4220,7 +4251,11 @@ pub fn put_runtime_role_worker_result(
             }),
         None => true,
     };
-    if worker_matches && companion_matches && claim_matches {
+    if worker_matches
+        && model_direction_companion_matches
+        && imagination_candidate_companion_matches
+        && claim_matches
+    {
         Ok(())
     } else {
         Err(anyhow!(

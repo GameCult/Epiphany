@@ -4315,16 +4315,6 @@ mod tests {
             source_visibility: request.source_visibility.clone(),
             data_classification: request.data_classification.clone(),
         };
-        let (candidate_entry, _) = runtime.prepare_entry(&candidate.candidate_id, &candidate)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&candidate_entry)?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Pending
-        );
         admit_test_imagination_candidate(
             &runtime_store,
             &request,
