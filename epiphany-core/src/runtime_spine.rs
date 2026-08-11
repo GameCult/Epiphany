@@ -6153,10 +6153,12 @@ pub fn promote_autonomous_direction_options_for_modeling(
     let mut opening = runtime_spine_cache(runtime_store)?;
     opening.pull_all_backing_stores()?;
     let identity = require_identity(&opening)?;
-    let Some(thread) = opening.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-    else {
+    if opening
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .is_none()
+    {
         return Ok(Vec::new());
-    };
+    }
     let Some(model) = opening.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
     else {
         return Ok(Vec::new());
@@ -6311,7 +6313,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 source_ref: result.result_id.clone(),
                 repository: repository.into(),
                 workspace: body_binding.git_top_level.clone(),
-                thread_id: thread.thread_id.clone(),
+                thread_id: request.thread_id.clone(),
                 runtime_id: identity.runtime_id.clone(),
                 payload_sha256: payload_sha256.clone(),
                 title: option.title.clone(),
@@ -6339,7 +6341,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 option_ordinal: ordinal as u32,
                 option_sha256,
                 runtime_id: identity.runtime_id.clone(),
-                thread_id: thread.thread_id.clone(),
+                thread_id: request.thread_id.clone(),
                 workspace_id: route.workspace_id.clone(),
                 body_binding_sha256: route.body_binding_sha256.clone(),
                 created_at: selected_at.into(),
@@ -6358,7 +6360,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 proposal_id: proposal_id.clone(),
                 proposal_payload_sha256: payload_sha256,
                 runtime_id: identity.runtime_id.clone(),
-                thread_id: thread.thread_id.clone(),
+                thread_id: request.thread_id.clone(),
                 repository: repository.into(),
                 workspace: body_binding.git_top_level.clone(),
                 selected_at: selected_at.into(),
@@ -6372,17 +6374,30 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 current.get::<RepoFrontierAutonomousProposalBinding>(&binding.binding_id)?,
                 current.get::<RepoFrontierProposalModelingRequest>(&selection.request_id)?,
             );
-            if let (Some(existing_proposal), Some(_), Some(existing_selection)) = &existing {
-                validate_autonomous_proposal_binding(&current, existing_proposal)?;
+            let replay_selection_matches = existing.2.as_ref().is_some_and(|existing_selection| {
                 let mut replay_selection = selection.clone();
                 replay_selection.selected_at = existing_selection.selected_at.clone();
-                if existing_proposal == &proposal && existing_selection == &replay_selection {
+                existing_selection == &replay_selection
+            });
+            if let (Some(existing_proposal), Some(_), Some(existing_selection)) = &existing {
+                validate_autonomous_proposal_binding(&current, existing_proposal)?;
+                if existing_proposal == &proposal && replay_selection_matches {
                     promoted.push(existing_selection.clone());
                     continue;
                 }
             }
             if existing.0.is_some() || existing.1.is_some() || existing.2.is_some() {
-                return Err(anyhow!("autonomous proposal promotion companion collision"));
+                return Err(anyhow!(
+                    "autonomous proposal promotion companion collision for {}: proposalPresent={} bindingPresent={} selectionPresent={} proposalMatches={} selectionMatches={} existingProposalThread={} expectedRequestThread={}",
+                    proposal.proposal_id,
+                    existing.0.is_some(),
+                    existing.1.is_some(),
+                    existing.2.is_some(),
+                    existing.0.as_ref() == Some(&proposal),
+                    replay_selection_matches,
+                    existing.0.as_ref().map_or("missing", |value| value.thread_id.as_str()),
+                    request.thread_id,
+                ));
             }
             let (proposal_envelope, _) = current.prepare_entry(&proposal.proposal_id, &proposal)?;
             let (binding_envelope, _) = current.prepare_entry(&binding.binding_id, &binding)?;
@@ -15252,6 +15267,59 @@ pub(crate) mod tests {
         let binding = validate_autonomous_proposal_binding(&persisted, &proposal)?;
         assert_eq!(binding.direction_result_id, direction.result_id);
         assert_eq!(binding.model_admission_receipt_id, admitted.receipt_id);
+
+        let partial_family_store = root.path().join("autonomous-partial-family.cc");
+        std::fs::copy(&store, &partial_family_store)?;
+        let mut partial = runtime_spine_cache(&partial_family_store)?;
+        partial.pull_all_backing_stores()?;
+        let selection_envelope = partial
+            .get_envelope::<RepoFrontierProposalModelingRequest>(&selection.request_id)?
+            .expect("autonomous selection before hostile removal");
+        assert!(
+            cultcache_rs::SingleFileMessagePackBackingStore::new(&partial_family_store)
+                .delete_batch_if_unchanged(&[selection_envelope])?
+        );
+        let after_hostile_removal = std::fs::read(&partial_family_store)?;
+        let partial_error = promote_autonomous_direction_options_for_modeling(
+            &partial_family_store,
+            "GameCult/Epiphany",
+            &workspace,
+            "2026-07-18T01:00:03Z",
+        )
+        .expect_err("a partial companion family must refuse repair");
+        assert!(partial_error.to_string().contains("selectionPresent=false"));
+        assert_eq!(std::fs::read(&partial_family_store)?, after_hostile_removal);
+
+        let thread_transition_store = root.path().join("autonomous-thread-transition.cc");
+        std::fs::copy(&store, &thread_transition_store)?;
+        let mut transitioned = runtime_spine_cache(&thread_transition_store)?;
+        transitioned.pull_all_backing_stores()?;
+        let prior_thread = transitioned
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .expect("autonomous thread before transition");
+        transitioned.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state(
+                "resident-thread-after-direction-admission",
+                &prior_thread.state()?,
+            )?,
+        )?;
+        let after_thread_transition = std::fs::read(&thread_transition_store)?;
+        assert_eq!(
+            promote_autonomous_direction_options_for_modeling(
+                &thread_transition_store,
+                "GameCult/Epiphany",
+                &workspace,
+                "2026-07-18T01:00:03Z",
+            )?,
+            selections,
+            "an admitted direction request owns proposal lineage across a later coordinator thread transition"
+        );
+        assert_eq!(
+            std::fs::read(&thread_transition_store)?,
+            after_thread_transition,
+            "thread-transition replay must not rewrite an accepted autonomous family"
+        );
 
         let pre_modeling_state =
             crate::read_coordinator_state(&store)?.expect("autonomous Modeling coordinator state");
