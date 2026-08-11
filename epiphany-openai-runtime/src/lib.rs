@@ -590,8 +590,7 @@ pub fn build_worker_model_request(
     );
     let launch_document_text = serde_json::to_string_pretty(&launch_document)
         .context("failed to render worker launch document for model input")?;
-    let mut instructions =
-        worker_instructions(launch_request, &launch_document, &output_schema_json);
+    let mut instructions = worker_instructions(launch_request, &launch_document);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
@@ -1364,7 +1363,6 @@ fn provider_matches_request(selected: &str, requested: &str) -> bool {
 fn worker_instructions(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     launch_document: &EpiphanyWorkerLaunchDocument,
-    output_schema_json: &str,
 ) -> String {
     let output_contract = worker_output_contract_text(launch_document);
     let dynamic_context = launch_document
@@ -1372,8 +1370,8 @@ fn worker_instructions(
         .map(|context| format!("\n\n{context}"))
         .unwrap_or_default();
     format!(
-        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}\n\nOutput schema JSON:\n```json\n{}\n```",
-        launch_request.instruction, dynamic_context, output_contract, output_schema_json
+        "{}{}\n\nReturn only one JSON object through the declared response format. Emit every object key at most once. No Markdown, no commentary.\n\n{}",
+        launch_request.instruction, dynamic_context, output_contract
     )
 }
 
@@ -2102,6 +2100,15 @@ mod tests {
         assert_eq!(basis.generation, 1);
         assert_eq!(basis.manifest_root_sha256, "manifest-root");
         Ok(())
+    }
+
+    #[test]
+    fn role_ingress_rejects_duplicate_top_level_fields() {
+        let error = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped","nextSafeMove":"review","checkpointSummary":"first","checkpointSummary":"second"}"#,
+        )
+        .expect_err("duplicate typed fields must remain ambiguous and fail closed");
+        assert!(format!("{error:#}").contains("duplicate field `checkpointSummary`"));
     }
 
     #[test]
@@ -2839,8 +2846,11 @@ mod tests {
         assert!(output_schema.contains("\"const\": \"frontier-modeling-request-1\""));
         assert!(output_schema.contains("\"const\": \"incorporate_frontier_verdict\""));
         assert!(!output_schema.contains("\"const\": \"evolution\""));
-        assert!(model_request.instructions.contains("Output schema JSON"));
-        assert!(model_request.instructions.contains("\"repoModelPatch\""));
+        assert!(!model_request.instructions.contains("Output schema JSON"));
+        assert!(!model_request.instructions.contains("\"repoModelPatch\""));
+        assert!(model_request
+            .instructions
+            .contains("Emit every object key at most once"));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         assert!(model_request
