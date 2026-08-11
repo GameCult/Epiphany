@@ -4099,3 +4099,36 @@ state is now the sole final-action owner for these review paths.
   the real receipt, left runtime bytes unchanged, and exact packaged Heartbeat
   produced no replacement grant while braked or released. Receipts live under
   `.epiphany-run/b81-superseded-fixture`.
+
+## Canonical brake ownership of daemon actuation
+
+- Owner: the canonical CultMesh swarm-brake document owns whether Idunn may
+  perform daemon lifecycle actuation during a shakedown pause. Idunn owns the
+  restart decision only after that brake permits it.
+- Inputs: canonical brake identity and owner, status, all-scope affected
+  runtime, protected surfaces, exact daemon status, typed restart policy or
+  explicit operator override, cooldown, and force/staleness signal.
+- Outputs: an engaged brake containing `daemon.lifecycle_poke` refuses before
+  intent publication or process execution. A permitted attempt emits one poke
+  intent, native process result, receipt, and updated retry policy.
+- Derived state: `requesting_agent_id`, CLI command text, status projections,
+  and tool-directory rows are provenance or sight; none can release the brake.
+- Forbidden writers: direct `reconcile --restart-command`, scheduled tick,
+  generic service launch, v0 daemon capabilities, and compatibility wrappers
+  cannot remove a protected surface or infer permission from an all-scope
+  brake. Unauthenticated v0 tool capabilities remain ignored and publish no
+  invocation command.
+- Shared paths: explicit engagement and engaged-brake adoption both use
+  `canonical_epiphany_swarm_brake_protected_surfaces`; direct and scheduled
+  reconciliation converge on `assert_swarm_brake_allows_daemon_poke` before
+  `run_restart_command`.
+- Cut line: canonical engagement no longer replaces the default surface set
+  with a list that omits `daemon.lifecycle_poke`. No second actuator gate or
+  Hands impersonation was added.
+- Verification: exact packaged `3fdff19f` passes the full Verse smoke. Forced
+  reconciliation with operator-supplied `/bin/sh` against quarantined copied
+  state exits 1 with the canonical-brake refusal, preserves the CultCache hash
+  byte-for-byte, and creates no marker. Its 24-binary release is
+  `sha256-bd0062904fa8e7097946c6fd735191de43ff04a89d1c3c29c0c86f876815fb31`;
+  witness
+  `sha256-a051980f70b13d9dafa014fedc7fc636eb075a9fc85dc53e3a94081bcc3fe3e0`.

@@ -3757,3 +3757,37 @@ revision 312 with no active lease. Exact status derives
 pending proposal, no Imagination frontier, and no Hands consequence. Receipts
 are `.epiphany-run/forge-crosscommit-3a5d2b5e*` and
 `.epiphany-run/live-swap-c007f-2e1ccaf7`.
+
+## Canonical brake closes direct daemon actuation - 2026-08-11
+
+The non-repository actuator audit found one real Idunn bypass. The default
+brake listed `daemon.lifecycle_poke`, but explicit canonical engagement replaced
+that list with `canonical_epiphany_swarm_brake_protected_surfaces`, which
+omitted it. Therefore `epiphany-daemon-supervisor reconcile --restart-command`
+could reach an arbitrary operator-supplied executable while an all-scope brake
+was engaged. Commit `5a46f569` restores that surface to the canonical owner
+list and adds an exact engagement test. This is a brake ownership repair, not a
+new Hands gate: Idunn still owns permitted deployment restart actuation.
+
+The first packaged probe also exposed two dead assertions in
+`epiphany-verse-query smoke`: one demanded the former EpiphanyAgent path instead
+of the fixture topology's Body domain; another demanded a removed
+`imagination-consensus` receipt row with no producer or report path. Commit
+`3fdff19f` compares poke routing to the topology document that owns it and
+deletes the ownerless receipt assertion. Nineteen Verse-query tests and the
+full native Verse smoke pass.
+
+Exact `3fdff19f` packages as 24-binary release
+`sha256-bd0062904fa8e7097946c6fd735191de43ff04a89d1c3c29c0c86f876815fb31`
+with witness
+`sha256-a051980f70b13d9dafa014fedc7fc636eb075a9fc85dc53e3a94081bcc3fe3e0`;
+changed Cargo took 30.66s and an identical warm replay took 0.82s with zero
+warnings. Its packaged Verse smoke passes. On the resulting quarantined copied
+state, a forced `/bin/sh` restart attempt refused exit 1 before execution,
+preserved the exact local-Verse SHA-256, and created no marker. Receipts are
+`.epiphany-run/forge-crosscommit-3fdff19f*` and
+`.epiphany-run/brake-actuator-proof-3fdff19f`.
+
+Actual c007h remains exact `3a5d2b5e`, alive, braked at revision 312, and
+untouched. Continue classifying remaining non-repository actuators by their
+real owner; do not manufacture frontier work or build on Yggdrasil.

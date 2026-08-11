@@ -12,7 +12,7 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current source: exact `b8c39f99`.
+- Current source: exact `3fdff19f`.
 - Accepted runtime implementation: exact `3a5d2b5e`.
 - Linux release:
   `sha256-84af3da8d2a2e170aa0611e48367eac4ecf5f66b2a2da763dc3045c5ad360177`.
@@ -21,6 +21,10 @@ the actual braked resident body are the live gates.
 - Actual c007h: Heartbeat and resident Self alive in distinct containers,
   cognitive brake engaged, resident revision 312, authenticated readiness,
   no active lease, and action `awaitFrontierProposal`.
+- Audited candidate release:
+  `sha256-bd0062904fa8e7097946c6fd735191de43ff04a89d1c3c29c0c86f876815fb31`;
+  witness
+  `sha256-a051980f70b13d9dafa014fedc7fc636eb075a9fc85dc53e3a94081bcc3fe3e0`.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
 
@@ -29,11 +33,11 @@ the actual braked resident body are the live gates.
 | Faculty | Owner | Accepted proof | Remaining live gate |
 |---|---|---|---|
 | Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c007h superseded one overtaken unlaunched continuation and accepted the recovered proposal-Modeling result exactly once | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
-| Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths | audit remaining utility and compatibility actuators for bypasses |
+| Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths; canonical brake now covers direct daemon lifecycle actuation | finish classifying utility and compatibility actuators by their actual owner |
 | Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit and governed Linux tool circuit accepted into Mind | one broader foreign/public Verse evidence adoption path |
 | Modeling | runtime-owned typed Modeling contracts | causal Eyes-to-Modeling acceptance, direct proposal Modeling, archived fulfillment | broader Body-map coverage across a changing live repository |
 | Imagination | typed proposal/consideration producers | genuine packaged multi-option generation, proposal-only candidates, exact fulfillment, no Hands adoption leak | autonomous turnover from the next genuine eligible frontier |
-| Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts | audit non-repo-work actuators for direct consequence paths |
+| Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts; Idunn restart commands remain separate typed deployment authority and now brake closed | finish non-repo actuator classification for bridges, bootstrap, crossing, and forge paths |
 | Soul | Soul gateway | consequence-bound verdict, causal Modeling route, retention and replay | collapse remaining verifier-specific broad projections into narrow receipt reads |
 | Mind | canonical transactions and specialized admission | atomic RepoModel admission, launch-owned adjudication, semantic/runtime retention | audit remaining state families for legacy writers and run longer memory behavior |
 | Persona | Persona turn, speech audit, public mouth | cross-host request/permit/receipt, signed failure and unknown no-repost behavior, conversation retention | one completed public consequence; currently blocked by absent Yggdrasil Discord credential |
@@ -80,6 +84,15 @@ recovered `reviewModelingResult` route, accepted
 to idle at revision 312. The cognitive brake is engaged; no pending proposal,
 Imagination frontier, active lease, or Hands consequence exists.
 
+Exact candidate `3fdff19f` retains `daemon.lifecycle_poke` whenever the
+canonical all-scope brake is engaged. Its 24-binary Linux release completed in
+30.66s; an identical warm replay took 0.82s. The packaged Verse smoke passes.
+A forced supervisor reconciliation with operator-supplied `/bin/sh` against
+quarantined copied state refused exit 1, preserved the exact CultCache hash,
+and created no command marker. Receipts:
+`.epiphany-run/forge-crosscommit-3fdff19f*` and
+`.epiphany-run/brake-actuator-proof-3fdff19f`.
+
 ## Completed narrow local Verse consumer audit
 
 Lifecycle and single-target commands read only the state families that own
@@ -107,14 +120,16 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Map every surviving non-repository process actuator before editing it. Begin
-with `epiphany-daemon-supervisor`: distinguish explicit operator service launch,
-typed restart-policy reconciliation, and any agent/CultMesh-published command
-surface. For each path name the policy owner, executable binding, brake,
-receipt, and forbidden writers. Then inspect the remaining utility and bridge
-actuators. Cut only a demonstrated bypass; do not wrap coherent operator or
-Idunn authority in another gate. Actual c007h remains braked and untouched
-during the source audit.
+Finish mapping the surviving non-repository process actuators. The supervisor
+boundary is now classified: specialized managed children bind witnessed
+executables and typed policies; explicit generic service launch is operator
+CLI authority; restart reconciliation is Idunn authority under status, policy,
+cooldown, brake, intent, and receipt; unauthenticated v0 tool capabilities are
+ignored and publish no invocation command. Continue with Rider, Unity,
+Persona/Bifrost, repo bootstrap, release construction, process observation,
+and model-runtime launch paths. Cut only a demonstrated autonomous bypass; do
+not wrap coherent operator, crossing, forge, or cognition authority in another
+gate. Actual c007h remains braked and untouched during the source audit.
 
 ## Completion standard
 
