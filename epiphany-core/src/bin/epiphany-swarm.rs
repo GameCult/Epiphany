@@ -76,6 +76,7 @@ fn main() -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&projection)?);
         return Ok(());
     }
+    require_resident_git("git")?;
     let _singleton = acquire_resident_process_singleton("resident-self", &args.state_store)?;
     if let Some(pressure) = args.pressure.as_ref() {
         enqueue_resident_self_pressure(&args.state_store, pressure)?;
@@ -126,6 +127,20 @@ fn main() -> Result<()> {
             }
         }
         CommandKind::Status => unreachable!("status returned before actuation setup"),
+    }
+    Ok(())
+}
+
+fn require_resident_git(executable: &str) -> Result<()> {
+    let output = Command::new(executable)
+        .arg("--version")
+        .output()
+        .with_context(|| format!("resident coordinator body lacks required {executable:?}"))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "resident coordinator body has unusable {executable:?}: exit {}",
+            output.status
+        ));
     }
     Ok(())
 }
@@ -756,6 +771,11 @@ fn resident_self_brake_engaged(
 #[cfg(test)]
 mod brake_tests {
     use super::*;
+
+    #[test]
+    fn resident_body_preflight_refuses_missing_git_before_serve() {
+        assert!(require_resident_git("epiphany-deliberately-missing-git").is_err());
+    }
 
     #[test]
     fn brake_lookup_uses_the_exact_requested_runtime_namespace() -> Result<()> {

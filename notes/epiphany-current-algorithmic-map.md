@@ -1671,6 +1671,38 @@ pre-adoption frontier-item hash is deliberately not equated with the route's
 post-adoption frontier-item hash; Mind's admitted patch is the transition that
 changes that item.
 
+## Long-lived runtime root-session ownership
+
+- Owner: Runtime Continuity owns the canonical `epiphany-main` root session;
+  coordinator launches consume that identity but cannot decide its lifetime.
+- Inputs: the exact typed root session, its deterministic Continuity completion
+  event, archive absence, terminal job set, repair timestamp/reason, and the
+  full runtime snapshot.
+- Outputs: ordinary session closure refuses the root without changing bytes. A
+  narrow repair replaces only an invalidly Completed root as Active and deletes
+  only its exact completion event in one snapshot-fenced CultCache mutation.
+- Derived state: `active_sessions` is status projection, not leaked-work
+  authority. Open job status owns whether work is live.
+- Forbidden writers: generic close-session, retention, operator tidiness, and
+  session-count heuristics cannot terminalize or recreate the root. A repair
+  cannot infer authority from timestamps, a missing event, an archive, or an
+  open job.
+- Shared paths: coordinator heartbeat preparation and all later cognitive jobs
+  use `EPIPHANY_RUNTIME_ROOT_SESSION_ID`; the packaged runtime CLI delegates to
+  the same strict repair primitive.
+- Cut line: the production string literal and generic closure authority are
+  removed. The preserved c007 invalid completion is repaired only after this
+  exact source is packaged and authenticated.
+- Verification: generic closure leaves root bytes unchanged; incomplete or
+  hostile completion families refuse; exact repair removes the event, restores
+  Active, accepts a subsequent job, replays idempotently, and loses a concurrent
+  full-snapshot fence rather than merging authority.
+
+Resident coordinator Body readiness separately proves the required external
+`git` executable before singleton acquisition or pressure consumption. Missing
+Body capability is a startup refusal, not a reason to hammer one immutable
+typed request through process-failure retries.
+
 ## Exact release build cache ownership
 
 The root release-bundle manifest owns release profile policy. Measured on the

@@ -3581,3 +3581,38 @@ bootstrap rite invoked `cargo run` without the mandated shared target and paid
 names that build-free path and the correct shared-target fallback. Preserve the
 single deterministic release publisher; do not split it to fix operator
 contamination. Yggdrasil never builds.
+
+## c007 root Continuity fault and Body preflight — 2026-08-11
+
+Exact `d296c424` packaged as release
+`sha256-fc5bf3a8e8377c1effec824497184278909ee463cbff66278da35c00bb797001`
+with witness
+`sha256-cae5a0e9d4483d9c8a158e42202de11181094517a547b42930f410e579703c04`,
+24 binaries, and zero warnings. The first clean pass after the contaminated
+fingerprint rebuild took 5m10s Cargo; the identical warm replay took 0.80s
+Cargo and 9.20s wall. Warm packaging is no longer the iteration bottleneck.
+
+c007 launched with Docker's bounded `local` log driver. A fresh typed proposal
+then exposed two pre-cognition faults. The slim resident image lacked `git`, but
+readiness did not prove that required Body capability, so the same immutable
+proposal failed before worker launch 59 times. A git-capable c007c reached
+Runtime Continuity and then failed because the operator had mistaken six
+long-lived Active sessions for leaked work and generically completed them.
+Closing `epiphany-main` was invalid: every coordinator job uses it as the
+long-lived root session, so later work was refused as terminal. The incorrect
+receipt is explicitly marked operator corruption under
+`.epiphany-run/c007-d296c424/receipt.md`. c007c remains alive and cognitively
+braked; no failed attempt is accepted cognition.
+
+The active cut assigns ownership to Runtime Continuity. The canonical
+`EPIPHANY_RUNTIME_ROOT_SESSION_ID` supplies coordinator launch, generic session
+closure refuses it before mutation, and a narrow `repair-root-session` API/CLI
+requires the exact Completed root plus its deterministic Continuity completion
+event, no archive, and no open jobs. It atomically restores Active and deletes
+only that event behind the full snapshot fence. Resident serve/once now proves
+`git --version` before taking its singleton or consuming pressure. Focused root
+repair, ordinary closure, resident Body-preflight, and 34 coordinator-launch
+tests pass. This source is still uncommitted/unpackaged. Next commit/push,
+package exact source plus identical warm replay, then use only the authenticated
+repair CLI on the preserved c007 state before releasing the proposal once.
+Yggdrasil never builds.

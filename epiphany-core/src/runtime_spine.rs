@@ -194,6 +194,7 @@ pub const RUNTIME_SWARM_BINDING_TYPE: &str = "epiphany.runtime.swarm_binding";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
+pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
 pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
@@ -1433,6 +1434,12 @@ pub fn close_runtime_session(
     validate_non_empty(&options.session_id, "session id")?;
     validate_non_empty(&options.completed_at, "session completion time")?;
     validate_non_empty(&options.summary, "session completion summary")?;
+    if options.session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID {
+        return Err(anyhow!(
+            "runtime root session {:?} is long-lived and cannot be generically completed",
+            options.session_id
+        ));
+    }
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
@@ -1492,6 +1499,81 @@ pub fn close_runtime_session(
     };
     cache.put(&session.session_id, &session)?;
     cache.put(&event.event_id, &event)?;
+    Ok(session)
+}
+
+pub fn repair_runtime_root_session_after_invalid_completion(
+    store_path: impl AsRef<Path>,
+    repaired_at: &str,
+    reason: &str,
+) -> Result<EpiphanyRuntimeSession> {
+    validate_non_empty(repaired_at, "root session repair time")?;
+    validate_non_empty(reason, "root session repair reason")?;
+    chrono::DateTime::parse_from_rfc3339(repaired_at)
+        .context("root session repair time must be RFC 3339")?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let snapshot = cache.snapshot_envelopes();
+    let mut session = cache
+        .get::<EpiphanyRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)?
+        .ok_or_else(|| anyhow!("runtime root session does not exist"))?;
+    let event_id = format!("event-session-completed-{EPIPHANY_RUNTIME_ROOT_SESSION_ID}");
+    let event = cache.get::<EpiphanyRuntimeEvent>(&event_id)?;
+    if session.status == EpiphanyRuntimeSessionStatus::Active {
+        if event.is_some() {
+            return Err(anyhow!("active runtime root session has a hostile completion event"));
+        }
+        return Ok(session);
+    }
+    if session.status != EpiphanyRuntimeSessionStatus::Completed {
+        return Err(anyhow!("runtime root session is not repairable from its current status"));
+    }
+    if cache
+        .get::<EpiphanyArchivedRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)?
+        .is_some()
+    {
+        return Err(anyhow!("archived runtime root session cannot be repaired"));
+    }
+    let event = event
+        .ok_or_else(|| anyhow!("completed runtime root session lacks its completion event"))?;
+    if event.schema_version != RUNTIME_SPINE_SCHEMA_VERSION
+        || event.event_type != "session.completed"
+        || event.source != "continuity"
+        || event.session_id.as_deref() != Some(EPIPHANY_RUNTIME_ROOT_SESSION_ID)
+        || event.job_id.is_some()
+        || event.occurred_at != session.updated_at
+        || event.summary != session.coordinator_note
+    {
+        return Err(anyhow!(
+            "runtime root completion event does not exactly bind the completed session"
+        ));
+    }
+    if cache.get_all::<EpiphanyRuntimeJob>()?.into_iter().any(|job| {
+        job.session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID
+            && matches!(job.status, EpiphanyRuntimeJobStatus::Queued | EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview)
+    }) {
+        return Err(anyhow!(
+            "runtime root session has open jobs and cannot be repaired"
+        ));
+    }
+    let event_envelope = snapshot
+        .iter()
+        .find(|entry| entry.r#type == EpiphanyRuntimeEvent::TYPE && entry.key == event_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("runtime root completion event envelope is missing"))?;
+    session.status = EpiphanyRuntimeSessionStatus::Active;
+    session.updated_at = repaired_at.to_string();
+    session.coordinator_note = reason.to_string();
+    let replacement = cache.prepare_entry(EPIPHANY_RUNTIME_ROOT_SESSION_ID, &session)?.0;
+    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
+        &snapshot,
+        vec![replacement],
+        &[event_envelope],
+    )? {
+        return Err(anyhow!("runtime root session repair lost its full snapshot fence"));
+    }
     Ok(session)
 }
 
@@ -18414,6 +18496,67 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         assert_eq!(events.len(), 1);
         assert_eq!(runtime_spine_status(&store)?.active_sessions, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_root_session_refuses_generic_closure_and_repairs_exact_invalid_completion()
+    -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(&store, RuntimeSpineInitOptions {
+            runtime_id: "epiphany-test".into(), display_name: "Epiphany Test".into(),
+            created_at: "2026-08-11T09:00:00Z".into(),
+        })?;
+        create_runtime_session(&store, RuntimeSpineSessionOptions {
+            session_id: EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Own the long-lived cognitive runtime.".into(),
+            created_at: "2026-08-11T09:00:01Z".into(), coordinator_note: "root active".into(),
+        })?;
+        let before = fs::read(&store)?;
+        assert!(close_runtime_session(&store, RuntimeSpineSessionClosureOptions {
+            session_id: EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            completed_at: "2026-08-11T09:00:02Z".into(), summary: "invalid".into(),
+        }).is_err());
+        assert_eq!(fs::read(&store)?, before);
+
+        let completed_at = "2026-08-11T09:00:04Z";
+        let summary = "operator incorrectly completed the root";
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut session = cache.get::<EpiphanyRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)?.unwrap();
+        session.status = EpiphanyRuntimeSessionStatus::Completed;
+        session.updated_at = completed_at.into();
+        session.coordinator_note = summary.into();
+        cache.put(EPIPHANY_RUNTIME_ROOT_SESSION_ID, &session)?;
+        let completed_without_event = fs::read(&store)?;
+        assert!(repair_runtime_root_session_after_invalid_completion(
+            &store,
+            "2026-08-11T09:00:05Z",
+            "must refuse incomplete authority",
+        ).is_err());
+        assert_eq!(fs::read(&store)?, completed_without_event);
+        let event_id = format!("event-session-completed-{EPIPHANY_RUNTIME_ROOT_SESSION_ID}");
+        cache.put(&event_id, &EpiphanyRuntimeEvent {
+            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.into(), event_id: event_id.clone(),
+            occurred_at: completed_at.into(), event_type: "session.completed".into(),
+            source: "continuity".into(), session_id: Some(EPIPHANY_RUNTIME_ROOT_SESSION_ID.into()),
+            job_id: None, summary: summary.into(), metadata: BTreeMap::new(),
+        })?;
+        let repaired = repair_runtime_root_session_after_invalid_completion(
+            &store, "2026-08-11T09:00:06Z", "restore root authority")?;
+        assert_eq!(repaired.status, EpiphanyRuntimeSessionStatus::Active);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_none());
+        create_runtime_job(&store, RuntimeSpineJobOptions {
+            job_id: "job-after-root-repair".into(), session_id: EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            role: "modeling".into(), created_at: "2026-08-11T09:00:07Z".into(),
+            summary: "Prove restored root accepts work.".into(), artifact_refs: Vec::new(),
+        })?;
+        assert_eq!(repair_runtime_root_session_after_invalid_completion(
+            &store, "2026-08-11T09:00:08Z", "idempotent")?.status,
+            EpiphanyRuntimeSessionStatus::Active);
         Ok(())
     }
 

@@ -305,7 +305,7 @@ fn commit_coordinator_job_launch_in_cache(
         RuntimeSpineHeartbeatJobOptions {
             runtime_id: runtime_identity.runtime_id,
             display_name: "Epiphany Local".to_string(),
-            session_id: "epiphany-main".to_string(),
+            session_id: crate::runtime_spine::EPIPHANY_RUNTIME_ROOT_SESSION_ID.to_string(),
             objective: plan
                 .planning_state
                 .objective
