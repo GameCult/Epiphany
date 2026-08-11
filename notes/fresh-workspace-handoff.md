@@ -3905,3 +3905,43 @@ Do not restart either owner yet. Preserve the collision as evidence, inspect
 the proposal/binding/selection companion family and accepted result, repair the
 promotion ownership/idempotence seam on copied state, and only then perform
 exact-process receipt-free recovery of the stranded lease.
+
+## Causal thread recovery and live native Imagination - 2026-08-11
+
+Copied c008b state proved the autonomous promotion family was complete. Exact
+replay differed only because promotion reconstructed immutable companions from
+the mutable singleton coordinator thread after resident bootstrap. Commit
+`78ca972b` makes the admitted model-direction request own causal thread identity;
+complete replay is byte-identical and a hostile partial family refuses without
+mutation.
+
+The first exact restart then performed a legitimate two-cycle Continuity
+recovery: the old proposal Modeling launch still had a nominally live process
+claim, so duplicate launch refused; Self observed the exact incarnation dead
+and terminalized it. The next retry exposed the same stale-owner veto in
+proposal Modeling launch validation: request and proposal belonged to
+`linux-eyes-tools-c005`, while the singleton projection named the resident
+thread. Commit `d3e433fc` removes that veto and proves a launch after projection
+transition atomically restores the admitted cognitive thread.
+
+Exact `d3e433fc` packages as 24-binary release
+`sha256-11be5dae8429fcb6c604a15e8e122869f3ee60b9699831329b49fb62c1689768`
+with witness
+`sha256-217eafc8752d16fb249aad69b5dfc312e5fd507d2c05bff1cf5a1dbcc1b5ab32`;
+changed Cargo completed in 20.96 seconds with no warnings. c009 stopped both
+owners at exit zero. c010 authenticated the exact package while braked, then
+live replay restored `linux-eyes-tools-c005`, launched fresh Modeling job
+`a4495f79-6fe7-4c00-a71f-577fbc1988e1`, held `awaiting-fulfillment`, settled
+once at revision 344, and accepted the downstream review continuation.
+
+The same released run then completed native admitted-model-direction
+Imagination, emitted a new autonomous proposal, and completed two consequent
+proposal Modeling families. One first worker attempt died; Runtime Continuity
+made the exact second attempt eligible and it settled without dual live
+authority. The canonical cognitive brake is engaged at revision 364 with c010
+resident and Heartbeat alive and no active lease. Current coordinator status is
+`reviewModelingResult`; inspect and accept only exact authenticated typed
+evidence before releasing another route. Receipts are
+`.epiphany-run/c008b-promotion-collision-a07f6541`,
+`.epiphany-run/c009-provenance-mismatch-d3e433fc`, and
+`.epiphany-run/forge-crosscommit-d3e433fc`.

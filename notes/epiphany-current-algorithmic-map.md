@@ -4264,28 +4264,41 @@ Soul binding, and split-admission replay.
   Exact a07f6541 c008b authenticated live attempt 2 across launch promotion,
   preserved the canonical objective, and settled it once at revision 320.
 
-### Autonomous proposal promotion collision (live-open)
+### Admitted causal thread owns autonomous promotion and proposal Modeling launch
 
 - Owner: the runtime-spine promotion transaction owns publication of the exact
   proposal, autonomous binding, and proposal-Modeling selection companion
   family under one full-snapshot fence.
-- Inputs: the accepted model-direction result, immutable model admission,
-  current Body binding, selected option, and any exact existing companion
-  family.
+- Inputs: the accepted model-direction request/result, immutable model
+  admission, current Body binding, selected option, and any exact existing
+  companion family. The admitted request supplies the causal thread identity;
+  the singleton coordinator projection supplies only the current state value.
 - Outputs: either the complete matching three-envelope family or a fail-closed
   refusal with no substituted/partial adoption.
-- Derived state: resident failure and the continuation grant are observations;
-  neither may repair or overwrite a companion.
-- Forbidden writers: Heartbeat, resident recovery, retry launch, and retention
-  cannot synthesize the missing companion or treat a same-key mismatch as
-  idempotent replay.
-- Shared paths: initial promotion and replay must use the same exact-family
-  equality and CAS primitive.
-- Cut line: inspect the frozen c008b family before editing. Decide whether the
-  live collision is a partial atomicity breach or an over-strict replay
-  comparison; do not add a retry compensator.
-- Verification: exact a07f6541 settled the preceding directive, then resident
-  exited 1 on `autonomous proposal promotion companion collision`; Heartbeat
-  stopped exit zero, the cognitive brake is engaged, and readiness reports the
-  stranded active lease process as missing. Copied-state hostile partial-family
-  proof and exact-process Continuity recovery are required before restart.
+- Derived state: the singleton `EpiphanyThreadStateEntry.thread_id` is a mutable
+  coordinator projection. It is not the owner of already-admitted proposal
+  lineage and may transition through the resident orchestration thread between
+  promotion, retry, and launch.
+- Forbidden writers: Heartbeat, resident recovery, retry launch, retention, and
+  the current singleton thread projection cannot rewrite causal request,
+  proposal, binding, or selection identity.
+- Shared paths: initial promotion and replay use the same exact-family equality
+  and CAS primitive. Initial proposal Modeling launch and an exact retry after
+  process terminality both restore the admitted cognitive thread through the
+  ordinary coordinator transaction.
+- Cut line: derive promotion companions and proposal Modeling launch provenance
+  from the admitted request thread. Delete the mutable-singleton equality veto;
+  retain exact equality across request/proposal/runtime/repository/workspace,
+  caller state, and full companion family. Do not add a retry compensator.
+- Verification: exact 78ca972b reproduced the c008b collision on copied state,
+  proved the only divergent field was causal thread identity, replayed the
+  complete family without a write, and refused a hostile partial family. Exact
+  d3e433fc adds the launch-transition test and packages as release
+  `sha256-11be5dae8429fcb6c604a15e8e122869f3ee60b9699831329b49fb62c1689768`
+  with witness
+  `sha256-217eafc8752d16fb249aad69b5dfc312e5fd507d2c05bff1cf5a1dbcc1b5ab32`.
+  Live c010 restored `linux-eyes-tools-c005`, launched a fresh exact Modeling
+  worker after the old claim became `terminal-death`, settled the stranded
+  request once, accepted its review, completed native admitted-direction
+  Imagination, and completed two resulting proposal Modeling families. The
+  brake is engaged at revision 364 with no active lease.

@@ -36,19 +36,19 @@ invariants:
 
 current_status:
   summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact b8138a6b active-child SIGTERM and restart, exact 9f369528 deterministic warm packaging, exact c930f505 cross-container ownership, exact ed15f83a resident lifecycle retention, exact 16c4b19f coordinator receipt and Heartbeat artifact retention, exact cce2b8ac narrow model-generation retention, exact eea15e82 model-turn JSON ingress, exact b1e8c89a semantic unattempted-generation retention, exact 6bc3ec3f semantic physical-epoch retirement, and exact 44230a05 Persona conversation retention are proven. Gamecult-ops 059821f owns Yggdrasil stream retention and exact 6ee08a4 owns stable Starfire Persona-permit firewall ingress. Exact 16c4b19f genuine idle and exact a987d2f7 active cognition completed 900-pulse bounded plateaus. Runtime-owned typed fulfillment is accepted live under exact 6dd9b132. Yggdrasil is the small public crossing body, never the release forge.
-  latest_phase: Exact a07f6541 packages the resident-directive ownership cut as warning-free 24-binary release sha256-ba51cbac5fe2400c27497c5df92fe128ce083a29c45e9ccf5eb95d21ec807b26 with witness sha256-01a6d5d74129ffb3096a3aa3f4ea7cd98d13af38b27d5322a8ab1d8f458d7a03. Live c008b authenticated the persisted attempt-2 directive across prepared-to-active promotion, preserved the Mind-owned canonical objective, and settled it once at resident revision 320. Autonomous turnover then advanced through proposal Modeling and a continuation grant, but resident Self exited 1 on autonomous proposal promotion companion collision while an active lease remained. Heartbeat was stopped exit zero, the canonical cognitive brake was re-engaged from the exact packaged Body, and readiness now correctly reports the missing active process. The fault is frozen for receipt-backed recovery; no restart has been attempted. Yggdrasil never builds.
+  latest_phase: Exact 78ca972b binds autonomous proposal promotion to the admitted model-direction request thread instead of the mutable singleton coordinator projection; copied exact c008b replay is byte-identical and hostile partial-family state refuses. Exact d3e433fc extends the same owner to proposal Modeling launch after resident projection transition. Its warning-free 24-binary release sha256-11be5dae8429fcb6c604a15e8e122869f3ee60b9699831329b49fb62c1689768 with witness sha256-217eafc8752d16fb249aad69b5dfc312e5fd507d2c05bff1cf5a1dbcc1b5ab32 packaged in 20.96 seconds. Live c010 recovered the exact dead prior worker claim, restored cognitive thread linux-eyes-tools-c005, completed the stranded proposal Modeling request once, accepted its review continuation, completed native admitted-direction Imagination, and completed two resulting proposal Modeling families. One first worker attempt died and the exact second attempt settled; the brake is engaged at resident revision 364 with no active lease. Yggdrasil never builds.
   operational_state:
-    local_worktree: clean_source_after_live_c008b_companion_collision
+    local_worktree: clean_at_pushed_d3e433fc_after_live_c010_proof
     operator_wireguard: restored
     starfire_persona_permit_firewall: persistent_exact_gamecult_ops_6ee08a4
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
-    starfire_swarm_brake: engaged_after_live_c008b_resident_exit
-    starfire_release: exact_a07f6541_sha256_ba51cbac_live_c008b_stopped
+    starfire_swarm_brake: engaged_at_c010_phase_boundary_revision364
+    starfire_release: exact_d3e433fc_sha256_11be5dae_live_c010
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
-    starfire_native_status: authenticated_warming_c008b_active_lease_process_missing
+    starfire_native_status: authenticated_active_c010_braked_no_lease
     bifrost: exact_cb3239aa_f67f5122_native_runtime_active_on_yggdrasil
     bifrost_persona_feedback: ready_on_yggdrasil
     bifrost_feedback_binding: gamecult_aquarium_to_epiphany_starfire
@@ -68,9 +68,9 @@ current_status:
     starfire_linux_role_cognition: eyes_and_modeling_tools_results_and_acceptance_proven_zero_consequence
     starfire_linux_modeling_peak: 109887488_bytes_resident_body_plus_modeling_circuit
     yggdrasil_epiphany_service_contract: repaired_in_gamecult_ops_812b427_not_installed
-    resident_physiology: c008b_exact_a07f6541_stopped_after_revision320_directive_settlement_and_companion_collision
+    resident_physiology: c010_exact_d3e433fc_alive_braked_revision364_after_causal_thread_recovery_and_native_imagination_turnover
   unresolved_authority: Coordinator receipt, Heartbeat pulse-artifact, genuine-idle and active resource plateaus, exact-grant terminality, restart-persistent cooldown refusal, schedule/action issuance cardinality, runtime-owned typed fulfillment, all three packaged fulfilled-before-receipt lanes, genuine packaged Imagination option generation, narrow model-generation retention, published model-turn JSON ingress, semantic logical/physical retention, Persona conversation retention, stable Starfire firewall ownership, completed model-adapter session archival, normal coordinator lifecycle opening/error closure/legacy repair/archival, co-resident resident lifecycle retention, authenticated outer-worker attempt retention, deployed supervisor/projector journald ownership, Docker named-volume atomic snapshot visibility, deterministic incremental release construction, and canonical-brake refusal of direct daemon lifecycle actuation are accepted. Starfire's Docker Desktop F: bind is rejected for mutable authority after an exact packaged lockless reader observed an empty published snapshot during writer interruption. Historical migrated semantic attempts without recorded physical namespace remain durable and non-retirable. One completed Discord consequence remains blocked by the absent Yggdrasil credential. Exact aa841873 also makes legacy coordinator repair one full-snapshot transaction so a later hostile family cannot leave an earlier partial repair.
-  next_action: Keep c008b stopped and the cognitive brake engaged. Preserve the exact collision logs and inspect the three autonomous promotion companions against the accepted proposal/modeling result to identify which authority diverged. Repair ownership or idempotence at the promotion transaction, prove the hostile partial-family case on copied state, then use receipt-free exact-process recovery for the stranded active lease before any resident restart. Do not build on Yggdrasil.
+  next_action: Keep c010 alive and the cognitive brake engaged. Preserve .epiphany-run/c008b-promotion-collision-a07f6541, .epiphany-run/c009-provenance-mismatch-d3e433fc, and the exact d3e433fc package receipts. Inspect the current typed reviewModelingResult action and the c010 first-attempt worker death using operator-safe projections, accept only an exact authenticated Modeling result, then inspect the next organ route. Continue retention, supervisor/log ownership, and longer coordinated endurance from this proven body. Do not build on Yggdrasil.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.
