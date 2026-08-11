@@ -4352,7 +4352,13 @@ Soul binding, and split-admission replay.
   `sha256-089e000511f0420bfaab1136952b8cf94677a72d5c30a3fb3e6a26996bd3726f`
   with witness
   `sha256-20ca293589b33d3b2e6ea5a7411db544741fe18360ecbd4423cdfa000d1ad7c6`.
-  Live c011 restarted braked at revision 372 with zero zombies. One genuine
-  packaged worker terminalization followed by a zero-zombie PID 1 inspection
-  remains the live acceptance gate; failed-closed attempts that launch no
-  worker do not count.
+  Live c011 restarted braked at revision 372 with zero zombies. Typed operator
+  proposal `operator-c011-worker-reaper-live-proof-20260811` then drove the
+  real route through Modeling request `repo-frontier-proposal-modeling-1c15a1d0...`,
+  Heartbeat, Self, the packaged coordinator, and adopted model-worker PID 152.
+  The worker terminalized normally, Self settled at revision 376, and the next
+  resident cycle removed PID 152 from the process table with no defunct child.
+  The Modeling review continuation completed; the brake engaged at revision
+  381 before the next admitted-direction Imagination worker launch. The reaper
+  owner is therefore accepted at source, package, Linux helper, and genuine
+  coordinated runtime layers.

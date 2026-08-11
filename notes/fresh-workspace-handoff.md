@@ -4000,3 +4000,23 @@ substituted. Do not manufacture a claim to satisfy the smoke. The remaining
 acceptance gate is the next genuine packaged worker lifecycle: after normal
 terminalization, resident PID 1 must return to zero zombies. Keep c011 braked
 until such typed work exists.
+
+That live gate is now accepted. Explicit operator proposal
+`operator-c011-worker-reaper-live-proof-20260811` atomically selected Modeling
+request
+`repo-frontier-proposal-modeling-1c15a1d0d22e52cff8d735f331658c6a9a652b183d29f35902a7ca6dbc676f50`.
+After release, Heartbeat issued exactly one grant and Self launched the exact
+packaged coordinator. Model worker PID 152 became a running child of resident
+PID 1 after the coordinator exited. It completed authenticated Modeling,
+resident Self held `awaiting-fulfillment`, then settled the grant at revision
+376. On the next cycle PID 152 was absent from the process table rather than
+defunct; resident PID 1 was the only resident process. This is the required
+source-to-package-to-kernel proof for the reaper owner.
+
+The native review continuation then completed and was acknowledged. Heartbeat
+issued the next typed admitted-model-direction Imagination grant at pulse 216;
+the canonical brake engaged before a new worker launch. c011 is braked at
+revision 381 with no active lease and zero zombies. Preserve that exact next
+grant/request binding; inspect it before release, then run one bounded
+Imagination lifecycle and require zero zombies again. Do not create another
+proposal or manual-regather pressure.
