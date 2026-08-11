@@ -3826,3 +3826,19 @@ prerequisite in the atomic Mind acceptance transaction. It is now compiled
 only for crate tests and no longer exported. Ten verdict tests, the focused
 Soul acceptance test, and warning-free library check pass. Package this cut,
 then continue with the next unproven Soul/Mind boundary.
+
+Exact `9370e47a` packages that Soul cut as warning-free 24-binary release
+`sha256-fe3e6c2465017f45649bef61fed1e54b5502f7963c83526fd1f5a791a7a35ac8`
+with witness
+`sha256-712372f40acd4250c54d4d328a79195d6c955cd9c22e7024abb51c038b043942`.
+The package contains no standalone Soul-verdict command, so there is no honest
+copied-state CLI invocation for the removed actuator; hostile causal-chain
+falsification remains in the exact source verifier suite.
+
+The next Mind audit found the same obsolete fixture aperture. Production
+publishes `MindGatewayReview` and `MindStateCommitReceipt` only beside the exact
+coordinator state transition through `commit_state_with_mind_witness`, but both
+had exported standalone shape-only writers with no production caller. Those
+writers and re-exports are now test-only. The atomic state-and-witness test,
+the direct historical-family fixture test, and production library check pass.
+Commit/package this cut before selecting the next organ boundary.

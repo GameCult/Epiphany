@@ -120,10 +120,10 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Package the Soul writer-ownership cut and prove the exact packaged verifier
-path on copied state where the binary graph exposes it. Then select the next
-unproven Soul/Mind matrix boundary. Actual c007h remains braked and untouched;
-do not manufacture frontier work.
+Commit and package the Mind transaction-companion writer cut. Authenticate the
+exact release and confirm that no standalone Mind review/commit actuator enters
+the binary graph. Then select the next unproven organ matrix boundary. Actual
+c007h remains braked and untouched; do not manufacture frontier work.
 
 ## Completion standard
 

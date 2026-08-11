@@ -1100,8 +1100,10 @@ pub use runtime_spine::put_hands_commit_receipt;
 pub use runtime_spine::put_hands_patch_receipt;
 #[cfg(test)]
 pub use runtime_spine::put_hands_pr_receipt;
-pub use runtime_spine::put_mind_gateway_review;
-pub use runtime_spine::put_mind_state_commit_receipt;
+#[cfg(test)]
+pub(crate) use runtime_spine::put_mind_gateway_review;
+#[cfg(test)]
+pub(crate) use runtime_spine::put_mind_state_commit_receipt;
 pub use runtime_spine::put_repo_frontier_hands_authority;
 pub use runtime_spine::put_repo_frontier_verification_request;
 pub use runtime_spine::put_repo_frontier_work_proposal;

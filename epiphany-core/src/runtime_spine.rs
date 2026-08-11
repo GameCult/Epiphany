@@ -8745,7 +8745,12 @@ pub fn runtime_reorient_worker_result(
     cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
 }
 
-pub fn put_mind_gateway_review(
+// Mind reviews and commit receipts are transaction companions. Production
+// publishes them only beside the exact coordinator state transition in
+// commit_state_with_mind_witness; these narrow writers exist solely for spine
+// fixtures that assemble historical families directly.
+#[cfg(test)]
+pub(crate) fn put_mind_gateway_review(
     store_path: impl AsRef<Path>,
     review: &MindGatewayReview,
 ) -> Result<()> {
@@ -8769,7 +8774,8 @@ pub fn runtime_mind_gateway_review(
     cache.get::<MindGatewayReview>(gateway_id)
 }
 
-pub fn put_mind_state_commit_receipt(
+#[cfg(test)]
+pub(crate) fn put_mind_state_commit_receipt(
     store_path: impl AsRef<Path>,
     receipt: &MindStateCommitReceipt,
 ) -> Result<()> {

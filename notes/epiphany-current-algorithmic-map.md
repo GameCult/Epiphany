@@ -4194,3 +4194,30 @@ state is now the sole final-action owner for these review paths.
 - Verification: ten `verdict` library tests, the focused atomic Soul acceptance
   test, and production library check pass. Mixed request, route, result, and
   illegal frontier edits remain byte-identical refusals.
+
+Exact source `9370e47a` packages this ownership as 24-binary release
+`sha256-fe3e6c2465017f45649bef61fed1e54b5502f7963c83526fd1f5a791a7a35ac8`
+with witness
+`sha256-712372f40acd4250c54d4d328a79195d6c955cd9c22e7024abb51c038b043942`.
+The release graph contains no standalone Soul-verdict actuator.
+
+## Mind state-witness transaction ownership
+
+- Owner: `commit_state_with_mind_witness` owns the coordinator state CAS and
+  its exact `MindGatewayReview`, `MindStateCommitReceipt`, and organ-specific
+  prerequisite envelopes.
+- Inputs: expected coordinator state snapshot, next state, exact gateway
+  review, matching state-revision commit receipt, and typed prerequisites.
+- Outputs: one snapshot-fenced coordinator state transition with its complete
+  Mind witness family, or no mutation.
+- Derived state: standalone review and commit reads are evidence inspection;
+  neither document is an independent state-admission command.
+- Forbidden writers: production callers cannot insert a Mind review or commit
+  receipt outside the coordinator state transaction. The narrow fixture writers
+  compile only under crate tests and are absent from the public API.
+- Shared paths: native role acceptance, reorientation acceptance, and split
+  model-admission completion converge on the same transaction primitive.
+- Cut line: remove production compilation and public re-export of both raw
+  writer functions; retain no compatibility route.
+- Verification: the atomic state-and-Mind-witness test, the historical-family
+  fixture test, and warning-free production library check pass.
