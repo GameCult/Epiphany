@@ -56,13 +56,19 @@ copied mention before the brake was re-engaged. Full receipts are under
 `.epiphany-run/imagination-acd91e6e` and
 `.epiphany-run/linux-package-acd91e6e`.
 
-The Imagination live gate is accepted. Release iteration remains the next
-machine fault: after repairing the stable source/cache owner, the two-file
-`acd91e6e` change still took 5m02s because the broad `epiphany-core` and
-24-binary release graph relink together. Profile that exact warm graph, map the
-compile owner, and split only coherent ownership seams; require a materially
-faster exact 24-binary package before resuming broader autonomous turnover.
-Yggdrasil never builds.
+The Imagination live gate is accepted. The next release-iteration fault was a
+split policy owner, not yet evidence that `epiphany-core` deserved surgery:
+the root release profile enabled incremental compilation while release
+construction unconditionally exported `CARGO_INCREMENTAL=0`. Commit `2f2cf6f8`
+removes that override and leaves profile policy with the root manifest. The
+one-time cache migration took 6m47s. An identical replay then completed in
+8.76s wall time with Cargo at 0.77s and reproduced exact 24-binary release
+`sha256-6cfafa4f3918a96a9ed7c080f6b52ed9e2ed750e7fad51f83f86354c1e90033a`
+and witness
+`sha256-f20677a44d0e29960f43d70091cacaab182e6939220a2173c3bf449392b427d9`.
+Use the next coherent core-source shakedown cut to falsify source-changing
+iteration speed against the 5m02s baseline before accepting the owner repair.
+Do not split the core merely to improve a proxy. Yggdrasil never builds.
 
 ## Runtime-owned Imagination candidate publication packaged - 2026-08-11
 

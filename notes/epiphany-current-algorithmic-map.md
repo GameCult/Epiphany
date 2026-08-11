@@ -2080,10 +2080,22 @@ incremental codegen is therefore not an admissible input to witnessed output.
 `build_required_release_siblings` now has one process owner. It selects
 `epiphany-release-bundle` and `epiphany-core`, selects
 `epiphany-release-bundle/coordinator-runtime` once, names all 23 required
-binaries explicitly, and sets `CARGO_INCREMENTAL=0`. Follow-up coordinator and
-state-steward Cargo commands are forbidden writers and have been deleted. All
-19 focused packaged-release tests pass. Exact Linux packaging plus a
-byte-identical warm rerun remain the verification boundary.
+binaries explicitly. Follow-up coordinator and state-steward Cargo commands
+are forbidden writers and have been deleted. The root manifest is the release
+profile owner; construction no longer overrides its incremental policy through
+the environment. Incremental artifacts are cache state, never witness
+authority: the packaged binaries and typed witness remain the authenticated
+output. All 20 focused packaged-release tests pass.
+
+Exact source `2f2cf6f8` paid a one-time 6m47s cache migration after removing the
+construction override. Its identical replay completed in 8.76s wall time with
+Cargo at 0.77s and reproduced the exact 24-binary release
+`sha256-6cfafa4f3918a96a9ed7c080f6b52ed9e2ed750e7fad51f83f86354c1e90033a`
+and witness
+`sha256-f20677a44d0e29960f43d70091cacaab182e6939220a2173c3bf449392b427d9`.
+This proves deterministic no-change replay. A real core-source delta must still
+beat the 5m02s `acd91e6e` baseline before the source-changing iteration fault is
+closed; core ownership must not be split merely to move that proxy.
 
 ### Sole packaged executable owner
 
