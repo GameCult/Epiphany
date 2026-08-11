@@ -3709,9 +3709,24 @@ no pending proposal request.
 The active source cut preserves the failed receipt as process evidence but lets
 the exact fulfilled proposal result own review readiness. It requires the
 failed receipt, its grant and launch digest, one terminal acknowledgement, the
-runtime-owned typed fulfillment, the current Modeling result link, and absence
+runtime-owned typed fulfillment, the current Modeling job link, and absence
 of prior acceptance before deriving only `reviewModelingResult`. Typed
 completion now records terminal status `fulfilled` instead of copying the
 process receipt's status. Thirty-one resident tests, nine swarm tests, and the
 new hostile failed-receipt/valid-result lifecycle test pass. Commit/package and
 exact c007e continuation replay remain next. Yggdrasil never builds.
+
+Commit `2e1ccaf7` packaged as release
+`sha256-243899f155e06e043de4c0d0ec7c6a0ab80296a6deb7ba83229b032555b06f29`
+with witness
+`sha256-c7b8dc0399455173f1856bda9cbbe6353f58f4890c7d3f8dc89606921865cd70`;
+Cargo took 1m24s changed and 0.88s warm with identical output. c007e stopped
+both owners exit zero and c007f started exact/authenticated/braked at revision
+302. Live release then falsified one test-only assumption: the Modeling runtime
+link's `runtime_result_id` remains absent until acceptance, so requiring it to
+authorize pre-acceptance review is circular. Resident failed closed exit 1,
+the cognitive brake was immediately reengaged, Heartbeat remained alive, and
+receipts are `.epiphany-run/live-swap-c007f-2e1ccaf7`. The corrected source
+requires the exact Modeling job link plus runtime-owned typed fulfillment; its
+focused lifecycle test now explicitly proves recovery while link result ID is
+absent. Package/restart/live replay of this correction is next.

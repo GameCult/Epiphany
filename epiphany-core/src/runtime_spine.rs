@@ -14469,24 +14469,16 @@ pub(crate) mod tests {
         let thread_entry = runtime
             .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
             .expect("proposal fixture thread state");
-        let mut thread_state = thread_entry.state()?;
+        let thread_state = thread_entry.state()?;
         let modeling_link = thread_state
             .runtime_links
-            .iter_mut()
+            .iter()
             .find(|link| {
                 link.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
                     && link.runtime_job_id == result.job_id
             })
             .expect("proposal fixture Modeling runtime link");
-        modeling_link.surface = "runtimeResult".into();
-        modeling_link.runtime_result_id = Some(result.result_id.clone());
-        runtime.put(
-            crate::THREAD_STATE_KEY,
-            &crate::EpiphanyThreadStateEntry::from_state(
-                &thread_entry.thread_id,
-                &thread_state,
-            )?,
-        )?;
+        assert!(modeling_link.runtime_result_id.is_none());
 
         let resident_store = root.path().join("resident.cc");
         crate::enqueue_resident_self_pressure(

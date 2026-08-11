@@ -1426,8 +1426,9 @@ the exact request. Resident settlement records that grant as `fulfilled`, not
 as the failed process status. Continuation ingress may derive
 `reviewModelingResult` only when the failed receipt, its exact resident grant
 and launch digest, one terminal acknowledgement, the authenticated proposal
-fulfillment, and the current Modeling runtime link all agree, and no acceptance
-receipt already exists. The failed process receipt remains process evidence;
+fulfillment, and the current Modeling job link all agree, and no acceptance
+receipt already exists. The job link is launch authority; its result ID remains
+unset until acceptance and is not pre-acceptance evidence. The failed process receipt remains process evidence;
 the typed result owns cognitive review readiness. This route cannot launch a
 second worker or continue into Hands.
 

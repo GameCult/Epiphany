@@ -1353,12 +1353,11 @@ fn resident_self_failed_receipt_typed_continuation_action(
         .filter(|link| {
             link.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
                 && link.runtime_job_id == evidence.job_id
-                && link.runtime_result_id.as_deref() == Some(evidence.result_id.as_str())
         })
         .count();
     if links != 1 {
         return Err(anyhow!(
-            "typed proposal fulfillment does not own exactly one current Modeling result link"
+            "typed proposal fulfillment does not own exactly one current Modeling job link"
         ));
     }
     let acceptances = state
