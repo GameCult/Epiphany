@@ -806,6 +806,61 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     schema
 }
 
+pub fn epiphany_proposal_modeling_output_schema(
+    source_kind: crate::RepoFrontierProposalSourceKind,
+) -> serde_json::Value {
+    let recommended_organs = match source_kind {
+        crate::RepoFrontierProposalSourceKind::Imagination => vec!["Eyes", "Imagination"],
+        crate::RepoFrontierProposalSourceKind::User
+        | crate::RepoFrontierProposalSourceKind::Persona
+        | crate::RepoFrontierProposalSourceKind::Bifrost => {
+            vec!["Hands", "Eyes", "Imagination"]
+        }
+    };
+    serde_json::json!({
+        "type": "object",
+        "required": [
+            "roleId", "verdict", "summary", "nextSafeMove", "filesInspected",
+            "frontierNodeIds", "evidenceIds", "proposalFrontierDraft"
+        ],
+        "properties": {
+            "roleId": {"const": "modeling"},
+            "verdict": {
+                "type": "string",
+                "enum": ["checkpoint-ready", "checkpoint-update-needed", "regather-needed"]
+            },
+            "summary": {"type": "string", "minLength": 1},
+            "nextSafeMove": {"type": "string", "minLength": 1},
+            "filesInspected": {"type": "array", "items": {"type": "string"}},
+            "frontierNodeIds": {"type": "array", "items": {"type": "string"}},
+            "evidenceIds": {"type": "array", "items": {"type": "string"}},
+            "proposalFrontierDraft": {
+                "type": "object",
+                "required": [
+                    "migrationBody", "question", "gap", "targetClaimIds", "sourceScope",
+                    "recommendedNextOrgan", "dependencyItemIds", "evidenceRefs"
+                ],
+                "properties": {
+                    "migrationBody": {"type": "string", "minLength": 1},
+                    "question": {"type": "string", "minLength": 1},
+                    "gap": {"type": "string", "minLength": 1},
+                    "targetClaimIds": {"type": "array", "items": {"type": "string"}},
+                    "sourceScope": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1}
+                    },
+                    "recommendedNextOrgan": {"type": "string", "enum": recommended_organs},
+                    "dependencyItemIds": {"type": "array", "items": {"type": "string"}},
+                    "evidenceRefs": {"type": "array", "items": {"type": "string"}}
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 pub fn epiphany_frontier_verdict_modeling_output_schema(
     authority: &crate::RepoFrontierVerdictModelingLaunchAuthority,
 ) -> serde_json::Value {
@@ -2015,6 +2070,45 @@ mod tests {
             assert!(schema["properties"].get(forbidden).is_none());
         }
         assert_eq!(schema["additionalProperties"], false);
+    }
+
+    #[test]
+    fn proposal_modeling_schema_exposes_only_strict_semantic_frontier_draft() {
+        let schema = epiphany_proposal_modeling_output_schema(
+            crate::RepoFrontierProposalSourceKind::User,
+        );
+        assert_eq!(schema["additionalProperties"], false);
+        assert!(schema["properties"].get("proposalFrontierDraft").is_some());
+        for runtime_owned in [
+            "repoModelPatch",
+            "proposalModelingRequestId",
+            "repositoryBodyObservationBasis",
+            "statePatch",
+            "selfPatch",
+        ] {
+            assert!(schema["properties"].get(runtime_owned).is_none());
+        }
+        let properties = schema["properties"].as_object().expect("root properties");
+        let required = schema["required"].as_array().expect("root required");
+        assert!(properties
+            .keys()
+            .all(|key| required.iter().any(|item| item.as_str() == Some(key))));
+        let draft = &schema["properties"]["proposalFrontierDraft"];
+        let draft_properties = draft["properties"].as_object().expect("draft properties");
+        let draft_required = draft["required"].as_array().expect("draft required");
+        assert!(draft_properties
+            .keys()
+            .all(|key| draft_required.iter().any(|item| item.as_str() == Some(key))));
+
+        let imagination = epiphany_proposal_modeling_output_schema(
+            crate::RepoFrontierProposalSourceKind::Imagination,
+        );
+        assert!(!imagination["properties"]["proposalFrontierDraft"]["properties"]
+            ["recommendedNextOrgan"]["enum"]
+            .as_array()
+            .expect("organ enum")
+            .iter()
+            .any(|organ| organ == "Hands"));
     }
 
     #[test]

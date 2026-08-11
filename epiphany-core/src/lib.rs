@@ -108,6 +108,7 @@ pub use agent_launch::epiphany_agent_prompt_with_memory;
 pub use agent_launch::epiphany_frontier_plan_mind_output_schema;
 pub use agent_launch::epiphany_frontier_planning_output_schema;
 pub use agent_launch::epiphany_frontier_verdict_modeling_output_schema;
+pub use agent_launch::epiphany_proposal_modeling_output_schema;
 pub use agent_launch::epiphany_imagination_consideration_output_schema;
 pub use agent_launch::epiphany_reorient_launch_output_schema;
 pub use agent_launch::epiphany_role_binding_id;

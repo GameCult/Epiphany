@@ -265,6 +265,7 @@ fn responses_text_format(
     let mut schema: serde_json::Value =
         serde_json::from_str(schema_json).context("output_schema_json is not valid JSON Schema")?;
     lower_schema_for_responses_format(&mut schema);
+    let strict = responses_schema_is_strict(&schema);
     let raw_name = output_contract_id.unwrap_or(request_id);
     let mut name = raw_name
         .chars()
@@ -284,10 +285,43 @@ fn responses_text_format(
         "format": {
             "type": "json_schema",
             "name": name,
-            "strict": false,
+            "strict": strict,
             "schema": schema
         }
     })))
+}
+
+fn responses_schema_is_strict(schema: &serde_json::Value) -> bool {
+    match schema {
+        serde_json::Value::Object(map) => {
+            if map.get("type").and_then(serde_json::Value::as_str) == Some("object") {
+                if map.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
+                    return false;
+                }
+                let Some(properties) = map
+                    .get("properties")
+                    .and_then(serde_json::Value::as_object)
+                else {
+                    return false;
+                };
+                let Some(required) = map
+                    .get("required")
+                    .and_then(serde_json::Value::as_array)
+                else {
+                    return false;
+                };
+                if properties
+                    .keys()
+                    .any(|key| !required.iter().any(|item| item.as_str() == Some(key)))
+                {
+                    return false;
+                }
+            }
+            map.values().all(responses_schema_is_strict)
+        }
+        serde_json::Value::Array(values) => values.iter().all(responses_schema_is_strict),
+        _ => true,
+    }
 }
 
 fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
@@ -947,7 +981,7 @@ mod tests {
             responses["text"]["format"]["name"],
             "epiphany_role_worker_output_v3"
         );
-        assert_eq!(responses["text"]["format"]["strict"], false);
+        assert_eq!(responses["text"]["format"]["strict"], true);
         assert_eq!(
             responses["text"]["format"]["schema"]["required"][0],
             "summary"
@@ -981,6 +1015,7 @@ mod tests {
 
         let responses = responses_body_from_epiphany(request).expect("request should map");
         let schema = &responses["text"]["format"]["schema"];
+        assert_eq!(responses["text"]["format"]["strict"], false);
         assert!(schema.get("allOf").is_none());
         assert!(schema["properties"]["purpose"].get("oneOf").is_none());
         assert!(schema["properties"]["purpose"]["anyOf"].is_array());
