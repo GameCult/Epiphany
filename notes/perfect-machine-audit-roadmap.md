@@ -7,19 +7,20 @@ Updated: 2026-08-11
 Prove every Epiphany faculty both at its own authority boundary and in live
 coordination before treating the organism as deployment-ready. Tests prove only
 the seam they observe. Packaged Linux bodies, copied-state falsification, and
-actual c006 behavior are the live gates.
+the actual braked resident body are the live gates.
 
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Accepted runtime implementation: exact `c9a2a979`.
+- Current source: exact `b8c39f99`.
+- Accepted runtime implementation: exact `3a5d2b5e`.
 - Linux release:
-  `sha256-78b09d7c32867c71d593951f328a191b7261600a1d9e81d7fdcd35ce7414f218`.
+  `sha256-84af3da8d2a2e170aa0611e48367eac4ecf5f66b2a2da763dc3045c5ad360177`.
 - Witness:
-  `sha256-ddf32da018f5a53eb87f3ed5b87ccfa57616203970d6fdab9641ee1ac8f71f24`.
-- Actual c006: Heartbeat and resident Self alive in distinct containers,
-  cognitive brake engaged, resident revision 34, readiness `active` with no
-  reasons.
+  `sha256-589ff2ca11392b02fee9cb5d3a0209d958fc47cc3695f82bb6e5bed08d4c4463`.
+- Actual c007h: Heartbeat and resident Self alive in distinct containers,
+  cognitive brake engaged, resident revision 312, authenticated readiness,
+  no active lease, and action `awaitFrontierProposal`.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
 
@@ -27,17 +28,17 @@ actual c006 behavior are the live gates.
 
 | Faculty | Owner | Accepted proof | Remaining live gate |
 |---|---|---|---|
-| Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c006 completed two receipt-bound causal grants after its retained proposal-Modeling grant | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
+| Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c007h superseded one overtaken unlaunched continuation and accepted the recovered proposal-Modeling result exactly once | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
 | Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths | audit remaining utility and compatibility actuators for bypasses |
 | Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit and governed Linux tool circuit accepted into Mind | one broader foreign/public Verse evidence adoption path |
 | Modeling | runtime-owned typed Modeling contracts | causal Eyes-to-Modeling acceptance, direct proposal Modeling, archived fulfillment | broader Body-map coverage across a changing live repository |
-| Imagination | typed proposal/consideration producers | proposal-only candidates, exact fulfillment, no Hands adoption leak | native multi-option autonomous turnover beyond bounded fixtures |
+| Imagination | typed proposal/consideration producers | genuine packaged multi-option generation, proposal-only candidates, exact fulfillment, no Hands adoption leak | autonomous turnover from the next genuine eligible frontier |
 | Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts | audit non-repo-work actuators for direct consequence paths |
 | Soul | Soul gateway | consequence-bound verdict, causal Modeling route, retention and replay | collapse remaining verifier-specific broad projections into narrow receipt reads |
 | Mind | canonical transactions and specialized admission | atomic RepoModel admission, launch-owned adjudication, semantic/runtime retention | audit remaining state families for legacy writers and run longer memory behavior |
 | Persona | Persona turn, speech audit, public mouth | cross-host request/permit/receipt, signed failure and unknown no-repost behavior, conversation retention | one completed public consequence; currently blocked by absent Yggdrasil Discord credential |
-| Continuity | runtime/resident recovery and retention | graceful shutdown, exact process-death recovery, session closure/archive, lifecycle retention, non-resurrection, and latest-body long-duration plateau | later deployed restart supervision |
-| Nervous system | Heartbeat, runtime spine, Idunn, CultMesh | detached scheduling, typed jobs, provider readiness, active/warming transitions across PID namespaces, latest-body 923-pulse plateau, and two consecutive causal grants | continue narrowing whole-Verse reads |
+| Continuity | runtime/resident recovery and retention | graceful shutdown, exact process-death recovery, session closure/archive, lifecycle retention, non-resurrection, bounded endurance, and receipt-derived recovery on the current body | later deployed restart supervision |
+| Nervous system | Heartbeat, runtime spine, Idunn, CultMesh | detached scheduling, typed jobs, provider readiness, active/warming transitions across PID namespaces, bounded endurance, narrow local-Verse decision reads, bounded Docker logs, and causal grant turnover | audit non-repository actuator publication and command ownership |
 | Body | Rust binaries, named-volume CultCache stores, model transport | deterministic 24-binary packaging, fast warm replay, named-volume interruption proof | deployment-sized endurance and remaining inspection surfaces |
 
 ## Accepted coordinated circuits
@@ -55,9 +56,9 @@ actual c006 behavior are the live gates.
 7. Persona feedback crossing -> bounded consideration -> speech audit -> signed
    permit/refusal/no-repost boundary.
 
-## Accepted latest-body endurance
+## Accepted endurance and current-body recovery
 
-Actual c006 completed the detached latest-body plateau from iteration 572 to
+Historical c006 completed the detached plateau from iteration 572 to
 1496. Thirty samples observed a 923-pulse delta with zero authority violations,
 exact-zero state/workspace growth, Heartbeat RSS 28.63-28.88 MiB, resident RSS
 54.11-55.50 MiB, both role owners alive, and final authenticated readiness
@@ -71,6 +72,13 @@ the second refused stale action before consequence and settled on
 at revision 34, protected consequence families stayed byte-identical, and the
 cognitive brake was re-engaged. Receipts:
 `.epiphany-run/c006-continuation-c9a2a979`.
+
+Actual c007h runs exact `3a5d2b5e`. It atomically superseded the preserved
+unlaunched `launchModeling` continuation without starting a process, issued the
+recovered `reviewModelingResult` route, accepted
+`result-worker-8ddf57c1-96b4-4a60-ae8b-b24404e9ce2f` exactly once, and returned
+to idle at revision 312. The cognitive brake is engaged; no pending proposal,
+Imagination frontier, active lease, or Hands consequence exists.
 
 ## Completed narrow local Verse consumer audit
 
@@ -99,12 +107,14 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Run the full affected Rust suites, commit the classified source batch, package
-one exact Linux release through the persistent Starfire cache, and exercise the
-narrow loaders against copied state. The live gate is read isolation: adding
-unrelated hostile or malformed state families must not change policy,
-reconciliation, or single-target poke decisions. Actual c006 remains braked
-until the copied gate passes.
+Map every surviving non-repository process actuator before editing it. Begin
+with `epiphany-daemon-supervisor`: distinguish explicit operator service launch,
+typed restart-policy reconciliation, and any agent/CultMesh-published command
+surface. For each path name the policy owner, executable binding, brake,
+receipt, and forbidden writers. Then inspect the remaining utility and bridge
+actuators. Cut only a demonstrated bypass; do not wrap coherent operator or
+Idunn authority in another gate. Actual c007h remains braked and untouched
+during the source audit.
 
 ## Completion standard
 
