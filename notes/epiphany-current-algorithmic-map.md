@@ -3886,3 +3886,40 @@ The three failed attempts are not accepted reliability evidence. The next cut
 belongs to role-result schema construction/model ingress: preserve strict
 duplicate-field rejection while making the first model-produced result conform
 to its one-owner schema.
+
+## Runtime-owned proposal Modeling publication
+
+Proposal Modeling owns semantic frontier judgment, not RepoModel causality.
+
+- Owner: authenticated runtime launch context owns request/proposal identity,
+  model base, Body observation basis, patch identity, deterministic frontier
+  identity, evidence binding, and publication time. Modeling owns only the
+  closed `proposalFrontierDraft` plus ordinary role verdict/summary sight.
+- Inputs: one immutable proposal Modeling request and launch context, the
+  current RepoModel projection, and one strict semantic draft.
+- Outputs: one ordinary role result containing a runtime-composed
+  `RepoModelPatch` with exactly one active frontier upsert.
+- Derived state: provider response-format strictness is derived recursively
+  from the closed schema. Every constant declares its JSON type; this is a
+  provider contract, not a relaxation of runtime admission.
+- Forbidden writers: the model cannot author request IDs, proposal IDs, Body
+  basis, patch IDs, base hashes/revisions, timestamps, evidence provenance, or
+  arbitrary patch operations. A retry parser cannot merge duplicate fields or
+  repair missing anatomy.
+- Shared paths: direct provider completion and replay both pass through
+  `role_worker_result_from_ingress` and existing runtime role-result admission.
+- Cut line: the generic proposal full-`RepoModelPatch` schema is absent.
+  Legacy non-proposal Modeling schemas remain separate and retain their
+  downstream gates.
+- Verification: exact `e723058a`, release
+  `sha256-6428f9194c261806a8859ccff9efeb9bb041a0103c5bbd8fac617aae265a651e`,
+  witness
+  `sha256-7ee2e14548bad526e946fbd79b555b7891d2eb6e2917856fefb1ebb7aeebd995`
+  produced one first-attempt outer Modeling result on fresh copied state, zero
+  open jobs, and no Hands/Eyes authority. The copied owners stopped at exit
+  zero under the restored brake.
+
+The proposal grant and outer worker are single-attempt proven. Downstream
+coordinator review is not yet single-consumption proven: the live run emitted
+two receipt-bound `reviewModelingResult` continuation grants for the same
+proposal-bound result before settlement. That route is the next ownership cut.

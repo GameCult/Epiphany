@@ -1,5 +1,51 @@
 # Fresh workspace handoff
 
+## Runtime-owned proposal Modeling first-result accepted - 2026-08-11
+
+Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All live
+work below used fresh named-volume copies. The actual resident, Heartbeat,
+runtime, and local-Verse stores were not mutated or stopped.
+
+The repeated duplicate-field failures were a symptom of the wrong output
+owner. Generic proposal Modeling asked the model to author a complete
+`RepoModelPatch`, including runtime identity, model base, Body observation
+basis, request/proposal provenance, patch timestamps, deterministic frontier
+identity, evidence binding, and nested patch anatomy. Pushed `9f82ee38`
+removes that mouth. Proposal Modeling now returns one closed semantic
+`proposalFrontierDraft`; runtime derives and authenticates every causal patch
+field and publishes the exact patch through the existing admission path.
+Duplicate JSON keys still fail closed.
+
+The exact `9f82ee38` package passed 24-binary inspection, but its fresh copied
+gate exposed a provider-subset error before inference: `roleId` used `const`
+without the `type` OpenAI requires. Pushed `e723058a` adds the type and a
+recursive test that every constant in the dedicated schema declares one.
+Focused core coverage passes. Persistent-cache packaging completed with Cargo
+at 28.40s and produced exact 24-binary release
+`sha256-6428f9194c261806a8859ccff9efeb9bb041a0103c5bbd8fac617aae265a651e`
+and witness
+`sha256-7ee2e14548bad526e946fbd79b555b7891d2eb6e2917856fefb1ebb7aeebd995`
+with zero warnings. Receipts are under `.epiphany-run/linux-package-e723058a`.
+
+On a new copy, request
+`repo-frontier-proposal-modeling-c6e584188580f373360a1b9d5113e2df67a22dd16c7cefcd97361067862b6d4b`
+launched exactly one outer Modeling job,
+`75a69738-b694-411c-bb6d-f823b39bd9e9`. It used five internal read-only model
+tool follow-ups, produced one admitted runtime-owned frontier result on the
+first attempt, and terminalized the exact proposal grant. Runtime ended with
+zero open jobs and no actionable Hands or Eyes frontier. The copied brake was
+restored; resident and Heartbeat both exited zero. Final state hashes and logs
+are under `.epiphany-run/proposal-strict-live3-e723058a`.
+
+Do not flatten the remaining coordination wound. Heartbeat subsequently issued
+two receipt-bound `reviewModelingResult` continuation grants for the same
+completed proposal-bound result before the coordinator settled sleeping with
+`modelingResultProposalBound=true` and
+`modelingResultFailureReviewed=true`. This was not a second Modeling launch,
+but it is not clean single-consumption review either. Next map the result-review
+owner and require one proposal grant, one outer worker, at most one review
+continuation, and exact settlement on a fresh copy. Yggdrasil never builds.
+
 ## Governed directory inventory accepted live - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All work

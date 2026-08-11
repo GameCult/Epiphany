@@ -4,9 +4,9 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Map and cut the repeated proposal-Modeling role-result duplicate-field failure
-at the schema/ingress owner. Preserve strict typed admission; do not add a
-permissive parser or let retries impersonate first-attempt readiness.
+Map the duplicate receipt-bound `reviewModelingResult` continuation route after
+one proposal-bound Modeling result. Preserve explicit coordinator review while
+making the exact result single-consumption authority.
 
 ## Accepted live boundary
 
@@ -37,14 +37,30 @@ the active consumed grant `launchable=false`. Under an engaged copied brake,
 Self reconciled the completed evidence, cleared the active turn at revision 74,
 and remained braked. No new grant appeared; both copied owners exited zero.
 
+## Accepted first-result publication
+
+Exact pushed `9f82ee38` replaces the generic full-patch proposal mouth with a
+closed semantic draft and runtime-owned causal composition. Exact pushed
+`e723058a` adds the missing provider-required type beside schema constants.
+Release `sha256-6428f9194c261806a8859ccff9efeb9bb041a0103c5bbd8fac617aae265a651e`,
+witness `sha256-7ee2e14548bad526e946fbd79b555b7891d2eb6e2917856fefb1ebb7aeebd995`,
+passed 24-binary inspection. Fresh copied live request
+`repo-frontier-proposal-modeling-c6e584188580f373360a1b9d5113e2df67a22dd16c7cefcd97361067862b6d4b`
+completed through one outer job on attempt one, bound one runtime-owned
+frontier, terminalized its proposal grant, and ended with zero open jobs and no
+Hands/Eyes frontier. Both owners exited zero under the restored brake.
+
 ## Next authority map
 
-- Owner to inspect: role-result schema construction and model-ingress decoding.
-- Inputs: the exact generated schema, role prompt, provider response body, and
-  strict duplicate-field rejection receipts.
-- Output: one canonical typed role-result object on the first valid model turn.
-- Forbidden cut: do not weaken duplicate-field rejection, merge conflicting
-  fields after the fact, or hide failure behind unbounded retry.
-- Verification: the same copied proposal must complete once on attempt one,
-  retain typed lifecycle evidence, terminalize exactly one grant, and remain
-  consequence-free.
+- Owner to inspect: coordinator Modeling-result acceptance/review state and
+  Heartbeat continuation issuance.
+- Inputs: the exact completed result, proposal binding/admission state, prior
+  review receipt, and resident continuation lifecycle.
+- Output: at most one review continuation for one exact result, followed by one
+  terminal settled projection.
+- Forbidden cut: do not suppress review with a cooldown, ack tombstone, log
+  heuristic, or retry ceiling; move the consumed fact to the exact result or
+  its owning typed review transaction.
+- Verification: fresh copied proposal produces one proposal grant, one outer
+  Modeling job, at most one review continuation, exact settlement, zero open
+  jobs, and no Hands, Persona, or deployment consequence.
