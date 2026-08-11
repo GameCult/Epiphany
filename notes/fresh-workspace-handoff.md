@@ -3424,6 +3424,47 @@ strict ingress decoder as one ownership boundary. Remove the cause of duplicate
 top-level fields without weakening admission or adding a repair parser. Repeat
 the copied proposal and require first-attempt completion, exact one-grant
 terminalization, and zero external consequence. Yggdrasil never builds.
+
+## Copied frontier turnover exposed stale typed-request resurrection — 2026-08-11
+
+Actual c006 remains exact `c9a2a979`, alive and cognitively braked. A stopped
+copy of exact accepted `d4907ee8` state accepted proposal
+`proposal-close-organ-loop-plan-reconcile-20260811`, issued one proposal
+Modeling grant, admitted its first result, and settled its downstream review.
+The Modeling transaction advanced RepoModel while an older
+`AdmittedModelDirectionConsiderationRequest` still named the prior exact model
+revision and hash. Its coordinator then failed with `model direction
+consideration request is stale`. Restart recovery requeued and relaunched the
+same impossible typed pressure until the copied brake was engaged. Both copied
+owners stopped cleanly; actual c006 was untouched. Receipts and before/after
+hashes are under `.epiphany-run/frontier-turnover-d4907ee8-plan-reconcile`.
+
+Owner map: runtime RepoModel owns whether an admitted-model-direction request
+has been superseded; resident Self owns terminalization of the exact grant.
+Inputs are the structurally valid request, its bound revision/hash, the current
+RepoModel, exact resident lease, and exact coordinator receipt. The output for
+a superseded request is one terminal grant and acknowledgement with status
+`superseded`, using the real coordinator receipt ID. Failure counters, pressure
+requeue, retries, and new grants are forbidden outputs. Receipt text, error
+strings, cooldown, and pulse timing are observations, not supersession owners.
+
+Source now exposes the narrow runtime-owned supersession predicate and checks it
+at resident settlement, including the race where the model advances during
+fulfillment verification. Focused proof passes 31 resident tests, four
+admitted-model-direction tests, and all eight swarm tests. Packaging and exact
+copied-state replay remain required before acceptance.
+
+The attempted fresh `epiphany-repo-work-order-family-smoke` was rejected as an
+active readiness path. Its historical `epiphany-work` mutation surface is
+deliberately inert and refuses acceptance; runtime-spine RepoModel/RepoFrontier
+is the canonical live workflow. Do not restore a second repo-swarm owner or
+revive the old scheduler to make archaeological smokes green.
+
+Next: commit and push the bounded source/Mind cut, package the exact commit on
+Starfire, then replay copied state. Require one superseded terminal grant and
+acknowledgement, no failure count, no requeue or regrant, zero external
+consequence, and clean shutdown. Then inspect the next canonical typed action.
+Yggdrasil never builds.
 ## Failed outer-worker attempt retention cut in source — 2026-08-10
 
 Runtime spine now owns `EpiphanyArchivedRuntimeWorkerAttempt` for failed or

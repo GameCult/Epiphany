@@ -1537,6 +1537,27 @@ pub fn verify_resident_self_grant_fulfillment(
     )
 }
 
+fn resident_self_grant_typed_request_is_superseded(
+    resident_store: &Path,
+    runtime_store: &Path,
+    grant_id: &str,
+) -> Result<bool> {
+    let grant = state_cache(resident_store)?
+        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .ok_or_else(|| anyhow!("resident Self supersession check lost its grant"))?;
+    let Some(crate::RuntimeTypedRequestRef::AdmittedModelDirection(request_id)) =
+        resident_self_typed_request_ref(&grant)?
+    else {
+        return Ok(false);
+    };
+    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
+    runtime.pull_all_backing_stores()?;
+    let request = runtime
+        .get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
+        .ok_or_else(|| anyhow!("model direction supersession check lost its request"))?;
+    crate::admitted_model_direction_consideration::request_is_superseded(&runtime, &request)
+}
+
 fn resident_self_typed_request_ref<'a>(
     grant: &'a ResidentSelfHeartbeatGrant,
 ) -> Result<Option<crate::RuntimeTypedRequestRef<'a>>> {
@@ -1803,6 +1824,24 @@ pub fn settle_resident_self_exited_coordinator(
 ) -> Result<ResidentSelfOutcome> {
     validate_resident_self_coordinator_receipt_binding(lease, receipt)?;
     let typed = resident_self_grant_has_typed_request(resident_store, &lease.grant_id)?;
+    if typed
+        && resident_self_grant_typed_request_is_superseded(
+            resident_store,
+            runtime_store,
+            &lease.grant_id,
+        )?
+    {
+        complete_resident_self_turn_with_terminal(
+            resident_store,
+            lease,
+            &receipt.receipt_id,
+            "superseded",
+            now_millis,
+            cooldown_seconds,
+            false,
+        )?;
+        return Ok(ResidentSelfOutcome::Completed);
+    }
     let typed_attempt = typed
         && resident_self_typed_attempt_exists(resident_store, runtime_store, &lease.grant_id)?;
     let successful_receipt = matches!(
@@ -1903,7 +1942,22 @@ pub fn settle_resident_self_exited_coordinator(
             })
         }
         Err(error) => {
-            if typed_attempt {
+            let superseded = resident_self_grant_typed_request_is_superseded(
+                resident_store,
+                runtime_store,
+                &lease.grant_id,
+            )?;
+            if superseded {
+                complete_resident_self_turn_with_terminal(
+                    resident_store,
+                    lease,
+                    &receipt.receipt_id,
+                    "superseded",
+                    now_millis,
+                    cooldown_seconds,
+                    false,
+                )?;
+            } else if typed_attempt {
                 complete_resident_self_turn_with_terminal(
                     resident_store,
                     lease,
@@ -1922,7 +1976,11 @@ pub fn settle_resident_self_exited_coordinator(
                     now_millis,
                 )?;
             }
-            Ok(ResidentSelfOutcome::Failed)
+            Ok(if superseded {
+                ResidentSelfOutcome::Completed
+            } else {
+                ResidentSelfOutcome::Failed
+            })
         }
         Ok(ResidentSelfGrantFulfillment::Fulfilled) => {
             complete_resident_self_turn_with_terminal(
@@ -3983,6 +4041,138 @@ mod tests {
                 .to_string()
                 .contains("mounted runtime store belongs to cognitive-runtime")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn superseded_model_direction_request_terminalizes_without_requeue() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident-self.cc");
+        let coordinator = temp.path().join("epiphany-mvp-coordinator");
+        std::fs::write(&coordinator, b"witnessed executable")?;
+        let mut policy = policy();
+        policy.coordinator_bin = coordinator.clone();
+        policy.runtime_store = temp.path().join("runtime.cc");
+        policy.artifact_root = temp.path().join("artifacts");
+        seed_model_direction_request(
+            &policy.runtime_store,
+            "request-superseded",
+            "cognitive-runtime",
+            "implementation-thread-superseded",
+        )?;
+        enqueue_resident_self_pressure(&store, &ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "pressure-superseded".into(),
+            kind: "admitted-model-direction-consideration".into(),
+            provenance_ref: "cultcache://admitted-model-direction-consideration/request-superseded".into(),
+            objective: "Consider the exact admitted model direction.".into(),
+            created_at_millis: 1,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        })?;
+        let grant = heartbeat_issue_resident_self_grant(
+            &store,
+            "heartbeat-superseded",
+            "action-superseded",
+            2,
+        )?.expect("superseded request grant");
+        let prepared = prepare_resident_self_launch(&store, &policy, 3)?
+            .expect("superseded request preparation");
+        let process = LaunchedCoordinator {
+            process_id: 44,
+            process_creation_token: 55,
+            process_executable_path: coordinator,
+        };
+        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
+        let lease = acknowledge_resident_self_launch(
+            &store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+
+        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
+        runtime.pull_all_backing_stores()?;
+        let mut advanced = crate::runtime_current_repo_model(&policy.runtime_store)?
+            .expect("current model fixture");
+        advanced.model_revision += 1;
+        let expected_model = runtime.snapshot_envelopes().into_iter().find(|entry| {
+            entry.r#type == crate::EpiphanyMemoryGraphEntry::TYPE
+                && entry.key == crate::MEMORY_GRAPH_KEY
+        }).expect("current model envelope");
+        let (advanced_entry, _) = runtime.prepare_entry(
+            crate::MEMORY_GRAPH_KEY,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&advanced)?,
+        )?;
+        assert!(SingleFileMessagePackBackingStore::new(&policy.runtime_store)
+            .compare_and_swap_entry(&expected_model, advanced_entry)?);
+        assert!(resident_self_grant_typed_request_is_superseded(
+            &store,
+            &policy.runtime_store,
+            &grant.grant_id,
+        )?);
+
+        let receipt = crate::EpiphanyCoordinatorRunReceipt {
+            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "coordinator-superseded".into(),
+            session_id: crate::coordinator_run_session_id(
+                &lease.turn_id,
+                Some(&lease.launch_digest),
+            )?,
+            thread_id: lease.turn_id.clone(),
+            mode: "plan".into(),
+            status: "planned".into(),
+            final_action: "waitForImaginationResult".into(),
+            final_reason: None,
+            step_count: 1,
+            created_at: "2026-07-18T00:00:01Z".into(),
+            model_provider: Some("local".into()),
+            runtime_store: policy.runtime_store.display().to_string(),
+            artifact_refs: vec![],
+            sealed_artifact_refs: vec![],
+            metadata: Default::default(),
+            resident_grant_id: Some(lease.grant_id.clone()),
+            resident_launch_digest: Some(lease.launch_digest.clone()),
+            resident_policy_digest: Some(lease.policy_digest.clone()),
+            resident_argv_digest: Some(lease.argv_digest.clone()),
+            resident_objective_digest: Some(lease.objective_digest.clone()),
+            resident_release_commit: Some(lease.release_commit.clone()),
+            resident_release_manifest_digest: Some(lease.release_manifest_digest.clone()),
+            resident_executable_digest: Some(lease.coordinator_executable_digest.clone()),
+        };
+        assert_eq!(settle_resident_self_exited_coordinator(
+            &store,
+            &policy.runtime_store,
+            &lease,
+            &receipt,
+            false,
+            false,
+            false,
+            5,
+            policy.cooldown_seconds,
+        )?, ResidentSelfOutcome::Completed);
+        assert!(load_resident_self_state(&store)?.active_turn.is_none());
+        let pressure = resident_self_pressures(&store)?.into_iter()
+            .find(|pressure| pressure.pressure_id == "pressure-superseded")
+            .expect("superseded pressure");
+        assert_eq!(pressure.status, "consumed");
+        assert_eq!(pressure.consumed_by_grant_id.as_deref(), Some(grant.grant_id.as_str()));
+        let terminal = state_cache(&store)?
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("superseded terminal grant");
+        assert_eq!(terminal.terminal_status.as_deref(), Some("superseded"));
+        let ack = pending_resident_self_acks(&store)?.into_iter()
+            .find(|ack| ack.grant_id == grant.grant_id)
+            .expect("superseded terminal acknowledgement");
+        assert_eq!(ack.coordinator_receipt_id, receipt.receipt_id);
+        assert_eq!(ack.terminal_status, "superseded");
+        assert!(heartbeat_issue_resident_self_grant(
+            &store,
+            "heartbeat-after-supersession",
+            "action-after-supersession",
+            6,
+        )?.is_none(), "superseded typed authority must not requeue");
         Ok(())
     }
 

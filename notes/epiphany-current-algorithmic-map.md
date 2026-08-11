@@ -3990,3 +3990,33 @@ state is now the sole final-action owner for these review paths.
   second exact braked process start held the same authority/hashes at 0.36%
   sampled CPU and exited zero again, proving startup stewardship without
   resurrection.
+
+## Superseded admitted-model-direction authority
+
+- Owner: runtime RepoModel owns whether an
+  `AdmittedModelDirectionConsiderationRequest` still names the current exact
+  model revision and hash. Resident Self owns terminalization of the exact
+  Heartbeat grant; neither scheduler timing nor coordinator prose decides
+  supersession.
+- Inputs: a structurally valid typed request, current RepoModel snapshot, exact
+  resident grant and active lease, and the exact bound coordinator receipt.
+- Outputs: a superseded request terminalizes that exact grant once with status
+  `superseded` and the real receipt ID. The consumed pressure stays consumed;
+  failure count does not advance and Heartbeat cannot issue a replacement
+  grant from the dead authority.
+- Derived state: request age, the `stale` error text, cooldown, receipt action,
+  and operator projection are observations only.
+- Forbidden writers: resident retry policy, error-string parsing, Heartbeat
+  cadence, and a generic stale-work cleanup pass cannot decide typed request
+  death or create a retry.
+- Shared paths: settlement checks supersession before fulfillment and checks it
+  again after a failed fulfillment read, covering a concurrent RepoModel
+  advance without weakening the ordinary exact-result verifier.
+- Cut line: the old invalid-fulfillment cancellation path no longer requeues a
+  structurally valid request whose model binding has been superseded. Historical
+  `epiphany-work` acceptance remains inert and is not a fallback workflow.
+- Verification: focused source proof passes 31 resident tests, four
+  admitted-model-direction contract tests, and all eight swarm tests. Exact
+  Linux packaging and copied-state replay remain open; acceptance requires one
+  superseded terminal acknowledgement, no regrant, and zero external
+  consequence.

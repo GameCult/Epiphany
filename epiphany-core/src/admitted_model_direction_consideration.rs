@@ -180,20 +180,8 @@ pub fn validate_current_request(
     cache: &cultcache_rs::CultCache,
     request: &AdmittedModelDirectionConsiderationRequest,
 ) -> Result<()> {
-    if request.schema_version != REQUEST_SCHEMA
-        || request.contract != REQUEST_CONTRACT
-        || request.private_state_included
-        || request.request_id.trim().is_empty()
-    {
-        bail!("invalid model direction consideration request");
-    }
-    let model = cache
-        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
-        .ok_or_else(|| anyhow!("model direction consideration map disappeared"))?
-        .snapshot()?;
-    if request.model_revision != model.model_revision
-        || request.model_hash != crate::memory_graph_model_hash(&model)?
-    {
+    validate_request_shape(request)?;
+    if request_is_superseded(cache, request)? {
         bail!("model direction consideration request is stale");
     }
     let receipts = cache
@@ -209,6 +197,30 @@ pub fn validate_current_request(
         bail!("model direction consideration lost its unique model receipt");
     }
     Ok(())
+}
+
+fn validate_request_shape(request: &AdmittedModelDirectionConsiderationRequest) -> Result<()> {
+    if request.schema_version != REQUEST_SCHEMA
+        || request.contract != REQUEST_CONTRACT
+        || request.private_state_included
+        || request.request_id.trim().is_empty()
+    {
+        bail!("invalid model direction consideration request");
+    }
+    Ok(())
+}
+
+pub fn request_is_superseded(
+    cache: &cultcache_rs::CultCache,
+    request: &AdmittedModelDirectionConsiderationRequest,
+) -> Result<bool> {
+    validate_request_shape(request)?;
+    let model = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("model direction consideration map disappeared"))?
+        .snapshot()?;
+    Ok(request.model_revision != model.model_revision
+        || request.model_hash != crate::memory_graph_model_hash(&model)?)
 }
 
 pub fn validate_result(
