@@ -3687,3 +3687,11 @@ an aggregate context. Scheduler tick and cluster runbook keep aggregate context
 because their output enumerates multiple daemon policies, statuses, topology
 rows, and brake scope. Focused tests prove the direct source boundary and that
 the narrow brake input preserves lifecycle-poke refusal semantics.
+
+Single-target `epiphany-verse-query poke-daemon` follows the same cut. Exact
+daemon status owns target identity, the canonical brake owns refusal, topology
+rows supply only the requested display metadata, and the exact immutable intent
+owns post-write confirmation. Two aggregate queries and the obsolete
+context-shaped brake/topology wrappers are deleted. Bulk poke and triage remain
+aggregate enumeration paths. The complete 19-test verse-query binary suite
+passes without warnings.

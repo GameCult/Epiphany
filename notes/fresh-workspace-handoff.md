@@ -23,6 +23,13 @@ does not claim service physiology. Scheduler tick and cluster runbook retain
 aggregate reads because they genuinely enumerate several state families. The
 remaining supervisor aggregate consumers are therefore classified.
 
+`epiphany-verse-query poke-daemon` is narrowed as well. It loads one exact
+daemon status, the canonical brake, topology-family display metadata, and its
+exact written intent by identity. The two aggregate context reads and their
+now-dead context wrappers are deleted. Bulk poke, triage, and operator reports
+retain aggregate reads because they enumerate daemon state. All 19 verse-query
+tests pass with zero warnings.
+
 ## Actual receipt-bound turnover accepted - 2026-08-11
 
 Exact pushed `c9a2a979` is now the active actual c006 body. Under a bounded

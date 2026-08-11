@@ -44,7 +44,9 @@ use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
+use epiphany_core::load_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
+use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
@@ -648,16 +650,19 @@ fn run_cli() -> Result<()> {
 
             require_query_bootstrap(&args)?;
 
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let daemon_id = args
                 .daemon_id
                 .as_deref()
                 .context("poke-daemon requires --daemon-id, for example epiphany-daemon-hands")?;
-            let daemon_status = context
-                .daemon_statuses
-                .iter()
-                .find(|status| status.daemon_id == daemon_id)
+            let daemon_status = load_epiphany_cultmesh_daemon_status(
+                &args.store,
+                args.runtime_id.clone(),
+                daemon_id,
+            )?
                 .with_context(|| format!("local Verse has no daemon status for {daemon_id:?}"))?;
+            let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+            let topology =
+                load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
             let reason = args.reason.clone().unwrap_or_else(|| {
                 format!(
                     "Operator requested a typed lifecycle poke for {} after observing status {}.",
@@ -674,18 +679,26 @@ fn run_cli() -> Result<()> {
                         .collect::<String>()
                 )
             });
-            let poke_result =
-                write_daemon_poke_intent(&args, &context, daemon_status, intent_id, reason)?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            if context.latest_daemon_poke_intent.is_none() {
-                anyhow::bail!("local Verse query lost daemon poke intent after write");
-            }
+            let poke_result = write_daemon_poke_intent(
+                &args,
+                brake.as_ref(),
+                &topology,
+                &daemon_status,
+                intent_id.clone(),
+                reason,
+            )?;
+            load_epiphany_cultmesh_daemon_poke_intent(
+                &args.store,
+                args.runtime_id.clone(),
+                &intent_id,
+            )?
+            .with_context(|| format!("local Verse lost exact daemon poke intent {intent_id:?}"))?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "status": "pending-lifecycle-owner",
                     "store": args.store,
-                    "runtimeId": context.runtime_id,
+                    "runtimeId": args.runtime_id,
                     "targetDaemonId": poke_result["targetDaemonId"],
                     "targetClusterId": poke_result["targetClusterId"],
                     "observedStatus": poke_result["observedStatus"],
@@ -6689,13 +6702,14 @@ fn reject_daemon_poke_response_fields(args: &Args) -> Result<()> {
 
 fn write_daemon_poke_intent(
     args: &Args,
-    context: &EpiphanyLocalVerseContext,
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
+    topology: &[EpiphanyCultMeshClusterTopologyEntry],
     daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
     intent_id: String,
     reason: String,
 ) -> Result<serde_json::Value> {
-    assert_swarm_brake_allows_surface(
-        context,
+    assert_swarm_brake_allows_surface_entry(
+        brake,
         "daemon.lifecycle_poke",
         &daemon_status.cluster_id,
         &daemon_status.daemon_id,
@@ -6711,7 +6725,7 @@ fn write_daemon_poke_intent(
         args.runtime_id.clone(),
         poke_intent.clone(),
     )?;
-    let cluster = cluster_topology_for_id(context, &written_intent.target_cluster_id)?;
+    let cluster = cluster_topology_entry_for_id(topology, &written_intent.target_cluster_id)?;
     Ok(json!({
         "targetDaemonId": written_intent.target_daemon_id,
         "targetClusterId": written_intent.target_cluster_id,
@@ -6752,7 +6766,8 @@ fn write_poke_intents_for_non_ready_daemons(
         });
         pokes.push(write_daemon_poke_intent(
             args,
-            context,
+            context.swarm_brake.as_ref(),
+            &context.cluster_topology,
             daemon_status,
             intent_id,
             reason,
@@ -6911,20 +6926,6 @@ fn sanitize_id(value: &str) -> String {
         .collect()
 }
 
-fn assert_swarm_brake_allows_surface(
-    context: &EpiphanyLocalVerseContext,
-    surface: &str,
-    cluster_id: &str,
-    daemon_id: &str,
-) -> Result<()> {
-    assert_swarm_brake_allows_surface_entry(
-        context.swarm_brake.as_ref(),
-        surface,
-        cluster_id,
-        daemon_id,
-    )
-}
-
 fn assert_swarm_brake_allows_surface_entry(
     brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
     surface: &str,
@@ -6957,17 +6958,6 @@ fn assert_swarm_brake_allows_surface_entry(
         );
     }
     Ok(())
-}
-
-fn cluster_topology_for_id<'a>(
-    context: &'a EpiphanyLocalVerseContext,
-    cluster_id: &str,
-) -> Result<&'a EpiphanyCultMeshClusterTopologyEntry> {
-    context
-        .cluster_topology
-        .iter()
-        .find(|cluster| cluster.cluster_id == cluster_id)
-        .with_context(|| format!("local Verse has no cluster topology row for {cluster_id:?}"))
 }
 
 fn cluster_topology_entry_for_id<'a>(
@@ -7457,6 +7447,22 @@ mod swarm_brake_command_tests {
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    #[test]
+    fn single_daemon_poke_uses_narrow_status_brake_topology_and_intent_reads() {
+        let source = include_str!("epiphany-verse-query.rs");
+        let start = source.find("\"poke-daemon\" | \"daemon-poke\" => {").unwrap();
+        let tail = &source[start..];
+        let end = tail
+            .find("\n        \"poke-down-daemons\"")
+            .expect("next command arm");
+        let body = &tail[..end];
+        assert!(body.contains("load_epiphany_cultmesh_daemon_status"));
+        assert!(body.contains("load_epiphany_cultmesh_swarm_brake"));
+        assert!(body.contains("load_epiphany_cultmesh_cluster_topology"));
+        assert!(body.contains("load_epiphany_cultmesh_daemon_poke_intent"));
+        assert!(!body.contains("query_epiphany_local_verse_context"));
+    }
 
     #[test]
     fn stale_ready_heartbeat_cannot_resolve_a_later_restart_attempt() {
