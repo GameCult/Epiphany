@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+use epiphany_core::ImmutableGithubSource;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use reqwest::redirect::Policy;
 use serde_json::{Value, json};
@@ -20,16 +21,12 @@ pub async fn execute_epiphany_public(intent: &EpiphanyToolInvocationIntent) -> R
 }
 
 async fn github_file(intent: &EpiphanyToolInvocationIntent, arguments: &Value) -> Result<Value> {
-    let owner = repository_component(arguments, "owner")?;
-    let repository = repository_component(arguments, "repository")?;
-    let revision = required_string(arguments, "revision")?;
-    if revision.len() != 40 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(anyhow!(
-            "github_file revision must be an immutable 40-hex commit id"
-        ));
-    }
-    let path = required_string(arguments, "path")?;
-    validate_repository_path(path)?;
+    let source = ImmutableGithubSource::from_components(
+        required_string(arguments, "owner")?,
+        required_string(arguments, "repository")?,
+        required_string(arguments, "revision")?,
+        required_string(arguments, "path")?,
+    )?;
     let maximum = arguments
         .get("maxBytes")
         .map(|value| {
@@ -40,8 +37,7 @@ async fn github_file(intent: &EpiphanyToolInvocationIntent, arguments: &Value) -
         .transpose()?
         .unwrap_or(32_768)
         .clamp(512, MAX_PUBLIC_SOURCE_BYTES as u64) as usize;
-    let revision = revision.to_ascii_lowercase();
-    let url = format!("https://raw.githubusercontent.com/{owner}/{repository}/{revision}/{path}");
+    let url = format!("https://raw.githubusercontent.com/{}/{}/{}/{}", source.owner(), source.repository_name(), source.revision(), source.path());
     let client = reqwest::Client::builder()
         .redirect(Policy::none())
         .no_proxy()
@@ -83,43 +79,15 @@ async fn github_file(intent: &EpiphanyToolInvocationIntent, arguments: &Value) -
     let evidence_receipt_id = format!("eyes-source-{}", intent.intent_id);
     Ok(json!({
         "provider": "github",
-        "repository": format!("github://{owner}/{repository}"),
-        "revision": revision,
-        "path": path,
-        "sourceRef": format!("github://{owner}/{repository}@{revision}/{path}"),
+        "repository": source.repository_ref(),
+        "revision": source.revision(),
+        "path": source.path(),
+        "sourceRef": source.to_string(),
         "contentSha256": content_sha256,
         "evidenceReceiptId": evidence_receipt_id,
         "byteCount": bytes.len(),
         "content": content,
     }))
-}
-
-fn repository_component<'a>(arguments: &'a Value, name: &str) -> Result<&'a str> {
-    let value = required_string(arguments, name)?;
-    if value.len() > 100
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(anyhow!("github_file {name} is invalid"));
-    }
-    Ok(value)
-}
-
-fn validate_repository_path(path: &str) -> Result<()> {
-    if path.len() > 512
-        || path.starts_with('/')
-        || path.split('/').any(|segment| {
-            segment.is_empty()
-                || matches!(segment, "." | "..")
-                || !segment
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-        })
-    {
-        return Err(anyhow!("github_file path is invalid"));
-    }
-    Ok(())
 }
 
 fn required_string<'a>(value: &'a Value, name: &str) -> Result<&'a str> {
@@ -142,10 +110,10 @@ mod tests {
             "revision": "0123456789abcdef0123456789abcdef01234567",
             "path": "openapi.yaml"
         });
-        assert_eq!(repository_component(&valid, "owner").unwrap(), "openai");
-        assert!(validate_repository_path("docs/source_file.rs").is_ok());
-        assert!(validate_repository_path("../secret").is_err());
-        assert!(validate_repository_path("path with spaces").is_err());
+        let revision = valid["revision"].as_str().unwrap();
+        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "docs/source_file.rs").is_ok());
+        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "../secret").is_err());
+        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "path with spaces").is_err());
     }
 
     #[tokio::test]

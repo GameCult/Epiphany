@@ -3736,20 +3736,22 @@ pub(crate) fn authenticated_public_source_lookups_for_worker(
                 .ok_or_else(|| anyhow!("public source receipt has no result"))?,
         )
         .context("public source receipt result is invalid")?;
-        let owner = public_source_json_string(&arguments, "owner")?;
-        let repository_name = public_source_json_string(&arguments, "repository")?;
-        let revision = public_source_json_string(&arguments, "revision")?.to_ascii_lowercase();
-        let path = public_source_json_string(&arguments, "path")?;
+        let source = crate::ImmutableGithubSource::from_components(
+            public_source_json_string(&arguments, "owner")?,
+            public_source_json_string(&arguments, "repository")?,
+            public_source_json_string(&arguments, "revision")?,
+            public_source_json_string(&arguments, "path")?,
+        )?;
         let content = public_source_json_string(&result, "content")?;
-        let repository = format!("github://{owner}/{repository_name}");
-        let source_ref = format!("{repository}@{revision}/{path}");
+        let repository = source.repository_ref();
+        let source_ref = source.to_string();
         let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
         let byte_count = content.len() as u64;
         let lookup_receipt_id = format!("eyes-source-{}", intent.intent_id);
         if public_source_json_string(&result, "provider")? != "github"
             || public_source_json_string(&result, "repository")? != repository
-            || public_source_json_string(&result, "revision")? != revision
-            || public_source_json_string(&result, "path")? != path
+            || public_source_json_string(&result, "revision")? != source.revision()
+            || public_source_json_string(&result, "path")? != source.path()
             || public_source_json_string(&result, "sourceRef")? != source_ref
             || public_source_json_string(&result, "contentSha256")? != content_sha256
             || result.get("byteCount").and_then(serde_json::Value::as_u64)
@@ -3767,8 +3769,8 @@ pub(crate) fn authenticated_public_source_lookups_for_worker(
             tool_receipt_id: receipt.receipt_id,
             provider: "github".to_string(),
             repository,
-            revision,
-            path: path.to_string(),
+            revision: source.revision().to_string(),
+            path: source.path().to_string(),
             source_ref,
             content_sha256,
             byte_count,
@@ -4811,10 +4813,6 @@ fn validate_proposal_modeling_worker_fulfillment(
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
     let identity = require_identity(cache)?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("proposal Modeling fulfillment thread state is missing"))?;
-    thread.state()?;
     let payload = rmp_serde::to_vec_named(&(
         &proposal.title,
         &proposal.body,
@@ -4853,12 +4851,13 @@ fn validate_proposal_modeling_worker_fulfillment(
             "request.payload",
             request.proposal_payload_sha256 != proposal.payload_sha256,
         ),
+        ("request.identity", request.request_id != crate::proposal_modeling_request_id(&request.runtime_id, &request.proposal_id, &request.proposal_payload_sha256)),
         (
             "proposal.payload",
             proposal.payload_sha256 != proposal_payload_sha256,
         ),
         ("request.runtime", request.runtime_id != identity.runtime_id),
-        ("request.thread", request.thread_id != thread.thread_id),
+        ("request.thread", request.thread_id != proposal.thread_id),
         (
             "request.repository",
             request.repository != proposal.repository,
@@ -4895,7 +4894,7 @@ fn validate_proposal_modeling_worker_fulfillment(
             binding.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID,
         ),
         ("binding.runtime", binding.runtime_id != identity.runtime_id),
-        ("binding.thread", binding.thread_id != thread.thread_id),
+        ("binding.thread", binding.thread_id != request.thread_id),
         (
             "binding.time",
             chrono::DateTime::parse_from_rfc3339(&binding.launched_at).is_err(),
@@ -6738,10 +6737,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
             };
             let selection = RepoFrontierProposalModelingRequest {
                 schema_version: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
-                request_id: format!(
-                    "repo-frontier-proposal-modeling-{:x}",
-                    Sha256::digest(format!("{}:{}", proposal_id, payload_sha256).as_bytes())
-                ),
+                request_id: crate::proposal_modeling_request_id(&identity.runtime_id, &proposal_id, &payload_sha256),
                 proposal_id: proposal_id.clone(),
                 proposal_payload_sha256: payload_sha256,
                 runtime_id: identity.runtime_id.clone(),
@@ -6959,10 +6955,7 @@ pub fn select_repo_frontier_work_proposal_for_modeling(
     if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
         validate_autonomous_proposal_binding(&cache, &proposal)?;
     }
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("proposal selection requires authoritative thread state"))?;
-    if proposal.runtime_id != identity.runtime_id || proposal.thread_id != thread.thread_id {
+    if proposal.runtime_id != identity.runtime_id {
         return Err(anyhow!("proposal selection provenance mismatch"));
     }
     let existing_requests = cache.get_all::<RepoFrontierProposalModelingRequest>()?;
@@ -6978,10 +6971,7 @@ pub fn select_repo_frontier_work_proposal_for_modeling(
             return Err(anyhow!("proposal already incorporated"));
         }
     }
-    let request_id = format!(
-        "repo-frontier-proposal-modeling-{:x}",
-        Sha256::digest(format!("{}:{}", proposal.proposal_id, proposal.payload_sha256).as_bytes())
-    );
+    let request_id = crate::proposal_modeling_request_id(&proposal.runtime_id, &proposal.proposal_id, &proposal.payload_sha256);
     let request = RepoFrontierProposalModelingRequest {
         schema_version: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
         request_id: request_id.clone(),
@@ -7064,16 +7054,7 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let item = actionable_imagination_frontier_item(&model, &challenges)
         .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let request_id = format!(
-        "repo-frontier-planning-{:x}",
-        Sha256::digest(
-            format!(
-                "{}:{}:{model_hash}:{}:{item_hash}",
-                identity.runtime_id, thread.thread_id, item.id
-            )
-            .as_bytes(),
-        )
-    );
+    let request_id = crate::frontier_planning_request_id(&identity.runtime_id, &model_hash, &item_hash);
     if cache
         .get_all::<RepoFrontierPlanDecisionReceipt>()?
         .iter()
@@ -7162,16 +7143,7 @@ pub(crate) fn validate_current_repo_frontier_planning_request(
     let item = actionable_imagination_frontier_item(&model, &challenges)
         .ok_or_else(|| anyhow!("planning request frontier is no longer actionable"))?;
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let expected_request_id = format!(
-        "repo-frontier-planning-{:x}",
-        Sha256::digest(
-            format!(
-                "{}:{}:{model_hash}:{}:{item_hash}",
-                identity.runtime_id, thread.thread_id, item.id
-            )
-            .as_bytes(),
-        )
-    );
+    let expected_request_id = crate::frontier_planning_request_id(&identity.runtime_id, &model_hash, &item_hash);
     if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
         || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
         || request.request_id != expected_request_id
@@ -7183,10 +7155,10 @@ pub(crate) fn validate_current_repo_frontier_planning_request(
         || request.selected_organ != "Imagination"
         || request.source_scope != item.source_scope
         || request.runtime_id != identity.runtime_id
-        || request.thread_id != thread.thread_id
+        || request.thread_id.is_empty()
     {
         return Err(anyhow!(
-            "planning request does not exactly bind current model, frontier, runtime, and thread"
+            "planning request does not exactly bind current model, frontier, and runtime"
         ));
     }
     Ok(())
@@ -7227,16 +7199,7 @@ pub fn commit_repo_frontier_plan_mind_request(
     validate_current_repo_frontier_planning_request(&cache, &planning)?;
     validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &planning)?;
     let candidate_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&candidate)?));
-    let request_id = format!(
-        "repo-frontier-plan-mind-{:x}",
-        Sha256::digest(
-            format!(
-                "{}:{}:{}:{}",
-                planning.runtime_id, planning.thread_id, result.result_id, candidate_sha256
-            )
-            .as_bytes()
-        )
-    );
+    let request_id = crate::frontier_plan_mind_request_id(&planning.runtime_id, &planning.request_id, &result.result_id, &candidate_sha256);
     let request = RepoFrontierPlanMindRequest {
         schema_version: REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION.into(),
         request_id: request_id.clone(),
@@ -8741,18 +8704,12 @@ pub fn select_and_commit_repo_frontier_research_request(
     let mut public_source_refs = item
         .evidence_refs
         .iter()
-        .filter(|source_ref| immutable_github_source_ref(source_ref))
-        .cloned()
+        .filter_map(|source_ref| crate::ImmutableGithubSource::parse(source_ref).ok())
+        .map(|source| source.to_string())
         .collect::<Vec<_>>();
     public_source_refs.sort();
     public_source_refs.dedup();
-    let request_id = format!(
-        "repo-frontier-research-{:x}",
-        Sha256::digest(
-            format!("{}:{}:{item_hash}", identity.runtime_id, model_hash)
-                .as_bytes()
-        )
-    );
+    let request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
     let request = RepoFrontierResearchRequest {
         schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.to_string(),
         request_id: request_id.clone(),
@@ -8874,18 +8831,12 @@ fn repo_frontier_research_request_is_current(
     let mut expected_public_source_refs = item
         .evidence_refs
         .iter()
-        .filter(|source_ref| immutable_github_source_ref(source_ref))
-        .cloned()
+        .filter_map(|source_ref| crate::ImmutableGithubSource::parse(source_ref).ok())
+        .map(|source| source.to_string())
         .collect::<Vec<_>>();
     expected_public_source_refs.sort();
     expected_public_source_refs.dedup();
-    let expected_request_id = format!(
-        "repo-frontier-research-{:x}",
-        Sha256::digest(
-            format!("{}:{}:{item_hash}", identity.runtime_id, model_hash)
-            .as_bytes()
-        )
-    );
+    let expected_request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
     let admission_count = cache
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
@@ -10678,43 +10629,6 @@ fn safe_sorted_unique_paths(paths: &[String]) -> bool {
                 && !Path::new(path)
                     .components()
                     .any(|part| matches!(part, std::path::Component::ParentDir))
-        })
-}
-
-fn immutable_github_source_ref(source_ref: &str) -> bool {
-    let Some(rest) = source_ref.strip_prefix("github://") else {
-        return false;
-    };
-    let Some((owner, rest)) = rest.split_once('/') else {
-        return false;
-    };
-    let Some((repository, revision_and_path)) = rest.split_once('@') else {
-        return false;
-    };
-    let Some((revision, path)) = revision_and_path.split_once('/') else {
-        return false;
-    };
-    let repository_component = |value: &str| {
-        !value.is_empty()
-            && value.len() <= 100
-            && value.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-            })
-    };
-    repository_component(owner)
-        && repository_component(repository)
-        && revision.len() == 40
-        && revision
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-        && !path.is_empty()
-        && path.len() <= 512
-        && path.split('/').all(|segment| {
-            !segment.is_empty()
-                && !matches!(segment, "." | "..")
-                && segment.bytes().all(|byte| {
-                    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-                })
         })
 }
 
@@ -16430,9 +16344,9 @@ pub(crate) mod tests {
             "2026-07-13T02:02:00Z",
         )?;
         let mut second = first.clone();
-        second.request_id = "repo-frontier-proposal-modeling-queued-second".into();
         second.proposal_id = "queued-second-proposal".into();
         second.proposal_payload_sha256 = "22".repeat(32);
+        second.request_id = crate::proposal_modeling_request_id(&second.runtime_id, &second.proposal_id, &second.proposal_payload_sha256);
         second.selected_at = "2026-07-13T02:03:00Z".into();
         validate_repo_frontier_proposal_modeling_request(&second)?;
         overwrite_test_entry(&store, &second.request_id, &second)?;

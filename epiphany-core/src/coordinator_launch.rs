@@ -56,6 +56,11 @@ fn commit_coordinator_job_launch_in_cache(
             "coordinator commit thread id must match typed launch document"
         ));
     }
+    if let Some(admitted_thread) = cache.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)? {
+        if admitted_thread.thread_id != thread_id || admitted_thread.state()? != *current_state {
+            return Err(anyhow!("coordinator launch carrier must use the current admitted thread"));
+        }
+    }
     let runtime_identity = cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("coordinator launch requires runtime identity"))?;
@@ -742,8 +747,8 @@ fn validate_frontier_plan_mind_launch(
         .ok_or_else(|| anyhow!("Mind launch requires thread state"))?;
     if persisted.state()? != *state
         || request.runtime_id != identity.runtime_id
-        || request.thread_id != persisted.thread_id
-        || launch.launch_document.thread_id() != request.thread_id
+        || request.thread_id.is_empty()
+        || launch.launch_document.thread_id() != persisted.thread_id
     {
         return Err(anyhow!("Mind launch provenance mismatch"));
     }
@@ -848,9 +853,8 @@ fn validate_frontier_planning_launch(
     let persisted_state_value = persisted_state.state()?;
     if planning.request_id != request_id
         || planning.runtime_id != identity.runtime_id
-        || planning.thread_id != persisted_state.thread_id
         || persisted_state_value != *state
-        || launch.launch_document.thread_id() != planning.thread_id
+        || launch.launch_document.thread_id() != persisted_state.thread_id
     {
         return Err(anyhow!(
             "frontier planning launch provenance binding mismatch"
@@ -954,9 +958,9 @@ fn validate_imagination_consideration_launch(
         .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
         .ok_or_else(|| anyhow!("consideration requires thread state"))?;
     if request.runtime_id != identity.runtime_id
-        || request.thread_id != persisted.thread_id
+        || request.thread_id.is_empty()
         || persisted.state()? != *state
-        || launch.launch_document.thread_id() != request.thread_id
+        || launch.launch_document.thread_id() != persisted.thread_id
     {
         return Err(anyhow!("consideration launch provenance mismatch"));
     }
@@ -1019,9 +1023,9 @@ fn validate_admitted_model_direction_consideration_launch(
         .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
         .ok_or_else(|| anyhow!("model direction consideration requires thread state"))?;
     if request.runtime_id != identity.runtime_id
-        || request.thread_id != persisted.thread_id
+        || request.thread_id.is_empty()
         || persisted.state()? != *state
-        || launch.launch_document.thread_id() != request.thread_id
+        || launch.launch_document.thread_id() != persisted.thread_id
     {
         return Err(anyhow!("model direction consideration provenance mismatch"));
     }
@@ -2111,7 +2115,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn proposal_launch_restores_its_admitted_thread_after_resident_projection_transition(
+    fn proposal_launch_cannot_restore_superseded_thread_authority(
     ) -> Result<()> {
         let root = tempfile::tempdir()?;
         let (store, state, request, selection) =
@@ -2129,27 +2133,17 @@ pub(crate) mod tests {
             "launcher-after-transition".into(),
             "backend-after-transition".into(),
         )?;
-        let committed = commit_coordinator_job_launch(
+        let before = std::fs::read(&store)?;
+        let error = commit_coordinator_job_launch(
             &store,
             &selection.thread_id,
             &state,
             &request,
             &plan,
             "2026-07-13T05:00:04Z".into(),
-        )?;
-
-        let cache = coordinator_acceptance_cache(&store)?;
-        let restored = cache
-            .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
-            .expect("launch restores admitted cognitive thread projection");
-        assert_eq!(restored.thread_id, selection.thread_id);
-        assert_eq!(restored.state()?, committed.epiphany_state);
-        let binding = cache
-            .get::<RepoFrontierProposalModelingLaunchBinding>(
-                "repo-frontier-proposal-modeling-launch-backend-after-transition",
-            )?
-            .expect("launch preserves admitted proposal lineage");
-        assert_eq!(binding.thread_id, selection.thread_id);
+        ).expect_err("superseded provenance cannot rewrite the admitted carrier thread");
+        assert!(error.to_string().contains("current admitted thread"));
+        assert_eq!(std::fs::read(&store)?, before);
         Ok(())
     }
 
@@ -2743,7 +2737,7 @@ pub(crate) mod tests {
     #[test]
     fn frontier_planning_launch_refuses_swapped_request_bytes_without_writes() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for mutation in 0..8 {
+        for mutation in 0..7 {
             let (store, state, launch, planning) =
                 frontier_planning_launch_fixture(root.path(), &format!("causal-{mutation}"))?;
             let mut corrupt = planning.clone();
@@ -2754,8 +2748,7 @@ pub(crate) mod tests {
                 3 => corrupt.frontier_item_hash = "swapped-frontier-hash".into(),
                 4 => corrupt.selected_organ = "Hands".into(),
                 5 => corrupt.source_scope.push("outside/scope".into()),
-                6 => corrupt.runtime_id = "swapped-runtime".into(),
-                _ => corrupt.thread_id = "swapped-thread".into(),
+                _ => corrupt.runtime_id = "swapped-runtime".into(),
             }
             let mut cache = coordinator_acceptance_cache(&store)?;
             cache.put(&corrupt.request_id, &corrupt)?;

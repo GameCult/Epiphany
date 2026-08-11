@@ -137,17 +137,11 @@ pub fn commit_request(
         return Ok(None);
     }
     let previous_terminal_result_id = terminal.last().map(|result| result.result_id.clone());
-    let causal = rmp_serde::to_vec_named(&(
+    let request_id = crate::admitted_model_direction_request_id(
         &identity.runtime_id,
-        &thread.thread_id,
-        model.model_revision,
         &model_hash,
         &receipts[0].receipt_id,
-        &previous_terminal_result_id,
-    ))?;
-    let request_id = format!(
-        "admitted-model-direction-consideration-{:x}",
-        Sha256::digest(causal)
+        previous_terminal_result_id.as_deref(),
     );
     let request = AdmittedModelDirectionConsiderationRequest {
         schema_version: REQUEST_SCHEMA.into(),

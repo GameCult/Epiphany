@@ -1,5 +1,27 @@
 # Epiphany Current Algorithmic Map
 
+## Causal work identity and creation provenance
+
+- Owner: `causal_work_identity` derives durable request identity for Proposal Modeling, Research, frontier Planning, PlanMind, and Admitted Model Direction.
+- Inputs: runtime identity plus the immutable admitted cause specific to each typed family. Proposal content, model/frontier hashes, accepted result identity, candidate digest, and Mind admission receipts may participate. Coordinator thread and timestamps may not.
+- Outputs: deterministic typed request IDs consumed by direct and resident launch paths.
+- Derived state: creation thread and request time are provenance. Job, process, grant, model-execution, and tool IDs identify attempts beneath the request and cannot redefine it.
+- Forbidden writers: current coordinator thread, resident projection, retry path, launch callback, and worker output cannot fork, invalidate, or restore a request identity.
+- Shared paths: a request may cross coordinator incarnations while the current admitted thread carries transport. Launch refuses byte-identically if stale provenance attempts to replace that carrier thread.
+- Cut line: family-local causal hash formulas and downstream thread-restoration behavior are removed. Distinct request structs remain explicit; this is a shared invariant, not a stringly request registry.
+- Verification layer: full core tests cover direct/resident generation, hostile causal substitution, current-thread transport, and byte-identical stale-thread refusal.
+
+## Immutable public source identity
+
+- Owner: `ImmutableGithubSource` owns component validation, composite parsing, lowercase revision canonicalization, repository/source rendering, and round-trip identity.
+- Inputs: GitHub owner, repository, exact 40-hex commit, and bounded canonical repository path.
+- Outputs: one typed identity used by Modeling source selection, Eyes provider execution, and Mind receipt authentication.
+- Derived state: raw-content URL and receipt display fields. Network policy, grant authorization, content bounds, digest verification, and receipt lifecycle remain with their existing owners.
+- Forbidden writers: provider output and mutually consistent JSON fields cannot define or weaken immutable source identity.
+- Shared paths: uppercase provider input canonicalizes to the same lowercase source reference that Modeling stores and Mind authenticates.
+- Cut line: the runtime-only composite parser and provider-local component/path validators are deleted.
+- Verification layer: typed table tests reject mutable revisions, ambiguous repositories, traversal, empty segments, and invalid characters; governed public-tool tests still prove exact grant and receipt binding.
+
 ## Heartbeat pulse-artifact retention ownership
 
 - Owner: heartbeat Continuity owns retirement of its own closed `pulse-NNNNNN` artifact directories. Status display limits and Idunn process supervision own no deletion authority.
