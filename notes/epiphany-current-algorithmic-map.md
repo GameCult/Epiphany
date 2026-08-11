@@ -4362,3 +4362,12 @@ Soul binding, and split-admission replay.
   381 before the next admitted-direction Imagination worker launch. The reaper
   owner is therefore accepted at source, package, Linux helper, and genuine
   coordinated runtime layers.
+
+The same owner then survived a second distinct live worker family. The exact
+admitted-direction Imagination request `c72af0e16fbc...` launched worker PID
+275 after its preserved Heartbeat grant was released. Self held typed
+fulfillment authority until the result terminalized, settled at revision 384,
+and the next cycle reaped PID 275. Resident PID 1 again had no defunct child.
+Heartbeat returned to routine physiology and the result produced no further
+admitted work. This closes the successful-path reaper gate across Modeling and
+Imagination without adding a lifecycle-specific process rule.

@@ -4020,3 +4020,13 @@ revision 381 with no active lease and zero zombies. Preserve that exact next
 grant/request binding; inspect it before release, then run one bounded
 Imagination lifecycle and require zero zombies again. Do not create another
 proposal or manual-regather pressure.
+
+The preserved Imagination grant was then released without creating new
+pressure. Exact admitted-direction request
+`c72af0e16fbc767966e63f56f058ae3741f07d2af4b12bab7b65dd8d8fab4bbb`
+launched packaged worker PID 275 as another adopted child of resident PID 1.
+It terminalized normally, Self settled once at revision 384, and the following
+cycle again returned the resident process table to PID 1 alone with no defunct
+child. Heartbeat resumed routine physiology and no new admitted work appeared.
+The brake is engaged at revision 384. The reaper cut is accepted across both a
+proposal Modeling worker and an admitted-direction Imagination worker.
