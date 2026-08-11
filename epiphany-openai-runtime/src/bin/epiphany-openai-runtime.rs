@@ -1333,13 +1333,14 @@ mod tests {
     ) -> Result<epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary> {
         let session_id = worker_model_session_id(worker_job_id);
         let job_id = format!("openai-worker-{worker_job_id}");
-        let model_request = EpiphanyModelRequest::new(
+        let mut model_request = EpiphanyModelRequest::new(
             request_id,
             format!("worker-{worker_job_id}"),
             DEFAULT_PROVIDER,
             "gpt-test",
             "Call one source tool.",
         );
+        model_request.source_worker_job_id = Some(worker_job_id.to_string());
         let provider_request = EpiphanyOpenAiModelRequest::new(
             request_id,
             format!("worker-{worker_job_id}"),
@@ -1443,6 +1444,48 @@ mod tests {
         ));
     }
 
+    fn put_test_source_grant(
+        store: &Path,
+        launch: &epiphany_core::EpiphanyRuntimeWorkerLaunchRequest,
+    ) -> Result<()> {
+        let request = epiphany_core::EpiphanyJobLaunchRequest {
+            expected_revision: None,
+            binding_id: launch.binding_id.clone(),
+            kind: epiphany_state_model::EpiphanyJobKind::Specialist,
+            scope: launch.authority_scope.clone(),
+            owner_role: launch.role.clone(),
+            authority_scope: launch.authority_scope.clone(),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+            instruction: launch.instruction.clone(),
+            launch_document: launch.launch_document()?,
+            output_contract_id: launch.output_contract_id.clone(),
+            organ_launch_contract: launch.organ_launch_contract.clone(),
+            max_runtime_seconds: None,
+            proposal_modeling_request_id: launch.proposal_modeling_request_id.clone(),
+            claim_repair_request_id: launch.claim_repair_request_id.clone(),
+            frontier_planning_request_id: launch.frontier_planning_request_id.clone(),
+            frontier_plan_mind_request_id: launch.frontier_plan_mind_request_id.clone(),
+            imagination_consideration_request_id: launch
+                .imagination_consideration_request_id
+                .clone(),
+            admitted_model_direction_consideration_request_id: launch
+                .admitted_model_direction_consideration_request_id
+                .clone(),
+            repo_frontier_modeling_request_id: launch.repo_frontier_modeling_request_id.clone(),
+            repo_frontier_research_request_id: launch.repo_frontier_research_request_id.clone(),
+            repo_frontier_verdict_modeling_authority: None,
+        };
+        let grant = epiphany_core::substrate_gate_repo_access_grant_for_launch(
+            format!("substrate-grant-{}", launch.job_id),
+            launch.job_id.clone(),
+            &request,
+            now(),
+        );
+        epiphany_core::put_substrate_gate_repo_access_grant_receipt(store, &grant)?;
+        Ok(())
+    }
+
     #[test]
     fn repeated_tool_loop_seals_outer_worker_job() -> Result<()> {
         let temp = tempdir()?;
@@ -1471,6 +1514,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_research_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1502,12 +1546,14 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_research_request_id: None,
                 repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;
         let launch_request =
             runtime_worker_launch_request(&store, "worker-job-loop")?.expect("launch request");
+        put_test_source_grant(&store, &launch_request)?;
         let openai_summary = seed_pending_tool_summary(
             &store,
             "worker-job-loop",
@@ -1581,6 +1627,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_research_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1612,6 +1659,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_research_request_id: None,
                 repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
@@ -1664,6 +1712,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_research_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1695,12 +1744,14 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_research_request_id: None,
                 repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;
         let launch_request = runtime_worker_launch_request(&store, "worker-job-round-limit")?
             .expect("launch request");
+        put_test_source_grant(&store, &launch_request)?;
         let openai_summary = seed_pending_tool_summary(
             &store,
             "worker-job-round-limit",

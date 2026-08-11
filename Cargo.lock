@@ -2186,6 +2186,7 @@ dependencies = [
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
  "epiphany-openai-codex-spine",
+ "epiphany-state-model",
  "epiphany-tool-adapter",
  "rmp-serde",
  "serde",

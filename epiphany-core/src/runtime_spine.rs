@@ -8738,10 +8738,18 @@ pub fn select_and_commit_repo_frontier_research_request(
     let item = actionable_frontier_item_for_organ(&model, &challenges, "Eyes", false)
         .ok_or_else(|| anyhow!("current model has no actionable Eyes frontier"))?;
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    let mut public_source_refs = item
+        .evidence_refs
+        .iter()
+        .filter(|source_ref| immutable_github_source_ref(source_ref))
+        .cloned()
+        .collect::<Vec<_>>();
+    public_source_refs.sort();
+    public_source_refs.dedup();
     let request_id = format!(
         "repo-frontier-research-{:x}",
         Sha256::digest(
-            format!("{}:{}:{}:{item_hash}", identity.runtime_id, thread.thread_id, model_hash)
+            format!("{}:{}:{item_hash}", identity.runtime_id, model_hash)
                 .as_bytes()
         )
     );
@@ -8758,10 +8766,15 @@ pub fn select_and_commit_repo_frontier_research_request(
         runtime_id: identity.runtime_id,
         thread_id: thread.thread_id,
         contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
+        public_source_refs,
     };
     if let Some(existing) = cache.get::<RepoFrontierResearchRequest>(&request_id)? {
         let mut replay = request.clone();
         replay.requested_at = existing.requested_at.clone();
+        // The frontier owns this request. The thread records where it was
+        // created, but later coordinator incarnations must not fork or
+        // invalidate the same current-model request.
+        replay.thread_id = existing.thread_id.clone();
         return if existing == replay {
             Ok(existing)
         } else {
@@ -8840,9 +8853,6 @@ fn repo_frontier_research_request_is_current(
         return Err(anyhow!("invalid frontier Research request"));
     }
     let identity = require_identity(cache)?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("frontier Research request lost thread state"))?;
     let entry = cache
         .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
         .ok_or_else(|| anyhow!("frontier Research request lost current model"))?;
@@ -8850,7 +8860,7 @@ fn repo_frontier_research_request_is_current(
     let model = entry.snapshot()?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
     if request.runtime_id != identity.runtime_id
-        || request.thread_id != thread.thread_id
+        || request.thread_id.is_empty()
         || request.model_revision != model.model_revision
         || request.model_hash != model_hash
     {
@@ -8861,13 +8871,18 @@ fn repo_frontier_research_request_is_current(
         return Ok(false);
     };
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    let mut expected_public_source_refs = item
+        .evidence_refs
+        .iter()
+        .filter(|source_ref| immutable_github_source_ref(source_ref))
+        .cloned()
+        .collect::<Vec<_>>();
+    expected_public_source_refs.sort();
+    expected_public_source_refs.dedup();
     let expected_request_id = format!(
         "repo-frontier-research-{:x}",
         Sha256::digest(
-            format!(
-                "{}:{}:{}:{item_hash}",
-                identity.runtime_id, thread.thread_id, model_hash
-            )
+            format!("{}:{}:{item_hash}", identity.runtime_id, model_hash)
             .as_bytes()
         )
     );
@@ -8888,7 +8903,8 @@ fn repo_frontier_research_request_is_current(
         && request.request_id == expected_request_id
         && request.frontier_item_id == item.id
         && request.frontier_item_hash == item_hash
-        && request.source_scope == item.source_scope)
+        && request.source_scope == item.source_scope
+        && request.public_source_refs == expected_public_source_refs)
 }
 
 /// Read-only Self signal for proposal planning. It uses the same eligibility
@@ -10662,6 +10678,43 @@ fn safe_sorted_unique_paths(paths: &[String]) -> bool {
                 && !Path::new(path)
                     .components()
                     .any(|part| matches!(part, std::path::Component::ParentDir))
+        })
+}
+
+fn immutable_github_source_ref(source_ref: &str) -> bool {
+    let Some(rest) = source_ref.strip_prefix("github://") else {
+        return false;
+    };
+    let Some((owner, rest)) = rest.split_once('/') else {
+        return false;
+    };
+    let Some((repository, revision_and_path)) = rest.split_once('@') else {
+        return false;
+    };
+    let Some((revision, path)) = revision_and_path.split_once('/') else {
+        return false;
+    };
+    let repository_component = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 100
+            && value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+            })
+    };
+    repository_component(owner)
+        && repository_component(repository)
+        && revision.len() == 40
+        && revision
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        && !path.is_empty()
+        && path.len() <= 512
+        && path.split('/').all(|segment| {
+            !segment.is_empty()
+                && !matches!(segment, "." | "..")
+                && segment.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+                })
         })
 }
 
@@ -16593,6 +16646,14 @@ pub(crate) mod tests {
                 unreachable!()
             };
             item.recommended_next_organ = next_organ.into();
+            if next_organ == "Eyes" {
+                item.evidence_refs.push(
+                    "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+                        .into(),
+                );
+                item.evidence_refs.sort();
+                item.evidence_refs.dedup();
+            }
             let bytes = rmp_serde::to_vec_named(&patch)?;
             result.repo_model_patch_msgpack = Some(bytes.clone());
             let mut amended = review;
@@ -16726,13 +16787,108 @@ pub(crate) mod tests {
         )?;
         assert_eq!(research_request.model_revision, eyes_challenge.model_revision);
         assert_eq!(
+            research_request.public_source_refs,
+            vec!["github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"]
+        );
+        assert_eq!(
             select_and_commit_repo_frontier_research_request(
                 &eyes_store,
                 "2026-07-13T04:03:00Z",
             )?,
             research_request
         );
+        let mut cache = runtime_spine_cache(&eyes_store)?;
+        cache.pull_all_backing_stores()?;
+        let mut transitioned = cache
+            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+            .unwrap();
+        transitioned.thread_id = "later-coordinator-incarnation".into();
+        cache.put(crate::THREAD_STATE_KEY, &transitioned)?;
+        assert_eq!(
+            select_and_commit_repo_frontier_research_request(
+                &eyes_store,
+                "2026-07-13T04:04:00Z",
+            )?,
+            research_request
+        );
         assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        let job_id = "eyes-current-frontier-job";
+        let launch_document = EpiphanyWorkerLaunchDocument::Role(
+            crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: transitioned.thread_id.clone(),
+                role_id: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+                state_revision: transitioned.state()?.revision,
+                objective: None,
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_research_context: Some(
+                    crate::RepoFrontierResearchContextProjection::from(&research_request),
+                ),
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            },
+        );
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: job_id.into(),
+            binding_id: crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+            authority_scope: "research".into(),
+            instruction: "Inspect the exact current Eyes frontier.".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: worker_launch_document_kind(&launch_document).into(),
+            launch_document_msgpack: encode_worker_launch_document(&launch_document)?,
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "research",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: Some(research_request.request_id.clone()),
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        cache.put(job_id, &launch)?;
+        let covered = EyesEvidencePacket {
+            schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.into(),
+            packet_id: "eyes-current-frontier-packet".into(),
+            source_result_id: "eyes-current-frontier-result".into(),
+            source_job_id: job_id.into(),
+            source_role_id: "research".into(),
+            evidence_ids: vec!["evidence-current-frontier".into()],
+            observation_ids: vec!["observation-current-frontier".into()],
+            source_refs: research_request.source_scope.clone(),
+            summary: "The current frontier was inspected.".into(),
+            uncertainty: "Bounded to the exact request.".into(),
+            emitted_at: "2026-07-13T04:05:00Z".into(),
+            contract: "Eyes packet emitted from a reviewed Research lane finding; it makes the source-gathering evidence claim citable before Mind admission.".into(),
+            source_lookup_receipt_ids: Vec::new(),
+        };
+        cache.put(&covered.packet_id, &covered)?;
+        assert!(!runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
 
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;

@@ -2248,6 +2248,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let basis = epiphany_core::RepositoryBodyObservationBasis {
@@ -2385,6 +2386,7 @@ mod tests {
                 proposal_modeling_context: Some(context),
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -2426,6 +2428,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
 
@@ -2472,6 +2475,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
@@ -2552,6 +2556,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
@@ -2684,6 +2689,7 @@ mod tests {
             imagination_consideration_request_id: Some(request.request_id.clone()),
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
@@ -2740,6 +2746,7 @@ mod tests {
                 proposal_modeling_context: None,
                 claim_repair_context: None,
                 frontier_planning_context: None,
+                frontier_research_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -2780,6 +2787,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
@@ -2822,6 +2830,7 @@ mod tests {
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let context = epiphany_core::RepoFrontierPlanMindContextProjection {
@@ -3093,8 +3102,9 @@ mod tests {
                         repository_body_observation_basis: Some(body_basis.clone()),
                         proposal_modeling_context: None,
                         claim_repair_context: None,
-                        frontier_planning_context: None,
-                        frontier_plan_mind_context: None,
+                frontier_planning_context: None,
+                frontier_research_context: None,
+                frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
@@ -3127,6 +3137,7 @@ mod tests {
                 repo_frontier_modeling_request_id: Some(
                     "frontier-modeling-request-1".to_string(),
                 ),
+                repo_frontier_research_request_id: None,
                 repo_frontier_verdict_modeling_authority: Some(
                     epiphany_core::RepoFrontierVerdictModelingLaunchAuthority {
                         request: epiphany_core::RepoFrontierModelingRequest {
@@ -3316,8 +3327,9 @@ mod tests {
                         repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
-                        frontier_planning_context: None,
-                        frontier_plan_mind_context: None,
+                frontier_planning_context: None,
+                frontier_research_context: None,
+                frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
@@ -3348,6 +3360,7 @@ mod tests {
                 imagination_consideration_request_id: None,
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
+                repo_frontier_research_request_id: None,
                 repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },

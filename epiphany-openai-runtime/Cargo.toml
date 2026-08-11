@@ -26,6 +26,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+epiphany-state-model = { path = "../epiphany-state-model" }
 tempfile = "3"
 
 [[bin]]

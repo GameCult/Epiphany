@@ -4419,21 +4419,29 @@ Imagination without adding a lifecycle-specific process rule.
 - Owner: the exact actionable Eyes frontier in the uniquely admitted current
   RepoModel owns whether Self must launch Research.
 - Inputs: current model revision/hash and admission receipt; exact frontier item
-  id/hash/source scope; authoritative runtime/thread identity; typed Research
+  id/hash/local source scope and strict immutable GitHub evidence refs;
+  authoritative runtime identity; creation-thread provenance; typed Research
   worker launch; accepted Eyes packet source job.
 - Outputs: one immutable `RepoFrontierResearchRequest`, its exact typed launch
   projection, and an uncovered/covered readiness decision.
-- Derived state: historical `research_result_accepted` is evidence about an old
-  pass, and a terminal `Completed` role binding is evidence about its old job;
-  neither owns the current frontier. Only a currently `Pending` or `Running`
-  Research job suppresses another launch.
-- Forbidden writers: timestamps, generic accepted Research state, and unrelated
-  Eyes packets cannot consume current readiness.
+- Derived state: request `thread_id` records the coordinator incarnation that
+  created it but is not request identity or liveness authority. Historical
+  `research_result_accepted` is evidence about an old pass, and a terminal
+  `Completed` role binding is evidence about its old job; neither owns the
+  current frontier. Only a currently `Pending` or `Running` Research job
+  suppresses another launch.
+- Forbidden writers: mutable coordinator thread state, timestamps, generic
+  accepted Research state, and unrelated Eyes packets cannot invalidate,
+  replace, or consume current readiness. Worker prompts cannot invent a public
+  target; only a canonical immutable ref already admitted in frontier evidence
+  enters the Research launch.
 - Shared path: status, direct coordinator execution, and resident execution use
   the same current-frontier selector and worker-launch carrier.
 - Cut line: only an accepted Eyes packet whose source job carries the exact
   current request may cover the frontier. Model or frontier advance makes the
   old request inert.
-- Verification: deterministic selection/replay, exact carrier validation,
-  historical-acceptance routing, and the full 680-test library pass are green;
-  exact packaged copied-state public Eyes-to-Mind proof remains open.
+- Verification: deterministic selection/replay across a coordinator-thread
+  transition, strict public-ref projection, exact carrier validation, exact
+  packet coverage, historical-acceptance routing, the full 680-test core pass,
+  24 Self-policy tests, and 39 OpenAI runtime tests are green. Exact packaged
+  copied-state public Eyes-to-Mind proof remains open.

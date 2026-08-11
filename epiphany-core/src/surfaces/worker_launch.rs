@@ -39,9 +39,9 @@ pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_planning_context.v0";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_research_context.v0";
+    "epiphany.worker.repo_frontier_research_context.v1";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_research_context.v0";
+    "epiphany.repo_frontier_research_context.v1";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -160,6 +160,8 @@ pub struct RepoFrontierResearchContextProjection {
     pub frontier_item_id: String,
     pub frontier_item_hash: String,
     pub source_scope: Vec<String>,
+    #[serde(default)]
+    pub public_source_refs: Vec<String>,
     pub contract: String,
 }
 
@@ -174,6 +176,7 @@ impl From<&crate::RepoFrontierResearchRequest> for RepoFrontierResearchContextPr
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
             source_scope: request.source_scope.clone(),
+            public_source_refs: request.public_source_refs.clone(),
             contract: REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT.to_string(),
         }
     }

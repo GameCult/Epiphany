@@ -2,12 +2,34 @@
 
 ## Public Eyes evidence is grant-bound and Mind-admissible - 2026-08-11
 
-Latest pushed source is exact `8fb61ac2`; a causal Eyes-frontier routing cut is
-implemented locally with 680/680 core library tests and 24/24 Self-policy tests
-passing. Actual c011 remains exact
+Latest pushed source is exact `d7b199e5`; a corrected causal Eyes-frontier owner
+cut is implemented locally. The full core library passes 680/680 with one
+intentional helper ignored, Self-policy passes 24/24, and the OpenAI runtime
+passes 39/39 across library and both binary surfaces. Actual c011 remains exact
 `465af24d`, alive, cognitively braked at resident revision 384, with no active
 lease or admitted work and zero defunct children. Do not disturb it before the
 new source passes copied-state gates.
+
+Copied d7 replay did launch Research and Mind accepted its result, but that was
+not the required public proof. The worker inspected only local frontier scope;
+the accepted packet carried no `github://` source or `EyesSourceLookupReceipt`.
+After acceptance, status still derived `launchResearch`. Operator-safe
+diagnostics proved the request, launch, and packet job IDs matched: coverage
+failed only because the mutable canonical coordinator thread had advanced away
+from the request's creation thread. The same launch lacked a typed immutable
+public target, so a root fixture file was correctly invisible.
+
+The repaired owner is the exact admitted RepoModel frontier. Research request
+identity now derives from runtime identity, model hash, and exact frontier hash;
+the thread is retained as creation provenance but cannot invalidate or fork the
+request. A strict `github://owner/repository@40hex/path` subset of the
+Modeling-owned frontier `evidence_refs` is copied into the v1 request and exact
+worker launch context. The regression creates a request, changes coordinator
+incarnation, replays the same request, binds an exact launch and packet, and
+proves the frontier becomes covered. OpenAI fixture failures also exposed and
+closed missing launch-carrier fields and missing source-worker/grant provenance
+in tool-loop tests. Temporary debug prints were removed; formatting churn was
+discarded rather than canonized.
 
 The source-tool authority wound is closed in source. Research, Modeling, and
 Verification launches receive exact immutable read grants; Research alone
