@@ -3923,3 +3923,27 @@ The proposal grant and outer worker are single-attempt proven. Downstream
 coordinator review is not yet single-consumption proven: the live run emitted
 two receipt-bound `reviewModelingResult` continuation grants for the same
 proposal-bound result before settlement. That route is the next ownership cut.
+
+### Receipt-bound role review continuation
+
+- Owner: the runtime-linked role result owns when review becomes runnable;
+  resident Self owns idempotent conversion of the exact coordinator receipt
+  into one continuation pressure.
+- Inputs: exact last coordinator receipt, authoritative thread runtime link,
+  and runtime job/result terminal status.
+- Outputs: no pressure while the result is pending; one deterministic
+  `{receipt_id, review_action}` pressure after terminal publication.
+- Derived state: a receipt's `review*Result` string is intent, not readiness.
+- Forbidden writers: coordinator final-action prose, pulse timing, cooldown,
+  and process exit cannot make a pending result reviewable.
+- Shared paths: direct `reviewResearchResult`, `reviewModelingResult`, and
+  `reviewVerificationResult` receipts use the same terminal predicate as
+  `waitFor*Result` conversion.
+- Cut line: review actions are removed from the unconditional direct-action
+  set. The terminal predicate reads through the runtime-spine cache, which owns
+  every schema in the heterogeneous store; the thread-only cache is not a
+  runtime-store reader.
+- Verification: focused coverage proves a pending direct review receipt emits
+  no continuation, then the same exact receipt emits one after its linked job
+  and typed result become terminal; repeated ingestion remains idempotent.
+  Thirty resident tests pass. Exact packaged copied replay remains required.

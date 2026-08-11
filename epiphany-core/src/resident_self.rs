@@ -1149,7 +1149,9 @@ fn role_result_is_terminal_for_continuation(
     role: crate::EpiphanyRoleResultRoleId,
     binding_id: &str,
 ) -> Result<bool> {
-    let entry = crate::load_thread_state_entry(runtime_store)?;
+    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
+    runtime.pull_all_backing_stores()?;
+    let entry = runtime.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?;
     let state = entry
         .as_ref()
         .filter(|entry| entry.thread_id == thread_id)
@@ -1175,10 +1177,7 @@ fn resident_self_safe_continuation_action(
 ) -> Result<Option<String>> {
     let direct = matches!(
         receipt.final_action.as_str(),
-        "reviewResearchResult"
-            | "reviewModelingResult"
-            | "reviewVerificationResult"
-            | "launchResearch"
+        "launchResearch"
             | "launchModeling"
             | "launchVerification"
             | "startFrontierPlanning"
@@ -1191,6 +1190,36 @@ fn resident_self_safe_continuation_action(
         return Ok(Some(receipt.final_action.clone()));
     }
     let action = match receipt.final_action.as_str() {
+        "reviewResearchResult"
+            if role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Research,
+                crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+            )? =>
+        {
+            Some("reviewResearchResult")
+        }
+        "reviewModelingResult"
+            if role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Modeling,
+                crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
+            )? =>
+        {
+            Some("reviewModelingResult")
+        }
+        "reviewVerificationResult"
+            if role_result_is_terminal_for_continuation(
+                runtime_store,
+                &receipt.thread_id,
+                crate::EpiphanyRoleResultRoleId::Verification,
+                crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+            )? =>
+        {
+            Some("reviewVerificationResult")
+        }
         "waitForResearchResult"
             if role_result_is_terminal_for_continuation(
                 runtime_store,
@@ -5117,15 +5146,67 @@ mod tests {
         let (entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
         SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
 
-        assert!(ingest_resident_self_coordinator_continuation_pressure(
+        assert!(!ingest_resident_self_coordinator_continuation_pressure(
             &resident_store,
             &runtime_store,
             1,
         )?);
-        assert!(!ingest_resident_self_coordinator_continuation_pressure(
+
+        let job_id = "modeling-terminal-job";
+        let thread_state = epiphany_state_model::EpiphanyThreadState {
+            runtime_links: vec![epiphany_state_model::EpiphanyRuntimeLink {
+                id: "runtime-link-modeling-terminal-job".into(),
+                binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+                surface: "jobLaunch".into(),
+                role_id: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+                authority_scope: "modeling".into(),
+                runtime_job_id: job_id.into(),
+                runtime_result_id: Some(format!("result-{job_id}")),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+            }],
+            ..Default::default()
+        };
+        let thread_entry = crate::EpiphanyThreadStateEntry::from_state("thread-1", &thread_state)?;
+        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
+        runtime.put(crate::THREAD_STATE_KEY, &thread_entry)?;
+        runtime.put(job_id, &crate::EpiphanyRuntimeJob {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+            job_id: job_id.into(),
+            session_id: "modeling-terminal-session".into(),
+            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            status: crate::EpiphanyRuntimeJobStatus::Completed,
+            created_at: "2026-08-11T00:00:00Z".into(),
+            updated_at: "2026-08-11T00:00:01Z".into(),
+            summary: "Modeling completed.".into(),
+            artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+        })?;
+        runtime.put(&format!("result-{job_id}"), &crate::EpiphanyRuntimeJobResult {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+            result_id: format!("result-{job_id}"),
+            job_id: job_id.into(),
+            session_id: "modeling-terminal-session".into(),
+            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            verdict: "completed".into(),
+            summary: "Modeling completed.".into(),
+            completed_at: "2026-08-11T00:00:01Z".into(),
+            next_safe_move: "Review Modeling.".into(),
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+        })?;
+        runtime.put(job_id, &role_worker_result(job_id, "modeling"))?;
+
+        assert!(ingest_resident_self_coordinator_continuation_pressure(
             &resident_store,
             &runtime_store,
             2,
+        )?);
+        assert!(!ingest_resident_self_coordinator_continuation_pressure(
+            &resident_store,
+            &runtime_store,
+            3,
         )?);
         let pressure = resident_self_pressures(&resident_store)?
             .into_iter()
@@ -5135,7 +5216,7 @@ mod tests {
             pressure.kind,
             RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
         );
-        heartbeat_issue_resident_self_grant(&resident_store, "schedule", "action", 3)?
+        heartbeat_issue_resident_self_grant(&resident_store, "schedule", "action", 4)?
             .expect("one continuation grant");
         let coordinator = temp.path().join("epiphany-mvp-coordinator");
         std::fs::write(&coordinator, b"witnessed executable")?;
@@ -5143,7 +5224,7 @@ mod tests {
         policy.coordinator_bin = coordinator;
         policy.runtime_store = runtime_store;
         policy.max_steps = 1;
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 4)?
+        let prepared = prepare_resident_self_launch(&resident_store, &policy, 5)?
             .expect("continuation preparation");
         assert_eq!(resident_prepared_launch_thread_id(&prepared)?, "thread-1");
         assert!(prepared.argv.windows(2).any(|pair| pair == ["--mode", "execute"]));

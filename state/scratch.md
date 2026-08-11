@@ -4,9 +4,8 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Map the duplicate receipt-bound `reviewModelingResult` continuation route after
-one proposal-bound Modeling result. Preserve explicit coordinator review while
-making the exact result single-consumption authority.
+Package and replay the cut that makes receipt-bound role review continuation
+eligible only after the exact runtime-linked result becomes terminal.
 
 ## Accepted live boundary
 
@@ -50,13 +49,13 @@ completed through one outer job on attempt one, bound one runtime-owned
 frontier, terminalized its proposal grant, and ended with zero open jobs and no
 Hands/Eyes frontier. Both owners exited zero under the restored brake.
 
-## Next authority map
+## Review continuation authority map
 
-- Owner to inspect: coordinator Modeling-result acceptance/review state and
-  Heartbeat continuation issuance.
+- Owner: exact runtime-linked role-result terminality decides review readiness;
+  resident Self converts one exact receipt into one deterministic pressure.
 - Inputs: the exact completed result, proposal binding/admission state, prior
   review receipt, and resident continuation lifecycle.
-- Output: at most one review continuation for one exact result, followed by one
+- Output: no pending-result continuation; at most one review continuation for one exact result, followed by one
   terminal settled projection.
 - Forbidden cut: do not suppress review with a cooldown, ack tombstone, log
   heuristic, or retry ceiling; move the consumed fact to the exact result or
@@ -64,3 +63,8 @@ Hands/Eyes frontier. Both owners exited zero under the restored brake.
 - Verification: fresh copied proposal produces one proposal grant, one outer
   Modeling job, at most one review continuation, exact settlement, zero open
   jobs, and no Hands, Persona, or deployment consequence.
+
+Current source removes direct role-review actions from the unconditional
+continuation set and makes Research, Modeling, and Soul review share the exact
+terminal-result predicate. The predicate now opens the mixed store through
+`runtime_spine_cache`; thirty resident tests pass. Package/live proof is open.

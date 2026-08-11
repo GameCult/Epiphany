@@ -46,6 +46,18 @@ but it is not clean single-consumption review either. Next map the result-review
 owner and require one proposal grant, one outer worker, at most one review
 continuation, and exact settlement on a fresh copy. Yggdrasil never builds.
 
+The source owner is now mapped and cut. `resident_self_safe_continuation_action`
+previously treated a receipt's direct `reviewModelingResult` action as runnable
+without checking the detached result. That minted one premature grant; the
+coordinator correctly returned `waitForModelingResult`, and only then did the
+terminal-result path mint the real review. Direct Research, Modeling, and Soul
+review continuations now share the same exact terminal-result predicate as the
+corresponding wait conversion. That predicate also reads the heterogeneous
+runtime store through `runtime_spine_cache`, not the thread-only reader. Thirty
+resident tests pass, including a focused negative that pending review mints no
+pressure and the same receipt becomes eligible exactly once after terminal
+publication. Package and replay before accepting this coordination cut live.
+
 ## Governed directory inventory accepted live - 2026-08-11
 
 Actual c006 remains exact `c9a2a979`, alive and cognitively braked. All work
