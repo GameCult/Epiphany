@@ -93,11 +93,6 @@ fn main() -> Result<()> {
         CommandKind::Serve => {
             let shutdown_requested = install_shutdown_signal_owner()?;
             let mut last_maintained_revision = None;
-            let readiness_interval = resident_readiness_publish_interval(
-                args.provider_freshness_seconds,
-            );
-            let mut last_readiness_revision = None;
-            let mut next_readiness_publish_at = std::time::Instant::now();
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
@@ -109,16 +104,7 @@ fn main() -> Result<()> {
                     maintain_resident_runtime(&args, &state)?;
                     last_maintained_revision = Some(state.revision);
                 }
-                let readiness_due = std::time::Instant::now() >= next_readiness_publish_at;
-                if resident_readiness_publish_required(
-                    state.revision,
-                    last_readiness_revision,
-                    readiness_due,
-                ) {
-                    publish_self_readiness(&args)?;
-                    last_readiness_revision = Some(state.revision);
-                    next_readiness_publish_at = std::time::Instant::now() + readiness_interval;
-                }
+                publish_self_readiness(&args)?;
                 println!(
                     "{}",
                     serde_json::to_string(&summary(&state, &outcome, shutting_down))?
@@ -156,18 +142,6 @@ fn resident_maintenance_required(
     last_maintained_revision: Option<u64>,
 ) -> bool {
     *outcome != ResidentSelfOutcome::Braked || last_maintained_revision != Some(revision)
-}
-
-fn resident_readiness_publish_interval(provider_freshness_seconds: u64) -> Duration {
-    Duration::from_secs((provider_freshness_seconds / 3).clamp(1, 60))
-}
-
-fn resident_readiness_publish_required(
-    revision: u64,
-    last_published_revision: Option<u64>,
-    interval_due: bool,
-) -> bool {
-    interval_due || last_published_revision != Some(revision)
 }
 
 fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()> {
@@ -930,21 +904,5 @@ mod brake_tests {
             7,
             Some(7),
         ));
-    }
-
-    #[test]
-    fn readiness_publication_follows_revision_and_freshness_not_poll_rate() {
-        assert_eq!(
-            resident_readiness_publish_interval(180),
-            Duration::from_secs(60),
-        );
-        assert_eq!(
-            resident_readiness_publish_interval(2),
-            Duration::from_secs(1),
-        );
-        assert!(resident_readiness_publish_required(7, None, false));
-        assert!(!resident_readiness_publish_required(7, Some(7), false));
-        assert!(resident_readiness_publish_required(8, Some(7), false));
-        assert!(resident_readiness_publish_required(7, Some(7), true));
     }
 }
