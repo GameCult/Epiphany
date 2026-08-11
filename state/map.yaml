@@ -36,19 +36,19 @@ invariants:
 
 current_status:
   summary: Epiphany is a supervised engineering alpha on Starfire, not deployment-ready. Exact b8138a6b active-child SIGTERM and restart, exact 9f369528 deterministic warm packaging, exact c930f505 cross-container ownership, exact ed15f83a resident lifecycle retention, exact 16c4b19f coordinator receipt and Heartbeat artifact retention, exact cce2b8ac narrow model-generation retention, exact eea15e82 model-turn JSON ingress, exact b1e8c89a semantic unattempted-generation retention, exact 6bc3ec3f semantic physical-epoch retirement, and exact 44230a05 Persona conversation retention are proven. Gamecult-ops 059821f owns Yggdrasil stream retention and exact 6ee08a4 owns stable Starfire Persona-permit firewall ingress. Exact 16c4b19f genuine idle and exact a987d2f7 active cognition completed 900-pulse bounded plateaus. Runtime-owned typed fulfillment is accepted live under exact 6dd9b132. Yggdrasil is the small public crossing body, never the release forge.
-  latest_phase: Exact 9370e47a packages Soul transaction ownership as release sha256-fe3e6c2465017f45649bef61fed1e54b5502f7963c83526fd1f5a791a7a35ac8; exact d4f4f145 packages Mind witness transaction ownership as warning-free 24-binary release sha256-b2490d04a1151d10b8a81b79cd7e56d5544d502829b9b51e1af6cea3a5477d11 with witness sha256-3ac4f12aebe70ae854b9156969ee374838c1e48461357a57632035a18bafd058. The full acceptance-family audit is now source-complete: Soul verdicts, Eyes packets, Continuity recovery receipts, Mind reviews, and Mind commit receipts publish only with the exact coordinator state transaction; their former shape-only writers are test-only. SubstrateGate remains independently writable by its real producers. Seven acceptance tests, focused fixture tests, and production library check pass. Actual c007h remains exact 3a5d2b5e, braked at revision 312 with no active lease and action awaitFrontierProposal. Yggdrasil never builds.
+  latest_phase: Exact 8ebe56f1 packages the complete acceptance-family ownership cut as warning-free 24-binary release sha256-2707ff42e48dd8640b8a962536972799dca9a1f49346d3b8d05695e7fa826a8e with witness sha256-6003630b550041f90f76ec6261372e6925fd4144ee3daee1d0e2f6864f217289. Live c007h stopped both owners exit zero; c008 runs that exact authenticated Body against the same state/workspace volumes with bounded logs. Braked restart preserved revision 312, no lease, and awaitFrontierProposal. After exact workspace advance, one typed operator pressure launched and failed closed at revision 316 because resident per-turn objective was incorrectly sent through seed-only canonical objective intake; attempt 2 is committed but unclaimed under the re-engaged canonical brake. The source cut now authenticates a resident directive against its exact prepared grant without mutating the Mind-owned canonical objective. Focused resident/standalone tests and coordinator binary check pass. Yggdrasil never builds.
   operational_state:
-    local_worktree: exact_d7957b42_actuator_audit_with_current_mind_refresh
+    local_worktree: resident_directive_ownership_cut_after_live_c008_failure
     operator_wireguard: restored
     starfire_persona_permit_firewall: persistent_exact_gamecult_ops_6ee08a4
     yggdrasil: canonical_small_public_crossing_body
     starfire: temporary_epiphany_cognition_body
     starfire_runtime_identity: epiphany-starfire
-    starfire_swarm_brake: engaged_in_live_c007h_cognitive_namespace
-    starfire_release: exact_3a5d2b5e_sha256_84af3da8_live_c007h
+    starfire_swarm_brake: engaged_in_live_c008_cognitive_namespace
+    starfire_release: exact_8ebe56f1_sha256_2707ff42_live_c008
     starfire_repository_body: bound_and_observed
     starfire_verse_topology: bound_to_current_repository_body
-    starfire_native_status: authenticated_braked_c007h_revision_312_no_active_lease
+    starfire_native_status: authenticated_braked_c008_revision_316_attempt2_unclaimed
     bifrost: exact_cb3239aa_f67f5122_native_runtime_active_on_yggdrasil
     bifrost_persona_feedback: ready_on_yggdrasil
     bifrost_feedback_binding: gamecult_aquarium_to_epiphany_starfire
@@ -68,9 +68,9 @@ current_status:
     starfire_linux_role_cognition: eyes_and_modeling_tools_results_and_acceptance_proven_zero_consequence
     starfire_linux_modeling_peak: 109887488_bytes_resident_body_plus_modeling_circuit
     yggdrasil_epiphany_service_contract: repaired_in_gamecult_ops_812b427_not_installed
-    resident_physiology: c007h_exact_3a5d2b5e_live_braked_revision_312_bounded_local_logs
+    resident_physiology: c008_exact_8ebe56f1_live_braked_revision_316_bounded_local_logs
   unresolved_authority: Coordinator receipt, Heartbeat pulse-artifact, genuine-idle and active resource plateaus, exact-grant terminality, restart-persistent cooldown refusal, schedule/action issuance cardinality, runtime-owned typed fulfillment, all three packaged fulfilled-before-receipt lanes, genuine packaged Imagination option generation, narrow model-generation retention, published model-turn JSON ingress, semantic logical/physical retention, Persona conversation retention, stable Starfire firewall ownership, completed model-adapter session archival, normal coordinator lifecycle opening/error closure/legacy repair/archival, co-resident resident lifecycle retention, authenticated outer-worker attempt retention, deployed supervisor/projector journald ownership, Docker named-volume atomic snapshot visibility, deterministic incremental release construction, and canonical-brake refusal of direct daemon lifecycle actuation are accepted. Starfire's Docker Desktop F: bind is rejected for mutable authority after an exact packaged lockless reader observed an empty published snapshot during writer interruption. Historical migrated semantic attempts without recorded physical namespace remain durable and non-retirable. One completed Discord consequence remains blocked by the absent Yggdrasil credential. Exact aa841873 also makes legacy coordinator repair one full-snapshot transaction so a later hostile family cannot leave an earlier partial repair.
-  next_action: Keep exact 3a5d2b5e c007h braked at revision 312. Commit, push, and package the completed acceptance-family ownership cut, authenticate its exact release, then select a larger live organ-matrix gate from current source rather than continuing fixture-writer archaeology. Do not manufacture frontier work or build on Yggdrasil.
+  next_action: Keep exact 8ebe56f1 c008 braked with operator attempt 2 committed and unclaimed. Commit, push, and package the resident-directive ownership cut; publish/restart exact c008, release the brake, and require attempt 2 to authenticate the persisted directive, preserve the canonical coordinator objective, and settle once. Re-engage the brake at the next phase boundary. Do not build on Yggdrasil.
 
 active_subgoals:
   - Prove Persona, Self, Eyes, Modeling, Imagination, Hands, Soul, Mind, Continuity, and nervous-system behavior individually.

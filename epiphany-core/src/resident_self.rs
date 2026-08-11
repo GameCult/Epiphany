@@ -2678,6 +2678,38 @@ pub fn resident_self_child_claim(
         .get::<ResidentSelfChildClaim>(&format!("resident-self-child-claim-{preparation_id}"))
 }
 
+/// Authenticates the per-turn objective carried by a resident coordinator
+/// launch. The canonical coordinator thread objective remains Mind-owned; this
+/// validates only the directive already persisted in the exact prepared grant.
+pub fn validate_resident_self_prepared_objective(
+    path: &Path,
+    preparation_id: &str,
+    claim: &ResidentSelfChildClaim,
+    objective: &str,
+) -> Result<()> {
+    let cache = state_cache(path)?;
+    let state = cache
+        .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        .ok_or_else(|| anyhow!("resident Self state is absent at objective bootstrap"))?;
+    let prepared = state
+        .prepared_launch
+        .as_ref()
+        .filter(|prepared| prepared.preparation_id == preparation_id)
+        .ok_or_else(|| anyhow!("resident Self preparation is absent at objective bootstrap"))?;
+    let objective_digest = digest_parts([objective.as_bytes()]);
+    if prepared.grant.pressure_kind != "operator-objective"
+        || prepared.grant.grant_id != claim.grant_id
+        || prepared.launch_digest != claim.launch_digest
+        || prepared.grant.objective != objective
+        || prepared.objective_digest != objective_digest
+    {
+        return Err(anyhow!(
+            "resident coordinator objective disagrees with its exact prepared grant"
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 fn complete_resident_self_turn(
     path: &Path,
@@ -4459,6 +4491,32 @@ mod tests {
         assert_eq!(
             resident_prepared_launch_thread_id(&prepared)?,
             "resident-self-thread-cognitive-runtime"
+        );
+        let process = LaunchedCoordinator {
+            process_id: u32::MAX - 20,
+            process_creation_token: 81,
+            process_executable_path: policy.coordinator_bin.clone(),
+        };
+        let claim = claim_resident_self_preparation_as_child(
+            &store,
+            &prepared.preparation_id,
+            &process,
+            4,
+        )?;
+        validate_resident_self_prepared_objective(
+            &store,
+            &prepared.preparation_id,
+            &claim,
+            "Run one bounded planning turn.",
+        )?;
+        assert!(
+            validate_resident_self_prepared_objective(
+                &store,
+                &prepared.preparation_id,
+                &claim,
+                "Replace the canonical objective.",
+            )
+            .is_err()
         );
         Ok(())
     }

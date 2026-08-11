@@ -4234,3 +4234,28 @@ outside this cut because its coordinator and Hands producers own independent
 access grants before acceptance. Seven coordinator-acceptance tests prove the
 shared transaction, invalid-witness refusal, prerequisite co-publication, exact
 Soul binding, and split-admission replay.
+
+## Resident directive versus canonical objective ownership
+
+- Owner: canonical coordinator state owns the long-lived thread objective;
+  resident Self's exact prepared launch owns one resident turn directive.
+- Inputs: standalone startup may supply a typed user-objective intake. Resident
+  startup supplies an exact preparation, grant, child claim, launch digest,
+  objective digest, and argv objective.
+- Outputs: standalone intake atomically seeds state plus `UserObjectiveIntake`.
+  Resident bootstrap emits authenticated per-turn command context and leaves the
+  canonical objective byte-identical.
+- Derived state: coordinator argv `--objective` is a carrier. It is not itself
+  permission to replace Mind state.
+- Forbidden writers: a resident directive cannot call the seed-only objective
+  intake, replace canonical state, or rely on an absent legacy intake envelope.
+  A foreign objective cannot pass the prepared-launch digest checks.
+- Shared paths: plain operator pressures use resident authentication; typed
+  proposal/consideration continuations remain objective-free; standalone
+  coordinator startup retains initial intake.
+- Cut line: branch objective handling on authenticated resident bootstrap
+  evidence instead of unconditionally calling `intake_user_objective`.
+- Verification: c008 attempt 1 failed closed and terminalized without external
+  consequence. Focused tests prove exact resident objective acceptance, foreign
+  objective refusal, and unchanged standalone seed-only replacement refusal.
+  Live attempt 2 replay remains the package gate.

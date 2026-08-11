@@ -260,10 +260,10 @@ impl Args {
 
 fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
-    match (&args.resident_state_store, &args.resident_preparation_id) {
+    let resident_claim = match (&args.resident_state_store, &args.resident_preparation_id) {
         (Some(store), Some(preparation_id)) => {
             let identity = capture_process_instance(std::process::id())?;
-            claim_resident_self_preparation_as_child(
+            Some(claim_resident_self_preparation_as_child(
                 store,
                 preparation_id,
                 &LaunchedCoordinator {
@@ -272,15 +272,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     process_executable_path: identity.executable_path,
                 },
                 chrono::Utc::now().timestamp_millis().max(0) as u64,
-            )?;
+            )?)
         }
-        (None, None) => {}
+        (None, None) => None,
         _ => {
             return Err(anyhow!(
                 "resident coordinator bootstrap requires both state store and preparation id"
             ));
         }
-    }
+    };
     let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
     assert_local_verse_brake_released(
         &local_verse_store,
@@ -355,13 +355,33 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     }));
     let run_result = (|| -> Result<Value> {
     if let Some(objective) = args.objective.as_deref() {
-        let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
-        startup_events.push(json!({
-            "type": "operatorObjectiveIntake",
-            "threadId": thread_id,
-            "revision": intake.state.revision,
-            "changed": intake.changed,
-        }));
+        if let (Some(store), Some(preparation_id), Some(claim)) = (
+            args.resident_state_store.as_deref(),
+            args.resident_preparation_id.as_deref(),
+            resident_claim.as_ref(),
+        ) {
+            epiphany_core::validate_resident_self_prepared_objective(
+                store,
+                preparation_id,
+                claim,
+                objective,
+            )?;
+            startup_events.push(json!({
+                "type": "residentObjectiveBinding",
+                "threadId": thread_id,
+                "grantId": claim.grant_id,
+                "preparationId": preparation_id,
+                "canonicalObjectiveChanged": false,
+            }));
+        } else {
+            let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
+            startup_events.push(json!({
+                "type": "operatorObjectiveIntake",
+                "threadId": thread_id,
+                "revision": intake.state.revision,
+                "changed": intake.changed,
+            }));
+        }
     }
     if let Some(request_id) = args.imagination_consideration_request_id.as_deref() {
         if args.objective.is_some() {

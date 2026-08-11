@@ -12,19 +12,16 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current source: exact `d7957b42`.
-- Accepted runtime implementation: exact `3a5d2b5e`.
-- Linux release:
-  `sha256-84af3da8d2a2e170aa0611e48367eac4ecf5f66b2a2da763dc3045c5ad360177`.
-- Witness:
-  `sha256-589ff2ca11392b02fee9cb5d3a0209d958fc47cc3695f82bb6e5bed08d4c4463`.
-- Actual c007h: Heartbeat and resident Self alive in distinct containers,
-  cognitive brake engaged, resident revision 312, authenticated readiness,
-  no active lease, and action `awaitFrontierProposal`.
-- Audited candidate release:
-  `sha256-bd0062904fa8e7097946c6fd735191de43ff04a89d1c3c29c0c86f876815fb31`;
+- Current pushed source: exact `8ebe56f1`.
+- Accepted live runtime implementation: exact `8ebe56f1`.
+- Audited/live release:
+  `sha256-2707ff42e48dd8640b8a962536972799dca9a1f49346d3b8d05695e7fa826a8e`;
   witness
-  `sha256-a051980f70b13d9dafa014fedc7fc636eb075a9fc85dc53e3a94081bcc3fe3e0`.
+  `sha256-6003630b550041f90f76ec6261372e6925fd4144ee3daee1d0e2f6864f217289`.
+- Actual c008: Heartbeat and resident Self alive in distinct containers on the
+  exact current release, cognitive brake engaged, resident revision 316, one
+  failed operator attempt terminalized, and retry attempt 2 committed but
+  unclaimed.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
 
@@ -120,11 +117,11 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Commit and package the completed acceptance-family ownership cut, authenticate
-its exact release, then select a larger live organ-matrix gate from current
-source. Do not continue fixture-writer archaeology merely because another raw
-helper looks ugly. Actual c007h remains braked and untouched; do not manufacture
-frontier work.
+Package the resident-directive ownership cut and restart exact c008. Release
+the brake only for committed attempt 2; require the coordinator to authenticate
+the directive from its prepared grant, preserve the canonical Mind objective,
+and settle once. Re-engage the brake at the next phase boundary. Do not build
+on Yggdrasil.
 
 ## Completion standard
 

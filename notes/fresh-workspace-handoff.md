@@ -3856,3 +3856,34 @@ fixture writers were also public. They are now test-only and unexported.
 Hands paths genuinely produce it independently. All seven coordinator
 acceptance tests, the historical-family fixture, and production library check
 pass. Package this final family cut, then move to a larger live matrix gate.
+
+Exact `8ebe56f1` packages the completed family as warning-free 24-binary release
+`sha256-2707ff42e48dd8640b8a962536972799dca9a1f49346d3b8d05695e7fa826a8e`
+with witness
+`sha256-6003630b550041f90f76ec6261372e6925fd4144ee3daee1d0e2f6864f217289`.
+The release published into the live Verse. c007h stopped Heartbeat then resident
+Self with exit zero; c008 restarted both on the same named state/workspace
+volumes, bounded 10 MiB x3 local logs, exact authenticated readiness, revision
+312, no lease, and `awaitFrontierProposal`. The workspace then advanced cleanly
+from `3a5d2b5e` to exact `8ebe56f1`, preserving only its untracked `.epiphany/`
+runtime configuration.
+
+A genuine typed operator pressure
+`operator-current-body-audit-8ebe56f1` exposed a live ownership fault.
+Heartbeat granted attempt 1 and Self launched, but coordinator startup
+terminalized the opened run because the existing canonical coordinator state
+has no `UserObjectiveIntake`. Heartbeat acknowledged the failed grant and
+committed attempt 2 before the canonical brake was re-engaged. State is
+revision 316 with no active lease; attempt 2 remains unclaimed. The problem is
+not missing legacy data: `intake_user_objective` is deliberately seed-only and
+cannot own later resident directives.
+
+The source cut separates those authorities. Standalone coordinator startup
+still atomically seeds the canonical Mind objective. A resident launch instead
+authenticates its argv objective against the exact persisted prepared grant,
+child claim, launch digest, and objective digest, then treats it as per-turn
+command context without changing the canonical objective. Wrong objective or
+non-operator pressure refuses. The focused resident test, standalone seed-only
+test, and coordinator-runtime binary check pass. Package/publish this cut,
+restart c008, release only for committed attempt 2, and require exact settlement
+before re-engaging the brake.
