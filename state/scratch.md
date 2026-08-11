@@ -4,8 +4,9 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Package and replay the coordinator receipt cut that publishes the
-post-transaction role-review action rather than its stale pre-step action.
+Continue the copied autonomous turnover from the accepted single-consumption
+proposal Modeling review boundary. Keep actual c006 alive and cognitively
+braked; Yggdrasil never builds.
 
 ## Accepted live boundary
 
@@ -64,10 +65,9 @@ Hands/Eyes frontier. Both owners exited zero under the restored brake.
   Modeling job, at most one review continuation, exact settlement, zero open
   jobs, and no Hands, Persona, or deployment consequence.
 
-Exact packaged `9f597ca2` proves pending results mint no review pressure, but
-one terminal review receipt retained stale `reviewModelingResult` after the
-transaction derived `awaitFrontierProposal`; that caused one consequence-free
-required-action refusal continuation. Current source refreshes final receipt
-action from post-review typed coordinator status after accept, supersede, or
-admission rejection. Nineteen coordinator tests pass. Commit/package/live proof
-is open.
+Exact packaged `d4907ee8` proves the complete cut. Fresh copied request
+`repo-frontier-proposal-modeling-507ad0a7dda5c8cc076b910f02d19c196b4cd5bb63e06ab25724aaac148897f8`
+launched one outer Modeling job, received one terminal review, and then
+published `awaitFrontierProposal`. No second review grant appeared. Runtime
+ended with zero open jobs, Hands/Eyes false, and both owners exited zero under
+the restored copied brake. Actual c006 was untouched.

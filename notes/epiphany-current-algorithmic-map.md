@@ -3954,5 +3954,9 @@ receipt retained the action captured before the transaction. Receipt action is
 now refreshed from post-transaction coordinator status after successful role
 acceptance, failure supersession, or admission rejection. The receipt remains
 the continuation source, but can no longer ask Heartbeat to replay an action
-the same transaction already consumed. Nineteen coordinator tests pass; exact
-packaged replay remains required.
+the same transaction already consumed. Exact packaged `d4907ee8` proved this
+cut live on copied state: one proposal grant, one outer Modeling job, one
+terminal review continuation, then `awaitFrontierProposal`; no second review
+grant appeared. Runtime had zero open jobs, Hands/Eyes remained false, the copy
+was braked, and both owners exited zero. Post-transaction typed coordinator
+state is now the sole final-action owner for these review paths.

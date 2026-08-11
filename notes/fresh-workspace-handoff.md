@@ -72,12 +72,28 @@ performed only `requiredActionRefusal` with consequence `none`. The copy was
 braked and both owners exited zero. Receipts are under
 `.epiphany-run/proposal-review-live-9f597ca2`.
 
-Current source fixes the remaining owner: after role acceptance, failure
+Pushed `d4907ee8` fixes the remaining owner: after role acceptance, failure
 supersession, or admission rejection, coordinator finalization refreshes the
-receipt action from the post-transaction typed coordinator status. The receipt
-therefore carries `awaitFrontierProposal` when that is what the transaction
-actually derived. Nineteen coordinator tests pass, including a direct stale-
-review-to-post-transaction-action check. Commit/package/live replay remain open.
+receipt action from the post-transaction typed coordinator status. Nineteen
+coordinator tests pass. Exact release
+`sha256-81b4c14f0201f21adf8001f5dc5da81760697b03020fb4c2d6cb0e627efe16a0`
+and witness
+`sha256-5cf073e22a6d8fa93b5b7409c6a68f2f88d792dd9786c65e49000967ba61ea21`
+passed 24-binary inspection with zero warnings; warm Cargo took 6.97s.
+
+Fresh copied request
+`repo-frontier-proposal-modeling-507ad0a7dda5c8cc076b910f02d19c196b4cd5bb63e06ab25724aaac148897f8`
+launched one outer Modeling job, `ebadfc7b-189c-4ac6-80c0-879ddb695cb5`.
+The result received exactly one terminal review. That transaction rejected and
+superseded the proposal-bound admission, and its receipt published the derived
+`awaitFrontierProposal` action; no second review grant appeared. Runtime ended
+with zero open jobs and Hands/Eyes false. The copy was cognitively braked and
+resident plus Heartbeat exited zero. Final state hashes are resident
+`163cbcbc...3905db`, heartbeat `909e023e...6a76d`, runtime
+`3cc2ef56...0bc6`, and local Verse `d1efda5f...f395`. Container logs remain
+attached to the stopped proof containers; receipts live under
+`.epiphany-run/proposal-review-live-d4907ee8` and
+`.epiphany-run/linux-package-d4907ee8`. Actual c006 was untouched.
 
 ## Governed directory inventory accepted live - 2026-08-11
 
