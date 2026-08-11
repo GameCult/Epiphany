@@ -4261,4 +4261,31 @@ Soul binding, and split-admission replay.
 - Verification: c008 attempt 1 failed closed and terminalized without external
   consequence. Focused tests prove exact resident objective acceptance, foreign
   objective refusal, and unchanged standalone seed-only replacement refusal.
-  Live attempt 2 replay remains the package gate.
+  Exact a07f6541 c008b authenticated live attempt 2 across launch promotion,
+  preserved the canonical objective, and settled it once at revision 320.
+
+### Autonomous proposal promotion collision (live-open)
+
+- Owner: the runtime-spine promotion transaction owns publication of the exact
+  proposal, autonomous binding, and proposal-Modeling selection companion
+  family under one full-snapshot fence.
+- Inputs: the accepted model-direction result, immutable model admission,
+  current Body binding, selected option, and any exact existing companion
+  family.
+- Outputs: either the complete matching three-envelope family or a fail-closed
+  refusal with no substituted/partial adoption.
+- Derived state: resident failure and the continuation grant are observations;
+  neither may repair or overwrite a companion.
+- Forbidden writers: Heartbeat, resident recovery, retry launch, and retention
+  cannot synthesize the missing companion or treat a same-key mismatch as
+  idempotent replay.
+- Shared paths: initial promotion and replay must use the same exact-family
+  equality and CAS primitive.
+- Cut line: inspect the frozen c008b family before editing. Decide whether the
+  live collision is a partial atomicity breach or an over-strict replay
+  comparison; do not add a retry compensator.
+- Verification: exact a07f6541 settled the preceding directive, then resident
+  exited 1 on `autonomous proposal promotion companion collision`; Heartbeat
+  stopped exit zero, the cognitive brake is engaged, and readiness reports the
+  stranded active lease process as missing. Copied-state hostile partial-family
+  proof and exact-process Continuity recovery are required before restart.

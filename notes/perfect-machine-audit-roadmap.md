@@ -12,16 +12,17 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current pushed source: exact `8ebe56f1`.
-- Accepted live runtime implementation: exact `8ebe56f1`.
+- Current pushed source: exact `a07f6541`.
+- Accepted live runtime implementation: exact `a07f6541` through resident
+  directive settlement; autonomous promotion remains failed closed.
 - Audited/live release:
-  `sha256-2707ff42e48dd8640b8a962536972799dca9a1f49346d3b8d05695e7fa826a8e`;
+  `sha256-ba51cbac5fe2400c27497c5df92fe128ce083a29c45e9ccf5eb95d21ec807b26`;
   witness
-  `sha256-6003630b550041f90f76ec6261372e6925fd4144ee3daee1d0e2f6864f217289`.
-- Actual c008: Heartbeat and resident Self alive in distinct containers on the
-  exact current release, cognitive brake engaged, resident revision 316, one
-  failed operator attempt terminalized, and retry attempt 2 committed but
-  unclaimed.
+  `sha256-01a6d5d74129ffb3096a3aa3f4ea7cd98d13af38b27d5322a8ab1d8f458d7a03`.
+- Actual c008b: both owners stopped. The operator retry settled once at
+  revision 320; later autonomous turnover killed resident Self on a promotion
+  companion collision and left an active lease. Heartbeat stopped exit zero;
+  the exact cognitive brake is engaged.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
 
@@ -117,11 +118,11 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Package the resident-directive ownership cut and restart exact c008. Release
-the brake only for committed attempt 2; require the coordinator to authenticate
-the directive from its prepared grant, preserve the canonical Mind objective,
-and settle once. Re-engage the brake at the next phase boundary. Do not build
-on Yggdrasil.
+Keep c008b stopped. Inspect the partial autonomous proposal companion family,
+map the promotion transaction owner, and prove a copied-state repair that is
+idempotent without accepting substituted companions. Then recover the exact
+missing active process through Continuity before restarting the resident pair.
+Do not build on Yggdrasil.
 
 ## Completion standard
 

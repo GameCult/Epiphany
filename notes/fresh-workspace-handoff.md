@@ -3889,3 +3889,19 @@ prepare-to-active transition; the standalone seed-only test and
 coordinator-runtime binary check pass. Package/publish this cut,
 restart c008, release only for committed attempt 2, and require exact settlement
 before re-engaging the brake.
+
+Exact `a07f6541` packages that directive cut as warning-free 24-binary release
+`sha256-ba51cbac5fe2400c27497c5df92fe128ce083a29c45e9ccf5eb95d21ec807b26`
+with witness
+`sha256-01a6d5d74129ffb3096a3aa3f4ea7cd98d13af38b27d5322a8ab1d8f458d7a03`.
+c008b authenticated committed attempt 2 after prepared-to-active promotion,
+preserved the canonical coordinator objective, and settled the directive once
+at resident revision 320. Heartbeat then advanced through proposal Modeling
+and issued a continuation grant. Resident Self exited 1 with `autonomous
+proposal promotion companion collision`, leaving an active lease whose process
+is now missing. Heartbeat was stopped exit zero and the canonical brake was
+re-engaged in the cognitive runtime namespace from the exact packaged Body.
+Do not restart either owner yet. Preserve the collision as evidence, inspect
+the proposal/binding/selection companion family and accepted result, repair the
+promotion ownership/idempotence seam on copied state, and only then perform
+exact-process receipt-free recovery of the stranded lease.
