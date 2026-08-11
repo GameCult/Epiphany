@@ -595,7 +595,7 @@ pub fn build_worker_model_request(
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources or typed resident state before emitting evidence. Call the bounded read-only file, directory-inventory, Git, or `mcp__epiphany_state__resident_grant_lifecycle` tool appropriate to the claim; cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
+        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources, immutable public GitHub source, or typed resident state before emitting evidence. Call the bounded governed tool appropriate to the claim. Public evidence uses `mcp__epiphany_public__github_file` with an exact 40-hex commit, repository, and path; put its exact sourceRef in filesInspected and its evidenceReceiptId in evidence, and preserve its contentSha256 in the finding. Never substitute a branch, tag, arbitrary URL, or model memory for immutable public evidence. Cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources or typed resident state before proposing repository anatomy. Call the bounded read-only file, directory-inventory, Git, or `mcp__epiphany_state__resident_grant_lifecycle` tool appropriate to the claim; cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     }
@@ -615,13 +615,16 @@ pub fn build_worker_model_request(
     request.reasoning_summary = Some("concise".to_string());
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
     request.output_schema_json = Some(output_schema_json);
+    request.source_worker_job_id = Some(launch_request.job_id.clone());
     if matches!(
         launch_request.binding_id.as_str(),
         epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID
             | epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID
             | epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
     ) {
-        request.tools = repository_source_tools();
+        request.tools = repository_source_tools(
+            launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+        );
     }
     Ok(request)
 }
@@ -1047,6 +1050,7 @@ pub fn model_request_from_openai_request(
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
         output_schema_json: request.output_schema_json.clone(),
+        source_worker_job_id: None,
         tools: request
             .tools
             .iter()
@@ -1091,8 +1095,8 @@ pub fn openai_request_from_model_request(
     }
 }
 
-fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
-    vec![
+fn repository_source_tools(include_public_source: bool) -> Vec<EpiphanyModelToolDefinition> {
+    let mut tools = vec![
         EpiphanyModelToolDefinition {
             name: "mcp__epiphany_source__read_file".to_string(),
             description: "Read a bounded UTF-8 text slice from the current workspace for source-grounded Eyes, Modeling, or Soul work. Use only for repository sources and operator-safe artifacts in scope.".to_string(),
@@ -1166,7 +1170,27 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
             })
             .to_string(),
         },
-    ]
+    ];
+    if include_public_source {
+        tools.push(EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_public__github_file".to_string(),
+            description: "Read one bounded UTF-8 file from a public GitHub repository at an exact immutable 40-hex commit. Returns provider/repository/revision/path/sourceRef/contentSha256 provenance. Branches, tags, redirects, arbitrary hosts, and mutable URLs are refused.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "owner": {"type": "string"},
+                    "repository": {"type": "string"},
+                    "revision": {"type": "string", "pattern": "^[0-9a-fA-F]{40}$"},
+                    "path": {"type": "string"},
+                    "maxBytes": {"type": "integer", "minimum": 512, "maximum": 65536}
+                },
+                "required": ["owner", "repository", "revision", "path"]
+            })
+            .to_string(),
+        });
+    }
+    tools
 }
 
 fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyModelInputItem {
@@ -3186,6 +3210,10 @@ mod tests {
             .tools
             .iter()
             .any(|tool| tool.name == "mcp__epiphany_state__resident_grant_lifecycle"));
+        assert!(!model_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
         assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -3338,6 +3366,7 @@ mod tests {
         assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
         assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
         assert!(tool_names.contains(&"mcp__epiphany_state__resident_grant_lifecycle"));
+        assert!(!tool_names.contains(&"mcp__epiphany_public__github_file"));
         assert!(model_request
             .instructions
             .contains("mcp__epiphany_source__read_file"));
@@ -3347,6 +3376,21 @@ mod tests {
         assert!(model_request
             .instructions
             .contains("mcp__epiphany_state__resident_grant_lifecycle"));
+
+        let mut research_launch = launch_request;
+        research_launch.binding_id =
+            epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string();
+        research_launch.role = epiphany_core::EPIPHANY_RESEARCH_OWNER_ROLE.to_string();
+        research_launch.authority_scope = "epiphany.role.research".to_string();
+        let research_request =
+            build_worker_model_request(&research_launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        assert!(research_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
+        assert!(research_request
+            .instructions
+            .contains("exact 40-hex commit"));
         Ok(())
     }
 

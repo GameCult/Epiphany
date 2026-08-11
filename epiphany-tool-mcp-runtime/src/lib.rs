@@ -4,9 +4,11 @@
 //! endpoint policy and translates between MCP cargo and typed tool receipts.
 
 mod config;
+mod native_public;
 mod native_source;
 
 pub use config::{McpRuntimeConfig, McpServerConfig, McpTransportConfig};
+pub use native_public::execute_epiphany_public;
 pub use native_source::execute_epiphany_source;
 
 use anyhow::{Context, Result, anyhow};

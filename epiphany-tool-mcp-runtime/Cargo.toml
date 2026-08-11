@@ -12,6 +12,7 @@ epiphany-core = { path = "../epiphany-core" }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 http = "1"
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+sha2 = "0.10"
 rmcp = { version = "2.2.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

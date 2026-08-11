@@ -58,6 +58,8 @@ pub struct EpiphanyModelRequest {
     pub tools: Vec<EpiphanyModelToolDefinition>,
     #[cultcache(key = 13, default)]
     pub output_schema_json: Option<String>,
+    #[cultcache(key = 14, default)]
+    pub source_worker_job_id: Option<String>,
 }
 
 impl EpiphanyModelRequest {
@@ -83,6 +85,7 @@ impl EpiphanyModelRequest {
             previous_response_id: None,
             tools: Vec::new(),
             output_schema_json: None,
+            source_worker_job_id: None,
         }
     }
 }

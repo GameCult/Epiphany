@@ -12,17 +12,18 @@ the actual braked resident body are the live gates.
 ## Current body
 
 - Source branch: `codex/epiphany-shakedown-live`.
-- Current pushed source: exact `a07f6541`.
-- Accepted live runtime implementation: exact `a07f6541` through resident
-  directive settlement; autonomous promotion remains failed closed.
+- Current pushed source: exact `43dc865e`.
+- Accepted live runtime implementation: exact `465af24d` through resident PID 1
+  reaping across genuine Modeling and Imagination worker families.
 - Audited/live release:
-  `sha256-ba51cbac5fe2400c27497c5df92fe128ce083a29c45e9ccf5eb95d21ec807b26`;
+  `sha256-089e000511f0420bfaab1136952b8cf94677a72d5c30a3fb3e6a26996bd3726f`;
   witness
-  `sha256-01a6d5d74129ffb3096a3aa3f4ea7cd98d13af38b27d5322a8ab1d8f458d7a03`.
-- Actual c008b: both owners stopped. The operator retry settled once at
-  revision 320; later autonomous turnover killed resident Self on a promotion
-  companion collision and left an active lease. Heartbeat stopped exit zero;
-  the exact cognitive brake is engaged.
+  `sha256-20ca293589b33d3b2e6ea5a7411db544741fe18360ecbd4423cdfa000d1ad7c6`.
+- Actual c011: both owners are alive under the engaged cognitive brake at
+  resident revision 384, with no active lease, no admitted work, and zero
+  defunct children. Exact claimed worker PIDs 152 and 275 terminalized through
+  Modeling and Imagination respectively, settled once, and were reaped by the
+  resident PID 1 owner.
 - Build body: Starfire. Yggdrasil is the small public crossing and never builds
   this graph.
 
@@ -31,8 +32,8 @@ the actual braked resident body are the live gates.
 | Faculty | Owner | Accepted proof | Remaining live gate |
 |---|---|---|---|
 | Self | resident Self state machine | single-consumption Heartbeat grants, typed fulfillment, exact recovery/requeue, cooldown and brake behavior; actual c007h superseded one overtaken unlaunched continuation and accepted the recovered proposal-Modeling result exactly once | autonomous turnover from a genuinely new typed frontier; current `awaitFrontierProposal` is correctly idle |
-| Substrate Gate | `substrate_gate` | scoped read/mutation grants on Eyes and Hands paths; canonical brake covers direct daemon lifecycle actuation; non-repository process utilities retain explicit owners | one broader foreign/public Verse evidence adoption path with Eyes |
-| Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit and governed Linux tool circuit accepted into Mind | one broader foreign/public Verse evidence adoption path |
+| Substrate Gate | `substrate_gate` | immutable scoped grants now bind every advertised Eyes, Modeling, and Soul source operation through the outer worker launch; canonical brake covers direct daemon lifecycle actuation; non-repository process utilities retain explicit owners | packaged negative proof that an ungranted public request creates no network consequence |
+| Eyes | Eyes gateway and authenticated source tools | challenged-claim Windows circuit, governed Linux tool circuit, and exact immutable GitHub reader with typed receipt derivation | package and adopt one broader public source through Eyes into Mind |
 | Modeling | runtime-owned typed Modeling contracts | causal Eyes-to-Modeling acceptance, direct proposal Modeling, archived fulfillment | broader Body-map coverage across a changing live repository |
 | Imagination | typed proposal/consideration producers | genuine packaged multi-option generation, proposal-only candidates, exact fulfillment, no Hands adoption leak | autonomous turnover from the next genuine eligible frontier |
 | Hands | Hands gateway | bounded patch, command, commit, push, and changed-path receipts; Idunn, crossing, forge, IDE, repo-birth, and model-runtime processes retain separate owners; Unity method override is structurally refused | audit the next Soul verifier boundary rather than adding Hands gates around non-Hands owners |
@@ -41,7 +42,7 @@ the actual braked resident body are the live gates.
 | Persona | Persona turn, speech audit, public mouth | cross-host request/permit/receipt, signed failure and unknown no-repost behavior, conversation retention | one completed public consequence; currently blocked by absent Yggdrasil Discord credential |
 | Continuity | runtime/resident recovery and retention | graceful shutdown, exact process-death recovery, session closure/archive, lifecycle retention, non-resurrection, bounded endurance, and receipt-derived recovery on the current body | later deployed restart supervision |
 | Nervous system | Heartbeat, runtime spine, Idunn, CultMesh | detached scheduling, typed jobs, provider readiness, active/warming transitions across PID namespaces, bounded endurance, narrow local-Verse decision reads, bounded Docker logs, and causal grant turnover | audit non-repository actuator publication and command ownership |
-| Body | Rust binaries, named-volume CultCache stores, model transport | deterministic 24-binary packaging, fast warm replay, named-volume interruption proof | deployment-sized endurance and remaining inspection surfaces |
+| Body | Rust binaries, named-volume CultCache stores, model transport | deterministic 24-binary packaging, fast warm replay, named-volume interruption proof, and exact PID 1 reaping across two adopted worker kinds | deployment-sized endurance and remaining inspection surfaces |
 
 ## Accepted coordinated circuits
 
@@ -118,11 +119,23 @@ these legitimate aggregates into ad hoc query piles.
 
 ## Selected next bounded cut
 
-Keep c008b stopped. Inspect the partial autonomous proposal companion family,
-map the promotion transaction owner, and prove a copied-state repair that is
-idempotent without accepting substituted companions. Then recover the exact
-missing active process through Continuity before restarting the resident pair.
-Do not build on Yggdrasil.
+Keep c011 alive and braked. Source now binds every governed model-derived tool
+intent to its outer worker launch and exact Substrate Gate grant. Eyes alone can
+see the bounded `github_file` provider, which accepts only one GitHub repository,
+exact 40-hex commit, repository path, 64 KiB UTF-8 body, no redirects, and no
+proxy. Runtime recomputes its identity and bytes before a typed
+`EyesSourceLookupReceipt` can share the Mind acceptance transaction. Focused
+hostile substitution is byte-identical and the exact upstream README reader is
+already proven from Starfire.
+
+Package this source once on Starfire. On copied named-volume state, launch an
+actual Research lane that cites the returned `sourceRef` and
+`evidenceReceiptId`, accept it into Mind, and inspect the typed lookup plus Eyes
+packet in the committed snapshot. Then exercise an otherwise exact worker whose
+grant lacks `publicSourceRead`; require refusal before adapter/network execution
+and byte-identical runtime state. Only after both gates pass may c011 be replaced.
+Generic MCP transport remains transport and arbitrary URL fetching remains
+absent. Do not build on Yggdrasil.
 
 ## Completion standard
 

@@ -4327,6 +4327,49 @@ Soul binding, and split-admission replay.
   routing excludes manual regather. c010 remains alive, braked, and without an
   active lease after native Imagination produced no admitted work.
 
+## Governed source-tool authority gap (2026-08-11)
+
+The transport body is broader than the admitted source faculty. The generic
+MCP runtime can call configured subprocess or HTTP providers, while live Eyes,
+Modeling, and Soul requests advertise only workspace-confined `read_file`,
+`directory_inventory`, `git_show`, typed Hands-receipt reads, and the exact
+resident-grant projection. No public-source tool is currently model-visible.
+
+- Owner: the immutable Substrate Gate grant created with an exact worker launch
+  must own which governed source operations that job may invoke.
+- Inputs: exact runtime job, launch binding and role; exact tool server/name;
+  and a fixed tool-to-operation classification owned by the source boundary.
+- Outputs: runtime admission accepts a model-derived tool intent only when the
+  exact launch grant names its required operation. Public evidence additionally
+  carries provider, repository, immutable revision, path, and content digest.
+- Derived state: MCP configuration, model-visible tool definitions, tool-call
+  JSON, and transport reach are capability projections or protocol cargo. None
+  grants source access by existing.
+- Forbidden writers: a model-selected tool name, generic MCP endpoint, prompt
+  instruction, runtime binding, or Eyes packet may not synthesize Substrate
+  authority. Arbitrary URLs and redirects are not public-source identity.
+- Shared paths: Eyes, Modeling, and Soul must receive source tools only through
+  the same launch-grant and runtime-intent admission primitive. Local and public
+  source operations differ in provider policy but share the grant check.
+- Cut line: publish an immutable grant for every launch that advertises source
+  tools; reject an intent before adapter/network execution when its exact grant
+  lacks the mapped operation. Then add one bounded provider-shaped public source
+  operation rather than exposing the generic MCP transport as evidence authority.
+- Verification layer: focused grant/intent tests must refuse absent, foreign,
+  role-swapped, job-swapped, and operation-missing grants byte-identically. The
+  packaged Linux circuit must admit one immutable public source through Eyes and
+  Mind while an ungranted public request produces no network consequence.
+
+Current source enforces this map. Research, Modeling, and Verification launches
+publish exact read grants; Research alone receives `publicSourceRead` and the
+model-visible `epiphany_public.github_file` tool. Runtime admission follows the
+inner model binding back to the outer typed worker launch and exact grant before
+persisting an intent or executing an adapter. Public GitHub results become
+`EyesSourceLookupReceipt` only after the full worker/model/tool/grant family and
+the provider/repository/commit/path/content digest are reauthenticated inside
+the same full-snapshot CAS that admits the Eyes packet into Mind. Generic MCP
+transport and result JSON remain transport cargo, not evidence authority.
+
 ## Resident PID 1 owns adopted worker reaping (2026-08-11)
 
 - Owner: resident Self owns OS cleanup for model-worker grandchildren that its

@@ -27,6 +27,8 @@ pub const SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_snapshot_receipt.v0";
 pub const SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_mutation_receipt.v0";
+pub const SUBSTRATE_GATE_SOURCE_READ_OPERATION: &str = "read";
+pub const SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION: &str = "publicSourceRead";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -143,6 +145,13 @@ pub fn substrate_gate_repo_access_grant_for_launch(
     request: &EpiphanyJobLaunchRequest,
     granted_at: String,
 ) -> SubstrateGateRepoAccessGrantReceipt {
+    let mut granted_operations = vec![
+        SUBSTRATE_GATE_SOURCE_READ_OPERATION.to_string(),
+        "snapshot".to_string(),
+    ];
+    if request.binding_id == crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
+        granted_operations.push(SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION.to_string());
+    }
     SubstrateGateRepoAccessGrantReceipt {
         schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
@@ -150,10 +159,29 @@ pub fn substrate_gate_repo_access_grant_for_launch(
         binding_id: request.binding_id.clone(),
         role: request.owner_role.clone(),
         authority_scope: request.authority_scope.clone(),
-        granted_operations: vec!["read".to_string(), "snapshot".to_string()],
+        granted_operations,
         granted_paths: vec![".".to_string()],
         granted_at,
-        contract: "Substrate Gate granted scoped repository read/snapshot access for this worker launch; mutation remains forbidden without a separate mutation receipt.".to_string(),
+        contract: "Substrate Gate granted the exact worker launch its named governed source operations; public-source reads are Eyes-only and mutation remains forbidden without a separate mutation receipt.".to_string(),
+    }
+}
+
+pub fn substrate_gate_operation_for_governed_tool(
+    server: &str,
+    tool_name: &str,
+) -> Option<&'static str> {
+    match (server, tool_name) {
+        (
+            "epiphany_source",
+            "read_file" | "directory_inventory" | "git_show" | "read_hands_receipt",
+        )
+        | ("epiphany_state", "resident_grant_lifecycle") => {
+            Some(SUBSTRATE_GATE_SOURCE_READ_OPERATION)
+        }
+        ("epiphany_public", "github_file") => {
+            Some(SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION)
+        }
+        _ => None,
     }
 }
 
@@ -294,8 +322,29 @@ mod tests {
             "2026-05-30T00:00:00Z".to_string(),
         );
         assert!(grant.granted_operations.contains(&"read".to_string()));
+        assert!(
+            grant
+                .granted_operations
+                .contains(&"publicSourceRead".to_string())
+        );
         assert!(!grant.granted_operations.contains(&"write".to_string()));
         assert!(grant.contract.contains("mutation remains forbidden"));
+    }
+
+    #[test]
+    fn governed_tools_map_to_fixed_grant_operations() {
+        assert_eq!(
+            substrate_gate_operation_for_governed_tool("epiphany_source", "read_file"),
+            Some("read")
+        );
+        assert_eq!(
+            substrate_gate_operation_for_governed_tool("epiphany_public", "github_file"),
+            Some("publicSourceRead")
+        );
+        assert_eq!(
+            substrate_gate_operation_for_governed_tool("epiphany_public", "arbitrary_url"),
+            None
+        );
     }
 
     #[test]

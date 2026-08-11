@@ -18,6 +18,44 @@ pub const EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.evidence_refusal_receipt.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.eyes.source_lookup_receipt",
+    schema = "EyesSourceLookupReceipt"
+)]
+pub struct EyesSourceLookupReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub source_job_id: String,
+    #[cultcache(key = 3)]
+    pub substrate_grant_receipt_id: String,
+    #[cultcache(key = 4)]
+    pub tool_intent_id: String,
+    #[cultcache(key = 5)]
+    pub tool_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub provider: String,
+    #[cultcache(key = 7)]
+    pub repository: String,
+    #[cultcache(key = 8)]
+    pub revision: String,
+    #[cultcache(key = 9)]
+    pub path: String,
+    #[cultcache(key = 10)]
+    pub source_ref: String,
+    #[cultcache(key = 11)]
+    pub content_sha256: String,
+    #[cultcache(key = 12)]
+    pub byte_count: u64,
+    #[cultcache(key = 13)]
+    pub observed_at: String,
+    #[cultcache(key = 14)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.eyes.evidence_packet", schema = "EyesEvidencePacket")]
 pub struct EyesEvidencePacket {
     #[cultcache(key = 0)]
@@ -44,6 +82,8 @@ pub struct EyesEvidencePacket {
     pub emitted_at: String,
     #[cultcache(key = 11)]
     pub contract: String,
+    #[cultcache(key = 12, default)]
+    pub source_lookup_receipt_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,6 +171,7 @@ pub fn eyes_evidence_packet_from_research_finding(
     packet_id: String,
     finding: &EpiphanyRoleFindingInterpretation,
     patch: &EpiphanyRoleStatePatchDocument,
+    source_lookups: &[EyesSourceLookupReceipt],
     emitted_at: String,
 ) -> EyesEvidencePacket {
     let evidence_ids = patch
@@ -164,6 +205,9 @@ pub fn eyes_evidence_packet_from_research_finding(
             push_unique(&mut source_refs, rendered);
         }
     }
+    for lookup in source_lookups {
+        push_unique(&mut source_refs, lookup.source_ref.clone());
+    }
     EyesEvidencePacket {
         schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.to_string(),
         packet_id,
@@ -187,6 +231,10 @@ pub fn eyes_evidence_packet_from_research_finding(
         },
         emitted_at,
         contract: "Eyes packet emitted from a reviewed Research lane finding; it makes the source-gathering evidence claim citable before Mind admission.".to_string(),
+        source_lookup_receipt_ids: source_lookups
+            .iter()
+            .map(|lookup| lookup.receipt_id.clone())
+            .collect(),
     }
 }
 
@@ -286,6 +334,7 @@ mod tests {
             "eyes-packet-1".to_string(),
             &finding,
             &patch,
+            &[],
             "2026-05-30T00:00:00Z".to_string(),
         );
         assert_eq!(packet.source_role_id, "research");

@@ -12,7 +12,8 @@
     "sessionId": { "type": "string", "minLength": 1 },
     "jobId": { "type": "string", "minLength": 1 },
     "provider": { "type": "string", "minLength": 1 },
-    "boundAt": { "type": "string", "format": "date-time" }
+    "boundAt": { "type": "string", "format": "date-time" },
+    "sourceWorkerJobId": { "type": ["string", "null"] }
   },
   "required": [
     "schemaVersion",

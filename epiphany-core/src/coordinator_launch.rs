@@ -532,7 +532,12 @@ fn commit_coordinator_job_launch_in_cache(
         }
         batch.push(cache.prepare_entry(&binding.binding_record_id, &binding)?.0);
     }
-    if request.binding_id == EPIPHANY_RESEARCH_ROLE_BINDING_ID {
+    if matches!(
+        request.binding_id.as_str(),
+        EPIPHANY_RESEARCH_ROLE_BINDING_ID
+            | crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+            | crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
+    ) {
         let grant = substrate_gate_repo_access_grant_for_launch(
             format!("substrate-grant-{}", plan.backend_job_id),
             plan.backend_job_id.clone(),
@@ -3887,11 +3892,14 @@ pub(crate) mod tests {
                 .get_all::<crate::RepoFrontierHandsAuthority>()?
                 .is_empty()
         );
-        assert!(
-            cache
-                .get_all::<crate::SubstrateGateRepoAccessGrantReceipt>()?
-                .is_empty()
-        );
+        let grants = cache.get_all::<crate::SubstrateGateRepoAccessGrantReceipt>()?;
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].binding_id, crate::EPIPHANY_MODELING_ROLE_BINDING_ID);
+        assert_eq!(grants[0].granted_operations, vec!["read", "snapshot"]);
+        assert!(!grants[0]
+            .granted_operations
+            .iter()
+            .any(|operation| operation == "publicSourceRead"));
         Ok(())
     }
 

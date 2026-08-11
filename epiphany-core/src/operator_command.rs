@@ -1195,7 +1195,8 @@ mod tests {
                 "heartbeat.scheduler",
                 "coordinator.run",
                 "persona.public_speech",
-                "daemon.tool_invocation"
+                "daemon.tool_invocation",
+                "daemon.lifecycle_poke"
             ]
         );
         assert!(

@@ -5,7 +5,8 @@ use epiphany_tool_adapter::{
     TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID, tool_invocation_intent_key,
 };
 use epiphany_tool_mcp_runtime::{
-    McpRuntimeConfig, execute_epiphany_source, invoke, validate_intent,
+    McpRuntimeConfig, execute_epiphany_public, execute_epiphany_source, invoke,
+    validate_intent,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -95,6 +96,8 @@ async fn execute_to_receipt(
                 None => std::env::current_dir()?,
             };
             execute_epiphany_source(intent, &options.store, &cwd)
+        } else if intent.server == "epiphany_public" {
+            execute_epiphany_public(intent).await
         } else if intent.server == "epiphany_state" {
             let resident_store = options.resident_store.as_ref().ok_or_else(|| {
                 anyhow!("epiphany_state requires an explicitly bound --resident-store")

@@ -201,14 +201,48 @@ pub fn accept_coordinator_role_finding(
     let mut available = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
     let mut prerequisites = Vec::new();
     if role_id == EpiphanyRoleResultRoleId::Research {
+        let public_source_lookups = runtime_authenticated_public_source_lookups_for_worker(
+            store,
+            finding.runtime_job_id.as_deref().unwrap_or_default(),
+        )?;
+        for lookup in &public_source_lookups {
+            if !finding
+                .evidence_ids
+                .iter()
+                .any(|evidence_id| evidence_id == &lookup.receipt_id)
+                || !finding
+                    .files_inspected
+                    .iter()
+                    .any(|source_ref| source_ref == &lookup.source_ref)
+            {
+                return Err(anyhow::anyhow!(
+                    "Research finding did not cite its authenticated public source receipt and source ref"
+                ));
+            }
+        }
+        if finding
+            .evidence_ids
+            .iter()
+            .any(|evidence_id| evidence_id.starts_with("eyes-source-"))
+            && public_source_lookups.is_empty()
+        {
+            return Err(anyhow::anyhow!(
+                "Research finding cited public source evidence without an authenticated lookup"
+            ));
+        }
         let packet = eyes_evidence_packet_from_research_finding(
             format!("eyes-packet-{}", update.accepted_receipt_id),
             &finding,
             &update.applied_patch,
+            &public_source_lookups,
             accepted_at.clone(),
         );
         available.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
         prerequisites.push(EpiphanyAcceptancePrerequisite::Eyes(packet));
+        for lookup in public_source_lookups {
+            available.push(EYES_SOURCE_LOOKUP_RECEIPT_TYPE.to_string());
+            prerequisites.push(EpiphanyAcceptancePrerequisite::EyesSourceLookup(lookup));
+        }
         let grant_id = format!(
             "substrate-grant-{}",
             finding.runtime_job_id.as_deref().unwrap_or_default()
@@ -609,6 +643,7 @@ pub fn read_accepted_coordinator_state(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EpiphanyAcceptancePrerequisite {
     Eyes(EyesEvidencePacket),
+    EyesSourceLookup(EyesSourceLookupReceipt),
     SubstrateGate(SubstrateGateRepoAccessGrantReceipt),
     Soul(SoulVerdictReceipt),
     Continuity(ContinuityRecoveryReceipt),
@@ -641,6 +676,19 @@ fn commit_state_with_mind_witness(
         store_path,
         expected_state,
     )?;
+    for prerequisite in prerequisites {
+        if let EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) = prerequisite {
+            let authenticated = crate::runtime_spine::authenticated_public_source_lookups_for_worker(
+                &cache,
+                &document.source_job_id,
+            )?;
+            if !authenticated.iter().any(|candidate| candidate == document) {
+                return Err(anyhow::anyhow!(
+                    "Eyes source lookup lost its authenticated authority before Mind commit"
+                ));
+            }
+        }
+    }
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
     let mut batch = vec![review_envelope, commit_envelope];
@@ -648,6 +696,9 @@ fn commit_state_with_mind_witness(
         batch.push(match prerequisite {
             EpiphanyAcceptancePrerequisite::Eyes(document) => {
                 cache.prepare_entry(&document.packet_id, document)?.0
+            }
+            EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) => {
+                cache.prepare_entry(&document.receipt_id, document)?.0
             }
             EpiphanyAcceptancePrerequisite::SubstrateGate(document) => {
                 cache.prepare_entry(&document.receipt_id, document)?.0
@@ -1067,6 +1118,7 @@ mod tests {
             evidence_ids: Vec::new(),
             observation_ids: Vec::new(),
             source_refs: Vec::new(),
+            source_lookup_receipt_ids: Vec::new(),
             summary: "looked".to_string(),
             uncertainty: "none".to_string(),
             emitted_at: "2026-07-11T00:00:00Z".to_string(),
