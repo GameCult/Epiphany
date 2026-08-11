@@ -13,7 +13,13 @@ const PROJECT_VERSION_RELATIVE: &str = "ProjectSettings/ProjectVersion.txt";
 const UNITY_EDITOR_RELATIVE: &[&str] = &["Editor", "Unity.exe"];
 const EDITOR_BRIDGE_RELATIVE: &str = "Assets/Editor/Epiphany/EpiphanyEditorBridge.cs";
 const EDITOR_BRIDGE_EXECUTE_METHOD: &str = "GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe";
-const FORBIDDEN_EXTRA_ARGS: &[&str] = &["-batchmode", "-quit", "-projectpath", "-logfile"];
+const FORBIDDEN_EXTRA_ARGS: &[&str] = &[
+    "-batchmode",
+    "-quit",
+    "-projectpath",
+    "-logfile",
+    "-executemethod",
+];
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -448,7 +454,7 @@ fn validate_unity_args(values: &[String]) -> Result<()> {
         .collect::<Vec<_>>();
     if !forbidden.is_empty() {
         return Err(anyhow!(
-            "Unity bridge owns batchmode, quit, projectPath, and logFile; remove extra args: {}",
+            "Unity bridge owns batchmode, quit, projectPath, logFile, and executeMethod; remove extra args: {}",
             forbidden.join(", ")
         ));
     }
@@ -466,7 +472,6 @@ fn build_unity_command(
     let project_path = summary["projectPath"]
         .as_str()
         .ok_or_else(|| anyhow!("Unity project path is unavailable."))?;
-    validate_unity_args(extra_args)?;
     let mut command = vec![
         editor_path.to_string(),
         "-batchmode".to_string(),
@@ -479,6 +484,15 @@ fn build_unity_command(
     }
     command.extend(extra_args.iter().cloned());
     Ok(command)
+}
+
+fn build_caller_unity_command(
+    summary: &serde_json::Value,
+    extra_args: &[String],
+    log_path: Option<&Path>,
+) -> Result<Vec<String>> {
+    validate_unity_args(extra_args)?;
+    build_unity_command(summary, extra_args, log_path)
 }
 
 fn editor_bridge_present(summary: &serde_json::Value) -> bool {
@@ -629,7 +643,7 @@ fn run_unity(options: &UnityOptions) -> Result<serde_json::Value> {
         return Ok(summary);
     }
     let log_path = directory.join("unity.log");
-    let command = build_unity_command(&summary, &options.unity_args, Some(&log_path))?;
+    let command = build_caller_unity_command(&summary, &options.unity_args, Some(&log_path))?;
     summary["command"] = json!(command);
     summary["logPath"] = json!(path_string(&log_path));
     if options.dry_run {
@@ -960,5 +974,62 @@ fn bridge_guidance(project_path: &Path) -> Result<String> {
                 .unwrap_or("Unity bridge is blocked."),
             inspect_command,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caller_cannot_replace_bridge_owned_execute_method() {
+        let summary = json!({
+            "editorPath": "C:/Unity/Editor/Unity.exe",
+            "projectPath": "C:/fixture/project",
+        });
+        let error = build_caller_unity_command(
+            &summary,
+            &["-ExecuteMethod".into(), "Fixture.Arbitrary.Run".into()],
+            None,
+        )
+        .expect_err("caller-authored executeMethod must be refused");
+
+        assert!(error.to_string().contains("executeMethod"));
+    }
+
+    #[test]
+    fn named_probe_keeps_exact_bridge_owned_execute_method() -> Result<()> {
+        let summary = json!({
+            "editorPath": "C:/Unity/Editor/Unity.exe",
+            "projectPath": "C:/fixture/project",
+        });
+        let options = UnityOptions {
+            project_path: PathBuf::from("C:/fixture/project"),
+            artifact_root: PathBuf::from("C:/fixture/artifacts"),
+            artifact_dir: None,
+            label: "probe".into(),
+            timeout_seconds: 60,
+            dry_run: true,
+            unity_args: Vec::new(),
+            operation: Some("scene-facts".into()),
+            scene: Some("Assets/Scene.unity".into()),
+            asset: None,
+            guid: None,
+            max_objects: None,
+            max_properties: None,
+            max_dependencies: None,
+            platform: "editmode".into(),
+            filter: None,
+        };
+        let args =
+            named_probe_extra_args(&options, "scene-facts", Path::new("C:/fixture/artifacts"));
+        let command = build_unity_command(&summary, &args, None)?;
+        let method_index = command
+            .iter()
+            .position(|arg| arg == "-executeMethod")
+            .expect("named probe must own executeMethod");
+
+        assert_eq!(command[method_index + 1], EDITOR_BRIDGE_EXECUTE_METHOD);
+        Ok(())
     }
 }
