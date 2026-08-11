@@ -3986,4 +3986,7 @@ state is now the sole final-action owner for these review paths.
   and measured 0.29-0.33% CPU at one-second cadence versus prior 10-24% spikes.
   Exact packaged `f04abd6b` then proved released sleeping at five-second
   cadence: 91 process ticks over 30 seconds (about 3.0% of one core), stable
-  revision/runtime hash, no grant, restored brake, and clean exit zero.
+  revision/runtime hash, no grant, restored brake, and clean exit zero. A
+  second exact braked process start held the same authority/hashes at 0.36%
+  sampled CPU and exited zero again, proving startup stewardship without
+  resurrection.

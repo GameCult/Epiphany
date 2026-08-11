@@ -50,6 +50,11 @@ used 91 process clock ticks, about 3.0% of one core, and slept near 0% between
 scans. Revision stayed 66, no grant appeared, runtime SHA-256 remained
 `3cc2ef56...0bc6`, the brake was restored, and SIGTERM exited zero. At the
 production 15-second poll this scan cost scales to roughly 1% of one core.
+An exact braked restart of the same package then held revision 66, the same
+runtime/local-Verse hashes, no active/prepared turn, no grant, 0.36% sampled
+CPU at one-second cadence, and a second clean SIGTERM exit zero. The cadence
+cut therefore survives process re-entry without skipping startup maintenance
+or resurrecting consumed work.
 
 The live Yggdrasil Persona boundary was also rechecked read-only. The exact
 mouth service is active, enabled, restart-free, and listening on
