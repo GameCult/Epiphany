@@ -3967,3 +3967,36 @@ operator objective text cannot impersonate approval. c010 is therefore
 correctly alive, idle, and braked at revision 372. Continue retention,
 supervisor/log ownership, and endurance. A live regather is a separate operator
 decision or a future mapped typed operator-ingress cut.
+
+## Resident PID 1 worker reaping cut — 2026-08-11
+
+Live c010 process inspection found six defunct `epiphany-model-*` processes
+adopted by resident `epiphany-swarm` PID 1. Runtime and artifact retention were
+bounded, but the operating-system child lifecycle was not. Exact `465af24d`
+makes resident Self enumerate typed runtime worker process claims and call
+exact `waitpid(pid, WNOHANG)` for those claimed PIDs before every once/serve
+cycle and before retention. It does not use process-name discovery or
+`waitpid(-1)`, and it cannot steal the known coordinator children still owned
+by `NativePorts` `Child` handles. Reaping mutates no CultCache authority.
+
+Six focused Windows process-observation tests and all nine swarm tests pass.
+The Unix-only exact-child test passed 1/1 on Starfire. Exact release
+`sha256-089e000511f0420bfaab1136952b8cf94677a72d5c30a3fb3e6a26996bd3726f`
+with witness
+`sha256-20ca293589b33d3b2e6ea5a7411db544741fe18360ecbd4423cdfa000d1ad7c6`
+contains 24 authenticated binaries and no build warnings. Receipts are under
+`.epiphany-run/forge-crosscommit-465af24d`; the container named
+`epiphany-linux-package-465af24d-rejected-stale-source` is a sealed rejected
+attempt that packaged d3 after a checkout syntax failure and was never
+published.
+
+c010 Heartbeat and Self stopped by SIGTERM at exit zero. c011 runs the exact
+465 package on the same named state/workspace/Codex volumes, is braked at
+resident revision 372, and has no active lease or defunct child. One manual
+regather attempt and one replacement objective attempt both failed closed
+before worker launch: the current action is `awaitFrontierProposal`, terminal
+sessions cannot be reused, and immutable typed objective intake cannot be
+substituted. Do not manufacture a claim to satisfy the smoke. The remaining
+acceptance gate is the next genuine packaged worker lifecycle: after normal
+terminalization, resident PID 1 must return to zero zombies. Keep c011 braked
+until such typed work exists.

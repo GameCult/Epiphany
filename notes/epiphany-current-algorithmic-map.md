@@ -4326,3 +4326,33 @@ Soul binding, and split-admission replay.
   and the hostile unrelated-action regression. Resident safe-continuation
   routing excludes manual regather. c010 remains alive, braked, and without an
   active lease after native Imagination produced no admitted work.
+
+## Resident PID 1 owns adopted worker reaping (2026-08-11)
+
+- Owner: resident Self owns OS cleanup for model-worker grandchildren that its
+  bounded coordinator children orphan into resident PID 1.
+- Inputs: typed `EpiphanyRuntimeWorkerProcessClaim` rows and the kernel's exact
+  child/exit relation. Claims are sorted for deterministic inspection.
+- Outputs: exact nonblocking `waitpid(pid, WNOHANG)` for claimed worker PIDs.
+  `ECHILD` and a still-running child are clean no-ops.
+- Derived state: runtime job, result, process-claim, archive, and coordinator
+  receipt documents remain cognitive evidence. Reaping changes none of them.
+- Forbidden writers: retention, PID age, executable-name scans, generic
+  `waitpid(-1)`, and coordinator receipt settlement may not decide which worker
+  process to reap.
+- Shared paths: every resident once/serve cycle reaps before maintenance can
+  archive the exact claim. Known coordinator children remain owned and reaped
+  through their `Child::try_wait` handles.
+- Cut line: add no signal-handler policy, global scavenger, retry writer, or
+  process-name registry. The typed runtime claim supplies identity; the kernel
+  supplies parenthood and terminality.
+- Verification: c010 exposed six defunct adopted workers. Exact `465af24d`
+  passes six focused Windows process tests, nine swarm tests, and the Unix
+  exact-child test on Starfire. Its authenticated 24-binary release is
+  `sha256-089e000511f0420bfaab1136952b8cf94677a72d5c30a3fb3e6a26996bd3726f`
+  with witness
+  `sha256-20ca293589b33d3b2e6ea5a7411db544741fe18360ecbd4423cdfa000d1ad7c6`.
+  Live c011 restarted braked at revision 372 with zero zombies. One genuine
+  packaged worker terminalization followed by a zero-zombie PID 1 inspection
+  remains the live acceptance gate; failed-closed attempts that launch no
+  worker do not count.
