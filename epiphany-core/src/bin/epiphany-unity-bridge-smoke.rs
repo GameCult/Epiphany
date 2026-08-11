@@ -83,8 +83,7 @@ fn run_smoke() -> Result<Value> {
             "run",
             "--dry-run",
             "--",
-            "-executeMethod",
-            "Epiphany.SmokeProbe",
+            "-nographics",
         ],
         true,
     )?;
@@ -105,6 +104,7 @@ fn run_smoke() -> Result<Value> {
     require_command_contains(command, "-quit")?;
     require_command_contains(command, "-projectPath")?;
     require_command_contains(command, "-logFile")?;
+    require_command_contains(command, "-nographics")?;
     require_command_contains(command, &workspace.to_string_lossy())?;
     require(
         !command
@@ -113,6 +113,28 @@ fn run_smoke() -> Result<Value> {
         "command must not use wrong editor",
     )?;
     require_artifact(&planned, "unity-command.json")?;
+
+    let method_override = run_bridge(
+        &root,
+        &workspace,
+        &artifact_root,
+        &fake_roots,
+        &[
+            "run",
+            "--dry-run",
+            "--",
+            "-ExecuteMethod",
+            "Epiphany.SmokeProbe",
+        ],
+        false,
+    )?;
+    require(
+        method_override["status"] == "error"
+            && method_override["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("executeMethod")),
+        "caller-authored executeMethod must fail at the bridge owner boundary",
+    )?;
 
     let missing_package = run_bridge(
         &root,
@@ -273,8 +295,7 @@ fn run_smoke() -> Result<Value> {
             "run",
             "--dry-run",
             "--",
-            "-executeMethod",
-            "Epiphany.SmokeProbe",
+            "-nographics",
         ],
         false,
     )?;
@@ -289,6 +310,7 @@ fn run_smoke() -> Result<Value> {
         "missingStatus": missing["status"],
         "editorResolutionStatus": resolved["status"],
         "plannedStatus": planned["runStatus"],
+        "methodOverrideStatus": method_override["status"],
         "missingPackageStatus": missing_package["status"],
         "sceneProbeStatus": scene_probe["runStatus"],
         "testStatus": tests["runStatus"],
