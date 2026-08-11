@@ -4,24 +4,39 @@ Disposable working memory for one bounded rite.
 
 ## Current Subgoal
 
-Resume autonomous cross-organ turnover from copied c006 state now that release
-iteration is no longer the active machine fault.
+Give Eyes, Modeling, and Soul a governed read-only directory inventory so they
+can source-ground artifact-retention claims instead of trusting operator prose.
 
-## Accepted boundary
+## Live finding
 
-Exact `aa841873` makes legacy coordinator repair one full-snapshot transaction.
-The full core suite passes 670 tests with one intentional ignore. Its genuine
-core-source package completed in 37.27s wall/Cargo 29.54s versus the 5m02s
-baseline; identical replay took 8.65s wall/Cargo 0.69s. Both produced exact
-24-binary release
-`sha256-dd4f05cb2e7f1b26156e7c9d5ed58f6d97ce5808d123b1bec343bfac59bf2ce7`
-and witness
-`sha256-793b29fcb7af4f8314a46f0fe0013cc8f5f382e7490a32c160385d29359adca5`.
+Exact `aa841873` on copied c006 accepted one fresh user proposal and issued one
+proposal-bound Modeling grant. Self held `awaiting-fulfillment`, then completed
+once at revision 46 with zero retry. Runtime ended at 48 jobs/results, zero
+open jobs, and no Hands/Eyes frontier. Modeling used five governed source calls
+and correctly refused the operator-supplied `72 directories / 4.2 MiB` claim:
+the native source adapter could read files and Git objects but could not
+enumerate or measure `.epiphany-smoke/heartbeat-c006-c9a2a979`. The copied brake
+was re-engaged and both direct PID containers exited zero. Actual c006 was not
+touched.
 
-## Next boundary
+## Authority map
 
-Keep actual c006 alive and cognitively braked. Inspect operator-safe current
-frontier state, then choose a copied-state turn that extends Self, Eyes,
-Modeling, or Mind coordination without minting Hands, Persona, or deployment
-authority. Separately recheck the Yggdrasil credential boundary before any
-public Persona consequence. Yggdrasil never builds.
+- Owner: the native `epiphany_source` adapter owns bounded read-only workspace
+  observation.
+- Inputs: one canonical workspace-confined directory plus explicit depth,
+  entry, and sample ceilings.
+- Outputs: deterministic entry/file/directory/symlink counts, total regular-file
+  bytes, bounded samples, and explicit entry/depth truncation state.
+- Derived state: samples are display only. Totals are admissible evidence only
+  when `complete=true`.
+- Forbidden writers: shell execution, symlink traversal, outside-workspace
+  reads, mutation, operator counts, and Heartbeat-specific policy.
+- Shared paths: Eyes, Modeling, and Soul receive the same model tool definition,
+  native execution path, and typed intent/receipt boundary.
+- Cut line: add one general `directory_inventory` beside `read_file`; do not
+  add a special Heartbeat inspector or teach prompts to trust proposal prose.
+- Verification: focused native execution tests must prove exact totals,
+  deterministic ordering, confinement, and explicit truncation; OpenAI request
+  tests must prove the tool and completeness mandate are visible to workers.
+  Then package and replay the copied proposal with the original operator counts
+  omitted so Epiphany itself measures the artifact family.

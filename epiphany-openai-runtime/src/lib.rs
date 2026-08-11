@@ -593,11 +593,11 @@ pub fn build_worker_model_request(
     let mut instructions =
         worker_instructions(launch_request, &launch_document, &output_schema_json);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact paths, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. If a tool fails, cite that failed tool result and the exact remaining blocker.");
+        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. Directory totals are authoritative only when the tool reports `complete=true`. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources before emitting evidence. Call the bounded read-only file or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and report a source gap if the required body cannot be observed.");
+        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources before emitting evidence. Call the bounded read-only file, directory-inventory, or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources before proposing repository anatomy. Call the bounded read-only file or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure.");
+        instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources before proposing repository anatomy. Call the bounded read-only file, directory-inventory, or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure. Directory totals are authoritative only when the inventory reports `complete=true`.");
     }
     let mut request = EpiphanyModelRequest::new(
         request_id,
@@ -1101,6 +1101,22 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
                     "path": {"type": "string"},
                     "startLine": {"type": "integer", "minimum": 1},
                     "maxLines": {"type": "integer", "minimum": 1, "maximum": 240}
+                },
+                "required": ["path"]
+            })
+            .to_string(),
+        },
+        EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_source__directory_inventory".to_string(),
+            description: "Measure a workspace-confined directory with deterministic bounded counts, regular-file bytes, and path samples. Totals are usable as complete evidence only when complete=true; symlinks are counted but never followed.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "path": {"type": "string"},
+                    "maxDepth": {"type": "integer", "minimum": 0, "maximum": 8},
+                    "maxEntries": {"type": "integer", "minimum": 1, "maximum": 4096},
+                    "maxSamples": {"type": "integer", "minimum": 1, "maximum": 100}
                 },
                 "required": ["path"]
             })
@@ -2822,6 +2838,10 @@ mod tests {
             .tools
             .iter()
             .any(|tool| tool.name == "mcp__epiphany_source__read_file"));
+        assert!(model_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_source__directory_inventory"));
         assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -2970,11 +2990,15 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(tool_names.contains(&"mcp__epiphany_source__read_file"));
+        assert!(tool_names.contains(&"mcp__epiphany_source__directory_inventory"));
         assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
         assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
         assert!(model_request
             .instructions
             .contains("mcp__epiphany_source__read_file"));
+        assert!(model_request
+            .instructions
+            .contains("mcp__epiphany_source__directory_inventory"));
         Ok(())
     }
 
