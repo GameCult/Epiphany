@@ -18,7 +18,7 @@ consolidation gates below close.
 |---|---|---|---|
 | Durable request identity excludes mutable transport provenance | `causal_work_identity` | Proposal Modeling, Research, Planning, PlanMind, and Admitted Model Direction use one pure derivation owner; stale thread restoration refuses byte-identically | replay packaged coordinated circuits after worker-attempt extraction |
 | Immutable GitHub identity has one grammar | `ImmutableGithubSource` | Modeling selection, Eyes execution, and Mind authentication share one parser/canonicalizer; malformed identities fail at Mind | copied packaged public success and no-grant denial |
-| One worker attempt has one process/result/archive authority | planned `runtime_worker_attempt` | current lifecycle and archive proofs remain accepted | extract typed status predicates and request association from `runtime_spine` without schema migration |
+| One worker attempt has one process/result/archive authority | `runtime_worker_attempt` | typed status classes and request association are shared by runtime, resident, and coordinator; core 684/684 (+1 ignored), tool runtime 14/14 (+1 ignored), OpenAI runtime 39/39 | replay packaged settlement/archive circuits |
 | Canonical state admission has one writer | coordinator state transaction / Mind | CAS companions and negative source guards accepted | continue legacy-writer audit only when source evidence finds a live seam |
 
 ## Worker-attempt extraction boundary
@@ -49,14 +49,13 @@ consolidation gates below close.
 | Proposal/Planning causal identity | deterministic shared owner | stale carrier cannot restore thread | cross-incarnation replay | source complete |
 | Hands -> Soul -> Modeling -> Mind -> Self | bounded adjacent circuits | bypass/substitution refusals | fresh-repository full loop | capstone open |
 | Persona -> Bifrost -> public consequence | signed failure/unknown/no-repost | private-state and permit refusal | successful receipted consequence | blocked by external credential |
-| Worker process -> result/death -> archive | genuine Linux workers and zero-zombie reaping | resurrection and competing retry refused | both receipt orderings and restart | accepted; physical extraction pending |
+| Worker process -> result/death -> archive | genuine Linux workers and zero-zombie reaping | resurrection and competing retry refused | both receipt orderings and restart | source extraction complete; packaged replay pending |
 | Eve/CultUI operator interface | typed state surfaces | renderer cannot own truth | load/transition/settled/re-entry probes | open |
 
 ## Immediate order
 
-1. Commit and push the causal/public-source identity consolidation.
-2. Extract `runtime_worker_attempt` without changing persisted contracts.
-3. Replay source tests and the accepted worker settlement/archive circuits.
-4. Resume shakedown with the packaged public Eyes success/denial pair.
-5. Run the fresh-repository full-organ capstone before any deployment-ready
+1. Commit and push `runtime_worker_attempt`.
+2. Replay the accepted worker settlement/archive circuits.
+3. Resume shakedown with the packaged public Eyes success/denial pair.
+4. Run the fresh-repository full-organ capstone before any deployment-ready
    claim.

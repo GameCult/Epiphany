@@ -1645,12 +1645,7 @@ pub fn live_resident_self_typed_request_ids(path: &Path) -> Result<BTreeSet<Stri
     let mut request_ids = BTreeSet::new();
     for grant in cache.get_all::<ResidentSelfHeartbeatGrant>()? {
         if let Some(request) = resident_self_typed_request_ref(&grant)? {
-            let request_id = match request {
-                crate::RuntimeTypedRequestRef::ProposalModeling(id)
-                | crate::RuntimeTypedRequestRef::ImaginationConsideration(id)
-                | crate::RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
-            };
-            request_ids.insert(request_id.to_string());
+            request_ids.insert(request.request_id().to_string());
         }
     }
     Ok(request_ids)
@@ -1762,28 +1757,12 @@ pub fn recover_dead_resident_typed_worker(
     let Some(request) = resident_self_typed_request_ref(&grant)? else {
         return Ok(false);
     };
-    let request_id = match request {
-        crate::RuntimeTypedRequestRef::ProposalModeling(id)
-        | crate::RuntimeTypedRequestRef::ImaginationConsideration(id)
-        | crate::RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
-    };
     let mut cache = crate::runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     let mut launches = cache
         .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|launch| match request {
-            crate::RuntimeTypedRequestRef::ProposalModeling(_) => {
-                launch.proposal_modeling_request_id.as_deref() == Some(request_id)
-            }
-            crate::RuntimeTypedRequestRef::ImaginationConsideration(_) => {
-                launch.imagination_consideration_request_id.as_deref() == Some(request_id)
-            }
-            crate::RuntimeTypedRequestRef::AdmittedModelDirection(_) => launch
-                .admitted_model_direction_consideration_request_id
-                .as_deref()
-                == Some(request_id),
-        })
+        .filter(|launch| request.matches_launch(launch))
         .collect::<Vec<_>>();
     launches.sort_by(|a, b| a.job_id.cmp(&b.job_id));
     let mut retryable = Vec::new();
@@ -1792,14 +1771,15 @@ pub fn recover_dead_resident_typed_worker(
             "runtime-worker-process-{}",
             launch.job_id
         ))?;
+        if let Some(claim) = &claim {
+            crate::WorkerProcessStatus::parse(&claim.status)?;
+        }
         retryable.push((launch, claim));
     }
     let live = retryable
         .iter()
         .filter(|(_, claim)| {
-            claim.as_ref().is_some_and(|claim| {
-                matches!(claim.status.as_str(), "claimed" | "active" | "terminal-result")
-            })
+            claim.as_ref().is_some_and(|claim| crate::WorkerProcessStatus::parse(&claim.status).is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal()))
         })
         .count();
     if live > 1 {
@@ -1808,19 +1788,17 @@ pub fn recover_dead_resident_typed_worker(
     let selected = retryable
         .iter()
         .find(|(_, claim)| {
-            claim.as_ref().is_some_and(|claim| {
-                matches!(claim.status.as_str(), "claimed" | "active" | "terminal-result")
-            })
+            claim.as_ref().is_some_and(|claim| crate::WorkerProcessStatus::parse(&claim.status).is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal()))
         })
         .or_else(|| retryable.last());
     let Some((launch, Some(claim))) = selected else {
         return Ok(false);
     };
-    match claim.status.as_str() {
-        "terminal-death" | "terminal-unactivated" | "terminal-failure" => return Ok(true),
-        "terminal-result" => return Ok(false),
-        "claimed" | "active" => {}
-        _ => return Err(anyhow!("typed worker process claim has invalid status")),
+    match crate::WorkerProcessStatus::parse(&claim.status)? {
+        status if status.allows_retry() => return Ok(true),
+        status if status.is_fulfilled_terminal() => return Ok(false),
+        status if status.is_live() => {}
+        _ => unreachable!("worker process status classes are exhaustive"),
     }
     let identity = crate::ProcessInstanceIdentity {
         process_id: claim.process_id,

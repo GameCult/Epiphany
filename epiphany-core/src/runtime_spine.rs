@@ -1,5 +1,6 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::RepoFrontierPlanMindContextProjection;
+use crate::{RuntimeTypedRequestRef, WorkerProcessStatus};
 use crate::agent_launch::{
     EPIPHANY_IMAGINATION_OWNER_ROLE, EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
@@ -3962,7 +3963,7 @@ pub fn claim_runtime_worker_process(
         process_creation_token: process.creation_token,
         process_executable_path: process.executable_path.display().to_string(),
         activation_token_sha256: activation_token_sha256.into(),
-        status: "claimed".into(),
+        status: WorkerProcessStatus::Claimed.as_str().into(),
         claimed_at: claimed_at.into(),
         activated_at: None,
         terminal_at: None,
@@ -4011,17 +4012,18 @@ pub fn activate_runtime_worker_process(
     {
         return Err(anyhow!("worker activation does not bind the exact process claim"));
     }
-    if current.status == "active" {
+    let status = WorkerProcessStatus::parse(&current.status)?;
+    if status == WorkerProcessStatus::Active {
         return Ok(current);
     }
-    if current.status != "claimed" {
+    if status != WorkerProcessStatus::Claimed {
         return Err(anyhow!("worker activation found terminal process authority"));
     }
     let current_envelope = cache
         .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker activation lost its claim envelope"))?;
     let mut next = current;
-    next.status = "active".into();
+    next.status = WorkerProcessStatus::Active.as_str().into();
     next.activated_at = Some(activated_at.into());
     let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
     if SingleFileMessagePackBackingStore::new(store_path)
@@ -4051,7 +4053,7 @@ pub fn abandon_unactivated_runtime_worker_process(
     if current.process_id != process.process_id
         || current.process_creation_token != process.creation_token
         || current.process_executable_path != process.executable_path.display().to_string()
-        || current.status != "claimed"
+        || WorkerProcessStatus::parse(&current.status)? != WorkerProcessStatus::Claimed
     {
         return Err(anyhow!("worker abandonment does not own an unactivated exact claim"));
     }
@@ -4059,7 +4061,7 @@ pub fn abandon_unactivated_runtime_worker_process(
         .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker abandonment lost its claim envelope"))?;
     let mut next = current;
-    next.status = "terminal-unactivated".into();
+    next.status = WorkerProcessStatus::TerminalUnactivated.as_str().into();
     next.terminal_at = Some(terminal_at.into());
     next.terminal_authority_id = Some(format!("worker-unactivated-{job_id}"));
     let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
@@ -4088,12 +4090,13 @@ pub(crate) fn terminalize_runtime_worker_process_death(
     let current = cache
         .get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker death recovery requires its process claim"))?;
-    if current.status == "terminal-death"
+    let status = WorkerProcessStatus::parse(&current.status)?;
+    if status == WorkerProcessStatus::TerminalDeath
         && current.terminal_authority_id.as_deref() == Some(terminal_authority_id)
     {
         return Ok(current);
     }
-    if !matches!(current.status.as_str(), "claimed" | "active") {
+    if !status.is_live() {
         return Err(anyhow!("worker death recovery found terminal process authority"));
     }
     if cache
@@ -4106,7 +4109,7 @@ pub(crate) fn terminalize_runtime_worker_process_death(
         .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker death recovery lost its claim envelope"))?;
     let mut next = current;
-    next.status = "terminal-death".into();
+    next.status = WorkerProcessStatus::TerminalDeath.as_str().into();
     next.terminal_at = Some(terminal_at.into());
     next.terminal_authority_id = Some(terminal_authority_id.into());
     let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
@@ -4617,7 +4620,7 @@ pub fn put_runtime_role_worker_result(
             ));
         }
         if let Some(claim) = process_claim.as_ref()
-            && (claim.status != "terminal-result"
+            && (!crate::WorkerProcessStatus::parse(&claim.status)?.is_fulfilled_terminal()
                 || claim.terminal_authority_id.as_deref() != Some(result.result_id.as_str()))
         {
             return Err(anyhow!(
@@ -4650,7 +4653,7 @@ pub fn put_runtime_role_worker_result(
     let mut writes = vec![envelope];
     let mut expected = Vec::new();
     if let Some(claim) = process_claim.as_ref() {
-        if claim.status != "active" {
+        if crate::WorkerProcessStatus::parse(&claim.status)? != crate::WorkerProcessStatus::Active {
             return Err(anyhow!(
                 "role worker result requires its active process claim"
             ));
@@ -4659,7 +4662,7 @@ pub fn put_runtime_role_worker_result(
             .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
             .ok_or_else(|| anyhow!("role worker result lost its process claim envelope"))?;
         let mut terminal_claim = claim.clone();
-        terminal_claim.status = "terminal-result".into();
+        terminal_claim.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
         terminal_claim.terminal_at = Some(chrono::Utc::now().to_rfc3339());
         terminal_claim.terminal_authority_id = Some(result.result_id.clone());
         expected.push(current_envelope);
@@ -4715,7 +4718,7 @@ pub fn put_runtime_role_worker_result(
         Some(_) => reloaded
             .get::<EpiphanyRuntimeWorkerProcessClaim>(&process_claim_id)?
             .is_some_and(|claim| {
-                claim.status == "terminal-result"
+                crate::WorkerProcessStatus::parse(&claim.status).is_ok_and(|status| status.is_fulfilled_terminal())
                     && claim.terminal_authority_id.as_deref() == Some(result.result_id.as_str())
             }),
         None => true,
@@ -4741,13 +4744,6 @@ pub fn runtime_role_worker_result(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RuntimeTypedRequestRef<'a> {
-    ProposalModeling(&'a str),
-    ImaginationConsideration(&'a str),
-    AdmittedModelDirection(&'a str),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -4980,11 +4976,7 @@ pub fn runtime_typed_request_fulfillment(
     request: RuntimeTypedRequestRef<'_>,
 ) -> Result<Option<RuntimeTypedFulfillmentEvidence>> {
     let store_path = store_path.as_ref();
-    let request_id = match request {
-        RuntimeTypedRequestRef::ProposalModeling(id)
-        | RuntimeTypedRequestRef::ImaginationConsideration(id)
-        | RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
-    };
+    let request_id = request.request_id();
     validate_non_empty(request_id, "typed fulfillment request id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -4999,15 +4991,10 @@ pub fn runtime_typed_request_fulfillment(
         ));
     }
     if let Some(attempt) = archived_matches.first() {
-        let expected_kind = match request {
-            RuntimeTypedRequestRef::ProposalModeling(_) => "proposal-modeling",
-            RuntimeTypedRequestRef::ImaginationConsideration(_) => "imagination-consideration",
-            RuntimeTypedRequestRef::AdmittedModelDirection(_) => "admitted-model-direction",
-        };
         if attempt.schema_version != ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION
             || attempt.archive_id != attempt.job_id
-            || attempt.request_kind != expected_kind
-            || attempt.terminal_process_status != "terminal-result"
+            || attempt.request_kind != request.kind()
+            || !crate::WorkerProcessStatus::parse(&attempt.terminal_process_status)?.is_fulfilled_terminal()
             || !attempt.retired_chain_digest.starts_with("sha256:")
         {
             return Err(anyhow!("archived typed fulfillment tombstone is invalid"));
@@ -5027,20 +5014,7 @@ pub fn runtime_typed_request_fulfillment(
     let matches = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
         .into_iter()
-        .filter(|result| match request {
-            RuntimeTypedRequestRef::ProposalModeling(_) => {
-                result.proposal_modeling_request_id.as_deref() == Some(request_id)
-            }
-            RuntimeTypedRequestRef::ImaginationConsideration(_) => {
-                result.imagination_consideration_request_id.as_deref() == Some(request_id)
-            }
-            RuntimeTypedRequestRef::AdmittedModelDirection(_) => {
-                result
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(request_id)
-            }
-        })
+        .filter(|result| request.matches_result(result))
         .collect::<Vec<_>>();
     if matches.is_empty() {
         return Ok(None);
@@ -11205,44 +11179,26 @@ pub fn runtime_typed_request_attempt_exists(
     store_path: impl AsRef<Path>,
     request: RuntimeTypedRequestRef<'_>,
 ) -> Result<bool> {
-    let request_id = match request {
-        RuntimeTypedRequestRef::ProposalModeling(id)
-        | RuntimeTypedRequestRef::ImaginationConsideration(id)
-        | RuntimeTypedRequestRef::AdmittedModelDirection(id) => id,
-    };
+    let request_id = request.request_id();
     validate_non_empty(request_id, "typed attempt request id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let claims = cache
         .get_all::<EpiphanyRuntimeWorkerProcessClaim>()?
         .into_iter()
-        .map(|claim| (claim.job_id.clone(), claim))
-        .collect::<BTreeMap<_, _>>();
+        .map(|claim| {
+            Ok((claim.job_id.clone(), WorkerProcessStatus::parse(&claim.status)?))
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
     Ok(cache
         .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .iter()
         .filter(|launch| {
-            claims.get(&launch.job_id).is_none_or(|claim| {
-                !matches!(
-                    claim.status.as_str(),
-                    "terminal-death" | "terminal-unactivated" | "terminal-failure"
-                )
-            })
+            claims
+                .get(&launch.job_id)
+                .is_none_or(|status| !status.allows_retry())
         })
-        .any(|launch| match request {
-            RuntimeTypedRequestRef::ProposalModeling(_) => {
-                launch.proposal_modeling_request_id.as_deref() == Some(request_id)
-            }
-            RuntimeTypedRequestRef::ImaginationConsideration(_) => {
-                launch.imagination_consideration_request_id.as_deref() == Some(request_id)
-            }
-            RuntimeTypedRequestRef::AdmittedModelDirection(_) => {
-                launch
-                    .admitted_model_direction_consideration_request_id
-                    .as_deref()
-                    == Some(request_id)
-            }
-        }))
+        .any(|launch| request.matches_launch(launch)))
 }
 
 pub fn archive_failed_runtime_worker_attempt(
@@ -11448,15 +11404,9 @@ where
     }
     let launch = cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
         .ok_or_else(|| anyhow!("worker attempt archive requires its immutable launch"))?;
-    let typed = [
-        ("proposal-modeling", launch.proposal_modeling_request_id.as_deref()),
-        ("imagination-consideration", launch.imagination_consideration_request_id.as_deref()),
-        ("admitted-model-direction", launch.admitted_model_direction_consideration_request_id.as_deref()),
-    ].into_iter().filter_map(|(kind, id)| id.map(|id| (kind, id))).collect::<Vec<_>>();
-    if typed.len() != 1 {
-        return Err(anyhow!("worker attempt archive requires exactly one supported typed request"));
-    }
-    let (request_kind, request_id) = typed[0];
+    let request = launch.typed_request_ref()?.ok_or_else(|| anyhow!("worker attempt archive requires exactly one supported typed request"))?;
+    let request_kind = request.kind();
+    let request_id = request.request_id();
     validate_archivable_typed_worker_launch(&cache, &launch, request_kind, request_id)?;
     if live_resident_request_ids.contains(request_id) {
         return Err(anyhow!("worker attempt archive refuses resident-live typed request"));
@@ -11468,11 +11418,8 @@ where
     let claim_id = worker_process_claim_id(job_id);
     let claim = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker attempt archive requires its process claim"))?;
-    let valid_claim = if fulfilled {
-        claim.status == "terminal-result"
-    } else {
-        matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated" | "terminal-failure")
-    };
+    let status = crate::WorkerProcessStatus::parse(&claim.status)?;
+    let valid_claim = if fulfilled { status.is_fulfilled_terminal() } else { status.is_failed_terminal() };
     if !valid_claim
         || claim.terminal_at.is_none() || claim.terminal_authority_id.is_none()
     {
@@ -11576,18 +11523,20 @@ pub fn retain_failed_runtime_worker_attempts(
     require_identity(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?.into_iter()
         .map(|launch| (launch.job_id.clone(), launch)).collect::<BTreeMap<_, _>>();
+    let typed_request_ids = launches.values().map(|launch| Ok((launch.job_id.clone(), launch.typed_request_ref()?.map(|request| request.request_id().to_string())))).collect::<Result<BTreeMap<_, _>>>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?.into_iter()
         .map(|job| (job.job_id.clone(), job)).collect::<BTreeMap<_, _>>();
-    let mut candidates = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?.into_iter()
-        .filter(|claim| matches!(claim.status.as_str(), "terminal-death" | "terminal-unactivated" | "terminal-failure"))
-        .filter_map(|claim| {
-            let launch = launches.get(&claim.job_id)?;
+    let claims = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?.into_iter()
+        .map(|claim| Ok((crate::WorkerProcessStatus::parse(&claim.status)?, claim)))
+        .collect::<Result<Vec<_>>>()?;
+    let mut candidates = claims.into_iter()
+        .filter(|(status, _)| status.is_failed_terminal())
+        .filter_map(|(_, claim)| {
             let job = jobs.get(&claim.job_id)?;
             if !matches!(job.status, EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled) {
                 return None;
             }
-            let request_id = [launch.proposal_modeling_request_id.as_deref(), launch.imagination_consideration_request_id.as_deref(), launch.admitted_model_direction_consideration_request_id.as_deref()]
-                .into_iter().flatten().next()?;
+            let request_id = typed_request_ids.get(&claim.job_id)?.as_deref()?;
             (!live_resident_request_ids.contains(request_id)).then_some(claim)
         }).collect::<Vec<_>>();
     candidates.sort_by(|a, b| b.terminal_at.cmp(&a.terminal_at).then(b.job_id.cmp(&a.job_id)));
@@ -11606,15 +11555,19 @@ pub fn retain_fulfilled_runtime_worker_attempts(
     require_identity(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?.into_iter()
         .map(|launch| (launch.job_id.clone(), launch)).collect::<BTreeMap<_, _>>();
+    let typed_request_ids = launches.values().map(|launch| Ok((launch.job_id.clone(), launch.typed_request_ref()?.map(|request| request.request_id().to_string())))).collect::<Result<BTreeMap<_, _>>>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?.into_iter()
         .map(|job| (job.job_id.clone(), job)).collect::<BTreeMap<_, _>>();
     let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?.into_iter()
         .map(|result| (result.job_id.clone(), result)).collect::<BTreeMap<_, _>>();
     let admitted_result_ids = cache.get_all::<RepoModelAdmissionReceipt>()?.into_iter()
         .filter_map(|receipt| receipt.result_id).collect::<BTreeSet<_>>();
-    let mut candidates = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?.into_iter()
-        .filter(|claim| claim.status == "terminal-result")
-        .filter_map(|claim| {
+    let claims = cache.get_all::<EpiphanyRuntimeWorkerProcessClaim>()?.into_iter()
+        .map(|claim| Ok((crate::WorkerProcessStatus::parse(&claim.status)?, claim)))
+        .collect::<Result<Vec<_>>>()?;
+    let mut candidates = claims.into_iter()
+        .filter(|(status, _)| status.is_fulfilled_terminal())
+        .filter_map(|(_, claim)| {
             let launch = launches.get(&claim.job_id)?;
             let job = jobs.get(&claim.job_id)?;
             let result = role_results.get(&claim.job_id)?;
@@ -11624,8 +11577,7 @@ pub fn retain_fulfilled_runtime_worker_attempts(
             {
                 return None;
             }
-            let request_id = [launch.proposal_modeling_request_id.as_deref(), launch.imagination_consideration_request_id.as_deref(), launch.admitted_model_direction_consideration_request_id.as_deref()]
-                .into_iter().flatten().next()?;
+            let request_id = typed_request_ids.get(&claim.job_id)?.as_deref()?;
             (!live_resident_request_ids.contains(request_id)).then_some(claim)
         }).collect::<Vec<_>>();
     candidates.sort_by(|a, b| b.terminal_at.cmp(&a.terminal_at).then(b.job_id.cmp(&a.job_id)));
@@ -12341,8 +12293,8 @@ pub fn complete_runtime_job(
     ];
     let claim_id = worker_process_claim_id(&result.job_id);
     if let Some(claim) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
-        match claim.status.as_str() {
-            "active" => {
+        match crate::WorkerProcessStatus::parse(&claim.status)? {
+            crate::WorkerProcessStatus::Active => {
                 let claim_envelope = snapshot
                     .iter()
                     .find(|entry| {
@@ -12355,25 +12307,25 @@ pub fn complete_runtime_job(
                 if let Some(reorient) =
                     cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
                 {
-                    terminal.status = "terminal-result".into();
+                    terminal.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
                     terminal.terminal_authority_id = Some(reorient.result_id);
                 } else {
-                    terminal.status = "terminal-failure".into();
+                    terminal.status = crate::WorkerProcessStatus::TerminalFailure.as_str().into();
                     terminal.terminal_authority_id = Some(result.result_id.clone());
                 }
                 terminal.terminal_at = Some(result.completed_at.clone());
                 expected.push(claim_envelope);
                 writes.push(cache.prepare_entry(&claim_id, &terminal)?.0);
             }
-            "terminal-result" => {}
-            "claimed" => {
+            crate::WorkerProcessStatus::TerminalResult => {}
+            crate::WorkerProcessStatus::Claimed => {
                 return Err(anyhow!(
                     "runtime worker job cannot complete before activation"
                 ));
             }
             status => {
                 return Err(anyhow!(
-                    "runtime worker job completion found terminal process status {status:?}"
+                    "runtime worker job completion found process status {:?}", status.as_str()
                 ));
             }
         }

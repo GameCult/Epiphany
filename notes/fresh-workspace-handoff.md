@@ -5,10 +5,9 @@ Updated: 2026-08-12
 ## Current state
 
 The five-day live shakedown campaign is paused for architectural consolidation.
-The source branch is `codex/epiphany-shakedown-live`; the last pushed source
-before surgery is `80541843`. The working tree contains the consolidation cut
-described below and must be committed only after final source checks and map
-updates.
+The source branch is `codex/epiphany-shakedown-live`. Causal-work and immutable
+public-source ownership landed at `868a5be0`. The working tree contains the
+second consolidation cut described below.
 
 The accepted live body remains c011 at exact `465af24d` on Starfire, cognitively
 braked at resident revision 384 with no active lease, admitted work, or defunct
@@ -35,10 +34,11 @@ repair.
   public-source receipt. Provider validation is no longer trusted as a substitute
   for admission validation.
 
-The full `epiphany-core` library passes 683 tests with one intentional ignored
-cross-process helper. `epiphany-tool-mcp-runtime` passes 14 tests with one
-intentional ignored live-network proof. Focused stale-thread refusal preserves
-the exact store bytes.
+The first cut's full `epiphany-core` library passed 683 tests with one intentional
+ignored cross-process helper. After worker-attempt extraction, core passes 684
+active tests with one ignored helper, `epiphany-tool-mcp-runtime` passes 14
+active tests with one ignored live-network proof, and OpenAI runtime passes all
+39 tests. Focused stale-thread refusal preserves the exact store bytes.
 
 ## Authority map
 
@@ -76,25 +76,23 @@ Do not collapse these into one enum or service:
 - Runtime worker attempt owns launch, exact process claim, result, and archive.
 - Mind decides adoption; fulfillment is evidence, not admission.
 
-The next physical extraction is a narrow `runtime_worker_attempt` module. It
-should centralize typed process-status predicates and typed-request association
-without merging the authorities above or introducing a registry.
+The narrow `runtime_worker_attempt` module now owns the serialized process-status
+vocabulary, live/fulfilled/failed/retry classification, and the complete set of
+typed request families carried by one launch. Runtime, resident, and coordinator
+consumers call those predicates and accessors instead of maintaining local
+string sets and parallel family arrays. Persisted documents and transactions are
+unchanged; the lifecycle authorities above remain separate.
 
 ## Acceptance gates before shakedown resumes
 
-1. Extract the worker-attempt aggregate from `runtime_spine` with no schema or
-   state migration.
-2. Replay full core, resident, coordinator, tool-runtime, and OpenAI-runtime
-   suites after extraction.
-3. Prove immutable public Eyes success and no-grant denial on a copied packaged
+1. Prove immutable public Eyes success and no-grant denial on a copied packaged
    body. This is the paused shakedown's first remaining live gate, not part of
    the consolidation commit.
-4. Run one fresh-repository source -> Hands -> Soul -> Modeling -> Mind -> Self
+2. Run one fresh-repository source -> Hands -> Soul -> Modeling -> Mind -> Self
    capstone before claiming organism-level readiness.
 
 ## Immediate next action
 
-Review the current diff for any surviving family-local causal hash or public
-GitHub parser. Commit and push this first consolidation cut. Then map and extract
-`runtime_worker_attempt`; do not add new capability surfaces and do not replace
-c011.
+Commit and push the worker-attempt extraction, then resume with the copied
+packaged public Eyes success/denial pair. Do not add new capability surfaces and
+do not replace c011 before that gate closes.

@@ -971,7 +971,7 @@ fn validate_imagination_consideration_launch(
         .cloned()
         .collect::<Vec<_>>();
     for binding in prior_bindings {
-        if !worker_process_attempt_is_terminal(cache, &binding.job_id)? {
+        if !worker_attempt_is_retryable_terminal_failure(cache, &binding.job_id)? {
             return Err(anyhow!("consideration request already bound"));
         }
     }
@@ -1041,7 +1041,7 @@ fn validate_admitted_model_direction_consideration_launch(
         .cloned()
         .collect::<Vec<_>>();
     for worker in prior_launches {
-        if !worker_process_attempt_is_terminal(cache, &worker.job_id)? {
+        if !worker_attempt_is_retryable_terminal_failure(cache, &worker.job_id)? {
             return Err(anyhow!("model direction consideration already bound"));
         }
     }
@@ -1216,20 +1216,16 @@ fn proposal_modeling_launch_was_superseded(
     cache: &CultCache,
     binding: &RepoFrontierProposalModelingLaunchBinding,
 ) -> Result<bool> {
-    worker_process_attempt_is_terminal(cache, &binding.job_id)
+    worker_attempt_is_retryable_terminal_failure(cache, &binding.job_id)
 }
 
-fn worker_process_attempt_is_terminal(cache: &CultCache, job_id: &str) -> Result<bool> {
-    Ok(cache
+fn worker_attempt_is_retryable_terminal_failure(cache: &CultCache, job_id: &str) -> Result<bool> {
+    cache
         .get::<crate::EpiphanyRuntimeWorkerProcessClaim>(&format!(
-            "runtime-worker-process-{job_id}"
-        ))?
-        .is_some_and(|claim| {
-            matches!(
-                claim.status.as_str(),
-                "terminal-death" | "terminal-unactivated" | "terminal-failure"
-            )
-        }))
+        "runtime-worker-process-{job_id}"
+    ))?
+        .map(|claim| Ok(crate::WorkerProcessStatus::parse(&claim.status)?.allows_retry()))
+        .unwrap_or(Ok(false))
 }
 
 fn terminal_runtime_link_for_binding(
@@ -1259,10 +1255,7 @@ fn terminal_runtime_link_for_binding(
     let Some(claim) = crate::runtime_worker_process_claim(runtime_store, &link.runtime_job_id)? else {
         return Ok(None);
     };
-    if !matches!(
-        claim.status.as_str(),
-        "terminal-death" | "terminal-unactivated" | "terminal-failure"
-    ) {
+    if !crate::WorkerProcessStatus::parse(&claim.status)?.is_failed_terminal() {
         return Ok(None);
     }
     let terminal_authority_id = claim

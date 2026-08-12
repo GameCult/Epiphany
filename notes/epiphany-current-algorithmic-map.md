@@ -3522,7 +3522,9 @@ model direction binds the request/model projection directly. Failed terminal
 status is not permission to launder malformed launch state into a tombstone.
 Model-direction result admission now checks the same projected model hash.
 
-- Owner: runtime spine owns archival of one immutable outer worker attempt.
+- Owner: `runtime_worker_attempt` owns one immutable outer worker attempt's
+  typed request association and process-status semantics. Runtime spine retains
+  the CultCache transaction primitives for claim, result, and archival commits.
   Resident Self supplies cross-store liveness but cannot delete runtime rows.
 - Inputs: exact typed request identity; worker launch; lane-specific launch
   binding; process claim; terminal role result and typed companion; runtime job
@@ -3539,13 +3541,18 @@ Model-direction result admission now checks the same projected model hash.
   and artifact cleanup cannot retire outer worker authority. No generic sweep
   may delete a claim or result independently.
 - Shared paths: proposal Modeling, Imagination consideration, and admitted model
-  direction use the same archive commit primitive and common launch/claim/job
+  direction use one exhaustive typed-request projection, the same status
+  predicates, the same archive commit primitive, and common launch/claim/job
   invariants, with lane-specific binding/companion validators.
 - Cut line: archive only exact launch, terminal claim, terminal result,
   lane-specific attempt binding/companion, and terminal job/event rows. Preserve
   request, proposal, model, admission, and unrelated runtime families until a
   separately mapped lifecycle owns them. The tombstone must be written in the
   same full-snapshot CAS as deletion.
+- Demotion: serialized process-status strings are wire representation, not local
+  policy owners. Resident recovery, coordinator retry, runtime fulfillment, and
+  retention derive their decisions from `WorkerProcessStatus`. Per-consumer
+  request-family arrays no longer decide which typed work exists.
 - Verification layer: terminal-result/failure/death attempts; prepared/active/
   unconsumed-ack refusal; downstream-reference refusal; stale snapshot race;
   unknown-row byte identity; retry after archived failure; fulfillment after
