@@ -267,6 +267,8 @@ pub struct RepoFrontierProposalModelingContextProjection {
     pub scope_hints: Vec<String>,
     #[serde(default)]
     pub evidence_refs: Vec<String>,
+    #[serde(default)]
+    pub public_source_refs: Vec<String>,
     pub private_state_included: bool,
     pub model_revision: u64,
     pub model_hash: String,

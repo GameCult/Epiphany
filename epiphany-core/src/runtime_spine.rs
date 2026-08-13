@@ -5066,15 +5066,15 @@ fn validate_proposal_modeling_worker_fulfillment(
         EpiphanyWorkerLaunchDocument::Reorient(_) => None,
     };
     let identity = require_identity(cache)?;
-    let payload = rmp_serde::to_vec_named(&(
+    let proposal_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
         &proposal.body,
         &proposal.desired_outcome,
         &proposal.constraints,
         &proposal.scope_hints,
         &proposal.evidence_refs,
-    ))?;
-    let proposal_payload_sha256 = format!("{:x}", Sha256::digest(payload));
+        &proposal.public_source_refs,
+    )?;
     let expected_projection = crate::RepoFrontierProposalModelingContextProjection {
         schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
         contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT.into(),
@@ -5094,6 +5094,7 @@ fn validate_proposal_modeling_worker_fulfillment(
         constraints: proposal.constraints.clone(),
         scope_hints: proposal.scope_hints.clone(),
         evidence_refs: proposal.evidence_refs.clone(),
+        public_source_refs: proposal.public_source_refs.clone(),
         private_state_included: proposal.private_state_included,
         model_revision: patch.base_revision,
         model_hash: patch.base_hash.clone(),
@@ -5213,6 +5214,12 @@ fn validate_proposal_modeling_worker_fulfillment(
             .any(|id| id == &proposal.proposal_id)
         || upserts[0].source_scope.is_empty()
         || !safe_sorted_unique_paths(&upserts[0].source_scope)
+        || upserts[0].public_source_refs
+            != if upserts[0].recommended_next_organ == "Eyes" {
+                proposal.public_source_refs.clone()
+            } else {
+                Vec::new()
+            }
         || upserts[0].status != crate::RepoFrontierStatus::Active
         || !matches!(
             upserts[0].recommended_next_organ.as_str(),
@@ -5525,6 +5532,7 @@ fn validate_ordinary_modeling_frontier_transition(
                 || frontier.source_scope.is_empty()
                 || !safe_sorted_unique_paths(&frontier.source_scope)
                 || frontier.evidence_refs.is_empty()
+                || !frontier.public_source_refs.is_empty()
                 || !frontier
                     .evidence_refs
                     .iter()
@@ -6268,6 +6276,7 @@ pub fn commit_repo_model_admission(
             || item.question != current_item.question
             || item.target_claim_ids != current_item.target_claim_ids
             || item.source_scope != current_item.source_scope
+            || item.public_source_refs != current_item.public_source_refs
             || item.dependency_item_ids != current_item.dependency_item_ids
             || item.created_at != current_item.created_at
             || item.recommended_next_organ != current_item.recommended_next_organ
@@ -6395,15 +6404,22 @@ pub(crate) fn validate_repo_frontier_work_proposal(
     {
         return Err(anyhow!("invalid inert repo frontier work proposal"));
     }
-    let content = rmp_serde::to_vec_named(&(
+    let canonical_public_sources = crate::ImmutableGithubSource::canonicalize_set(
+        proposal.public_source_refs.iter().map(String::as_str),
+    )?;
+    if canonical_public_sources != proposal.public_source_refs {
+        return Err(anyhow!("proposal public source set is not canonical"));
+    }
+    let expected_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
         &proposal.body,
         &proposal.desired_outcome,
         &proposal.constraints,
         &proposal.scope_hints,
         &proposal.evidence_refs,
-    ))?;
-    if proposal.payload_sha256 != format!("{:x}", Sha256::digest(content)) {
+        &proposal.public_source_refs,
+    )?;
+    if proposal.payload_sha256 != expected_payload_sha256 {
         return Err(anyhow!("proposal content hash mismatch"));
     }
     Ok(())
@@ -6636,14 +6652,18 @@ pub fn intake_user_repo_frontier_proposal(
     store_path: impl AsRef<Path>,
     input: crate::RepoFrontierUserProposalInput,
 ) -> Result<RepoFrontierWorkProposal> {
-    let content = rmp_serde::to_vec_named(&(
+    let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
+        input.public_source_refs.iter().map(String::as_str),
+    )?;
+    let payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &input.title,
         &input.body,
         &input.desired_outcome,
         &input.constraints,
         &input.scope_hints,
         &input.evidence_refs,
-    ))?;
+        &public_source_refs,
+    )?;
     let proposal = RepoFrontierWorkProposal {
         schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
         proposal_id: input.proposal_id,
@@ -6654,13 +6674,14 @@ pub fn intake_user_repo_frontier_proposal(
         workspace: input.workspace,
         thread_id: input.thread_id,
         runtime_id: input.runtime_id,
-        payload_sha256: format!("{:x}", Sha256::digest(content)),
+        payload_sha256,
         title: input.title,
         body: input.body,
         desired_outcome: input.desired_outcome,
         constraints: input.constraints,
         scope_hints: input.scope_hints,
         evidence_refs: input.evidence_refs,
+        public_source_refs,
         private_state_included: input.private_state_included,
         proposed_at: input.proposed_at,
         contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
@@ -6911,15 +6932,15 @@ pub fn promote_autonomous_direction_options_for_modeling(
                     ),
                 ])
                 .collect::<Vec<_>>();
-            let content = rmp_serde::to_vec_named(&(
+            let payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
                 &option.title,
                 &option.summary,
                 &option.summary,
                 &result.uncertainties,
-                &Vec::<String>::new(),
+                &[],
                 &evidence_refs,
-            ))?;
-            let payload_sha256 = format!("{:x}", Sha256::digest(content));
+                &[],
+            )?;
             let proposal = RepoFrontierWorkProposal {
                 schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
                 proposal_id: proposal_id.clone(),
@@ -6937,6 +6958,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 constraints: result.uncertainties.clone(),
                 scope_hints: Vec::new(),
                 evidence_refs,
+                public_source_refs: Vec::new(),
                 private_state_included: false,
                 proposed_at: result.proposed_at.clone(),
                 contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
@@ -8932,14 +8954,14 @@ pub fn select_and_commit_repo_frontier_research_request(
     let item = actionable_frontier_item_for_organ(&model, &challenges, "Eyes", false)
         .ok_or_else(|| anyhow!("current model has no actionable Eyes frontier"))?;
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let mut public_source_refs = item
-        .evidence_refs
-        .iter()
-        .filter_map(|source_ref| crate::ImmutableGithubSource::parse(source_ref).ok())
-        .map(|source| source.to_string())
-        .collect::<Vec<_>>();
-    public_source_refs.sort();
-    public_source_refs.dedup();
+    let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
+        item.public_source_refs.iter().map(String::as_str),
+    )?;
+    if public_source_refs != item.public_source_refs {
+        return Err(anyhow!(
+            "frontier Research public source authority is not canonical"
+        ));
+    }
     let request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
     let request = RepoFrontierResearchRequest {
         schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.to_string(),
@@ -9048,14 +9070,14 @@ fn repo_frontier_research_request_is_current(
         return Ok(false);
     };
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let mut expected_public_source_refs = item
-        .evidence_refs
-        .iter()
-        .filter_map(|source_ref| crate::ImmutableGithubSource::parse(source_ref).ok())
-        .map(|source| source.to_string())
-        .collect::<Vec<_>>();
-    expected_public_source_refs.sort();
-    expected_public_source_refs.dedup();
+    let expected_public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
+        item.public_source_refs.iter().map(String::as_str),
+    )?;
+    if expected_public_source_refs != item.public_source_refs {
+        return Err(anyhow!(
+            "frontier Research public source authority is not canonical"
+        ));
+    }
     let expected_request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
     let admission_count = cache
         .get_all::<RepoModelAdmissionReceipt>()?
@@ -14742,6 +14764,24 @@ pub(crate) mod tests {
         current: &crate::EpiphanyMemoryGraphSnapshot,
         review_id: &str,
     ) -> Result<(EpiphanyRuntimeRoleWorkerResult, RepoModelAdmissionReview)> {
+        repo_model_result_and_review_with_public_sources(
+            store,
+            result_id,
+            job_id,
+            current,
+            review_id,
+            &[],
+        )
+    }
+
+    fn repo_model_result_and_review_with_public_sources(
+        store: &Path,
+        result_id: &str,
+        job_id: &str,
+        current: &crate::EpiphanyMemoryGraphSnapshot,
+        review_id: &str,
+        public_source_refs: &[String],
+    ) -> Result<(EpiphanyRuntimeRoleWorkerResult, RepoModelAdmissionReview)> {
         let mut cache = runtime_spine_cache(store)?;
         cache.pull_all_backing_stores()?;
         let identity = require_identity(&cache)?;
@@ -14768,6 +14808,7 @@ pub(crate) mod tests {
                 constraints: vec!["No direct Hands authority".into()],
                 scope_hints: vec!["epiphany-core/src/runtime_spine.rs".into()],
                 evidence_refs: vec![format!("evidence-{result_id}")],
+                public_source_refs: public_source_refs.to_vec(),
                 private_state_included: false,
                 proposed_at: "2026-07-13T03:59:58Z".into(),
             },
@@ -14989,6 +15030,18 @@ pub(crate) mod tests {
         EpiphanyRuntimeRoleWorkerResult,
         RepoModelAdmissionReview,
     )> {
+        proposal_admission_fixture_with_public_sources(root, suffix, &[])
+    }
+
+    fn proposal_admission_fixture_with_public_sources(
+        root: &Path,
+        suffix: &str,
+        public_source_refs: &[String],
+    ) -> Result<(
+        PathBuf,
+        EpiphanyRuntimeRoleWorkerResult,
+        RepoModelAdmissionReview,
+    )> {
         let store = root.join(format!("proposal-admission-{suffix}.cc"));
         initialize_runtime_spine(
             &store,
@@ -15003,12 +15056,13 @@ pub(crate) mod tests {
         let legacy = root.join(format!("proposal-{suffix}.legacy"));
         let (current, _) =
             ensure_runtime_repo_model(&store, &legacy, &bootstrap, "2026-07-13T03:30:00Z")?;
-        let (result, review) = repo_model_result_and_review(
+        let (result, review) = repo_model_result_and_review_with_public_sources(
             &store,
             &format!("proposal-result-{suffix}"),
             &format!("proposal-job-{suffix}"),
             &current,
             &format!("proposal-review-{suffix}"),
+            public_source_refs,
         )?;
         Ok((store, result, review))
     }
@@ -16289,6 +16343,7 @@ pub(crate) mod tests {
                 constraints: vec!["No implicit selection".into()],
                 scope_hints: vec!["epiphany-core/src".into()],
                 evidence_refs: vec![format!("fixture:{suffix}")],
+                public_source_refs: Vec::new(),
                 private_state_included: false,
                 proposed_at: "2026-07-13T02:01:00Z".into(),
             },
@@ -16445,6 +16500,10 @@ pub(crate) mod tests {
             constraints: vec!["bounded".into()],
             scope_hints: vec!["epiphany-core/src".into()],
             evidence_refs: vec!["message-1".into()],
+            public_source_refs: vec![
+                "github://GameCult/Epiphany@ABCDEF0123456789ABCDEF0123456789ABCDEF01/README.md".into(),
+                "github://GameCult/Epiphany@abcdef0123456789abcdef0123456789abcdef01/README.md".into(),
+            ],
             private_state_included: false,
             proposed_at: "2026-07-13T01:01:00Z".into(),
         };
@@ -16452,19 +16511,40 @@ pub(crate) mod tests {
             ("runtime", input.clone()),
             ("thread", input.clone()),
             ("private", input.clone()),
+            ("mutable-source", input.clone()),
         ] {
             hostile.proposal_id = format!("hostile-{suffix}");
             match suffix {
                 "runtime" => hostile.runtime_id = "spoofed".into(),
                 "thread" => hostile.thread_id = "spoofed".into(),
                 "private" => hostile.private_state_included = true,
+                "mutable-source" => {
+                    hostile.public_source_refs =
+                        vec!["github://GameCult/Epiphany@main/README.md".into()]
+                }
                 _ => unreachable!(),
             }
             let before = std::fs::read(&store)?;
             assert!(intake_user_repo_frontier_proposal(&store, hostile).is_err());
             assert_eq!(std::fs::read(&store)?, before);
         }
-        intake_user_repo_frontier_proposal(&store, input)?;
+        let admitted = intake_user_repo_frontier_proposal(&store, input)?;
+        assert_eq!(
+            admitted.public_source_refs,
+            ["github://GameCult/Epiphany@abcdef0123456789abcdef0123456789abcdef01/README.md"]
+        );
+        assert_eq!(
+            admitted.payload_sha256,
+            crate::repo_frontier_proposal_payload_sha256(
+                &admitted.title,
+                &admitted.body,
+                &admitted.desired_outcome,
+                &admitted.constraints,
+                &admitted.scope_hints,
+                &admitted.evidence_refs,
+                &admitted.public_source_refs,
+            )?
+        );
         let selected = select_repo_frontier_work_proposal_for_modeling(
             &store,
             "intake-proposal",
@@ -16748,7 +16828,19 @@ pub(crate) mod tests {
         suffix: &str,
         next_organ: &str,
     ) -> Result<(PathBuf, RepoModelClaimChallenge)> {
-        let (store, result, review) = proposal_admission_fixture(root, suffix)?;
+        let public_source_refs = if next_organ == "Eyes" {
+            vec![
+                "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+                    .to_string(),
+            ]
+        } else {
+            Vec::new()
+        };
+        let (store, result, review) = proposal_admission_fixture_with_public_sources(
+            root,
+            suffix,
+            &public_source_refs,
+        )?;
         let mut result = result;
         if next_organ != "Hands" {
             let mut patch: crate::RepoModelPatch =
@@ -16760,11 +16852,17 @@ pub(crate) mod tests {
             item.recommended_next_organ = next_organ.into();
             if next_organ == "Eyes" {
                 item.evidence_refs.push(
-                    "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+                    "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/not-authority.md"
                         .into(),
                 );
                 item.evidence_refs.sort();
                 item.evidence_refs.dedup();
+                item.public_source_refs.push(
+                    "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+                        .into(),
+                );
+                item.public_source_refs.sort();
+                item.public_source_refs.dedup();
             }
             let bytes = rmp_serde::to_vec_named(&patch)?;
             result.repo_model_patch_msgpack = Some(bytes.clone());
@@ -18290,6 +18388,14 @@ pub(crate) mod tests {
                 let mut item = item;
                 let routeable = item.status == crate::RepoFrontierStatus::Active;
                 item.evidence_refs.push(proposal_id);
+                if item.recommended_next_organ == "Eyes" {
+                    item.public_source_refs = runtime_repo_frontier_work_proposal(
+                        store,
+                        &result.evidence_ids[0],
+                    )?
+                    .expect("eligibility fixture proposal")
+                    .public_source_refs;
+                }
                 patch.operations = vec![crate::RepoModelPatchOperation::UpsertFrontier { item }];
                 let bytes = rmp_serde::to_vec_named(&patch)?;
                 review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));

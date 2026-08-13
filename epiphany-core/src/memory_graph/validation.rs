@@ -118,6 +118,23 @@ pub fn validate_memory_graph_snapshot(
             "recommended next organ is required",
             &mut errors,
         );
+        if !item.public_source_refs.is_empty() {
+            if item.recommended_next_organ != "Eyes" {
+                errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.public_source_refs"),
+                    "public source authority belongs only to an Eyes frontier",
+                ));
+            }
+            match crate::ImmutableGithubSource::canonicalize_set(
+                item.public_source_refs.iter().map(String::as_str),
+            ) {
+                Ok(canonical) if canonical == item.public_source_refs => {}
+                _ => errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.public_source_refs"),
+                    "public source refs must be one canonical sorted unique immutable GitHub set",
+                )),
+            }
+        }
         for claim_id in &item.target_claim_ids {
             if !node_ids.contains(claim_id) {
                 errors.push(EpiphanyMemoryGraphValidationError::new(

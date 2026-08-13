@@ -1121,6 +1121,7 @@ fn build_proposal_modeling_context_projection(
         constraints: proposal.constraints.clone(),
         scope_hints: proposal.scope_hints.clone(),
         evidence_refs: proposal.evidence_refs.clone(),
+        public_source_refs: proposal.public_source_refs.clone(),
         private_state_included: proposal.private_state_included,
         model_revision: model.model_revision,
         model_hash: crate::memory_graph_model_hash(model)?,
@@ -1185,19 +1186,20 @@ fn validate_proposal_modeling_launch(
         .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
         .ok_or_else(|| anyhow!("proposal Modeling launch requires authoritative thread state"))?;
     let persisted_state_value = persisted_state.state()?;
-    let content = rmp_serde::to_vec_named(&(
+    let proposal_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
         &proposal.body,
         &proposal.desired_outcome,
         &proposal.constraints,
         &proposal.scope_hints,
         &proposal.evidence_refs,
-    ))?;
+        &proposal.public_source_refs,
+    )?;
     if selection.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION
         || selection.contract != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT
         || selection.request_id != request_id
         || selection.proposal_payload_sha256 != proposal.payload_sha256
-        || proposal.payload_sha256 != format!("{:x}", Sha256::digest(content))
+        || proposal.payload_sha256 != proposal_payload_sha256
         || selection.runtime_id != identity.runtime_id
         || selection.runtime_id != proposal.runtime_id
         || selection.thread_id != proposal.thread_id
@@ -1355,6 +1357,7 @@ pub(crate) mod tests {
                 constraints: vec!["No duplicate backend".into()],
                 scope_hints: vec!["epiphany-core/src".into()],
                 evidence_refs: vec![format!("fixture:{suffix}")],
+                public_source_refs: Vec::new(),
                 private_state_included: false,
                 proposed_at: "2026-07-13T05:00:01Z".into(),
             },

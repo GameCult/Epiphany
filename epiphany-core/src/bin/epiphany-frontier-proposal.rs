@@ -20,6 +20,7 @@ fn main() -> Result<()> {
         constraints: args.constraints.clone(),
         scope_hints: args.scope_hints.clone(),
         evidence_refs: args.evidence_refs.clone(),
+        public_source_refs: args.public_source_refs.clone(),
         proposed_at: args.required("--proposed-at")?,
         private_state_included: false,
     })?;
@@ -51,6 +52,7 @@ struct Args {
     constraints: Vec<String>,
     scope_hints: Vec<String>,
     evidence_refs: Vec<String>,
+    public_source_refs: Vec<String>,
 }
 
 impl Args {
@@ -66,6 +68,7 @@ impl Args {
         let mut constraints = Vec::new();
         let mut scope_hints = Vec::new();
         let mut evidence_refs = Vec::new();
+        let mut public_source_refs = Vec::new();
         while let Some(flag) = values.next() {
             let value = values
                 .next()
@@ -74,6 +77,7 @@ impl Args {
                 "--constraint" => constraints.push(value),
                 "--scope-hint" => scope_hints.push(value),
                 "--evidence-ref" => evidence_refs.push(value),
+                "--public-source-ref" => public_source_refs.push(value),
                 "--store" | "--proposal-id" | "--source-actor" | "--source-ref"
                 | "--repository" | "--workspace" | "--thread-id" | "--runtime-id" | "--title"
                 | "--body" | "--desired-outcome" | "--proposed-at" | "--selected-at" => {
@@ -94,6 +98,7 @@ impl Args {
             constraints,
             scope_hints,
             evidence_refs,
+            public_source_refs,
         })
     }
 
@@ -125,6 +130,8 @@ mod tests {
                 "src/lib.rs",
                 "--evidence-ref",
                 "operator:request",
+                "--public-source-ref",
+                "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md",
             ]
             .into_iter()
             .map(str::to_string),
@@ -134,6 +141,7 @@ mod tests {
         assert_eq!(args.constraints, ["one", "two"]);
         assert_eq!(args.scope_hints, ["src/lib.rs"]);
         assert_eq!(args.evidence_refs, ["operator:request"]);
+        assert_eq!(args.public_source_refs.len(), 1);
     }
 
     #[test]

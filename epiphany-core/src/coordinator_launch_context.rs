@@ -1373,6 +1373,7 @@ mod tests {
                 constraints: vec!["No direct execution authority".to_string()],
                 scope_hints: intent.requested_paths.clone(),
                 evidence_refs: vec!["context-route-evidence".to_string()],
+                public_source_refs: Vec::new(),
                 private_state_included: false,
                 proposed_at: "2026-06-12T00:00:01Z".to_string(),
             },

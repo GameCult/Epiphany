@@ -788,6 +788,11 @@ pub struct RepoFrontierItem {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub evidence_refs: Vec<String>,
+    /// Exact immutable public sources selected upstream for Eyes. These are
+    /// causal retrieval inputs, not evidence produced by Modeling.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub public_source_refs: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub created_at: Option<String>,

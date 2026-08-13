@@ -989,8 +989,8 @@ pub fn epiphany_frontier_verdict_modeling_output_schema(
                     "required": [
                         "id", "migration_body", "question", "gap", "target_claim_ids",
                         "source_scope", "recommended_next_organ", "adopted_plan",
-                        "dependency_item_ids", "status", "evidence_refs", "created_at",
-                        "updated_at", "retired_at", "superseded_by"
+                        "dependency_item_ids", "status", "evidence_refs", "public_source_refs",
+                        "created_at", "updated_at", "retired_at", "superseded_by"
                     ],
                     "properties": {
                         "id": {"const": item.id},
@@ -1012,6 +1012,7 @@ pub fn epiphany_frontier_verdict_modeling_output_schema(
                                 {"contains": {"const": request.soul_verdict_receipt_id}}
                             ]
                         },
+                        "public_source_refs": {"const": item.public_source_refs},
                         "created_at": {"const": created_at},
                         "updated_at": {"type": "string", "minLength": 1},
                         "retired_at": {"const": retired_at},
@@ -2039,6 +2040,7 @@ mod tests {
                 dependency_item_ids: Vec::new(),
                 status: crate::RepoFrontierStatus::Active,
                 evidence_refs: vec!["prior-evidence".into()],
+                public_source_refs: Vec::new(),
                 created_at: Some("2026-08-07T00:00:00Z".into()),
                 updated_at: Some("2026-08-07T00:00:00Z".into()),
                 retired_at: None,
@@ -2073,6 +2075,10 @@ mod tests {
             ["item"];
         assert_eq!(item["properties"]["id"]["const"], "frontier-exact");
         assert_eq!(item["properties"]["status"]["const"], "resolved");
+        assert_eq!(
+            item["properties"]["public_source_refs"]["const"],
+            serde_json::json!([])
+        );
         assert_eq!(
             item["properties"]["adopted_plan"]["const"]["command"],
             "cargo test"

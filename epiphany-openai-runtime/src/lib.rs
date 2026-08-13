@@ -1849,6 +1849,11 @@ fn role_worker_result_from_ingress(
                             dependency_item_ids,
                             status: epiphany_core::RepoFrontierStatus::Active,
                             evidence_refs,
+                            public_source_refs: if draft.recommended_next_organ.trim() == "Eyes" {
+                                context.public_source_refs.clone()
+                            } else {
+                                Vec::new()
+                            },
                             created_at: Some(completed_at.to_string()),
                             updated_at: Some(completed_at.to_string()),
                             retired_at: None,
@@ -2598,6 +2603,10 @@ mod tests {
             constraints: Vec::new(),
             scope_hints: vec!["epiphany-core/src/resident_self.rs".into()],
             evidence_refs: vec!["git:source".into()],
+            public_source_refs: vec![
+                "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+                    .into(),
+            ],
             private_state_included: false,
             model_revision: 41,
             model_hash: "model-hash-41".into(),
@@ -2662,6 +2671,7 @@ mod tests {
         assert_eq!(item.status, epiphany_core::RepoFrontierStatus::Active);
         assert!(item.adopted_plan.is_none());
         assert!(item.evidence_refs.contains(&"proposal-1".to_string()));
+        assert_eq!(item.public_source_refs, context.public_source_refs);
         Ok(())
     }
 
@@ -2687,6 +2697,7 @@ mod tests {
             constraints: Vec::new(),
             scope_hints: vec!["epiphany-core/src/resident_self.rs".into()],
             evidence_refs: vec!["git:source".into()],
+            public_source_refs: Vec::new(),
             private_state_included: false,
             model_revision: 41,
             model_hash: "model-hash-41".into(),
@@ -3498,6 +3509,7 @@ mod tests {
                             dependency_item_ids: Vec::new(),
                             status: epiphany_core::RepoFrontierStatus::Active,
                             evidence_refs: vec!["prior-evidence".to_string()],
+                            public_source_refs: Vec::new(),
                             created_at: Some("2026-08-07T00:00:00Z".to_string()),
                             updated_at: Some("2026-08-07T00:00:00Z".to_string()),
                             retired_at: None,

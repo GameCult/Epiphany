@@ -31,8 +31,10 @@
 //! parallel route document.
 
 use crate::MindGatewayDecision;
+use anyhow::Result;
 use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 pub const REPO_MODEL_ADMISSION_REVIEW_TYPE: &str = "epiphany.mind.repo_model_admission_review";
 pub const REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
@@ -306,6 +308,7 @@ pub struct RepoFrontierUserProposalInput {
     pub constraints: Vec<String>,
     pub scope_hints: Vec<String>,
     pub evidence_refs: Vec<String>,
+    pub public_source_refs: Vec<String>,
     pub proposed_at: String,
     pub private_state_included: bool,
 }
@@ -354,6 +357,41 @@ pub struct RepoFrontierWorkProposal {
     pub proposed_at: String,
     #[cultcache(key = 18)]
     pub contract: String,
+    #[cultcache(key = 19, default)]
+    pub public_source_refs: Vec<String>,
+}
+
+pub fn repo_frontier_proposal_payload_sha256(
+    title: &str,
+    body: &str,
+    desired_outcome: &str,
+    constraints: &[String],
+    scope_hints: &[String],
+    evidence_refs: &[String],
+    public_source_refs: &[String],
+) -> Result<String> {
+    let content = if public_source_refs.is_empty() {
+        // Preserve the exact identity of pre-public-source v0 proposals.
+        rmp_serde::to_vec_named(&(
+            title,
+            body,
+            desired_outcome,
+            constraints,
+            scope_hints,
+            evidence_refs,
+        ))?
+    } else {
+        rmp_serde::to_vec_named(&(
+            title,
+            body,
+            desired_outcome,
+            constraints,
+            scope_hints,
+            evidence_refs,
+            public_source_refs,
+        ))?
+    };
+    Ok(format!("{:x}", Sha256::digest(content)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

@@ -71,6 +71,21 @@ impl ImmutableGithubSource {
     pub fn repository_ref(&self) -> String {
         format!("github://{}/{}", self.owner, self.repository)
     }
+
+    pub fn canonicalize_set<'a>(
+        source_refs: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Vec<String>> {
+        let mut canonical = source_refs
+            .into_iter()
+            .map(Self::parse)
+            .collect::<Result<Vec<_>>>()?;
+        canonical.sort();
+        canonical.dedup();
+        Ok(canonical
+            .into_iter()
+            .map(|source| source.to_string())
+            .collect())
+    }
 }
 
 impl Display for ImmutableGithubSource {
@@ -148,5 +163,18 @@ mod tests {
                 "{source_ref}"
             );
         }
+    }
+
+    #[test]
+    fn canonicalizes_one_sorted_unique_source_set() -> Result<()> {
+        let canonical = ImmutableGithubSource::canonicalize_set([
+            "github://GameCult/Epiphany@ABCDEF0123456789ABCDEF0123456789ABCDEF01/src/lib.rs",
+            "github://GameCult/Epiphany@abcdef0123456789abcdef0123456789abcdef01/README.md",
+            "github://GameCult/Epiphany@abcdef0123456789abcdef0123456789abcdef01/README.md",
+        ])?;
+        assert_eq!(canonical.len(), 2);
+        assert!(canonical[0].ends_with("/README.md"));
+        assert!(canonical[1].ends_with("/src/lib.rs"));
+        Ok(())
     }
 }

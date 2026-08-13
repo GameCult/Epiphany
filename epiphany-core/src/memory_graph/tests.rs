@@ -207,6 +207,32 @@ fn repo_model_patch_advances_exact_revision_and_hash() -> Result<()> {
 }
 
 #[test]
+fn repo_model_public_source_authority_is_canonical_and_eyes_owned() {
+    let mut snapshot = fixture_snapshot();
+    let claim_id = snapshot.nodes[0].id.clone();
+    let mut item = frontier_item("frontier-public", &claim_id);
+    item.public_source_refs = vec![
+        "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
+            .to_string(),
+    ];
+    snapshot.frontier.push(item.clone());
+    assert!(validate_memory_graph_snapshot(&snapshot).is_empty());
+
+    snapshot.frontier[0].recommended_next_organ = "Hands".to_string();
+    assert!(validate_memory_graph_snapshot(&snapshot)
+        .iter()
+        .any(|error| error.path.ends_with("public_source_refs")));
+
+    snapshot.frontier[0] = item;
+    snapshot.frontier[0].public_source_refs[0] =
+        "github://GameCult/Epiphany@0123456789ABCDEF0123456789ABCDEF01234567/README.md"
+            .to_string();
+    assert!(validate_memory_graph_snapshot(&snapshot)
+        .iter()
+        .any(|error| error.path.ends_with("public_source_refs")));
+}
+
+#[test]
 fn stale_repo_model_patch_is_rejected_without_mutation() -> Result<()> {
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("memory.cc");
