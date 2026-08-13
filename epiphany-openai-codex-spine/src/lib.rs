@@ -25,12 +25,15 @@ use epiphany_openai_auth_spine::build_reqwest_client;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use sha2::Digest;
+use sha2::Sha256;
 
 const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
 // Keep provider silence shorter than Epiphany worker watchdogs so the runtime can
 // write a typed stream failure instead of being killed with no model evidence.
 const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
+const RESPONSES_CALL_ID_MAX_BYTES: usize = 64;
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
 
@@ -596,14 +599,29 @@ fn openai_input_item_from_epiphany_input(
             name,
             arguments,
         } => EpiphanyResponsesInputItem::FunctionCall {
-            call_id,
+            call_id: responses_call_id(&call_id),
             name,
             arguments,
         },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
-            EpiphanyResponsesInputItem::FunctionCallOutput { call_id, output }
+            EpiphanyResponsesInputItem::FunctionCallOutput {
+                call_id: responses_call_id(&call_id),
+                output,
+            }
         }
     }
+}
+
+fn responses_call_id(internal_call_id: &str) -> String {
+    if !internal_call_id.is_empty()
+        && internal_call_id.is_ascii()
+        && internal_call_id.len() <= RESPONSES_CALL_ID_MAX_BYTES
+    {
+        return internal_call_id.to_string();
+    }
+
+    let digest = format!("{:x}", Sha256::digest(internal_call_id.as_bytes()));
+    format!("epi-{}", &digest[..RESPONSES_CALL_ID_MAX_BYTES - 4])
 }
 
 #[derive(Debug, Deserialize)]
@@ -1082,6 +1100,43 @@ mod tests {
             "mcp__epiphany_source__read_file"
         );
         assert_eq!(responses["tool_choice"], "auto");
+    }
+
+    #[test]
+    fn responses_call_ids_are_one_shared_bounded_transport_projection() {
+        assert_eq!(responses_call_id("call-1"), "call-1");
+
+        let internal_call_id = "call-requested-public-source-3d04d447ac7eb759245b7c732c2942465f78611c7a3b1716169a92582f1361ae";
+        let alias = responses_call_id(internal_call_id);
+        assert!(alias.is_ascii());
+        assert_eq!(alias.len(), RESPONSES_CALL_ID_MAX_BYTES);
+        assert_eq!(alias, responses_call_id(internal_call_id));
+        assert_ne!(
+            alias,
+            responses_call_id(
+                "call-requested-public-source-3d04d447ac7eb759245b7c732c2942465f78611c7a3b1716169a92582f1361af"
+            )
+        );
+
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-long-call-id",
+            "conversation-long-call-id",
+            "gpt-5.4",
+            "Use the supplied evidence.",
+        );
+        request.input.push(EpiphanyOpenAiInputItem::ToolCall {
+            call_id: internal_call_id.to_string(),
+            name: "github_file".to_string(),
+            arguments: "{}".to_string(),
+        });
+        request.input.push(EpiphanyOpenAiInputItem::ToolResult {
+            call_id: internal_call_id.to_string(),
+            output: "evidence".to_string(),
+        });
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+        assert_eq!(responses["input"][0]["call_id"], alias);
+        assert_eq!(responses["input"][1]["call_id"], alias);
     }
 
     #[test]
