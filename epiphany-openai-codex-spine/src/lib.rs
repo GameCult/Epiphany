@@ -264,8 +264,7 @@ fn responses_text_format(
     };
     let mut schema: serde_json::Value =
         serde_json::from_str(schema_json).context("output_schema_json is not valid JSON Schema")?;
-    lower_schema_for_responses_format(&mut schema);
-    let strict = responses_schema_is_strict(&schema);
+    project_strict_responses_schema(&mut schema)?;
     let raw_name = output_contract_id.unwrap_or(request_id);
     let mut name = raw_name
         .chars()
@@ -285,7 +284,7 @@ fn responses_text_format(
         "format": {
             "type": "json_schema",
             "name": name,
-            "strict": strict,
+            "strict": true,
             "schema": schema
         }
     })))
@@ -298,15 +297,11 @@ fn responses_schema_is_strict(schema: &serde_json::Value) -> bool {
                 if map.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
                     return false;
                 }
-                let Some(properties) = map
-                    .get("properties")
-                    .and_then(serde_json::Value::as_object)
+                let Some(properties) = map.get("properties").and_then(serde_json::Value::as_object)
                 else {
                     return false;
                 };
-                let Some(required) = map
-                    .get("required")
-                    .and_then(serde_json::Value::as_array)
+                let Some(required) = map.get("required").and_then(serde_json::Value::as_array)
                 else {
                     return false;
                 };
@@ -324,13 +319,131 @@ fn responses_schema_is_strict(schema: &serde_json::Value) -> bool {
     }
 }
 
+fn project_strict_responses_schema(schema: &mut serde_json::Value) -> Result<()> {
+    lower_schema_for_responses_format(schema);
+    require_closed_responses_objects(schema, "$")?;
+    if !responses_schema_is_strict(schema) {
+        return Err(anyhow::anyhow!(
+            "projected Responses output schema is not strict"
+        ));
+    }
+    Ok(())
+}
+
+fn require_closed_responses_objects(schema: &mut serde_json::Value, path: &str) -> Result<()> {
+    match schema {
+        serde_json::Value::Object(map) => {
+            let describes_object = map.get("type").and_then(serde_json::Value::as_str)
+                == Some("object")
+                || map.contains_key("properties");
+            if describes_object {
+                map.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+                let properties = map
+                    .get("properties")
+                    .and_then(serde_json::Value::as_object)
+                    .cloned()
+                    .unwrap_or_default();
+                let canonical_required = map
+                    .get("required")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                for required in &canonical_required {
+                    let required = required.as_str().ok_or_else(|| {
+                        anyhow::anyhow!("Responses schema {path} has a non-string required key")
+                    })?;
+                    if !properties.contains_key(required) {
+                        return Err(anyhow::anyhow!(
+                            "Responses schema {path} requires undeclared property {required:?}"
+                        ));
+                    }
+                }
+
+                let canonical_required = canonical_required
+                    .into_iter()
+                    .filter_map(|value| value.as_str().map(ToString::to_string))
+                    .collect::<std::collections::BTreeSet<_>>();
+                let mut projected = serde_json::Map::new();
+                for (name, mut property) in properties {
+                    let property_path = format!("{path}.properties.{name}");
+                    require_closed_responses_objects(&mut property, &property_path)?;
+                    if !canonical_required.contains(&name) {
+                        property = nullable_responses_property(property);
+                    }
+                    projected.insert(name, property);
+                }
+                let required = projected
+                    .keys()
+                    .cloned()
+                    .map(serde_json::Value::String)
+                    .collect();
+                map.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(projected),
+                );
+                map.insert("required".to_string(), serde_json::Value::Array(required));
+                map.insert(
+                    "additionalProperties".to_string(),
+                    serde_json::Value::Bool(false),
+                );
+            }
+
+            for (name, value) in map.iter_mut() {
+                if name == "properties" && describes_object {
+                    continue;
+                }
+                require_closed_responses_objects(value, &format!("{path}.{name}"))?;
+            }
+            Ok(())
+        }
+        serde_json::Value::Array(values) => {
+            for (index, value) in values.iter_mut().enumerate() {
+                require_closed_responses_objects(value, &format!("{path}[{index}]"))?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value {
+    if property
+        .get("anyOf")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|variants| {
+            variants.iter().any(|variant| {
+                variant.get("type").and_then(serde_json::Value::as_str) == Some("null")
+            })
+        })
+    {
+        return property;
+    }
+    serde_json::json!({
+        "anyOf": [property, {"type": "null"}]
+    })
+}
+
 fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
     match schema {
         serde_json::Value::Object(map) => {
             // Responses structured output accepts only a JSON-Schema subset.
             // Canonical conditional authority remains enforced by Epiphany ingress
             // and Mind admission; this projection owns formatting only.
-            for unsupported in ["allOf", "if", "then", "else"] {
+            for unsupported in [
+                "allOf",
+                "not",
+                "dependentRequired",
+                "dependentSchemas",
+                "if",
+                "then",
+                "else",
+                "contains",
+                "minContains",
+                "maxContains",
+            ] {
                 map.remove(unsupported);
             }
             if let Some(one_of) = map.remove("oneOf") {
@@ -352,14 +465,16 @@ fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
 fn openai_tool_from_epiphany_tool(
     tool: epiphany_openai_adapter::EpiphanyOpenAiToolDefinition,
 ) -> Result<serde_json::Value> {
-    let parameters: serde_json::Value = serde_json::from_str(&tool.parameters_json)
+    let mut parameters: serde_json::Value = serde_json::from_str(&tool.parameters_json)
         .with_context(|| format!("tool {} parameters_json is not valid JSON", tool.name))?;
+    project_strict_responses_schema(&mut parameters)
+        .with_context(|| format!("tool {} parameters cannot be projected strictly", tool.name))?;
     Ok(serde_json::json!({
         "type": "function",
         "name": tool.name,
         "description": tool.description,
         "parameters": parameters,
-        "strict": false
+        "strict": true
     }))
 }
 
@@ -953,6 +1068,11 @@ mod tests {
         let responses = responses_body_from_epiphany(request).expect("request should map");
 
         assert_eq!(responses["tool_choice"], "required");
+        assert_eq!(responses["tools"][0]["strict"], true);
+        assert_eq!(
+            responses["tools"][0]["parameters"]["additionalProperties"],
+            false
+        );
     }
 
     #[test]
@@ -1015,10 +1135,12 @@ mod tests {
 
         let responses = responses_body_from_epiphany(request).expect("request should map");
         let schema = &responses["text"]["format"]["schema"];
-        assert_eq!(responses["text"]["format"]["strict"], false);
+        assert_eq!(responses["text"]["format"]["strict"], true);
         assert!(schema.get("allOf").is_none());
         assert!(schema["properties"]["purpose"].get("oneOf").is_none());
         assert!(schema["properties"]["purpose"]["anyOf"].is_array());
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["required"], serde_json::json!(["purpose"]));
     }
 
     #[test]

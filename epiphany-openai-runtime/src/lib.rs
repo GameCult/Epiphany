@@ -1,20 +1,10 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::append_runtime_event;
-use epiphany_core::complete_runtime_job;
-use epiphany_core::close_runtime_session;
-use epiphany_core::initialize_runtime_spine;
-use epiphany_core::put_runtime_reorient_worker_result;
-use epiphany_core::put_runtime_role_worker_result;
-use epiphany_core::put_runtime_tool_execution_intent;
-use epiphany_core::open_runtime_model_execution;
-use epiphany_core::runtime_spine_cache;
-use epiphany_core::runtime_spine_status;
 use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
@@ -23,8 +13,18 @@ use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
-use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::RuntimeSpineSessionClosureOptions;
+use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::append_runtime_event;
+use epiphany_core::close_runtime_session;
+use epiphany_core::complete_runtime_job;
+use epiphany_core::initialize_runtime_spine;
+use epiphany_core::open_runtime_model_execution;
+use epiphany_core::put_runtime_reorient_worker_result;
+use epiphany_core::put_runtime_role_worker_result;
+use epiphany_core::put_runtime_tool_execution_intent;
+use epiphany_core::runtime_spine_cache;
+use epiphany_core::runtime_spine_status;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -37,16 +37,20 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::EpiphanyOpenAiToolDefinition;
+use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
-use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
-use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
-use epiphany_tool_adapter::tool_invocation_receipt_key;
+use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
-use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
+use epiphany_tool_adapter::tool_invocation_receipt_key;
+use serde::Deserialize;
+use serde::de::MapAccess;
+use serde::de::SeqAccess;
 use serde::de::DeserializeOwned;
+use serde::de::Visitor;
 use sha2::Digest;
 
 mod persona_executor;
@@ -1691,7 +1695,9 @@ fn role_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     role_id: &str,
     repository_body_observation_basis: Option<&epiphany_core::RepositoryBodyObservationBasis>,
-    proposal_modeling_context: Option<&epiphany_core::RepoFrontierProposalModelingContextProjection>,
+    proposal_modeling_context: Option<
+        &epiphany_core::RepoFrontierProposalModelingContextProjection,
+    >,
     frontier_plan_mind_context: Option<&epiphany_core::RepoFrontierPlanMindContextProjection>,
     imagination_consideration_context: Option<
         &epiphany_core::ImaginationConsiderationContextProjection,
@@ -1916,7 +1922,8 @@ fn role_worker_result_from_ingress(
                     uncertainties: clean_string_vec(&ingress.uncertainties),
                     evidence_refs: clean_string_vec(&ingress.evidence_refs),
                     proposed_at: completed_at.into(),
-                    contract: epiphany_core::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
+                    contract: epiphany_core::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT
+                        .into(),
                     proposal_only: true,
                     terminal: true,
                 }),
@@ -2144,7 +2151,113 @@ where
         })
         .unwrap_or(trimmed)
         .trim();
-    serde_json::from_str(candidate).context("assistant text was not typed worker-result JSON")
+    let mut value = serde_json::from_str::<UniqueJsonValue>(candidate)
+        .context("assistant text was not typed worker-result JSON")?
+        .0;
+    remove_provider_optional_nulls(&mut value);
+    serde_json::from_value(value).context("assistant text was not typed worker-result JSON")
+}
+
+struct UniqueJsonValue(serde_json::Value);
+
+impl<'de> Deserialize<'de> for UniqueJsonValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(UniqueJsonValueVisitor)
+    }
+}
+
+struct UniqueJsonValueVisitor;
+
+impl<'de> Visitor<'de> for UniqueJsonValueVisitor {
+    type Value = UniqueJsonValue;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("JSON without duplicate object keys")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::Bool(value)))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::Number(value.into())))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::Number(value.into())))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .map(UniqueJsonValue)
+            .ok_or_else(|| E::custom("JSON number is not finite"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::String(value.to_string())))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::String(value)))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::Null))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(UniqueJsonValue(serde_json::Value::Null))
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element::<UniqueJsonValue>()? {
+            values.push(value.0);
+        }
+        Ok(UniqueJsonValue(serde_json::Value::Array(values)))
+    }
+
+    fn visit_map<A>(self, mut object: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut values = serde_json::Map::new();
+        while let Some((key, value)) = object.next_entry::<String, UniqueJsonValue>()? {
+            if values.insert(key.clone(), value.0).is_some() {
+                return Err(serde::de::Error::custom(format!(
+                    "duplicate field `{key}`"
+                )));
+            }
+        }
+        Ok(UniqueJsonValue(serde_json::Value::Object(values)))
+    }
+}
+
+fn remove_provider_optional_nulls(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.retain(|_, value| !value.is_null());
+            for value in map.values_mut() {
+                remove_provider_optional_nulls(value);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                remove_provider_optional_nulls(value);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn clean_optional_string(value: Option<&str>) -> Option<String> {
@@ -2183,10 +2296,10 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_core::open_runtime_spine_heartbeat_job;
-    use epiphany_core::runtime_job_snapshot;
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+    use epiphany_core::open_runtime_spine_heartbeat_job;
+    use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
 
@@ -2211,6 +2324,73 @@ mod tests {
         assert_eq!(basis.workspace_id, "workspace-1");
         assert_eq!(basis.generation, 1);
         assert_eq!(basis.manifest_root_sha256, "manifest-root");
+        Ok(())
+    }
+
+    #[test]
+    fn provider_null_optionals_are_inverse_projected_to_canonical_omission() -> Result<()> {
+        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"research","verdict":"source-gap","summary":"bounded",
+                "nextSafeMove":"review","filesInspected":[],"frontierNodeIds":null,
+                "evidenceIds":[],"artifactRefs":null,"openQuestions":null,
+                "evidenceGaps":["missing"],"risks":null,"statePatch":null,
+                "repoModelPatch":null,"selfPatch":null
+            }"#,
+        )?;
+
+        assert_eq!(parsed.role_id.as_deref(), Some("research"));
+        assert!(parsed.frontier_node_ids.is_empty());
+        assert!(parsed.artifact_refs.is_empty());
+        assert!(parsed.state_patch.is_none());
+        assert_eq!(parsed.evidence_gaps, vec!["missing"]);
+        Ok(())
+    }
+
+    #[test]
+    fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
+        let mut schemas = vec![
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Imagination,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Research,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Modeling,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Verification,
+            ),
+            epiphany_core::epiphany_frontier_planning_output_schema(),
+            epiphany_core::epiphany_frontier_plan_mind_output_schema(),
+            epiphany_core::epiphany_imagination_consideration_output_schema(),
+            epiphany_core::epiphany_admitted_model_direction_consideration_output_schema(),
+            epiphany_core::epiphany_reorient_launch_output_schema(),
+        ];
+        for source_kind in [
+            epiphany_core::RepoFrontierProposalSourceKind::User,
+            epiphany_core::RepoFrontierProposalSourceKind::Persona,
+            epiphany_core::RepoFrontierProposalSourceKind::Bifrost,
+            epiphany_core::RepoFrontierProposalSourceKind::Imagination,
+        ] {
+            schemas.push(epiphany_core::epiphany_proposal_modeling_output_schema(
+                source_kind,
+            ));
+        }
+
+        for (index, schema) in schemas.into_iter().enumerate() {
+            let mut request = EpiphanyOpenAiModelRequest::new(
+                format!("strict-worker-schema-{index}"),
+                "strict-worker-schema",
+                "gpt-5.4",
+                "Return the typed result.",
+            );
+            request.output_contract_id = Some(format!("worker-schema-{index}"));
+            request.output_schema_json = Some(serde_json::to_string(&schema)?);
+            let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
+            assert_eq!(body["text"]["format"]["strict"], true);
+        }
         Ok(())
     }
 
@@ -2337,9 +2517,11 @@ mod tests {
         )?;
         assert_eq!(patch.base_revision, 41);
         assert_eq!(patch.base_hash, "model-hash-41");
-        assert_eq!(patch.purpose, epiphany_core::RepoModelPatchPurpose::Evolution);
-        let epiphany_core::RepoModelPatchOperation::UpsertFrontier { item } =
-            &patch.operations[0]
+        assert_eq!(
+            patch.purpose,
+            epiphany_core::RepoModelPatchPurpose::Evolution
+        );
+        let epiphany_core::RepoModelPatchOperation::UpsertFrontier { item } = &patch.operations[0]
         else {
             panic!("proposal draft must compose one frontier upsert");
         };
@@ -2375,8 +2557,8 @@ mod tests {
             model_revision: 41,
             model_hash: "model-hash-41".into(),
         };
-        let document = EpiphanyWorkerLaunchDocument::Role(
-            epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+        let document =
+            EpiphanyWorkerLaunchDocument::Role(epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: "thread-1".into(),
                 role_id: "modeling".into(),
                 state_revision: 1,
@@ -2403,8 +2585,7 @@ mod tests {
                 graph_checkpoint: None,
                 planning: None,
                 churn: None,
-            },
-        );
+            });
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
             schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "proposal-job-1".into(),
@@ -2443,7 +2624,11 @@ mod tests {
         assert!(schema["properties"].get("proposalFrontierDraft").is_some());
         assert!(schema["properties"].get("repoModelPatch").is_none());
         assert!(!request.instructions.contains("Output schema JSON"));
-        assert!(request.instructions.contains("Emit only the semantic frontier draft"));
+        assert!(
+            request
+                .instructions
+                .contains("Emit only the semantic frontier draft")
+        );
         Ok(())
     }
 
@@ -2715,7 +2900,10 @@ mod tests {
             .expect("runtime-composed candidate");
         assert_eq!(candidate.request_id, request.request_id);
         assert_eq!(candidate.feedback_id, request.feedback_id);
-        assert_eq!(candidate.feedback_packet_sha256, request.feedback_packet_sha256);
+        assert_eq!(
+            candidate.feedback_packet_sha256,
+            request.feedback_packet_sha256
+        );
         assert_eq!(candidate.source_room_id, request.source_room_id);
         assert_eq!(candidate.source_visibility, request.source_visibility);
         assert_eq!(candidate.data_classification, request.data_classification);
@@ -3040,14 +3228,18 @@ mod tests {
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert!(cache.get::<EpiphanyModelRequest>("req-1")?.is_some());
-        assert!(cache
-            .get::<EpiphanyModelStreamEvent>("req-1:00000000")?
-            .is_some());
+        assert!(
+            cache
+                .get::<EpiphanyModelStreamEvent>("req-1:00000000")?
+                .is_some()
+        );
         assert!(cache.get::<EpiphanyModelReceipt>("req-1")?.is_some());
         assert!(cache.get::<EpiphanyOpenAiModelRequest>("req-1")?.is_some());
-        assert!(cache
-            .get::<EpiphanyOpenAiStreamEvent>("req-1:00000000")?
-            .is_some());
+        assert!(
+            cache
+                .get::<EpiphanyOpenAiStreamEvent>("req-1:00000000")?
+                .is_some()
+        );
         assert!(cache.get::<EpiphanyOpenAiModelReceipt>("req-1")?.is_some());
         assert_eq!(
             runtime_job_snapshot(&store, &options.job_id)?
@@ -3200,31 +3392,43 @@ mod tests {
         assert!(!output_schema.contains("\"const\": \"evolution\""));
         assert!(!model_request.instructions.contains("Output schema JSON"));
         assert!(!model_request.instructions.contains("\"repoModelPatch\""));
-        assert!(model_request
-            .instructions
-            .contains("Emit every object key at most once"));
+        assert!(
+            model_request
+                .instructions
+                .contains("Emit every object key at most once")
+        );
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
-        assert!(model_request
-            .instructions
-            .contains("<epiphany_dynamic_context>"));
+        assert!(
+            model_request
+                .instructions
+                .contains("<epiphany_dynamic_context>")
+        );
         assert!(model_request.instructions.contains("local Verse: bounded"));
-        assert!(model_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_source__read_file"));
-        assert!(model_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_source__directory_inventory"));
-        assert!(model_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_state__resident_grant_lifecycle"));
-        assert!(!model_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
+        assert!(
+            model_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_source__read_file")
+        );
+        assert!(
+            model_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_source__directory_inventory")
+        );
+        assert!(
+            model_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_state__resident_grant_lifecycle")
+        );
+        assert!(
+            !model_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_public__github_file")
+        );
         assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -3290,10 +3494,12 @@ mod tests {
             typed_result.self_patch()?.expect("self patch").reason,
             Some("typed nested document".to_string())
         );
-        assert!(runtime_job_snapshot(&store, "worker-job-1")?
-            .expect("snapshot")
-            .result
-            .is_some());
+        assert!(
+            runtime_job_snapshot(&store, "worker-job-1")?
+                .expect("snapshot")
+                .result
+                .is_some()
+        );
         Ok(())
     }
 
@@ -3380,30 +3586,39 @@ mod tests {
         assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
         assert!(tool_names.contains(&"mcp__epiphany_state__resident_grant_lifecycle"));
         assert!(!tool_names.contains(&"mcp__epiphany_public__github_file"));
-        assert!(model_request
-            .instructions
-            .contains("mcp__epiphany_source__read_file"));
-        assert!(model_request
-            .instructions
-            .contains("mcp__epiphany_source__directory_inventory"));
-        assert!(model_request
-            .instructions
-            .contains("mcp__epiphany_state__resident_grant_lifecycle"));
+        assert!(
+            model_request
+                .instructions
+                .contains("mcp__epiphany_source__read_file")
+        );
+        assert!(
+            model_request
+                .instructions
+                .contains("mcp__epiphany_source__directory_inventory")
+        );
+        assert!(
+            model_request
+                .instructions
+                .contains("mcp__epiphany_state__resident_grant_lifecycle")
+        );
 
         let mut research_launch = launch_request;
-        research_launch.binding_id =
-            epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string();
+        research_launch.binding_id = epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string();
         research_launch.role = epiphany_core::EPIPHANY_RESEARCH_OWNER_ROLE.to_string();
         research_launch.authority_scope = "epiphany.role.research".to_string();
         let research_request =
             build_worker_model_request(&research_launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
-        assert!(research_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
-        assert!(research_request
-            .instructions
-            .contains("exact 40-hex commit"));
+        assert!(
+            research_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_public__github_file")
+        );
+        assert!(
+            research_request
+                .instructions
+                .contains("exact 40-hex commit")
+        );
         Ok(())
     }
 
@@ -3499,10 +3714,8 @@ mod tests {
             .clone();
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        let tool_binding = epiphany_core::require_runtime_tool_execution_binding(
-            &store,
-            &intent_id,
-        )?;
+        let tool_binding =
+            epiphany_core::require_runtime_tool_execution_binding(&store, &intent_id)?;
         assert_eq!(tool_binding.session_id, options.session_id);
         assert_eq!(tool_binding.job_id, options.job_id);
         assert_eq!(tool_binding.model_request_id.as_deref(), Some("req-tools"));

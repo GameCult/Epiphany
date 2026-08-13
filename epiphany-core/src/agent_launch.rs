@@ -1,7 +1,5 @@
 use std::sync::OnceLock;
 
-use crate::build_reorient_job_launch_request;
-use crate::default_launch_organ_contract;
 use crate::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use crate::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use crate::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
@@ -15,6 +13,8 @@ use crate::EpiphanyReorientLaunchRequestInput;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyRoleWorkerLaunchDocument;
 use crate::EpiphanyWorkerLaunchDocument;
+use crate::build_reorient_job_launch_request;
+use crate::default_launch_organ_contract;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyThreadState;
@@ -114,6 +114,55 @@ fn modeling_imagination_frontier_output_schema() -> serde_json::Value {
     schema["properties"]["evidence_refs"]["minItems"] = serde_json::json!(1);
     schema["additionalProperties"] = serde_json::json!(false);
     schema
+}
+
+fn adopted_frontier_plan_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": [
+            "planning_request_id", "result_id", "job_id", "candidate_id", "candidate_sha256",
+            "safe_paths", "action", "command", "checks", "stop_conditions", "rollback_steps",
+            "commit_message"
+        ],
+        "properties": {
+            "planning_request_id": {"type": "string", "minLength": 1},
+            "result_id": {"type": "string", "minLength": 1},
+            "job_id": {"type": "string", "minLength": 1},
+            "candidate_id": {"type": "string", "minLength": 1},
+            "candidate_sha256": {"type": "string", "minLength": 1},
+            "safe_paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "action": {"type": "string", "minLength": 1},
+            "command": {"type": "string", "minLength": 1},
+            "checks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "stop_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "rollback_steps": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "commit_message": {"type": "string", "minLength": 1},
+            "execution_amendment": {
+                "type": "object",
+                "required": [
+                    "amendment_id", "replaces_route_id", "source_actor_id", "command_id",
+                    "admission_id", "packet_sha256", "previous_action_sha256",
+                    "previous_command_sha256", "action", "command", "rationale", "amended_at"
+                ],
+                "properties": {
+                    "amendment_id": {"type": "string", "minLength": 1},
+                    "replaces_route_id": {"type": "string", "minLength": 1},
+                    "source_actor_id": {"type": "string", "minLength": 1},
+                    "command_id": {"type": "string", "minLength": 1},
+                    "admission_id": {"type": "string", "minLength": 1},
+                    "packet_sha256": {"type": "string", "minLength": 1},
+                    "previous_action_sha256": {"type": "string", "minLength": 1},
+                    "previous_command_sha256": {"type": "string", "minLength": 1},
+                    "action": {"type": "string", "minLength": 1},
+                    "command": {"type": "string", "minLength": 1},
+                    "rationale": {"type": "string", "minLength": 1},
+                    "amended_at": {"type": "string", "minLength": 1}
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false
+    })
 }
 
 fn repo_model_node_output_schema() -> serde_json::Value {
@@ -222,6 +271,81 @@ fn evidence_output_schema() -> serde_json::Value {
             "status": {"type": "string", "minLength": 1},
             "summary": {"type": "string", "minLength": 1},
             "code_refs": {"type": "array", "items": code_ref_output_schema()}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn scratch_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["summary"],
+        "properties": {
+            "summary": {"type": "string", "minLength": 1},
+            "hypothesis": {"type": "string"},
+            "next_probe": {"type": "string"},
+            "notes": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn investigation_checkpoint_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "description": "Outer statePatch uses camelCase; this typed checkpoint payload uses its canonical snake_case field names.",
+        "required": ["checkpoint_id", "kind", "disposition", "focus"],
+        "properties": {
+            "checkpoint_id": {"type": "string", "minLength": 1},
+            "kind": {"type": "string", "minLength": 1},
+            "disposition": {"type": "string", "enum": ["resume_ready", "regather_required"]},
+            "focus": {"type": "string", "minLength": 1},
+            "summary": {"type": "string"},
+            "next_action": {"type": "string"},
+            "captured_at_turn_id": {"type": "string"},
+            "open_questions": {"type": "array", "items": {"type": "string"}},
+            "code_refs": {"type": "array", "items": code_ref_output_schema()},
+            "evidence_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn objective_draft_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "title", "summary", "scope", "acceptance_criteria", "lane_plan", "status"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "title": {"type": "string", "minLength": 1},
+            "summary": {"type": "string", "minLength": 1},
+            "source_item_ids": {"type": "array", "items": {"type": "string"}},
+            "scope": {
+                "type": "object",
+                "properties": {
+                    "includes": {"type": "array", "items": {"type": "string"}},
+                    "excludes": {"type": "array", "items": {"type": "string"}}
+                },
+                "additionalProperties": false
+            },
+            "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "evidence_required": {"type": "array", "items": {"type": "string"}},
+            "lane_plan": {
+                "type": "object",
+                "properties": {
+                    "imagination": {"type": "string"},
+                    "eyes": {"type": "string"},
+                    "body": {"type": "string"},
+                    "hands": {"type": "string"},
+                    "soul": {"type": "string"},
+                    "life": {"type": "string"}
+                },
+                "additionalProperties": false
+            },
+            "dependencies": {"type": "array", "items": {"type": "string"}},
+            "risks": {"type": "array", "items": {"type": "string"}},
+            "review_gates": {"type": "array", "items": {"type": "string"}},
+            "status": {"type": "string", "enum": ["draft"]}
         },
         "additionalProperties": false
     })
@@ -416,23 +540,13 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                                 "objective_drafts": {
                                     "type": "array",
                                     "minItems": 1,
-                                    "items": {
-                                        "type": "object",
-                                        "required": ["id", "title", "summary", "acceptance_criteria", "status"],
-                                        "properties": {
-                                            "status": {
-                                                "type": "string",
-                                                "enum": ["draft"]
-                                            }
-                                        },
-                                        "additionalProperties": true
-                                    }
+                                    "items": objective_draft_output_schema()
                                 }
                             },
-                            "additionalProperties": true
+                            "additionalProperties": false
                         }
                     },
-                    "additionalProperties": true
+                    "additionalProperties": false
                 }),
             );
         }
@@ -449,53 +563,21 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                         "observations": {
                             "type": "array",
                             "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "required": ["id", "summary", "source_kind", "status", "evidence_ids"],
-                                "additionalProperties": true
-                            }
+                            "items": observation_output_schema()
                         },
                         "evidence": {
                             "type": "array",
                             "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "required": ["id", "kind", "status", "summary"],
-                                "additionalProperties": true
-                            }
+                            "items": evidence_output_schema()
                         },
-                        "scratch": {
-                            "type": "object",
-                            "required": ["summary"],
-                            "properties": {
-                                "summary": {"type": "string", "minLength": 1}
-                            },
-                            "additionalProperties": true
-                        },
-                        "investigationCheckpoint": {
-                            "type": "object",
-                            "description": "Outer statePatch uses camelCase; this typed checkpoint payload uses its canonical snake_case field names.",
-                            "required": ["checkpoint_id", "kind", "disposition", "focus"],
-                            "properties": {
-                                "checkpoint_id": {"type": "string", "minLength": 1},
-                                "kind": {"type": "string", "minLength": 1},
-                                "disposition": {"type": "string", "enum": ["resume_ready", "regather_required"]},
-                                "focus": {"type": "string", "minLength": 1},
-                                "summary": {"type": "string"},
-                                "next_action": {"type": "string"},
-                                "captured_at_turn_id": {"type": "string"},
-                                "open_questions": {"type": "array", "items": {"type": "string"}},
-                                "code_refs": {"type": "array", "items": {"type": "object"}},
-                                "evidence_ids": {"type": "array", "items": {"type": "string"}}
-                            },
-                            "additionalProperties": false
-                        }
+                        "scratch": scratch_output_schema(),
+                        "investigationCheckpoint": investigation_checkpoint_output_schema()
                     },
                     "anyOf": [
                         {"required": ["scratch"]},
                         {"required": ["investigationCheckpoint"]}
                     ],
-                    "additionalProperties": true
+                    "additionalProperties": false
                 }),
             );
         }
@@ -591,7 +673,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                                     {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "upsert_frontier"}, "item": repo_frontier_item_output_schema()}},
                                     {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "revise_frontier"}, "item": repo_frontier_item_output_schema()}},
                                     {"type": "object", "required": ["operation", "item_id"], "properties": {"operation": {"const": "retire_frontier"}, "item_id": {"type": "string", "minLength": 1}, "retired_at": {"type": "string"}, "superseded_by": {"type": "string"}}},
-                                    {"type": "object", "required": ["operation", "frontier_item_id", "expected_frontier_item_hash", "adopted_plan"], "properties": {"operation": {"const": "adopt_frontier_plan"}, "frontier_item_id": {"type": "string", "minLength": 1}, "expected_frontier_item_hash": {"type": "string", "minLength": 1}, "adopted_plan": {"type": "object"}}}
+                                    {"type": "object", "required": ["operation", "frontier_item_id", "expected_frontier_item_hash", "adopted_plan"], "properties": {"operation": {"const": "adopt_frontier_plan"}, "frontier_item_id": {"type": "string", "minLength": 1}, "expected_frontier_item_hash": {"type": "string", "minLength": 1}, "adopted_plan": adopted_frontier_plan_output_schema()}}
                                 ]
                             }
                         }
@@ -1699,8 +1781,8 @@ mod tests {
     fn admitted_direction_schema_bounds_autonomous_proposal_fanout() {
         let schema = epiphany_admitted_model_direction_consideration_output_schema();
         assert_eq!(
-            schema["properties"]["admittedModelDirectionConsiderationResult"]["properties"]
-                ["option_drafts"]["maxItems"],
+            schema["properties"]["admittedModelDirectionConsiderationResult"]["properties"]["option_drafts"]
+                ["maxItems"],
             crate::admitted_model_direction_consideration::MAX_OPTION_DRAFTS
         );
     }
@@ -1786,9 +1868,11 @@ mod tests {
         .expect("Mind launch request");
         assert_eq!(request.owner_role, EPIPHANY_MIND_OWNER_ROLE);
         assert_eq!(request.binding_id, EPIPHANY_MIND_ROLE_BINDING_ID);
-        assert!(request
-            .instruction
-            .contains("admission-review procedure serving Epiphany Mind"));
+        assert!(
+            request
+                .instruction
+                .contains("admission-review procedure serving Epiphany Mind")
+        );
         assert_eq!(
             request.frontier_plan_mind_request_id.as_deref(),
             Some("mind-request-1")
@@ -1811,22 +1895,26 @@ mod tests {
     #[test]
     fn modeling_schema_exposes_only_typed_authority_purposes() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|value| value == "repositoryBodyObservationBasis"));
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "repositoryBodyObservationBasis")
+        );
         assert_eq!(
             schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
             false
         );
-        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]
-            ["items"]["anyOf"][6]["properties"]["item"];
-        assert!(frontier_item["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|value| value == "target_claim_ids"));
+        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
+            ["anyOf"][6]["properties"]["item"];
+        assert!(
+            frontier_item["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "target_claim_ids")
+        );
         assert_eq!(
             frontier_item["properties"]["target_claim_ids"]["minItems"],
             1
@@ -1840,11 +1928,13 @@ mod tests {
             purposes[1]["properties"]["kind"]["const"],
             "incorporate_frontier_verdict"
         );
-        assert!(purposes[1]["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|value| value == "route_id"));
+        assert!(
+            purposes[1]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "route_id")
+        );
         assert_eq!(
             schema["allOf"][0]["then"]["required"][0],
             "repoFrontierModelingRequestId"
@@ -1863,10 +1953,11 @@ mod tests {
                 ["maxContains"],
             1
         );
-        let future_gap_operations = schema["allOf"][3]["then"]["properties"]["repoModelPatch"]
-            ["properties"]["operations"]["items"]["anyOf"]
-            .as_array()
-            .expect("future-gap Modeling operations");
+        let future_gap_operations =
+            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
+                ["items"]["anyOf"]
+                .as_array()
+                .expect("future-gap Modeling operations");
         assert_eq!(future_gap_operations.len(), 7);
         let future_gap_frontier = &future_gap_operations[6]["properties"]["item"];
         assert_eq!(
@@ -1891,20 +1982,21 @@ mod tests {
                 ["maxContains"],
             1
         );
-        let no_future_gap_operations = schema["allOf"][4]["then"]["properties"]["repoModelPatch"]
-            ["properties"]["operations"]["items"]["anyOf"]
-            .as_array()
-            .expect("ordinary Modeling operations without future-gap authority");
+        let no_future_gap_operations =
+            schema["allOf"][4]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
+                ["items"]["anyOf"]
+                .as_array()
+                .expect("ordinary Modeling operations without future-gap authority");
         assert_eq!(no_future_gap_operations.len(), 6);
         assert!(no_future_gap_operations.iter().all(|operation| {
             !operation["properties"]["operation"]["const"]
                 .as_str()
                 .is_some_and(|kind| kind.contains("frontier"))
         }));
-        let operations = schema["properties"]["repoModelPatch"]["properties"]["operations"]
-            ["items"]["anyOf"]
-            .as_array()
-            .expect("typed Modeling operations");
+        let operations =
+            schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
+                .as_array()
+                .expect("typed Modeling operations");
         let node_kinds = operations[0]["properties"]["node"]["properties"]["kind"]["enum"]
             .as_array()
             .expect("typed RepoModel node kinds");
@@ -1958,14 +2050,15 @@ mod tests {
             schema["properties"]["repoFrontierModelingRequestId"]["const"],
             "modeling-request-exact"
         );
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|value| value == "repoFrontierModelingRequestId"));
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "repoFrontierModelingRequestId")
+        );
         assert_eq!(
-            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]
-                ["const"],
+            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]["const"],
             "incorporate_frontier_verdict"
         );
         let operations = &schema["properties"]["repoModelPatch"]["properties"]["operations"];
@@ -1976,19 +2069,21 @@ mod tests {
             "revise_frontier"
         );
         assert_eq!(schema["properties"]["evidenceIds"]["minItems"], 1);
-        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
-            ["properties"]["item"];
+        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["properties"]
+            ["item"];
         assert_eq!(item["properties"]["id"]["const"], "frontier-exact");
         assert_eq!(item["properties"]["status"]["const"], "resolved");
         assert_eq!(
             item["properties"]["adopted_plan"]["const"]["command"],
             "cargo test"
         );
-        assert!(item["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|field| field == "adopted_plan"));
+        assert!(
+            item["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|field| field == "adopted_plan")
+        );
     }
 
     #[test]
@@ -2032,11 +2127,28 @@ mod tests {
     }
 
     #[test]
+    fn research_schema_reuses_complete_typed_evidence_shapes() {
+        let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Research);
+        let patch = &schema["properties"]["statePatch"];
+        let observation = &patch["properties"]["observations"]["items"];
+        let evidence = &patch["properties"]["evidence"]["items"];
+
+        assert_eq!(patch["additionalProperties"], false);
+        assert_eq!(observation, &observation_output_schema());
+        assert_eq!(evidence, &evidence_output_schema());
+        assert!(observation["required"]
+            .as_array()
+            .is_some_and(|required| required.iter().any(|field| field == "source_kind")));
+    }
+
+    #[test]
     fn frontier_planning_schema_exposes_candidate_without_generic_patch_mouths() {
         let schema = epiphany_frontier_planning_output_schema();
-        assert!(schema["properties"]
-            .get("frontierPlanningRequestId")
-            .is_some());
+        assert!(
+            schema["properties"]
+                .get("frontierPlanningRequestId")
+                .is_some()
+        );
         assert!(schema["properties"].get("frontierPlanCandidate").is_some());
         assert!(schema["properties"].get("statePatch").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
@@ -2053,12 +2165,16 @@ mod tests {
     #[test]
     fn consideration_schema_has_only_proposal_candidate_cargo() {
         let schema = epiphany_imagination_consideration_output_schema();
-        assert!(schema["properties"]
-            .get("imaginationConsiderationRequestId")
-            .is_none());
-        assert!(schema["properties"]
-            .get("imaginationConsiderationCandidate")
-            .is_some());
+        assert!(
+            schema["properties"]
+                .get("imaginationConsiderationRequestId")
+                .is_none()
+        );
+        assert!(
+            schema["properties"]
+                .get("imaginationConsiderationCandidate")
+                .is_some()
+        );
         for runtime_owned in [
             "request_id",
             "feedback_id",
@@ -2072,9 +2188,11 @@ mod tests {
             "proposed_at",
             "contract",
         ] {
-            assert!(schema["properties"]["imaginationConsiderationCandidate"]["properties"]
-                .get(runtime_owned)
-                .is_none());
+            assert!(
+                schema["properties"]["imaginationConsiderationCandidate"]["properties"]
+                    .get(runtime_owned)
+                    .is_none()
+            );
         }
         for forbidden in [
             "statePatch",
@@ -2089,9 +2207,8 @@ mod tests {
 
     #[test]
     fn proposal_modeling_schema_exposes_only_strict_semantic_frontier_draft() {
-        let schema = epiphany_proposal_modeling_output_schema(
-            crate::RepoFrontierProposalSourceKind::User,
-        );
+        let schema =
+            epiphany_proposal_modeling_output_schema(crate::RepoFrontierProposalSourceKind::User);
         assert_eq!(schema["additionalProperties"], false);
         assert!(schema["properties"].get("proposalFrontierDraft").is_some());
         for runtime_owned in [
@@ -2105,15 +2222,19 @@ mod tests {
         }
         let properties = schema["properties"].as_object().expect("root properties");
         let required = schema["required"].as_array().expect("root required");
-        assert!(properties
-            .keys()
-            .all(|key| required.iter().any(|item| item.as_str() == Some(key))));
+        assert!(
+            properties
+                .keys()
+                .all(|key| required.iter().any(|item| item.as_str() == Some(key)))
+        );
         let draft = &schema["properties"]["proposalFrontierDraft"];
         let draft_properties = draft["properties"].as_object().expect("draft properties");
         let draft_required = draft["required"].as_array().expect("draft required");
-        assert!(draft_properties
-            .keys()
-            .all(|key| draft_required.iter().any(|item| item.as_str() == Some(key))));
+        assert!(
+            draft_properties
+                .keys()
+                .all(|key| draft_required.iter().any(|item| item.as_str() == Some(key)))
+        );
         fn every_const_has_a_type(value: &serde_json::Value) -> bool {
             match value {
                 serde_json::Value::Object(map) => {
