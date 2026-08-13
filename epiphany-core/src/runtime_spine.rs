@@ -3649,6 +3649,64 @@ fn validate_frontier_research_launch_carrier(
     Ok(())
 }
 
+fn frontier_research_request_for_launch(
+    cache: &CultCache,
+    launch: &EpiphanyRuntimeWorkerLaunchRequest,
+) -> Result<Option<RepoFrontierResearchRequest>> {
+    let document: EpiphanyWorkerLaunchDocument =
+        rmp_serde::from_slice(&launch.launch_document_msgpack)?;
+    validate_frontier_research_launch_carrier(
+        &launch.role,
+        &launch.binding_id,
+        launch.repo_frontier_research_request_id.as_deref(),
+        &document,
+    )?;
+    let Some(request_id) = launch.repo_frontier_research_request_id.as_deref() else {
+        return Ok(None);
+    };
+    let request = cache
+        .get::<RepoFrontierResearchRequest>(request_id)?
+        .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
+    let runtime = require_identity(cache)?;
+    let expected_request_id = crate::frontier_research_request_id(
+        &request.runtime_id,
+        &request.model_hash,
+        &request.frontier_item_hash,
+    );
+    if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
+        || request.request_id != request_id
+        || request.request_id != expected_request_id
+        || request.runtime_id != runtime.runtime_id
+        || request.model_hash.is_empty()
+        || request.admission_receipt_id.is_empty()
+        || request.frontier_item_id.is_empty()
+        || request.frontier_item_hash.is_empty()
+        || request.thread_id.is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+        || request.source_scope.is_empty()
+        || !safe_sorted_unique_paths(&request.source_scope)
+        || !request.public_source_refs.windows(2).all(|pair| pair[0] < pair[1])
+        || !request.public_source_refs.iter().all(|source_ref| {
+            crate::ImmutableGithubSource::parse(source_ref)
+                .map(|source| source.to_string() == *source_ref)
+                .unwrap_or(false)
+        })
+    {
+        return Err(anyhow!(
+            "frontier Research launch names an invalid typed request"
+        ));
+    }
+    let carried = match document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_research_context,
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    if carried.as_ref() != Some(&crate::RepoFrontierResearchContextProjection::from(&request)) {
+        return Err(anyhow!("frontier Research launch carries substituted context"));
+    }
+    Ok(Some(request))
+}
+
 pub fn runtime_authenticated_public_source_lookups_for_worker(
     store_path: impl AsRef<Path>,
     worker_job_id: &str,
@@ -3657,10 +3715,10 @@ pub fn runtime_authenticated_public_source_lookups_for_worker(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    authenticated_public_source_lookups_for_worker(&cache, worker_job_id)
+    authenticated_requested_public_source_lookups_for_worker(&cache, worker_job_id)
 }
 
-pub(crate) fn authenticated_public_source_lookups_for_worker(
+fn authenticated_public_source_lookup_receipts_for_worker(
     cache: &CultCache,
     worker_job_id: &str,
 ) -> Result<Vec<EyesSourceLookupReceipt>> {
@@ -3780,6 +3838,39 @@ pub(crate) fn authenticated_public_source_lookups_for_worker(
         });
     }
     lookups.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
+    Ok(lookups)
+}
+
+/// Authenticate the complete public-source consequence of one Research
+/// attempt. The typed frontier request owns the allowed set; a capability
+/// grant or a valid receipt cannot widen it, and an omitted lookup cannot
+/// silently satisfy it.
+pub(crate) fn authenticated_requested_public_source_lookups_for_worker(
+    cache: &CultCache,
+    worker_job_id: &str,
+) -> Result<Vec<EyesSourceLookupReceipt>> {
+    validate_non_empty(worker_job_id, "frontier public source worker job id")?;
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
+        .ok_or_else(|| anyhow!("frontier public source worker has no launch request"))?;
+    let request = frontier_research_request_for_launch(cache, &launch)?;
+    let lookups =
+        authenticated_public_source_lookup_receipts_for_worker(cache, worker_job_id)?;
+    let expected = request
+        .into_iter()
+        .flat_map(|request| request.public_source_refs)
+        .collect::<BTreeSet<_>>();
+    let observed = lookups
+        .iter()
+        .map(|lookup| lookup.source_ref.clone())
+        .collect::<BTreeSet<_>>();
+    if observed != expected {
+        let missing = expected.difference(&observed).cloned().collect::<Vec<_>>();
+        let unrequested = observed.difference(&expected).cloned().collect::<Vec<_>>();
+        return Err(anyhow!(
+            "frontier Research public source coverage is not exact; missing={missing:?}; unrequested={unrequested:?}"
+        ));
+    }
     Ok(lookups)
 }
 
@@ -8744,26 +8835,15 @@ pub fn runtime_has_uncovered_actionable_eyes_frontier(
     let Some(request) = current.pop() else {
         return runtime_has_actionable_eyes_frontier(runtime_store);
     };
-    let expected_projection = crate::RepoFrontierResearchContextProjection::from(&request);
     let mut matching_jobs = BTreeSet::new();
     for launch in &launches {
         if launch.repo_frontier_research_request_id.as_deref() != Some(&request.request_id) {
             continue;
         }
-        let document: EpiphanyWorkerLaunchDocument =
-            rmp_serde::from_slice(&launch.launch_document_msgpack)?;
-        validate_frontier_research_launch_carrier(
-            &launch.role,
-            &launch.binding_id,
-            launch.repo_frontier_research_request_id.as_deref(),
-            &document,
-        )?;
-        let carried = match document {
-            EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_research_context,
-            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
-        };
-        if carried.as_ref() != Some(&expected_projection) {
-            return Err(anyhow!("frontier Research launch carries substituted context"));
+        let carried_request = frontier_research_request_for_launch(&cache, launch)?
+            .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
+        if carried_request != request {
+            return Err(anyhow!("frontier Research launch carries substituted request"));
         }
         matching_jobs.insert(launch.job_id.as_str());
     }
@@ -19881,7 +19961,30 @@ pub(crate) mod tests {
             },
         )?;
         let state = crate::EpiphanyThreadState::default();
-        let launch = crate::build_epiphany_role_launch_request(
+        let source_ref = concat!(
+            "github://openai/openai-openapi@",
+            "0123456789abcdef0123456789abcdef01234567/openapi.yaml"
+        );
+        let research_request = RepoFrontierResearchRequest {
+            schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.into(),
+            request_id: crate::frontier_research_request_id(
+                "epiphany-public-tool-test",
+                "model-public-tool",
+                "frontier-hash-public-tool",
+            ),
+            model_revision: 1,
+            model_hash: "model-public-tool".into(),
+            admission_receipt_id: "admission-public-tool".into(),
+            frontier_item_id: "frontier-public-tool".into(),
+            frontier_item_hash: "frontier-hash-public-tool".into(),
+            source_scope: vec!["openapi.yaml".into()],
+            requested_at: "2026-08-11T00:00:00Z".into(),
+            runtime_id: "epiphany-public-tool-test".into(),
+            thread_id: "thread-public-tool".into(),
+            contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.into(),
+            public_source_refs: vec![source_ref.into()],
+        };
+        let mut launch = crate::build_epiphany_role_launch_request(
             "thread-public-tool",
             crate::EpiphanyRoleResultRoleId::Research,
             Some(state.revision),
@@ -19889,6 +19992,17 @@ pub(crate) mod tests {
             &state,
         )
         .map_err(anyhow::Error::msg)?;
+        launch.repo_frontier_research_request_id = Some(research_request.request_id.clone());
+        match &mut launch.launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.frontier_research_context =
+                    Some(crate::RepoFrontierResearchContextProjection::from(&research_request));
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => unreachable!(),
+        }
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(&research_request.request_id, &research_request)?;
         let plan = crate::plan_coordinator_job_launch(
             &state,
             &launch,
@@ -19904,6 +20018,18 @@ pub(crate) mod tests {
             &plan,
             "2026-08-11T00:00:01Z".to_string(),
         )?;
+        let before_missing_lookup = runtime_spine_backing_store(&store)?.pull_all()?;
+        assert!(
+            runtime_authenticated_public_source_lookups_for_worker(
+                &store,
+                "worker-public-tool"
+            )
+            .is_err()
+        );
+        assert_eq!(
+            runtime_spine_backing_store(&store)?.pull_all()?,
+            before_missing_lookup
+        );
 
         let mut model_request = EpiphanyModelRequest::new(
             "request-public-tool",

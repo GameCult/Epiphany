@@ -4,6 +4,7 @@ use crate::*;
 use anyhow::Context;
 use epiphany_state_model::EpiphanyThreadState;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -676,17 +677,67 @@ fn commit_state_with_mind_witness(
         store_path,
         expected_state,
     )?;
+    let mut eyes_packet_jobs = BTreeSet::new();
     for prerequisite in prerequisites {
-        if let EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) = prerequisite {
-            let authenticated = crate::runtime_spine::authenticated_public_source_lookups_for_worker(
-                &cache,
-                &document.source_job_id,
-            )?;
-            if !authenticated.iter().any(|candidate| candidate == document) {
+        if let EpiphanyAcceptancePrerequisite::Eyes(packet) = prerequisite {
+            if packet.source_role_id != "research"
+                || !eyes_packet_jobs.insert(packet.source_job_id.clone())
+            {
                 return Err(anyhow::anyhow!(
-                    "Eyes source lookup lost its authenticated authority before Mind commit"
+                    "Mind commit requires one exact Research packet per source job"
                 ));
             }
+            let authenticated =
+                crate::runtime_spine::authenticated_requested_public_source_lookups_for_worker(
+                    &cache,
+                    &packet.source_job_id,
+                )?;
+            let authenticated_ids = authenticated
+                .iter()
+                .map(|lookup| lookup.receipt_id.as_str())
+                .collect::<BTreeSet<_>>();
+            let packet_ids = packet
+                .source_lookup_receipt_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>();
+            let published = prerequisites
+                .iter()
+                .filter_map(|candidate| match candidate {
+                    EpiphanyAcceptancePrerequisite::EyesSourceLookup(lookup)
+                        if lookup.source_job_id == packet.source_job_id =>
+                    {
+                        Some(lookup)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let published_ids = published
+                .iter()
+                .map(|lookup| lookup.receipt_id.as_str())
+                .collect::<BTreeSet<_>>();
+            if packet.source_lookup_receipt_ids.len() != packet_ids.len()
+                || published.len() != published_ids.len()
+                || packet_ids != authenticated_ids
+                || published_ids != authenticated_ids
+                || authenticated.iter().any(|lookup| {
+                    !packet.source_refs.iter().any(|source_ref| source_ref == &lookup.source_ref)
+                        || !published.iter().any(|candidate| *candidate == lookup)
+                })
+            {
+                return Err(anyhow::anyhow!(
+                    "Eyes packet lost exact frontier public-source coverage before Mind commit"
+                ));
+            }
+        }
+    }
+    for prerequisite in prerequisites {
+        if let EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) = prerequisite
+            && !eyes_packet_jobs.contains(&document.source_job_id)
+        {
+            return Err(anyhow::anyhow!(
+                "Eyes source lookup has no owning Research packet"
+            ));
         }
     }
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
@@ -1109,18 +1160,17 @@ mod tests {
             Vec::new(),
             "2026-07-11T00:00:00Z".to_string(),
         );
-        let eyes = EyesEvidencePacket {
-            schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.to_string(),
-            packet_id: "eyes-9".to_string(),
+        let continuity = ContinuityRecoveryReceipt {
+            schema_version: CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "continuity-9".to_string(),
             source_result_id: "result-9".to_string(),
             source_job_id: "job-9".to_string(),
-            source_role_id: "research".to_string(),
-            evidence_ids: Vec::new(),
-            observation_ids: Vec::new(),
-            source_refs: Vec::new(),
-            source_lookup_receipt_ids: Vec::new(),
+            binding_id: "reorientation-worker".to_string(),
+            mode: "resume".to_string(),
+            checkpoint_still_valid: "true".to_string(),
             summary: "looked".to_string(),
-            uncertainty: "none".to_string(),
+            next_safe_move: "continue".to_string(),
+            files_inspected: Vec::new(),
             emitted_at: "2026-07-11T00:00:00Z".to_string(),
             contract: "test".to_string(),
         };
@@ -1131,10 +1181,15 @@ mod tests {
             &state,
             &review,
             &commit,
-            &[EpiphanyAcceptancePrerequisite::Eyes(eyes.clone())],
+            &[EpiphanyAcceptancePrerequisite::Continuity(
+                continuity.clone(),
+            )],
         )?;
         let cache = coordinator_acceptance_cache(&store)?;
-        assert_eq!(cache.get_required::<EyesEvidencePacket>("eyes-9")?, eyes);
+        assert_eq!(
+            cache.get_required::<ContinuityRecoveryReceipt>("continuity-9")?,
+            continuity
+        );
         assert!(
             cache
                 .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
