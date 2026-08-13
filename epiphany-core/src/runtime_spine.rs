@@ -16678,6 +16678,93 @@ pub(crate) mod tests {
             research_request
         );
         assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        // A completed Research role projection may belong to an older
+        // frontier. It cannot suppress the exact current frontier request.
+        let stale_job_id = "eyes-stale-role-projection-job";
+        let mut transitioned_state = transitioned.state()?;
+        transitioned_state.runtime_links.retain(|link| {
+            link.binding_id != crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID
+        });
+        transitioned_state.runtime_links.push(epiphany_state_model::EpiphanyRuntimeLink {
+            id: "runtime-link-eyes-stale-role-projection-job".into(),
+            binding_id: crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+            surface: "jobLaunch".into(),
+            role_id: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+            authority_scope: "research".into(),
+            runtime_job_id: stale_job_id.into(),
+            runtime_result_id: Some(format!("result-{stale_job_id}")),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+        });
+        transitioned = crate::EpiphanyThreadStateEntry::from_state(
+            "later-coordinator-incarnation",
+            &transitioned_state,
+        )?;
+        cache.put(crate::THREAD_STATE_KEY, &transitioned)?;
+        cache.put(
+            stale_job_id,
+            &EpiphanyRuntimeJob {
+                schema_version: RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                job_id: stale_job_id.into(),
+                session_id: "eyes-stale-role-projection-session".into(),
+                role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+                status: EpiphanyRuntimeJobStatus::Failed,
+                created_at: "2026-07-13T03:00:00Z".into(),
+                updated_at: "2026-07-13T03:00:01Z".into(),
+                summary: "An older Research attempt failed.".into(),
+                artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        cache.put(
+            &format!("result-{stale_job_id}"),
+            &EpiphanyRuntimeJobResult {
+                schema_version: RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                result_id: format!("result-{stale_job_id}"),
+                job_id: stale_job_id.into(),
+                session_id: "eyes-stale-role-projection-session".into(),
+                role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+                verdict: "failed".into(),
+                summary: "Older Research failure.".into(),
+                completed_at: "2026-07-13T03:00:01Z".into(),
+                next_safe_move: "Launch the current frontier request.".into(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        let continuation_receipt = EpiphanyCoordinatorRunReceipt {
+            schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "receipt-current-frontier-after-stale-research".into(),
+            session_id: "coordinator-later-coordinator-incarnation-resident-deadbeef".into(),
+            thread_id: "later-coordinator-incarnation".into(),
+            mode: "execute".into(),
+            status: "planned".into(),
+            final_action: "launchResearch".into(),
+            final_reason: Some("The exact current Eyes frontier is uncovered.".into()),
+            step_count: 1,
+            created_at: "2026-07-13T04:04:01Z".into(),
+            model_provider: Some("test".into()),
+            runtime_store: eyes_store.display().to_string(),
+            artifact_refs: Vec::new(),
+            sealed_artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+            resident_grant_id: Some("grant-current-frontier".into()),
+            resident_launch_digest: Some("sha256:deadbeef".into()),
+            resident_policy_digest: Some("policy-current-frontier".into()),
+            resident_argv_digest: Some("argv-current-frontier".into()),
+            resident_objective_digest: Some("objective-current-frontier".into()),
+            resident_release_commit: Some("commit-current-frontier".into()),
+            resident_release_manifest_digest: Some("manifest-current-frontier".into()),
+            resident_executable_digest: Some("executable-current-frontier".into()),
+        };
+        assert_eq!(
+            crate::resident_self::resident_self_safe_continuation_action(
+                &eyes_store,
+                &continuation_receipt,
+            )?,
+            Some("launchResearch".into())
+        );
         let job_id = "eyes-current-frontier-job";
         let launch_document = EpiphanyWorkerLaunchDocument::Role(
             crate::EpiphanyRoleWorkerLaunchDocument {
@@ -16755,6 +16842,13 @@ pub(crate) mod tests {
         };
         cache.put(&covered.packet_id, &covered)?;
         assert!(!runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        assert_eq!(
+            crate::resident_self::resident_self_safe_continuation_action(
+                &eyes_store,
+                &continuation_receipt,
+            )?,
+            None
+        );
 
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;

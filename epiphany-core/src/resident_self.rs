@@ -1151,7 +1151,7 @@ pub fn ingest_resident_self_domain_pressure(
     Ok(inserted)
 }
 
-fn role_result_is_terminal_for_continuation(
+fn role_projection_is_terminal_for_continuation(
     runtime_store: &Path,
     thread_id: &str,
     role: crate::EpiphanyRoleResultRoleId,
@@ -1179,7 +1179,38 @@ fn role_result_is_terminal_for_continuation(
     ))
 }
 
-fn resident_self_safe_continuation_action(
+fn resident_continuation_launch_was_overtaken(
+    runtime_store: &Path,
+    action: &str,
+    thread_id: &str,
+) -> Result<bool> {
+    match action {
+        // Research launch currency belongs to the exact current frontier
+        // request. A terminal result on the stable role binding may belong to
+        // an older frontier and cannot suppress new causal work.
+        "launchResearch" => Ok(!crate::runtime_has_uncovered_actionable_eyes_frontier(
+            runtime_store,
+        )?),
+        // These legacy checkpoint lanes do not yet expose an exact current
+        // request projection. Keep their existing role-slot behavior explicit
+        // rather than pretending it is the same authority as Research.
+        "launchModeling" => role_projection_is_terminal_for_continuation(
+            runtime_store,
+            thread_id,
+            crate::EpiphanyRoleResultRoleId::Modeling,
+            crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
+        ),
+        "launchVerification" => role_projection_is_terminal_for_continuation(
+            runtime_store,
+            thread_id,
+            crate::EpiphanyRoleResultRoleId::Verification,
+            crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+        ),
+        _ => Ok(false),
+    }
+}
+
+pub(crate) fn resident_self_safe_continuation_action(
     runtime_store: &Path,
     receipt: &crate::EpiphanyCoordinatorRunReceipt,
 ) -> Result<Option<String>> {
@@ -1195,35 +1226,18 @@ fn resident_self_safe_continuation_action(
             | "commitFrontierPlanDecision"
     );
     if direct {
-        let overtaken_by_terminal_result = match receipt.final_action.as_str() {
-            "launchResearch" => role_result_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Research,
-                crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
-            )?,
-            "launchModeling" => role_result_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Modeling,
-                crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
-            )?,
-            "launchVerification" => role_result_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Verification,
-                crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-            )?,
-            _ => false,
-        };
-        if overtaken_by_terminal_result {
+        if resident_continuation_launch_was_overtaken(
+            runtime_store,
+            &receipt.final_action,
+            &receipt.thread_id,
+        )? {
             return Ok(None);
         }
         return Ok(Some(receipt.final_action.clone()));
     }
     let action = match receipt.final_action.as_str() {
         "reviewResearchResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Research,
@@ -1233,7 +1247,7 @@ fn resident_self_safe_continuation_action(
             Some("reviewResearchResult")
         }
         "reviewModelingResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Modeling,
@@ -1243,7 +1257,7 @@ fn resident_self_safe_continuation_action(
             Some("reviewModelingResult")
         }
         "reviewVerificationResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Verification,
@@ -1253,7 +1267,7 @@ fn resident_self_safe_continuation_action(
             Some("reviewVerificationResult")
         }
         "waitForResearchResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Research,
@@ -1263,7 +1277,7 @@ fn resident_self_safe_continuation_action(
             Some("reviewResearchResult")
         }
         "waitForModelingResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Modeling,
@@ -1273,7 +1287,7 @@ fn resident_self_safe_continuation_action(
             Some("reviewModelingResult")
         }
         "waitForVerificationResult"
-            if role_result_is_terminal_for_continuation(
+            if role_projection_is_terminal_for_continuation(
                 runtime_store,
                 &receipt.thread_id,
                 crate::EpiphanyRoleResultRoleId::Verification,
