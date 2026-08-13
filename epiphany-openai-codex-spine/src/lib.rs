@@ -293,7 +293,7 @@ fn responses_text_format(
 fn responses_schema_is_strict(schema: &serde_json::Value) -> bool {
     match schema {
         serde_json::Value::Object(map) => {
-            if map.get("type").and_then(serde_json::Value::as_str) == Some("object") {
+            if schema_map_describes_object(map) {
                 if map.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
                     return false;
                 }
@@ -333,9 +333,7 @@ fn project_strict_responses_schema(schema: &mut serde_json::Value) -> Result<()>
 fn require_closed_responses_objects(schema: &mut serde_json::Value, path: &str) -> Result<()> {
     match schema {
         serde_json::Value::Object(map) => {
-            let describes_object = map.get("type").and_then(serde_json::Value::as_str)
-                == Some("object")
-                || map.contains_key("properties");
+            let describes_object = schema_map_describes_object(map);
             if describes_object {
                 map.insert(
                     "type".to_string(),
@@ -409,6 +407,40 @@ fn require_closed_responses_objects(schema: &mut serde_json::Value, path: &str) 
     }
 }
 
+fn schema_map_describes_object(map: &serde_json::Map<String, serde_json::Value>) -> bool {
+    map.get("type").and_then(serde_json::Value::as_str) == Some("object")
+        || [
+            "properties",
+            "required",
+            "additionalProperties",
+            "patternProperties",
+            "propertyNames",
+            "minProperties",
+            "maxProperties",
+        ]
+        .iter()
+        .any(|keyword| map.contains_key(*keyword))
+}
+
+fn presence_only_object_alternatives(value: &serde_json::Value) -> bool {
+    let Some(alternatives) = value.as_array() else {
+        return false;
+    };
+    !alternatives.is_empty()
+        && alternatives.iter().all(|alternative| {
+            let Some(map) = alternative.as_object() else {
+                return false;
+            };
+            map.get("required").is_some_and(serde_json::Value::is_array)
+                && map.keys().all(|key| {
+                    matches!(
+                        key.as_str(),
+                        "required" | "title" | "description" | "$comment"
+                    )
+                })
+        })
+}
+
 fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value {
     if property
         .get("anyOf")
@@ -448,6 +480,17 @@ fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
             }
             if let Some(one_of) = map.remove("oneOf") {
                 map.insert("anyOf".to_string(), one_of);
+            }
+            // A canonical object may use anyOf solely to require one of several
+            // sibling properties. Responses strict schemas require every object
+            // alternative to repeat a complete closed property declaration, so
+            // those parent-relative fragments are not a valid provider shape.
+            // Runtime ingress remains the owner of the conditional invariant.
+            if map
+                .get("anyOf")
+                .is_some_and(presence_only_object_alternatives)
+            {
+                map.remove("anyOf");
             }
             for value in map.values_mut() {
                 lower_schema_for_responses_format(value);
@@ -1141,6 +1184,69 @@ mod tests {
         assert!(schema["properties"]["purpose"]["anyOf"].is_array());
         assert_eq!(schema["additionalProperties"], false);
         assert_eq!(schema["required"], serde_json::json!(["purpose"]));
+    }
+
+    #[test]
+    fn provider_schema_projection_drops_parent_relative_presence_alternatives() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-object-presence",
+            "conversation-object-presence",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id = Some("epiphany.worker".to_string());
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "statePatch": {
+                        "type": "object",
+                        "properties": {
+                            "scratch": {
+                                "type": "object",
+                                "properties": {"summary": {"type": "string"}},
+                                "required": ["summary"]
+                            },
+                            "investigationCheckpoint": {
+                                "type": "object",
+                                "properties": {"focus": {"type": "string"}},
+                                "required": ["focus"]
+                            }
+                        },
+                        "anyOf": [
+                            {"required": ["scratch"]},
+                            {"required": ["investigationCheckpoint"]}
+                        ]
+                    }
+                },
+                "required": ["statePatch"]
+            })
+            .to_string(),
+        );
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+        let state_patch = &responses["text"]["format"]["schema"]["properties"]["statePatch"];
+        assert!(state_patch.get("anyOf").is_none());
+        assert_eq!(state_patch["additionalProperties"], false);
+        assert_eq!(
+            state_patch["required"],
+            serde_json::json!(["investigationCheckpoint", "scratch"])
+        );
+        assert_eq!(
+            state_patch["properties"]["scratch"]["anyOf"][0]["additionalProperties"],
+            false
+        );
+        assert_eq!(
+            state_patch["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
+            false
+        );
+    }
+
+    #[test]
+    fn strict_schema_check_recognizes_required_only_object_fragments() {
+        assert!(!responses_schema_is_strict(&serde_json::json!({
+            "anyOf": [{"required": ["scratch"]}, {"required": ["checkpoint"]}]
+        })));
     }
 
     #[test]

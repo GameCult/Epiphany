@@ -2490,6 +2490,45 @@ mod tests {
     }
 
     #[test]
+    fn research_contract_projects_nested_state_patch_to_provider_strict_shape() -> Result<()> {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "strict-research-schema",
+            "strict-worker-schema",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id = Some("epiphany.worker.role_result.v3".to_string());
+        request.output_schema_json = Some(serde_json::to_string(
+            &epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Research,
+            ),
+        )?);
+
+        let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
+        let state_patch = &body["text"]["format"]["schema"]["properties"]["statePatch"];
+        assert!(state_patch.get("anyOf").is_none());
+        assert_eq!(state_patch["additionalProperties"], false);
+        assert_eq!(
+            state_patch["required"],
+            serde_json::json!([
+                "evidence",
+                "investigationCheckpoint",
+                "observations",
+                "scratch"
+            ])
+        );
+        assert_eq!(
+            state_patch["properties"]["scratch"]["anyOf"][0]["additionalProperties"],
+            false
+        );
+        assert_eq!(
+            state_patch["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
+            false
+        );
+        Ok(())
+    }
+
+    #[test]
     fn role_ingress_rejects_duplicate_top_level_fields() {
         let error = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped","nextSafeMove":"review","checkpointSummary":"first","checkpointSummary":"second"}"#,
