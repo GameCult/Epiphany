@@ -22,23 +22,23 @@ pub fn proposal_modeling_request_id(
 
 pub fn frontier_research_request_id(
     runtime_id: &str,
-    model_hash: &str,
+    frontier_item_id: &str,
     frontier_item_hash: &str,
 ) -> String {
     digest_id(
         "repo-frontier-research",
-        &[runtime_id, model_hash, frontier_item_hash],
+        &[runtime_id, frontier_item_id, frontier_item_hash],
     )
 }
 
 pub fn frontier_planning_request_id(
     runtime_id: &str,
-    model_hash: &str,
+    frontier_item_id: &str,
     frontier_item_hash: &str,
 ) -> String {
     digest_id(
         "repo-frontier-planning",
-        &[runtime_id, model_hash, frontier_item_hash],
+        &[runtime_id, frontier_item_id, frontier_item_hash],
     )
 }
 
@@ -82,12 +82,22 @@ mod tests {
 
     #[test]
     fn provenance_does_not_participate_in_causal_identity() {
-        let first = frontier_research_request_id("runtime", "model", "frontier");
-        let after_thread_transition = frontier_research_request_id("runtime", "model", "frontier");
-        assert_eq!(first, after_thread_transition);
+        let first = frontier_research_request_id("runtime", "frontier-id", "frontier-hash");
+        let after_model_and_thread_transition =
+            frontier_research_request_id("runtime", "frontier-id", "frontier-hash");
+        assert_eq!(first, after_model_and_thread_transition);
         assert_ne!(
             first,
-            frontier_research_request_id("runtime", "model", "other")
+            frontier_research_request_id("runtime", "frontier-id", "other")
+        );
+
+        let planning = frontier_planning_request_id("runtime", "frontier-id", "frontier-hash");
+        let planning_after_model_and_thread_transition =
+            frontier_planning_request_id("runtime", "frontier-id", "frontier-hash");
+        assert_eq!(planning, planning_after_model_and_thread_transition);
+        assert_ne!(
+            planning,
+            frontier_planning_request_id("runtime", "other-frontier", "frontier-hash")
         );
     }
 }

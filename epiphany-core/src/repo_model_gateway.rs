@@ -629,8 +629,8 @@ pub struct RepoFrontierResearchRequest {
     #[cultcache(key = 11)]
     pub contract: String,
     /// Immutable public source identities already owned by the admitted
-    /// frontier. This is the strict GitHub subset of `evidence_refs`, not a
-    /// worker-authored search hint.
+    /// frontier. This is dedicated retrieval authority, not worker-authored
+    /// evidence or a search hint.
     #[cultcache(key = 12, default)]
     pub public_source_refs: Vec<String>,
 }

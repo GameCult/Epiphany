@@ -3778,7 +3778,7 @@ fn frontier_research_request_for_launch(
     let runtime = require_identity(cache)?;
     let expected_request_id = crate::frontier_research_request_id(
         &request.runtime_id,
-        &request.model_hash,
+        &request.frontier_item_id,
         &request.frontier_item_hash,
     );
     if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
@@ -4557,7 +4557,7 @@ pub fn put_runtime_role_worker_result(
         let request = cache
             .get::<RepoFrontierPlanningRequest>(request_id)?
             .ok_or_else(|| anyhow!("frontier planning result requires persisted request"))?;
-        validate_current_repo_frontier_planning_request(&cache, &request)?;
+        validate_actionable_repo_frontier_planning_request(&cache, &request)?;
         let candidate = result
             .frontier_plan_candidate()?
             .ok_or_else(|| anyhow!("frontier planning candidate disappeared"))?;
@@ -6320,14 +6320,64 @@ pub fn commit_repo_model_admission(
     let obligation =
         modeling_projection_obligation(&cache, &next, &receipt.receipt_id, &receipt.admitted_at)?;
     let (obligation_envelope, _) = cache.prepare_entry(&obligation.obligation_id, &obligation)?;
+    let research_request = if patch.purpose == crate::RepoModelPatchPurpose::Evolution {
+        patch.operations.iter().find_map(|operation| match operation {
+            crate::RepoModelPatchOperation::UpsertFrontier { item }
+                if item.recommended_next_organ == "Eyes" =>
+            {
+                Some(item)
+            }
+            _ => None,
+        })
+    } else {
+        None
+    }
+    .map(|item| {
+        let runtime = require_identity(&cache)?;
+        let thread_id = match &launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => document.thread_id.as_str(),
+            EpiphanyWorkerLaunchDocument::Reorient(_) => unreachable!(
+                "repo model admission already refused reorientation launch provenance"
+            ),
+        };
+        repo_frontier_research_request_for_admitted_item(
+            &runtime.runtime_id,
+            thread_id,
+            &next,
+            &receipt,
+            item,
+            &review.reviewed_at,
+        )
+    })
+    .transpose()?;
+    let research_envelope = research_request
+        .as_ref()
+        .map(|request| {
+            if cache
+                .get::<RepoFrontierResearchRequest>(&request.request_id)?
+                .is_some()
+            {
+                return Err(anyhow!(
+                    "repo model admission collided with existing frontier Research request"
+                ));
+            }
+            cache
+                .prepare_entry(&request.request_id, request)
+                .map(|(envelope, _)| envelope)
+        })
+        .transpose()?;
+    let mut mutations = vec![
+        next_model_envelope,
+        review_envelope,
+        receipt_envelope,
+        obligation_envelope,
+    ];
+    if let Some(research_envelope) = research_envelope {
+        mutations.push(research_envelope);
+    }
     if !backing.compare_and_swap_batch(
         &[current_envelope],
-        vec![
-            next_model_envelope,
-            review_envelope,
-            receipt_envelope,
-            obligation_envelope,
-        ],
+        mutations,
     )? {
         return Err(anyhow!(
             "repo model admission stale model or companion collision"
@@ -7306,8 +7356,9 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
     let item = actionable_imagination_frontier_item(&model, &challenges)
         .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
-    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let request_id = crate::frontier_planning_request_id(&identity.runtime_id, &model_hash, &item_hash);
+    let item_hash = repo_frontier_item_hash(item)?;
+    let request_id =
+        crate::frontier_planning_request_id(&identity.runtime_id, &item.id, &item_hash);
     if cache
         .get_all::<RepoFrontierPlanDecisionReceipt>()?
         .iter()
@@ -7316,6 +7367,10 @@ pub fn select_and_commit_repo_frontier_planning_request(
         return Err(anyhow!(
             "current frontier planning request already has a terminal Mind decision"
         ));
+    }
+    if let Some(existing) = cache.get::<RepoFrontierPlanningRequest>(&request_id)? {
+        validate_actionable_repo_frontier_planning_request(&cache, &existing)?;
+        return Ok(existing);
     }
     let request = RepoFrontierPlanningRequest {
         schema_version: REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
@@ -7332,15 +7387,6 @@ pub fn select_and_commit_repo_frontier_planning_request(
         runtime_id: identity.runtime_id,
         thread_id: thread.thread_id,
     };
-    if let Some(existing) = cache.get::<RepoFrontierPlanningRequest>(&request_id)? {
-        let mut retry = request.clone();
-        retry.requested_at = existing.requested_at.clone();
-        return if existing == retry {
-            Ok(existing)
-        } else {
-            Err(anyhow!("planning request identity collision"))
-        };
-    }
     let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
     if !backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
         let mut reloaded = runtime_spine_cache(runtime_store)?;
@@ -7359,7 +7405,7 @@ pub fn select_and_commit_repo_frontier_planning_request(
     Ok(request)
 }
 
-pub(crate) fn validate_current_repo_frontier_planning_request(
+pub(crate) fn validate_actionable_repo_frontier_planning_request(
     cache: &CultCache,
     request: &RepoFrontierPlanningRequest,
 ) -> Result<()> {
@@ -7376,33 +7422,35 @@ pub(crate) fn validate_current_repo_frontier_planning_request(
     crate::validate_memory_graph_entry(&entry)?;
     let model = entry.snapshot()?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
-    let receipts = cache
+    let challenges = current_repo_model_claim_challenges(cache, &model, &model_hash)?;
+    let item = model
+        .frontier
+        .iter()
+        .find(|item| item.id == request.frontier_item_id)
+        .ok_or_else(|| anyhow!("planning request frontier disappeared"))?;
+    if !imagination_frontier_item_is_actionable(&model, &challenges, item) {
+        return Err(anyhow!("planning request frontier is no longer actionable"));
+    }
+    let item_hash = repo_frontier_item_hash(item)?;
+    let expected_request_id =
+        crate::frontier_planning_request_id(&identity.runtime_id, &item.id, &item_hash);
+    let admission_count = cache
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            crate::repo_model_admission_receipt_schema_supported(
-                &receipt.schema_version,
-                &receipt.contract,
-            ) && receipt.admitted_revision == model.model_revision
-                && receipt.admitted_hash == model_hash
+            receipt.receipt_id == request.admission_receipt_id
+                && crate::repo_model_admission_receipt_schema_supported(
+                    &receipt.schema_version,
+                    &receipt.contract,
+                )
+                && receipt.admitted_revision == request.model_revision
+                && receipt.admitted_hash == request.model_hash
         })
-        .collect::<Vec<_>>();
-    if receipts.len() != 1 {
-        return Err(anyhow!(
-            "planning request requires exactly one current admission receipt"
-        ));
-    }
-    let challenges = current_repo_model_claim_challenges(cache, &model, &model_hash)?;
-    let item = actionable_imagination_frontier_item(&model, &challenges)
-        .ok_or_else(|| anyhow!("planning request frontier is no longer actionable"))?;
-    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let expected_request_id = crate::frontier_planning_request_id(&identity.runtime_id, &model_hash, &item_hash);
+        .count();
     if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
         || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
         || request.request_id != expected_request_id
-        || request.model_revision != model.model_revision
-        || request.model_hash != model_hash
-        || request.admission_receipt_id != receipts[0].receipt_id
+        || admission_count != 1
         || request.frontier_item_id != item.id
         || request.frontier_item_hash != item_hash
         || request.selected_organ != "Imagination"
@@ -7411,7 +7459,7 @@ pub(crate) fn validate_current_repo_frontier_planning_request(
         || request.thread_id.is_empty()
     {
         return Err(anyhow!(
-            "planning request does not exactly bind current model, frontier, and runtime"
+            "planning request does not exactly bind its actionable frontier and runtime"
         ));
     }
     Ok(())
@@ -7449,7 +7497,7 @@ pub fn commit_repo_frontier_plan_mind_request(
     let candidate = result
         .frontier_plan_candidate()?
         .ok_or_else(|| anyhow!("Mind request source candidate disappeared"))?;
-    validate_current_repo_frontier_planning_request(&cache, &planning)?;
+    validate_actionable_repo_frontier_planning_request(&cache, &planning)?;
     validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &planning)?;
     let candidate_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&candidate)?));
     let request_id = crate::frontier_plan_mind_request_id(&planning.runtime_id, &planning.request_id, &result.result_id, &candidate_sha256);
@@ -7511,7 +7559,7 @@ pub(crate) fn validate_repo_frontier_plan_mind_request(
     request: &RepoFrontierPlanMindRequest,
 ) -> Result<(RepoFrontierPlanningRequest, RepoFrontierPlanCandidate)> {
     let (planning, candidate) = validate_repo_frontier_plan_mind_request_identity(cache, request)?;
-    validate_current_repo_frontier_planning_request(cache, &planning)?;
+    validate_actionable_repo_frontier_planning_request(cache, &planning)?;
     validate_repo_frontier_plan_candidate_against_request(cache, &candidate, &planning)?;
     Ok((planning, candidate))
 }
@@ -7557,6 +7605,20 @@ fn actionable_imagination_frontier_item<'a>(
     model: &'a crate::EpiphanyMemoryGraphSnapshot,
     challenges: &[RepoModelClaimChallenge],
 ) -> Option<&'a crate::RepoFrontierItem> {
+    let mut eligible = model
+        .frontier
+        .iter()
+        .filter(|item| imagination_frontier_item_is_actionable(model, challenges, item))
+        .collect::<Vec<_>>();
+    eligible.sort_by(|a, b| a.id.cmp(&b.id));
+    eligible.into_iter().next()
+}
+
+fn imagination_frontier_item_is_actionable(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+    item: &crate::RepoFrontierItem,
+) -> bool {
     let terminal = |id: &str| {
         model
             .frontier
@@ -7571,20 +7633,12 @@ fn actionable_imagination_frontier_item<'a>(
                 )
             })
     };
-    let mut eligible = model
-        .frontier
-        .iter()
-        .filter(|item| {
-            item.status == crate::RepoFrontierStatus::Active
-                && item.recommended_next_organ == "Imagination"
-                && !item.source_scope.is_empty()
-                && safe_sorted_unique_paths(&item.source_scope)
-                && frontier_target_claims_unchallenged(item, challenges)
-                && item.dependency_item_ids.iter().all(|id| terminal(id))
-        })
-        .collect::<Vec<_>>();
-    eligible.sort_by(|a, b| a.id.cmp(&b.id));
-    eligible.into_iter().next()
+    item.status == crate::RepoFrontierStatus::Active
+        && item.recommended_next_organ == "Imagination"
+        && !item.source_scope.is_empty()
+        && safe_sorted_unique_paths(&item.source_scope)
+        && frontier_target_claims_unchallenged(item, challenges)
+        && item.dependency_item_ids.iter().all(|id| terminal(id))
 }
 
 fn frontier_target_claims_unchallenged(
@@ -8527,7 +8581,7 @@ fn commit_repo_frontier_plan_decision_inner(
         put_runtime_role_worker_result(runtime_store, &mind_result)?;
     }
     put_runtime_role_worker_result(runtime_store, result)?;
-    validate_current_repo_frontier_planning_request(&cache, &request)?;
+    validate_actionable_repo_frontier_planning_request(&cache, &request)?;
     validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &request)?;
     let mut receipt = RepoFrontierPlanDecisionReceipt {
         schema_version: REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION.into(),
@@ -8867,6 +8921,24 @@ fn actionable_frontier_item_for_organ<'a>(
     organ: &str,
     require_unchallenged_targets: bool,
 ) -> Option<&'a crate::RepoFrontierItem> {
+    model.frontier.iter().find(|item| {
+        frontier_item_is_actionable_for_organ(
+            model,
+            challenges,
+            item,
+            organ,
+            require_unchallenged_targets,
+        )
+    })
+}
+
+fn frontier_item_is_actionable_for_organ(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+    item: &crate::RepoFrontierItem,
+    organ: &str,
+    require_unchallenged_targets: bool,
+) -> bool {
     let terminal = |status: crate::RepoFrontierStatus| {
         matches!(
             status,
@@ -8875,21 +8947,19 @@ fn actionable_frontier_item_for_organ<'a>(
                 | crate::RepoFrontierStatus::Superseded
         )
     };
-    model.frontier.iter().find(|item| {
-        item.status == crate::RepoFrontierStatus::Active
-            && item.recommended_next_organ == organ
-            && !item.source_scope.is_empty()
-            && safe_sorted_unique_paths(&item.source_scope)
-            && (!require_unchallenged_targets
-                || frontier_target_claims_unchallenged(item, challenges))
-            && item.dependency_item_ids.iter().all(|dependency_id| {
-                model
-                    .frontier
-                    .iter()
-                    .find(|candidate| candidate.id == *dependency_id)
-                    .is_some_and(|dependency| terminal(dependency.status))
-            })
-    })
+    item.status == crate::RepoFrontierStatus::Active
+        && item.recommended_next_organ == organ
+        && !item.source_scope.is_empty()
+        && safe_sorted_unique_paths(&item.source_scope)
+        && (!require_unchallenged_targets
+            || frontier_target_claims_unchallenged(item, challenges))
+        && item.dependency_item_ids.iter().all(|dependency_id| {
+            model
+                .frontier
+                .iter()
+                .find(|candidate| candidate.id == *dependency_id)
+                .is_some_and(|dependency| terminal(dependency.status))
+        })
 }
 
 /// Read-only Self signal. It is true only when the canonical runtime model is
@@ -8951,39 +9021,65 @@ pub fn select_and_commit_repo_frontier_research_request(
         ));
     }
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
-    let item = actionable_frontier_item_for_organ(&model, &challenges, "Eyes", false)
-        .ok_or_else(|| anyhow!("current model has no actionable Eyes frontier"))?;
-    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
-    let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
-        item.public_source_refs.iter().map(String::as_str),
-    )?;
-    if public_source_refs != item.public_source_refs {
-        return Err(anyhow!(
-            "frontier Research public source authority is not canonical"
-        ));
+    let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let packets = cache.get_all::<EyesEvidencePacket>()?;
+    let existing_actionable = actionable_repo_frontier_research_requests(&cache)?;
+    let mut existing_uncovered = existing_actionable
+        .iter()
+        .cloned()
+        .filter_map(|request| {
+            match repo_frontier_research_request_is_covered(
+                &cache,
+                &request,
+                &launches,
+                &packets,
+            ) {
+                Ok(false) => Some(Ok(request)),
+                Ok(true) => None,
+                Err(error) => Some(Err(error)),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    existing_uncovered.sort_by(|left, right| {
+        left.requested_at
+            .cmp(&right.requested_at)
+            .then_with(|| left.request_id.cmp(&right.request_id))
+    });
+    if let Some(request) = existing_uncovered.into_iter().next() {
+        return Ok(request);
     }
-    let request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
-    let request = RepoFrontierResearchRequest {
-        schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.to_string(),
-        request_id: request_id.clone(),
-        model_revision: model.model_revision,
-        model_hash,
-        admission_receipt_id: receipts[0].receipt_id.clone(),
-        frontier_item_id: item.id.clone(),
-        frontier_item_hash: item_hash,
-        source_scope: item.source_scope.clone(),
-        requested_at: at.to_string(),
-        runtime_id: identity.runtime_id,
-        thread_id: thread.thread_id,
-        contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
-        public_source_refs,
-    };
+
+    let item = model
+        .frontier
+        .iter()
+        .filter(|item| {
+            frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false)
+        })
+        .find(|item| {
+            let Ok(item_hash) = repo_frontier_item_hash(item) else {
+                return false;
+            };
+            !existing_actionable.iter().any(|request| {
+                request.frontier_item_id == item.id
+                    && request.frontier_item_hash == item_hash
+            })
+        })
+        .ok_or_else(|| anyhow!("current model has no uncovered actionable Eyes frontier"))?;
+    let request = repo_frontier_research_request_for_admitted_item(
+        &identity.runtime_id,
+        &thread.thread_id,
+        &model,
+        &receipts[0],
+        item,
+        at,
+    )?;
+    let request_id = request.request_id.clone();
     if let Some(existing) = cache.get::<RepoFrontierResearchRequest>(&request_id)? {
         let mut replay = request.clone();
         replay.requested_at = existing.requested_at.clone();
         // The frontier owns this request. The thread records where it was
         // created, but later coordinator incarnations must not fork or
-        // invalidate the same current-model request.
+        // invalidate the same frontier request.
         replay.thread_id = existing.thread_id.clone();
         return if existing == replay {
             Ok(existing)
@@ -8998,6 +9094,62 @@ pub fn select_and_commit_repo_frontier_research_request(
     Ok(request)
 }
 
+fn repo_frontier_item_hash(item: &crate::RepoFrontierItem) -> Result<String> {
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(item)?)
+    ))
+}
+
+fn repo_frontier_research_request_for_admitted_item(
+    runtime_id: &str,
+    thread_id: &str,
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    admission: &RepoModelAdmissionReceipt,
+    item: &crate::RepoFrontierItem,
+    requested_at: &str,
+) -> Result<RepoFrontierResearchRequest> {
+    let model_hash = crate::memory_graph_model_hash(model)?;
+    if runtime_id.is_empty()
+        || thread_id.is_empty()
+        || admission.admitted_revision != model.model_revision
+        || admission.admitted_hash != model_hash
+        || model
+            .frontier
+            .iter()
+            .find(|candidate| candidate.id == item.id)
+            != Some(item)
+    {
+        return Err(anyhow!(
+            "frontier Research request requires its exact admitted frontier"
+        ));
+    }
+    let item_hash = repo_frontier_item_hash(item)?;
+    let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
+        item.public_source_refs.iter().map(String::as_str),
+    )?;
+    if public_source_refs != item.public_source_refs {
+        return Err(anyhow!(
+            "frontier Research public source authority is not canonical"
+        ));
+    }
+    Ok(RepoFrontierResearchRequest {
+        schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.to_string(),
+        request_id: crate::frontier_research_request_id(runtime_id, &item.id, &item_hash),
+        model_revision: model.model_revision,
+        model_hash,
+        admission_receipt_id: admission.receipt_id.clone(),
+        frontier_item_id: item.id.clone(),
+        frontier_item_hash: item_hash,
+        source_scope: item.source_scope.clone(),
+        requested_at: requested_at.to_string(),
+        runtime_id: runtime_id.to_string(),
+        thread_id: thread_id.to_string(),
+        contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
+        public_source_refs,
+    })
+}
+
 /// True only when the exact current Eyes frontier has not yet been covered by
 /// an accepted Eyes packet from a worker launch bound to its typed request.
 /// Historical Research acceptance is deliberately irrelevant.
@@ -9008,39 +9160,70 @@ pub fn runtime_has_uncovered_actionable_eyes_frontier(
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let requests = cache.get_all::<RepoFrontierResearchRequest>()?;
+    let requests = actionable_repo_frontier_research_requests(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let packets = cache.get_all::<EyesEvidencePacket>()?;
-    let mut current = Vec::new();
-    for request in requests {
-        if repo_frontier_research_request_is_current(&cache, &request)? {
-            current.push(request);
+    let entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("frontier Research coverage lost current model"))?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
+    for item in model.frontier.iter().filter(|item| {
+        frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false)
+    }) {
+        let item_hash = repo_frontier_item_hash(item)?;
+        let Some(request) = requests.iter().find(|request| {
+            request.frontier_item_id == item.id && request.frontier_item_hash == item_hash
+        }) else {
+            return Ok(true);
+        };
+        if !repo_frontier_research_request_is_covered(&cache, request, &launches, &packets)? {
+            return Ok(true);
         }
     }
-    if current.len() > 1 {
-        return Err(anyhow!("Self found multiple current frontier Research requests"));
-    }
-    let Some(request) = current.pop() else {
-        return runtime_has_actionable_eyes_frontier(runtime_store);
-    };
+    Ok(false)
+}
+
+fn repo_frontier_research_request_is_covered(
+    cache: &CultCache,
+    request: &RepoFrontierResearchRequest,
+    launches: &[EpiphanyRuntimeWorkerLaunchRequest],
+    packets: &[EyesEvidencePacket],
+) -> Result<bool> {
     let mut matching_jobs = BTreeSet::new();
-    for launch in &launches {
+    for launch in launches {
         if launch.repo_frontier_research_request_id.as_deref() != Some(&request.request_id) {
             continue;
         }
         let carried_request = frontier_research_request_for_launch(&cache, launch)?
             .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
-        if carried_request != request {
+        if carried_request != *request {
             return Err(anyhow!("frontier Research launch carries substituted request"));
         }
         matching_jobs.insert(launch.job_id.as_str());
     }
-    Ok(!packets
+    Ok(packets
         .iter()
         .any(|packet| matching_jobs.contains(packet.source_job_id.as_str())))
 }
 
-fn repo_frontier_research_request_is_current(
+fn actionable_repo_frontier_research_requests(
+    cache: &CultCache,
+) -> Result<Vec<RepoFrontierResearchRequest>> {
+    cache
+        .get_all::<RepoFrontierResearchRequest>()?
+        .into_iter()
+        .filter_map(|request| match repo_frontier_research_request_is_actionable(cache, &request) {
+            Ok(true) => Some(Ok(request)),
+            Ok(false) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect()
+}
+
+fn repo_frontier_research_request_is_actionable(
     cache: &CultCache,
     request: &RepoFrontierResearchRequest,
 ) -> Result<bool> {
@@ -9057,19 +9240,25 @@ fn repo_frontier_research_request_is_current(
         .ok_or_else(|| anyhow!("frontier Research request lost current model"))?;
     crate::validate_memory_graph_entry(&entry)?;
     let model = entry.snapshot()?;
-    let model_hash = crate::memory_graph_model_hash(&model)?;
     if request.runtime_id != identity.runtime_id
         || request.thread_id.is_empty()
-        || request.model_revision != model.model_revision
-        || request.model_hash != model_hash
+        || request.model_hash.is_empty()
     {
         return Ok(false);
     }
+    let model_hash = crate::memory_graph_model_hash(&model)?;
     let challenges = current_repo_model_claim_challenges(cache, &model, &model_hash)?;
-    let Some(item) = actionable_frontier_item_for_organ(&model, &challenges, "Eyes", false) else {
+    let Some(item) = model
+        .frontier
+        .iter()
+        .find(|item| item.id == request.frontier_item_id)
+    else {
         return Ok(false);
     };
-    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    if !frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false) {
+        return Ok(false);
+    }
+    let item_hash = repo_frontier_item_hash(item)?;
     let expected_public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
         item.public_source_refs.iter().map(String::as_str),
     )?;
@@ -9078,7 +9267,8 @@ fn repo_frontier_research_request_is_current(
             "frontier Research public source authority is not canonical"
         ));
     }
-    let expected_request_id = crate::frontier_research_request_id(&identity.runtime_id, &model_hash, &item_hash);
+    let expected_request_id =
+        crate::frontier_research_request_id(&identity.runtime_id, &item.id, &item_hash);
     let admission_count = cache
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
@@ -9088,8 +9278,8 @@ fn repo_frontier_research_request_is_current(
                     &receipt.schema_version,
                     &receipt.contract,
                 )
-                && receipt.admitted_revision == model.model_revision
-                && receipt.admitted_hash == model_hash
+                && receipt.admitted_revision == request.model_revision
+                && receipt.admitted_hash == request.model_hash
         })
         .count();
     Ok(admission_count == 1
@@ -9274,7 +9464,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     let mut active_requests = Vec::new();
     let mut terminal_current_requests = Vec::new();
     for request in cache.get_all::<RepoFrontierPlanningRequest>()? {
-        if validate_current_repo_frontier_planning_request(&cache, &request).is_ok() {
+        if validate_actionable_repo_frontier_planning_request(&cache, &request).is_ok() {
             if let Some(decision) = decisions
                 .iter()
                 .find(|decision| decision.planning_request_id == request.request_id)
@@ -16823,6 +17013,74 @@ pub(crate) mod tests {
         );
     }
 
+    fn advance_test_model(
+        store: &Path,
+        suffix: &str,
+        operation: impl FnOnce(&crate::EpiphanyMemoryGraphSnapshot) -> crate::RepoModelPatchOperation,
+    ) -> Result<()> {
+        let current = runtime_current_repo_model(store)?.expect("current model");
+        let current_hash = crate::memory_graph_model_hash(&current)?;
+        let mut cache = runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let mut current_receipts = cache
+            .get_all::<RepoModelAdmissionReceipt>()?
+            .into_iter()
+            .filter(|receipt| {
+                receipt.admitted_revision == current.model_revision
+                    && receipt.admitted_hash == current_hash
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(current_receipts.len(), 1);
+        let patch = crate::RepoModelPatch {
+            patch_id: format!("unrelated-{suffix}-patch"),
+            base_revision: current.model_revision,
+            base_hash: current_hash.clone(),
+            applied_at: "2026-07-13T04:03:30Z".into(),
+            purpose: crate::RepoModelPatchPurpose::Evolution,
+            operations: vec![operation(&current)],
+        };
+        let next = crate::derive_repo_model_patch(&current, &patch)?;
+        let next_hash = crate::memory_graph_model_hash(&next)?;
+        let mut next_receipt = current_receipts.pop().unwrap();
+        next_receipt.receipt_id = format!("unrelated-{suffix}-admission");
+        next_receipt.review_id = format!("unrelated-{suffix}-review");
+        next_receipt.result_id = None;
+        next_receipt.patch_id = patch.patch_id.clone();
+        next_receipt.patch_sha256 = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&patch)?)
+        );
+        next_receipt.previous_revision = current.model_revision;
+        next_receipt.previous_hash = current_hash;
+        next_receipt.admitted_revision = next.model_revision;
+        next_receipt.admitted_hash = next_hash;
+        next_receipt.admitted_at = patch.applied_at;
+        next_receipt.purpose = crate::RepoModelPatchPurpose::Evolution;
+        next_receipt.frontier_route_id.clear();
+        next_receipt.verification_request_id.clear();
+        next_receipt.soul_verdict_receipt_id.clear();
+        next_receipt.frontier_modeling_request_id.clear();
+        next_receipt.proposal_modeling_request_id.clear();
+        next_receipt.claim_repair_request_id.clear();
+        next_receipt.frontier_plan_decision_id.clear();
+        next_receipt.admission_source = None;
+        cache.put(
+            crate::MEMORY_GRAPH_KEY,
+            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&next)?,
+        )?;
+        cache.put(&next_receipt.receipt_id, &next_receipt)?;
+        Ok(())
+    }
+
+    fn advance_test_model_with_unrelated_node(store: &Path, suffix: &str) -> Result<()> {
+        advance_test_model(store, suffix, |current| {
+            let mut node = current.nodes[0].clone();
+            node.id = format!("unrelated-{suffix}");
+            node.title = "Unrelated aggregate evolution".into();
+            crate::RepoModelPatchOperation::UpsertNode { node }
+        })
+    }
+
     pub(crate) fn claim_challenge_fixture(
         root: &Path,
         suffix: &str,
@@ -16991,6 +17249,14 @@ pub(crate) mod tests {
         commit_repo_model_claim_challenge(&eyes_store, &eyes_challenge)?;
         assert!(runtime_has_actionable_eyes_frontier(&eyes_store)?);
         assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        let mut admission_cache = runtime_spine_cache(&eyes_store)?;
+        admission_cache.pull_all_backing_stores()?;
+        let admission_requests = admission_cache.get_all::<RepoFrontierResearchRequest>()?;
+        assert_eq!(admission_requests.len(), 1);
+        assert_eq!(
+            admission_requests[0].public_source_refs,
+            vec!["github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"]
+        );
         let research_request = select_and_commit_repo_frontier_research_request(
             &eyes_store,
             "2026-07-13T04:02:00Z",
@@ -17006,6 +17272,15 @@ pub(crate) mod tests {
                 "2026-07-13T04:03:00Z",
             )?,
             research_request
+        );
+        advance_test_model_with_unrelated_node(&eyes_store, "eyes")?;
+        assert_eq!(
+            select_and_commit_repo_frontier_research_request(
+                &eyes_store,
+                "2026-07-13T04:03:31Z",
+            )?,
+            research_request,
+            "unrelated aggregate evolution cannot fork exact frontier Research authority"
         );
         let mut cache = runtime_spine_cache(&eyes_store)?;
         cache.pull_all_backing_stores()?;
@@ -17193,6 +17468,28 @@ pub(crate) mod tests {
             )?,
             None
         );
+        advance_test_model(&eyes_store, "second-eyes-frontier", |_| {
+            crate::RepoModelPatchOperation::UpsertFrontier {
+                item: crate::RepoFrontierItem {
+                    id: "second-eyes-frontier".into(),
+                    migration_body: "Inspect a separate causal frontier.".into(),
+                    question: "Does each Eyes frontier keep its own request?".into(),
+                    gap: "The second frontier has not been inspected.".into(),
+                    target_claim_ids: vec!["claim-runtime-model".into()],
+                    source_scope: vec!["epiphany-core/src/causal_work_identity.rs".into()],
+                    recommended_next_organ: "Eyes".into(),
+                    status: crate::RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+            }
+        })?;
+        assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        let second_research_request = select_and_commit_repo_frontier_research_request(
+            &eyes_store,
+            "2026-07-13T04:06:00Z",
+        )?;
+        assert_eq!(second_research_request.frontier_item_id, "second-eyes-frontier");
+        assert_ne!(second_research_request.request_id, research_request.request_id);
 
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;
@@ -17219,6 +17516,44 @@ pub(crate) mod tests {
                 "2026-07-13T04:02:00Z"
             )
             .is_err()
+        );
+
+        let (planning_survival_store, mut planning_result, planning_review) =
+            proposal_admission_fixture(root.path(), "planning-survival")?;
+        let mut planning_patch: crate::RepoModelPatch = rmp_serde::from_slice(
+            planning_result
+                .repo_model_patch_msgpack
+                .as_deref()
+                .expect("planning fixture patch"),
+        )?;
+        let crate::RepoModelPatchOperation::UpsertFrontier { item } =
+            &mut planning_patch.operations[0]
+        else {
+            unreachable!()
+        };
+        item.recommended_next_organ = "Imagination".into();
+        let planning_patch_bytes = rmp_serde::to_vec_named(&planning_patch)?;
+        planning_result.repo_model_patch_msgpack = Some(planning_patch_bytes.clone());
+        let mut planning_review = planning_review;
+        planning_review.patch_sha256 = format!("{:x}", Sha256::digest(planning_patch_bytes));
+        put_runtime_role_worker_result(&planning_survival_store, &planning_result)?;
+        commit_repo_model_admission(
+            &planning_survival_store,
+            &planning_result.result_id,
+            &planning_review,
+        )?;
+        let planning_request = select_and_commit_repo_frontier_planning_request(
+            &planning_survival_store,
+            "2026-07-13T04:02:00Z",
+        )?;
+        advance_test_model_with_unrelated_node(&planning_survival_store, "planning")?;
+        assert_eq!(
+            select_and_commit_repo_frontier_planning_request(
+                &planning_survival_store,
+                "2026-07-13T04:03:31Z",
+            )?,
+            planning_request,
+            "unrelated aggregate evolution cannot fork exact frontier Planning authority"
         );
 
         let mut unrelated = repo_model_bootstrap();
@@ -20241,7 +20576,7 @@ pub(crate) mod tests {
             schema_version: REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION.into(),
             request_id: crate::frontier_research_request_id(
                 "epiphany-public-tool-test",
-                "model-public-tool",
+                "frontier-public-tool",
                 "frontier-hash-public-tool",
             ),
             model_revision: 1,

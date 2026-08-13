@@ -843,7 +843,7 @@ fn validate_frontier_planning_launch(
     let planning = cache
         .get::<RepoFrontierPlanningRequest>(request_id)?
         .ok_or_else(|| anyhow!("frontier planning request {request_id:?} does not exist"))?;
-    crate::runtime_spine::validate_current_repo_frontier_planning_request(cache, &planning)?;
+    crate::runtime_spine::validate_actionable_repo_frontier_planning_request(cache, &planning)?;
     let identity = cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier planning launch requires runtime identity"))?;
