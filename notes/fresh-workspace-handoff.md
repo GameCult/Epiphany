@@ -1,24 +1,23 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-12
+Updated: 2026-08-13
 
 ## Current state
 
-The five-day live shakedown campaign is paused for architectural consolidation.
-The source branch is `codex/epiphany-shakedown-live`. Causal-work and immutable
-public-source ownership landed at `868a5be0`. The working tree contains the
-second consolidation cut described below.
+The five-day shakedown remains paused for architectural consolidation. Source is
+clean and pushed on `codex/epiphany-shakedown-live` at exact `3d13b1ea`.
 
-The accepted live body remains c011 at exact `465af24d` on Starfire, cognitively
-braked at resident revision 384 with no active lease, admitted work, or defunct
-children. Do not replace it during consolidation. Yggdrasil remains the public
-crossing and never builds Epiphany.
+Operational correction: the original c011 resident and Heartbeat containers
+are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
+and remain untouched. Historical c011 zero-zombie and organ-circuit evidence is
+still valid, but it is not current liveness. The copied a4a41006 public-Eyes body
+was re-braked and stopped after the positive gate exposed a deeper acceptance
+hole. Yggdrasil remains the public crossing and never builds Epiphany.
 
 ## Consolidation cut
 
-The shakedown found the same missing invariants across several request families.
-This pass generalizes those invariants instead of continuing family-specific
-repair.
+The shakedown found the same missing invariants in different clothes. The
+consolidation now gives each repeated invariant one named owner.
 
 - `causal_work_identity` is the single pure derivation owner for Proposal
   Modeling, Research, frontier Planning, PlanMind, and Admitted Model Direction
@@ -33,12 +32,21 @@ repair.
 - Mind now independently rejects a malformed but internally self-consistent
   public-source receipt. Provider validation is no longer trusted as a substitute
   for admission validation.
+- `runtime_worker_attempt` owns the complete typed request-family association and
+  process-status classification for one launch/process/result/archive family.
+- Self decides Research launch currency from the exact current causal frontier;
+  a stale terminal Research role projection cannot suppress new Eyes work.
+- The typed `RepoFrontierResearchRequest` owns the exact allowed public-source
+  set. One launch-to-request derivation is shared by Self coverage, Research
+  acceptance, and final Mind revalidation. Capability grants, prompts, and
+  locally inspected files are not substitutes for exact requested receipts.
 
-The first cut's full `epiphany-core` library passed 683 tests with one intentional
-ignored cross-process helper. After worker-attempt extraction, core passes 684
-active tests with one ignored helper, `epiphany-tool-mcp-runtime` passes 14
-active tests with one ignored live-network proof, and OpenAI runtime passes all
-39 tests. Focused stale-thread refusal preserves the exact store bytes.
+Core passes 684 active tests with one intentional ignored cross-process helper;
+the final public-source and current-frontier focused tests also pass. The
+packaged no-grant execution gate passed under `--network none` with byte-identical
+state and no receipt. The copied positive run reached exact `launchResearch`,
+then two Research attempts failed output shape and invoked only local tools.
+Therefore packaged public Eyes-to-Mind success remains open.
 
 ## Authority map
 
@@ -85,14 +93,15 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Acceptance gates before shakedown resumes
 
-1. Prove immutable public Eyes success and no-grant denial on a copied packaged
-   body. This is the paused shakedown's first remaining live gate, not part of
-   the consolidation commit.
+1. Package exact `3d13b1ea`, replay no-grant denial, and prove immutable public
+   Eyes success on a fresh copied body. Research must cite the exact lookup and
+   final Mind admission must reauthenticate the complete requested set.
 2. Run one fresh-repository source -> Hands -> Soul -> Modeling -> Mind -> Self
    capstone before claiming organism-level readiness.
 
 ## Immediate next action
 
-Commit and push the worker-attempt extraction, then resume with the copied
-packaged public Eyes success/denial pair. Do not add new capability surfaces and
-do not replace c011 before that gate closes.
+Build the exact 3d13b1ea isolated Linux package, then use a fresh copy of the
+quiescent c011 volumes for the public Eyes success/denial pair. Do not reuse the
+stopped a4 proof state, touch the original c011 volumes, add capability surfaces,
+or build on Yggdrasil.
