@@ -253,9 +253,9 @@ fn release_source_cache_identity(repo: &Path) -> Result<String> {
     } else {
         canonical_path(&repo.join(common_dir))?
     };
-    // Linked worktrees are views of one repository and must share one exact-source
-    // cache. For ordinary non-bare repositories, hashing the common `.git` parent
-    // also preserves the cache identity used before worktree-aware ownership.
+    // Linked worktrees are views of one repository and share one logical source
+    // cache. The v1 cache owns its own Git metadata; the mounted repository is
+    // only an exact-commit import source and may live on a replaced volume.
     let cache_owner = if common_dir.file_name().is_some_and(|name| name == ".git") {
         common_dir
             .parent()
@@ -264,7 +264,7 @@ fn release_source_cache_identity(repo: &Path) -> Result<String> {
         common_dir.as_path()
     };
     let mut digest = Sha256::new();
-    digest.update(b"epiphany.release_source_cache.v0\0");
+    digest.update(b"epiphany.release_source_cache.v1\0");
     digest.update(cache_owner.to_string_lossy().as_bytes());
     Ok(format!("{:x}", digest.finalize()))
 }
@@ -295,45 +295,50 @@ impl ReleaseSourceGuard {
             )
         })?;
 
-        if path.exists() {
-            verify_cached_worktree_owner(repo, &path)?;
-            reset_and_clean_cached_submodules(&path, "pre-clean cached release submodules")?;
-            run_git_checked(
-                &path,
-                &["-c", "core.longpaths=true", "clean", "-ffdx"],
-                "failed to pre-clean cached release worktree",
-            )?;
-            run_git_checked(
-                &path,
-                &[
+        if !path.exists() {
+            let output = std::process::Command::new("git")
+                .args([
                     "-c",
                     "core.longpaths=true",
-                    "checkout",
-                    "--detach",
-                    "--force",
-                    commit,
-                ],
-                "failed to move cached release worktree to exact commit",
-            )?;
-            run_git_checked(
-                &path,
-                &["-c", "core.longpaths=true", "clean", "-ffdx"],
-                "failed to clean cached release worktree",
-            )?;
-        } else {
-            let output = std::process::Command::new("git")
-                .args(["-c", "core.longpaths=true", "worktree", "add", "--detach"])
+                    "clone",
+                    "--no-checkout",
+                    "--no-local",
+                ])
+                .arg(repo)
                 .arg(&path)
-                .arg(commit)
-                .current_dir(repo)
                 .output()?;
             if !output.status.success() {
                 bail!(
-                    "failed to create cached exact-source release worktree: {}",
+                    "failed to create self-owned release source cache: {}",
                     String::from_utf8_lossy(&output.stderr)
                 );
             }
         }
+        verify_cached_source_owner(&path)?;
+        reset_and_clean_cached_submodules(&path, "pre-clean cached release submodules")?;
+        run_git_checked(
+            &path,
+            &["-c", "core.longpaths=true", "clean", "-ffdx"],
+            "failed to pre-clean cached release source",
+        )?;
+        fetch_exact_source_commit(repo, &path, commit)?;
+        run_git_checked(
+            &path,
+            &[
+                "-c",
+                "core.longpaths=true",
+                "checkout",
+                "--detach",
+                "--force",
+                commit,
+            ],
+            "failed to move cached release source to exact commit",
+        )?;
+        run_git_checked(
+            &path,
+            &["-c", "core.longpaths=true", "clean", "-ffdx"],
+            "failed to clean cached release source",
+        )?;
 
         run_git_checked(
             &path,
@@ -391,25 +396,36 @@ fn reset_and_clean_cached_submodules(repo: &Path, context: &str) -> Result<()> {
     Ok(())
 }
 
-fn verify_cached_worktree_owner(repo: &Path, worktree: &Path) -> Result<()> {
-    let expected = PathBuf::from(git_output(repo, &["rev-parse", "--git-common-dir"])?.trim());
-    let expected = if expected.is_absolute() {
-        canonical_path(&expected)?
-    } else {
-        canonical_path(&repo.join(expected))?
-    };
-    let common = PathBuf::from(git_output(worktree, &["rev-parse", "--git-common-dir"])?.trim());
+fn verify_cached_source_owner(source: &Path) -> Result<()> {
+    let expected = canonical_path(&source.join(".git"))?;
+    let common = PathBuf::from(git_output(source, &["rev-parse", "--git-common-dir"])?.trim());
     let common = if common.is_absolute() {
         canonical_path(&common)?
     } else {
-        canonical_path(&worktree.join(common))?
+        canonical_path(&source.join(common))?
     };
     if common != expected {
         bail!(
-            "cached release worktree {} belongs to {}, expected {}",
-            worktree.display(),
+            "cached release source {} belongs to {}, expected self-owned {}",
+            source.display(),
             common.display(),
             expected.display()
+        );
+    }
+    Ok(())
+}
+
+fn fetch_exact_source_commit(repo: &Path, cache: &Path, commit: &str) -> Result<()> {
+    let output = std::process::Command::new("git")
+        .args(["-c", "core.longpaths=true", "fetch", "--no-tags", "--force"])
+        .arg(repo)
+        .arg(commit)
+        .current_dir(cache)
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "failed to import exact release source commit: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
     }
     Ok(())
@@ -1084,6 +1100,66 @@ mod tests {
         assert_ne!(
             release_source_cache_identity(&first).expect("first identity"),
             release_source_cache_identity(&second).expect("second identity")
+        );
+    }
+
+    #[test]
+    fn release_source_cache_survives_replacement_of_the_import_repository() {
+        let root = TempDir::new().expect("temporary root");
+        let source = root.path().join("source");
+        let moved = root.path().join("source-moved");
+        let cache = root.path().join("cache");
+        fs::create_dir_all(&source).expect("source directory");
+        fs::create_dir_all(&cache).expect("cache directory");
+        run_git_checked(&source, &["init"], "initialize source repository")
+            .expect("initialized repository");
+        run_git_checked(
+            &source,
+            &[
+                "-c",
+                "user.name=Epiphany Test",
+                "-c",
+                "user.email=epiphany-test@invalid",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "self-owned source cache fixture",
+            ],
+            "commit source repository",
+        )
+        .expect("committed source");
+        let commit = git_output(&source, &["rev-parse", "HEAD"])
+            .expect("source commit")
+            .trim()
+            .to_string();
+
+        let first = ReleaseSourceGuard::prepare(&source, &cache, &commit)
+            .expect("prepare first source cache");
+        let cached_path = first.path.clone();
+        verify_cached_source_owner(&cached_path).expect("cache owns its Git metadata");
+        drop(first);
+
+        fs::rename(&source, &moved).expect("move first import repository");
+        let clone = std::process::Command::new("git")
+            .args(["clone", "--no-local"])
+            .arg(&moved)
+            .arg(&source)
+            .output()
+            .expect("clone replacement import repository");
+        assert!(
+            clone.status.success(),
+            "{}",
+            String::from_utf8_lossy(&clone.stderr)
+        );
+
+        let second = ReleaseSourceGuard::prepare(&source, &cache, &commit)
+            .expect("reuse source cache after import replacement");
+        assert_eq!(second.path, cached_path);
+        assert_eq!(
+            git_output(&second.path, &["rev-parse", "HEAD"])
+                .expect("cached head")
+                .trim(),
+            commit
         );
     }
 
