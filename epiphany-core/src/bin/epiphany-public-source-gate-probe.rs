@@ -7,6 +7,7 @@ use epiphany_tool_adapter::{
     tool_invocation_intent_key, tool_invocation_receipt_key,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,27 +19,28 @@ const MODEL_SESSION_ID: &str = "public-source-no-grant-model-session";
 const HOSTILE_INTENT_ID: &str = "public-source-no-grant-intent";
 
 fn main() -> Result<()> {
-    let fixture_root = parse_fixture_root()?;
-    if fixture_root.exists() {
-        bail!(
-            "public-source gate probe refuses existing fixture root {}",
-            fixture_root.display()
-        );
-    }
-    fs::create_dir_all(&fixture_root)
-        .with_context(|| format!("creating fixture root {}", fixture_root.display()))?;
-    let store = fixture_root.join("runtime.cc");
-    let proof = prove_no_grant_refusal(&store)?;
+    let (command, fixture_root) = parse_command()?;
+    let proof = match command.as_str() {
+        "admission-no-grant" => {
+            let store = create_fixture_root(&fixture_root)?;
+            prove_admission_no_grant_refusal(&store)?
+        }
+        "prepare-execution-no-grant" => {
+            let store = create_fixture_root(&fixture_root)?;
+            prepare_execution_no_grant(&fixture_root, &store)?
+        }
+        "verify-execution-no-grant" => verify_execution_no_grant(&fixture_root)?,
+        _ => bail!(usage()),
+    };
     println!("{}", serde_json::to_string_pretty(&proof)?);
     Ok(())
 }
 
-fn parse_fixture_root() -> Result<PathBuf> {
+fn parse_command() -> Result<(String, PathBuf)> {
     let mut args = env::args().skip(1);
-    if args.next().as_deref() != Some("no-grant")
-        || args.next().as_deref() != Some("--fixture-root")
-    {
-        bail!("usage: epiphany-public-source-gate-probe no-grant --fixture-root NEW_PATH");
+    let command = args.next().context("missing command")?;
+    if args.next().as_deref() != Some("--fixture-root") {
+        bail!(usage());
     }
     let root = args.next().context("missing --fixture-root value")?;
     if args.next().is_some() {
@@ -48,10 +50,26 @@ fn parse_fixture_root() -> Result<PathBuf> {
     if !root.is_absolute() {
         bail!("--fixture-root must be absolute");
     }
-    Ok(root)
+    Ok((command, root))
 }
 
-fn prove_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
+fn usage() -> &'static str {
+    "usage: epiphany-public-source-gate-probe <admission-no-grant|prepare-execution-no-grant|verify-execution-no-grant> --fixture-root PATH"
+}
+
+fn create_fixture_root(fixture_root: &Path) -> Result<PathBuf> {
+    if fixture_root.exists() {
+        bail!(
+            "public-source gate probe refuses existing fixture root {}",
+            fixture_root.display()
+        );
+    }
+    fs::create_dir_all(fixture_root)
+        .with_context(|| format!("creating fixture root {}", fixture_root.display()))?;
+    Ok(fixture_root.join("runtime.cc"))
+}
+
+fn prepare_authority_family(store: &Path) -> Result<EpiphanyToolInvocationIntent> {
     initialize_runtime_spine(
         store,
         RuntimeSpineInitOptions {
@@ -120,6 +138,20 @@ fn prove_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
         "2026-08-13T00:00:02Z",
     )?;
 
+    Ok(EpiphanyToolInvocationIntent::new(
+        HOSTILE_INTENT_ID,
+        EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+        "epiphany_public",
+        "github_file",
+        r#"{"owner":"GameCult","repository":"Epiphany","revision":"0123456789abcdef0123456789abcdef01234567","path":"README.md"}"#,
+        "gate-probe",
+        "Prove missing publicSourceRead refuses before adapter execution.",
+        "2026-08-13T00:00:03Z",
+    )
+    .with_model_call("public-source-no-grant-call", MODEL_REQUEST_ID))
+}
+
+fn remove_public_source_grant(store: &Path) -> Result<()> {
     let grant_id = format!("substrate-grant-{WORKER_JOB_ID}");
     let mut cache = runtime_spine_cache(store)?;
     cache.pull_all_backing_stores()?;
@@ -130,18 +162,12 @@ fn prove_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
         .granted_operations
         .retain(|operation| operation != "publicSourceRead");
     cache.put(&grant_id, &grant)?;
+    Ok(())
+}
 
-    let hostile = EpiphanyToolInvocationIntent::new(
-        HOSTILE_INTENT_ID,
-        EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
-        "epiphany_public",
-        "github_file",
-        r#"{"owner":"GameCult","repository":"Epiphany","revision":"0123456789abcdef0123456789abcdef01234567","path":"README.md"}"#,
-        "gate-probe",
-        "Prove missing publicSourceRead refuses before adapter execution.",
-        "2026-08-13T00:00:03Z",
-    )
-    .with_model_call("public-source-no-grant-call", MODEL_REQUEST_ID);
+fn prove_admission_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
+    let hostile = prepare_authority_family(store)?;
+    remove_public_source_grant(store)?;
     let before = fs::read(store)?;
     let error = put_runtime_tool_execution_intent(
         store,
@@ -172,7 +198,7 @@ fn prove_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
     }
 
     Ok(json!({
-        "schemaVersion": "epiphany.public_source_no_grant_gate_proof.v0",
+        "schemaVersion": "epiphany.public_source_admission_no_grant_gate_proof.v0",
         "status": "passed",
         "fixtureStore": store,
         "requiredOperation": "publicSourceRead",
@@ -185,4 +211,70 @@ fn prove_no_grant_refusal(store: &Path) -> Result<serde_json::Value> {
         "error": format!("{error:#}"),
         "privateStateExposed": false
     }))
+}
+
+fn prepare_execution_no_grant(fixture_root: &Path, store: &Path) -> Result<serde_json::Value> {
+    let hostile = prepare_authority_family(store)?;
+    put_runtime_tool_execution_intent(
+        store,
+        MODEL_SESSION_ID,
+        MODEL_JOB_ID,
+        &hostile,
+        "2026-08-13T00:00:03Z",
+    )?;
+    remove_public_source_grant(store)?;
+    let digest = sha256(&fs::read(store)?);
+    fs::write(fixture_root.join("before.sha256"), format!("{digest}\n"))?;
+    Ok(json!({
+        "schemaVersion": "epiphany.public_source_execution_no_grant_gate_fixture.v0",
+        "status": "prepared",
+        "fixtureStore": store,
+        "intentId": HOSTILE_INTENT_ID,
+        "requiredOperation": "publicSourceRead",
+        "storeSha256": digest,
+        "expectedPackagedCommand": ["epiphany-tool-mcp-runtime", "run", "--store", store, "--intent-id", HOSTILE_INTENT_ID],
+        "privateStateExposed": false
+    }))
+}
+
+fn verify_execution_no_grant(fixture_root: &Path) -> Result<serde_json::Value> {
+    let store = fixture_root.join("runtime.cc");
+    let expected_digest = fs::read_to_string(fixture_root.join("before.sha256"))?
+        .trim()
+        .to_string();
+    let actual_digest = sha256(&fs::read(&store)?);
+    if actual_digest != expected_digest {
+        bail!("packaged no-grant refusal changed the canonical runtime store");
+    }
+    let mut cache = runtime_spine_cache(&store)?;
+    cache.pull_all_backing_stores()?;
+    let binding_present = cache
+        .get::<EpiphanyRuntimeToolExecutionBinding>(HOSTILE_INTENT_ID)?
+        .is_some();
+    let intent_present = cache
+        .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(HOSTILE_INTENT_ID))?
+        .is_some();
+    let receipt_absent = cache
+        .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(HOSTILE_INTENT_ID))?
+        .is_none();
+    if !(binding_present && intent_present && receipt_absent) {
+        bail!("packaged no-grant refusal left an invalid execution family");
+    }
+    Ok(json!({
+        "schemaVersion": "epiphany.public_source_execution_no_grant_gate_proof.v0",
+        "status": "passed",
+        "fixtureStore": store,
+        "intentId": HOSTILE_INTENT_ID,
+        "executionOwner": "require_runtime_tool_execution_binding",
+        "storeByteIdentical": true,
+        "bindingPresent": binding_present,
+        "intentPresent": intent_present,
+        "receiptAbsent": receipt_absent,
+        "refusedBeforeAdapterExecution": true,
+        "privateStateExposed": false
+    }))
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
