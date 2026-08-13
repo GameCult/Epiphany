@@ -1932,8 +1932,15 @@ pub fn put_runtime_tool_execution_intent(
         job_envelope.clone(),
     ];
     let mut replacements = expected.clone();
-    expected.extend(governed_source_authority.iter().cloned());
-    replacements.extend(governed_source_authority);
+    for envelope in governed_source_authority {
+        let already_fenced = expected
+            .iter()
+            .any(|existing| existing.key == envelope.key && existing.r#type == envelope.r#type);
+        if !already_fenced {
+            expected.push(envelope.clone());
+            replacements.push(envelope);
+        }
+    }
     if let Some(model_request_id) = intent.model_request_id.as_deref() {
         let model_binding = cache
             .get::<EpiphanyRuntimeModelExecutionBinding>(model_request_id)?
@@ -3649,6 +3656,107 @@ fn validate_frontier_research_launch_carrier(
     Ok(())
 }
 
+pub fn put_runtime_requested_public_source_intents(
+    store_path: impl AsRef<Path>,
+    worker_job_id: &str,
+    created_at: &str,
+) -> Result<Vec<EpiphanyToolInvocationIntent>> {
+    validate_non_empty(worker_job_id, "requested public source worker job id")?;
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|error| anyhow!("requested public source intent time is invalid: {error}"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
+        .ok_or_else(|| anyhow!("requested public source worker has no launch request"))?;
+    let request = frontier_research_request_for_launch(&cache, &launch)?
+        .ok_or_else(|| anyhow!("requested public source worker has no typed Research request"))?;
+    let job = cache
+        .get::<EpiphanyRuntimeJob>(worker_job_id)?
+        .ok_or_else(|| anyhow!("requested public source worker has no runtime job"))?;
+    drop(cache);
+
+    let mut intents = Vec::new();
+    for source_ref in request.public_source_refs {
+        let source = crate::ImmutableGithubSource::parse(&source_ref)?;
+        let intent_id = requested_public_source_intent_id(worker_job_id, &source_ref);
+        let call_id = format!("call-{intent_id}");
+        let mut intent = EpiphanyToolInvocationIntent::new(
+            intent_id.clone(),
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+            "epiphany_public",
+            "github_file",
+            requested_public_source_arguments(&source),
+            "epiphany-runtime-requested-public-source",
+            format!(
+                "Typed Research request {} requires immutable source {}.",
+                request.request_id, source_ref
+            ),
+            created_at,
+        );
+        intent.call_id = Some(call_id);
+
+        let mut cache = runtime_spine_cache(store_path)?;
+        cache.pull_all_backing_stores()?;
+        let existing_intent = cache.get::<EpiphanyToolInvocationIntent>(
+            &tool_invocation_intent_key(&intent_id),
+        )?;
+        let existing_binding = cache.get::<EpiphanyRuntimeToolExecutionBinding>(&intent_id)?;
+        if let (Some(existing_intent), Some(existing_binding)) =
+            (&existing_intent, &existing_binding)
+        {
+            validate_requested_public_source_intent(&cache, worker_job_id, existing_intent)?;
+            if existing_intent.reason != intent.reason
+                || chrono::DateTime::parse_from_rfc3339(&existing_intent.created_at).is_err()
+                || existing_binding.intent_id != intent_id
+                || existing_binding.job_id != worker_job_id
+                || existing_binding.session_id != job.session_id
+                || existing_binding.model_request_id.is_some()
+            {
+                return Err(anyhow!(
+                    "requested public source intent {intent_id:?} collides with foreign authority"
+                ));
+            }
+            let existing_intent = existing_intent.clone();
+            drop(cache);
+            require_runtime_tool_execution_binding(store_path, &intent_id)?;
+            intents.push(existing_intent);
+            continue;
+        }
+        if existing_intent.is_some() || existing_binding.is_some() {
+            return Err(anyhow!(
+                "requested public source intent {intent_id:?} has a partial persisted family"
+            ));
+        }
+        drop(cache);
+        put_runtime_tool_execution_intent(
+            store_path,
+            &job.session_id,
+            worker_job_id,
+            &intent,
+            created_at,
+        )?;
+        intents.push(intent);
+    }
+    Ok(intents)
+}
+
+pub fn runtime_requested_public_source_refs_for_worker(
+    store_path: impl AsRef<Path>,
+    worker_job_id: &str,
+) -> Result<Vec<String>> {
+    validate_non_empty(worker_job_id, "requested public source worker job id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
+        .ok_or_else(|| anyhow!("requested public source worker has no launch request"))?;
+    Ok(frontier_research_request_for_launch(&cache, &launch)?
+        .map(|request| request.public_source_refs)
+        .unwrap_or_default())
+}
+
 fn frontier_research_request_for_launch(
     cache: &CultCache,
     launch: &EpiphanyRuntimeWorkerLaunchRequest,
@@ -3755,10 +3863,12 @@ fn authenticated_public_source_lookup_receipts_for_worker(
         .collect::<BTreeSet<_>>();
     let mut lookups = Vec::new();
     for binding in cache.get_all::<EpiphanyRuntimeToolExecutionBinding>()? {
-        let Some(model_request_id) = binding.model_request_id.as_deref() else {
-            continue;
-        };
-        if !model_request_ids.contains(model_request_id) {
+        let model_owned = binding
+            .model_request_id
+            .as_deref()
+            .is_some_and(|model_request_id| model_request_ids.contains(model_request_id));
+        let request_owned = binding.model_request_id.is_none() && binding.job_id == worker_job_id;
+        if !model_owned && !request_owned {
             continue;
         }
         let intent = cache
@@ -3776,7 +3886,7 @@ fn authenticated_public_source_lookup_receipts_for_worker(
             .ok_or_else(|| anyhow!("public source tool intent has no terminal receipt"))?;
         let _ = validate_governed_source_tool_intent(&cache, &binding.job_id, &intent)?;
         if binding.intent_id != intent.intent_id
-            || intent.model_request_id.as_deref() != Some(model_request_id)
+            || intent.model_request_id != binding.model_request_id
             || receipt.intent_id != intent.intent_id
             || receipt.adapter != intent.adapter
             || receipt.server != intent.server
@@ -3834,7 +3944,7 @@ fn authenticated_public_source_lookup_receipts_for_worker(
             content_sha256,
             byte_count,
             observed_at: receipt.completed_at,
-            contract: "Eyes admitted one bounded immutable public source only after authenticating its worker, model, tool, grant, provider identity, and content digest.".to_string(),
+            contract: "Eyes admitted one bounded immutable public source only after authenticating its worker, causal request or model execution, tool, grant, provider identity, and content digest.".to_string(),
         });
     }
     lookups.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
@@ -3922,11 +4032,11 @@ fn validate_governed_source_tool_intent(
                     )
                 })
             {
-                return Err(anyhow!(
-                    "governed source worker refuses a tool intent without model-call provenance"
-                ));
+                validate_requested_public_source_intent(cache, job_id, intent)?;
+                Some(job_id.to_string())
+            } else {
+                None
             }
-            None
         }
     };
     let Some(source_worker_job_id) = source_worker_job_id else {
@@ -3994,6 +4104,62 @@ fn validate_governed_source_tool_intent(
             .get_envelope::<SubstrateGateRepoAccessGrantReceipt>(&grant_id)?
             .ok_or_else(|| anyhow!("governed source tool lost launch grant envelope"))?,
     ])
+}
+
+fn requested_public_source_intent_id(worker_job_id: &str, source_ref: &str) -> String {
+    format!(
+        "requested-public-source-{:x}",
+        Sha256::digest(format!("{worker_job_id}:{source_ref}").as_bytes())
+    )
+}
+
+fn requested_public_source_arguments(source: &crate::ImmutableGithubSource) -> String {
+    serde_json::json!({
+        "owner": source.owner(),
+        "repository": source.repository_name(),
+        "revision": source.revision(),
+        "path": source.path(),
+        "maxBytes": 65536
+    })
+    .to_string()
+}
+
+fn validate_requested_public_source_intent(
+    cache: &CultCache,
+    worker_job_id: &str,
+    intent: &EpiphanyToolInvocationIntent,
+) -> Result<()> {
+    let launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
+        .ok_or_else(|| anyhow!("requested public source intent lost its worker launch"))?;
+    let request = frontier_research_request_for_launch(cache, &launch)?
+        .ok_or_else(|| anyhow!("requested public source intent has no typed Research request"))?;
+    let arguments: serde_json::Value = serde_json::from_str(&intent.arguments_json)
+        .context("requested public source intent arguments are invalid")?;
+    let source = crate::ImmutableGithubSource::from_components(
+        public_source_json_string(&arguments, "owner")?,
+        public_source_json_string(&arguments, "repository")?,
+        public_source_json_string(&arguments, "revision")?,
+        public_source_json_string(&arguments, "path")?,
+    )?;
+    let source_ref = source.to_string();
+    let expected_id = requested_public_source_intent_id(worker_job_id, &source_ref);
+    let expected_call_id = format!("call-{expected_id}");
+    if intent.intent_id != expected_id
+        || intent.adapter != epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID
+        || intent.server != "epiphany_public"
+        || intent.tool_name != "github_file"
+        || intent.arguments_json != requested_public_source_arguments(&source)
+        || intent.caller != "epiphany-runtime-requested-public-source"
+        || intent.call_id.as_deref() != Some(expected_call_id.as_str())
+        || intent.model_request_id.is_some()
+        || !request.public_source_refs.contains(&source_ref)
+    {
+        return Err(anyhow!(
+            "governed source worker refuses a noncanonical request-owned public lookup"
+        ));
+    }
+    Ok(())
 }
 
 pub fn runtime_worker_process_claims(
@@ -20031,58 +20197,62 @@ pub(crate) mod tests {
             before_missing_lookup
         );
 
-        let mut model_request = EpiphanyModelRequest::new(
-            "request-public-tool",
-            "conversation-public-tool",
-            "openai-codex",
-            "gpt-test",
-            "Read one immutable public source.",
+        assert_eq!(
+            runtime_requested_public_source_refs_for_worker(&store, "worker-public-tool")?,
+            vec![source_ref]
         );
-        model_request.source_worker_job_id = Some("worker-public-tool".to_string());
-        let provider_request = EpiphanyOpenAiModelRequest::new(
-            "request-public-tool",
-            "conversation-public-tool",
-            "gpt-test",
-            "Read one immutable public source.",
-        );
-        open_runtime_model_execution(
+        let requested = put_runtime_requested_public_source_intents(
             &store,
-            RuntimeSpineSessionOptions {
-                session_id: "model-session-public-tool".to_string(),
-                objective: "Read one immutable public source.".to_string(),
-                created_at: "2026-08-11T00:00:02Z".to_string(),
-                coordinator_note: "test".to_string(),
-            },
-            RuntimeSpineJobOptions {
-                job_id: "model-job-public-tool".to_string(),
-                session_id: "model-session-public-tool".to_string(),
-                role: "openai-model-adapter".to_string(),
-                created_at: "2026-08-11T00:00:02Z".to_string(),
-                summary: "Bound public source model turn.".to_string(),
-                artifact_refs: Vec::new(),
-            },
-            &model_request,
-            &provider_request,
-            "2026-08-11T00:00:02Z",
+            "worker-public-tool",
+            "2026-08-11T00:00:03Z",
         )?;
-        let exact = EpiphanyToolInvocationIntent::new(
-            "intent-public-tool-exact",
-            "epiphany-tools",
+        assert_eq!(requested.len(), 1);
+        let exact = &requested[0];
+        assert_eq!(exact.model_request_id, None);
+        assert_eq!(exact.server, "epiphany_public");
+        assert_eq!(exact.tool_name, "github_file");
+        assert_eq!(
+            put_runtime_requested_public_source_intents(
+                &store,
+                "worker-public-tool",
+                "2026-08-11T00:00:05Z",
+            )?,
+            requested
+        );
+        let exact_binding =
+            require_runtime_tool_execution_binding(&store, &exact.intent_id)?;
+        let unrequested_source = crate::ImmutableGithubSource::parse(concat!(
+            "github://openai/openai-openapi@",
+            "0123456789abcdef0123456789abcdef01234567/README.md"
+        ))?;
+        let unrequested_id =
+            requested_public_source_intent_id("worker-public-tool", &unrequested_source.to_string());
+        let mut unrequested = EpiphanyToolInvocationIntent::new(
+            &unrequested_id,
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
             "epiphany_public",
             "github_file",
-            r#"{"owner":"openai","repository":"openai-openapi","revision":"0123456789abcdef0123456789abcdef01234567","path":"openapi.yaml"}"#,
-            "model-runtime",
-            "Read immutable source.",
+            requested_public_source_arguments(&unrequested_source),
+            "epiphany-runtime-requested-public-source",
+            "Attempt an unrequested immutable source.",
             "2026-08-11T00:00:03Z",
-        )
-        .with_model_call("call-public-tool-exact", "request-public-tool");
-        put_runtime_tool_execution_intent(
-            &store,
-            "model-session-public-tool",
-            "model-job-public-tool",
-            &exact,
-            "2026-08-11T00:00:03Z",
-        )?;
+        );
+        unrequested.call_id = Some(format!("call-{unrequested_id}"));
+        let before_unrequested = runtime_spine_backing_store(&store)?.pull_all()?;
+        assert!(
+            put_runtime_tool_execution_intent(
+                &store,
+                &exact_binding.session_id,
+                "worker-public-tool",
+                &unrequested,
+                "2026-08-11T00:00:03Z",
+            )
+            .is_err()
+        );
+        assert_eq!(
+            runtime_spine_backing_store(&store)?.pull_all()?,
+            before_unrequested
+        );
         let content = "openapi: 3.1.0\n";
         let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
         let mut exact_receipt = EpiphanyToolInvocationReceipt::new(
@@ -20104,7 +20274,7 @@ pub(crate) mod tests {
                 "contentSha256": content_sha256,
                 "byteCount": content.len(),
                 "content": content,
-                "evidenceReceiptId": "eyes-source-intent-public-tool-exact"
+                "evidenceReceiptId": format!("eyes-source-{}", exact.intent_id)
             })
             .to_string(),
         );
@@ -20116,7 +20286,7 @@ pub(crate) mod tests {
         assert_eq!(lookups.len(), 1);
         assert_eq!(
             lookups[0].receipt_id,
-            "eyes-source-intent-public-tool-exact"
+            format!("eyes-source-{}", exact.intent_id)
         );
         assert_eq!(lookups[0].content_sha256, content_sha256);
 
@@ -20150,43 +20320,16 @@ pub(crate) mod tests {
             .granted_operations
             .retain(|operation| operation != "publicSourceRead");
         cache.put(grant_id, &grant)?;
-        let hostile = EpiphanyToolInvocationIntent::new(
-            "intent-public-tool-hostile",
-            "epiphany-tools",
-            "epiphany_public",
-            "github_file",
-            "{}",
-            "model-runtime",
-            "Attempt public read without operation authority.",
-            "2026-08-11T00:00:04Z",
-        )
-        .with_model_call("call-public-tool-hostile", "request-public-tool");
         let before = runtime_spine_backing_store(&store)?.pull_all()?;
         assert!(
-            put_runtime_tool_execution_intent(
+            put_runtime_requested_public_source_intents(
                 &store,
-                "model-session-public-tool",
-                "model-job-public-tool",
-                &hostile,
+                "worker-public-tool",
                 "2026-08-11T00:00:04Z",
             )
             .is_err()
         );
         assert_eq!(runtime_spine_backing_store(&store)?.pull_all()?, before);
-        let mut reloaded = runtime_spine_cache(&store)?;
-        reloaded.pull_all_backing_stores()?;
-        assert!(
-            reloaded
-                .get::<EpiphanyRuntimeToolExecutionBinding>(&hostile.intent_id)?
-                .is_none()
-        );
-        assert!(
-            reloaded
-                .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
-                    &hostile.intent_id,
-                ))?
-                .is_none()
-        );
         Ok(())
     }
 

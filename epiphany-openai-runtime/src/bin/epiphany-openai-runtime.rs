@@ -26,6 +26,7 @@ use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::assistant_text_from_model_events;
+use epiphany_openai_runtime::append_requested_public_source_receipts;
 use epiphany_openai_runtime::build_tool_followup_model_request;
 use epiphany_openai_runtime::build_worker_model_request;
 use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
@@ -874,8 +875,36 @@ async fn run_worker_launch_with_tool_continuation(
         .clone()
         .context("run-worker --auto-tools requires --tool-adapter-bin")?;
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
-    let initial_request =
+    let mut initial_request =
         build_worker_model_request(&launch_request, &options.provider, &options.model)?;
+    let requested_public_source_intents = if launch_request
+        .repo_frontier_research_request_id
+        .is_some()
+    {
+        epiphany_core::put_runtime_requested_public_source_intents(
+            &options.store_path,
+            &options.job_id,
+            &now(),
+        )?
+    } else {
+        Vec::new()
+    };
+    let mut requested_public_source_runs = Vec::new();
+    for intent in &requested_public_source_intents {
+        requested_public_source_runs.push(run_tool_adapter(
+            &tool_adapter_bin,
+            &options.store_path,
+            options.mcp_config.as_ref(),
+            options.cwd.as_ref(),
+            options.resident_store.as_ref(),
+            &intent.intent_id,
+        )?);
+    }
+    append_requested_public_source_receipts(
+        &options.store_path,
+        &mut initial_request,
+        &requested_public_source_intents,
+    )?;
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home.clone(),
@@ -994,6 +1023,7 @@ async fn run_worker_launch_with_tool_continuation(
         "nextSafeMove": worker_result.next_safe_move,
         "evidenceRefs": worker_result.evidence_refs,
         "artifactRefs": worker_result.artifact_refs,
+        "requestedPublicSourceRuns": requested_public_source_runs,
         "toolRounds": tool_rounds,
     }))
 }

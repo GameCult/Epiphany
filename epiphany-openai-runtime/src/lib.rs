@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -320,6 +321,17 @@ pub async fn run_worker_launch(
     options: EpiphanyWorkerRuntimeOptions,
 ) -> Result<EpiphanyWorkerRuntimeRunSummary> {
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
+    if !epiphany_core::runtime_requested_public_source_refs_for_worker(
+        &options.store_path,
+        &options.job_id,
+    )?
+    .is_empty()
+    {
+        return Err(anyhow!(
+            "worker {:?} has request-owned public sources and must run through the governed automatic tool route",
+            options.job_id
+        ));
+    }
     let model_request =
         build_worker_model_request(&launch_request, &options.provider, &options.model)?;
     let openai_options = EpiphanyOpenAiRuntimeOptions {
@@ -599,7 +611,7 @@ pub fn build_worker_model_request(
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources, immutable public GitHub source, or typed resident state before emitting evidence. Call the bounded governed tool appropriate to the claim. Public evidence uses `mcp__epiphany_public__github_file` with an exact 40-hex commit, repository, and path; put its exact sourceRef in filesInspected and its evidenceReceiptId in evidence, and preserve its contentSha256 in the finding. Never substitute a branch, tag, arbitrary URL, or model memory for immutable public evidence. Cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and report a source gap if the required body cannot be observed. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
+        instructions.push_str("\n\nEvidence mandate: the runtime obtains every immutable public GitHub source named by the typed Research request before this model turn and supplies the exact tool calls and receipts in the input. Cite each requested sourceRef in filesInspected and its evidenceReceiptId in evidence, preserve its contentSha256 in the finding, and report a source gap if any supplied lookup failed. Use the remaining bounded tools only for additional repository or resident-state inspection appropriate to the claim. Never substitute a branch, tag, arbitrary URL, or model memory for immutable public evidence. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources or typed resident state before proposing repository anatomy. Call the bounded read-only file, directory-inventory, Git, or `mcp__epiphany_state__resident_grant_lifecycle` tool appropriate to the claim; cite exact inspected paths/revisions or grant identities in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure. Directory totals are authoritative only when the inventory reports `complete=true`; grant launchability is authoritative only from the typed lifecycle projection.");
     }
@@ -626,9 +638,7 @@ pub fn build_worker_model_request(
             | epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID
             | epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
     ) {
-        request.tools = repository_source_tools(
-            launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
-        );
+        request.tools = repository_source_tools();
     }
     Ok(request)
 }
@@ -935,6 +945,111 @@ pub fn build_tool_followup_model_request(
     Ok(followup)
 }
 
+pub fn append_requested_public_source_receipts(
+    store_path: impl AsRef<Path>,
+    request: &mut EpiphanyModelRequest,
+    intents: &[EpiphanyToolInvocationIntent],
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    let source_worker_job_id = request
+        .source_worker_job_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("requested public source context has no source worker"))?;
+    let expected_sources = epiphany_core::runtime_requested_public_source_refs_for_worker(
+        store_path,
+        source_worker_job_id,
+    )?
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    let mut observed_sources = BTreeSet::new();
+    for intent in intents {
+        let arguments: serde_json::Value = serde_json::from_str(&intent.arguments_json)
+            .context("requested public source intent arguments are invalid")?;
+        let component = |name: &str| -> Result<&str> {
+            arguments
+                .get(name)
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| anyhow!("requested public source intent omitted {name:?}"))
+        };
+        observed_sources.insert(
+            epiphany_core::ImmutableGithubSource::from_components(
+                component("owner")?,
+                component("repository")?,
+                component("revision")?,
+                component("path")?,
+            )?
+            .to_string(),
+        );
+    }
+    if observed_sources != expected_sources || observed_sources.len() != intents.len() {
+        return Err(anyhow!(
+            "requested public source model context does not exactly cover its typed Research request"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    for intent in intents {
+        if intent.model_request_id.is_some() {
+            return Err(anyhow!(
+                "requested public source intent {:?} is model-owned",
+                intent.intent_id
+            ));
+        }
+        if intent.caller != "epiphany-runtime-requested-public-source"
+            || intent.server != "epiphany_public"
+            || intent.tool_name != "github_file"
+        {
+            return Err(anyhow!(
+                "requested public source intent {:?} is not the canonical public-source operation",
+                intent.intent_id
+            ));
+        }
+        let binding =
+            epiphany_core::require_runtime_tool_execution_binding(store_path, &intent.intent_id)?;
+        if binding.job_id != source_worker_job_id || binding.model_request_id.is_some() {
+            return Err(anyhow!(
+                "requested public source intent {:?} is not owned by worker {:?}",
+                intent.intent_id,
+                source_worker_job_id
+            ));
+        }
+        let call_id = intent
+            .call_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("requested public source intent has no call id"))?;
+        let receipt = cache
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
+                &intent.intent_id,
+            ))?
+            .ok_or_else(|| {
+                anyhow!(
+                    "requested public source intent {:?} has no terminal receipt",
+                    intent.intent_id
+                )
+            })?;
+        if receipt.intent_id != intent.intent_id
+            || receipt.adapter != intent.adapter
+            || receipt.server != intent.server
+            || receipt.tool_name != intent.tool_name
+        {
+            return Err(anyhow!(
+                "requested public source intent {:?} has a foreign receipt",
+                intent.intent_id
+            ));
+        }
+        request.input.push(EpiphanyModelInputItem::ToolCall {
+            call_id: call_id.to_string(),
+            name: format!("mcp__{}__{}", intent.server, intent.tool_name),
+            arguments: intent.arguments_json.clone(),
+        });
+        request.input.push(EpiphanyModelInputItem::ToolResult {
+            call_id: call_id.to_string(),
+            output: tool_receipt_output_for_model(intent, &receipt),
+        });
+    }
+    Ok(())
+}
+
 fn tool_receipt_output_for_model(
     intent: &EpiphanyToolInvocationIntent,
     receipt: &EpiphanyToolInvocationReceipt,
@@ -1099,8 +1214,8 @@ pub fn openai_request_from_model_request(
     }
 }
 
-fn repository_source_tools(include_public_source: bool) -> Vec<EpiphanyModelToolDefinition> {
-    let mut tools = vec![
+fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
+    vec![
         EpiphanyModelToolDefinition {
             name: "mcp__epiphany_source__read_file".to_string(),
             description: "Read a bounded UTF-8 text slice from the current workspace for source-grounded Eyes, Modeling, or Soul work. Use only for repository sources and operator-safe artifacts in scope.".to_string(),
@@ -1174,27 +1289,7 @@ fn repository_source_tools(include_public_source: bool) -> Vec<EpiphanyModelTool
             })
             .to_string(),
         },
-    ];
-    if include_public_source {
-        tools.push(EpiphanyModelToolDefinition {
-            name: "mcp__epiphany_public__github_file".to_string(),
-            description: "Read one bounded UTF-8 file from a public GitHub repository at an exact immutable 40-hex commit. Returns provider/repository/revision/path/sourceRef/contentSha256 provenance. Branches, tags, redirects, arbitrary hosts, and mutable URLs are refused.".to_string(),
-            parameters_json: serde_json::json!({
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                    "owner": {"type": "string"},
-                    "repository": {"type": "string"},
-                    "revision": {"type": "string", "pattern": "^[0-9a-fA-F]{40}$"},
-                    "path": {"type": "string"},
-                    "maxBytes": {"type": "integer", "minimum": 512, "maximum": 65536}
-                },
-                "required": ["owner", "repository", "revision", "path"]
-            })
-            .to_string(),
-        });
-    }
-    tools
+    ]
 }
 
 fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyModelInputItem {
@@ -3608,16 +3703,14 @@ mod tests {
         research_launch.authority_scope = "epiphany.role.research".to_string();
         let research_request =
             build_worker_model_request(&research_launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
-        assert!(
-            research_request
-                .tools
-                .iter()
-                .any(|tool| tool.name == "mcp__epiphany_public__github_file")
-        );
+        assert!(!research_request
+            .tools
+            .iter()
+            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
         assert!(
             research_request
                 .instructions
-                .contains("exact 40-hex commit")
+                .contains("runtime obtains every immutable public GitHub source")
         );
         Ok(())
     }

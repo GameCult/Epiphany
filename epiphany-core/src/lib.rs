@@ -1115,9 +1115,11 @@ pub use runtime_spine::put_repo_frontier_verification_request;
 pub use runtime_spine::put_repo_frontier_work_proposal;
 pub use runtime_spine::put_runtime_reorient_worker_result;
 pub use runtime_spine::put_runtime_role_worker_result;
+pub use runtime_spine::put_runtime_requested_public_source_intents;
 pub use runtime_spine::put_runtime_tool_execution_intent;
 pub use runtime_spine::put_runtime_tool_execution_receipt;
 pub use runtime_spine::runtime_authenticated_public_source_lookups_for_worker;
+pub use runtime_spine::runtime_requested_public_source_refs_for_worker;
 #[cfg(test)]
 pub(crate) use runtime_spine::put_soul_verdict_receipt;
 pub use runtime_spine::put_substrate_gate_repo_access_grant_receipt;
