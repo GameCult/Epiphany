@@ -11,6 +11,7 @@ name = "epiphany_core"
 path = "src/lib.rs"
 
 [features]
+public-source-gate-probe = []
 semantic-recovery-smoke = []
 workspace-coverage-recovery-smoke = []
 
@@ -147,6 +148,11 @@ path = "src/bin/epiphany-persona-memory-recall-smoke.rs"
 [[bin]]
 name = "epiphany-persona-mouth-identity"
 path = "src/bin/epiphany-persona-mouth-identity.rs"
+
+[[bin]]
+name = "epiphany-public-source-gate-probe"
+path = "src/bin/epiphany-public-source-gate-probe.rs"
+required-features = ["public-source-gate-probe"]
 
 [[bin]]
 name = "epiphany-persona-other"
