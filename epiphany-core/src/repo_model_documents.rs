@@ -122,6 +122,26 @@ pub struct EpiphanyRepoModelView {
     pub claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
 }
 
+impl EpiphanyRepoModelView {
+    pub fn memory_context_projection(&self) -> EpiphanyMemoryGraphSnapshot {
+        EpiphanyMemoryGraphSnapshot {
+            schema_version: None,
+            graph_id: self.identity.graph_id.clone(),
+            model_revision: 0,
+            model_hash: String::new(),
+            source: None,
+            domains: self.domains.clone(),
+            nodes: self.nodes.clone(),
+            edges: self.edges.clone(),
+            summaries: self.summaries.clone(),
+            embedding_manifest: None,
+            freshness: None,
+            lifecycle_receipts: self.lifecycle_receipts.clone(),
+            frontier: self.frontier.clone(),
+        }
+    }
+}
+
 pub const REPO_MODEL_MUTATION_PROPOSAL_SCHEMA_VERSION: &str =
     "epiphany.repo_model.mutation_proposal.v1";
 pub const REPO_MODEL_SEED_SCHEMA_VERSION: &str = "epiphany.repo_model.seed.v1";

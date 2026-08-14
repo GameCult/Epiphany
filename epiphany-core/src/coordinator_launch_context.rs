@@ -1,17 +1,7 @@
-use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
-use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
-use crate::EpiphanyMemoryContextPacket;
-use crate::EpiphanyMemoryContextQuery;
-use crate::EpiphanyMemoryGraphSnapshot;
-use crate::EpiphanyMemoryProfile;
-use crate::EpiphanyPromptContextInput;
-use crate::RuntimeHandsReceiptChainSummary;
-use crate::ensure_runtime_repo_model;
+use crate::assemble_repo_model_view;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
-use crate::memory_graph_from_epiphany_graphs;
 use crate::plan_memory_graph_context_cut;
 use crate::query_epiphany_local_verse_context;
 use crate::render_epiphany_prompt_context;
@@ -20,6 +10,15 @@ use crate::runtime_hands_commit_receipt;
 use crate::runtime_hands_patch_receipt;
 use crate::runtime_latest_hands_receipt_chain_after;
 use crate::write_epiphany_cultmesh_work_loop_telemetry;
+use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
+use crate::EpiphanyMemoryContextPacket;
+use crate::EpiphanyMemoryContextQuery;
+use crate::EpiphanyMemoryProfile;
+use crate::EpiphanyPromptContextInput;
+use crate::EpiphanyRepoModelView;
+use crate::RuntimeHandsReceiptChainSummary;
+use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use chrono::SecondsFormat;
 use chrono::Utc;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
@@ -104,7 +103,7 @@ fn render_launch_dynamic_prompt_context_with_snapshot(
     local_verse_store: &Path,
     state: &EpiphanyThreadState,
     focus: String,
-) -> Result<(String, EpiphanyMemoryGraphSnapshot), String> {
+) -> Result<(String, EpiphanyRepoModelView), String> {
     load_epiphany_cultmesh_status(local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
         .map_err(|error| {
             format!(
@@ -556,30 +555,19 @@ pub fn append_modeling_repo_model_shape_context(
     context: String,
     runtime_store_path: &Path,
 ) -> Result<String, String> {
-    let snapshot = crate::runtime_current_repo_model(runtime_store_path)
-        .map_err(|error| format!("failed to load canonical RepoModel shape: {error}"))?
-        .ok_or_else(|| {
-            format!(
-                "canonical RepoModel is missing from runtime spine {} after launch-context assembly",
-                runtime_store_path.display()
-            )
-        })?;
-    Ok(append_modeling_repo_model_shape_snapshot(
-        context, &snapshot,
-    ))
+    let view = assemble_repo_model_view(runtime_store_path)
+        .map_err(|error| format!("failed to load canonical RepoModel shape: {error}"))?;
+    Ok(append_modeling_repo_model_shape_snapshot(context, &view))
 }
 
 fn append_modeling_repo_model_shape_snapshot(
     mut context: String,
-    snapshot: &EpiphanyMemoryGraphSnapshot,
+    view: &EpiphanyRepoModelView,
 ) -> String {
     context.push_str("\n\n<canonical_repo_model_shape>\n");
-    context.push_str(&format!(
-        "modelRevision: {}\nmodelHash: {}\n",
-        snapshot.model_revision, snapshot.model_hash
-    ));
+    context.push_str(&format!("projectionDigest: {}\n", view.projection_digest));
     context.push_str("existingDomains:\n");
-    for domain in &snapshot.domains {
+    for domain in &view.domains {
         let profile = debug_variant_snake_case(domain.profile);
         let lifecycle = debug_variant_snake_case(domain.lifecycle);
         context.push_str(&format!(
@@ -588,14 +576,14 @@ fn append_modeling_repo_model_shape_snapshot(
         ));
     }
     context.push_str("existingClaims:\n");
-    for node in &snapshot.nodes {
+    for node in &view.nodes {
         context.push_str(&format!(
             "- id={} domain={} title={}\n",
             node.id, node.domain_id, node.title
         ));
     }
     context.push_str("existingFrontier:\n");
-    for item in &snapshot.frontier {
+    for item in &view.frontier {
         let status = debug_variant_snake_case(item.status);
         context.push_str(&format!(
             "- id={} status={} recommendedNextOrgan={} targetClaims={} sourceScope={}\n",
@@ -606,7 +594,7 @@ fn append_modeling_repo_model_shape_snapshot(
             item.source_scope.join(" | "),
         ));
     }
-    context.push_str("New nodes must reference one exact existing domain id. Every unresolved frontier item must target at least one exact existing claim id from existingClaims, or a claim id created by the same patch. Every frontier source_scope must be non-empty and contain safe relative paths in strict lexicographic ascending order with no duplicates; proposal scope hints are evidence to normalize into that canonical order, not an instruction to preserve unsafe or unsorted serialization. A proposal Evolution upsert must use status active: Mind acceptance is the admission decision, and proposed state is not routeable by Self. Its recommended_next_organ must be exactly one routeable canonical value with exact case: Hands, Eyes, or Imagination; lowercase labels are dead documents and Mind will refuse them. Use upsert_frontier only for a genuinely new frontier id not listed in existingFrontier. Use revise_frontier when changing an id listed in existingFrontier; an existing frontier id cannot be upserted again. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
+    context.push_str("RepoModel mutations address semantic document identities directly. New nodes must reference one exact existing domain id or a domain created by the same mutation. Every unresolved frontier item must target at least one exact existing claim id or a claim created by the same mutation. Every frontier source_scope must be non-empty and contain safe relative paths in strict lexicographic ascending order without duplicates. Recommended next organ must use its exact canonical spelling. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. The projection digest is display and audit identity, never a global stale-write fence.\n");
     context.push_str("</canonical_repo_model_shape>");
     context
 }
@@ -1221,38 +1209,17 @@ fn compact_preview(text: &str, limit: usize) -> String {
 
 fn launch_memory_context(
     runtime_store_path: &Path,
-    state: &EpiphanyThreadState,
+    _state: &EpiphanyThreadState,
     focus: &str,
-) -> Result<(EpiphanyMemoryContextPacket, EpiphanyMemoryGraphSnapshot), String> {
-    let memory_graph_store = memory_graph_store_path(runtime_store_path);
-    let repo_root = runtime_store_path
-        .parent()
-        .and_then(Path::parent)
-        .unwrap_or_else(|| Path::new("."));
-    let source_identity = fs::canonicalize(runtime_store_path)
-        .unwrap_or_else(|_| runtime_store_path.to_path_buf())
-        .to_string_lossy()
-        .into_owned();
-    let bootstrap = memory_graph_from_epiphany_graphs(
-        format!("bridge-launch-state-rev-{}", state.revision),
-        &state.graphs,
-        &source_identity,
-        state.revision,
-        repo_root,
-    )
-    .map_err(|error| format!("failed to derive initial runtime RepoModel: {error}"))?;
-    let (snapshot, migration) = ensure_runtime_repo_model(
-        runtime_store_path,
-        &memory_graph_store,
-        &bootstrap,
-        &Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    )
-    .map_err(|error| format!("failed to load runtime-spine RepoModel: {error}"))?;
+) -> Result<(EpiphanyMemoryContextPacket, EpiphanyRepoModelView), String> {
+    let view = assemble_repo_model_view(runtime_store_path)
+        .map_err(|error| format!("failed to load keyed RepoModel view: {error}"))?;
+    let projection = view.memory_context_projection();
 
     let mut packet = plan_memory_graph_context_cut(
-        &snapshot,
+        &projection,
         &EpiphanyMemoryContextQuery {
-            id: format!("bridge-launch-query-state-rev-{}", state.revision),
+            id: format!("launch-context-query-{}", view.projection_digest),
             profile: Some(EpiphanyMemoryProfile::RepoArchitecture),
             text: Some(focus.to_string()),
             budget: Some(5),
@@ -1260,40 +1227,26 @@ fn launch_memory_context(
         },
     );
     packet.warnings.push(format!(
-        "RepoModel is runtime-spine authority via migration receipt {} (source {}).",
-        migration.receipt_id, migration.source_store
+        "RepoModel context is assembled from exact keyed Mind documents at projection digest {}.",
+        view.projection_digest
     ));
     if packet.nodes.is_empty() && packet.summaries.is_empty() {
         packet.warnings.push(
             "Memory graph context is empty for this launch focus; the accepted repo graph may be thin or stale.".to_string(),
         );
     }
-    Ok((packet, snapshot))
+    Ok((packet, view))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EpiphanyMemoryDomain;
-    use crate::EpiphanyMemoryGraphSnapshot;
-    use crate::EpiphanyMemoryLifecycle;
-    use crate::EpiphanyMemoryNode;
-    use crate::EpiphanyMemoryNodeKind;
-    use crate::EpiphanyRoleResultRoleId;
-    use crate::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-    use crate::HandsActionIntent;
-    use crate::MEMORY_GRAPH_SCHEMA_VERSION;
-    use crate::RepoFrontierItem;
-    use crate::RepoFrontierStatus;
-    use crate::RuntimeSpineHeartbeatJobOptions;
-    use crate::RuntimeSpineInitOptions;
     use crate::build_epiphany_role_launch_request_with_dynamic_context;
     use crate::hands_action_review_for_intent;
     use crate::hands_command_receipt_for_review;
     use crate::hands_commit_receipt_for_review;
     use crate::hands_patch_receipt_for_review;
     use crate::initialize_runtime_spine;
-    use crate::load_memory_graph_snapshot;
     use crate::memory_graph_model_hash;
     use crate::open_runtime_spine_heartbeat_job;
     use crate::put_hands_action_intent;
@@ -1303,7 +1256,19 @@ mod tests {
     use crate::put_hands_patch_receipt;
     use crate::runtime_worker_launch_request;
     use crate::seed_epiphany_local_verse_context;
-    use crate::write_memory_graph_snapshot;
+    use crate::EpiphanyMemoryDomain;
+    use crate::EpiphanyMemoryGraphSnapshot;
+    use crate::EpiphanyMemoryLifecycle;
+    use crate::EpiphanyMemoryNode;
+    use crate::EpiphanyMemoryNodeKind;
+    use crate::EpiphanyRoleResultRoleId;
+    use crate::HandsActionIntent;
+    use crate::RepoFrontierItem;
+    use crate::RepoFrontierStatus;
+    use crate::RuntimeSpineHeartbeatJobOptions;
+    use crate::RuntimeSpineInitOptions;
+    use crate::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+    use crate::MEMORY_GRAPH_SCHEMA_VERSION;
     use epiphany_state_model::EpiphanyAcceptanceReceipt;
     use sha2::Digest;
     use std::fs;
@@ -1554,11 +1519,8 @@ mod tests {
             &runtime_store,
             "canonical-model-launch-swarm",
         )?;
-        let graph_store = memory_graph_store_path(&runtime_store);
-        let mut snapshot = EpiphanyMemoryGraphSnapshot {
-            schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+        let snapshot = EpiphanyMemoryGraphSnapshot {
             graph_id: "canonical-model".to_string(),
-            model_revision: 4,
             domains: vec![EpiphanyMemoryDomain {
                 id: "repo".to_string(),
                 profile: EpiphanyMemoryProfile::RepoArchitecture,
@@ -1593,8 +1555,22 @@ mod tests {
             }],
             ..Default::default()
         };
-        snapshot.model_hash = memory_graph_model_hash(&snapshot)?;
-        write_memory_graph_snapshot(&graph_store, &snapshot)?;
+        let seed = crate::EpiphanyRepoModelSeed::new(
+            "canonical-model-seed",
+            snapshot.graph_id.clone(),
+            "canonical-model-launch-swarm",
+            "canonical-model-workspace",
+            "sha256:canonical-model-body",
+            crate::EpiphanyRepoModelSeedDocuments {
+                domains: snapshot.domains.clone(),
+                nodes: snapshot.nodes.clone(),
+                edges: snapshot.edges.clone(),
+                summaries: snapshot.summaries.clone(),
+                frontier: snapshot.frontier.clone(),
+                lifecycle_receipts: snapshot.lifecycle_receipts.clone(),
+            },
+        )?;
+        crate::initialize_keyed_repo_model(&runtime_store, &seed, "2026-06-12T00:00:01Z")?;
         let newer_thread_state = EpiphanyThreadState {
             revision: 999,
             objective: Some("Discuss irrelevant weather bananas.".to_string()),
@@ -1609,14 +1585,11 @@ mod tests {
         .map_err(anyhow::Error::msg)?;
 
         assert_eq!(packet.frontier[0].id, "frontier-modeling-handoff");
-        assert!(
-            packet
-                .nodes
-                .iter()
-                .any(|node| node.id == "claim-modeling-authority")
-        );
-        let preserved = load_memory_graph_snapshot(&graph_store)?.expect("canonical model");
-        assert_eq!(preserved.model_revision, 4);
+        assert!(packet
+            .nodes
+            .iter()
+            .any(|node| node.id == "claim-modeling-authority"));
+        let preserved = crate::assemble_repo_model_view(&runtime_store)?;
         assert_eq!(preserved.frontier, snapshot.frontier);
         let shape = append_modeling_repo_model_shape_context("base".to_string(), &runtime_store)
             .map_err(anyhow::Error::msg)?;
@@ -1630,15 +1603,10 @@ mod tests {
         assert!(shape.contains("id=claim-modeling-authority domain=repo"));
         assert!(shape.contains("existingFrontier:"));
         assert!(shape.contains("id=frontier-modeling-handoff status=active"));
-        assert!(
-            shape.contains("Use revise_frontier when changing an id listed in existingFrontier")
-        );
-        assert!(shape.contains("strict lexicographic ascending order with no duplicates"));
-        assert!(shape.contains("proposal Evolution upsert must use status active"));
-        assert!(
-            shape.contains("recommended_next_organ must be exactly one routeable canonical value")
-        );
-        assert!(shape.contains("Prefer accepted"));
+        assert!(shape.contains("projectionDigest: sha256:"));
+        assert!(shape.contains("semantic document identities directly"));
+        assert!(shape.contains("strict lexicographic ascending order without duplicates"));
+        assert!(shape.contains("projection digest is display and audit identity"));
         fs::remove_dir_all(&temp)?;
         Ok(())
     }
@@ -1668,6 +1636,23 @@ mod tests {
             &runtime_store,
             "launch-context-workspace",
         )?;
+        let body_basis = crate::observe_runtime_repository_body_basis(&runtime_store)?;
+        let seed = crate::EpiphanyRepoModelSeed::new(
+            "launch-context-seed",
+            "launch-context-graph",
+            body_basis.swarm_id.clone(),
+            body_basis.workspace_id.clone(),
+            body_basis.body_binding_sha256.clone(),
+            crate::EpiphanyRepoModelSeedDocuments {
+                domains: Vec::new(),
+                nodes: Vec::new(),
+                edges: Vec::new(),
+                summaries: Vec::new(),
+                frontier: Vec::new(),
+                lifecycle_receipts: Vec::new(),
+            },
+        )?;
+        crate::initialize_keyed_repo_model(&runtime_store, &seed, "2026-07-12T00:00:02Z")?;
         let state = EpiphanyThreadState {
             revision: 7,
             objective: Some("Test launch context.".to_string()),
@@ -1710,9 +1695,7 @@ mod tests {
         else {
             unreachable!("role launch builder returned reorient document")
         };
-        role_document.repository_body_observation_basis = Some(
-            crate::observe_runtime_repository_body_basis(&runtime_store)?,
-        );
+        role_document.repository_body_observation_basis = Some(body_basis);
         open_runtime_spine_heartbeat_job(
             &runtime_store,
             RuntimeSpineHeartbeatJobOptions {
@@ -2062,24 +2045,18 @@ mod tests {
             telemetry.target_stages,
             vec!["soul".to_string(), "modeling".to_string()]
         );
-        assert!(
-            telemetry
-                .receipt_payload_previews
-                .iter()
-                .any(|payload| payload.contains("patch: schemaVersion="))
-        );
-        assert!(
-            telemetry
-                .receipt_payload_previews
-                .iter()
-                .any(|payload| payload.contains("command: schemaVersion="))
-        );
-        assert!(
-            telemetry
-                .receipt_payload_previews
-                .iter()
-                .any(|payload| payload.contains("commit: schemaVersion="))
-        );
+        assert!(telemetry
+            .receipt_payload_previews
+            .iter()
+            .any(|payload| payload.contains("patch: schemaVersion=")));
+        assert!(telemetry
+            .receipt_payload_previews
+            .iter()
+            .any(|payload| payload.contains("command: schemaVersion=")));
+        assert!(telemetry
+            .receipt_payload_previews
+            .iter()
+            .any(|payload| payload.contains("commit: schemaVersion=")));
         assert!(!telemetry.commit_diff_preview.trim().is_empty());
         assert!(telemetry.verification_assertions.iter().any(|assertion| {
             assertion.contains("verification_launch_context_includes_hands_receipt_chain")
@@ -2246,38 +2223,24 @@ mod tests {
         assert!(modeling_context.contains(modeling_request_id));
         assert!(modeling_context.contains("soulVerdictReceiptId: soul-verdict-context"));
         assert!(modeling_context.contains("verificationResultId: result-verification-context"));
-        assert!(
-            modeling_context
-                .contains("verificationAcceptanceReceiptId: accept-verification-context")
-        );
+        assert!(modeling_context
+            .contains("verificationAcceptanceReceiptId: accept-verification-context"));
         assert!(modeling_context.contains("allowedDisposition: resolved"));
-        assert!(
-            modeling_context
-                .contains("Include the exact soulVerdictReceiptId in the top-level evidenceIds")
-        );
-        assert!(
-            modeling_context
-                .contains("Include both verificationRequestId and soulVerdictReceiptId")
-        );
+        assert!(modeling_context
+            .contains("Include the exact soulVerdictReceiptId in the top-level evidenceIds"));
+        assert!(modeling_context
+            .contains("Include both verificationRequestId and soulVerdictReceiptId"));
         assert!(modeling_context.contains("Set statePatch to null"));
         assert!(modeling_context.contains("identityMigrationBody:"));
-        assert!(
-            modeling_context
-                .contains("identityQuestion: Does verification see the exact receipts?")
-        );
+        assert!(modeling_context
+            .contains("identityQuestion: Does verification see the exact receipts?"));
         assert!(modeling_context.contains("identityCreatedAt:"));
         assert!(modeling_context.contains("identityRetiredAt: <none>"));
         assert!(modeling_context.contains("identitySupersededBy: <none>"));
-        assert!(
-            modeling_context.contains(
-                "Copy every identity field exactly from the identity-prefixed values above"
-            )
-        );
-        assert!(
-            modeling_context.contains(
-                "Only status, evidence_refs, gap, and updated_at are verdict-owned changes"
-            )
-        );
+        assert!(modeling_context
+            .contains("Copy every identity field exactly from the identity-prefixed values above"));
+        assert!(modeling_context
+            .contains("Only status, evidence_refs, gap, and updated_at are verdict-owned changes"));
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
