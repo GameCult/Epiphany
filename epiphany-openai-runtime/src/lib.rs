@@ -794,6 +794,33 @@ pub fn fail_worker_job(
     )
 }
 
+pub fn fail_model_backed_worker_job(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    terminal_request_id: &str,
+    summary: String,
+    next_safe_move: String,
+) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+    let context = epiphany_core::seal_model_decision_context(
+        store_path.as_ref(),
+        terminal_request_id,
+    )?;
+    complete_runtime_job(
+        store_path,
+        RuntimeSpineJobResultOptions {
+            result_id: format!("result-worker-{job_id}"),
+            job_id: job_id.to_string(),
+            completed_at: now(),
+            verdict: "failed".to_string(),
+            summary,
+            next_safe_move,
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            decision_context_id: Some(context.context_id),
+        },
+    )
+}
+
 pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Result<()> {
     let status = runtime_spine_status(&options.store_path)?;
     if status.present {

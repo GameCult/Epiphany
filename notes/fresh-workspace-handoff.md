@@ -15,8 +15,12 @@ terminal decision contexts preserve the exact native request, the provider
 request derived from it, and every ordered governed tool intent/receipt actually
 fed to the model. Worker model requests require a sealed basis, and structured
 role/reorient results plus their generic job result bind the terminal context.
-Exact-envelope batch CAS merges disjoint Mind documents and explicitly refuses
+Tool-round-limit and repeated-tool-loop failures seal the last request context
+before worker failure. Model-session archives preserve their basis/context IDs,
+and fulfilled worker-attempt tombstones preserve and revalidate the exact
+decision context instead of collapsing it to a digest. Exact-envelope batch CAS merges disjoint Mind documents and explicitly refuses
 same-identity or changed-strong-read conflicts. Model failures, Persona stages,
+the remaining provider-error/timeout failure edges, Persona stages, Persona
 retention, keyed canonical Mind state, and keyed RepoModel remain to be cut.
 
 Operational correction: the original c011 resident and Heartbeat containers

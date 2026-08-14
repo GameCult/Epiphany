@@ -34,6 +34,7 @@ use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::fail_worker_job;
+use epiphany_openai_runtime::fail_model_backed_worker_job;
 use epiphany_openai_runtime::failed_frontier_planning_role_result;
 use epiphany_openai_runtime::load_worker_launch_request;
 use epiphany_openai_runtime::record_openai_events;
@@ -1082,9 +1083,10 @@ fn fail_worker_for_tool_round_limit(
         &openai_summary.tool_intent_ids,
         "worker tool round limit closed this intent before execution",
     )?;
-    let result = fail_worker_job(
+    let result = fail_model_backed_worker_job(
         store_path,
         &launch_request.job_id,
+        current_request_id,
         summary.clone(),
         "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
             .to_string(),
@@ -1127,9 +1129,10 @@ fn fail_worker_for_repeated_tool_loop(
         &openai_summary.tool_intent_ids,
         "worker repeated an identical tool round; intent closed before execution",
     )?;
-    let result = fail_worker_job(
+    let result = fail_model_backed_worker_job(
         store_path,
         &launch_request.job_id,
+        current_request_id,
         summary.clone(),
         "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
             .to_string(),
@@ -1372,12 +1375,12 @@ mod tests {
             "Call one source tool.",
         );
         model_request.source_worker_job_id = Some(worker_job_id.to_string());
-        let provider_request = EpiphanyOpenAiModelRequest::new(
-            request_id,
-            format!("worker-{worker_job_id}"),
-            "gpt-test",
-            "Call one source tool.",
-        );
+        let launch = epiphany_core::runtime_worker_launch_request(store, worker_job_id)?
+            .ok_or_else(|| anyhow!("pending tool fixture lost its worker launch"))?;
+        let basis = epiphany_core::worker_reasoning_basis(store, &launch)?;
+        epiphany_core::put_reasoning_basis(store, &basis)?;
+        model_request.reasoning_basis_id = Some(basis.basis_id);
+        let provider_request = epiphany_openai_adapter::request_from_native(&model_request);
         epiphany_core::open_runtime_model_execution(
             store,
             epiphany_core::RuntimeSpineSessionOptions {

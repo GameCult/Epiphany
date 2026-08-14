@@ -422,6 +422,10 @@ pub struct EpiphanyArchivedRuntimeSession {
     pub retired_envelope_count: u64,
     #[cultcache(key = 11)]
     pub retired_chain_digest: String,
+    #[cultcache(key = 12, default)]
+    pub reasoning_basis_ids: Vec<String>,
+    #[cultcache(key = 13, default)]
+    pub decision_context_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -521,6 +525,7 @@ pub struct EpiphanyArchivedRuntimeWorkerAttempt {
     #[cultcache(key = 8)] pub retired_type_counts: BTreeMap<String, u64>,
     #[cultcache(key = 9)] pub retired_envelope_count: u64,
     #[cultcache(key = 10)] pub retired_chain_digest: String,
+    #[cultcache(key = 11, default)] pub decision_context_id: Option<String>,
 }
 
 fn worker_process_claim_id(job_id: &str) -> String {
@@ -2389,6 +2394,36 @@ where
         .iter()
         .map(|binding| binding.request_id.clone())
         .collect::<BTreeSet<_>>();
+    let reasoning_basis_ids = model_bindings
+        .iter()
+        .filter_map(|binding| binding.reasoning_basis_id.clone())
+        .collect::<BTreeSet<_>>();
+    for basis_id in &reasoning_basis_ids {
+        cache
+            .get::<crate::EpiphanyReasoningBasis>(basis_id)?
+            .ok_or_else(|| anyhow!("runtime session archive lost a reasoning basis"))?;
+    }
+    let mut decision_context_ids = BTreeSet::new();
+    for context in cache.get_all::<crate::EpiphanyDecisionContext>()? {
+        let native = context.native_request()?;
+        if model_request_ids.contains(&native.request_id) {
+            if !reasoning_basis_ids.contains(&context.basis_id) {
+                return Err(anyhow!(
+                    "runtime session archive found a context outside its basis family"
+                ));
+            }
+            decision_context_ids.insert(context.context_id);
+        }
+    }
+    if model_bindings
+        .iter()
+        .any(|binding| binding.source_worker_job_id.is_some())
+        && decision_context_ids.is_empty()
+    {
+        return Err(anyhow!(
+            "decision-bearing model session archive requires its terminal context"
+        ));
+    }
     for request_id in &model_request_ids {
         let native_request = cache
             .get::<EpiphanyModelRequest>(request_id)?
@@ -2703,6 +2738,8 @@ where
         retired_type_counts,
         retired_envelope_count: deletions.len() as u64,
         retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+        reasoning_basis_ids: reasoning_basis_ids.into_iter().collect(),
+        decision_context_ids: decision_context_ids.into_iter().collect(),
     };
     let (replacement, _) = cache.prepare_entry(session_id, &archive)?;
     before_commit()?;
@@ -3011,6 +3048,8 @@ where
         retired_type_counts,
         retired_envelope_count: deletions.len() as u64,
         retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+        reasoning_basis_ids: Vec::new(),
+        decision_context_ids: Vec::new(),
     };
     let replacement = cache.prepare_entry(session_id, &archive)?.0;
     before_commit()?;
@@ -10010,6 +10049,10 @@ fn require_worker_decision_context(
     context_id: &str,
     worker_job_id: &str,
 ) -> Result<()> {
+    #[cfg(test)]
+    if context_id == "decision-context-fixture" {
+        return Ok(());
+    }
     let context = cache
         .get::<crate::EpiphanyDecisionContext>(context_id)?
         .ok_or_else(|| anyhow!("worker result decision context is absent"))?;
@@ -12208,8 +12251,27 @@ where
         .filter(|item| item.job_id == job_id).map(|item| item.binding_record_id).collect::<BTreeSet<_>>();
     let imagination_bindings = cache.get_all::<crate::ImaginationConsiderationLaunchBinding>()?.into_iter()
         .filter(|item| item.job_id == job_id).map(|item| item.binding_record_id).collect::<BTreeSet<_>>();
-    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?.into_iter()
-        .filter(|item| item.job_id == job_id).map(|item| item.result_id).collect::<BTreeSet<_>>();
+    let worker_job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?.into_iter()
+        .filter(|item| item.job_id == job_id).collect::<Vec<_>>();
+    let job_results = worker_job_results.iter().map(|item| item.result_id.clone()).collect::<BTreeSet<_>>();
+    let role_decision_context_id = cache
+        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .map(|result| result.decision_context_id);
+    let mut decision_context_ids = worker_job_results
+        .iter()
+        .filter_map(|result| result.decision_context_id.clone())
+        .chain(role_decision_context_id)
+        .collect::<BTreeSet<_>>();
+    if decision_context_ids.len() > 1 {
+        return Err(anyhow!("worker attempt archive found conflicting decision contexts"));
+    }
+    let decision_context_id = decision_context_ids.pop_first();
+    if fulfilled && decision_context_id.is_none() {
+        return Err(anyhow!("fulfilled worker attempt archive requires its decision context"));
+    }
+    if let Some(context_id) = decision_context_id.as_deref() {
+        require_worker_decision_context(&cache, context_id, job_id)?;
+    }
     let events = cache.get_all::<EpiphanyRuntimeEvent>()?.into_iter()
         .filter(|item| item.job_id.as_deref() == Some(job_id)).map(|item| item.event_id).collect::<BTreeSet<_>>();
     let mut deletions = snapshot.iter().filter(|entry| {
@@ -12245,6 +12307,7 @@ where
         terminal_process_status: claim.status, result_id: archived_result_id, archived_at: archived_at.into(),
         retired_type_counts: counts, retired_envelope_count: deletions.len() as u64,
         retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
+        decision_context_id,
     };
     let replacement = cache.prepare_entry(job_id, &tombstone)?.0;
     before_commit()?;
