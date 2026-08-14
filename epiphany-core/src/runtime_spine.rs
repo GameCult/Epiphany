@@ -3841,20 +3841,6 @@ fn authenticated_public_source_lookup_receipts_for_worker(
         return Err(anyhow!("public source evidence is Eyes-owned"));
     }
     let grant_id = format!("substrate-grant-{worker_job_id}");
-    let grant = cache
-        .get::<SubstrateGateRepoAccessGrantReceipt>(&grant_id)?
-        .ok_or_else(|| anyhow!("public source worker lost its launch grant"))?;
-    if grant.runtime_job_id != worker_job_id
-        || grant.binding_id != launch.binding_id
-        || grant.role != launch.role
-        || grant.authority_scope != launch.authority_scope
-        || !grant
-            .granted_operations
-            .iter()
-            .any(|operation| operation == crate::substrate_gate::SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION)
-    {
-        return Err(anyhow!("public source worker grant is not exact"));
-    }
     let model_request_ids = cache
         .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
         .into_iter()
@@ -3884,7 +3870,7 @@ fn authenticated_public_source_lookup_receipts_for_worker(
                 &intent.intent_id,
             ))?
             .ok_or_else(|| anyhow!("public source tool intent has no terminal receipt"))?;
-        let _ = validate_governed_source_tool_intent(&cache, &binding.job_id, &intent)?;
+        let _ = governed_source_tool_authority(&cache, &binding.job_id, &intent)?;
         if binding.intent_id != intent.intent_id
             || intent.model_request_id != binding.model_request_id
             || receipt.intent_id != intent.intent_id
@@ -3997,6 +3983,36 @@ fn validate_governed_source_tool_intent(
     job_id: &str,
     intent: &EpiphanyToolInvocationIntent,
 ) -> Result<Vec<CultCacheEnvelope>> {
+    let authority = governed_source_tool_authority(cache, job_id, intent)?;
+    if let Some(source_worker_job_id) = authority.source_worker_job_id.as_deref() {
+        let source_worker_job = cache
+            .get::<EpiphanyRuntimeJob>(source_worker_job_id)?
+            .ok_or_else(|| anyhow!("governed source tool intent lost its source worker job"))?;
+        if matches!(
+            source_worker_job.status,
+            EpiphanyRuntimeJobStatus::Completed
+                | EpiphanyRuntimeJobStatus::Failed
+                | EpiphanyRuntimeJobStatus::Cancelled
+        ) {
+            return Err(anyhow!(
+                "governed source tool intent {:?} is outside its launch grant",
+                intent.intent_id
+            ));
+        }
+    }
+    Ok(authority.envelopes)
+}
+
+struct GovernedSourceToolAuthority {
+    source_worker_job_id: Option<String>,
+    envelopes: Vec<CultCacheEnvelope>,
+}
+
+fn governed_source_tool_authority(
+    cache: &CultCache,
+    job_id: &str,
+    intent: &EpiphanyToolInvocationIntent,
+) -> Result<GovernedSourceToolAuthority> {
     let required_operation =
         crate::substrate_gate_operation_for_governed_tool(&intent.server, &intent.tool_name);
     let source_worker_job_id = match intent.model_request_id.as_deref() {
@@ -4040,7 +4056,10 @@ fn validate_governed_source_tool_intent(
         }
     };
     let Some(source_worker_job_id) = source_worker_job_id else {
-        return Ok(Vec::new());
+        return Ok(GovernedSourceToolAuthority {
+            source_worker_job_id: None,
+            envelopes: Vec::new(),
+        });
     };
     let launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&source_worker_job_id)?
@@ -4054,7 +4073,10 @@ fn validate_governed_source_tool_intent(
             | crate::EPIPHANY_MODELING_ROLE_BINDING_ID
             | crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
     ) {
-        return Ok(Vec::new());
+        return Ok(GovernedSourceToolAuthority {
+            source_worker_job_id: None,
+            envelopes: Vec::new(),
+        });
     }
     let required_operation = required_operation.ok_or_else(|| {
         anyhow!(
@@ -4073,12 +4095,6 @@ fn validate_governed_source_tool_intent(
             )
         })?;
     if source_worker_job.role != launch.role
-        || matches!(
-            source_worker_job.status,
-            EpiphanyRuntimeJobStatus::Completed
-                | EpiphanyRuntimeJobStatus::Failed
-                | EpiphanyRuntimeJobStatus::Cancelled
-        )
         || grant.runtime_job_id != source_worker_job_id
         || grant.binding_id != launch.binding_id
         || grant.role != launch.role
@@ -4093,17 +4109,20 @@ fn validate_governed_source_tool_intent(
             intent.intent_id
         ));
     }
-    Ok(vec![
-        cache
-            .get_envelope::<EpiphanyRuntimeJob>(&source_worker_job_id)?
-            .ok_or_else(|| anyhow!("governed source tool lost worker job envelope"))?,
-        cache
-            .get_envelope::<EpiphanyRuntimeWorkerLaunchRequest>(&source_worker_job_id)?
-            .ok_or_else(|| anyhow!("governed source tool lost worker launch envelope"))?,
-        cache
-            .get_envelope::<SubstrateGateRepoAccessGrantReceipt>(&grant_id)?
-            .ok_or_else(|| anyhow!("governed source tool lost launch grant envelope"))?,
-    ])
+    Ok(GovernedSourceToolAuthority {
+        source_worker_job_id: Some(source_worker_job_id.clone()),
+        envelopes: vec![
+            cache
+                .get_envelope::<EpiphanyRuntimeJob>(&source_worker_job_id)?
+                .ok_or_else(|| anyhow!("governed source tool lost worker job envelope"))?,
+            cache
+                .get_envelope::<EpiphanyRuntimeWorkerLaunchRequest>(&source_worker_job_id)?
+                .ok_or_else(|| anyhow!("governed source tool lost worker launch envelope"))?,
+            cache
+                .get_envelope::<SubstrateGateRepoAccessGrantReceipt>(&grant_id)?
+                .ok_or_else(|| anyhow!("governed source tool lost launch grant envelope"))?,
+        ],
+    })
 }
 
 fn requested_public_source_intent_id(worker_job_id: &str, source_ref: &str) -> String {
@@ -20731,6 +20750,28 @@ pub(crate) mod tests {
         );
         assert_eq!(lookups[0].content_sha256, content_sha256);
 
+        complete_runtime_job(
+            &store,
+            RuntimeSpineJobResultOptions {
+                result_id: "result-public-tool-worker-terminal".to_string(),
+                job_id: "worker-public-tool".to_string(),
+                completed_at: "2026-08-11T00:00:05Z".to_string(),
+                verdict: "pass".to_string(),
+                summary: "Research worker completed after its governed lookup.".to_string(),
+                next_safe_move: "Authenticate the terminal attempt evidence.".to_string(),
+                evidence_refs: vec![format!("eyes-source-{}", exact.intent_id)],
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        assert!(require_runtime_tool_execution_binding(&store, &exact.intent_id).is_err());
+        assert_eq!(
+            runtime_authenticated_public_source_lookups_for_worker(
+                &store,
+                "worker-public-tool"
+            )?,
+            lookups
+        );
+
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         let receipt_key = tool_invocation_receipt_key(&exact.intent_id);
@@ -20762,6 +20803,13 @@ pub(crate) mod tests {
             .retain(|operation| operation != "publicSourceRead");
         cache.put(grant_id, &grant)?;
         let before = runtime_spine_backing_store(&store)?.pull_all()?;
+        assert!(
+            runtime_authenticated_public_source_lookups_for_worker(
+                &store,
+                "worker-public-tool"
+            )
+            .is_err()
+        );
         assert!(
             put_runtime_requested_public_source_intents(
                 &store,
