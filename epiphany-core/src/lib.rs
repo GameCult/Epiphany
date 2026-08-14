@@ -960,6 +960,7 @@ pub use persona_turn::build_persona_turn_prompt;
 pub use persona_turn::parse_and_validate_persona_interpreter_effect_set;
 pub use persona_turn::persona_interpreter_effect_set_json_schema;
 pub use persona_turn::persona_projected_surface_is_clean;
+pub use persona_turn::put_persona_terminal_decision;
 pub use persona_turn::render_persona_semantic_memory_recall;
 pub use persona_turn::semantic_memory_recall_from_heartbeat_action;
 pub use process_observation::EpiphanyProcessObservation;

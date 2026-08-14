@@ -10,6 +10,7 @@ use epiphany_state_model::EpiphanyMemoryContextPacket;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use std::path::Path;
 
 pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
     "epiphany.imagination_persona_projector_prompt.v0";
@@ -82,6 +83,8 @@ pub struct PersonaInterpreterEffectDocument {
     pub effects: Vec<PersonaInterpreterEffect>,
     #[cultcache(key = 7)]
     pub private_state_exposed: bool,
+    #[cultcache(key = 8)]
+    pub decision_context_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -114,6 +117,10 @@ pub struct PersonaModelStageReceipt {
     pub model: String,
     #[cultcache(key = 11)]
     pub prompt_sha256: String,
+    #[cultcache(key = 12)]
+    pub reasoning_basis_id: String,
+    #[cultcache(key = 13)]
+    pub decision_context_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -144,6 +151,41 @@ pub struct PersonaModelTerminalReceipt {
     pub effect_document_sha256: String,
     #[cultcache(key = 10)]
     pub stage_output_sha256: Vec<String>,
+    #[cultcache(key = 11)]
+    pub decision_context_ids: Vec<String>,
+}
+
+pub fn put_persona_terminal_decision(
+    store_path: &Path,
+    effect: &PersonaInterpreterEffectDocument,
+    terminal: &PersonaModelTerminalReceipt,
+) -> Result<()> {
+    if terminal.effect_document_id != effect.document_id
+        || terminal.turn_id != effect.turn_id
+        || terminal.identity_id != effect.identity_id
+        || terminal.decision_context_ids.len() != 3
+        || effect.decision_context_id != terminal.decision_context_ids[2]
+    {
+        return Err(anyhow!("Persona terminal decision ownership mismatch"));
+    }
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let existing_effect = cache.get::<PersonaInterpreterEffectDocument>(&effect.document_id)?;
+    let existing_terminal = cache.get::<PersonaModelTerminalReceipt>(&terminal.receipt_id)?;
+    match (existing_effect, existing_terminal) {
+        (Some(existing_effect), Some(existing_terminal))
+            if existing_effect == *effect && existing_terminal == *terminal => return Ok(()),
+        (None, None) => {}
+        _ => return Err(anyhow!("Persona terminal decision identity collision")),
+    }
+    let effect_envelope = cache.prepare_entry(&effect.document_id, effect)?.0;
+    let terminal_envelope = cache.prepare_entry(&terminal.receipt_id, terminal)?.0;
+    if !crate::runtime_store_backend::runtime_spine_backing_store(store_path)?
+        .compare_and_swap_batch(&[], vec![effect_envelope, terminal_envelope])?
+    {
+        return put_persona_terminal_decision(store_path, effect, terminal);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

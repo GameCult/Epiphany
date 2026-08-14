@@ -183,6 +183,19 @@ impl EpiphanyReasoningBasis {
         rmp_serde::from_slice(&self.projection_msgpack)
             .map_err(|error| anyhow!("reasoning projection is invalid: {error}"))
     }
+
+    pub fn with_predecessor_contexts(
+        mut self,
+        mut predecessor_decision_context_ids: Vec<String>,
+    ) -> Result<Self> {
+        predecessor_decision_context_ids.sort();
+        predecessor_decision_context_ids.dedup();
+        self.predecessor_decision_context_ids = predecessor_decision_context_ids;
+        self.basis_id.clear();
+        self.basis_id = format!("reasoning-basis-{}", digest_without_basis_id(&self)?);
+        self.validate()?;
+        Ok(self)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

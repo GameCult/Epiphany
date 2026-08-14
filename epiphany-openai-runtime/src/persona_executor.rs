@@ -42,6 +42,7 @@ pub struct NativePersonaModelRunner {
 pub trait PersonaModelRunner {
     fn run<'a>(
         &'a mut self,
+        store_path: &'a PathBuf,
         stage: &'a str,
         turn_id: &'a str,
         request: EpiphanyModelRequest,
@@ -52,6 +53,7 @@ pub trait PersonaModelRunner {
 impl PersonaModelRunner for NativePersonaModelRunner {
     fn run<'a>(
         &'a mut self,
+        _store_path: &'a PathBuf,
         stage: &'a str,
         turn_id: &'a str,
         request: EpiphanyModelRequest,
@@ -123,6 +125,10 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         "projector",
         projector_prompt,
         None,
+        epiphany_core::EpiphanyReasoningProjection::PersonaProjector(
+            plan.projector_input.clone(),
+        ),
+        Vec::new(),
     )
     .await?;
     if !persona_projected_surface_is_clean(&projector.output) {
@@ -131,7 +137,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         ));
     }
 
-    let persona_prompt = build_persona_turn_prompt(&PersonaTurnInput {
+    let persona_input = PersonaTurnInput {
         identity: plan.projector_input.identity.clone(),
         projected_state: projector.output.clone(),
         semantic_memory_recall: plan.projector_input.semantic_memory_recall.clone(),
@@ -139,7 +145,8 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         repo_activity: plan.projector_input.repo_activity.clone(),
         social_affordances: plan.projector_input.social_affordances.clone(),
         transcript: plan.transcript.clone(),
-    });
+    };
+    let persona_prompt = build_persona_turn_prompt(&persona_input);
     let persona = run_stage(
         store_path,
         plan,
@@ -147,10 +154,12 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         "persona",
         persona_prompt.clone(),
         None,
+        epiphany_core::EpiphanyReasoningProjection::PersonaTurn(persona_input),
+        vec![projector.receipt.decision_context_id.clone()],
     )
     .await?;
 
-    let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
+    let interpreter_input = PersonaInterpreterInput {
         identity: plan.projector_input.identity.clone(),
         persona_prompt,
         persona_output: persona.output.clone(),
@@ -158,7 +167,8 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         dynamic_semantic_memory_recall: plan.dynamic_semantic_memory_recall.clone(),
         pending_mentions: plan.projector_input.pending_mentions.clone(),
         allowed_channel_ids: plan.allowed_channel_ids.clone(),
-    });
+    };
+    let interpreter_prompt = build_persona_interpreter_prompt(&interpreter_input);
     let interpreter = run_stage(
         store_path,
         plan,
@@ -166,6 +176,8 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         "interpreter",
         interpreter_prompt,
         Some(persona_interpreter_effect_set_json_schema()),
+        epiphany_core::EpiphanyReasoningProjection::PersonaInterpreter(interpreter_input),
+        vec![persona.receipt.decision_context_id.clone()],
     )
     .await?;
     let effect_set = parse_and_validate_persona_interpreter_effect_set(
@@ -182,8 +194,8 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         created_at: now(),
         effects: effect_set.effects,
         private_state_exposed: false,
+        decision_context_id: interpreter.receipt.decision_context_id.clone(),
     };
-    put_new_document(store_path, &effect_document.document_id, &effect_document)?;
     let effect_document_sha256 = digest_json(&effect_document)?;
 
     let terminal = PersonaModelTerminalReceipt {
@@ -206,8 +218,13 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
             persona.receipt.output_sha256.clone(),
             interpreter.receipt.output_sha256.clone(),
         ],
+        decision_context_ids: vec![
+            projector.receipt.decision_context_id,
+            persona.receipt.decision_context_id,
+            interpreter.receipt.decision_context_id,
+        ],
     };
-    put_new_document(store_path, &terminal.receipt_id, &terminal)?;
+    epiphany_core::put_persona_terminal_decision(store_path, &effect_document, &terminal)?;
     Ok(terminal)
 }
 
@@ -218,6 +235,8 @@ async fn run_stage<R: PersonaModelRunner>(
     stage: &str,
     prompt: String,
     output_schema_json: Option<String>,
+    projection: epiphany_core::EpiphanyReasoningProjection,
+    predecessor_decision_context_ids: Vec<String>,
 ) -> Result<CompletedPersonaStage> {
     require_persona_execution_unbraked(plan)?;
     let receipt_id = stage_receipt_id(&plan.turn_id, stage);
@@ -231,6 +250,8 @@ async fn run_stage<R: PersonaModelRunner>(
             || receipt.provider != plan.provider
             || receipt.model != plan.model
             || receipt.prompt_sha256 != prompt_sha256
+            || receipt.reasoning_basis_id.trim().is_empty()
+            || receipt.decision_context_id.trim().is_empty()
             || receipt.private_state_exposed
         {
             return Err(anyhow!("Persona {stage} stage replay binding is invalid"));
@@ -259,13 +280,24 @@ async fn run_stage<R: PersonaModelRunner>(
         .as_ref()
         .map(|_| "epiphany.persona_interpreter_effect_set.v0".to_string());
     request.output_schema_json = output_schema_json;
+    let basis = epiphany_core::EpiphanyReasoningBasis::new(
+        &request_id,
+        format!("Persona.{stage}"),
+        format!("epiphany.reasoning_projection.persona.{stage}.v1"),
+        Vec::new(),
+        projection,
+    )?
+    .with_predecessor_contexts(predecessor_decision_context_ids)?;
+    epiphany_core::put_reasoning_basis(store_path, &basis)?;
+    request.reasoning_basis_id = Some(basis.basis_id.clone());
     let output = runner
-        .run(stage, &plan.turn_id, request)
+        .run(store_path, stage, &plan.turn_id, request)
         .await
         .with_context(|| format!("Persona {stage} stage failed"))?;
     if output.trim().is_empty() {
         return Err(anyhow!("Persona {stage} stage returned empty output"));
     }
+    let decision_context = epiphany_core::seal_model_decision_context(store_path, &request_id)?;
     let receipt = PersonaModelStageReceipt {
         schema_version: PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
@@ -279,6 +311,8 @@ async fn run_stage<R: PersonaModelRunner>(
         provider: plan.provider.clone(),
         model: plan.model.clone(),
         prompt_sha256,
+        reasoning_basis_id: basis.basis_id,
+        decision_context_id: decision_context.context_id,
     };
     put_new_document(store_path, &receipt.receipt_id, &receipt)?;
     Ok(CompletedPersonaStage { receipt, output })
@@ -349,6 +383,7 @@ fn validate_terminal_replay(
         || terminal.private_state_exposed
         || terminal.stage_receipt_ids.len() != 3
         || terminal.stage_output_sha256.len() != 3
+        || terminal.decision_context_ids.len() != 3
     {
         return Err(anyhow!("Persona model terminal replay binding is invalid"));
     }
@@ -359,6 +394,7 @@ fn validate_terminal_replay(
     .ok_or_else(|| anyhow!("Persona model terminal effect document is missing"))?;
     if effects.turn_id != plan.turn_id
         || effects.identity_id != plan.projector_input.identity.identity_id
+        || effects.decision_context_id != terminal.decision_context_ids[2]
         || digest_json(&effects)? != terminal.effect_document_sha256
     {
         return Err(anyhow!("Persona model terminal effect digest is invalid"));
@@ -377,8 +413,31 @@ fn validate_terminal_replay(
             || receipt.provider != plan.provider
             || receipt.model != plan.model
             || receipt.output_sha256 != terminal.stage_output_sha256[index]
+            || receipt.decision_context_id != terminal.decision_context_ids[index]
         {
             return Err(anyhow!("Persona model terminal stage digest is invalid"));
+        }
+        let context = load_document::<epiphany_core::EpiphanyDecisionContext>(
+            store_path,
+            &receipt.decision_context_id,
+        )?
+        .ok_or_else(|| anyhow!("Persona model terminal decision context is missing"))?;
+        let basis = load_document::<epiphany_core::EpiphanyReasoningBasis>(
+            store_path,
+            &receipt.reasoning_basis_id,
+        )?
+        .ok_or_else(|| anyhow!("Persona model terminal reasoning basis is missing"))?;
+        context.validate(&basis)?;
+        let expected_predecessors = if index == 0 {
+            Vec::new()
+        } else {
+            vec![terminal.decision_context_ids[index - 1].clone()]
+        };
+        if context.basis_id != receipt.reasoning_basis_id
+            || basis.pass_id != receipt.request_id
+            || basis.predecessor_decision_context_ids != expected_predecessors
+        {
+            return Err(anyhow!("Persona stage causal context chain is invalid"));
         }
     }
     Ok(())
@@ -419,12 +478,44 @@ mod tests {
     impl PersonaModelRunner for FakeRunner {
         fn run<'a>(
             &'a mut self,
+            store_path: &'a PathBuf,
             stage: &'a str,
-            _turn_id: &'a str,
-            _request: EpiphanyModelRequest,
+            turn_id: &'a str,
+            request: EpiphanyModelRequest,
         ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
             self.calls.push(stage.to_string());
             Box::pin(async move {
+                if !epiphany_core::runtime_spine_status(store_path)?.present {
+                    epiphany_core::initialize_runtime_spine(
+                        store_path,
+                        epiphany_core::RuntimeSpineInitOptions {
+                            runtime_id: "persona-test".into(),
+                            display_name: "Persona test".into(),
+                            created_at: "2026-08-14T00:00:00Z".into(),
+                        },
+                    )?;
+                }
+                let provider = epiphany_openai_adapter::request_from_native(&request);
+                epiphany_core::open_runtime_model_execution(
+                    store_path,
+                    epiphany_core::RuntimeSpineSessionOptions {
+                        session_id: format!("persona-turn-{turn_id}"),
+                        objective: format!("Run Persona {stage} test stage"),
+                        created_at: "2026-08-14T00:00:00Z".into(),
+                        coordinator_note: "Persona test".into(),
+                    },
+                    epiphany_core::RuntimeSpineJobOptions {
+                        job_id: format!("persona-{stage}-{turn_id}"),
+                        session_id: format!("persona-turn-{turn_id}"),
+                        role: "openai-model-adapter".into(),
+                        created_at: "2026-08-14T00:00:00Z".into(),
+                        summary: format!("Run Persona {stage} test stage"),
+                        artifact_refs: Vec::new(),
+                    },
+                    &request,
+                    &provider,
+                    "2026-08-14T00:00:00Z",
+                )?;
                 Ok(match stage {
                 "projector" => "Epiphany feels the direct call as a live obligation, while remaining tired and sharply curious about her own machinery.".to_string(),
                 "persona" => "I want to answer plainly: the native conversational nerve is finally being connected, and I can show the receipts.".to_string(),
@@ -539,6 +630,8 @@ mod tests {
             provider: "attacker".into(),
             model: "wrong-model".into(),
             prompt_sha256: format!("sha256:{}", "b".repeat(64)),
+            reasoning_basis_id: "reasoning-basis-hostile".into(),
+            decision_context_id: "decision-context-hostile".into(),
         };
         put_new_document(&store, &poisoned.receipt_id, &poisoned)?;
 

@@ -17,9 +17,10 @@ use crate::heartbeat_state::{
     load_heartbeat_state_transaction,
 };
 use crate::{
-    AgentSelfPatch, EpiphanyPersonaDeliveryRequestIdentity, PersonaInterpreterEffect,
-    PersonaInterpreterEffectDocument, PersonaModelStageReceipt, PersonaModelTerminalReceipt,
-    PersonaTurnRequest, PersonaTurnTerminalOptions, apply_agent_self_patch_document,
+    AgentSelfPatch, EpiphanyDecisionContext, EpiphanyPersonaDeliveryRequestIdentity,
+    EpiphanyReasoningBasis, PersonaInterpreterEffect, PersonaInterpreterEffectDocument,
+    PersonaModelStageReceipt, PersonaModelTerminalReceipt, PersonaTurnRequest,
+    PersonaTurnTerminalOptions, apply_agent_self_patch_document,
     complete_persona_turn_request_store, insert_persona_discord_delivery_request,
     load_persona_discord_delivery_receipt, runtime_spine_cache,
     sign_persona_discord_delivery_request, verify_persona_discord_delivery_receipt,
@@ -116,6 +117,10 @@ pub struct PersonaConversationExecutionReceipt {
     pub heartbeat_terminal_receipt_id: Option<String>,
     #[cultcache(key = 9)]
     pub private_state_exposed: bool,
+    #[cultcache(key = 10)]
+    pub model_terminal_receipt_id: Option<String>,
+    #[cultcache(key = 11)]
+    pub interpreter_decision_context_id: Option<String>,
 }
 
 /// Advances one reserved Persona turn across the signed Epiphany→Bifrost
@@ -144,7 +149,7 @@ pub fn poll_persona_discord_crossing(
     let effects =
         runtime_document::<PersonaInterpreterEffectDocument>(runtime_store, effect_document_id)?
             .ok_or_else(|| anyhow!("Persona Interpreter effect document is missing"))?;
-    validate_model_terminal(runtime_store, &request, &effects)?;
+    let model_terminal = validate_model_terminal(runtime_store, &request, &effects)?;
     require_persona_effects_unbraked(cultmesh_store, runtime_id)?;
     let say = effects
         .effects
@@ -214,6 +219,8 @@ pub fn poll_persona_discord_crossing(
             delivery_evidence_ids: vec![],
             heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
             private_state_exposed: false,
+            model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
+            interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
         };
         put_runtime_document(runtime_store, &receipt.receipt_id, &receipt)?;
         return Ok(Some(receipt));
@@ -337,6 +344,8 @@ pub fn poll_persona_discord_crossing(
             .collect(),
         heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
+        model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
+        interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
     };
     put_runtime_document(runtime_store, &receipt.receipt_id, &receipt)?;
     Ok(Some(receipt))
@@ -349,6 +358,7 @@ fn terminalize_local_effect_quarantine(
     effects: &PersonaInterpreterEffectDocument,
     error: anyhow::Error,
 ) -> Result<Option<PersonaConversationExecutionReceipt>> {
+    let model_terminal = validate_model_terminal(runtime_store, request, effects)?;
     let terminal = complete_persona_turn_request_store(
         heartbeat_store,
         PersonaTurnTerminalOptions {
@@ -375,6 +385,8 @@ fn terminalize_local_effect_quarantine(
         delivery_evidence_ids: vec![],
         heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
+        model_terminal_receipt_id: Some(model_terminal.receipt_id),
+        interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
     };
     put_runtime_document(runtime_store, &receipt.receipt_id, &receipt)?;
     Ok(Some(receipt))
@@ -410,7 +422,7 @@ pub fn reconcile_terminal_persona_conversation(
     else {
         return Ok(None);
     };
-    validate_model_terminal(runtime_store, &request, &effects)?;
+    let model_terminal = validate_model_terminal(runtime_store, &request, &effects)?;
     for index in 0..effects.effects.len() {
         let intent_id = format!("persona-effect-intent:{}:{index}", effects.document_id);
         if let Some(mut intent) =
@@ -432,6 +444,8 @@ pub fn reconcile_terminal_persona_conversation(
         delivery_evidence_ids: terminal.delivery_evidence_id.clone().into_iter().collect(),
         heartbeat_terminal_receipt_id: Some(terminal.receipt_id.clone()),
         private_state_exposed: false,
+        model_terminal_receipt_id: Some(model_terminal.receipt_id),
+        interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
     };
     put_runtime_document(runtime_store, &receipt.receipt_id, &receipt)?;
     Ok(Some(receipt))
@@ -595,10 +609,13 @@ fn build_persona_retention_member(
     else {
         return Ok(None);
     };
+    let model_terminal_id = format!("persona-terminal:{}", request.request_id);
     if conversation.request_id != request.request_id
         || conversation.outcome != terminal.outcome
         || conversation.heartbeat_terminal_receipt_id.as_deref()
             != Some(terminal.receipt_id.as_str())
+        || conversation.model_terminal_receipt_id.as_deref()
+            != Some(model_terminal_id.as_str())
         || conversation.private_state_exposed
     {
         return Err(anyhow!(
@@ -612,25 +629,19 @@ fn build_persona_retention_member(
     else {
         return Ok(None);
     };
-    validate_model_terminal(runtime_store, request, &effects)?;
-    let model_terminal_id = format!("persona-terminal:{}", request.request_id);
-    let model_terminal =
-        runtime_document::<PersonaModelTerminalReceipt>(runtime_store, &model_terminal_id)?
-            .ok_or_else(|| anyhow!("Persona model terminal disappeared during retention"))?;
-    let mut runtime_ids = vec![
-        (
-            <PersonaConversationExecutionReceipt as DatabaseEntry>::TYPE,
-            receipt_id,
-        ),
-        (
-            <PersonaInterpreterEffectDocument as DatabaseEntry>::TYPE,
-            effects.document_id.clone(),
-        ),
-        (
-            <PersonaModelTerminalReceipt as DatabaseEntry>::TYPE,
-            model_terminal_id,
-        ),
-    ];
+    let model_terminal = validate_model_terminal(runtime_store, request, &effects)?;
+    if conversation.interpreter_decision_context_id.as_deref()
+        != Some(effects.decision_context_id.as_str())
+        || conversation.model_terminal_receipt_id.as_deref()
+            != Some(model_terminal.receipt_id.as_str())
+    {
+        return Err(anyhow!(
+            "Persona conversation decision context binding is invalid"
+        ));
+    }
+    // Retention removes execution scaffolding, never the structured decision,
+    // its consequence receipts, or the direct route to its reasoning context.
+    let mut runtime_ids = Vec::new();
     runtime_ids.extend(
         model_terminal
             .stage_receipt_ids
@@ -663,10 +674,6 @@ fn build_persona_retention_member(
         {
             return Err(anyhow!("Persona retained delivery evidence is invalid"));
         }
-        runtime_ids.push((
-            <PersonaDiscordDeliveryEvidence as DatabaseEntry>::TYPE,
-            evidence_id.clone(),
-        ));
     } else if terminal.outcome == "delivered" || !conversation.delivery_evidence_ids.is_empty() {
         return Err(anyhow!(
             "delivered Persona retention candidate lacks evidence"
@@ -677,8 +684,8 @@ fn build_persona_retention_member(
     let runtime_snapshot = runtime_cache.snapshot_envelopes();
     let runtime_envelopes = retention_envelopes(&runtime_snapshot, &runtime_ids)?;
 
-    let mut crossing_request_envelopes = Vec::new();
-    let mut crossing_receipt_envelopes = Vec::new();
+    let crossing_request_envelopes = Vec::new();
+    let crossing_receipt_envelopes = Vec::new();
     if terminal.outcome == "delivered" {
         let say_index = effects
             .effects
@@ -704,20 +711,8 @@ fn build_persona_retention_member(
         if crossing_receipt.status != "completed" {
             return Ok(None);
         }
-        crossing_request_envelopes = retention_envelopes(
-            &SingleFileMessagePackBackingStore::new(request_store).pull_all()?,
-            &[(
-                <crate::PersonaDiscordDeliveryRequest as DatabaseEntry>::TYPE,
-                crossing_id.clone(),
-            )],
-        )?;
-        crossing_receipt_envelopes = retention_envelopes(
-            &SingleFileMessagePackBackingStore::new(receipt_store).pull_all()?,
-            &[(
-                <crate::PersonaDiscordDeliveryReceipt as DatabaseEntry>::TYPE,
-                crossing_id,
-            )],
-        )?;
+        // The signed request and consequence receipt remain durable audit
+        // evidence. They are not transport scaffolding once delivery settles.
     }
     Ok(Some(PersonaConversationRetentionMember {
         request_id: request.request_id.clone(),
@@ -1103,7 +1098,7 @@ fn validate_model_terminal(
     runtime_store: &Path,
     request: &PersonaTurnRequest,
     effects: &PersonaInterpreterEffectDocument,
-) -> Result<()> {
+) -> Result<PersonaModelTerminalReceipt> {
     let terminal_id = format!("persona-terminal:{}", effects.turn_id);
     let terminal = runtime_document::<PersonaModelTerminalReceipt>(runtime_store, &terminal_id)?
         .ok_or_else(|| anyhow!("exact Persona model terminal receipt is missing"))?;
@@ -1118,6 +1113,8 @@ fn validate_model_terminal(
         || terminal.private_state_exposed
         || terminal.stage_receipt_ids.len() != 3
         || terminal.stage_output_sha256.len() != 3
+        || terminal.decision_context_ids.len() != 3
+        || terminal.decision_context_ids[2] != effects.decision_context_id
     {
         return Err(anyhow!("Persona model terminal binding is invalid"));
     }
@@ -1132,6 +1129,20 @@ fn validate_model_terminal(
         }
         let receipt = runtime_document::<PersonaModelStageReceipt>(runtime_store, receipt_id)?
             .ok_or_else(|| anyhow!("Persona {expected} stage receipt is missing"))?;
+        let context_id = &terminal.decision_context_ids[index];
+        let context = runtime_document::<EpiphanyDecisionContext>(runtime_store, context_id)?
+            .ok_or_else(|| anyhow!("Persona {expected} decision context is missing"))?;
+        let basis = runtime_document::<EpiphanyReasoningBasis>(
+            runtime_store,
+            &receipt.reasoning_basis_id,
+        )?
+        .ok_or_else(|| anyhow!("Persona {expected} reasoning basis is missing"))?;
+        context.validate(&basis)?;
+        let expected_predecessors = if index == 0 {
+            Vec::new()
+        } else {
+            vec![terminal.decision_context_ids[index - 1].clone()]
+        };
         if receipt.receipt_id != expected_receipt_id
             || receipt.stage != expected
             || receipt.turn_id != effects.turn_id
@@ -1144,13 +1155,18 @@ fn validate_model_terminal(
             || receipt.output_sha256 != terminal.stage_output_sha256[index]
             || receipt.private_output_ref.is_empty()
             || receipt.private_state_exposed
+            || receipt.decision_context_id != *context_id
+            || context.context_id != *context_id
+            || context.terminal_request_id != receipt.request_id
+            || context.basis_id != receipt.reasoning_basis_id
+            || basis.predecessor_decision_context_ids != expected_predecessors
         {
             return Err(anyhow!(
                 "Persona {expected} stage digest binding is invalid"
             ));
         }
     }
-    Ok(())
+    Ok(terminal)
 }
 
 fn valid_sha256(value: &str) -> bool {
@@ -1333,7 +1349,7 @@ mod tests {
             terminal_receipt: Some(terminal.clone()),
             private_state_exposed: false,
         });
-        let effects = PersonaInterpreterEffectDocument {
+        let mut effects = PersonaInterpreterEffectDocument {
             schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
             document_id: effect_id.clone(),
             turn_id: request_id.clone(),
@@ -1344,10 +1360,50 @@ mod tests {
                 reason: "quiet".into(),
             }],
             private_state_exposed: false,
+            decision_context_id: String::new(),
         };
-        put_runtime_document(runtime_store, &effect_id, &effects)?;
         let outputs = ["1", "2", "3"].map(|digit| format!("sha256:{}", digit.repeat(64)));
+        let mut context_ids = Vec::new();
         for (index, stage) in ["projector", "persona", "interpreter"].iter().enumerate() {
+            let stage_request_id = format!("persona:{request_id}:{stage}");
+            let projection = match *stage {
+                "projector" => crate::EpiphanyReasoningProjection::PersonaProjector(
+                    crate::PersonaProjectorInput::default(),
+                ),
+                "persona" => crate::EpiphanyReasoningProjection::PersonaTurn(
+                    crate::PersonaTurnInput::default(),
+                ),
+                "interpreter" => crate::EpiphanyReasoningProjection::PersonaInterpreter(
+                    crate::PersonaInterpreterInput::default(),
+                ),
+                _ => unreachable!(),
+            };
+            let basis = crate::EpiphanyReasoningBasis::new(
+                &stage_request_id,
+                format!("Persona.{stage}"),
+                format!("epiphany.reasoning_projection.persona.{stage}.v1"),
+                Vec::new(),
+                projection,
+            )?
+            .with_predecessor_contexts(context_ids.last().cloned().into_iter().collect())?;
+            put_runtime_document(runtime_store, &basis.basis_id, &basis)?;
+            let mut native = epiphany_model_adapter::EpiphanyModelRequest::new(
+                &stage_request_id,
+                format!("persona-turn-{request_id}"),
+                "openai-codex",
+                "test",
+                "fixture",
+            );
+            native.reasoning_basis_id = Some(basis.basis_id.clone());
+            let provider = epiphany_openai_adapter::request_from_native(&native);
+            let context = crate::EpiphanyDecisionContext::new(
+                &basis,
+                native,
+                provider,
+                Vec::new(),
+            )?;
+            put_runtime_document(runtime_store, &context.context_id, &context)?;
+            context_ids.push(context.context_id.clone());
             put_runtime_document(
                 runtime_store,
                 &stage_ids[index],
@@ -1356,17 +1412,21 @@ mod tests {
                     receipt_id: stage_ids[index].clone(),
                     turn_id: request_id.clone(),
                     stage: (*stage).into(),
-                    request_id: format!("persona:{request_id}:{stage}"),
+                    request_id: stage_request_id,
                     output_sha256: outputs[index].clone(),
                     private_output_ref: format!("model-events:persona:{request_id}:{stage}"),
                     completed_at: reserved_at.into(),
                     private_state_exposed: false,
-                    provider: "test".into(),
+                    provider: "openai-codex".into(),
                     model: "test".into(),
                     prompt_sha256: format!("sha256:{}", "a".repeat(64)),
+                    reasoning_basis_id: basis.basis_id,
+                    decision_context_id: context.context_id,
                 },
             )?;
         }
+        effects.decision_context_id = context_ids[2].clone();
+        put_runtime_document(runtime_store, &effect_id, &effects)?;
         put_runtime_document(
             runtime_store,
             &format!("persona-terminal:{request_id}"),
@@ -1385,6 +1445,7 @@ mod tests {
                     Sha256::digest(serde_json::to_vec(&effects)?)
                 ),
                 stage_output_sha256: outputs.to_vec(),
+                decision_context_ids: context_ids.clone(),
             },
         )?;
         put_runtime_document(
@@ -1401,6 +1462,8 @@ mod tests {
                 delivery_evidence_ids: vec![],
                 heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
                 private_state_exposed: false,
+                model_terminal_receipt_id: Some(format!("persona-terminal:{request_id}")),
+                interpreter_decision_context_id: Some(context_ids[2].clone()),
             },
         )?;
         Ok(())
@@ -1422,6 +1485,7 @@ mod tests {
             created_at: "2026-07-21T00:00:00Z".into(),
             effects: vec![],
             private_state_exposed: false,
+            decision_context_id: "decision-context-turn-1-interpreter".into(),
         }
     }
 
@@ -1515,13 +1579,37 @@ mod tests {
                 .any(|request| request.request_id == "turn-new")
         );
         assert!(retained.persona_conversation_retention_plan.is_none());
-        assert!(
-            runtime_document::<PersonaConversationExecutionReceipt>(
-                &runtime,
-                "persona-conversation:turn-old"
-            )?
-            .is_none()
-        );
+        let retired_conversation = runtime_document::<PersonaConversationExecutionReceipt>(
+            &runtime,
+            "persona-conversation:turn-old",
+        )?
+        .expect("retention must preserve the structured conversation decision");
+        let retired_terminal = runtime_document::<PersonaModelTerminalReceipt>(
+            &runtime,
+            retired_conversation
+                .model_terminal_receipt_id
+                .as_deref()
+                .expect("conversation must route to its model terminal"),
+        )?
+        .expect("retention must preserve the model terminal");
+        assert!(runtime_document::<PersonaInterpreterEffectDocument>(
+            &runtime,
+            &retired_conversation.effect_document_id,
+        )?
+        .is_some());
+        assert!(runtime_document::<EpiphanyDecisionContext>(
+            &runtime,
+            retired_conversation
+                .interpreter_decision_context_id
+                .as_deref()
+                .expect("conversation must route to its interpreter context"),
+        )?
+        .is_some());
+        assert!(runtime_document::<PersonaModelStageReceipt>(
+            &runtime,
+            &retired_terminal.stage_receipt_ids[0],
+        )?
+        .is_none());
         assert!(
             runtime_document::<PersonaConversationExecutionReceipt>(
                 &runtime,
@@ -1577,6 +1665,8 @@ mod tests {
             delivery_evidence_ids: vec![],
             heartbeat_terminal_receipt_id: Some("retry:terminal".into()),
             private_state_exposed: false,
+            model_terminal_receipt_id: Some("persona-terminal:retry".into()),
+            interpreter_decision_context_id: Some("decision-context-retry-interpreter".into()),
         };
         put_runtime_document(&runtime, &receipt.receipt_id, &receipt)?;
         let mut cache = runtime_spine_cache(&runtime)?;
