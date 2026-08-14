@@ -1046,6 +1046,7 @@ pub use runtime_spine::ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION;
 pub use runtime_spine::ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE;
 pub use runtime_spine::RepoFrontierVerdictModelingLaunchAuthority;
 pub use runtime_spine::RepoFrontierResearchLifecycle;
+pub use runtime_spine::RepoFrontierResearchContinuationAction;
 pub use runtime_spine::RepoFrontierResearchLifecycleStage;
 pub use runtime_spine::RuntimeHandsReceiptChainSummary;
 pub use runtime_spine::RuntimeSpineEventOptions;

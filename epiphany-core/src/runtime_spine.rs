@@ -9170,6 +9170,21 @@ pub enum RepoFrontierResearchLifecycleStage {
     ResultReady,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepoFrontierResearchContinuationAction {
+    LaunchResearch,
+    ReviewResearchResult,
+}
+
+impl RepoFrontierResearchContinuationAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::LaunchResearch => "launchResearch",
+            Self::ReviewResearchResult => "reviewResearchResult",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoFrontierResearchLifecycle {
@@ -9177,6 +9192,21 @@ pub struct RepoFrontierResearchLifecycle {
     pub frontier_item_id: Option<String>,
     pub request_id: Option<String>,
     pub worker_job_id: Option<String>,
+}
+
+impl RepoFrontierResearchLifecycle {
+    pub fn continuation_action(&self) -> Option<RepoFrontierResearchContinuationAction> {
+        match self.stage {
+            RepoFrontierResearchLifecycleStage::LaunchReady => {
+                Some(RepoFrontierResearchContinuationAction::LaunchResearch)
+            }
+            RepoFrontierResearchLifecycleStage::ResultReady => {
+                Some(RepoFrontierResearchContinuationAction::ReviewResearchResult)
+            }
+            RepoFrontierResearchLifecycleStage::Terminal
+            | RepoFrontierResearchLifecycleStage::WorkerRunning => None,
+        }
+    }
 }
 
 /// Projects the next exact actionable Eyes frontier through request, worker,
@@ -17746,8 +17776,8 @@ pub(crate) mod tests {
                 &eyes_store,
                 &continuation_receipt,
             )?,
-            None,
-            "the exact current terminal result owns review; stale launch authority is gone"
+            Some("reviewResearchResult".into()),
+            "the exact lifecycle replaces stale launch provenance with current review authority"
         );
         let covered = EyesEvidencePacket {
             schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.into(),
@@ -17793,6 +17823,11 @@ pub(crate) mod tests {
             }
         })?;
         assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?
+                .continuation_action(),
+            Some(RepoFrontierResearchContinuationAction::LaunchResearch)
+        );
         let second_research_request = select_and_commit_repo_frontier_research_request(
             &eyes_store,
             "2026-07-13T04:06:00Z",

@@ -38,7 +38,6 @@ use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
-use epiphany_core::RepoFrontierResearchLifecycleStage;
 use epiphany_core::runtime_repo_frontier_research_lifecycle;
 use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
@@ -482,8 +481,8 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let research_lifecycle = runtime_repo_frontier_research_lifecycle(&runtime_store_path)
         .context("failed to derive exact Eyes frontier lifecycle from runtime-spine state")?;
     let eyes_frontier_ready = matches!(
-        research_lifecycle.stage,
-        RepoFrontierResearchLifecycleStage::LaunchReady
+        research_lifecycle.continuation_action(),
+        Some(epiphany_core::RepoFrontierResearchContinuationAction::LaunchResearch)
     );
     let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
         &runtime_store_path,
