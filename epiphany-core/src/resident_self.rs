@@ -1186,11 +1186,13 @@ fn resident_continuation_launch_was_overtaken(
 ) -> Result<bool> {
     match action {
         // Research launch currency belongs to the exact current frontier
-        // request. A terminal result on the stable role binding may belong to
-        // an older frontier and cannot suppress new causal work.
-        "launchResearch" => Ok(!crate::runtime_has_uncovered_actionable_eyes_frontier(
-            runtime_store,
-        )?),
+        // lifecycle. Uncovered means that Mind still lacks accepted coverage;
+        // it does not mean another worker is launchable while an exact attempt
+        // is running or awaiting review.
+        "launchResearch" => Ok(!matches!(
+            crate::runtime_repo_frontier_research_lifecycle(runtime_store)?.stage,
+            crate::RepoFrontierResearchLifecycleStage::LaunchReady
+        )),
         // These legacy checkpoint lanes do not yet expose an exact current
         // request projection. Keep their existing role-slot behavior explicit
         // rather than pretending it is the same authority as Research.

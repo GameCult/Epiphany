@@ -9042,54 +9042,23 @@ pub fn select_and_commit_repo_frontier_research_request(
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let packets = cache.get_all::<EyesEvidencePacket>()?;
-    let existing_actionable = actionable_repo_frontier_research_requests(&cache)?;
-    let mut existing_uncovered = existing_actionable
-        .iter()
-        .cloned()
-        .filter_map(|request| {
-            match repo_frontier_research_request_is_covered(
-                &cache,
-                &request,
-                &launches,
-                &packets,
-            ) {
-                Ok(false) => Some(Ok(request)),
-                Ok(true) => None,
-                Err(error) => Some(Err(error)),
-            }
-        })
-        .collect::<Result<Vec<_>>>()?;
-    existing_uncovered.sort_by(|left, right| {
-        left.requested_at
-            .cmp(&right.requested_at)
-            .then_with(|| left.request_id.cmp(&right.request_id))
-    });
-    if let Some(request) = existing_uncovered.into_iter().next() {
-        return Ok(request);
-    }
-
-    let item = model
-        .frontier
-        .iter()
-        .filter(|item| {
-            frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false)
-        })
-        .find(|item| {
-            let Ok(item_hash) = repo_frontier_item_hash(item) else {
-                return false;
-            };
-            !existing_actionable.iter().any(|request| {
-                request.frontier_item_id == item.id
-                    && request.frontier_item_hash == item_hash
-            })
-        })
-        .ok_or_else(|| anyhow!("current model has no uncovered actionable Eyes frontier"))?;
+    let item = match next_repo_frontier_research_work(
+        &cache,
+        &model,
+        &challenges,
+        &launches,
+        &packets,
+    )? {
+        Some(NextRepoFrontierResearchWork::Existing(request)) => return Ok(request),
+        Some(NextRepoFrontierResearchWork::Unrequested(item)) => item,
+        None => return Err(anyhow!("current model has no uncovered actionable Eyes frontier")),
+    };
     let request = repo_frontier_research_request_for_admitted_item(
         &identity.runtime_id,
         &thread.thread_id,
         &model,
         &receipts[0],
-        item,
+        &item,
         at,
     )?;
     let request_id = request.request_id.clone();
@@ -9175,34 +9144,240 @@ fn repo_frontier_research_request_for_admitted_item(
 pub fn runtime_has_uncovered_actionable_eyes_frontier(
     runtime_store: impl AsRef<Path>,
 ) -> Result<bool> {
+    Ok(!matches!(
+        runtime_repo_frontier_research_lifecycle(runtime_store)?.stage,
+        RepoFrontierResearchLifecycleStage::Terminal
+    ))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepoFrontierResearchLifecycleStage {
+    Terminal,
+    LaunchReady,
+    WorkerRunning,
+    ResultReady,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierResearchLifecycle {
+    pub stage: RepoFrontierResearchLifecycleStage,
+    pub frontier_item_id: Option<String>,
+    pub request_id: Option<String>,
+    pub worker_job_id: Option<String>,
+}
+
+/// Projects the next exact actionable Eyes frontier through request, worker,
+/// review, and accepted-packet lifecycle. This is the launch-currency owner:
+/// an uncovered frontier is not launchable while its current attempt is still
+/// running or awaiting review.
+pub fn runtime_repo_frontier_research_lifecycle(
+    runtime_store: impl AsRef<Path>,
+) -> Result<RepoFrontierResearchLifecycle> {
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let requests = actionable_repo_frontier_research_requests(&cache)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let packets = cache.get_all::<EyesEvidencePacket>()?;
+    let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
+    let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
+    let state = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .map(|entry| entry.state())
+        .transpose()?;
     let entry = cache
         .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
-        .ok_or_else(|| anyhow!("frontier Research coverage lost current model"))?;
+        .ok_or_else(|| anyhow!("frontier Research lifecycle lost current model"))?;
     crate::validate_memory_graph_entry(&entry)?;
     let model = entry.snapshot()?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
     let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
+
+    let work = next_repo_frontier_research_work(
+        &cache,
+        &model,
+        &challenges,
+        &launches,
+        &packets,
+    )?;
+    let request = match work {
+        Some(NextRepoFrontierResearchWork::Unrequested(item)) => {
+            return Ok(RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::LaunchReady,
+                frontier_item_id: Some(item.id.clone()),
+                request_id: None,
+                worker_job_id: None,
+            });
+        }
+        Some(NextRepoFrontierResearchWork::Existing(request)) => request,
+        None => {
+            return Ok(RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::Terminal,
+                frontier_item_id: None,
+                request_id: None,
+                worker_job_id: None,
+            });
+        }
+    };
+    let mut attempts = launches
+        .iter()
+        .filter(|launch| {
+            launch.repo_frontier_research_request_id.as_deref()
+                == Some(request.request_id.as_str())
+        })
+        .map(|launch| {
+            let carried_request = frontier_research_request_for_launch(&cache, launch)?
+                .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
+            if carried_request != request {
+                return Err(anyhow!(
+                    "frontier Research launch carries substituted request"
+                ));
+            }
+            let job = jobs
+                .iter()
+                .find(|job| job.job_id == launch.job_id)
+                .ok_or_else(|| anyhow!("frontier Research launch lost its runtime job"))?;
+            Ok((launch, job))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    attempts.sort_by(|(_, left), (_, right)| {
+        left.created_at
+            .cmp(&right.created_at)
+            .then_with(|| left.job_id.cmp(&right.job_id))
+    });
+    let Some((launch, job)) = attempts.last() else {
+        return Ok(RepoFrontierResearchLifecycle {
+            stage: RepoFrontierResearchLifecycleStage::LaunchReady,
+            frontier_item_id: Some(request.frontier_item_id.clone()),
+            request_id: Some(request.request_id.clone()),
+            worker_job_id: None,
+        });
+    };
+    let stage = match job.status {
+        EpiphanyRuntimeJobStatus::Queued
+        | EpiphanyRuntimeJobStatus::Running
+        | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            RepoFrontierResearchLifecycleStage::WorkerRunning
+        }
+        EpiphanyRuntimeJobStatus::Completed
+        | EpiphanyRuntimeJobStatus::Failed
+        | EpiphanyRuntimeJobStatus::Cancelled => {
+            let result_id = role_results
+                .iter()
+                .find(|result| result.job_id == job.job_id)
+                .map(|result| result.result_id.as_str())
+                .or_else(|| {
+                    job_results
+                        .iter()
+                        .filter(|result| result.job_id == job.job_id)
+                        .max_by(|left, right| {
+                            left.completed_at
+                                .cmp(&right.completed_at)
+                                .then_with(|| left.result_id.cmp(&right.result_id))
+                        })
+                        .map(|result| result.result_id.as_str())
+                })
+                .ok_or_else(|| {
+                    anyhow!("terminal frontier Research job lost its reviewable result")
+                })?;
+            let matching_receipts = state
+                .as_ref()
+                .map(|state| {
+                    state
+                        .acceptance_receipts
+                        .iter()
+                        .filter(|receipt| {
+                            receipt.result_id == result_id
+                                && receipt.job_id == job.job_id
+                                && receipt.role_id == "research"
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if matching_receipts.len() > 1 {
+                return Err(anyhow!(
+                    "frontier Research result has multiple review authorities"
+                ));
+            }
+            match matching_receipts.first() {
+                Some(receipt)
+                    if receipt.surface == "roleFailureReview"
+                        && receipt.status == "superseded" =>
+                {
+                    RepoFrontierResearchLifecycleStage::LaunchReady
+                }
+                Some(receipt)
+                    if receipt.surface == "roleAccept" && receipt.status == "accepted" =>
+                {
+                    return Err(anyhow!(
+                        "accepted frontier Research result lost its Eyes evidence packet"
+                    ));
+                }
+                Some(_) => {
+                    return Err(anyhow!(
+                        "frontier Research result has conflicting review authority"
+                    ));
+                }
+                None => RepoFrontierResearchLifecycleStage::ResultReady,
+            }
+        }
+    };
+    Ok(RepoFrontierResearchLifecycle {
+        stage,
+        frontier_item_id: Some(request.frontier_item_id.clone()),
+        request_id: Some(request.request_id.clone()),
+        worker_job_id: Some(launch.job_id.clone()),
+    })
+}
+
+enum NextRepoFrontierResearchWork {
+    Existing(RepoFrontierResearchRequest),
+    Unrequested(crate::RepoFrontierItem),
+}
+
+fn next_repo_frontier_research_work(
+    cache: &CultCache,
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+    launches: &[EpiphanyRuntimeWorkerLaunchRequest],
+    packets: &[EyesEvidencePacket],
+) -> Result<Option<NextRepoFrontierResearchWork>> {
+    let existing_actionable = actionable_repo_frontier_research_requests(cache)?;
+    let mut existing_uncovered = existing_actionable
+        .iter()
+        .cloned()
+        .filter_map(|request| {
+            match repo_frontier_research_request_is_covered(cache, &request, launches, packets) {
+                Ok(false) => Some(Ok(request)),
+                Ok(true) => None,
+                Err(error) => Some(Err(error)),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    existing_uncovered.sort_by(|left, right| {
+        left.requested_at
+            .cmp(&right.requested_at)
+            .then_with(|| left.request_id.cmp(&right.request_id))
+    });
+    if let Some(request) = existing_uncovered.into_iter().next() {
+        return Ok(Some(NextRepoFrontierResearchWork::Existing(request)));
+    }
     for item in model.frontier.iter().filter(|item| {
-        frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false)
+        frontier_item_is_actionable_for_organ(model, challenges, item, "Eyes", false)
     }) {
         let item_hash = repo_frontier_item_hash(item)?;
-        let Some(request) = requests.iter().find(|request| {
+        if !existing_actionable.iter().any(|request| {
             request.frontier_item_id == item.id && request.frontier_item_hash == item_hash
-        }) else {
-            return Ok(true);
-        };
-        if !repo_frontier_research_request_is_covered(&cache, request, &launches, &packets)? {
-            return Ok(true);
+        }) {
+            return Ok(Some(NextRepoFrontierResearchWork::Unrequested(
+                item.clone(),
+            )));
         }
     }
-    Ok(false)
+    Ok(None)
 }
 
 fn repo_frontier_research_request_is_covered(
@@ -17316,6 +17491,15 @@ pub(crate) mod tests {
             research_request
         );
         assert!(runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?,
+            RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::LaunchReady,
+                frontier_item_id: Some(research_request.frontier_item_id.clone()),
+                request_id: Some(research_request.request_id.clone()),
+                worker_job_id: None,
+            }
+        );
         // A completed Research role projection may belong to an older
         // frontier. It cannot suppress the exact current frontier request.
         let stale_job_id = "eyes-stale-role-projection-job";
@@ -17463,6 +17647,97 @@ pub(crate) mod tests {
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         cache.put(job_id, &launch)?;
+        cache.put(
+            job_id,
+            &EpiphanyRuntimeJob {
+                schema_version: RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                job_id: job_id.into(),
+                session_id: "eyes-current-frontier-session".into(),
+                role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+                status: EpiphanyRuntimeJobStatus::Running,
+                created_at: "2026-07-13T04:04:02Z".into(),
+                updated_at: "2026-07-13T04:04:03Z".into(),
+                summary: "The exact current Research attempt is running.".into(),
+                artifact_refs: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?.stage,
+            RepoFrontierResearchLifecycleStage::WorkerRunning
+        );
+        assert_eq!(
+            crate::resident_self::resident_self_safe_continuation_action(
+                &eyes_store,
+                &continuation_receipt,
+            )?,
+            None,
+            "the exact running attempt owns the request; stale launch authority is gone"
+        );
+        let mut current_job = cache
+            .get::<EpiphanyRuntimeJob>(job_id)?
+            .expect("current Research job");
+        current_job.status = EpiphanyRuntimeJobStatus::Completed;
+        current_job.updated_at = "2026-07-13T04:04:04Z".into();
+        current_job.summary = "The exact current Research attempt completed.".into();
+        cache.put(job_id, &current_job)?;
+        cache.put(
+            job_id,
+            &EpiphanyRuntimeRoleWorkerResult {
+                schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+                result_id: "eyes-current-frontier-result".into(),
+                job_id: job_id.into(),
+                role_id: "research".into(),
+                verdict: "checkpoint-ready".into(),
+                summary: "The exact current frontier was inspected.".into(),
+                next_safe_move: "Review the exact Research result.".into(),
+                checkpoint_summary: None,
+                scratch_summary: None,
+                files_inspected: research_request.source_scope.clone(),
+                frontier_node_ids: vec![research_request.frontier_item_id.clone()],
+                evidence_ids: vec!["evidence-current-frontier".into()],
+                artifact_refs: Vec::new(),
+                open_questions: Vec::new(),
+                evidence_gaps: Vec::new(),
+                risks: Vec::new(),
+                state_patch_msgpack: None,
+                self_patch_msgpack: None,
+                item_error: None,
+                metadata: BTreeMap::new(),
+                repo_model_patch_msgpack: None,
+                verification_request_id: None,
+                frontier_route_id: None,
+                repo_frontier_modeling_request_id: None,
+                proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
+                frontier_planning_request_id: None,
+                frontier_plan_candidate_msgpack: None,
+                frontier_plan_mind_request_id: None,
+                frontier_plan_mind_decision_msgpack: None,
+                repository_body_observation_basis: None,
+                imagination_consideration_request_id: None,
+                imagination_consideration_candidate_msgpack: None,
+                admitted_model_direction_consideration_request_id: None,
+                admitted_model_direction_consideration_result_msgpack: None,
+            },
+        )?;
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?,
+            RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::ResultReady,
+                frontier_item_id: Some(research_request.frontier_item_id.clone()),
+                request_id: Some(research_request.request_id.clone()),
+                worker_job_id: Some(job_id.into()),
+            }
+        );
+        assert_eq!(
+            crate::resident_self::resident_self_safe_continuation_action(
+                &eyes_store,
+                &continuation_receipt,
+            )?,
+            None,
+            "the exact current terminal result owns review; stale launch authority is gone"
+        );
         let covered = EyesEvidencePacket {
             schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.into(),
             packet_id: "eyes-current-frontier-packet".into(),
@@ -17480,6 +17755,10 @@ pub(crate) mod tests {
         };
         cache.put(&covered.packet_id, &covered)?;
         assert!(!runtime_has_uncovered_actionable_eyes_frontier(&eyes_store)?);
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?.stage,
+            RepoFrontierResearchLifecycleStage::Terminal
+        );
         assert_eq!(
             crate::resident_self::resident_self_safe_continuation_action(
                 &eyes_store,
@@ -17509,6 +17788,16 @@ pub(crate) mod tests {
         )?;
         assert_eq!(second_research_request.frontier_item_id, "second-eyes-frontier");
         assert_ne!(second_research_request.request_id, research_request.request_id);
+        assert_eq!(
+            runtime_repo_frontier_research_lifecycle(&eyes_store)?,
+            RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::LaunchReady,
+                frontier_item_id: Some(second_research_request.frontier_item_id.clone()),
+                request_id: Some(second_research_request.request_id.clone()),
+                worker_job_id: None,
+            },
+            "an accepted first frontier cannot suppress a distinct second causal item"
+        );
 
         let (planning_store, planning_challenge) =
             claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;
