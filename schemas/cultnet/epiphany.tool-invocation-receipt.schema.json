@@ -22,7 +22,7 @@
     "server": { "type": "string" },
     "tool_name": { "type": "string" },
     "status": { "type": "string" },
-    "completed_at": { "type": "string" },
+    "completed_at": { "type": "string", "format": "date-time" },
     "result_json": { "type": ["string", "null"] },
     "error": { "type": ["string", "null"] },
     "sealed_raw_result_ref": { "type": ["string", "null"] }

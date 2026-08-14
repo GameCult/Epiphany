@@ -2287,6 +2287,7 @@ name = "epiphany-tool-mcp-runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "cultcache-rs",
  "epiphany-core",
  "epiphany-tool-adapter",

@@ -151,6 +151,8 @@ use epiphany_state_model::EpiphanyThreadState;
 use epiphany_tool_adapter::EpiphanyToolCapability;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
+use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
+use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::Deserialize;
@@ -2075,9 +2077,6 @@ pub fn put_runtime_tool_execution_receipt(
         &receipt.completed_at,
         "tool execution receipt completion time",
     )?;
-    if !matches!(receipt.status.as_str(), "completed" | "failed") {
-        return Err(anyhow!("tool execution receipt status is not terminal"));
-    }
     let store_path = store_path.as_ref();
     let binding = require_runtime_tool_execution_binding(store_path, &receipt.intent_id)?;
     let mut cache = runtime_spine_cache(store_path)?;
@@ -2085,14 +2084,7 @@ pub fn put_runtime_tool_execution_receipt(
     let intent = cache
         .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(&receipt.intent_id))?
         .ok_or_else(|| anyhow!("tool execution receipt lost its intent"))?;
-    if receipt.adapter != intent.adapter
-        || receipt.server != intent.server
-        || receipt.tool_name != intent.tool_name
-    {
-        return Err(anyhow!(
-            "tool execution receipt disagrees with its immutable intent"
-        ));
-    }
+    validate_terminal_tool_execution_family(&binding, &intent, receipt)?;
     let receipt_key = tool_invocation_receipt_key(&receipt.intent_id);
     if cache
         .get::<EpiphanyToolInvocationReceipt>(&receipt_key)?
@@ -2121,6 +2113,32 @@ pub fn put_runtime_tool_execution_receipt(
     )? {
         return Err(anyhow!(
             "tool execution receipt publication lost its ownership fence"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_terminal_tool_execution_family(
+    binding: &EpiphanyRuntimeToolExecutionBinding,
+    intent: &EpiphanyToolInvocationIntent,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> Result<()> {
+    if binding.schema_version != RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION
+        || binding.binding_id != intent.intent_id
+        || binding.intent_id != intent.intent_id
+        || binding.model_request_id != intent.model_request_id
+        || intent.schema_id != TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID
+        || receipt.schema_id != TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID
+        || receipt.receipt_id.is_empty()
+        || receipt.intent_id != intent.intent_id
+        || receipt.adapter != intent.adapter
+        || receipt.server != intent.server
+        || receipt.tool_name != intent.tool_name
+        || !matches!(receipt.status.as_str(), "completed" | "failed")
+        || chrono::DateTime::parse_from_rfc3339(&receipt.completed_at).is_err()
+    {
+        return Err(anyhow!(
+            "tool execution binding, intent, and terminal receipt are not one exact family"
         ));
     }
     Ok(())
@@ -3871,16 +3889,9 @@ fn authenticated_public_source_lookup_receipts_for_worker(
             ))?
             .ok_or_else(|| anyhow!("public source tool intent has no terminal receipt"))?;
         let _ = governed_source_tool_authority(&cache, &binding.job_id, &intent)?;
-        if binding.intent_id != intent.intent_id
-            || intent.model_request_id != binding.model_request_id
-            || receipt.intent_id != intent.intent_id
-            || receipt.adapter != intent.adapter
-            || receipt.server != intent.server
-            || receipt.tool_name != intent.tool_name
-            || receipt.status != "completed"
-            || chrono::DateTime::parse_from_rfc3339(&receipt.completed_at).is_err()
-        {
-            return Err(anyhow!("public source tool family is not exact and terminal"));
+        validate_terminal_tool_execution_family(&binding, &intent, &receipt)?;
+        if receipt.status != "completed" {
+            return Err(anyhow!("public source lookup did not complete successfully"));
         }
         let arguments: serde_json::Value = serde_json::from_str(&intent.arguments_json)
             .context("public source intent arguments are invalid")?;
@@ -20836,7 +20847,7 @@ pub(crate) mod tests {
             "source",
             "read",
             "completed",
-            "unix-ms:1",
+            "2026-08-10T02:00:08Z",
         );
         put_runtime_tool_execution_receipt(&store, &receipt)?;
         assert!(put_runtime_tool_execution_receipt(&store, &receipt).is_err());
@@ -20847,7 +20858,7 @@ pub(crate) mod tests {
             "foreign",
             "read",
             "completed",
-            "unix-ms:2",
+            "2026-08-10T02:00:09Z",
         );
         assert!(put_runtime_tool_execution_receipt(&store, &hostile_receipt).is_err());
         let mut cache = runtime_spine_cache(&store)?;
@@ -21026,6 +21037,14 @@ pub(crate) mod tests {
                 "evidenceReceiptId": format!("eyes-source-{}", exact.intent_id)
             })
             .to_string(),
+        );
+        let mut malformed_time_receipt = exact_receipt.clone();
+        malformed_time_receipt.completed_at = "unix-ms:1786668821385".into();
+        let before_malformed_time = runtime_spine_backing_store(&store)?.pull_all()?;
+        assert!(put_runtime_tool_execution_receipt(&store, &malformed_time_receipt).is_err());
+        assert_eq!(
+            runtime_spine_backing_store(&store)?.pull_all()?,
+            before_malformed_time
         );
         put_runtime_tool_execution_receipt(&store, &exact_receipt)?;
         let lookups = runtime_authenticated_public_source_lookups_for_worker(
@@ -21254,7 +21273,7 @@ pub(crate) mod tests {
             "source",
             "read",
             "completed",
-            "unix-ms:3",
+            "2026-08-10T03:00:07Z",
         );
         put_runtime_tool_execution_receipt(&store, &tool_receipt)?;
         let mut cache = runtime_spine_cache(&store)?;

@@ -5,8 +5,8 @@ use epiphany_tool_adapter::{
     TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID, tool_invocation_intent_key,
 };
 use epiphany_tool_mcp_runtime::{
-    McpRuntimeConfig, execute_epiphany_public, execute_epiphany_source, invoke,
-    validate_intent,
+    McpRuntimeConfig, current_utc_timestamp, execute_epiphany_public, execute_epiphany_source,
+    invoke, validate_intent,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -157,7 +157,7 @@ async fn execute_to_receipt(
         } else {
             "failed"
         },
-        now(),
+        current_utc_timestamp(),
     );
     match result {
         Ok(value) => receipt.result_json = serde_json::to_string(&value).ok(),
@@ -252,9 +252,6 @@ fn unix_millis() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
-}
-fn now() -> String {
-    format!("unix-ms:{}", unix_millis())
 }
 fn bound(value: &str, limit: usize) -> String {
     if value.chars().count() <= limit {
@@ -374,6 +371,7 @@ mod tests {
             &tool_invocation_receipt_key(&intent.intent_id),
         )?;
         assert_eq!(receipt.adapter, EPIPHANY_TOOL_RUNTIME_ADAPTER_ID);
+        assert!(chrono::DateTime::parse_from_rfc3339(&receipt.completed_at).is_ok());
         assert!(receipt.result_json.as_deref().unwrap().contains("awake"));
         Ok(())
     }

@@ -12,6 +12,7 @@ pub use native_public::execute_epiphany_public;
 pub use native_source::execute_epiphany_source;
 
 use anyhow::{Context, Result, anyhow};
+use chrono::Utc;
 use epiphany_tool_adapter::{
     EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
     TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID,
@@ -44,7 +45,7 @@ pub async fn invoke(
     intent: &EpiphanyToolInvocationIntent,
     config: &McpRuntimeConfig,
 ) -> InvocationOutcome {
-    let completed_at = now_utc_string();
+    let completed_at = current_utc_timestamp();
     let mut receipt = EpiphanyToolInvocationReceipt::new(
         format!("receipt-{}-{}", intent.intent_id, unix_millis()),
         intent.intent_id.clone(),
@@ -272,8 +273,8 @@ fn bounded_error(value: &str) -> String {
     value.chars().take(LIMIT).collect::<String>() + "...<truncated>"
 }
 
-fn now_utc_string() -> String {
-    format!("unix-ms:{}", unix_millis())
+pub fn current_utc_timestamp() -> String {
+    Utc::now().to_rfc3339()
 }
 
 fn unix_millis() -> u128 {
@@ -318,6 +319,7 @@ mod tests {
         let outcome = invoke(&intent("{}"), &config).await;
         assert_eq!(outcome.receipt.status, "failed");
         assert_eq!(outcome.receipt.intent_id, "intent-1");
+        assert!(chrono::DateTime::parse_from_rfc3339(&outcome.receipt.completed_at).is_ok());
         assert!(outcome.receipt.error.as_deref().unwrap().contains("demo"));
         assert!(outcome.raw_result.is_none());
     }
