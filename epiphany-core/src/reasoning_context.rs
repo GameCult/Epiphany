@@ -297,7 +297,7 @@ pub struct EpiphanyMindCommitReceipt {
     #[cultcache(key = 1)]
     pub receipt_id: String,
     #[cultcache(key = 2)]
-    pub decision_context_id: String,
+    pub authority: EpiphanyMindCommitAuthority,
     #[cultcache(key = 3)]
     pub invariant_owner: String,
     #[cultcache(key = 4)]
@@ -306,6 +306,16 @@ pub struct EpiphanyMindCommitReceipt {
     pub writes: Vec<EpiphanyMindDocumentVersion>,
     #[cultcache(key = 6)]
     pub committed_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EpiphanyMindCommitAuthority {
+    ModelDecisionContext {
+        decision_context_id: String,
+    },
+    OperatorProvenance {
+        provenance: EpiphanyMindDocumentVersion,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -559,6 +569,62 @@ pub fn commit_mind_mutation(
     committed_at: &str,
 ) -> Result<EpiphanyMindCommitOutcome> {
     require_non_empty(decision_context_id, "Mind mutation decision context id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let context = cache
+        .get::<EpiphanyDecisionContext>(decision_context_id)?
+        .ok_or_else(|| anyhow!("Mind mutation decision context does not exist"))?;
+    let basis = cache
+        .get::<EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("Mind mutation decision context lost its basis"))?;
+    context.validate(&basis)?;
+    let authority = EpiphanyMindCommitAuthority::ModelDecisionContext {
+        decision_context_id: decision_context_id.to_string(),
+    };
+    commit_authorized_mind_mutation(
+        store_path,
+        authority,
+        invariant_owner,
+        strong_reads,
+        writes,
+        Vec::new(),
+        committed_at,
+    )
+}
+
+pub fn commit_operator_mind_mutation(
+    store_path: &Path,
+    provenance: CultCacheEnvelope,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
+    let provenance_version =
+        EpiphanyMindDocumentVersion::from_envelope("epiphany-operator", &provenance)?;
+    let authority = EpiphanyMindCommitAuthority::OperatorProvenance {
+        provenance: provenance_version,
+    };
+    commit_authorized_mind_mutation(
+        store_path,
+        authority,
+        invariant_owner,
+        strong_reads,
+        writes,
+        vec![provenance],
+        committed_at,
+    )
+}
+
+fn commit_authorized_mind_mutation(
+    store_path: &Path,
+    authority: EpiphanyMindCommitAuthority,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    companions: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
     require_non_empty(invariant_owner, "Mind mutation invariant owner")?;
     require_non_empty(committed_at, "Mind mutation commit time")?;
     chrono::DateTime::parse_from_rfc3339(committed_at)
@@ -571,6 +637,7 @@ pub fn commit_mind_mutation(
     }
     validate_unique_envelope_identities(&strong_reads, "strong read")?;
     validate_unique_envelope_identities(&writes, "write")?;
+    validate_unique_envelope_identities(&companions, "companion")?;
     let expected_ids = strong_reads
         .iter()
         .map(|entry| (entry.r#type.as_str(), entry.key.as_str()))
@@ -584,16 +651,25 @@ pub fn commit_mind_mutation(
             "Mind mutation must replace every strongly read identity"
         ));
     }
-
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let context = cache
-        .get::<EpiphanyDecisionContext>(decision_context_id)?
-        .ok_or_else(|| anyhow!("Mind mutation decision context does not exist"))?;
-    let basis = cache
-        .get::<EpiphanyReasoningBasis>(&context.basis_id)?
-        .ok_or_else(|| anyhow!("Mind mutation decision context lost its basis"))?;
-    context.validate(&basis)?;
+    let mut companion_expected = Vec::new();
+    let mut companion_replacements = Vec::new();
+    for companion in companions {
+        if let Some(existing) = cache
+            .snapshot_envelopes()
+            .into_iter()
+            .find(|entry| entry.r#type == companion.r#type && entry.key == companion.key)
+        {
+            if existing != companion {
+                return Err(anyhow!("Mind mutation companion identity collision"));
+            }
+            companion_expected.push(existing.clone());
+            companion_replacements.push(existing);
+        } else {
+            companion_replacements.push(companion);
+        }
+    }
 
     let strong_versions = strong_reads
         .iter()
@@ -604,7 +680,7 @@ pub fn commit_mind_mutation(
         .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", entry))
         .collect::<Result<Vec<_>>>()?;
     let receipt_id = mind_commit_receipt_id(
-        decision_context_id,
+        &authority,
         invariant_owner,
         &strong_versions,
         &write_versions,
@@ -612,7 +688,7 @@ pub fn commit_mind_mutation(
     let receipt = EpiphanyMindCommitReceipt {
         schema_version: MIND_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id: receipt_id.clone(),
-        decision_context_id: decision_context_id.to_string(),
+        authority,
         invariant_owner: invariant_owner.to_string(),
         strong_reads: strong_versions,
         writes: write_versions,
@@ -625,10 +701,11 @@ pub fn commit_mind_mutation(
         return Ok(EpiphanyMindCommitOutcome::Committed(existing));
     }
     let mut replacements = writes;
+    replacements.extend(companion_replacements);
     replacements.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
-    if runtime_spine_backing_store(store_path)?
-        .compare_and_swap_batch(&strong_reads, replacements)?
-    {
+    let mut expected = strong_reads.clone();
+    expected.extend(companion_expected);
+    if runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
         return Ok(EpiphanyMindCommitOutcome::Committed(receipt));
     }
     let current = runtime_spine_backing_store(store_path)?.pull_all()?;
@@ -786,7 +863,7 @@ fn digest_without_context_id(context: &EpiphanyDecisionContext) -> Result<String
 }
 
 fn mind_commit_receipt_id(
-    context_id: &str,
+    authority: &EpiphanyMindCommitAuthority,
     owner: &str,
     strong_reads: &[EpiphanyMindDocumentVersion],
     writes: &[EpiphanyMindDocumentVersion],
@@ -794,7 +871,7 @@ fn mind_commit_receipt_id(
     Ok(format!(
         "mind-commit-{}",
         sha256(&rmp_serde::to_vec_named(&(
-            context_id,
+            authority,
             owner,
             strong_reads,
             writes

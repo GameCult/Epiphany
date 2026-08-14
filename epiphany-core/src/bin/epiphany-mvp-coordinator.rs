@@ -378,7 +378,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             startup_events.push(json!({
                 "type": "operatorObjectiveIntake",
                 "threadId": thread_id,
-                "revision": intake.state.revision,
+                "mindProjectionDigest": intake.mind.projection_digest,
+                "commitReceiptId": intake.commit_receipt.receipt_id,
                 "changed": intake.changed,
             }));
         }
@@ -2684,14 +2685,23 @@ mod tests {
     fn operator_objective_intake_creates_once_and_refuses_replacement() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime.cc");
+        epiphany_core::initialize_runtime_spine(
+            &store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "objective-intake-bin".into(),
+                display_name: "Objective intake bin".into(),
+                created_at: "2026-08-14T00:00:00Z".into(),
+            },
+        )?;
 
         let first = intake_operator_objective(&store, "thread-1", "Map the machine")?;
         assert!(first.changed);
-        assert_eq!(first.state.revision, 1);
+        assert_eq!(first.mind.objective.as_deref(), Some("Map the machine"));
 
         let repeated = intake_operator_objective(&store, "thread-1", " Map the machine ")?;
         assert!(!repeated.changed);
-        assert_eq!(repeated.state.revision, first.state.revision);
+        assert_eq!(repeated.mind.projection_digest, first.mind.projection_digest);
+        assert_eq!(repeated.commit_receipt, first.commit_receipt);
 
         let error = intake_operator_objective(&store, "thread-1", "Replace the machine")
             .expect_err("objective replacement must require a typed adoption flow");

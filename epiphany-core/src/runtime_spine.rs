@@ -13548,9 +13548,10 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             CultNetMutationAuthority::Coordinator,
             vec![crate::USER_OBJECTIVE_INTAKE_TYPE],
-            vec![crate::THREAD_STATE_TYPE],
+            vec![crate::EpiphanyMindCommitReceipt::TYPE],
             vec![
-                "The human owns the initial objective assertion; Self atomically records it with the first canonical thread state.",
+                "The human owns the initial objective assertion; Self atomically records it with the keyed Mind objective and a typed operator-provenance commit receipt.",
+                "Thread identity is provenance and does not own objective causality.",
                 "Objective replacement requires a separate reviewed adoption flow.",
             ],
         ),
