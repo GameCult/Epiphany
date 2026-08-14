@@ -6,7 +6,7 @@ Updated: 2026-08-14
 
 The five-day shakedown remains paused for architectural consolidation. The
 latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live`
-through exact `833d3964`.
+through exact `71505941`.
 
 The active campaign is now the hard Decision-Auditable Concurrent Mind
 migration. Its first foundation is implemented locally: typed content-addressed
@@ -24,8 +24,13 @@ changed-strong-read conflicts. All three Persona stages now seal
 predecessor-bound contexts, the effect and terminal commit atomically, and
 Persona retention preserves the structured effect, conversation/consequence
 receipts, terminal receipt, reasoning bases, and decision contexts while
-removing stage/execution scaffolding. Provider-error/timeout failure edges,
-keyed canonical Mind state, and keyed RepoModel remain to be cut.
+removing stage/execution scaffolding. Exact `ee3d82c0` binds provider/runtime
+errors and watchdog timeouts to the exact admitted request held by the running
+pass, without inventing a persisted latest-request head. Exact `71505941` adds
+the keyed Mind document family, deterministic `EpiphanyMindView`, atomic
+runtime/Mind epoch identity, and a mutation gate that rejects non-Mind envelopes
+or semantic key drift. The old aggregate Mind owner and keyed RepoModel remain
+to be cut; the keyed view does not read or translate the aggregate.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
@@ -140,10 +145,10 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Finish decision-context ownership before normalizing state: bind provider-error
-and timeout failures to the last exact request that actually reached the
-provider. Then delete persisted thread-state authority and split canonical Mind
-and RepoModel into semantic-key documents under exact-envelope batch CAS. There
-is no writable-store migrator or compatibility read path. Do not touch the
+Migrate concrete objective, focus/mode, subgoal/invariant, evidence/observation,
+checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
+their keyed documents. Delete the aggregate transaction, reader, and schema
+before enabling old writable-store refusal; do not translate or dual-read it.
+Then split RepoModel into exact semantic-key documents. Do not touch the
 original c011 volumes, resume the shakedown, add capability surfaces, or build
 on Yggdrasil.

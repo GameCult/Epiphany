@@ -4558,3 +4558,24 @@ cross-process helper) and all 42 OpenAI runtime targets. Persona inputs are
 already sealed inside typed projection variants; binding those projections to
 the forthcoming keyed Mind source-document versions remains part of the hard
 Mind cut.
+
+### Keyed Mind document foundation
+
+Exact `71505941` defines objective, focus, mode, subgoal, invariant,
+observation, evidence, investigation-checkpoint, planning-capture, backlog,
+roadmap, and objective-draft documents as separate CultCache identities.
+`EpiphanyMindView` is assembled deterministically from those envelopes and owns
+only a projection digest; it has no persisted head or global revision.
+
+The Mind mutation gate accepts only this closed canonical family and validates
+that each envelope key equals the semantic identity in its typed payload.
+Disjoint identities merge through exact-envelope CAS; same-identity changes
+conflict. Runtime creation atomically installs an immutable matching Mind epoch
+identity, which also exposed and removed one test path that attempted to rewrite
+runtime identity while opening a worker.
+
+This is foundation, not cutover. `EpiphanyThreadStateEntry` and its coordinator
+transaction are still live production authorities. The new view does not read,
+translate, mirror, or migrate that aggregate. Concrete admission owners must
+move to keyed mutations, after which the aggregate schema and writer are
+deleted and old writable stores are refused.
