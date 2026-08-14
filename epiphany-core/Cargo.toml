@@ -211,10 +211,6 @@ name = "epiphany-repo-maintainer-review-request-family-smoke"
 path = "src/bin/epiphany-repo-maintainer-review-request-family-smoke.rs"
 
 [[bin]]
-name = "epiphany-repo-model-bootstrap"
-path = "src/bin/epiphany-repo-model-bootstrap.rs"
-
-[[bin]]
 name = "epiphany-repo-objective-draft-family-smoke"
 path = "src/bin/epiphany-repo-objective-draft-family-smoke.rs"
 
