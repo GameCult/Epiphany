@@ -1,3 +1,12 @@
+use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
+use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
+use crate::EpiphanyMemoryContextPacket;
+use crate::EpiphanyMemoryContextQuery;
+use crate::EpiphanyMemoryProfile;
+use crate::EpiphanyPromptContextInput;
+use crate::EpiphanyRepoModelView;
+use crate::RuntimeHandsReceiptChainSummary;
 use crate::assemble_repo_model_view;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
@@ -10,19 +19,11 @@ use crate::runtime_hands_commit_receipt;
 use crate::runtime_hands_patch_receipt;
 use crate::runtime_latest_hands_receipt_chain_after;
 use crate::write_epiphany_cultmesh_work_loop_telemetry;
-use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
-use crate::EpiphanyMemoryContextPacket;
-use crate::EpiphanyMemoryContextQuery;
-use crate::EpiphanyMemoryProfile;
-use crate::EpiphanyPromptContextInput;
-use crate::EpiphanyRepoModelView;
-use crate::RuntimeHandsReceiptChainSummary;
-use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use chrono::SecondsFormat;
 use chrono::Utc;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use epiphany_state_model::EpiphanyThreadState;
+use sha2::Digest;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -179,107 +180,12 @@ pub fn append_verification_hands_receipt_context(
         crate::runtime_repo_frontier_route(runtime_store_path, &verification_request.route_id)
             .map_err(|error| format!("failed to reload Soul frontier route: {error}"))?
             .ok_or_else(|| "Soul frontier route disappeared after request commit".to_string())?;
-    let admission_receipt = crate::runtime_repo_model_admission_receipt(
-        runtime_store_path,
-        &route.admission_receipt_id,
-    )
-    .map_err(|error| format!("failed to load Mind RepoModel admission receipt for Soul: {error}"))?
-    .ok_or_else(|| "Soul frontier route has no persisted Mind admission receipt".to_string())?;
-    let admission_review = crate::runtime_repo_model_admission_review(
-        runtime_store_path,
-        &admission_receipt.review_id,
-    )
-    .map_err(|error| format!("failed to load Mind RepoModel admission review for Soul: {error}"))?
-    .ok_or_else(|| "Soul frontier admission receipt has no persisted Mind review".to_string())?;
-    let mut modeling_chain = None;
-    let mut plan_decision_chain = None;
-    let mut execution_amendment = None;
-    if !admission_receipt.frontier_plan_decision_id.is_empty() {
-        let decision = crate::runtime_repo_frontier_plan_decision(
-            runtime_store_path,
-            &admission_receipt.frontier_plan_decision_id,
-        )
-        .map_err(|error| format!("failed to load Soul frontier plan decision: {error}"))?
-        .ok_or_else(|| "Soul frontier admission has no persisted plan decision".to_string())?;
-        validate_frontier_plan_decision_chain(
-            &decision,
-            &admission_receipt,
-            &admission_review,
-            &route,
-        )?;
-        plan_decision_chain = Some(decision);
-    } else if let Some(admission_result_id) = admission_receipt.result_id.as_deref() {
-        let modeling_acceptances = state
-            .acceptance_receipts
-            .iter()
-            .filter(|receipt| {
-                receipt.role_id == "modeling"
-                    && receipt.surface == "roleAccept"
-                    && receipt.status == "accepted"
-                    && receipt.result_id == admission_result_id
-            })
-            .collect::<Vec<_>>();
-        if modeling_acceptances.len() != 1 {
-            return Err(
-                "Soul frontier requires exactly one Modeling acceptance bound to its Mind admission"
-                    .to_string(),
-            );
-        }
-        let modeling_acceptance = modeling_acceptances[0];
-        let state_commit_id = format!("mind-commit-{}", modeling_acceptance.id);
-        let state_commit =
-            crate::runtime_mind_state_commit_receipt(runtime_store_path, &state_commit_id)
-                .map_err(|error| {
-                    format!("failed to load Mind state commit receipt for Soul: {error}")
-                })?
-                .ok_or_else(|| {
-                    "Soul frontier Modeling acceptance has no Mind state commit receipt".to_string()
-                })?;
-        let gateway_review =
-            crate::runtime_mind_gateway_review(runtime_store_path, &state_commit.gateway_id)
-                .map_err(|error| format!("failed to load Mind gateway review for Soul: {error}"))?
-                .ok_or_else(|| {
-                    "Soul frontier Mind state commit has no gateway review".to_string()
-                })?;
-        modeling_chain = Some((modeling_acceptance, state_commit, gateway_review));
-    } else {
-        let amendment = crate::runtime_repo_frontier_execution_amendment_for_admission(
-            runtime_store_path,
-            &admission_receipt.receipt_id,
-        )
-        .map_err(|error| format!("failed to load execution amendment for Soul: {error}"))?
-        .ok_or_else(|| {
-            "Soul frontier admission is bound to neither Modeling nor an execution amendment"
-                .to_string()
-        })?;
-        let plan_amendment = route
-            .adopted_plan
-            .as_ref()
-            .and_then(|plan| plan.execution_amendment.as_ref())
-            .ok_or_else(|| "Soul amendment route has no effective plan amendment".to_string())?;
-        if amendment.schema_version
-            != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION
-            || amendment.contract != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT
-            || amendment.amendment_id != plan_amendment.amendment_id
-            || amendment.replaced_route_id != plan_amendment.replaces_route_id
-            || amendment.frontier_item_id != route.frontier_item_id
-            || amendment.admitted_model_revision != route.model_revision
-            || amendment.admitted_model_hash != route.model_hash
-            || amendment.replacement_action != plan_amendment.action
-            || amendment.replacement_command != plan_amendment.command
-            || admission_receipt.purpose
-                != (crate::RepoModelPatchPurpose::AmendFrontierExecution {
-                    route_id: amendment.replaced_route_id.clone(),
-                    amendment_id: amendment.amendment_id.clone(),
-                })
-        {
-            return Err(
-                "Soul execution amendment does not exactly bind admission, route, and effective plan"
-                    .to_string(),
-            );
-        }
-        execution_amendment = Some(amendment);
-    }
+    let current_model = assemble_repo_model_view(runtime_store_path)
+        .map_err(|error| format!("failed to load current keyed RepoModel for Soul: {error}"))?;
+    let current_item =
+        validate_current_frontier_route(&route, &current_model, Some(&verification_request))?;
+    let (plan_decision, execution_amendment) =
+        load_route_plan_authority(runtime_store_path, &route, &current_model)?;
     let telemetry = work_loop_telemetry_from_hands_chain(
         &chain,
         runtime_store_path,
@@ -305,53 +211,54 @@ pub fn append_verification_hands_receipt_context(
         route.question,
         route.gap,
     ));
-    context.push_str("mindAdmissionChain:\n");
-    if let Some((modeling_acceptance, state_commit, gateway_review)) = modeling_chain {
+    context.push_str("modelAuthorityChain:\n");
+    context.push_str(&format!(
+        "- currentKeyedView: projectionDigest={} sourceDocuments={}\n",
+        current_model.projection_digest,
+        render_repo_model_source_documents(&current_model.source_documents),
+    ));
+    context.push_str(&format!(
+        "- frontierRoute: schemaVersion={} routeId={} modelProjectionDigest={} modelSourceDocuments={} frontierItemId={} frontierItemHash={} selectedAt={}\n",
+        route.schema_version,
+        route.route_id,
+        route.model_projection_digest,
+        render_repo_model_source_documents(&route.model_source_documents),
+        route.frontier_item_id,
+        route.frontier_item_hash,
+        route.selected_at,
+    ));
+    context.push_str(&format!(
+        "- verificationRequestBasis: modelProjectionDigest={} modelSourceDocuments={}\n",
+        verification_request.model_projection_digest,
+        render_repo_model_source_documents(&verification_request.model_source_documents),
+    ));
+    context.push_str(&format!(
+        "- currentFrontierItem: id={} question={} gap={} sourceScope={}\n",
+        current_item.id,
+        current_item.question,
+        current_item.gap,
+        current_item.source_scope.join(" | "),
+    ));
+    if let Some(decision) = plan_decision {
         context.push_str(&format!(
-            "- modelingAcceptance: id={} resultId={} jobId={} acceptedAt={}\n",
-            modeling_acceptance.id,
-            modeling_acceptance.result_id,
-            modeling_acceptance.job_id,
-            modeling_acceptance.accepted_at,
-        ));
-        context.push_str(&format!(
-            "- gatewayReview: schemaVersion={} gatewayId={} sourceKind={} sourceRoleId={} decision={:?} allowedEffects={} refusedEffects={}\n",
-            gateway_review.schema_version,
-            gateway_review.gateway_id,
-            gateway_review.source_kind,
-            gateway_review.source_role_id,
-            gateway_review.decision,
-            gateway_review.allowed_effects.join(" | "),
-            gateway_review.refused_effects.join(" | "),
-        ));
-        context.push_str(&format!(
-            "- stateCommit: schemaVersion={} receiptId={} gatewayId={} stateRevision={} changedFields={} committedAt={}\n",
-            state_commit.schema_version,
-            state_commit.receipt_id,
-            state_commit.gateway_id,
-            state_commit.state_revision,
-            state_commit.changed_fields.join(" | "),
-            state_commit.committed_at,
-        ));
-    } else if let Some(decision) = plan_decision_chain {
-        context.push_str(&format!(
-            "- frontierPlanDecision: schemaVersion={} decisionId={} planningRequestId={} candidateId={} candidateSha256={} modelRevision={} modelHash={} frontierItemId={} frontierItemHash={} decision={:?} modelAdmissionReceiptId={} decidedAt={}\n",
+            "- frontierPlanDecision: schemaVersion={} decisionId={} planningRequestId={} candidateId={} candidateSha256={} modelProjectionDigest={} modelSourceDocuments={} frontierItemId={} frontierItemHash={} decision={:?} decisionSource={:?} decidedAt={}\n",
             decision.schema_version,
             decision.decision_id,
             decision.planning_request_id,
             decision.candidate_id,
             decision.candidate_sha256,
-            decision.model_revision,
-            decision.model_hash,
+            decision.model_projection_digest,
+            render_repo_model_source_documents(&decision.model_source_documents),
             decision.frontier_item_id,
             decision.frontier_item_hash,
             decision.decision,
-            decision.model_admission_receipt_id,
+            decision.decision_source,
             decision.decided_at,
         ));
-    } else if let Some(amendment) = execution_amendment {
+    }
+    if let Some(amendment) = execution_amendment {
         context.push_str(&format!(
-            "- executionAmendment: schemaVersion={} amendmentId={} replacedRouteId={} sourceActorId={} commandId={} admissionId={} packetSha256={} previousRevision={} previousHash={} admittedRevision={} admittedHash={} replacementAction={} replacementCommand={} rationale={} amendedAt={}\n",
+            "- executionAmendment: schemaVersion={} amendmentId={} replacedRouteId={} sourceActorId={} commandId={} admissionId={} packetSha256={} previousModelProjectionDigest={} previousModelSourceDocuments={} admittedModelProjectionDigest={} admittedModelSourceDocuments={} replacementAction={} replacementCommand={} rationale={} amendedAt={}\n",
             amendment.schema_version,
             amendment.amendment_id,
             amendment.replaced_route_id,
@@ -359,45 +266,16 @@ pub fn append_verification_hands_receipt_context(
             amendment.command_id,
             amendment.admission_id,
             amendment.packet_sha256,
-            amendment.previous_model_revision,
-            amendment.previous_model_hash,
-            amendment.admitted_model_revision,
-            amendment.admitted_model_hash,
+            amendment.previous_model_projection_digest,
+            render_repo_model_source_documents(&amendment.previous_model_source_documents),
+            amendment.admitted_model_projection_digest,
+            render_repo_model_source_documents(&amendment.admitted_model_source_documents),
             amendment.replacement_action,
             amendment.replacement_command,
             amendment.rationale,
             amendment.amended_at,
         ));
     }
-    context.push_str(&format!(
-        "- repoModelAdmissionReview: schemaVersion={} reviewId={} resultId={} jobId={} patchId={} patchSha256={} baseRevision={} baseHash={} decision={:?} evidenceIds={} reviewedAt={}\n",
-        admission_review.schema_version,
-        admission_review.review_id,
-        admission_review.result_id.as_deref().unwrap_or(""),
-        admission_review.job_id.as_deref().unwrap_or(""),
-        admission_review.patch_id,
-        admission_review.patch_sha256,
-        admission_review.base_revision,
-        admission_review.base_hash,
-        admission_review.decision,
-        admission_review.evidence_ids.join(" | "),
-        admission_review.reviewed_at,
-    ));
-    context.push_str(&format!(
-        "- repoModelAdmissionReceipt: schemaVersion={} receiptId={} reviewId={} resultId={} patchId={} patchSha256={} previousRevision={} previousHash={} admittedRevision={} admittedHash={} admittedAt={} proposalModelingRequestId={}\n",
-        admission_receipt.schema_version,
-        admission_receipt.receipt_id,
-        admission_receipt.review_id,
-        admission_receipt.result_id.as_deref().unwrap_or(""),
-        admission_receipt.patch_id,
-        admission_receipt.patch_sha256,
-        admission_receipt.previous_revision,
-        admission_receipt.previous_hash,
-        admission_receipt.admitted_revision,
-        admission_receipt.admitted_hash,
-        admission_receipt.admitted_at,
-        admission_receipt.proposal_modeling_request_id,
-    ));
     if let Some(plan) = route.adopted_plan.as_ref() {
         context.push_str(&format!(
             "adoptedCandidateSha256: {}\nadoptedAction: {}\nadoptedCommand: {}\neffectiveAction: {}\neffectiveCommand: {}\nexecutionAmendmentId: {}\nadoptedChecks: {}\nadoptedStopConditions: {}\nadoptedRollbackSteps: {}\nadoptedCommitMessage: {}\n",
@@ -488,49 +366,242 @@ pub fn append_verification_hands_receipt_context(
     Ok(context)
 }
 
-pub(crate) fn validate_frontier_plan_decision_chain(
+pub fn validate_frontier_plan_decision_chain(
     decision: &crate::RepoFrontierPlanDecisionReceipt,
-    admission_receipt: &crate::RepoModelAdmissionReceipt,
-    admission_review: &crate::RepoModelAdmissionReview,
     route: &crate::RepoFrontierRoute,
+    current_model: &EpiphanyRepoModelView,
 ) -> Result<(), String> {
-    let source_matches = match decision.decision_source.as_ref() {
+    validate_current_frontier_route(route, current_model, None)?;
+    let plan = route
+        .adopted_plan
+        .as_ref()
+        .ok_or_else(|| "Soul frontier plan decision has no adopted plan".to_string())?;
+    let source_is_complete = match decision.decision_source.as_ref() {
         Some(crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }) => {
-            admission_receipt.result_id.as_deref() == Some(result_id.as_str())
-                && admission_review.result_id.as_deref() == Some(result_id.as_str())
-                && admission_review.job_id.as_deref() == Some(job_id.as_str())
+            !result_id.trim().is_empty() && !job_id.trim().is_empty()
         }
-        Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. }) => {
-            admission_receipt.result_id.is_none()
-                && admission_review.result_id.is_none()
-                && admission_review.job_id.is_none()
-        }
+        Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
+            command_id,
+            admission_id,
+            packet_sha256,
+            source_actor_id,
+        }) => [command_id, admission_id, packet_sha256, source_actor_id]
+            .into_iter()
+            .all(|value| !value.trim().is_empty()),
         None => false,
     };
-    if decision.decision != crate::RepoFrontierPlanDecision::Adopt
-        || decision.model_admission_receipt_id != admission_receipt.receipt_id
-        || decision.model_revision != admission_receipt.previous_revision
-        || decision.model_hash != admission_receipt.previous_hash
+    let decision_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: decision.model_projection_digest.clone(),
+        source_documents: decision.model_source_documents.clone(),
+    };
+    decision_basis.validate().map_err(|error| {
+        format!("Soul frontier plan decision has an invalid keyed basis: {error}")
+    })?;
+    if decision.schema_version != crate::REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION
+        || decision.contract != crate::REPO_FRONTIER_PLAN_DECISION_CONTRACT
+        || decision.decision != crate::RepoFrontierPlanDecision::Adopt
+        || decision.legacy_mind_worker_result_id.is_some()
+        || decision.legacy_mind_worker_job_id.is_some()
+        || decision.planning_request_id != plan.planning_request_id
+        || decision.candidate_id != plan.candidate_id
+        || decision.candidate_sha256 != plan.candidate_sha256
+        || decision_basis != current_model.reasoning_basis()
         || decision.frontier_item_id != route.frontier_item_id
-        || admission_receipt.admitted_revision != route.model_revision
-        || admission_receipt.admitted_hash != route.model_hash
-        || !matches!(
-            &admission_receipt.purpose,
-            crate::RepoModelPatchPurpose::AdoptFrontierPlan {
-                planning_request_id,
-                candidate_id,
-                ..
-            } if planning_request_id == &decision.planning_request_id
-                && candidate_id == &decision.candidate_id
-        )
-        || !source_matches
+        || decision.frontier_item_hash != route.frontier_item_hash
+        || !source_is_complete
     {
         return Err(
-            "Soul frontier plan decision does not exactly bind admission, route, and decision source"
+            "Soul frontier plan decision does not exactly bind its keyed basis, adopted plan, route, and decision source"
                 .to_string(),
         );
     }
     Ok(())
+}
+
+fn validate_current_frontier_route<'a>(
+    route: &crate::RepoFrontierRoute,
+    current_model: &'a EpiphanyRepoModelView,
+    verification_request: Option<&crate::RepoFrontierVerificationRequest>,
+) -> Result<&'a crate::RepoFrontierItem, String> {
+    let route_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: route.model_projection_digest.clone(),
+        source_documents: route.model_source_documents.clone(),
+    };
+    route_basis
+        .validate()
+        .map_err(|error| format!("frontier route has an invalid keyed basis: {error}"))?;
+    if route_basis != current_model.reasoning_basis() {
+        return Err("frontier route does not bind the current keyed RepoModel view".to_string());
+    }
+    let current_item = current_model
+        .frontier
+        .iter()
+        .find(|item| item.id == route.frontier_item_id)
+        .ok_or_else(|| {
+            "routed frontier item disappeared from the current keyed view".to_string()
+        })?;
+    let current_item_hash = format!(
+        "{:x}",
+        sha2::Sha256::digest(
+            rmp_serde::to_vec_named(current_item)
+                .map_err(|error| format!("failed to hash current frontier item: {error}"))?
+        )
+    );
+    let expected_source_scope = current_item
+        .adopted_plan
+        .as_ref()
+        .map(|plan| plan.safe_paths.as_slice())
+        .unwrap_or(current_item.source_scope.as_slice());
+    if route.schema_version != crate::REPO_FRONTIER_ROUTE_SCHEMA_VERSION
+        || route.contract != crate::REPO_FRONTIER_ROUTE_CONTRACT
+        || route.next_organ != crate::RepoFrontierNextOrgan::Hands
+        || route.frontier_item_hash != current_item_hash
+        || route.migration_body != current_item.migration_body
+        || route.question != current_item.question
+        || route.gap != current_item.gap
+        || route.target_claim_ids != current_item.target_claim_ids
+        || route.source_scope != expected_source_scope
+        || route.adopted_plan != current_item.adopted_plan
+        || current_item.status != crate::RepoFrontierStatus::Active
+        || current_item.recommended_next_organ != "Hands"
+    {
+        return Err(
+            "frontier route does not exactly bind its current keyed frontier item".to_string(),
+        );
+    }
+    if let Some(request) = verification_request {
+        if request.schema_version != crate::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
+            || request.contract != crate::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
+            || request.route_id != route.route_id
+            || request.model_projection_digest != route.model_projection_digest
+            || request.model_source_documents != route.model_source_documents
+            || request.frontier_item_id != route.frontier_item_id
+            || request.frontier_item_hash != route.frontier_item_hash
+        {
+            return Err(
+                "Soul verification request does not exactly bind the current keyed route"
+                    .to_string(),
+            );
+        }
+    }
+    Ok(current_item)
+}
+
+fn load_route_plan_authority(
+    runtime_store_path: &Path,
+    route: &crate::RepoFrontierRoute,
+    current_model: &EpiphanyRepoModelView,
+) -> Result<
+    (
+        Option<crate::RepoFrontierPlanDecisionReceipt>,
+        Option<crate::RepoFrontierExecutionAmendmentReceipt>,
+    ),
+    String,
+> {
+    let Some(plan) = route.adopted_plan.as_ref() else {
+        return Ok((None, None));
+    };
+    let mut cache = crate::runtime_spine_cache(runtime_store_path)
+        .map_err(|error| format!("failed to open Mind receipt store for Soul: {error}"))?;
+    cache
+        .pull_all_backing_stores()
+        .map_err(|error| format!("failed to refresh Mind receipt store for Soul: {error}"))?;
+    let mut decisions = cache
+        .get_all::<crate::RepoFrontierPlanDecisionReceipt>()
+        .map_err(|error| format!("failed to load frontier plan decisions for Soul: {error}"))?
+        .into_iter()
+        .filter(|decision| decision.planning_request_id == plan.planning_request_id)
+        .collect::<Vec<_>>();
+    if decisions.len() != 1 {
+        return Err(
+            "Soul adopted frontier route requires exactly one typed plan decision".to_string(),
+        );
+    }
+    let decision = decisions.pop().expect("one decision checked above");
+    validate_frontier_plan_decision_chain(&decision, route, current_model)?;
+
+    let Some(plan_amendment) = plan.execution_amendment.as_ref() else {
+        return Ok((Some(decision), None));
+    };
+    let mut amendments = cache
+        .get_all::<crate::RepoFrontierExecutionAmendmentReceipt>()
+        .map_err(|error| format!("failed to load execution amendments for Soul: {error}"))?
+        .into_iter()
+        .filter(|receipt| receipt.amendment_id == plan_amendment.amendment_id)
+        .collect::<Vec<_>>();
+    if amendments.len() != 1 {
+        return Err(
+            "Soul amended frontier route requires exactly one typed execution amendment"
+                .to_string(),
+        );
+    }
+    let amendment = amendments.pop().expect("one amendment checked above");
+    let previous_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: amendment.previous_model_projection_digest.clone(),
+        source_documents: amendment.previous_model_source_documents.clone(),
+    };
+    previous_basis
+        .validate()
+        .map_err(|error| format!("execution amendment has an invalid previous basis: {error}"))?;
+    let admitted_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: amendment.admitted_model_projection_digest.clone(),
+        source_documents: amendment.admitted_model_source_documents.clone(),
+    };
+    admitted_basis
+        .validate()
+        .map_err(|error| format!("execution amendment has an invalid admitted basis: {error}"))?;
+    let replaced_route = cache
+        .get::<crate::RepoFrontierRoute>(&amendment.replaced_route_id)
+        .map_err(|error| format!("failed to load replaced frontier route for Soul: {error}"))?
+        .ok_or_else(|| "execution amendment lost its replaced frontier route".to_string())?;
+    if amendment.schema_version != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION
+        || amendment.contract != crate::REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT
+        || amendment.replaced_route_id != plan_amendment.replaces_route_id
+        || amendment.frontier_item_id != route.frontier_item_id
+        || amendment.previous_frontier_item_hash != replaced_route.frontier_item_hash
+        || previous_basis
+            != (crate::EpiphanyRepoModelBasis {
+                projection_digest: replaced_route.model_projection_digest.clone(),
+                source_documents: replaced_route.model_source_documents.clone(),
+            })
+        || admitted_basis != current_model.reasoning_basis()
+        || admitted_basis
+            != (crate::EpiphanyRepoModelBasis {
+                projection_digest: route.model_projection_digest.clone(),
+                source_documents: route.model_source_documents.clone(),
+            })
+        || amendment.source_actor_id != plan_amendment.source_actor_id
+        || amendment.command_id != plan_amendment.command_id
+        || amendment.admission_id != plan_amendment.admission_id
+        || amendment.packet_sha256 != plan_amendment.packet_sha256
+        || amendment.replacement_action != plan_amendment.action
+        || amendment.replacement_command != plan_amendment.command
+        || amendment.rationale != plan_amendment.rationale
+        || amendment.amended_at != plan_amendment.amended_at
+    {
+        return Err(
+            "Soul execution amendment does not exactly bind previous/current keyed routes and the effective plan"
+                .to_string(),
+        );
+    }
+    Ok((Some(decision), Some(amendment)))
+}
+
+fn render_repo_model_source_documents(documents: &[crate::EpiphanyMindDocumentVersion]) -> String {
+    documents
+        .iter()
+        .map(|document| {
+            format!(
+                "{}/{}/{}@{}#{}",
+                document.store_id,
+                document.document_type,
+                document.document_key,
+                document.schema_id.as_deref().unwrap_or("<none>"),
+                document.payload_sha256,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
 }
 
 pub fn has_complete_hands_consequence_after_latest_accepted_boundary(
@@ -671,31 +742,30 @@ pub fn append_modeling_work_loop_telemetry_context(
     let route = crate::runtime_repo_frontier_route(runtime_store_path, &modeling_request.route_id)
         .map_err(|error| format!("failed to reload Modeling frontier route: {error}"))?
         .ok_or_else(|| "Modeling frontier route disappeared after request commit".to_string())?;
-    let current_model = crate::runtime_spine_cache(runtime_store_path)
-        .and_then(|mut cache| {
-            cache.pull_all_backing_stores()?;
-            cache
-                .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
-                .map(|entry| entry.snapshot())
-                .transpose()
-        })
-        .map_err(|error| format!("failed to load current RepoModel for Modeling: {error}"))?
-        .ok_or_else(|| "current RepoModel disappeared before Modeling launch".to_string())?;
-    let current_item = current_model
-        .frontier
-        .iter()
-        .find(|item| item.id == modeling_request.frontier_item_id)
-        .ok_or_else(|| "routed frontier item disappeared before Modeling launch".to_string())?;
+    let current_model = assemble_repo_model_view(runtime_store_path)
+        .map_err(|error| format!("failed to load current keyed RepoModel for Modeling: {error}"))?;
+    let current_item = validate_current_frontier_route(&route, &current_model, None)?;
+    if modeling_request.schema_version != crate::REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION
+        || modeling_request.contract != crate::REPO_FRONTIER_MODELING_REQUEST_CONTRACT
+        || modeling_request.model_projection_digest != route.model_projection_digest
+        || modeling_request.model_source_documents != route.model_source_documents
+        || modeling_request.frontier_item_id != route.frontier_item_id
+        || modeling_request.frontier_item_hash != route.frontier_item_hash
+    {
+        return Err(
+            "frontier Modeling request does not exactly bind the current keyed route".to_string(),
+        );
+    }
     let disposition = match modeling_request.allowed_disposition {
         crate::RepoFrontierVerdictDisposition::Resolved => "resolved",
         crate::RepoFrontierVerdictDisposition::Blocked => "blocked",
     };
     context.push_str("\n\n<repo_frontier_modeling_request>\n");
     context.push_str(&format!(
-        "modelingRequestId: {}\nmodelRevision: {}\nmodelHash: {}\nfrontierRouteId: {}\nfrontierItemId: {}\nfrontierItemHash: {}\nverificationRequestId: {}\nsoulVerdictReceiptId: {}\nverificationResultId: {}\nverificationJobId: {}\nverificationAcceptanceReceiptId: {}\nallowedDisposition: {}\nrouteQuestion: {}\nrouteGap: {}\nidentityMigrationBody: {}\nidentityQuestion: {}\nidentityTargetClaimIds: [{}]\nidentitySourceScope: [{}]\nidentityDependencyItemIds: [{}]\nidentityCreatedAt: {}\nidentityRecommendedNextOrgan: {}\nidentityRetiredAt: {}\nidentitySupersededBy: {}\n",
+        "modelingRequestId: {}\nmodelProjectionDigest: {}\nmodelSourceDocuments: {}\nfrontierRouteId: {}\nfrontierItemId: {}\nfrontierItemHash: {}\nverificationRequestId: {}\nsoulVerdictReceiptId: {}\nverificationResultId: {}\nverificationJobId: {}\nverificationAcceptanceReceiptId: {}\nallowedDisposition: {}\nrouteQuestion: {}\nrouteGap: {}\nidentityMigrationBody: {}\nidentityQuestion: {}\nidentityTargetClaimIds: [{}]\nidentitySourceScope: [{}]\nidentityDependencyItemIds: [{}]\nidentityCreatedAt: {}\nidentityRecommendedNextOrgan: {}\nidentityRetiredAt: {}\nidentitySupersededBy: {}\n",
         modeling_request.request_id,
-        modeling_request.model_revision,
-        modeling_request.model_hash,
+        modeling_request.model_projection_digest,
+        render_repo_model_source_documents(&modeling_request.model_source_documents),
         modeling_request.route_id,
         modeling_request.frontier_item_id,
         modeling_request.frontier_item_hash,
@@ -1241,13 +1311,23 @@ fn launch_memory_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EpiphanyMemoryDomain;
+    use crate::EpiphanyMemoryLifecycle;
+    use crate::EpiphanyMemoryNode;
+    use crate::EpiphanyMemoryNodeKind;
+    use crate::EpiphanyRoleResultRoleId;
+    use crate::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+    use crate::HandsActionIntent;
+    use crate::RepoFrontierItem;
+    use crate::RepoFrontierStatus;
+    use crate::RuntimeSpineHeartbeatJobOptions;
+    use crate::RuntimeSpineInitOptions;
     use crate::build_epiphany_role_launch_request_with_dynamic_context;
     use crate::hands_action_review_for_intent;
     use crate::hands_command_receipt_for_review;
     use crate::hands_commit_receipt_for_review;
     use crate::hands_patch_receipt_for_review;
     use crate::initialize_runtime_spine;
-    use crate::memory_graph_model_hash;
     use crate::open_runtime_spine_heartbeat_job;
     use crate::put_hands_action_intent;
     use crate::put_hands_action_review;
@@ -1256,25 +1336,11 @@ mod tests {
     use crate::put_hands_patch_receipt;
     use crate::runtime_worker_launch_request;
     use crate::seed_epiphany_local_verse_context;
-    use crate::EpiphanyMemoryDomain;
-    use crate::EpiphanyMemoryGraphSnapshot;
-    use crate::EpiphanyMemoryLifecycle;
-    use crate::EpiphanyMemoryNode;
-    use crate::EpiphanyMemoryNodeKind;
-    use crate::EpiphanyRoleResultRoleId;
-    use crate::HandsActionIntent;
-    use crate::RepoFrontierItem;
-    use crate::RepoFrontierStatus;
-    use crate::RuntimeSpineHeartbeatJobOptions;
-    use crate::RuntimeSpineInitOptions;
-    use crate::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-    use crate::MEMORY_GRAPH_SCHEMA_VERSION;
     use epiphany_state_model::EpiphanyAcceptanceReceipt;
-    use sha2::Digest;
     use std::fs;
     use uuid::Uuid;
 
-    fn admit_and_authorize_context_hands(
+    fn seed_and_authorize_context_hands(
         store: &Path,
         intent: &HandsActionIntent,
         review: &crate::HandsActionReview,
@@ -1285,9 +1351,7 @@ mod tests {
                 "context-hands-test-swarm",
             )?;
         }
-        let bootstrap = EpiphanyMemoryGraphSnapshot {
-            schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
-            graph_id: "context-runtime-model".to_string(),
+        let documents = crate::EpiphanyRepoModelSeedDocuments {
             domains: vec![EpiphanyMemoryDomain {
                 id: "repo".to_string(),
                 profile: crate::EpiphanyMemoryProfile::RepoArchitecture,
@@ -1308,157 +1372,31 @@ mod tests {
                 lifecycle: EpiphanyMemoryLifecycle::Accepted,
                 ..Default::default()
             }],
-            ..Default::default()
-        };
-        let legacy = store.with_extension("context-legacy.msgpack");
-        let (current, _) =
-            crate::ensure_runtime_repo_model(store, legacy, &bootstrap, "2026-06-12T00:00:00Z")?;
-        let thread_id = "context-proposal-thread";
-        let state = EpiphanyThreadState::default();
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.pull_all_backing_stores()?;
-        cache.put(
-            crate::THREAD_STATE_KEY,
-            &crate::EpiphanyThreadStateEntry::from_state(thread_id, &state)?,
-        )?;
-        let proposal_id = "context-route-proposal";
-        crate::intake_user_repo_frontier_proposal(
-            store,
-            crate::RepoFrontierUserProposalInput {
-                proposal_id: proposal_id.to_string(),
-                source_actor: "context-test".to_string(),
-                source_ref: "test:verification-context".to_string(),
-                repository: "EpiphanyAgent".to_string(),
-                workspace: "E:/Projects/EpiphanyAgent".to_string(),
-                thread_id: thread_id.to_string(),
-                runtime_id: "epiphany-hands-context-test".to_string(),
-                title: "Verify routed Hands receipts".to_string(),
-                body: "The verification context needs one admitted frontier.".to_string(),
-                desired_outcome: "Bind verification to the exact Hands chain.".to_string(),
-                constraints: vec!["No direct execution authority".to_string()],
-                scope_hints: intent.requested_paths.clone(),
+            edges: Vec::new(),
+            summaries: Vec::new(),
+            frontier: vec![RepoFrontierItem {
+                id: "context-hands-frontier".to_string(),
+                migration_body: "Verify the routed Hands chain.".to_string(),
+                question: "Does verification see the exact receipts?".to_string(),
+                gap: "Unrouted consequences are invalid.".to_string(),
+                target_claim_ids: vec!["claim-context-hands".to_string()],
+                source_scope: intent.requested_paths.clone(),
+                recommended_next_organ: "Hands".to_string(),
                 evidence_refs: vec!["context-route-evidence".to_string()],
-                public_source_refs: Vec::new(),
-                private_state_included: false,
-                proposed_at: "2026-06-12T00:00:01Z".to_string(),
-            },
-        )?;
-        let selection = crate::select_repo_frontier_work_proposal_for_modeling(
-            store,
-            proposal_id,
-            "2026-06-12T00:00:02Z",
-        )?;
-        let mut launch = crate::build_epiphany_role_launch_request(
-            thread_id,
-            crate::EpiphanyRoleResultRoleId::Modeling,
-            Some(state.revision),
-            Some(60),
-            &state,
-        )
-        .map_err(anyhow::Error::msg)?;
-        launch.proposal_modeling_request_id = Some(selection.request_id.clone());
-        let plan = crate::plan_coordinator_job_launch(
-            &state,
-            &launch,
-            store,
-            "context-route-launcher".to_string(),
-            "context-route-job".to_string(),
-        )?;
-        crate::commit_coordinator_job_launch(
-            store,
-            thread_id,
-            &state,
-            &launch,
-            &plan,
-            "2026-06-12T00:00:03Z".to_string(),
-        )?;
-        let patch = crate::RepoModelPatch {
-            patch_id: "context-route-patch".to_string(),
-            base_revision: current.model_revision,
-            base_hash: memory_graph_model_hash(&current)?,
-            applied_at: "2026-06-12T00:00:03Z".to_string(),
-            purpose: crate::RepoModelPatchPurpose::Evolution,
-            operations: vec![crate::RepoModelPatchOperation::UpsertFrontier {
-                item: RepoFrontierItem {
-                    id: "context-hands-frontier".to_string(),
-                    migration_body: "Verify the routed Hands chain.".to_string(),
-                    question: "Does verification see the exact receipts?".to_string(),
-                    gap: "Unrouted consequences are invalid.".to_string(),
-                    target_claim_ids: vec!["claim-context-hands".to_string()],
-                    source_scope: intent.requested_paths.clone(),
-                    recommended_next_organ: "Hands".to_string(),
-                    evidence_refs: vec![proposal_id.to_string()],
-                    status: RepoFrontierStatus::Active,
-                    ..Default::default()
-                },
+                status: RepoFrontierStatus::Active,
+                ..Default::default()
             }],
+            lifecycle_receipts: Vec::new(),
         };
-        let patch_bytes = rmp_serde::to_vec_named(&patch)?;
-        let result = crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
-            repository_body_observation_basis: crate::runtime_worker_launch_body_basis(
-                store,
-                "context-route-job",
-            )?,
-            result_id: "context-route-result".to_string(),
-            job_id: "context-route-job".to_string(),
-            role_id: "modeling".to_string(),
-            verdict: "checkpoint-ready".to_string(),
-            summary: "Context route".to_string(),
-            next_safe_move: "Mind admission".to_string(),
-            checkpoint_summary: None,
-            scratch_summary: None,
-            files_inspected: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
-            frontier_node_ids: vec!["claim-context-hands".to_string()],
-            evidence_ids: vec![proposal_id.to_string()],
-            artifact_refs: Vec::new(),
-            open_questions: Vec::new(),
-            evidence_gaps: Vec::new(),
-            risks: Vec::new(),
-            state_patch_msgpack: None,
-            self_patch_msgpack: None,
-            item_error: None,
-            metadata: std::collections::BTreeMap::new(),
-            repo_model_patch_msgpack: Some(patch_bytes.clone()),
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: Some(selection.request_id),
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
-            frontier_plan_mind_decision_msgpack: None,
-            imagination_consideration_request_id: None,
-            imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
-            admitted_model_direction_consideration_result_msgpack: None,
-            decision_context_id: "decision-context-fixture".into(),
-        };
-        crate::put_runtime_role_worker_result(store, &result)?;
-        crate::commit_repo_model_admission(
-            store,
-            &result.result_id,
-            &crate::RepoModelAdmissionReview {
-                schema_version: crate::REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
-                review_id: "context-route-admission".to_string(),
-                result_id: Some(result.result_id.clone()),
-                job_id: Some(result.job_id.clone()),
-                patch_id: patch.patch_id,
-                patch_sha256: format!("{:x}", sha2::Sha256::digest(&patch_bytes)),
-                base_revision: patch.base_revision,
-                base_hash: patch.base_hash,
-                decision: crate::MindGatewayDecision::Accept,
-                evidence_ids: result.evidence_ids.clone(),
-                reviewed_at: "2026-06-12T00:00:04Z".to_string(),
-                contract: crate::REPO_MODEL_ADMISSION_CONTRACT.to_string(),
-                repository_body_observation_basis: result.repository_body_observation_basis.clone(),
-                admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
-                    result_id: result.result_id.clone(),
-                    job_id: result.job_id.clone(),
-                }),
-            },
+        let seed = crate::EpiphanyRepoModelSeed::new(
+            "context-runtime-model-seed",
+            "context-runtime-model",
+            "context-hands-test-swarm",
+            "context-hands-test-workspace",
+            "sha256:context-hands-test-body",
+            documents,
         )?;
+        crate::initialize_keyed_repo_model(store, &seed, "2026-06-12T00:00:03Z")?;
         let route = crate::select_and_commit_repo_frontier_route(store, "2026-06-12T00:00:05Z")?;
         crate::put_repo_frontier_hands_authority(
             store,
@@ -1466,8 +1404,8 @@ mod tests {
                 schema_version: crate::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.to_string(),
                 authority_id: "context-route-authority".to_string(),
                 route_id: route.route_id,
-                model_revision: route.model_revision,
-                model_hash: route.model_hash,
+                model_projection_digest: route.model_projection_digest,
+                model_source_documents: route.model_source_documents,
                 frontier_item_id: route.frontier_item_id,
                 frontier_item_hash: route.frontier_item_hash,
                 hands_intent_id: intent.intent_id.clone(),
@@ -1519,8 +1457,7 @@ mod tests {
             &runtime_store,
             "canonical-model-launch-swarm",
         )?;
-        let snapshot = EpiphanyMemoryGraphSnapshot {
-            graph_id: "canonical-model".to_string(),
+        let documents = crate::EpiphanyRepoModelSeedDocuments {
             domains: vec![EpiphanyMemoryDomain {
                 id: "repo".to_string(),
                 profile: EpiphanyMemoryProfile::RepoArchitecture,
@@ -1553,22 +1490,17 @@ mod tests {
                 status: RepoFrontierStatus::Active,
                 ..Default::default()
             }],
-            ..Default::default()
+            edges: Vec::new(),
+            summaries: Vec::new(),
+            lifecycle_receipts: Vec::new(),
         };
         let seed = crate::EpiphanyRepoModelSeed::new(
             "canonical-model-seed",
-            snapshot.graph_id.clone(),
+            "canonical-model",
             "canonical-model-launch-swarm",
             "canonical-model-workspace",
             "sha256:canonical-model-body",
-            crate::EpiphanyRepoModelSeedDocuments {
-                domains: snapshot.domains.clone(),
-                nodes: snapshot.nodes.clone(),
-                edges: snapshot.edges.clone(),
-                summaries: snapshot.summaries.clone(),
-                frontier: snapshot.frontier.clone(),
-                lifecycle_receipts: snapshot.lifecycle_receipts.clone(),
-            },
+            documents.clone(),
         )?;
         crate::initialize_keyed_repo_model(&runtime_store, &seed, "2026-06-12T00:00:01Z")?;
         let newer_thread_state = EpiphanyThreadState {
@@ -1585,12 +1517,14 @@ mod tests {
         .map_err(anyhow::Error::msg)?;
 
         assert_eq!(packet.frontier[0].id, "frontier-modeling-handoff");
-        assert!(packet
-            .nodes
-            .iter()
-            .any(|node| node.id == "claim-modeling-authority"));
+        assert!(
+            packet
+                .nodes
+                .iter()
+                .any(|node| node.id == "claim-modeling-authority")
+        );
         let preserved = crate::assemble_repo_model_view(&runtime_store)?;
-        assert_eq!(preserved.frontier, snapshot.frontier);
+        assert_eq!(preserved.frontier, documents.frontier);
         let shape = append_modeling_repo_model_shape_context("base".to_string(), &runtime_store)
             .map_err(anyhow::Error::msg)?;
         assert_eq!(
@@ -1928,7 +1862,7 @@ mod tests {
             "2026-06-12T00:00:02Z".to_string(),
         );
         put_hands_action_review(&runtime_store, &review)?;
-        admit_and_authorize_context_hands(&runtime_store, &intent, &review)?;
+        seed_and_authorize_context_hands(&runtime_store, &intent, &review)?;
         let patch = hands_patch_receipt_for_review(
             "hands-patch-context".to_string(),
             &intent,
@@ -1980,28 +1914,6 @@ mod tests {
             }],
             ..Default::default()
         };
-        let gateway_review = crate::MindGatewayReview {
-            schema_version: crate::MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
-            gateway_id: "mind-context-route-admission".to_string(),
-            source_kind: "modelingFinding".to_string(),
-            source_role_id: "modeling".to_string(),
-            decision: crate::MindGatewayDecision::Accept,
-            allowed_effects: vec!["acceptanceReceipts".to_string()],
-            refused_effects: Vec::new(),
-            reasons: vec!["Fixture Mind admission".to_string()],
-            contract: "Fixture Mind gateway review".to_string(),
-        };
-        crate::put_mind_gateway_review(&runtime_store, &gateway_review)?;
-        crate::put_mind_state_commit_receipt(
-            &runtime_store,
-            &crate::mind_state_commit_receipt(
-                "mind-commit-accept-modeling-context".to_string(),
-                &gateway_review,
-                state.revision,
-                vec!["AcceptanceReceipts".to_string()],
-                "2026-06-12T00:00:03Z".to_string(),
-            ),
-        )?;
         let context = append_verification_hands_receipt_context(
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
             &runtime_store,
@@ -2015,10 +1927,11 @@ mod tests {
         assert!(context.contains("hands-commit-context"));
         assert!(context.contains("verificationRequestId:"));
         assert!(context.contains("frontierRouteId:"));
-        assert!(context.contains("mindAdmissionChain:"));
-        assert!(context.contains("mind-commit-accept-modeling-context"));
-        assert!(context.contains("context-route-admission"));
-        assert!(context.contains("context-route-proposal"));
+        assert!(context.contains("modelAuthorityChain:"));
+        assert!(context.contains("currentKeyedView: projectionDigest=sha256:"));
+        assert!(context.contains("modelSourceDocuments=epiphany-mind/"));
+        assert!(!context.contains(&("RepoModel".to_string() + "Admission")));
+        assert!(!context.contains("mindAdmissionChain:"));
         assert!(context.contains("Does verification see the exact receipts?"));
         assert!(context.contains("Unrouted consequences are invalid."));
         assert!(context.contains("resolvedReceiptPayloads"));
@@ -2045,18 +1958,24 @@ mod tests {
             telemetry.target_stages,
             vec!["soul".to_string(), "modeling".to_string()]
         );
-        assert!(telemetry
-            .receipt_payload_previews
-            .iter()
-            .any(|payload| payload.contains("patch: schemaVersion=")));
-        assert!(telemetry
-            .receipt_payload_previews
-            .iter()
-            .any(|payload| payload.contains("command: schemaVersion=")));
-        assert!(telemetry
-            .receipt_payload_previews
-            .iter()
-            .any(|payload| payload.contains("commit: schemaVersion=")));
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("patch: schemaVersion="))
+        );
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("command: schemaVersion="))
+        );
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("commit: schemaVersion="))
+        );
         assert!(!telemetry.commit_diff_preview.trim().is_empty());
         assert!(telemetry.verification_assertions.iter().any(|assertion| {
             assertion.contains("verification_launch_context_includes_hands_receipt_chain")
@@ -2138,7 +2057,7 @@ mod tests {
             self_patch_msgpack: None,
             item_error: None,
             metadata: std::collections::BTreeMap::new(),
-            repo_model_patch_msgpack: None,
+            repo_model_mutation_proposal_msgpack: None,
             verification_request_id: Some(verification_request.request_id.clone()),
             frontier_route_id: Some(verification_request.route_id.clone()),
             repo_frontier_modeling_request_id: None,
@@ -2211,7 +2130,16 @@ mod tests {
             .repo_frontier_verdict_modeling_authority
             .as_ref()
             .expect("Soul-bound Modeling context must carry the exact frontier item");
+        let current_basis = crate::assemble_repo_model_view(&runtime_store)?.reasoning_basis();
         assert_eq!(modeling_authority.request.request_id, modeling_request_id);
+        assert_eq!(
+            modeling_authority.request.model_projection_digest,
+            current_basis.projection_digest
+        );
+        assert_eq!(
+            modeling_authority.request.model_source_documents,
+            current_basis.source_documents
+        );
         assert_eq!(
             modeling_authority.request.frontier_item_id,
             modeling_authority.frontier_item.id
@@ -2221,26 +2149,42 @@ mod tests {
             "Does verification see the exact receipts?"
         );
         assert!(modeling_context.contains(modeling_request_id));
+        assert!(modeling_context.contains("modelProjectionDigest: sha256:"));
+        assert!(modeling_context.contains("modelSourceDocuments: epiphany-mind/"));
         assert!(modeling_context.contains("soulVerdictReceiptId: soul-verdict-context"));
         assert!(modeling_context.contains("verificationResultId: result-verification-context"));
-        assert!(modeling_context
-            .contains("verificationAcceptanceReceiptId: accept-verification-context"));
+        assert!(
+            modeling_context
+                .contains("verificationAcceptanceReceiptId: accept-verification-context")
+        );
         assert!(modeling_context.contains("allowedDisposition: resolved"));
-        assert!(modeling_context
-            .contains("Include the exact soulVerdictReceiptId in the top-level evidenceIds"));
-        assert!(modeling_context
-            .contains("Include both verificationRequestId and soulVerdictReceiptId"));
+        assert!(
+            modeling_context
+                .contains("Include the exact soulVerdictReceiptId in the top-level evidenceIds")
+        );
+        assert!(
+            modeling_context
+                .contains("Include both verificationRequestId and soulVerdictReceiptId")
+        );
         assert!(modeling_context.contains("Set statePatch to null"));
         assert!(modeling_context.contains("identityMigrationBody:"));
-        assert!(modeling_context
-            .contains("identityQuestion: Does verification see the exact receipts?"));
+        assert!(
+            modeling_context
+                .contains("identityQuestion: Does verification see the exact receipts?")
+        );
         assert!(modeling_context.contains("identityCreatedAt:"));
         assert!(modeling_context.contains("identityRetiredAt: <none>"));
         assert!(modeling_context.contains("identitySupersededBy: <none>"));
-        assert!(modeling_context
-            .contains("Copy every identity field exactly from the identity-prefixed values above"));
-        assert!(modeling_context
-            .contains("Only status, evidence_refs, gap, and updated_at are verdict-owned changes"));
+        assert!(
+            modeling_context.contains(
+                "Copy every identity field exactly from the identity-prefixed values above"
+            )
+        );
+        assert!(
+            modeling_context.contains(
+                "Only status, evidence_refs, gap, and updated_at are verdict-owned changes"
+            )
+        );
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,

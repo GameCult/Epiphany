@@ -3,7 +3,7 @@ use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
     MemorySemanticProjectionInput, SemanticPartition, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
     WorkspaceCoveragePolicy, WorkspaceProjectionIdentity, agent_memory_semantic_projection_input,
-    load_memory_graph_snapshot, load_memory_semantic_projection_readiness,
+    load_memory_semantic_projection_readiness,
     observe_repository_readiness, publish_epiphany_cultmesh_semantic_projection_health,
     runtime_modeling_semantic_projection_input, semantic_memory_context,
 };
@@ -67,7 +67,7 @@ fn main() -> Result<()> {
             let runtime_store = options.runtime_store.as_ref().ok_or_else(|| {
                 usage_error("repository-readiness requires --runtime-store <path>")
             })?;
-            if options.graph_store.is_some() || options.agent_store.is_some() {
+            if options.agent_store.is_some() {
                 return Err(usage_error(
                     "repository-readiness accepts only --runtime-store <path>",
                 ));
@@ -105,7 +105,6 @@ fn main() -> Result<()> {
 }
 
 struct Options {
-    graph_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     local_verse_store: Option<PathBuf>,
@@ -125,7 +124,6 @@ struct Options {
 impl Options {
     fn parse(args: impl Iterator<Item = String>) -> Result<Self> {
         let mut options = Self {
-            graph_store: None,
             runtime_store: None,
             agent_store: None,
             local_verse_store: None,
@@ -148,7 +146,6 @@ impl Options {
                     .with_context(|| format!("missing value for {flag}"))
             };
             match flag.as_str() {
-                "--graph-store" => options.graph_store = Some(PathBuf::from(value()?)),
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
                 "--local-verse-store" => options.local_verse_store = Some(PathBuf::from(value()?)),
@@ -182,7 +179,6 @@ impl Options {
             return Err(usage_error("--swarm-id must not be empty"));
         }
         let sources = [
-            options.graph_store.is_some(),
             options.runtime_store.is_some(),
             options.agent_store.is_some(),
         ]
@@ -191,37 +187,28 @@ impl Options {
         .count();
         if sources != 1 {
             return Err(usage_error(
-                "provide exactly one --graph-store, --runtime-store, or --agent-store",
+                "provide exactly one --runtime-store or --agent-store",
             ));
         }
         if options.partition == SemanticPartition::Mind && options.runtime_store.is_some() {
             return Err(usage_error(
-                "Mind projection requires --agent-store or an explicitly composed --graph-store",
+                "Mind projection requires --agent-store",
             ));
         }
         if options.partition == SemanticPartition::Modeling && options.agent_store.is_some() {
             return Err(usage_error(
-                "Modeling projection requires --runtime-store or --graph-store",
+                "Modeling projection requires --runtime-store",
             ));
-        }
-        if options.graph_store.is_some() && options.swarm_id.is_none() {
-            return Err(usage_error("--graph-store requires --swarm-id"));
         }
         Ok(options)
     }
 
     fn load_source(&self) -> Result<(EpiphanyMemoryGraphSnapshot, String)> {
-        if self.runtime_store.is_some() || self.agent_store.is_some() {
-            let (input, _) = self.load_projection_input()?;
-            return Ok((
-                input.snapshot().clone(),
-                input.obligation().swarm_id.clone(),
-            ));
-        }
-        let path = self.graph_store.as_ref().expect("validated graph store");
-        let snapshot = load_memory_graph_snapshot(path)?
-            .ok_or_else(|| anyhow!("memory graph store {} is missing", path.display()))?;
-        Ok((snapshot, self.swarm_id.clone().expect("validated swarm id")))
+        let (input, _) = self.load_projection_input()?;
+        Ok((
+            input.snapshot().clone(),
+            input.obligation().swarm_id.clone(),
+        ))
     }
 
     fn load_projection_input(&self) -> Result<(MemorySemanticProjectionInput, &PathBuf)> {
@@ -230,9 +217,7 @@ impl Options {
         } else if let Some(path) = &self.agent_store {
             (agent_memory_semantic_projection_input(path)?, path)
         } else {
-            return Err(anyhow!(
-                "graph-store snapshots have no canonical admission authority and are BM25-only"
-            ));
+            return Err(anyhow!("semantic projection requires a typed source store"));
         };
         if self
             .swarm_id

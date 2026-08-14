@@ -447,9 +447,10 @@ fn record_refusal(store: &PathBuf, args: RecordRefusalArgs) -> Result<serde_json
         "handsRefusalReceiptId": receipt.hands_refusal_receipt_id,
         "routeId": receipt.route_id,
         "frontierItemId": receipt.frontier_item_id,
-        "admittedModelRevision": receipt.admitted_model_revision,
-        "admittedModelHash": receipt.admitted_model_hash,
-        "modelAdmissionReceiptId": receipt.model_admission_receipt_id,
+        "previousModelProjectionDigest": receipt.previous_model_projection_digest,
+        "previousModelSourceDocuments": receipt.previous_model_source_documents,
+        "admittedModelProjectionDigest": receipt.admitted_model_projection_digest,
+        "admittedModelSourceDocuments": receipt.admitted_model_source_documents,
         "store": store,
     }))
 }
@@ -641,7 +642,6 @@ mod tests {
     use epiphany_core::runtime_hands_commit_receipt;
     use epiphany_core::runtime_hands_patch_receipt;
     use epiphany_core::runtime_latest_hands_receipt_chain_after;
-    use sha2::Digest;
 
     #[test]
     fn records_patch_command_and_commit_receipts_against_approved_gate() -> Result<()> {
@@ -883,100 +883,6 @@ mod tests {
             "2026-06-02T00:00:02Z".to_string(),
         );
         put_hands_action_review(store, &review)?;
-        seed_frontier_authority(store, &intent, &review)?;
-        Ok(())
-    }
-
-    fn seed_frontier_authority(
-        store: &PathBuf,
-        intent: &HandsActionIntent,
-        review: &HandsActionReview,
-    ) -> Result<()> {
-        let item = epiphany_core::RepoFrontierItem {
-            id: "hands-frontier-test".to_string(),
-            migration_body: "Exercise the bounded Hands receipt chain.".to_string(),
-            question: "Does the consequence preserve its authority chain?".to_string(),
-            gap: "An unrouted consequence is invalid.".to_string(),
-            target_claim_ids: vec!["hands-claim-test".to_string()],
-            source_scope: intent.requested_paths.clone(),
-            recommended_next_organ: "Hands".to_string(),
-            evidence_refs: vec!["hands-fixture".to_string()],
-            status: epiphany_core::RepoFrontierStatus::Active,
-            ..Default::default()
-        };
-        let item_hash = format!(
-            "{:x}",
-            sha2::Sha256::digest(rmp_serde::to_vec_named(&item)?)
-        );
-        let mut model = epiphany_core::EpiphanyMemoryGraphSnapshot {
-            schema_version: Some(epiphany_core::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
-            graph_id: "hands-action-test-model".to_string(),
-            model_revision: 1,
-            domains: vec![epiphany_core::EpiphanyMemoryDomain {
-                id: "repo".to_string(),
-                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
-                title: "Repository".to_string(),
-                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
-                ..Default::default()
-            }],
-            nodes: vec![epiphany_core::EpiphanyMemoryNode {
-                id: "hands-claim-test".to_string(),
-                domain_id: "repo".to_string(),
-                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
-                kind: epiphany_core::EpiphanyMemoryNodeKind::RuntimeContract,
-                title: "Hands authority".to_string(),
-                claim: "Hands consequences require an exact frontier authority.".to_string(),
-                question: "Is the authority chain exact?".to_string(),
-                action_implication: "Bind every receipt to the routed scope.".to_string(),
-                source_hashes: vec!["anchor:missing".to_string()],
-                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
-                ..Default::default()
-            }],
-            frontier: vec![item.clone()],
-            ..Default::default()
-        };
-        model.model_hash = epiphany_core::memory_graph_model_hash(&model)?;
-        let entry = epiphany_core::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
-        let route = epiphany_core::RepoFrontierRoute {
-            schema_version: epiphany_core::REPO_FRONTIER_ROUTE_SCHEMA_VERSION.to_string(),
-            route_id: "hands-route-test".to_string(),
-            next_organ: epiphany_core::RepoFrontierNextOrgan::Hands,
-            model_revision: model.model_revision,
-            model_hash: model.model_hash.clone(),
-            admission_receipt_id: "hands-admission-test".to_string(),
-            frontier_item_id: item.id.clone(),
-            frontier_item_hash: item_hash.clone(),
-            migration_body: item.migration_body.clone(),
-            question: item.question.clone(),
-            gap: item.gap.clone(),
-            target_claim_ids: item.target_claim_ids.clone(),
-            source_scope: item.source_scope.clone(),
-            adopted_plan: None,
-            selected_at: "2026-06-02T00:00:02Z".to_string(),
-            contract: epiphany_core::REPO_FRONTIER_ROUTE_CONTRACT.to_string(),
-        };
-        let mut cache = epiphany_core::runtime_spine_cache(store)?;
-        cache.put(epiphany_core::MEMORY_GRAPH_KEY, &entry)?;
-        cache.put(&route.route_id, &route)?;
-        epiphany_core::put_repo_frontier_hands_authority(
-            store,
-            &epiphany_core::RepoFrontierHandsAuthority {
-                schema_version: epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
-                    .to_string(),
-                authority_id: "hands-authority-test".to_string(),
-                route_id: route.route_id,
-                model_revision: route.model_revision,
-                model_hash: route.model_hash,
-                frontier_item_id: route.frontier_item_id,
-                frontier_item_hash: item_hash,
-                hands_intent_id: intent.intent_id.clone(),
-                hands_review_id: review.review_id.clone(),
-                substrate_grant_receipt_id: intent.substrate_gate_grant_receipt_id.clone(),
-                requested_paths: intent.requested_paths.clone(),
-                granted_at: "2026-06-02T00:00:03Z".to_string(),
-                contract: epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.to_string(),
-            },
-        )?;
         Ok(())
     }
 

@@ -174,7 +174,10 @@ pub fn put_persona_terminal_decision(
     let existing_terminal = cache.get::<PersonaModelTerminalReceipt>(&terminal.receipt_id)?;
     match (existing_effect, existing_terminal) {
         (Some(existing_effect), Some(existing_terminal))
-            if existing_effect == *effect && existing_terminal == *terminal => return Ok(()),
+            if existing_effect == *effect && existing_terminal == *terminal =>
+        {
+            return Ok(());
+        }
         (None, None) => {}
         _ => return Err(anyhow!("Persona terminal decision identity collision")),
     }

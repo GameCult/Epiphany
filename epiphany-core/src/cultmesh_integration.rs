@@ -4231,6 +4231,9 @@ pub fn default_epiphany_cultmesh_swarm_brake(
             "persona.public_speech".to_string(),
             "daemon.tool_invocation".to_string(),
             "daemon.lifecycle_poke".to_string(),
+            "atlas.publish".to_string(),
+            "atlas.project".to_string(),
+            "atlas.impact_ingress".to_string(),
         ],
         created_at_utc: generated_at_utc.into(),
         expires_at_utc: None,
@@ -4257,6 +4260,9 @@ pub fn canonical_epiphany_swarm_brake_protected_surfaces() -> Vec<String> {
         "persona.public_speech".to_string(),
         "daemon.tool_invocation".to_string(),
         "daemon.lifecycle_poke".to_string(),
+        "atlas.publish".to_string(),
+        "atlas.project".to_string(),
+        "atlas.impact_ingress".to_string(),
     ]
 }
 
@@ -9829,11 +9835,7 @@ mod tests {
         );
         assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
         assert_eq!(
-            load_epiphany_cultmesh_daemon_status(
-                &store,
-                "epiphany-test",
-                "epiphany-daemon-hands"
-            )?,
+            load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,
             None
         );
         assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
@@ -9873,11 +9875,7 @@ mod tests {
             .expect("Hands daemon status exists");
 
         assert_eq!(
-            load_epiphany_cultmesh_daemon_status(
-                &store,
-                "epiphany-test",
-                "epiphany-daemon-hands"
-            )?,
+            load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,
             Some(expected)
         );
         assert_eq!(

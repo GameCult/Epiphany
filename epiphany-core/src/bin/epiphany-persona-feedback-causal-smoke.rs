@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use epiphany_core::*;
 use epiphany_state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
-    EpiphanyMemoryProfile, EpiphanyThreadState, RepoModelPatchPurpose,
+    EpiphanyMemoryProfile, EpiphanyThreadState,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -118,8 +118,8 @@ fn main() -> Result<()> {
             source_room_id: request.source_room_id.clone(),
             source_visibility: request.source_visibility.clone(),
             data_classification: request.data_classification.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
+            model_projection_digest: request.model_projection_digest.clone(),
+            model_source_documents: request.model_source_documents.clone(),
             disposition: ImaginationConsiderationDisposition::Suggest,
             title: "Fixture proposal".into(),
             summary: "Reviewable option only".into(),
@@ -177,66 +177,40 @@ fn seed_fixture_runtime(store: &Path) -> Result<()> {
         THREAD_STATE_KEY,
         &EpiphanyThreadStateEntry::from_state("fixture-thread", &state)?,
     )?;
-    let mut model = EpiphanyMemoryGraphSnapshot {
-        schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.into()),
-        graph_id: "fixture-model".into(),
-        model_revision: 1,
-        domains: vec![EpiphanyMemoryDomain {
-            id: "repo".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
-            title: "Repository".into(),
-            lifecycle: EpiphanyMemoryLifecycle::Accepted,
-            ..Default::default()
-        }],
-        nodes: vec![EpiphanyMemoryNode {
-            id: "fixture-claim".into(),
-            domain_id: "repo".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
-            kind: EpiphanyMemoryNodeKind::RuntimeContract,
-            title: "Feedback path".into(),
-            claim: "Persona feedback is pressure, never authority.".into(),
-            question: "Which proposal fits the Body?".into(),
-            action_implication: "Review only.".into(),
-            lifecycle: EpiphanyMemoryLifecycle::Accepted,
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-    model.model_hash = memory_graph_model_hash(&model)?;
-    cache.put(
-        MEMORY_GRAPH_KEY,
-        &EpiphanyMemoryGraphEntry::from_snapshot(&model)?,
-    )?;
-    cache.put(
-        "fixture-model-admission",
-        &RepoModelAdmissionReceipt {
-            schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "fixture-model-admission".into(),
-            review_id: "fixture-review".into(),
-            result_id: Some("fixture-result".into()),
-            patch_id: "fixture-patch".into(),
-            patch_sha256: "sha256-fixture".into(),
-            previous_revision: 0,
-            previous_hash: "none".into(),
-            admitted_revision: 1,
-            admitted_hash: model.model_hash,
-            admitted_at: AT.into(),
-            contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
-            purpose: RepoModelPatchPurpose::Evolution,
-            frontier_route_id: String::new(),
-            verification_request_id: String::new(),
-            soul_verdict_receipt_id: String::new(),
-            frontier_modeling_request_id: String::new(),
-            proposal_modeling_request_id: String::new(),
-            claim_repair_request_id: String::new(),
-            frontier_plan_decision_id: String::new(),
-            repository_body_observation_basis: None,
-            admission_source: Some(epiphany_core::RepoModelAdmissionSource::WorkerResult {
-                result_id: "fixture-result".into(),
-                job_id: "fixture-job".into(),
-            }),
+    drop(cache);
+    let seed = EpiphanyRepoModelSeed::new(
+        "fixture-model-seed",
+        "fixture-model",
+        "epiphany-yggdrasil",
+        "fixture-workspace",
+        "fixture-body-binding",
+        EpiphanyRepoModelSeedDocuments {
+            domains: vec![EpiphanyMemoryDomain {
+                id: "repo".into(),
+                profile: EpiphanyMemoryProfile::RepoArchitecture,
+                title: "Repository".into(),
+                lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            nodes: vec![EpiphanyMemoryNode {
+                id: "fixture-claim".into(),
+                domain_id: "repo".into(),
+                profile: EpiphanyMemoryProfile::RepoArchitecture,
+                kind: EpiphanyMemoryNodeKind::RuntimeContract,
+                title: "Feedback path".into(),
+                claim: "Persona feedback is pressure, never authority.".into(),
+                question: "Which proposal fits the Body?".into(),
+                action_implication: "Review only.".into(),
+                lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            edges: Vec::new(),
+            summaries: Vec::new(),
+            frontier: Vec::new(),
+            lifecycle_receipts: Vec::new(),
         },
     )?;
+    initialize_keyed_repo_model(store, &seed, AT)?;
     Ok(())
 }
 

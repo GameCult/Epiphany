@@ -167,10 +167,7 @@ fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool>
         if !path.exists() {
             return Ok(false);
         }
-        let file = File::options()
-            .read(true)
-            .write(true)
-            .open(path)?;
+        let file = File::options().read(true).write(true).open(path)?;
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
             unsafe {
                 let _ = libc::flock(file.as_raw_fd(), libc::LOCK_UN);

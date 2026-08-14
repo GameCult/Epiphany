@@ -1,9 +1,28 @@
 # Epiphany Current Algorithmic Map
 
+## 2026-08-14 authority supersession
+
+The keyed Mind hard cut is complete for RepoModel. `EpiphanyRepoModelView` and
+its exact source-document set own current repository modeling; model output
+contains semantic operations only and runtime constructs the durable proposal,
+Body binding, causal references, receipt, and commit time. The former aggregate
+RepoModel entry, key, patch, admission path, store, and CLI have been deleted.
+`EpiphanyMemoryGraphSnapshot` remains only as a nonpersisted local query and
+semantic-index projection. Any aggregate revision/hash or
+`RepoModelAdmissionReceipt` language retained later in this file describes
+historical evidence, not a live writer or validation path.
+
+Cross-repository Modeling now uses the federated Model Atlas documented in
+`notes/model-atlas-vertical-slice.md`. Providers own offers, consumers own
+claims, Soul owns exact verification evidence, a deterministic projector derives
+edges/cycles/blast radius, and each consumer Self alone decides whether a local
+impact wakes Modeling or Soul. Odin transports and indexes; Eve renders; neither
+owns dependency truth or Hands authority.
+
 ## Causal work identity and creation provenance
 
 - Owner: `causal_work_identity` derives durable request identity for Proposal Modeling, Research, frontier Planning, PlanMind, and Admitted Model Direction.
-- Inputs: runtime identity plus the immutable admitted cause specific to each typed family. Proposal content, model/frontier hashes, accepted result identity, candidate digest, and Mind admission receipts may participate. Coordinator thread and timestamps may not.
+- Inputs: runtime identity plus the immutable admitted cause specific to each typed family. Proposal content, the exact keyed model projection digest/source-document set, accepted result identity, candidate digest, and typed Mind receipts may participate. Coordinator thread and timestamps may not.
 - Outputs: deterministic typed request IDs consumed by direct and resident launch paths.
 - Derived state: creation thread and request time are provenance. Job, process, grant, model-execution, and tool IDs identify attempts beneath the request and cannot redefine it.
 - Forbidden writers: current coordinator thread, resident projection, retry path, launch callback, and worker output cannot fork, invalidate, or restore a request identity.
@@ -195,7 +214,7 @@ rejected before mutation; no repair loop or selector exception may launder it.
   feedback-only pressure, not an Eve connection, Persona command, objective, or
   work proposal.
 - Self owns an immutable Imagination consideration request binding one admitted
-  feedback packet digest to one exact admitted Modeling revision/hash/receipt
+  feedback packet digest to one exact admitted keyed Modeling basis and receipt
   and one fixed question enum. Feedback prose is transported only as quoted
   evidence.
 - Imagination owns a proposal-only consideration candidate with `suggest`,
@@ -872,8 +891,8 @@ watcher Dirty/Stale/Changed forces Regather. Path matches, status labels,
 worker-launch documents, coordinator rows, and CRRC recommendations are derived
 consumers and forbidden decision writers.
 
-Canonical RepoModel is the admitted map, not the repository Body. Its exact
-revision/hash and Mind-issued `RepoModelAdmissionReceipt` prove map identity
+Canonical RepoModel is the admitted keyed map, not the repository Body. Its
+exact projection digest and sealed source-document versions prove map identity
 only. Future Ready additionally requires a nervous-system-owned, continuity-
 bearing Body observation and retrieval coverage bound to the same source
 generation; Mind derives readiness from that exact join. Legacy graph
@@ -4656,16 +4675,36 @@ the typed seed provenance, keyed documents, and generic Mind commit receipt in
 one exact-envelope transaction. Exact replay returns the same projected state;
 divergent seed identity or an aggregate RepoModel envelope refuses.
 
-Exact `8ad16be0` moves the production `epiphany-repository-body bootstrap`
-command onto this owner. The legacy bootstrap/migration binary and launch-time
-aggregate reader remain the next deletion line; the shakedown stays paused
-until they and aggregate admission are gone.
+Exact `8ad16be0` moved the production `epiphany-repository-body bootstrap`
+command onto this owner. Exact `18d3783a` then deleted the legacy aggregate
+bootstrap binary; the 2026-08-14 hard cut deleted aggregate admission and all
+production aggregate RepoModel readers and writers.
 
-Exact `18d3783a` deletes the legacy bootstrap binary. Exact `120663fa` makes
-launch-context assembly read `EpiphanyRepoModelView` directly. The existing
+Exact `120663fa` makes launch-context assembly read `EpiphanyRepoModelView`
+directly. The existing
 memory context cutter receives a temporary graph-shaped projection for query
 selection only; that projection is never persisted and its revision/hash fields
 are inert. Modeling prompt context names the view projection digest and semantic
 document identities instead of a global model revision/hash. Missing keyed
 RepoModel state now refuses launch context rather than bootstrapping shared
 authority from thread state.
+
+### Federated Model Atlas
+
+Local provider offers, consumer dependency claims, Soul verification, and Self
+impact are separate keyed Mind families. Each write is planned from current
+Body evidence and exact typed source versions, then committed through Mind CAS.
+Per-repository publishers sign only their own documents and exact Mind receipt
+bindings. Odin persists the signed events without joining them. The projector
+verifies pinned identities, status watermarks, visibility, and source versions,
+then deterministically derives compatibility, cycles, and direct/transitive
+blast radius. A consumer ingress re-reads its local claim and the exact
+projection before committing an impact and asking Resident Self for a bounded
+Modeling or Soul wake. The wake explicitly grants no Hands authority.
+
+The provider-owned Eve projection is one `gamecult.eve.surface.v1` retained
+tree with attention, drilldown, and secondary graph views. Select/filter are
+presentation-only; domain mutation routes back to the owning repository's
+Modeling interface. Brake scopes `atlas.publish`, `atlas.project`, and
+`atlas.impact_ingress` freeze writes and scheduling while preserving the last
+projection as visibly stale read-only state.

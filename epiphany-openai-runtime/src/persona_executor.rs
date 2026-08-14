@@ -125,9 +125,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         "projector",
         projector_prompt,
         None,
-        epiphany_core::EpiphanyReasoningProjection::PersonaProjector(
-            plan.projector_input.clone(),
-        ),
+        epiphany_core::EpiphanyReasoningProjection::PersonaProjector(plan.projector_input.clone()),
         Vec::new(),
     )
     .await?;

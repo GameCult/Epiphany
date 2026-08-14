@@ -67,12 +67,11 @@ impl RuntimeSpineBackingStore {
                     replacements,
                     deletions,
                 ),
-            SelectedBackingStore::Keyed(store) => store
-                .replace_and_delete_if_snapshot_unchanged(
-                    expected_snapshot,
-                    replacements,
-                    deletions,
-                ),
+            SelectedBackingStore::Keyed(store) => store.replace_and_delete_if_snapshot_unchanged(
+                expected_snapshot,
+                replacements,
+                deletions,
+            ),
         }
     }
 
@@ -82,10 +81,12 @@ impl RuntimeSpineBackingStore {
         replacements: Vec<CultCacheEnvelope>,
     ) -> Result<bool> {
         match self.selected()? {
-            SelectedBackingStore::Snapshot(store) => store
-                .replace_and_append_if_snapshot_unchanged(expected_snapshot, replacements),
-            SelectedBackingStore::Keyed(store) => store
-                .replace_and_append_if_snapshot_unchanged(expected_snapshot, replacements),
+            SelectedBackingStore::Snapshot(store) => {
+                store.replace_and_append_if_snapshot_unchanged(expected_snapshot, replacements)
+            }
+            SelectedBackingStore::Keyed(store) => {
+                store.replace_and_append_if_snapshot_unchanged(expected_snapshot, replacements)
+            }
         }
     }
 }

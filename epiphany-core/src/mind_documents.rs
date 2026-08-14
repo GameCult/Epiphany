@@ -174,6 +174,13 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindRoadmapStreamDocument>()?;
     cache.register_entry_type::<EpiphanyMindObjectiveDraftDocument>()?;
     crate::repo_model_documents::register_repo_model_document_types(cache)?;
+    cache.register_entry_type::<crate::RepoFrontierPlanDecisionReceipt>()?;
+    cache.register_entry_type::<crate::RepoFrontierRelinquishmentReceipt>()?;
+    cache.register_entry_type::<crate::RepoFrontierExecutionAmendmentReceipt>()?;
+    cache.register_entry_type::<crate::AtlasSurfaceOffer>()?;
+    cache.register_entry_type::<crate::AtlasDependencyClaim>()?;
+    cache.register_entry_type::<crate::AtlasDependencyVerification>()?;
+    cache.register_entry_type::<crate::AtlasDependencyImpact>()?;
     Ok(())
 }
 
@@ -186,7 +193,32 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         }
         return Ok(());
     }
-    let expected_key = if envelope.r#type == EpiphanyMindIdentity::TYPE {
+    let expected_key = if envelope.r#type == crate::RepoFrontierPlanDecisionReceipt::TYPE {
+        rmp_serde::from_slice::<crate::RepoFrontierPlanDecisionReceipt>(&envelope.payload)?
+            .decision_id
+    } else if envelope.r#type == crate::RepoFrontierRelinquishmentReceipt::TYPE {
+        rmp_serde::from_slice::<crate::RepoFrontierRelinquishmentReceipt>(&envelope.payload)?
+            .receipt_id
+    } else if envelope.r#type == crate::RepoFrontierExecutionAmendmentReceipt::TYPE {
+        rmp_serde::from_slice::<crate::RepoFrontierExecutionAmendmentReceipt>(&envelope.payload)?
+            .receipt_id
+    } else if envelope.r#type == crate::AtlasSurfaceOffer::TYPE {
+        let value: crate::AtlasSurfaceOffer = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.surface_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyClaim::TYPE {
+        let value: crate::AtlasDependencyClaim = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.claim_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyVerification::TYPE {
+        let value: crate::AtlasDependencyVerification = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.claim_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyImpact::TYPE {
+        let value: crate::AtlasDependencyImpact = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.impact_id.to_string()
+    } else if envelope.r#type == EpiphanyMindIdentity::TYPE {
         let value: EpiphanyMindIdentity = rmp_serde::from_slice(&envelope.payload)?;
         if value.schema_epoch != MIND_SCHEMA_EPOCH || value.runtime_id.trim().is_empty() {
             return Err(anyhow!("Mind identity write is invalid"));

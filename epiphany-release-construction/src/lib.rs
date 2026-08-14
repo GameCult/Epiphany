@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::DateTime;
 #[cfg(test)]
 use chrono::Utc;
@@ -92,6 +92,15 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         (
             "workspace-coverage-projector",
             file_name("epiphany-workspace-coverage-projector"),
+        ),
+        ("atlas-publisher", file_name("epiphany-atlas-publisher")),
+        (
+            "model-entanglement-projector",
+            file_name("epiphany-model-entanglement-projector"),
+        ),
+        (
+            "atlas-impact-ingress",
+            file_name("epiphany-atlas-impact-ingress"),
         ),
         ("semantic-query", file_name("epiphany-memory-semantic")),
         ("verse-query", file_name("epiphany-verse-query")),
@@ -616,6 +625,11 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "workspace-coverage-projector" => {
             Ok(("epiphany-core", "epiphany-workspace-coverage-projector"))
         }
+        "atlas-publisher" => Ok(("epiphany-core", "epiphany-atlas-publisher")),
+        "model-entanglement-projector" => {
+            Ok(("epiphany-core", "epiphany-model-entanglement-projector"))
+        }
+        "atlas-impact-ingress" => Ok(("epiphany-core", "epiphany-atlas-impact-ingress")),
         "semantic-query" => Ok(("epiphany-core", "epiphany-memory-semantic")),
         "verse-query" => Ok(("epiphany-core", "epiphany-verse-query")),
         "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
@@ -1002,12 +1016,10 @@ mod tests {
         let first = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
         let second = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
         assert_eq!(first, second);
-        assert!(
-            first
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("graph-"))
-        );
+        assert!(first
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("graph-")));
     }
 
     #[test]
@@ -1207,27 +1219,22 @@ mod tests {
         );
         assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 24);
         assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 1);
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--package", "epiphany-release-bundle"])
-        );
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--package", "epiphany-release-bundle"]));
         assert!(!args.iter().any(|arg| arg == "epiphany-core"));
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--features", "epiphany-release-bundle/release-runtime"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--bin", "epiphany-mvp-status"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--bin", "epiphany-state"])
-        );
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--features", "epiphany-release-bundle/release-runtime"]));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"]));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--bin", "epiphany-mvp-status"]));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--bin", "epiphany-state"]));
         assert!(!args.iter().any(|arg| arg == "--bins"));
     }
 
@@ -1407,15 +1414,13 @@ mod tests {
     fn witness_reader_refuses_tamper_and_inspector_refuses_wrong_runtime() {
         let (d, e) = fixture();
         let witness = Path::new(&e.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE);
-        assert!(
-            inspect_epiphany_packaged_release_witness(
-                &witness,
-                d.path(),
-                "alien-runtime",
-                &e.source_commit_sha,
-            )
-            .is_err()
-        );
+        assert!(inspect_epiphany_packaged_release_witness(
+            &witness,
+            d.path(),
+            "alien-runtime",
+            &e.source_commit_sha,
+        )
+        .is_err());
         fs::write(&witness, b"hostile witness").unwrap();
         assert!(read_epiphany_packaged_release_witness(&witness).is_err());
     }

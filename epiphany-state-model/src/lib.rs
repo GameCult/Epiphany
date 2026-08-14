@@ -879,44 +879,6 @@ pub enum RepoFrontierStatus {
     Superseded,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct RepoModelPatch {
-    pub patch_id: String,
-    pub base_revision: u64,
-    pub base_hash: String,
-    pub applied_at: String,
-    pub purpose: RepoModelPatchPurpose,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<RepoModelPatchOperation>")]
-    pub operations: Vec<RepoModelPatchOperation>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[ts(tag = "kind", rename_all = "snake_case")]
-pub enum RepoModelPatchPurpose {
-    #[default]
-    Evolution,
-    IncorporateFrontierVerdict {
-        route_id: String,
-        soul_verdict_receipt_id: String,
-    },
-    RepairClaim,
-    AdoptFrontierPlan {
-        planning_request_id: String,
-        result_id: String,
-        candidate_id: String,
-    },
-    RelinquishFrontierRoute {
-        route_id: String,
-        hands_refusal_receipt_id: String,
-    },
-    AmendFrontierExecution {
-        route_id: String,
-        amendment_id: String,
-    },
-}
-
 pub fn reorient_checkpoint_from_admitted_repo_model(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     obligation_id: &str,
@@ -947,53 +909,6 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
             .collect(),
         evidence_ids: Vec::new(),
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
-#[serde(tag = "operation", rename_all = "snake_case")]
-#[ts(tag = "operation", rename_all = "snake_case")]
-pub enum RepoModelPatchOperation {
-    UpsertNode {
-        node: EpiphanyMemoryNode,
-    },
-    ReviseNode {
-        node: EpiphanyMemoryNode,
-    },
-    RetireNode {
-        node_id: String,
-    },
-    UpsertEdge {
-        edge: EpiphanyMemoryEdge,
-    },
-    ReviseEdge {
-        edge: EpiphanyMemoryEdge,
-    },
-    RetireEdge {
-        edge_id: String,
-    },
-    UpsertFrontier {
-        item: RepoFrontierItem,
-    },
-    ReviseFrontier {
-        item: RepoFrontierItem,
-    },
-    RetireFrontier {
-        item_id: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        retired_at: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        superseded_by: Option<String>,
-    },
-    AdoptFrontierPlan {
-        frontier_item_id: String,
-        expected_frontier_item_hash: String,
-        adopted_plan: RepoFrontierAdoptedPlan,
-    },
-    AmendFrontierExecution {
-        frontier_item_id: String,
-        expected_frontier_item_hash: String,
-        amendment: RepoFrontierExecutionAmendment,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]

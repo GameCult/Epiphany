@@ -18,9 +18,8 @@ pub const HANDS_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.commit_rec
 pub const HANDS_PR_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.pr_receipt.v0";
 pub const HANDS_ROLLBACK_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.rollback_receipt.v0";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.hands.action_refusal_receipt.v0";
-pub const HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT: &str =
-    "epiphany.hands.action_refusal.v0";
+    "epiphany.hands.action_refusal_receipt.v1";
+pub const HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT: &str = "epiphany.hands.action_refusal.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.hands.action_intent", schema = "HandsActionIntent")]
@@ -99,9 +98,9 @@ pub struct HandsActionRefusalReceipt {
     #[cultcache(key = 6)]
     pub substrate_gate_grant_receipt_id: String,
     #[cultcache(key = 7)]
-    pub model_revision: u64,
+    pub model_projection_digest: String,
     #[cultcache(key = 8)]
-    pub model_hash: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     #[cultcache(key = 9)]
     pub frontier_item_id: String,
     #[cultcache(key = 10)]

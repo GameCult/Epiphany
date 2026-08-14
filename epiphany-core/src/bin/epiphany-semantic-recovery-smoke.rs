@@ -385,7 +385,7 @@ fn seed_modeling(store: &Path, mind: &Path, swarm: &str) -> Result<()> {
     )?;
     bind_runtime_to_agent_memory_swarm(store, mind, &at)?;
     let mut graph = EpiphanyMemoryGraphSnapshot {
-        schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.into()),
+        schema_version: Some(MEMORY_GRAPH_PROJECTION_SCHEMA_VERSION.into()),
         graph_id: format!("model-{swarm}"),
         model_revision: 1,
         ..Default::default()

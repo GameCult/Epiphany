@@ -146,7 +146,7 @@ pub fn derive_coordinator_finding_signals(
         })
     });
     let modeling_result_reviewable =
-        modeling_finding.is_some_and(modeling_finding_has_reviewable_repo_model_patch);
+        modeling_finding.is_some_and(modeling_finding_has_reviewable_repo_model_mutation);
     let modeling_result_requests_regather =
         modeling_finding.is_some_and(modeling_finding_requests_regather);
     let modeling_result_failure_reviewed = modeling_finding.as_ref().is_some_and(|finding| {
@@ -254,12 +254,16 @@ pub fn reorient_finding_already_accepted(
     false
 }
 
-fn modeling_finding_has_reviewable_repo_model_patch(
+fn modeling_finding_has_reviewable_repo_model_mutation(
     finding: &EpiphanyRoleFindingInterpretation,
 ) -> bool {
     finding.item_error.is_none()
         && finding.job_error.is_none()
-        && finding.repo_model_patch.is_some()
+        && (finding.repo_model_mutation_proposal.is_some()
+            || finding.verdict.as_deref().is_some_and(|verdict| {
+                verdict.eq_ignore_ascii_case("checkpoint-ready")
+                    || verdict.eq_ignore_ascii_case("regather-needed")
+            }))
         && finding
             .state_patch
             .as_ref()
@@ -1471,7 +1475,7 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
-            repo_model_patch: None,
+            repo_model_mutation_proposal: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,

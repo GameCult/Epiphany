@@ -3232,8 +3232,8 @@ mod tests {
         cache.put(
             &scope_id,
             &crate::MemorySemanticProjectionRetentionHead {
-                schema_version:
-                    crate::MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION.to_string(),
+                schema_version: crate::MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION
+                    .to_string(),
                 scope_id: scope_id.clone(),
                 revision: 1,
                 retired_generation_count: 1,

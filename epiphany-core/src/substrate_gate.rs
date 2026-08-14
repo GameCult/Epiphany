@@ -178,9 +178,7 @@ pub fn substrate_gate_operation_for_governed_tool(
         | ("epiphany_state", "resident_grant_lifecycle") => {
             Some(SUBSTRATE_GATE_SOURCE_READ_OPERATION)
         }
-        ("epiphany_public", "github_file") => {
-            Some(SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION)
-        }
+        ("epiphany_public", "github_file") => Some(SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION),
         _ => None,
     }
 }

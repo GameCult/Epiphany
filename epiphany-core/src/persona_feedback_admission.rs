@@ -973,11 +973,8 @@ mod tests {
         };
         insert_pending_persona_feedback_bridge_receipt(&feedback_store, &pending)?;
         assert!(
-            bridged_persona_feedback_ready_for_cognition(
-                &feedback_store,
-                "epiphany-yggdrasil"
-            )?
-            .is_empty()
+            bridged_persona_feedback_ready_for_cognition(&feedback_store, "epiphany-yggdrasil")?
+                .is_empty()
         );
 
         let recovered = bridge_admitted_persona_feedback_to_heartbeat(
@@ -990,10 +987,7 @@ mod tests {
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].status, "queued");
         assert_eq!(
-            bridged_persona_feedback_ready_for_cognition(
-                &feedback_store,
-                "epiphany-yggdrasil"
-            )?,
+            bridged_persona_feedback_ready_for_cognition(&feedback_store, "epiphany-yggdrasil")?,
             vec![admitted]
         );
         let state = crate::load_heartbeat_state_entry(&heartbeat_store)?.expect("heartbeat state");
@@ -1065,11 +1059,8 @@ mod tests {
             },
         )?;
         assert!(
-            bridged_persona_feedback_ready_for_cognition(
-                &feedback_store,
-                "epiphany-yggdrasil"
-            )
-            .is_err()
+            bridged_persona_feedback_ready_for_cognition(&feedback_store, "epiphany-yggdrasil")
+                .is_err()
         );
         assert!(
             bridge_admitted_persona_feedback_to_heartbeat(
@@ -1125,11 +1116,8 @@ mod tests {
             1
         );
         assert!(
-            bridged_persona_feedback_ready_for_cognition(
-                &feedback_store,
-                "epiphany-yggdrasil"
-            )?
-            .is_empty()
+            bridged_persona_feedback_ready_for_cognition(&feedback_store, "epiphany-yggdrasil")?
+                .is_empty()
         );
         assert!(
             crate::load_heartbeat_state_entry(&heartbeat_store)?

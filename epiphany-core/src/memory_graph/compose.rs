@@ -3,14 +3,14 @@ use super::EpiphanyMemoryFreshnessStatus;
 use super::EpiphanyMemoryGraphSnapshot;
 use super::EpiphanyMemoryGraphValidationError;
 use super::validate_memory_graph_snapshot;
-use crate::memory_graph::store::MEMORY_GRAPH_SCHEMA_VERSION;
+use crate::memory_graph::MEMORY_GRAPH_PROJECTION_SCHEMA_VERSION;
 
 pub fn compose_memory_graph_snapshots(
     graph_id: impl Into<String>,
     snapshots: impl IntoIterator<Item = EpiphanyMemoryGraphSnapshot>,
 ) -> Result<EpiphanyMemoryGraphSnapshot, Vec<EpiphanyMemoryGraphValidationError>> {
     let mut composed = EpiphanyMemoryGraphSnapshot {
-        schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+        schema_version: Some(MEMORY_GRAPH_PROJECTION_SCHEMA_VERSION.to_string()),
         graph_id: graph_id.into(),
         ..Default::default()
     };

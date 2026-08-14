@@ -3,7 +3,6 @@ use crate::coordinator_state::changed_fields;
 use crate::*;
 use anyhow::Context;
 use epiphany_state_model::EpiphanyThreadState;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -79,12 +78,15 @@ pub fn accept_coordinator_reorient_finding(
         match state.investigation_checkpoint.clone() {
             Some(checkpoint) => Some(checkpoint),
             None => {
-                let projection = crate::runtime_modeling_semantic_projection_input(store)
-                    .context("cannot accept reorientation without a valid admitted RepoModel checkpoint")?;
-                Some(epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
-                    projection.snapshot(),
-                    &projection.obligation().obligation_id,
-                ))
+                let model = crate::assemble_repo_model_view(store).context(
+                    "cannot accept reorientation without a current keyed RepoModel checkpoint",
+                )?;
+                Some(
+                    epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
+                        &model.memory_context_projection(),
+                        &model.projection_digest,
+                    ),
+                )
             }
         }
     } else {
@@ -307,40 +309,54 @@ pub fn accept_coordinator_role_finding(
         if result.result_id != result_id {
             return Err(anyhow::anyhow!("Modeling finding/result identity mismatch"));
         }
-        let patch_bytes = result
-            .repo_model_patch_msgpack
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("Modeling result has no repoModelPatch"))?;
-        let patch = result
-            .repo_model_patch()?
-            .ok_or_else(|| anyhow::anyhow!("Modeling repoModelPatch failed to decode"))?;
         let repository_body_observation_basis = result
             .repository_body_observation_basis
             .clone()
             .ok_or_else(|| {
                 anyhow::anyhow!("Modeling result has no Repository Body observation basis")
             })?;
-        let candidate_review = RepoModelAdmissionReview {
-            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
-            review_id: format!("repo-model-review-{result_id}"),
-            result_id: Some(result_id.to_string()),
-            job_id: Some(job_id.to_string()),
-            patch_id: patch.patch_id.clone(),
-            patch_sha256: format!("{:x}", Sha256::digest(patch_bytes)),
-            base_revision: patch.base_revision,
-            base_hash: patch.base_hash.clone(),
-            decision: MindGatewayDecision::Accept,
-            evidence_ids: finding.evidence_ids.clone(),
-            reviewed_at: accepted_at.clone(),
-            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
-            repository_body_observation_basis: Some(repository_body_observation_basis),
-            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
-                result_id: result_id.to_string(),
-                job_id: job_id.to_string(),
-            }),
-        };
-        let review = stable_repo_model_admission_review(store, candidate_review)?;
-        commit_repo_model_admission(store, result_id, &review)?;
+        validate_repository_body_observation_basis(store, &repository_body_observation_basis)?;
+        if let Some(proposal) = result.repo_model_mutation_proposal()? {
+            if proposal.proposal_id != format!("repo-model-mutation-proposal-{job_id}") {
+                return Err(anyhow::anyhow!(
+                    "Modeling RepoModel mutation proposal identity is not runtime-owned"
+                ));
+            }
+            let plan = plan_repo_model_mutation(store, &proposal)?;
+            let invariant_owner = if result.proposal_modeling_request_id.is_some() {
+                "Modeling.proposal_frontier"
+            } else if result.claim_repair_request_id.is_some() {
+                "Modeling.claim_repair"
+            } else if result.repo_frontier_modeling_request_id.is_some() {
+                "Modeling.frontier_verdict"
+            } else {
+                "Modeling.repo_model"
+            };
+            match commit_mind_mutation(
+                store,
+                &result.decision_context_id,
+                invariant_owner,
+                plan.strong_reads,
+                plan.writes,
+                &accepted_at,
+            )? {
+                EpiphanyMindCommitOutcome::Committed(_) => {}
+                EpiphanyMindCommitOutcome::Conflict {
+                    document_identities,
+                } => {
+                    return Err(anyhow::anyhow!(
+                        "RepoModel mutation lost its exact keyed reads: {document_identities:?}"
+                    ));
+                }
+            }
+        } else if !finding.verdict.as_deref().is_some_and(|verdict| {
+            verdict.eq_ignore_ascii_case("checkpoint-ready")
+                || verdict.eq_ignore_ascii_case("regather-needed")
+        }) {
+            return Err(anyhow::anyhow!(
+                "Modeling result requiring RepoModel change has no semantic mutation proposal"
+            ));
+        }
     }
     let commit = mind_state_commit_receipt(
         format!("mind-commit-{}", update.accepted_receipt_id),
@@ -367,36 +383,6 @@ pub fn accept_coordinator_role_finding(
         finding,
         update,
     })
-}
-
-fn stable_repo_model_admission_review(
-    store: &Path,
-    candidate: RepoModelAdmissionReview,
-) -> anyhow::Result<RepoModelAdmissionReview> {
-    match coordinator_acceptance_cache(store)?
-        .get::<RepoModelAdmissionReview>(&candidate.review_id)?
-    {
-        Some(existing)
-            if existing.result_id == candidate.result_id
-                && existing.job_id == candidate.job_id
-                && existing.patch_id == candidate.patch_id
-                && existing.patch_sha256 == candidate.patch_sha256
-                && existing.base_revision == candidate.base_revision
-                && existing.base_hash == candidate.base_hash
-                && existing.decision == candidate.decision
-                && existing.evidence_ids == candidate.evidence_ids
-                && existing.schema_version == candidate.schema_version
-                && existing.contract == candidate.contract
-                && existing.repository_body_observation_basis
-                    == candidate.repository_body_observation_basis =>
-        {
-            Ok(existing)
-        }
-        Some(_) => Err(anyhow::anyhow!(
-            "stable repo model review id belongs to different admission bytes"
-        )),
-        None => Ok(candidate),
-    }
 }
 
 fn validate_verification_finding_binding(
@@ -721,7 +707,10 @@ fn commit_state_with_mind_witness(
                 || packet_ids != authenticated_ids
                 || published_ids != authenticated_ids
                 || authenticated.iter().any(|lookup| {
-                    !packet.source_refs.iter().any(|source_ref| source_ref == &lookup.source_ref)
+                    !packet
+                        .source_refs
+                        .iter()
+                        .any(|source_ref| source_ref == &lookup.source_ref)
                         || !published.iter().any(|candidate| *candidate == lookup)
                 })
             {
@@ -973,6 +962,7 @@ fn role_label_lower(role_id: EpiphanyRoleResultRoleId) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
 
     #[test]
     fn verification_finding_refuses_swapped_request_or_route() {
@@ -980,8 +970,15 @@ mod tests {
             schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
             request_id: "verification-request-1".to_string(),
             route_id: "frontier-route-1".to_string(),
-            model_revision: 1,
-            model_hash: "model-hash".to_string(),
+            model_projection_digest: format!("sha256:{}", "a".repeat(64)),
+            model_source_documents: vec![crate::EpiphanyMindDocumentVersion {
+                store_id: "epiphany-mind".into(),
+                document_type: "epiphany.mind.repo_model.identity.v1".into(),
+                document_key: crate::REPO_MODEL_IDENTITY_KEY.into(),
+                schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
+                payload_msgpack: vec![1],
+                payload_sha256: format!("sha256:{:x}", sha2::Sha256::digest([1])),
+            }],
             frontier_item_id: "frontier-1".to_string(),
             frontier_item_hash: "frontier-hash".to_string(),
             hands_intent_id: "intent-1".to_string(),
@@ -1008,7 +1005,7 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
-            repo_model_patch: None,
+            repo_model_mutation_proposal: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,
@@ -1253,122 +1250,6 @@ mod tests {
         assert_eq!(stored, soul);
         assert_eq!(stored.verification_request_id, "verification-request-11");
         assert_eq!(stored.frontier_route_id, "frontier-route-11");
-        Ok(())
-    }
-
-    #[test]
-    fn split_model_admission_retry_reuses_review_and_commits_fresh_thread_acceptance()
-    -> anyhow::Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("split-model-retry.cc");
-        crate::initialize_runtime_spine(
-            &store,
-            crate::RuntimeSpineInitOptions {
-                runtime_id: "split-model-retry".to_string(),
-                display_name: "Split model retry".to_string(),
-                created_at: "2026-07-13T09:00:00Z".to_string(),
-            },
-        )?;
-        let existing = RepoModelAdmissionReview {
-            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
-            review_id: "repo-model-review-result-split".to_string(),
-            result_id: Some("result-split".to_string()),
-            job_id: Some("job-split".to_string()),
-            patch_id: "patch-split".to_string(),
-            patch_sha256: "a".repeat(64),
-            base_revision: 4,
-            base_hash: "b".repeat(64),
-            decision: MindGatewayDecision::Accept,
-            evidence_ids: vec!["evidence-split".to_string()],
-            reviewed_at: "2026-07-13T09:00:01Z".to_string(),
-            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
-            repository_body_observation_basis: None,
-            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
-                result_id: "result-split".into(),
-                job_id: "job-split".into(),
-            }),
-        };
-        let mut cache = coordinator_acceptance_cache(&store)?;
-        cache.put(&existing.review_id, &existing)?;
-        cache.put(
-            "repo-model-admission-repo-model-review-result-split",
-            &crate::RepoModelAdmissionReceipt {
-                schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
-                receipt_id: "repo-model-admission-repo-model-review-result-split".to_string(),
-                review_id: existing.review_id.clone(),
-                result_id: existing.result_id.clone(),
-                patch_id: existing.patch_id.clone(),
-                patch_sha256: existing.patch_sha256.clone(),
-                previous_revision: 4,
-                previous_hash: existing.base_hash.clone(),
-                admitted_revision: 5,
-                admitted_hash: "c".repeat(64),
-                admitted_at: existing.reviewed_at.clone(),
-                contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
-                purpose: crate::RepoModelPatchPurpose::Evolution,
-                frontier_route_id: String::new(),
-                verification_request_id: String::new(),
-                soul_verdict_receipt_id: String::new(),
-                frontier_modeling_request_id: String::new(),
-                proposal_modeling_request_id: String::new(),
-                claim_repair_request_id: String::new(),
-                frontier_plan_decision_id: String::new(),
-                repository_body_observation_basis: None,
-                admission_source: existing.admission_source.clone(),
-            },
-        )?;
-        let mut fresh = existing.clone();
-        fresh.reviewed_at = "2026-07-13T09:05:00Z".to_string();
-        assert_eq!(stable_repo_model_admission_review(&store, fresh)?, existing);
-
-        let state = EpiphanyThreadState::default();
-        let next = EpiphanyThreadState {
-            revision: 1,
-            acceptance_receipts: vec![epiphany_state_model::EpiphanyAcceptanceReceipt {
-                id: "accept-modeling-fresh-nonce".to_string(),
-                result_id: "result-split".to_string(),
-                job_id: "job-split".to_string(),
-                binding_id: "modeling-worker".to_string(),
-                surface: "roleAccept".to_string(),
-                role_id: "modeling".to_string(),
-                status: "accepted".to_string(),
-                accepted_at: "2026-07-13T09:05:00Z".to_string(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        let mind = MindGatewayReview {
-            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
-            gateway_id: "mind-fresh-nonce".to_string(),
-            source_kind: "role".to_string(),
-            source_role_id: "modeling".to_string(),
-            decision: MindGatewayDecision::Accept,
-            allowed_effects: vec!["state".to_string()],
-            refused_effects: Vec::new(),
-            reasons: Vec::new(),
-            contract: "fresh retry".to_string(),
-        };
-        let commit = mind_state_commit_receipt(
-            "mind-commit-fresh-nonce".to_string(),
-            &mind,
-            next.revision,
-            vec!["AcceptanceReceipts".to_string()],
-            "2026-07-13T09:05:00Z".to_string(),
-        );
-        commit_state_with_mind_witness(&store, "thread-split", &state, &next, &mind, &commit, &[])?;
-        let cache = coordinator_acceptance_cache(&store)?;
-        assert_eq!(
-            cache
-                .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
-                .state()?
-                .acceptance_receipts[0]
-                .id,
-            "accept-modeling-fresh-nonce"
-        );
-        assert_eq!(
-            cache.get_all::<crate::RepoModelAdmissionReceipt>()?.len(),
-            1
-        );
         Ok(())
     }
 }

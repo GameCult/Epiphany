@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot,
@@ -10,10 +10,12 @@ use epiphany_state_model::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{runtime_spine_cache, validate_memory_graph_snapshot, EpiphanyMindDocumentVersion};
+use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache, validate_memory_graph_snapshot};
 
 pub const REPO_MODEL_SCHEMA_EPOCH: &str = "epiphany.repo_model.epoch.v1";
 pub const REPO_MODEL_IDENTITY_KEY: &str = "repo-model";
+const HISTORICAL_AGGREGATE_REPO_MODEL_TYPE: &str = "epiphany.memory_graph";
+const HISTORICAL_AGGREGATE_REPO_MODEL_KEY: &str = "default";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -122,7 +124,20 @@ pub struct EpiphanyRepoModelView {
     pub claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyRepoModelBasis {
+    pub projection_digest: String,
+    pub source_documents: Vec<EpiphanyMindDocumentVersion>,
+}
+
 impl EpiphanyRepoModelView {
+    pub fn reasoning_basis(&self) -> EpiphanyRepoModelBasis {
+        EpiphanyRepoModelBasis {
+            projection_digest: self.projection_digest.clone(),
+            source_documents: self.source_documents.clone(),
+        }
+    }
+
     pub fn memory_context_projection(&self) -> EpiphanyMemoryGraphSnapshot {
         EpiphanyMemoryGraphSnapshot {
             schema_version: None,
@@ -139,6 +154,90 @@ impl EpiphanyRepoModelView {
             lifecycle_receipts: self.lifecycle_receipts.clone(),
             frontier: self.frontier.clone(),
         }
+    }
+}
+
+impl EpiphanyRepoModelBasis {
+    pub fn validate(&self) -> Result<()> {
+        let digest = self
+            .projection_digest
+            .strip_prefix("sha256:")
+            .ok_or_else(|| anyhow!("RepoModel basis digest has no SHA-256 scheme"))?;
+        if digest.len() != 64
+            || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || self.source_documents.is_empty()
+        {
+            return Err(anyhow!("RepoModel basis is empty or has an invalid digest"));
+        }
+        let mut canonical = self.source_documents.clone();
+        canonical.sort_by(|left, right| {
+            left.document_type
+                .cmp(&right.document_type)
+                .then(left.document_key.cmp(&right.document_key))
+        });
+        if canonical != self.source_documents
+            || canonical
+                .windows(2)
+                .any(|pair| pair[0].identity() == pair[1].identity())
+        {
+            return Err(anyhow!("RepoModel basis sources are not canonical"));
+        }
+        for source in &self.source_documents {
+            source.validate()?;
+            if source.store_id != "epiphany-mind" {
+                return Err(anyhow!("RepoModel basis references a foreign store"));
+            }
+        }
+        let expected = format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&self.source_documents)?)
+        );
+        if self.projection_digest != expected {
+            return Err(anyhow!("RepoModel basis projection digest mismatch"));
+        }
+        Ok(())
+    }
+
+    pub fn validate_current(&self, store_path: impl AsRef<Path>) -> Result<()> {
+        self.validate()?;
+        let current = assemble_repo_model_view(store_path)?.reasoning_basis();
+        if current != *self {
+            return Err(anyhow!("RepoModel basis is stale"));
+        }
+        Ok(())
+    }
+
+    pub fn validate_against_cache(&self, cache: &CultCache) -> Result<()> {
+        self.validate()?;
+        let live = cache.snapshot_envelopes();
+        for source in &self.source_documents {
+            let envelope = live
+                .iter()
+                .find(|envelope| {
+                    envelope.r#type == source.document_type && envelope.key == source.document_key
+                })
+                .ok_or_else(|| anyhow!("RepoModel basis source is absent"))?;
+            if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+                return Err(anyhow!("RepoModel basis source changed"));
+            }
+        }
+        let mut live_repo_sources = live
+            .iter()
+            .filter(|envelope| repo_model_write_key(envelope).is_ok_and(|key| key.is_some()))
+            .map(|envelope| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope))
+            .collect::<Result<Vec<_>>>()?;
+        live_repo_sources.sort_by(|left, right| {
+            left.document_type
+                .cmp(&right.document_type)
+                .then(left.document_key.cmp(&right.document_key))
+        });
+        let expected = self.source_documents.clone();
+        if live_repo_sources != expected {
+            return Err(anyhow!(
+                "RepoModel basis does not seal the complete keyed view"
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -347,7 +446,8 @@ pub fn initialize_keyed_repo_model(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     if cache.snapshot_envelopes().into_iter().any(|envelope| {
-        envelope.r#type == crate::MEMORY_GRAPH_TYPE && envelope.key == crate::MEMORY_GRAPH_KEY
+        envelope.r#type == HISTORICAL_AGGREGATE_REPO_MODEL_TYPE
+            && envelope.key == HISTORICAL_AGGREGATE_REPO_MODEL_KEY
     }) {
         return Err(anyhow!(
             "keyed RepoModel initialization refuses an aggregate RepoModel store"
@@ -977,6 +1077,12 @@ fn claim_obligations_for_frontier(
 pub fn assemble_repo_model_view(store_path: impl AsRef<Path>) -> Result<EpiphanyRepoModelView> {
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
+    assemble_repo_model_view_from_cache(&cache)
+}
+
+pub(crate) fn assemble_repo_model_view_from_cache(
+    cache: &CultCache,
+) -> Result<EpiphanyRepoModelView> {
     let identity = cache
         .get::<EpiphanyRepoModelIdentityDocument>(REPO_MODEL_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("writable Mind store has no keyed RepoModel identity"))?;
@@ -1127,7 +1233,7 @@ fn validate_claim_obligations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{initialize_runtime_spine, RuntimeSpineInitOptions};
+    use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
     use epiphany_state_model::{
         EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind,
         EpiphanyMemoryProfile, RepoFrontierStatus,
@@ -1200,14 +1306,18 @@ mod tests {
             cache.get::<EpiphanyRepoModelSeed>("seed-1")?,
             Some(seed.clone())
         );
-        assert!(cache
-            .get_all::<crate::EpiphanyMindCommitReceipt>()?
-            .iter()
-            .any(|receipt| receipt.invariant_owner == "Modeling.repo_model_seed"));
-        assert!(cache
-            .snapshot_envelopes()
-            .iter()
-            .all(|envelope| envelope.r#type != crate::MEMORY_GRAPH_TYPE));
+        assert!(
+            cache
+                .get_all::<crate::EpiphanyMindCommitReceipt>()?
+                .iter()
+                .any(|receipt| receipt.invariant_owner == "Modeling.repo_model_seed")
+        );
+        assert!(
+            cache
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.memory_graph")
+        );
 
         let divergent = EpiphanyRepoModelSeed::new(
             "seed-1",

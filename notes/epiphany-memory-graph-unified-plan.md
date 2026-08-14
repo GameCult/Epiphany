@@ -1,5 +1,12 @@
 # Epiphany Memory Graph Unified Plan
 
+> Historical plan. RepoModel authority was hard-cut to keyed Mind documents on
+> 2026-08-14. `EpiphanyMemoryGraphSnapshot` remains only as a derived local
+> query/semantic projection. Cross-repository dependency evidence now travels
+> through the federated Model Atlas described in
+> `notes/model-atlas-vertical-slice.md`. This document cannot authorize a new
+> aggregate store, migrator, or dual-read path.
+
 The repo fractal dataflow graph and agent memory are one architecture.
 
 They differ in policy, not substrate. A source module, a durable role memory, an

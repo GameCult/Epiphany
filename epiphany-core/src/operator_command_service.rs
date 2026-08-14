@@ -29,8 +29,8 @@ use crate::{
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE: &str =
     "epiphany.operator_command.sealed_result";
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.operator_command.sealed_result.v1";
-const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v1";
+    "epiphany.operator_command.sealed_result.v2";
+const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v2";
 pub const EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID: u32 = 0xe91f_0001;
 pub const EPIPHANY_OPERATOR_COMMAND_SERVICE_HEALTH_SCHEMA_VERSION: &str =
     "epiphany.operator_command.service_health.v0";
@@ -948,6 +948,26 @@ pub fn write_operator_command_interop_fixture(
             &admission_bytes,
             "2026-07-19T12:00:01Z",
         )?;
+        let model_payload_msgpack = rmp_serde::to_vec_named(&(
+            "epiphany.repo_model.epoch.v1",
+            "fixture-repo-model",
+            "epiphany-interop-fixture",
+            "fixture-swarm",
+            "fixture-workspace",
+            format!("sha256:{}", "b".repeat(64)),
+        ))?;
+        let model_source_documents = vec![crate::EpiphanyMindDocumentVersion {
+            store_id: "epiphany-mind".into(),
+            document_type: "epiphany.mind.repo_model.identity.v1".into(),
+            document_key: "repo-model".into(),
+            schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
+            payload_sha256: format!("sha256:{:x}", Sha256::digest(&model_payload_msgpack)),
+            payload_msgpack: model_payload_msgpack,
+        }];
+        let model_projection_digest = format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&model_source_documents)?)
+        );
         let receipt_bytes = rmp_serde::to_vec_named(&receipt)?;
         std::fs::write(output.join("operator-admission.msgpack"), &admission_bytes)?;
         std::fs::write(
@@ -960,7 +980,7 @@ pub fn write_operator_command_interop_fixture(
         )?;
         std::fs::write(output.join("sealed-result.msgpack"), &receipt_bytes)?;
         let protocol = serde_json::json!({
-            "schemaVersion": "epiphany.operator_command.protocol_fixture.v1",
+            "schemaVersion": "epiphany.operator_command.protocol_fixture.v2",
             "admissionSchemaVersion": crate::BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
             "resultSchemaVersion": crate::OPERATOR_COMMAND_RESULT_SCHEMA_VERSION,
             "sealedResultSchemaVersion": EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
@@ -976,8 +996,8 @@ pub fn write_operator_command_interop_fixture(
                     mind_request_id: "mind-request-fixture-1".into(),
                     candidate_id: "candidate-fixture-1".into(),
                     candidate_sha256: "1".repeat(64),
-                    expected_model_revision: 41,
-                    expected_model_hash: "2".repeat(64),
+                    expected_model_projection_digest: model_projection_digest.clone(),
+                    expected_model_source_documents: model_source_documents.clone(),
                     decision: crate::RepoFrontierPlanDecision::Adopt,
                 })?,
             ],
@@ -1006,8 +1026,8 @@ pub fn write_operator_command_interop_fixture(
                     mind_request_id: "mind-request-fixture-1".into(),
                     candidate_id: "candidate-fixture-1".into(),
                     candidate_sha256: "1".repeat(64),
-                    model_revision: 41,
-                    model_hash: "2".repeat(64),
+                    model_projection_digest: model_projection_digest,
+                    model_source_documents: model_source_documents,
                     frontier_item_id: "frontier-fixture-1".into(),
                     requested_at: "2026-07-19T11:59:00Z".into(),
                 }],
@@ -1509,8 +1529,24 @@ mod tests {
         );
         let review = &protocol["commands"][5];
         assert!(review.get("mindRequestId").is_some());
-        assert!(review.get("expectedModelRevision").is_some());
+        assert!(review.get("expectedModelProjectionDigest").is_some());
+        assert!(review.get("expectedModelSourceDocuments").is_some());
+        assert!(review.get("expectedModelRevision").is_none());
+        assert!(review.get("expectedModelHash").is_none());
         assert!(review.get("mind_request_id").is_none());
+        let crate::OperatorCommand::Review {
+            expected_model_projection_digest,
+            expected_model_source_documents,
+            ..
+        } = serde_json::from_value(review.clone())?
+        else {
+            unreachable!("review fixture decoded as another command")
+        };
+        crate::EpiphanyRepoModelBasis {
+            projection_digest: expected_model_projection_digest,
+            source_documents: expected_model_source_documents,
+        }
+        .validate()?;
         assert_eq!(
             protocol["boundedReviewResult"]["reviews"]
                 .as_array()

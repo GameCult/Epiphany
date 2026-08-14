@@ -1,7 +1,7 @@
 use super::{
     EpiphanyMemoryDomain, EpiphanyMemoryFreshnessStatus, EpiphanyMemoryGraphSnapshot,
-    EpiphanyMemoryLifecycle, EpiphanyMemoryProfile, MEMORY_GRAPH_KEY, MEMORY_GRAPH_TYPE,
-    RepoFrontierStatus, memory_graph_model_hash, validate_memory_graph_snapshot,
+    EpiphanyMemoryLifecycle, EpiphanyMemoryProfile, RepoFrontierStatus, memory_graph_model_hash,
+    validate_memory_graph_snapshot,
 };
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
@@ -382,20 +382,24 @@ fn document<T: Serialize>(
     source_refs.dedup();
     source_hashes.sort();
     source_hashes.dedup();
+    let canonical_type = match kind {
+        SemanticDocumentKind::Node => "epiphany.mind.repo_model.node.v1",
+        SemanticDocumentKind::Edge => "epiphany.mind.repo_model.edge.v1",
+        SemanticDocumentKind::Summary => "epiphany.mind.repo_model.summary.v1",
+        SemanticDocumentKind::Frontier => "epiphany.mind.repo_model.frontier.v1",
+    };
     let canonical = SemanticCanonicalLocator {
-        locator: format!(
-            "cultcache://{swarm_id}/{MEMORY_GRAPH_TYPE}/{MEMORY_GRAPH_KEY}#{document_id}"
-        ),
-        canonical_type: MEMORY_GRAPH_TYPE.to_string(),
-        canonical_key: MEMORY_GRAPH_KEY.to_string(),
+        locator: format!("cultcache://{swarm_id}/{canonical_type}/{document_id}"),
+        canonical_type: canonical_type.to_string(),
+        canonical_key: document_id.to_string(),
         canonical_document_id: document_id.to_string(),
     };
     Ok(SemanticProjectionDocument {
         point_id: semantic_point_id(
             swarm_id,
             partition,
-            MEMORY_GRAPH_TYPE,
-            MEMORY_GRAPH_KEY,
+            canonical_type,
+            document_id,
             document_id,
         ),
         swarm_id: swarm_id.to_string(),

@@ -88,8 +88,8 @@ pub fn reap_exited_child_process(expected: &ProcessInstanceIdentity) -> Result<b
     ) {
         return Ok(false);
     }
-    let pid = i32::try_from(expected.process_id)
-        .context("child process id exceeds Unix pid range")?;
+    let pid =
+        i32::try_from(expected.process_id).context("child process id exceeds Unix pid range")?;
     loop {
         let mut status = 0;
         let observed = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
@@ -678,6 +678,9 @@ mod tests {
         }
 
         assert!(!reap_exited_child_process(&stale_identity).unwrap());
-        assert!(child.wait().is_ok(), "stale identity reaped the current child");
+        assert!(
+            child.wait().is_ok(),
+            "stale identity reaped the current child"
+        );
     }
 }

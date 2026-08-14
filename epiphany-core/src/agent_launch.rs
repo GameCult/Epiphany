@@ -86,82 +86,8 @@ fn repo_frontier_item_output_schema() -> serde_json::Value {
             "recommended_next_organ": {"type": "string", "minLength": 1},
             "dependency_item_ids": {"type": "array", "items": {"type": "string"}},
             "status": {"type": "string", "enum": ["proposed", "active", "blocked", "resolved", "retired", "superseded"]},
-            "evidence_refs": {"type": "array", "items": {"type": "string"}},
-            "created_at": {"type": "string"},
-            "updated_at": {"type": "string"}
+            "evidence_refs": {"type": "array", "items": {"type": "string"}}
         }
-    })
-}
-
-fn modeling_imagination_frontier_output_schema() -> serde_json::Value {
-    let mut schema = repo_frontier_item_output_schema();
-    schema["required"] = serde_json::json!([
-        "id",
-        "migration_body",
-        "question",
-        "gap",
-        "target_claim_ids",
-        "source_scope",
-        "recommended_next_organ",
-        "dependency_item_ids",
-        "status",
-        "evidence_refs"
-    ]);
-    schema["properties"]["source_scope"]["minItems"] = serde_json::json!(1);
-    schema["properties"]["recommended_next_organ"] = serde_json::json!({"const": "Imagination"});
-    schema["properties"]["dependency_item_ids"]["maxItems"] = serde_json::json!(0);
-    schema["properties"]["status"] = serde_json::json!({"const": "active"});
-    schema["properties"]["evidence_refs"]["minItems"] = serde_json::json!(1);
-    schema["additionalProperties"] = serde_json::json!(false);
-    schema
-}
-
-fn adopted_frontier_plan_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": [
-            "planning_request_id", "result_id", "job_id", "candidate_id", "candidate_sha256",
-            "safe_paths", "action", "command", "checks", "stop_conditions", "rollback_steps",
-            "commit_message"
-        ],
-        "properties": {
-            "planning_request_id": {"type": "string", "minLength": 1},
-            "result_id": {"type": "string", "minLength": 1},
-            "job_id": {"type": "string", "minLength": 1},
-            "candidate_id": {"type": "string", "minLength": 1},
-            "candidate_sha256": {"type": "string", "minLength": 1},
-            "safe_paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "action": {"type": "string", "minLength": 1},
-            "command": {"type": "string", "minLength": 1},
-            "checks": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "stop_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "rollback_steps": {"type": "array", "items": {"type": "string", "minLength": 1}},
-            "commit_message": {"type": "string", "minLength": 1},
-            "execution_amendment": {
-                "type": "object",
-                "required": [
-                    "amendment_id", "replaces_route_id", "source_actor_id", "command_id",
-                    "admission_id", "packet_sha256", "previous_action_sha256",
-                    "previous_command_sha256", "action", "command", "rationale", "amended_at"
-                ],
-                "properties": {
-                    "amendment_id": {"type": "string", "minLength": 1},
-                    "replaces_route_id": {"type": "string", "minLength": 1},
-                    "source_actor_id": {"type": "string", "minLength": 1},
-                    "command_id": {"type": "string", "minLength": 1},
-                    "admission_id": {"type": "string", "minLength": 1},
-                    "packet_sha256": {"type": "string", "minLength": 1},
-                    "previous_action_sha256": {"type": "string", "minLength": 1},
-                    "previous_command_sha256": {"type": "string", "minLength": 1},
-                    "action": {"type": "string", "minLength": 1},
-                    "command": {"type": "string", "minLength": 1},
-                    "rationale": {"type": "string", "minLength": 1},
-                    "amended_at": {"type": "string", "minLength": 1}
-                },
-                "additionalProperties": false
-            }
-        },
-        "additionalProperties": false
     })
 }
 
@@ -183,9 +109,7 @@ fn repo_model_node_output_schema() -> serde_json::Value {
             "source_hashes": {"type": "array", "items": {"type": "string"}},
             "lifecycle": {"type": "string"},
             "salience": {"type": "integer", "minimum": 0},
-            "confidence": {"type": "integer", "minimum": 0},
-            "created_at": {"type": "string"},
-            "updated_at": {"type": "string"}
+            "confidence": {"type": "integer", "minimum": 0}
         },
         "anyOf": [
             {"properties": {"question": {"minLength": 1}}},
@@ -585,127 +509,26 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
-                "repositoryBodyObservationBasis".to_string(),
+                "repoModelOperations".to_string(),
                 serde_json::json!({
-                    "type": "object",
-                    "description": "Exact echo of the immutable repository Body observation basis supplied in the Modeling launch.",
-                    "required": [
-                        "schemaVersion", "workspaceId", "swarmId", "runtimeId", "scope",
-                        "bodyBindingSha256", "observationId", "generation",
-                        "manifestRootSha256", "scanStartedAt", "scanFinishedAt"
-                    ],
-                    "properties": {
-                        "schemaVersion": {"type": "string", "minLength": 1},
-                        "workspaceId": {"type": "string", "minLength": 1},
-                        "swarmId": {"type": "string", "minLength": 1},
-                        "runtimeId": {"type": "string", "minLength": 1},
-                        "scope": {"type": "string", "minLength": 1},
-                        "bodyBindingSha256": {"type": "string", "minLength": 1},
-                        "observationId": {"type": "string", "minLength": 1},
-                        "generation": {"type": "integer", "minimum": 1},
-                        "manifestRootSha256": {"type": "string", "minLength": 1},
-                        "scanStartedAt": {"type": "string", "minLength": 1},
-                        "scanFinishedAt": {"type": "string", "minLength": 1}
-                    },
-                    "additionalProperties": false
-                }),
-            );
-            map.insert(
-                "repoModelPatch".to_string(),
-                serde_json::json!({
-                    "type": "object",
-                    "description": "Required typed proposal against the canonical repository model. This is ingress for later review, not admission authority.",
-                    "required": ["patch_id", "base_revision", "base_hash", "applied_at", "purpose", "operations"],
-                    "properties": {
-                        "patch_id": {"type": "string", "minLength": 1},
-                        "base_revision": {"type": "integer", "minimum": 0},
-                        "base_hash": {"type": "string", "minLength": 1},
-                        "applied_at": {"type": "string", "minLength": 1},
-                        "purpose": {
-                            "description": "Use {kind: evolution} for ordinary Modeling output; frontier closure requires separately routed authority.",
-                            "oneOf": [
-                                {
-                                    "type": "object",
-                                    "required": ["kind"],
-                                    "properties": {"kind": {"const": "evolution"}},
-                                    "additionalProperties": false
-                                },
-                                {
-                                    "type": "object",
-                                    "required": ["kind", "route_id", "soul_verdict_receipt_id"],
-                                    "properties": {
-                                        "kind": {"const": "incorporate_frontier_verdict"},
-                                        "route_id": {"type": "string", "minLength": 1},
-                                        "soul_verdict_receipt_id": {"type": "string", "minLength": 1}
-                                    },
-                                    "additionalProperties": false
-                                },
-                                {
-                                    "type": "object",
-                                    "required": ["kind"],
-                                    "properties": {"kind": {"const": "repair_claim"}},
-                                    "additionalProperties": false
-                                },
-                                {
-                                    "type": "object",
-                                    "required": ["kind", "planning_request_id", "result_id", "candidate_id"],
-                                    "properties": {
-                                        "kind": {"const": "adopt_frontier_plan"},
-                                        "planning_request_id": {"type": "string", "minLength": 1},
-                                        "result_id": {"type": "string", "minLength": 1},
-                                        "candidate_id": {"type": "string", "minLength": 1}
-                                    },
-                                    "additionalProperties": false
-                                }
-                            ]
-                        },
-                        "operations": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {
-                                "anyOf": [
-                                    {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
-                                    {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
-                                    {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
-                                    {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
-                                    {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
-                                    {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}},
-                                    {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "upsert_frontier"}, "item": repo_frontier_item_output_schema()}},
-                                    {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "revise_frontier"}, "item": repo_frontier_item_output_schema()}},
-                                    {"type": "object", "required": ["operation", "item_id"], "properties": {"operation": {"const": "retire_frontier"}, "item_id": {"type": "string", "minLength": 1}, "retired_at": {"type": "string"}, "superseded_by": {"type": "string"}}},
-                                    {"type": "object", "required": ["operation", "frontier_item_id", "expected_frontier_item_hash", "adopted_plan"], "properties": {"operation": {"const": "adopt_frontier_plan"}, "frontier_item_id": {"type": "string", "minLength": 1}, "expected_frontier_item_hash": {"type": "string", "minLength": 1}, "adopted_plan": adopted_frontier_plan_output_schema()}}
-                                ]
-                            }
-                        }
-                    },
-                    "additionalProperties": true
-                }),
-            );
-            map.insert(
-                "repoFrontierModelingRequestId".to_string(),
-                serde_json::json!({"type": "string", "minLength": 1}),
-            );
-            map.insert(
-                "proposalModelingRequestId".to_string(),
-                serde_json::json!({
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Exact echo of an explicit typed repo-frontier proposal Modeling request, when supplied."
-                }),
-            );
-            map.insert(
-                "claimRepairRequestId".to_string(),
-                serde_json::json!({
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Exact echo of the coordinator-bound claim repair request; valid only with purpose repair_claim."
+                    "type": "array",
+                    "description": "Semantic keyed RepoModel operations only. The runtime owns proposal identity, the exact Body and RepoModel basis, causal request/result/evidence bindings, strong reads, writes, timestamps, and receipts.",
+                    "items": {
+                        "anyOf": [
+                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "put_node"}, "node": repo_model_node_output_schema()}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "put_edge"}, "edge": repo_model_edge_output_schema()}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "put_frontier"}, "item": repo_frontier_item_output_schema()}, "additionalProperties": false}
+                        ]
+                    }
                 }),
             );
             map.insert(
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Optional generic Mind-reviewable observations/evidence only. Repository anatomy belongs exclusively in repoModelPatch.",
+                    "description": "Optional generic Mind-reviewable observations/evidence only. Repository anatomy belongs exclusively in repoModelOperations.",
                     "properties": {
                         "observations": {"type": "array", "items": observation_output_schema()},
                         "evidence": {"type": "array", "items": evidence_output_schema()}
@@ -715,8 +538,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             );
         }
         required.push("frontierNodeIds");
-        required.push("repoModelPatch");
-        required.push("repositoryBodyObservationBasis");
+        required.push("repoModelOperations");
     }
     let mut schema = serde_json::json!({
         "type": "object",
@@ -728,159 +550,31 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         schema["allOf"] = serde_json::json!([
             {
                 "if": {
-                    "properties": {
-                        "repoModelPatch": {
-                            "properties": {
-                                "purpose": {
-                                    "properties": {"kind": {"const": "incorporate_frontier_verdict"}},
-                                    "required": ["kind"]
-                                }
-                            },
-                            "required": ["purpose"]
-                        }
-                    },
-                    "required": ["repoModelPatch"]
+                    "properties": {"verdict": {"const": "checkpoint-update-needed"}},
+                    "required": ["verdict"]
                 },
-                "then": {"required": ["repoFrontierModelingRequestId"]}
-            },
-            {
-                "if": {
-                    "properties": {
-                        "repoModelPatch": {
-                            "properties": {
-                                "purpose": {
-                                    "properties": {"kind": {"const": "repair_claim"}},
-                                    "required": ["kind"]
-                                }
-                            }
-                            ,"required": ["purpose"]
-                        }
-                    },
-                    "required": ["repoModelPatch"]
-                },
-                "then": {"required": ["claimRepairRequestId"]}
-            },
-            {
-                "if": {"required": ["proposalModelingRequestId"]},
                 "then": {
                     "properties": {
-                        "evidenceIds": {"type": "array", "minItems": 1},
-                        "repoModelPatch": {
-                            "properties": {
-                                "purpose": {
-                                    "properties": {"kind": {"const": "evolution"}},
-                                    "required": ["kind"]
-                                },
-                                "operations": {
-                                    "contains": {
-                                        "type": "object",
-                                        "properties": {"operation": {"const": "upsert_frontier"}},
-                                        "required": ["operation"]
-                                    },
-                                    "minContains": 1,
-                                    "maxContains": 1
-                                }
+                        "repoModelOperations": {
+                            "minItems": 1,
+                            "contains": {
+                                "type": "object",
+                                "properties": {"operation": {"const": "put_frontier"}},
+                                "required": ["operation"]
                             },
-                            "required": ["purpose", "operations"]
+                            "minContains": 1,
+                            "maxContains": 1
                         }
-                    },
-                    "required": ["evidenceIds", "repoModelPatch"]
+                    }
                 }
             },
             {
                 "if": {
-                    "allOf": [
-                        {
-                            "not": {
-                                "anyOf": [
-                                    {"required": ["repoFrontierModelingRequestId"]},
-                                    {"required": ["proposalModelingRequestId"]},
-                                    {"required": ["claimRepairRequestId"]}
-                                ]
-                            }
-                        },
-                        {"properties": {"verdict": {"const": "checkpoint-update-needed"}}, "required": ["verdict"]}
-                    ]
+                    "properties": {"verdict": {"enum": ["checkpoint-ready", "regather-needed"]}},
+                    "required": ["verdict"]
                 },
                 "then": {
-                    "properties": {
-                        "repoModelPatch": {
-                            "properties": {
-                                "purpose": {
-                                    "type": "object",
-                                    "required": ["kind"],
-                                    "properties": {"kind": {"const": "evolution"}},
-                                    "additionalProperties": false
-                                },
-                                "operations": {
-                                    "items": {
-                                        "anyOf": [
-                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
-                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
-                                            {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
-                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
-                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
-                                            {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}},
-                                            {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "upsert_frontier"}, "item": modeling_imagination_frontier_output_schema()}, "additionalProperties": false}
-                                        ]
-                                    },
-                                    "contains": {
-                                        "type": "object",
-                                        "properties": {"operation": {"const": "upsert_frontier"}},
-                                        "required": ["operation"]
-                                    },
-                                    "minContains": 1,
-                                    "maxContains": 1
-                                }
-                            },
-                            "required": ["purpose", "operations"]
-                        }
-                    },
-                    "required": ["repoModelPatch"]
-                }
-            },
-            {
-                "if": {
-                    "allOf": [
-                        {
-                            "not": {
-                                "anyOf": [
-                                    {"required": ["repoFrontierModelingRequestId"]},
-                                    {"required": ["proposalModelingRequestId"]},
-                                    {"required": ["claimRepairRequestId"]}
-                                ]
-                            }
-                        },
-                        {"not": {"properties": {"verdict": {"const": "checkpoint-update-needed"}}, "required": ["verdict"]}}
-                    ]
-                },
-                "then": {
-                    "properties": {
-                        "repoModelPatch": {
-                            "properties": {
-                                "purpose": {
-                                    "type": "object",
-                                    "required": ["kind"],
-                                    "properties": {"kind": {"const": "evolution"}},
-                                    "additionalProperties": false
-                                },
-                                "operations": {
-                                    "items": {
-                                        "anyOf": [
-                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
-                                            {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
-                                            {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
-                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
-                                            {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
-                                            {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}}
-                                        ]
-                                    }
-                                }
-                            },
-                            "required": ["purpose", "operations"]
-                        }
-                    },
-                    "required": ["repoModelPatch"]
+                    "properties": {"repoModelOperations": {"maxItems": 0}}
                 }
             }
         ]);
@@ -946,89 +640,23 @@ pub fn epiphany_proposal_modeling_output_schema(
 pub fn epiphany_frontier_verdict_modeling_output_schema(
     authority: &crate::RepoFrontierVerdictModelingLaunchAuthority,
 ) -> serde_json::Value {
-    let request = &authority.request;
-    let item = &authority.frontier_item;
-    let disposition = match request.allowed_disposition {
-        crate::RepoFrontierVerdictDisposition::Resolved => "resolved",
-        crate::RepoFrontierVerdictDisposition::Blocked => "blocked",
-    };
-    let adopted_plan = serde_json::to_value(&item.adopted_plan)
-        .expect("frontier adopted plan must serialize for its provider schema");
-    let created_at = serde_json::to_value(&item.created_at)
-        .expect("frontier creation time must serialize for its provider schema");
-    let retired_at = serde_json::to_value(&item.retired_at)
-        .expect("frontier retirement time must serialize for its provider schema");
-    let superseded_by = serde_json::to_value(&item.superseded_by)
-        .expect("frontier supersession must serialize for its provider schema");
+    let _authority = authority;
     let mut schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
-    schema["properties"]["repoFrontierModelingRequestId"] = serde_json::json!({
+    schema["properties"]
+        .as_object_mut()
+        .expect("role schema properties must be an object")
+        .remove("repoModelOperations");
+    schema["properties"]["frontierVerdictGap"] = serde_json::json!({
         "type": "string",
-        "const": request.request_id
-    });
-    schema["properties"]["repoModelPatch"]["properties"]["purpose"] = serde_json::json!({
-        "type": "object",
-        "required": ["kind", "route_id", "soul_verdict_receipt_id"],
-        "properties": {
-            "kind": {"const": "incorporate_frontier_verdict"},
-            "route_id": {"const": request.route_id},
-            "soul_verdict_receipt_id": {"const": request.soul_verdict_receipt_id}
-        },
-        "additionalProperties": false
-    });
-    schema["properties"]["repoModelPatch"]["properties"]["operations"] = serde_json::json!({
-        "type": "array",
-        "minItems": 1,
-        "maxItems": 1,
-        "items": {
-            "type": "object",
-            "required": ["operation", "item"],
-            "properties": {
-                "operation": {"const": "revise_frontier"},
-                "item": {
-                    "type": "object",
-                    "required": [
-                        "id", "migration_body", "question", "gap", "target_claim_ids",
-                        "source_scope", "recommended_next_organ", "adopted_plan",
-                        "dependency_item_ids", "status", "evidence_refs", "public_source_refs",
-                        "created_at", "updated_at", "retired_at", "superseded_by"
-                    ],
-                    "properties": {
-                        "id": {"const": item.id},
-                        "migration_body": {"const": item.migration_body},
-                        "question": {"const": item.question},
-                        "gap": {"type": "string", "minLength": 1},
-                        "target_claim_ids": {"const": item.target_claim_ids},
-                        "source_scope": {"const": item.source_scope},
-                        "recommended_next_organ": {"const": item.recommended_next_organ},
-                        "adopted_plan": {"const": adopted_plan},
-                        "dependency_item_ids": {"const": item.dependency_item_ids},
-                        "status": {"const": disposition},
-                        "evidence_refs": {
-                            "type": "array",
-                            "minItems": 2,
-                            "items": {"type": "string", "minLength": 1},
-                            "allOf": [
-                                {"contains": {"const": request.verification_request_id}},
-                                {"contains": {"const": request.soul_verdict_receipt_id}}
-                            ]
-                        },
-                        "public_source_refs": {"const": item.public_source_refs},
-                        "created_at": {"const": created_at},
-                        "updated_at": {"type": "string", "minLength": 1},
-                        "retired_at": {"const": retired_at},
-                        "superseded_by": {"const": superseded_by}
-                    },
-                    "additionalProperties": false
-                }
-            },
-            "additionalProperties": false
-        }
+        "minLength": 1,
+        "description": "Semantic explanation of the allowed resolved/blocked transition. Runtime owns the exact frontier, disposition, evidence bindings, timestamps, proposal, reads, writes, and receipts."
     });
     schema["properties"]["evidenceIds"]["minItems"] = serde_json::json!(1);
-    schema["required"]
+    let required = schema["required"]
         .as_array_mut()
-        .expect("role schema required must be an array")
-        .push(serde_json::json!("repoFrontierModelingRequestId"));
+        .expect("role schema required must be an array");
+    required.retain(|field| field.as_str() != Some("repoModelOperations"));
+    required.push(serde_json::json!("frontierVerdictGap"));
     schema["allOf"] = serde_json::json!([]);
     schema
 }
@@ -1041,28 +669,14 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
     properties.remove("statePatch");
     properties.remove("selfPatch");
     properties.insert(
-        "frontierPlanningRequestId".to_string(),
-        serde_json::json!({
-            "type": "string",
-            "minLength": 1,
-            "description": "Exact echo of the coordinator-bound repo frontier planning request."
-        }),
-    );
-    properties.insert(
         "frontierPlanCandidate".to_string(),
         serde_json::json!({
             "type": "object",
             "required": [
-                "planning_request_id", "model_revision", "model_hash",
-                "frontier_item_id", "frontier_item_hash", "safe_paths", "action", "command",
-                "checks", "stop_conditions", "rollback_steps", "commit_message", "proposed_at"
+                "safe_paths", "action", "command", "checks", "stop_conditions",
+                "rollback_steps", "commit_message"
             ],
             "properties": {
-                "planning_request_id": {"type": "string", "minLength": 1},
-                "model_revision": {"type": "integer", "minimum": 0},
-                "model_hash": {"type": "string", "minLength": 1},
-                "frontier_item_id": {"type": "string", "minLength": 1},
-                "frontier_item_hash": {"type": "string", "minLength": 1},
                 "safe_paths": {
                     "type": "array",
                     "minItems": 1,
@@ -1074,8 +688,7 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
                 "checks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
                 "stop_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
                 "rollback_steps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
-                "commit_message": {"type": "string", "minLength": 1},
-                "proposed_at": {"type": "string", "minLength": 1}
+                "commit_message": {"type": "string", "minLength": 1}
             },
             "additionalProperties": false
         }),
@@ -1086,7 +699,6 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
         "summary",
         "nextSafeMove",
         "filesInspected",
-        "frontierPlanningRequestId",
         "frontierPlanCandidate"
     ]);
     schema["additionalProperties"] = serde_json::Value::Bool(false);
@@ -1102,19 +714,17 @@ pub fn epiphany_frontier_plan_mind_output_schema() -> serde_json::Value {
             "summary": {"type": "string", "minLength": 1},
             "nextSafeMove": {"type": "string", "minLength": 1},
             "filesInspected": {"type": "array", "items": {"type": "string"}},
-            "frontierPlanMindRequestId": {"type": "string", "minLength": 1},
             "frontierPlanMindDecision": {
                 "type": "object",
-                "required": ["mindRequestId", "planningRequestId", "imaginationResultId", "candidateId", "candidateSha256", "decision", "rationale", "decidedAt"],
+                "description": "Semantic Mind disposition only. Runtime binds the exact request, planning candidate, keyed RepoModel basis, source versions, receipt identity, and decision time.",
+                "required": ["decision", "rationale"],
                 "properties": {
-                    "mindRequestId": {"type": "string", "minLength": 1}, "planningRequestId": {"type": "string", "minLength": 1},
-                    "imaginationResultId": {"type": "string", "minLength": 1}, "candidateId": {"type": "string", "minLength": 1},
-                    "candidateSha256": {"type": "string", "minLength": 1}, "decision": {"type": "string", "enum": ["adopt", "refuse", "hold"]},
-                    "rationale": {"type": "string", "minLength": 1}, "decidedAt": {"type": "string", "minLength": 1}
+                    "decision": {"type": "string", "enum": ["adopt", "refuse", "hold"]},
+                    "rationale": {"type": "string", "minLength": 1}
                 }, "additionalProperties": false
             }
         },
-        "required": ["roleId", "verdict", "summary", "nextSafeMove", "filesInspected", "frontierPlanMindRequestId", "frontierPlanMindDecision"],
+        "required": ["roleId", "verdict", "summary", "nextSafeMove", "filesInspected", "frontierPlanMindDecision"],
         "additionalProperties": false
     })
 }
@@ -1777,6 +1387,7 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
 
     #[test]
     fn admitted_direction_schema_bounds_autonomous_proposal_fanout() {
@@ -1891,118 +1502,80 @@ mod tests {
             schema["properties"]["frontierPlanMindDecision"]["properties"]["decision"]["enum"],
             serde_json::json!(["adopt", "refuse", "hold"])
         );
+        assert!(
+            schema["properties"]
+                .get("frontierPlanMindRequestId")
+                .is_none()
+        );
+        for runtime_owned in [
+            "mindRequestId",
+            "planningRequestId",
+            "imaginationResultId",
+            "candidateId",
+            "candidateSha256",
+            "decidedAt",
+        ] {
+            assert!(
+                schema["properties"]["frontierPlanMindDecision"]["properties"]
+                    .get(runtime_owned)
+                    .is_none()
+            );
+        }
     }
 
     #[test]
-    fn modeling_schema_exposes_only_typed_authority_purposes() {
+    fn modeling_schema_exposes_semantic_operations_without_runtime_authority() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
-        assert!(
-            schema["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "repositoryBodyObservationBasis")
-        );
-        assert_eq!(
-            schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
-            false
-        );
-        let frontier_item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]
-            ["anyOf"][6]["properties"]["item"];
-        assert!(
-            frontier_item["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "target_claim_ids")
-        );
-        assert_eq!(
-            frontier_item["properties"]["target_claim_ids"]["minItems"],
-            1
-        );
-        let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
+        let required = schema["required"].as_array().expect("required fields");
+        assert!(required.iter().any(|value| value == "repoModelOperations"));
+        for runtime_owned in [
+            "repoModelPatch",
+            "repositoryBodyObservationBasis",
+            "repoFrontierModelingRequestId",
+            "proposalModelingRequestId",
+            "claimRepairRequestId",
+        ] {
+            assert!(schema["properties"].get(runtime_owned).is_none());
+        }
+        let operations = schema["properties"]["repoModelOperations"]["items"]["anyOf"]
             .as_array()
-            .expect("typed Modeling purpose alternatives");
-        assert_eq!(purposes.len(), 4);
-        assert_eq!(purposes[0]["properties"]["kind"]["const"], "evolution");
+            .expect("typed Modeling operations");
+        let operation_names = operations
+            .iter()
+            .map(|operation| {
+                operation["properties"]["operation"]["const"]
+                    .as_str()
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
-            purposes[1]["properties"]["kind"]["const"],
-            "incorporate_frontier_verdict"
+            operation_names,
+            vec![
+                "put_node",
+                "retire_node",
+                "put_edge",
+                "retire_edge",
+                "put_frontier"
+            ]
         );
-        assert!(
-            purposes[1]["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|value| value == "route_id")
-        );
-        assert_eq!(
-            schema["allOf"][0]["then"]["required"][0],
-            "repoFrontierModelingRequestId"
-        );
-        assert_eq!(purposes[2]["properties"]["kind"]["const"], "repair_claim");
-        assert_eq!(
-            purposes[3]["properties"]["kind"]["const"],
-            "adopt_frontier_plan"
-        );
-        assert_eq!(
-            schema["allOf"][1]["then"]["required"][0],
-            "claimRepairRequestId"
-        );
-        assert_eq!(
-            schema["allOf"][2]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["maxContains"],
-            1
-        );
-        let future_gap_operations =
-            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["items"]["anyOf"]
-                .as_array()
-                .expect("future-gap Modeling operations");
-        assert_eq!(future_gap_operations.len(), 7);
-        let future_gap_frontier = &future_gap_operations[6]["properties"]["item"];
-        assert_eq!(
-            future_gap_frontier["properties"]["recommended_next_organ"]["const"],
-            "Imagination"
-        );
-        assert_eq!(
-            future_gap_frontier["properties"]["status"]["const"],
-            "active"
-        );
-        assert_eq!(
-            future_gap_frontier["properties"]["dependency_item_ids"]["maxItems"],
-            0
-        );
-        assert_eq!(
-            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["minContains"],
-            1
-        );
-        assert_eq!(
-            schema["allOf"][3]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["maxContains"],
-            1
-        );
-        let no_future_gap_operations =
-            schema["allOf"][4]["then"]["properties"]["repoModelPatch"]["properties"]["operations"]
-                ["items"]["anyOf"]
-                .as_array()
-                .expect("ordinary Modeling operations without future-gap authority");
-        assert_eq!(no_future_gap_operations.len(), 6);
-        assert!(no_future_gap_operations.iter().all(|operation| {
-            !operation["properties"]["operation"]["const"]
-                .as_str()
-                .is_some_and(|kind| kind.contains("frontier"))
-        }));
-        let operations =
-            schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
-                .as_array()
-                .expect("typed Modeling operations");
         let node_kinds = operations[0]["properties"]["node"]["properties"]["kind"]["enum"]
             .as_array()
             .expect("typed RepoModel node kinds");
         assert!(node_kinds.iter().any(|kind| kind == "runtime_contract"));
         assert!(!node_kinds.iter().any(|kind| kind == "claim"));
+        assert!(
+            operations[0]["properties"]["node"]["properties"]
+                .get("created_at")
+                .is_none()
+        );
+        assert_eq!(
+            schema["allOf"][0]["then"]["properties"]["repoModelOperations"]["maxContains"],
+            1
+        );
+        assert_eq!(
+            schema["allOf"][1]["then"]["properties"]["repoModelOperations"]["maxItems"],
+            0
+        );
     }
 
     #[test]
@@ -2011,8 +1584,15 @@ mod tests {
             request: crate::RepoFrontierModelingRequest {
                 schema_version: crate::REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
                 request_id: "modeling-request-exact".into(),
-                model_revision: 7,
-                model_hash: "model-hash".into(),
+                model_projection_digest: format!("sha256:{}", "a".repeat(64)),
+                model_source_documents: vec![crate::EpiphanyMindDocumentVersion {
+                    store_id: "epiphany-mind".into(),
+                    document_type: "epiphany.mind.repo_model.identity.v1".into(),
+                    document_key: crate::REPO_MODEL_IDENTITY_KEY.into(),
+                    schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
+                    payload_msgpack: vec![1],
+                    payload_sha256: format!("sha256:{:x}", sha2::Sha256::digest([1])),
+                }],
                 route_id: "route-exact".into(),
                 frontier_item_id: "frontier-exact".into(),
                 frontier_item_hash: "frontier-hash".into(),
@@ -2048,48 +1628,21 @@ mod tests {
             },
         };
         let schema = epiphany_frontier_verdict_modeling_output_schema(&authority);
-        assert_eq!(
-            schema["properties"]["repoFrontierModelingRequestId"]["const"],
-            "modeling-request-exact"
+        assert!(
+            schema["properties"]
+                .get("repoFrontierModelingRequestId")
+                .is_none()
         );
+        assert!(schema["properties"].get("repoModelOperations").is_none());
+        assert_eq!(schema["properties"]["frontierVerdictGap"]["type"], "string");
         assert!(
             schema["required"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|value| value == "repoFrontierModelingRequestId")
-        );
-        assert_eq!(
-            schema["properties"]["repoModelPatch"]["properties"]["purpose"]["properties"]["kind"]["const"],
-            "incorporate_frontier_verdict"
-        );
-        let operations = &schema["properties"]["repoModelPatch"]["properties"]["operations"];
-        assert_eq!(operations["minItems"], 1);
-        assert_eq!(operations["maxItems"], 1);
-        assert_eq!(
-            operations["items"]["properties"]["operation"]["const"],
-            "revise_frontier"
+                .any(|value| value == "frontierVerdictGap")
         );
         assert_eq!(schema["properties"]["evidenceIds"]["minItems"], 1);
-        let item = &schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["properties"]
-            ["item"];
-        assert_eq!(item["properties"]["id"]["const"], "frontier-exact");
-        assert_eq!(item["properties"]["status"]["const"], "resolved");
-        assert_eq!(
-            item["properties"]["public_source_refs"]["const"],
-            serde_json::json!([])
-        );
-        assert_eq!(
-            item["properties"]["adopted_plan"]["const"]["command"],
-            "cargo test"
-        );
-        assert!(
-            item["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|field| field == "adopted_plan")
-        );
     }
 
     #[test]
@@ -2142,9 +1695,11 @@ mod tests {
         assert_eq!(patch["additionalProperties"], false);
         assert_eq!(observation, &observation_output_schema());
         assert_eq!(evidence, &evidence_output_schema());
-        assert!(observation["required"]
-            .as_array()
-            .is_some_and(|required| required.iter().any(|field| field == "source_kind")));
+        assert!(
+            observation["required"]
+                .as_array()
+                .is_some_and(|required| required.iter().any(|field| field == "source_kind"))
+        );
     }
 
     #[test]
@@ -2153,12 +1708,26 @@ mod tests {
         assert!(
             schema["properties"]
                 .get("frontierPlanningRequestId")
-                .is_some()
+                .is_none()
         );
         assert!(schema["properties"].get("frontierPlanCandidate").is_some());
         assert!(schema["properties"].get("statePatch").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
         assert!(schema["properties"].get("repoModelPatch").is_none());
+        for runtime_owned in [
+            "planning_request_id",
+            "model_revision",
+            "model_hash",
+            "frontier_item_id",
+            "frontier_item_hash",
+            "proposed_at",
+        ] {
+            assert!(
+                schema["properties"]["frontierPlanCandidate"]["properties"]
+                    .get(runtime_owned)
+                    .is_none()
+            );
+        }
         assert!(
             schema["properties"]["frontierPlanCandidate"]["properties"]["safe_paths"]
                 ["description"]

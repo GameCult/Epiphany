@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-pub const REQUEST_SCHEMA: &str = "epiphany.self.admitted_model_direction_consideration_request.v0";
-pub const REQUEST_CONTRACT: &str = "epiphany.admitted_model_direction_consideration_request.v0";
+pub const REQUEST_SCHEMA: &str = "epiphany.self.admitted_model_direction_consideration_request.v1";
+pub const REQUEST_CONTRACT: &str = "epiphany.admitted_model_direction_consideration_request.v1";
 pub const RESULT_SCHEMA: &str =
-    "epiphany.imagination.admitted_model_direction_consideration_result.v0";
-pub const RESULT_CONTRACT: &str = "epiphany.admitted_model_direction_consideration_result.v0";
+    "epiphany.imagination.admitted_model_direction_consideration_result.v1";
+pub const RESULT_CONTRACT: &str = "epiphany.admitted_model_direction_consideration_result.v1";
 pub const MAX_OPTION_DRAFTS: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,11 +34,9 @@ pub struct AdmittedModelDirectionConsiderationRequest {
     #[cultcache(key = 3)]
     pub thread_id: String,
     #[cultcache(key = 4)]
-    pub model_revision: u64,
+    pub model_projection_digest: String,
     #[cultcache(key = 5)]
-    pub model_hash: String,
-    #[cultcache(key = 6)]
-    pub model_admission_receipt_id: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     #[cultcache(key = 7, default)]
     pub previous_terminal_result_id: Option<String>,
     #[cultcache(key = 8)]
@@ -66,11 +64,9 @@ pub struct AdmittedModelDirectionConsiderationResult {
     #[cultcache(key = 4)]
     pub thread_id: String,
     #[cultcache(key = 5)]
-    pub model_revision: u64,
+    pub model_projection_digest: String,
     #[cultcache(key = 6)]
-    pub model_hash: String,
-    #[cultcache(key = 7)]
-    pub model_admission_receipt_id: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     #[cultcache(key = 8)]
     pub disposition: AdmittedModelDirectionDisposition,
     #[cultcache(key = 9)]
@@ -106,23 +102,8 @@ pub fn commit_request(
     else {
         return Ok(None);
     };
-    let Some(model) = crate::runtime_current_repo_model(runtime_store)? else {
-        return Ok(None);
-    };
-    let model_hash = crate::memory_graph_model_hash(&model)?;
-    let receipts = cache
-        .get_all::<crate::RepoModelAdmissionReceipt>()?
-        .into_iter()
-        .filter(|receipt| {
-            receipt.admitted_revision == model.model_revision && receipt.admitted_hash == model_hash
-        })
-        .collect::<Vec<_>>();
-    if receipts.is_empty() {
-        return Ok(None);
-    }
-    if receipts.len() != 1 {
-        bail!("model direction consideration requires exactly one current model receipt");
-    }
+    let model = crate::assemble_repo_model_view(runtime_store)?;
+    let model_basis = model.reasoning_basis();
     let mut terminal = cache
         .get_all::<AdmittedModelDirectionConsiderationResult>()?
         .into_iter()
@@ -130,17 +111,15 @@ pub fn commit_request(
         .collect::<Vec<_>>();
     terminal.sort_by(|left, right| left.proposed_at.cmp(&right.proposed_at));
     if terminal.iter().any(|result| {
-        result.model_revision == model.model_revision
-            && result.model_hash == model_hash
-            && result.model_admission_receipt_id == receipts[0].receipt_id
+        result.model_projection_digest == model_basis.projection_digest
+            && result.model_source_documents == model_basis.source_documents
     }) {
         return Ok(None);
     }
     let previous_terminal_result_id = terminal.last().map(|result| result.result_id.clone());
     let request_id = crate::admitted_model_direction_request_id(
         &identity.runtime_id,
-        &model_hash,
-        &receipts[0].receipt_id,
+        &model_basis.projection_digest,
         previous_terminal_result_id.as_deref(),
     );
     let request = AdmittedModelDirectionConsiderationRequest {
@@ -148,9 +127,8 @@ pub fn commit_request(
         request_id: request_id.clone(),
         runtime_id: identity.runtime_id,
         thread_id: thread.thread_id,
-        model_revision: model.model_revision,
-        model_hash,
-        model_admission_receipt_id: receipts[0].receipt_id.clone(),
+        model_projection_digest: model_basis.projection_digest,
+        model_source_documents: model_basis.source_documents,
         previous_terminal_result_id,
         requested_at: requested_at.into(),
         contract: REQUEST_CONTRACT.into(),
@@ -179,18 +157,11 @@ pub fn validate_current_request(
     if request_is_superseded(cache, request)? {
         bail!("model direction consideration request is stale");
     }
-    let receipts = cache
-        .get_all::<crate::RepoModelAdmissionReceipt>()?
-        .into_iter()
-        .filter(|receipt| {
-            receipt.receipt_id == request.model_admission_receipt_id
-                && receipt.admitted_revision == request.model_revision
-                && receipt.admitted_hash == request.model_hash
-        })
-        .count();
-    if receipts != 1 {
-        bail!("model direction consideration lost its unique model receipt");
+    crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
     }
+    .validate_against_cache(cache)?;
     Ok(())
 }
 
@@ -210,12 +181,12 @@ pub fn request_is_superseded(
     request: &AdmittedModelDirectionConsiderationRequest,
 ) -> Result<bool> {
     validate_request_shape(request)?;
-    let model = cache
-        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
-        .ok_or_else(|| anyhow!("model direction consideration map disappeared"))?
-        .snapshot()?;
-    Ok(request.model_revision != model.model_revision
-        || request.model_hash != crate::memory_graph_model_hash(&model)?)
+    Ok(crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
+    }
+    .validate_against_cache(cache)
+    .is_err())
 }
 
 pub fn validate_result(
@@ -233,9 +204,8 @@ pub fn validate_result(
         || result.request_id != request.request_id
         || result.runtime_id != request.runtime_id
         || result.thread_id != request.thread_id
-        || result.model_revision != request.model_revision
-        || result.model_hash != request.model_hash
-        || result.model_admission_receipt_id != request.model_admission_receipt_id
+        || result.model_projection_digest != request.model_projection_digest
+        || result.model_source_documents != request.model_source_documents
         || result.result_id.trim().is_empty()
         || result.summary.trim().is_empty()
         || proposed_at < requested_at
@@ -262,25 +232,44 @@ pub fn result_id_for_launch(request_id: &str, job_id: &str) -> String {
 
 pub fn render_prompt(request: &AdmittedModelDirectionConsiderationRequest) -> String {
     format!(
-        "Act as Epiphany Imagination for one proposal-only direction consideration. Inspect the exact current admitted Modeling map bound by request {} at revision/hash {}/{}. Suggest options or hold. Do not adopt, edit, execute, release, or deploy.",
-        request.request_id, request.model_revision, request.model_hash
+        "Act as Epiphany Imagination for one proposal-only direction consideration. Inspect the exact current keyed Modeling map bound by request {} at projection digest {}. Suggest options or hold. Do not adopt, edit, execute, release, or deploy.",
+        request.request_id, request.model_projection_digest
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
     use std::collections::BTreeMap;
 
+    fn model_basis() -> crate::EpiphanyRepoModelBasis {
+        let source_documents = vec![crate::EpiphanyMindDocumentVersion {
+            store_id: "epiphany-mind".into(),
+            document_type: "epiphany.mind.repo_model.identity.v1".into(),
+            document_key: crate::REPO_MODEL_IDENTITY_KEY.into(),
+            schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
+            payload_msgpack: vec![1],
+            payload_sha256: format!("{:x}", Sha256::digest([1])),
+        }];
+        crate::EpiphanyRepoModelBasis {
+            projection_digest: format!(
+                "sha256:{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(&source_documents).unwrap())
+            ),
+            source_documents,
+        }
+    }
+
     fn request() -> AdmittedModelDirectionConsiderationRequest {
+        let basis = model_basis();
         AdmittedModelDirectionConsiderationRequest {
             schema_version: REQUEST_SCHEMA.into(),
             request_id: "request-1".into(),
             runtime_id: "runtime-1".into(),
             thread_id: "thread-1".into(),
-            model_revision: 7,
-            model_hash: "sha256:model-7".into(),
-            model_admission_receipt_id: "receipt-7".into(),
+            model_projection_digest: basis.projection_digest,
+            model_source_documents: basis.source_documents,
             previous_terminal_result_id: None,
             requested_at: "2026-07-18T00:00:00Z".into(),
             contract: REQUEST_CONTRACT.into(),
@@ -297,9 +286,8 @@ mod tests {
             request_id: request.request_id.clone(),
             runtime_id: request.runtime_id.clone(),
             thread_id: request.thread_id.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
-            model_admission_receipt_id: request.model_admission_receipt_id.clone(),
+            model_projection_digest: request.model_projection_digest.clone(),
+            model_source_documents: request.model_source_documents.clone(),
             disposition: AdmittedModelDirectionDisposition::Hold,
             summary: "No direction should be promoted yet.".into(),
             option_drafts: Vec::new(),
@@ -334,9 +322,9 @@ mod tests {
             let mut substituted = result(&request);
             match mutation {
                 0 => substituted.request_id = "request-stale".into(),
-                1 => substituted.model_revision += 1,
-                2 => substituted.model_hash = "sha256:substituted".into(),
-                3 => substituted.model_admission_receipt_id = "receipt-substituted".into(),
+                1 => substituted.model_projection_digest = format!("sha256:{}", "0".repeat(64)),
+                2 => substituted.model_source_documents.clear(),
+                3 => substituted.runtime_id = "runtime-substituted".into(),
                 4 => substituted.proposal_only = false,
                 _ => substituted.terminal = false,
             }
@@ -384,46 +372,6 @@ mod tests {
                 .get_all::<AdmittedModelDirectionConsiderationRequest>()?
                 .is_empty()
         );
-        Ok(())
-    }
-
-    #[test]
-    fn bootstrap_model_without_admission_receipt_has_no_direction_request_yet() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("bootstrap-runtime.cc");
-        let mut cache = crate::runtime_spine_cache(&store)?;
-        cache.put(
-            crate::RUNTIME_IDENTITY_KEY,
-            &crate::EpiphanyRuntimeIdentity {
-                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-                runtime_id: "runtime-bootstrap".into(),
-                display_name: "Bootstrap runtime".into(),
-                runtime_kind: "resident".into(),
-                created_at: "2026-07-18T00:00:00Z".into(),
-                updated_at: "2026-07-18T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
-            },
-        )?;
-        cache.put(
-            crate::THREAD_STATE_KEY,
-            &crate::EpiphanyThreadStateEntry::from_state(
-                "bootstrap-thread",
-                &epiphany_state_model::EpiphanyThreadState::default(),
-            )?,
-        )?;
-        cache.put(
-            crate::MEMORY_GRAPH_KEY,
-            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&crate::EpiphanyMemoryGraphSnapshot {
-                schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.into()),
-                graph_id: "bootstrap-model".into(),
-                ..Default::default()
-            })?,
-        )?;
-        let before = std::fs::read(&store)?;
-
-        assert!(commit_request(&store, "2026-07-18T00:01:00Z")?.is_none());
-        assert_eq!(std::fs::read(&store)?, before);
         Ok(())
     }
 }

@@ -14,6 +14,11 @@ pub const RESIDENT_SELF_RUNTIME_RECEIPT_SCHEMA_VERSION: &str =
 pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.pressure.v0";
 pub const RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND: &str =
     "coordinator-internal-continuation";
+pub const RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND: &str = "atlas-impact-modeling";
+pub const RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND: &str = "atlas-impact-soul";
+pub const RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX: &str = "cultcache://atlas-impact-proposal/";
+pub const RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE: &str =
+    "This wake grants no Hands authority.";
 const RESIDENT_SELF_COORDINATOR_CONTINUATION_PROVENANCE_PREFIX: &str =
     "cultcache://coordinator-run-receipt/";
 pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.heartbeat_grant.v1";
@@ -60,6 +65,8 @@ impl ResidentSelfPressure {
                     | "imagination-consideration"
                     | "imagination-proposal"
                     | "repo-frontier-proposal-modeling"
+                    | RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND
+                    | RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND
                     | RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
             )
             || self.pressure_id.trim().is_empty()
@@ -71,6 +78,30 @@ impl ResidentSelfPressure {
             return Err(anyhow!(
                 "resident Self pressure is not valid pending typed pressure"
             ));
+        }
+        if matches!(
+            self.kind.as_str(),
+            RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND | RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND
+        ) {
+            let proposal_id = self
+                .provenance_ref
+                .strip_prefix(RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX)
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                .filter(|value| !value.is_nil())
+                .ok_or_else(|| anyhow!("Atlas pressure lost its exact impact proposal identity"))?;
+            let lane = if self.kind == RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND {
+                "Modeling"
+            } else {
+                "Soul"
+            };
+            let expected_objective = resident_self_atlas_objective(lane, proposal_id);
+            if self.pressure_id != format!("{}-{proposal_id}", self.kind)
+                || self.objective != expected_objective
+            {
+                return Err(anyhow!(
+                    "Atlas pressure may coordinate only its exact named lane and grants no Hands authority"
+                ));
+            }
         }
         Ok(())
     }
@@ -654,6 +685,14 @@ pub fn resident_cognitive_runtime_id(runtime_store: &Path) -> Result<String> {
         .runtime_id)
 }
 
+fn resident_self_atlas_required_action(pressure_kind: &str) -> Option<&'static str> {
+    match pressure_kind {
+        RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND => Some("launchModeling"),
+        RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND => Some("launchVerification"),
+        _ => None,
+    }
+}
+
 fn resident_coordinator_binding_for_grant(
     resident_store: &Path,
     policy: &ResidentSelfPolicy,
@@ -664,6 +703,14 @@ fn resident_coordinator_binding_for_grant(
     let runtime_identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("resident typed request runtime store lost its identity"))?;
+    if let Some(required_action) = resident_self_atlas_required_action(&grant.pressure_kind) {
+        return Ok(Some(ResidentCoordinatorBinding {
+            thread_id: resident_coordinator_thread_id(&runtime_identity.runtime_id)?,
+            runtime_id: runtime_identity.runtime_id,
+            typed_request: None,
+            required_action: Some(required_action.into()),
+        }));
+    }
     if grant.pressure_kind == RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND {
         let receipt_id = grant
             .provenance_ref
@@ -940,13 +987,7 @@ fn reconcile_resident_self(
     let launch = CoordinatorLaunch {
         turn_id: turn_id.clone(),
         wake: wake.clone(),
-        argv: coordinator_argv(
-            policy,
-            &policy.release_runtime_id,
-            &turn_id,
-            None,
-            &wake,
-        ),
+        argv: coordinator_argv(policy, &policy.release_runtime_id, &turn_id, None, &wake),
     };
     let process = ports.launch_coordinator(&launch)?;
     let process_id = process.process_id;
@@ -1043,6 +1084,53 @@ pub fn enqueue_resident_self_pressure(path: &Path, pressure: &ResidentSelfPressu
         return Err(anyhow!("resident Self pressure identity already exists"));
     }
     Ok(())
+}
+
+fn resident_self_atlas_objective(lane: &str, proposal_id: uuid::Uuid) -> String {
+    format!(
+        "Coordinate only the Atlas {lane} lane for exact local impact proposal {proposal_id}. {RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE}"
+    )
+}
+
+pub fn enqueue_resident_self_atlas_impact_pressure(
+    resident_store: &Path,
+    decision: &crate::AtlasImpactSchedulingDecision,
+    created_at_millis: u64,
+) -> Result<bool> {
+    let lane = match &decision.disposition {
+        crate::AtlasImpactScheduleDisposition::Schedule { lane } => *lane,
+        crate::AtlasImpactScheduleDisposition::VisibleOnly
+        | crate::AtlasImpactScheduleDisposition::Deduplicated
+        | crate::AtlasImpactScheduleDisposition::HeldByBrake { .. }
+        | crate::AtlasImpactScheduleDisposition::HeldByPendingLane { .. }
+        | crate::AtlasImpactScheduleDisposition::HeldByCooldown { .. } => return Ok(false),
+    };
+    let proposal_id = decision.proposal_id;
+    if proposal_id.is_nil() || decision.claim_id.is_nil() {
+        return Err(anyhow!(
+            "Atlas pressure requires non-nil impact proposal and claim ids"
+        ));
+    }
+    let (kind, lane_name) = match lane {
+        crate::AtlasImpactLane::Modeling => {
+            (RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND, "Modeling")
+        }
+        crate::AtlasImpactLane::Soul => (RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND, "Soul"),
+    };
+    enqueue_resident_self_pressure_idempotent(
+        resident_store,
+        &ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: format!("{kind}-{proposal_id}"),
+            kind: kind.into(),
+            provenance_ref: format!("{RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX}{proposal_id}"),
+            objective: resident_self_atlas_objective(lane_name, proposal_id),
+            created_at_millis,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        },
+    )
 }
 
 fn enqueue_resident_self_pressure_idempotent(
@@ -1165,12 +1253,8 @@ fn role_projection_is_terminal_for_continuation(
         .filter(|entry| entry.thread_id == thread_id)
         .map(crate::EpiphanyThreadStateEntry::state)
         .transpose()?;
-    let snapshot = crate::read_role_result_snapshot(
-        state.as_ref(),
-        Some(runtime_store),
-        role,
-        binding_id,
-    );
+    let snapshot =
+        crate::read_role_result_snapshot(state.as_ref(), Some(runtime_store), role, binding_id);
     Ok(matches!(
         snapshot.status,
         crate::EpiphanyCoordinatorRoleResultStatus::Completed
@@ -1212,9 +1296,11 @@ pub(crate) fn resident_self_safe_continuation_action(
         receipt.final_action.as_str(),
         "launchResearch" | "waitForResearchResult" | "reviewResearchResult"
     ) {
-        return Ok(crate::runtime_repo_frontier_research_lifecycle(runtime_store)?
-            .continuation_action()
-            .map(|action| action.as_str().to_string()));
+        return Ok(
+            crate::runtime_repo_frontier_research_lifecycle(runtime_store)?
+                .continuation_action()
+                .map(|action| action.as_str().to_string()),
+        );
     }
     let direct = matches!(
         receipt.final_action.as_str(),
@@ -1277,26 +1363,22 @@ pub(crate) fn resident_self_safe_continuation_action(
         {
             Some("reviewVerificationResult")
         }
-        "waitForImaginationResult" => match crate::runtime_repo_frontier_planning_lifecycle(
-            runtime_store,
-        )?
-        .stage
-        {
-            crate::RepoFrontierPlanningLifecycleStage::ImaginationResultReady => {
-                Some("requestMindPlanReview")
+        "waitForImaginationResult" => {
+            match crate::runtime_repo_frontier_planning_lifecycle(runtime_store)?.stage {
+                crate::RepoFrontierPlanningLifecycleStage::ImaginationResultReady => {
+                    Some("requestMindPlanReview")
+                }
+                _ => None,
             }
-            _ => None,
-        },
-        "waitForMindPlanResult" => match crate::runtime_repo_frontier_planning_lifecycle(
-            runtime_store,
-        )?
-        .stage
-        {
-            crate::RepoFrontierPlanningLifecycleStage::MindResultReady => {
-                Some("commitFrontierPlanDecision")
+        }
+        "waitForMindPlanResult" => {
+            match crate::runtime_repo_frontier_planning_lifecycle(runtime_store)?.stage {
+                crate::RepoFrontierPlanningLifecycleStage::MindResultReady => {
+                    Some("commitFrontierPlanDecision")
+                }
+                _ => None,
             }
-            _ => None,
-        },
+        }
         _ => None,
     };
     Ok(action.map(str::to_string))
@@ -1343,8 +1425,7 @@ fn resident_self_failed_receipt_typed_continuation_action(
     }
     let acknowledgement = &acknowledgements[0];
     if acknowledgement.coordinator_receipt_id != receipt.receipt_id
-        || receipt.resident_launch_digest.as_deref()
-            != Some(acknowledgement.launch_digest.as_str())
+        || receipt.resident_launch_digest.as_deref() != Some(acknowledgement.launch_digest.as_str())
     {
         return Err(anyhow!(
             "failed coordinator receipt typed continuation lost its exact resident binding"
@@ -1605,7 +1686,10 @@ pub fn resident_self_grant_lifecycle_projection(
     Ok(grants
         .into_iter()
         .map(|grant| {
-            let active = state.active_turn.as_ref().map(|lease| lease.grant_id.as_str())
+            let active = state
+                .active_turn
+                .as_ref()
+                .map(|lease| lease.grant_id.as_str())
                 == Some(grant.grant_id.as_str());
             let prepared = state
                 .prepared_launch
@@ -1774,16 +1858,24 @@ pub fn recover_dead_resident_typed_worker(
     let live = retryable
         .iter()
         .filter(|(_, claim)| {
-            claim.as_ref().is_some_and(|claim| crate::WorkerProcessStatus::parse(&claim.status).is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal()))
+            claim.as_ref().is_some_and(|claim| {
+                crate::WorkerProcessStatus::parse(&claim.status)
+                    .is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal())
+            })
         })
         .count();
     if live > 1 {
-        return Err(anyhow!("typed request has multiple live worker process claims"));
+        return Err(anyhow!(
+            "typed request has multiple live worker process claims"
+        ));
     }
     let selected = retryable
         .iter()
         .find(|(_, claim)| {
-            claim.as_ref().is_some_and(|claim| crate::WorkerProcessStatus::parse(&claim.status).is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal()))
+            claim.as_ref().is_some_and(|claim| {
+                crate::WorkerProcessStatus::parse(&claim.status)
+                    .is_ok_and(|status| status.is_live() || status.is_fulfilled_terminal())
+            })
         })
         .or_else(|| retryable.last());
     let Some((launch, Some(claim))) = selected else {
@@ -1810,11 +1902,10 @@ pub fn recover_dead_resident_typed_worker(
         crate::ProcessInstanceObservation::ExactExited { .. }
         | crate::ProcessInstanceObservation::Missing
         | crate::ProcessInstanceObservation::Replaced { .. } => {
-            let recovered_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(
-                recovered_at_millis as i64,
-            )
-            .ok_or_else(|| anyhow!("typed worker death timestamp is out of range"))?
-            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            let recovered_at =
+                chrono::DateTime::<chrono::Utc>::from_timestamp_millis(recovered_at_millis as i64)
+                    .ok_or_else(|| anyhow!("typed worker death timestamp is out of range"))?
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
             crate::runtime_spine::terminalize_runtime_worker_process_death(
                 runtime_store,
                 &launch.job_id,
@@ -1862,9 +1953,9 @@ pub fn settle_resident_self_receipt_free_dead_coordinator(
                     observation,
                     now_millis,
                 )?
-                .ok_or_else(|| anyhow!(
-                    "typed fulfillment cannot predate its coordinator runtime incarnation"
-                ))?;
+                .ok_or_else(|| {
+                    anyhow!("typed fulfillment cannot predate its coordinator runtime incarnation")
+                })?;
                 complete_resident_self_turn_after_death(
                     resident_store,
                     lease,
@@ -1961,9 +2052,7 @@ pub fn settle_resident_self_exited_coordinator(
         receipt.status.as_str(),
         "planned" | "needsReview" | "completed"
     );
-    if !typed
-        && !successful_receipt
-    {
+    if !typed && !successful_receipt {
         cancel_resident_self_turn(
             resident_store,
             lease,
@@ -2185,10 +2274,7 @@ pub fn recover_receipt_free_dead_coordinator_session(
     let recovered_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
         .ok_or_else(|| anyhow!("coordinator death recovery timestamp is out of range"))?
         .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let session_id = crate::coordinator_run_session_id(
-        &lease.turn_id,
-        Some(&lease.launch_digest),
-    )?;
+    let session_id = crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?;
     if crate::runtime_spine::coordinator_run_incarnation_is_absent(
         runtime_store,
         &lease.turn_id,
@@ -2733,9 +2819,7 @@ pub fn validate_resident_self_coordinator_receipt(
         coordinator.status.as_str(),
         "planned" | "needsReview" | "completed"
     ) {
-        return Err(anyhow!(
-            "coordinator terminal receipt is not successful"
-        ));
+        return Err(anyhow!("coordinator terminal receipt is not successful"));
     }
     Ok(())
 }
@@ -3187,3315 +3271,249 @@ pub fn load_resident_self_state(path: &Path) -> Result<ResidentSelfState> {
 }
 
 #[cfg(test)]
-mod tests {
+mod atlas_pressure_tests {
     use super::*;
-    use std::collections::BTreeMap;
 
-    fn insert_closed_lifecycle(path: &Path, suffix: &str, completed_at_millis: u64) -> Result<()> {
+    fn test_store(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "epiphany-resident-atlas-{label}-{}.msgpack",
+            uuid::Uuid::new_v4()
+        ))
+    }
+
+    fn atlas_decision(
+        lane: crate::AtlasImpactLane,
+        proposal_id: uuid::Uuid,
+    ) -> crate::AtlasImpactSchedulingDecision {
+        crate::AtlasImpactSchedulingDecision {
+            proposal_id,
+            claim_id: uuid::Uuid::new_v4(),
+            criticality: crate::AtlasCriticality::Degrading,
+            disposition: crate::AtlasImpactScheduleDisposition::Schedule { lane },
+        }
+    }
+
+    fn insert_test_entry<T: DatabaseEntry>(path: &Path, key: &str, value: &T) -> Result<()> {
         let cache = state_cache(path)?;
-        let pressure_id = format!("pressure-{suffix}");
-        let grant_id = format!("grant-{suffix}");
-        let pressure = ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: pressure_id.clone(),
-            kind: "operator-objective".into(),
-            provenance_ref: format!("test://{suffix}"),
-            objective: format!("objective {suffix}"),
-            created_at_millis: completed_at_millis.saturating_sub(3),
-            status: "consumed".into(),
-            consumed_by_grant_id: Some(grant_id.clone()),
-            private_state_exposed: false,
-        };
-        let grant = ResidentSelfHeartbeatGrant {
-            schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
-            grant_id: grant_id.clone(),
-            pressure_id,
-            pressure_kind: "operator-objective".into(),
-            provenance_ref: format!("test://{suffix}"),
-            objective: format!("objective {suffix}"),
-            heartbeat_schedule_id: "schedule".into(),
-            heartbeat_action_id: format!("action-{suffix}"),
-            issued_at_millis: completed_at_millis.saturating_sub(2),
-            consumed_at_millis: Some(completed_at_millis.saturating_sub(1)),
-            private_state_exposed: false,
-            terminal_at_millis: Some(completed_at_millis),
-            terminal_status: Some("completed".into()),
-        };
-        let ack = ResidentSelfTerminalAck {
-            schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
-            ack_id: format!("ack-{suffix}"),
-            grant_id,
-            heartbeat_schedule_id: "schedule".into(),
-            heartbeat_action_id: format!("action-{suffix}"),
-            launch_digest: format!("sha256:{suffix}"),
-            coordinator_receipt_id: format!("receipt-{suffix}"),
-            terminal_status: "completed".into(),
-            completed_at_millis,
-            consumed_by_heartbeat_at_millis: Some(completed_at_millis + 1),
-            private_state_exposed: false,
-        };
-        let mut entries = Vec::new();
-        entries.push(cache.prepare_entry(&pressure.pressure_id, &pressure)?.0);
-        entries.push(cache.prepare_entry(&grant.grant_id, &grant)?.0);
-        entries.push(cache.prepare_entry(&ack.ack_id, &ack)?.0);
-        assert!(SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(&[], entries)?);
+        let (entry, _) = cache.prepare_entry(key, value)?;
+        if !SingleFileMessagePackBackingStore::new(path).insert_entry_if_absent(entry)? {
+            return Err(anyhow!("test entry already exists"));
+        }
         Ok(())
     }
 
-    #[test]
-    fn retention_bounds_closed_lifecycles_and_cannot_resurrect_work() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        insert_closed_lifecycle(&store, "old", 10)?;
-        insert_closed_lifecycle(&store, "new", 20)?;
-        let mut foreign_cache = CultCache::new();
-        foreign_cache.register_entry_type::<ForeignReadiness>()?;
-        let foreign = foreign_cache
-            .prepare_entry(
-                "provider-readiness",
-                &ForeignReadiness {
-                    status: "ready".into(),
-                },
-            )?
-            .0;
-        SingleFileMessagePackBackingStore::new(&store).push(&foreign)?;
-
-        let head = retain_resident_self_lifecycles(&store, 1, 30)?
-            .ok_or_else(|| anyhow!("retention did not compact the oldest lifecycle"))?;
-        assert_eq!(head.retired_lifecycle_count, 1);
-        assert_eq!(head.retired_envelope_count, 3);
-        assert!(head.retired_chain_digest.starts_with("sha256:"));
-        assert!(!pending_resident_self_pressure(&store)?);
-        assert!(pending_resident_self_grant(&store)?.is_none());
-        assert!(pending_resident_self_acks(&store)?.is_empty());
-        assert_eq!(resident_self_pressures(&store)?.len(), 1);
-        assert!(
-            SingleFileMessagePackBackingStore::new(&store)
-                .pull_all()?
-                .contains(&foreign),
-            "retention must preserve the co-resident readiness envelope byte-for-byte"
-        );
-        assert!(retain_resident_self_lifecycles(&store, 1, 31)?.is_none());
-        assert_eq!(
-            load_resident_self_state(&store)?,
-            ResidentSelfState::default()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn retention_refuses_live_or_requeued_lifecycle_authority() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        insert_closed_lifecycle(&store, "closed", 10)?;
-        insert_closed_lifecycle(&store, "requeued", 20)?;
-        let cache = state_cache(&store)?;
-        let mut pressure = cache
-            .get::<ResidentSelfPressure>("pressure-requeued")?
-            .ok_or_else(|| anyhow!("test pressure missing"))?;
-        let expected = cache
-            .snapshot_envelopes()
-            .into_iter()
-            .find(|entry| {
-                entry.r#type == ResidentSelfPressure::TYPE && entry.key == pressure.pressure_id
-            })
-            .ok_or_else(|| anyhow!("test pressure envelope missing"))?;
-        pressure.status = "pending".into();
-        pressure.consumed_by_grant_id = None;
-        let replacement = cache.prepare_entry(&pressure.pressure_id, &pressure)?.0;
-        assert!(
-            SingleFileMessagePackBackingStore::new(&store)
-                .compare_and_swap_entry(&expected, replacement)?
-        );
-
-        let head = retain_resident_self_lifecycles(&store, 0, 30)?
-            .ok_or_else(|| anyhow!("closed lifecycle was not retained"))?;
-        assert_eq!(head.retired_lifecycle_count, 1);
-        assert!(pending_resident_self_pressure(&store)?);
-        assert_eq!(
-            resident_self_pressures(&store)?[0].pressure_id,
-            "pressure-requeued"
-        );
-        Ok(())
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-    #[cultcache(type = "test.resident.provider_readiness", schema = "ForeignReadiness")]
-    struct ForeignReadiness {
-        #[cultcache(key = 0)]
-        status: String,
-    }
-
-    #[test]
-    fn resident_owner_view_preserves_foreign_readiness_rows() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let mut foreign_cache = CultCache::new();
-        foreign_cache.register_entry_type::<ForeignReadiness>()?;
-        let (foreign, _) = foreign_cache.prepare_entry(
-            "provider-readiness",
-            &ForeignReadiness {
-                status: "ready".into(),
-            },
-        )?;
-        let mut backing = SingleFileMessagePackBackingStore::new(&store);
-        backing.push(&foreign)?;
-
-        assert_eq!(
-            load_resident_self_state(&store)?,
-            ResidentSelfState::default()
-        );
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-test".into(),
-                kind: "persona-feedback".into(),
-                provenance_ref: "test://pressure".into(),
-                objective: "preserve foreign row".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        assert!(backing.pull_all()?.contains(&foreign));
-        Ok(())
-    }
-
-    #[test]
-    fn producer_pressure_replay_ignores_observation_time() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let mut pressure = ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: "admitted-model-direction-consideration-request-1".into(),
-            kind: "admitted-model-direction-consideration".into(),
-            provenance_ref: "cultcache://admitted-model-direction-consideration/request-1".into(),
-            objective: "Launch the exact typed request.".into(),
-            created_at_millis: 1,
-            status: "pending".into(),
-            consumed_by_grant_id: None,
-            private_state_exposed: false,
-        };
-        assert!(enqueue_resident_self_pressure_idempotent(
-            &store, &pressure
-        )?);
-        pressure.created_at_millis = 2;
-        assert!(!enqueue_resident_self_pressure_idempotent(
-            &store, &pressure
-        )?);
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 3)?.is_some()
-        );
-        pressure.created_at_millis = 4;
-        assert!(!enqueue_resident_self_pressure_idempotent(
-            &store, &pressure
-        )?);
-        Ok(())
-    }
-
-    #[test]
-    fn producer_pressure_replay_rejects_changed_authority() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let mut pressure = ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: "admitted-model-direction-consideration-request-1".into(),
-            kind: "admitted-model-direction-consideration".into(),
-            provenance_ref: "cultcache://admitted-model-direction-consideration/request-1".into(),
-            objective: "Launch the exact typed request.".into(),
-            created_at_millis: 1,
-            status: "pending".into(),
-            consumed_by_grant_id: None,
-            private_state_exposed: false,
-        };
-        assert!(enqueue_resident_self_pressure_idempotent(
-            &store, &pressure
-        )?);
-        pressure.objective = "Substitute different work.".into();
-        assert_eq!(
-            enqueue_resident_self_pressure_idempotent(&store, &pressure)
-                .unwrap_err()
-                .to_string(),
-            "resident Self producer pressure identity collision"
-        );
-        Ok(())
-    }
-
-    struct FakePorts {
-        brake: bool,
-        next_pid: u32,
-        children: BTreeMap<u32, ChildObservation>,
-        receipt: Option<String>,
-        launches: usize,
-    }
-    impl Default for FakePorts {
-        fn default() -> Self {
-            Self {
-                brake: false,
-                next_pid: 41,
-                children: BTreeMap::new(),
-                receipt: None,
-                launches: 0,
+    fn atlas_grant(
+        lane: crate::AtlasImpactLane,
+        proposal_id: uuid::Uuid,
+    ) -> ResidentSelfHeartbeatGrant {
+        let (kind, lane_name) = match lane {
+            crate::AtlasImpactLane::Modeling => {
+                (RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND, "Modeling")
             }
-        }
-    }
-    impl ResidentSelfPorts for FakePorts {
-        fn brake_engaged(&mut self) -> Result<bool> {
-            Ok(self.brake)
-        }
-        fn observe_child(&mut self, lease: &ResidentSelfTurnLease) -> Result<ChildObservation> {
-            Ok(self
-                .children
-                .get(&lease.process_id)
-                .cloned()
-                .unwrap_or(ChildObservation::Missing))
-        }
-        fn request_child_stop(&mut self, lease: &ResidentSelfTurnLease) -> Result<()> {
-            self.children
-                .insert(lease.process_id, ChildObservation::Exited(-1));
-            Ok(())
-        }
-        fn launch_coordinator(&mut self, _: &CoordinatorLaunch) -> Result<LaunchedCoordinator> {
-            self.launches += 1;
-            let pid = self.next_pid;
-            self.children.insert(pid, ChildObservation::Running);
-            Ok(LaunchedCoordinator {
-                process_id: pid,
-                process_creation_token: 99,
-                process_executable_path: absolute("opt/epiphany/bin/epiphany-mvp-coordinator"),
-            })
-        }
-        fn coordinator_receipt_since(&mut self, _: &str, _: u64) -> Result<Option<String>> {
-            Ok(self.receipt.clone())
-        }
-    }
-    fn absolute(name: &str) -> PathBuf {
-        if cfg!(windows) {
-            PathBuf::from(format!("C:\\{name}"))
-        } else {
-            PathBuf::from(format!("/{name}"))
-        }
-    }
-    fn policy() -> ResidentSelfPolicy {
-        ResidentSelfPolicy {
-            workspace: absolute("workspace"),
-            coordinator_bin: absolute("opt/epiphany/bin/epiphany-mvp-coordinator"),
-            model_runtime_bin: absolute("opt/epiphany/bin/epiphany-model-runtime"),
-            tool_adapter_bin: absolute("opt/epiphany/bin/epiphany-tool-mcp-runtime"),
-            runtime_store: absolute("state/runtime.cc"),
-            local_verse_store: absolute("state/verse.cc"),
-            agent_memory_store: absolute("state/mind.cc"),
-            artifact_root: absolute("state/artifacts"),
-            codex_home: absolute("state/codex"),
-            mcp_config: absolute("state/epiphany-mcp.toml"),
-            model_provider: "local".into(),
-            max_steps: 2,
-            turn_timeout_seconds: 60,
-            cooldown_seconds: 10,
-            idle_sleep_seconds: 5,
-            failure_backoff_seconds: 20,
-            release_commit: "0123456789abcdef".into(),
-            release_manifest_digest: "sha256:test-manifest".into(),
-            release_store: absolute("state/release.cc"),
-            release_runtime_id: "test-runtime".into(),
-            release_id: "test-release".into(),
-            release_witness_sha256: "sha256:test-manifest".into(),
-        }
-    }
-    fn seed_runtime_identity(store: &Path, runtime_id: &str) -> Result<()> {
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.pull_all_backing_stores()?;
-        if cache
-            .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
-            .is_some()
-        {
-            return Ok(());
-        }
-        let identity = crate::EpiphanyRuntimeIdentity {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-            runtime_id: runtime_id.into(),
-            display_name: "Resident test runtime".into(),
-            runtime_kind: "resident-test".into(),
-            created_at: "2026-07-18T00:00:00Z".into(),
-            updated_at: "2026-07-18T00:00:00Z".into(),
-            supported_document_types: Vec::new(),
-            metadata: BTreeMap::new(),
+            crate::AtlasImpactLane::Soul => (RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND, "Soul"),
         };
-        let (entry, _) = cache.prepare_entry(crate::RUNTIME_IDENTITY_KEY, &identity)?;
-        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
-        Ok(())
-    }
-    fn seed_model_direction_request(
-        store: &Path,
-        request_id: &str,
-        runtime_id: &str,
-        thread_id: &str,
-    ) -> Result<()> {
-        seed_runtime_identity(store, runtime_id)?;
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.pull_all_backing_stores()?;
-        let mut model = crate::EpiphanyMemoryGraphSnapshot::default();
-        model.model_revision = 1;
-        let model_hash = crate::memory_graph_model_hash(&model)?;
-        cache.put(
-            crate::MEMORY_GRAPH_KEY,
-            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&model)?,
-        )?;
-        cache.put(
-            "model-admission-1",
-            &crate::RepoModelAdmissionReceipt {
-                schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
-                receipt_id: "model-admission-1".into(),
-                review_id: "review-model-1".into(),
-                result_id: None,
-                patch_id: "patch-model-1".into(),
-                patch_sha256: "sha256:patch-model-1".into(),
-                previous_revision: 0,
-                previous_hash: "sha256:previous-model".into(),
-                admitted_revision: model.model_revision,
-                admitted_hash: model_hash.clone(),
-                admitted_at: "2026-07-18T00:00:00Z".into(),
-                contract: crate::REPO_MODEL_ADMISSION_CONTRACT.into(),
-                purpose: crate::RepoModelPatchPurpose::Evolution,
-                frontier_route_id: String::new(),
-                verification_request_id: String::new(),
-                soul_verdict_receipt_id: String::new(),
-                frontier_modeling_request_id: String::new(),
-                proposal_modeling_request_id: String::new(),
-                claim_repair_request_id: String::new(),
-                frontier_plan_decision_id: String::new(),
-                repository_body_observation_basis: None,
-                admission_source: None,
-            },
-        )?;
-        let request = crate::AdmittedModelDirectionConsiderationRequest {
-            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION
-                .into(),
-            request_id: request_id.into(),
-            runtime_id: runtime_id.into(),
-            thread_id: thread_id.into(),
-            model_revision: 1,
-            model_hash,
-            model_admission_receipt_id: "model-admission-1".into(),
-            previous_terminal_result_id: None,
-            requested_at: "2026-07-18T00:00:00Z".into(),
-            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_CONTRACT.into(),
-            private_state_included: false,
-        };
-        let (entry, _) = cache.prepare_entry(request_id, &request)?;
-        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
-        Ok(())
-    }
-    fn role_worker_result(job_id: &str, role_id: &str) -> crate::EpiphanyRuntimeRoleWorkerResult {
-        crate::EpiphanyRuntimeRoleWorkerResult {
-            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
-            result_id: format!("result-{job_id}"),
-            job_id: job_id.into(),
-            role_id: role_id.into(),
-            verdict: "pass".into(),
-            summary: "Typed worker completed its bounded request.".into(),
-            next_safe_move: "Return authority to resident Self.".into(),
-            checkpoint_summary: None,
-            scratch_summary: None,
-            files_inspected: vec![],
-            frontier_node_ids: vec![],
-            evidence_ids: vec![],
-            artifact_refs: vec![],
-            open_questions: vec![],
-            evidence_gaps: vec![],
-            risks: vec![],
-            state_patch_msgpack: None,
-            self_patch_msgpack: None,
-            item_error: None,
-            metadata: BTreeMap::new(),
-            repo_model_patch_msgpack: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            repo_frontier_modeling_request_id: None,
-            proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_candidate_msgpack: None,
-            frontier_plan_mind_request_id: None,
-            frontier_plan_mind_decision_msgpack: None,
-            repository_body_observation_basis: None,
-            imagination_consideration_request_id: None,
-            imagination_consideration_candidate_msgpack: None,
-            admitted_model_direction_consideration_request_id: None,
-            admitted_model_direction_consideration_result_msgpack: None,
-            decision_context_id: "decision-context-fixture".into(),
+        ResidentSelfHeartbeatGrant {
+            schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
+            grant_id: format!("atlas-test-grant-{proposal_id}"),
+            pressure_id: format!("{kind}-{proposal_id}"),
+            pressure_kind: kind.into(),
+            provenance_ref: format!("{RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX}{proposal_id}"),
+            objective: resident_self_atlas_objective(lane_name, proposal_id),
+            heartbeat_schedule_id: "atlas-test-schedule".into(),
+            heartbeat_action_id: "atlas-test-action".into(),
+            issued_at_millis: 100,
+            consumed_at_millis: Some(200),
+            private_state_exposed: false,
+            terminal_at_millis: None,
+            terminal_status: None,
         }
     }
 
-    fn seed_terminal_worker_archive_scaffolding(
-        store: &Path,
-        session_id: &str,
-        job_id: &str,
-        result_id: &str,
-    ) -> Result<()> {
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.put(job_id, &crate::EpiphanyRuntimeJob {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-            job_id: job_id.into(),
-            session_id: session_id.into(),
-            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
-            status: crate::EpiphanyRuntimeJobStatus::Completed,
-            created_at: "2026-07-18T00:00:01Z".into(),
-            updated_at: "2026-07-18T00:00:03Z".into(),
-            summary: "Typed Imagination worker completed.".into(),
-            artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
-        })?;
-        cache.put(&format!("runtime-worker-process-{job_id}"), &crate::EpiphanyRuntimeWorkerProcessClaim {
-            schema_version: crate::RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION.into(),
-            claim_id: format!("runtime-worker-process-{job_id}"),
-            job_id: job_id.into(),
+    fn atlas_lease(grant: &ResidentSelfHeartbeatGrant) -> ResidentSelfTurnLease {
+        ResidentSelfTurnLease {
+            turn_id: "atlas-test-turn".into(),
+            wake: ResidentSelfWake::Explicit {
+                objective: grant.objective.clone(),
+            },
             process_id: 42,
-            process_creation_token: 43,
-            process_executable_path: "/fixture/epiphany-role-worker".into(),
-            activation_token_sha256: "a".repeat(64),
-            status: "terminal-result".into(),
-            claimed_at: "2026-07-18T00:00:01Z".into(),
-            activated_at: Some("2026-07-18T00:00:02Z".into()),
-            terminal_at: Some("2026-07-18T00:00:03Z".into()),
-            terminal_authority_id: Some(result_id.into()),
-        })?;
-        Ok(())
-    }
-
-    fn admit_test_model_direction_result(
-        store: &Path,
-        request: &crate::AdmittedModelDirectionConsiderationRequest,
-        result: &crate::AdmittedModelDirectionConsiderationResult,
-        job_id: &str,
-    ) -> Result<()> {
-        let model = crate::runtime_current_repo_model(store)?
-            .ok_or_else(|| anyhow!("model direction fixture lost admitted model"))?;
-        let document =
-            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
-                thread_id: request.thread_id.clone(),
-                role_id: "imagination".into(),
-                state_revision: 0,
-                objective: None,
-                dynamic_prompt_context: None,
-                repository_body_observation_basis: None,
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: None,
-                admitted_model_direction_consideration_context: Some(
-                    crate::AdmittedModelDirectionConsiderationContextProjection::new(
-                        request,
-                        &model,
-                    ),
-                ),
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            });
-        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
-            job_id: job_id.into(),
-            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
-            authority_scope: "imagination".into(),
-            instruction: "Test exact admitted model direction consideration.".into(),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
-            document_kind: "role".into(),
-            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
-            metadata: BTreeMap::new(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "imagination",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: Some(request.request_id.clone()),
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
-        };
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.put(job_id, &launch)?;
-        let mut worker = role_worker_result(job_id, "imagination");
-        worker.admitted_model_direction_consideration_request_id = Some(request.request_id.clone());
-        worker.admitted_model_direction_consideration_result_msgpack =
-            Some(rmp_serde::to_vec_named(result)?);
-        crate::put_runtime_role_worker_result(store, &worker)
-    }
-
-    fn admit_test_imagination_candidate(
-        store: &Path,
-        request: &crate::ImaginationConsiderationRequest,
-        model: &crate::EpiphanyMemoryGraphSnapshot,
-        candidate: &crate::ImaginationConsiderationCandidate,
-        job_id: &str,
-    ) -> Result<()> {
-        let document =
-            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
-                thread_id: request.thread_id.clone(),
-                role_id: "imagination".into(),
-                state_revision: 0,
-                objective: None,
-                dynamic_prompt_context: None,
-                repository_body_observation_basis: None,
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: Some(
-                    crate::ImaginationConsiderationContextProjection::new(request, model),
-                ),
-                admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            });
-        let launch_document_msgpack = rmp_serde::to_vec_named(&document)?;
-        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
-            job_id: job_id.into(),
-            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
-            authority_scope: "imagination".into(),
-            instruction: "Test exact feedback consideration.".into(),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
-            document_kind: "role".into(),
-            launch_document_msgpack: launch_document_msgpack.clone(),
-            metadata: BTreeMap::new(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "imagination",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: Some(request.request_id.clone()),
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
-        };
-        let binding = crate::ImaginationConsiderationLaunchBinding {
-            schema_version: crate::IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id: format!("imagination-consideration-launch-{}", request.request_id),
-            request_id: request.request_id.clone(),
-            job_id: job_id.into(),
-            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-            runtime_id: request.runtime_id.clone(),
-            thread_id: request.thread_id.clone(),
-            launched_at: "2026-07-18T00:00:01Z".into(),
-            worker_launch_document_sha256: format!(
-                "{:x}",
-                Sha256::digest(&launch_document_msgpack)
-            ),
-        };
-        let mut cache = crate::runtime_spine_cache(store)?;
-        cache.put(job_id, &launch)?;
-        cache.put(&binding.binding_record_id, &binding)?;
-        let mut worker = role_worker_result(job_id, "imagination");
-        worker.imagination_consideration_request_id = Some(request.request_id.clone());
-        worker.imagination_consideration_candidate_msgpack =
-            Some(rmp_serde::to_vec_named(candidate)?);
-        crate::put_runtime_role_worker_result(store, &worker)
-    }
-    fn coordinator_receipt_for_lease(
-        lease: &ResidentSelfTurnLease,
-        runtime_store: &Path,
-    ) -> crate::EpiphanyCoordinatorRunReceipt {
-        crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: format!("coordinator-terminal-{}", lease.turn_id),
-            session_id: crate::coordinator_run_session_id(
-                &lease.turn_id,
-                Some(&lease.launch_digest),
-            )
-            .expect("resident lease has a valid session incarnation"),
-            thread_id: lease.turn_id.clone(),
-            mode: "plan".into(),
-            status: "planned".into(),
-            final_action: "propose".into(),
-            final_reason: None,
-            step_count: 1,
-            created_at: "2026-07-18T00:00:00Z".into(),
-            model_provider: Some("local".into()),
-            runtime_store: runtime_store.display().to_string(),
-            artifact_refs: vec![],
-            sealed_artifact_refs: vec![],
-            metadata: Default::default(),
-            resident_grant_id: Some(lease.grant_id.clone()),
-            resident_launch_digest: Some(lease.launch_digest.clone()),
-            resident_policy_digest: Some(lease.policy_digest.clone()),
-            resident_argv_digest: Some(lease.argv_digest.clone()),
-            resident_objective_digest: Some(lease.objective_digest.clone()),
-            resident_release_commit: Some(lease.release_commit.clone()),
-            resident_release_manifest_digest: Some(lease.release_manifest_digest.clone()),
-            resident_executable_digest: Some(lease.coordinator_executable_digest.clone()),
+            process_creation_token: 7,
+            process_executable_path: PathBuf::from("atlas-test-coordinator"),
+            started_at_millis: 200,
+            grant_id: grant.grant_id.clone(),
+            launch_digest: "sha256:atlas-test-launch".into(),
+            policy_digest: "sha256:atlas-test-policy".into(),
+            argv_digest: "sha256:atlas-test-argv".into(),
+            objective_digest: "sha256:atlas-test-objective".into(),
+            release_commit: "atlas-test-release".into(),
+            release_manifest_digest: "sha256:atlas-test-manifest".into(),
+            coordinator_executable_digest: "sha256:atlas-test-executable".into(),
         }
     }
-    fn seed_proposal_modeling_request(
-        store: &Path,
-        request_id: &str,
-        proposal_id: &str,
-        runtime_id: &str,
-        thread_id: &str,
-        selected_at: &str,
-    ) -> Result<()> {
-        seed_runtime_identity(store, runtime_id)?;
-        let cache = crate::runtime_spine_cache(store)?;
-        let request = crate::RepoFrontierProposalModelingRequest {
-            schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
-            request_id: request_id.into(),
-            proposal_id: proposal_id.into(),
-            proposal_payload_sha256: "sha256:proposal-1".into(),
-            runtime_id: runtime_id.into(),
-            thread_id: thread_id.into(),
-            repository: "GameCult/Epiphany".into(),
-            workspace: absolute("workspace").display().to_string(),
-            selected_at: selected_at.into(),
-            contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
-        };
-        let (entry, _) = cache.prepare_entry(request_id, &request)?;
-        SingleFileMessagePackBackingStore::new(store).push(&entry)?;
-        Ok(())
-    }
-    fn explicit() -> Option<ResidentSelfWake> {
-        Some(ResidentSelfWake::Explicit {
-            objective: "inspect".into(),
-        })
-    }
-    #[test]
-    fn brake_prevents_launch() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts {
-            brake: true,
-            ..Default::default()
-        };
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?.0,
-            ResidentSelfOutcome::Braked
-        );
-        assert_eq!(p.launches, 0);
-        Ok(())
-    }
-    #[test]
-    fn brake_drains_active_turn_without_claiming_braked() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts::default();
-        reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?;
-        p.brake = true;
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 2, None)?.0,
-            ResidentSelfOutcome::Draining
-        );
-        assert!(s.active_turn.is_some());
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 3, None)?.0,
-            ResidentSelfOutcome::Failed
-        );
-        Ok(())
-    }
-    #[test]
-    fn one_turn_exclusion() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts::default();
-        reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?;
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 2, explicit())?.0,
-            ResidentSelfOutcome::Running
-        );
-        assert_eq!(p.launches, 1);
-        Ok(())
-    }
-    #[test]
-    fn exit_zero_without_receipt_is_failure() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts::default();
-        reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?;
-        p.children.insert(41, ChildObservation::Exited(0));
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 2, None)?.0,
-            ResidentSelfOutcome::Failed
-        );
-        assert_eq!(s.next_eligible_at_millis, 20_002);
-        Ok(())
-    }
-    #[test]
-    fn crash_reentry_waits_for_backoff_then_launches() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts::default();
-        reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?;
-        p.children.insert(41, ChildObservation::Exited(7));
-        reconcile_resident_self(&mut s, &policy(), &mut p, 2, None)?;
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 10_000, explicit())?.0,
-            ResidentSelfOutcome::Sleeping
-        );
-        p.next_pid = 42;
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 20_002, explicit())?.0,
-            ResidentSelfOutcome::Launched
-        );
-        Ok(())
-    }
-    #[test]
-    fn cooldown_starts_after_typed_receipt() -> Result<()> {
-        let mut s = ResidentSelfState::default();
-        let mut p = FakePorts::default();
-        reconcile_resident_self(&mut s, &policy(), &mut p, 1, explicit())?;
-        p.children.insert(41, ChildObservation::Exited(0));
-        p.receipt = Some("coordinator-receipt".into());
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 5_000, None)?.0,
-            ResidentSelfOutcome::Completed
-        );
-        assert_eq!(s.next_eligible_at_millis, 15_000);
-        assert_eq!(
-            reconcile_resident_self(&mut s, &policy(), &mut p, 14_999, explicit())?.0,
-            ResidentSelfOutcome::Sleeping
-        );
-        Ok(())
-    }
 
     #[test]
-    fn heartbeat_pressure_grant_and_prepared_launch_are_single_consumption_cas() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        policy.artifact_root = temp.path().join("artifacts");
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-model-1",
-            "cognitive-runtime",
-            "implementation-thread-1",
-        )?;
-        let pressure = ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: "pressure-body-1".into(),
-            kind: "admitted-model-direction-consideration".into(),
-            provenance_ref: "cultcache://admitted-model-direction-consideration/request-model-1"
-                .into(),
-            objective: "Launch exact typed model direction request.".into(),
-            created_at_millis: 1,
-            status: "pending".into(),
-            consumed_by_grant_id: None,
-            private_state_exposed: false,
-        };
-        enqueue_resident_self_pressure(&store, &pressure)?;
-        let grant = heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 2)?
-            .expect("grant");
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 3)?.is_none()
-        );
-        let prepared = prepare_resident_self_launch(&store, &policy, 4)?.expect("prepared launch");
-        assert_eq!(prepared.grant.grant_id, grant.grant_id);
-        assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
-        assert!(
-            !prepared.argv.iter().any(|arg| arg == "--no-auto-tools"),
-            "role-scoped tool policy, not resident argv, owns Modeling inspection authority"
-        );
-        assert!(prepared.argv.windows(2).any(|pair| pair
-            == [
-                "--admitted-model-direction-consideration-request-id",
-                "request-model-1"
-            ]));
-        assert!(
-            prepared
-                .argv
-                .windows(2)
-                .any(|pair| pair == ["--runtime-id", "cognitive-runtime"])
-        );
-        assert!(
-            !prepared
-                .argv
-                .windows(2)
-                .any(|pair| pair == ["--runtime-id", policy.release_runtime_id.as_str()])
-        );
-        assert_eq!(
-            resident_prepared_launch_thread_id(&prepared)?,
-            "implementation-thread-1"
-        );
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-arrived-during-turn".into(),
-                kind: "operator-objective".into(),
-                provenance_ref: "operator://arrived-during-turn".into(),
-                objective: "Remain pending until Heartbeat owns a later coordinator turn.".into(),
-                created_at_millis: 2,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
+    fn atlas_pressure_kinds_are_closed_lane_wakes_without_hands_authority() -> Result<()> {
+        let store = test_store("kinds");
+        let modeling_id = uuid::Uuid::new_v4();
+        let soul_id = uuid::Uuid::new_v4();
+        let modeling = atlas_decision(crate::AtlasImpactLane::Modeling, modeling_id);
+        let soul = atlas_decision(crate::AtlasImpactLane::Soul, soul_id);
+        assert!(enqueue_resident_self_atlas_impact_pressure(
+            &store, &modeling, 100,
+        )?);
+        assert!(enqueue_resident_self_atlas_impact_pressure(
+            &store, &soul, 101,
+        )?);
+        assert!(!enqueue_resident_self_atlas_impact_pressure(
+            &store, &modeling, 100,
+        )?);
+        let held = crate::AtlasImpactSchedulingDecision {
+            disposition: crate::AtlasImpactScheduleDisposition::HeldByCooldown {
+                lane: crate::AtlasImpactLane::Modeling,
+                retry_at_unix_ms: 500,
             },
-        )?;
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 5)?.is_none(),
-            "one Heartbeat coordinator turn cannot issue a companion grant while Self is prepared"
-        );
-        assert!(prepare_resident_self_launch(&store, &policy, 5)?.is_none());
-        let process = LaunchedCoordinator {
-            process_id: 44,
-            process_creation_token: 55,
-            process_executable_path: coordinator,
+            ..modeling.clone()
         };
-        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 6)?;
-        assert!(
-            claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 6)
-                .is_err()
-        );
-        let lease =
-            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 6)?;
-        assert_eq!(lease.grant_id, grant.grant_id);
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?.is_none(),
-            "one Heartbeat coordinator turn cannot issue a companion grant while Self is active"
-        );
-        assert_eq!(
-            resident_self_pressures(&store)?
-                .into_iter()
-                .find(|item| item.pressure_id == "pressure-arrived-during-turn")
-                .expect("later pressure")
-                .status,
-            "pending"
-        );
-        assert!(
-            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 7)
-                .is_err()
-        );
-        let receipt = crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "coordinator-terminal-1".into(),
-            session_id: crate::coordinator_run_session_id(
-                &lease.turn_id,
-                Some(&lease.launch_digest),
-            )?,
-            thread_id: lease.turn_id.clone(),
-            mode: "plan".into(),
-            status: "planned".into(),
-            final_action: "propose".into(),
-            final_reason: None,
-            step_count: 1,
-            created_at: "2026-07-18T00:00:00Z".into(),
-            model_provider: Some("local".into()),
-            runtime_store: policy.runtime_store.display().to_string(),
-            artifact_refs: vec![],
-            sealed_artifact_refs: vec![],
-            metadata: Default::default(),
-            resident_grant_id: Some(lease.grant_id.clone()),
-            resident_launch_digest: Some(lease.launch_digest.clone()),
-            resident_policy_digest: Some(lease.policy_digest.clone()),
-            resident_argv_digest: Some(lease.argv_digest.clone()),
-            resident_objective_digest: Some(lease.objective_digest.clone()),
-            resident_release_commit: Some(lease.release_commit.clone()),
-            resident_release_manifest_digest: Some(lease.release_manifest_digest.clone()),
-            resident_executable_digest: Some(lease.coordinator_executable_digest.clone()),
-        };
-        let mut wrong = receipt.clone();
-        wrong.resident_release_commit = Some("unwitnessed-release".into());
-        assert!(
-            complete_resident_self_turn(&store, &lease, &wrong, 8, policy.cooldown_seconds)
-                .is_err()
-        );
-        let mut wrong_session = receipt.clone();
-        wrong_session.session_id = format!("{}-substituted", receipt.session_id);
-        assert!(validate_resident_self_coordinator_receipt(&lease, &wrong_session).is_err());
-        let mut bound_failure = receipt.clone();
-        bound_failure.status = "failed".into();
-        assert!(
-            validate_resident_self_coordinator_receipt_binding(&lease, &bound_failure).is_ok(),
-            "terminal status does not decide whether a receipt belongs to the lease"
-        );
-        assert!(validate_resident_self_coordinator_receipt(&lease, &bound_failure).is_err());
-        assert_eq!(
-            settle_resident_self_exited_coordinator(
-                &store,
-                &policy.runtime_store,
-                &lease,
-                &receipt,
-                false,
-                false,
-                false,
-                9,
-                policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::AwaitingFulfillment
-        );
-        assert_eq!(
-            load_resident_self_state(&store)?.active_turn.as_ref(),
-            Some(&lease)
-        );
-        assert!(pending_resident_self_acks(&store)?.is_empty());
-
-        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let request = runtime
-            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-model-1")?
-            .expect("model direction request");
-        let result = crate::AdmittedModelDirectionConsiderationResult {
-            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
-                .into(),
-            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
-                &request.request_id,
-                "job-model-1",
-            ),
-            request_id: "request-model-1".into(),
-            runtime_id: "cognitive-runtime".into(),
-            thread_id: "implementation-thread-1".into(),
-            model_revision: 1,
-            model_hash: request.model_hash.clone(),
-            model_admission_receipt_id: "model-admission-1".into(),
-            disposition: crate::AdmittedModelDirectionDisposition::Hold,
-            summary: "Hold while the current admitted direction remains coherent.".into(),
-            option_drafts: vec![],
-            uncertainties: vec![],
-            evidence_refs: vec!["model-admission-1".into()],
-            proposed_at: "2026-07-18T00:00:01Z".into(),
-            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
-            proposal_only: true,
-            terminal: true,
-        };
-        admit_test_model_direction_result(&policy.runtime_store, &request, &result, "job-model-1")?;
-        assert_eq!(
-            settle_resident_self_exited_coordinator(
-                &store,
-                &policy.runtime_store,
-                &lease,
-                &receipt,
-                false,
-                false,
-                false,
-                10,
-                policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::Completed
-        );
-        let completed_state = load_resident_self_state(&store)?;
-        assert!(completed_state.active_turn.is_none());
-        assert_eq!(completed_state.next_eligible_at_millis, 10_010);
-        let acks = pending_resident_self_acks(&store)?;
-        assert_eq!(acks.len(), 1);
-        assert_eq!(acks[0].coordinator_receipt_id, receipt.receipt_id);
-        let cache = state_cache(&store)?;
-        let mut stale_grant = cache
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-            .expect("completed grant");
-        assert_eq!(stale_grant.terminal_at_millis, Some(10));
-        assert_eq!(stale_grant.terminal_status.as_deref(), Some("fulfilled"));
-        let expected_grant = cache
-            .snapshot_envelopes()
-            .into_iter()
-            .find(|entry| {
-                entry.r#type == ResidentSelfHeartbeatGrant::TYPE
-                    && entry.key == stale_grant.grant_id
-            })
-            .expect("completed grant envelope");
-        stale_grant.consumed_at_millis = None;
-        let (stale_entry, _) = cache.prepare_entry(&stale_grant.grant_id, &stale_grant)?;
-        assert!(
-            SingleFileMessagePackBackingStore::new(&store)
-                .compare_and_swap_entry(&expected_grant, stale_entry)?,
-            "test must install the observed restart-corruption shape"
-        );
-        let ack_envelope = state_cache(&store)?
-            .snapshot_envelopes()
-            .into_iter()
-            .find(|entry| {
-                entry.r#type == ResidentSelfTerminalAck::TYPE && entry.key == acks[0].ack_id
-            })
-            .expect("terminal acknowledgement envelope");
-        assert!(
-            SingleFileMessagePackBackingStore::new(&store)
-                .delete_batch_if_unchanged(&[ack_envelope])?,
-            "test must install the observed missing-ack shape"
-        );
-        assert!(
-            pending_resident_self_grant(&store)?.is_none(),
-            "the exact grant's terminal state permanently kills its launch authority"
-        );
-        assert!(prepare_resident_self_launch(&store, &policy, 10_010)?.is_none());
-        let later_pressure = ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: "pressure-after-completion".into(),
-            kind: "operator-objective".into(),
-            provenance_ref: "operator://after-completion".into(),
-            objective: "Prove persisted cooldown survives a fresh preparation read.".into(),
-            created_at_millis: 11,
-            status: "pending".into(),
-            consumed_by_grant_id: None,
-            private_state_exposed: false,
-        };
-        enqueue_resident_self_pressure(&store, &later_pressure)?;
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 11)?.is_none(),
-            "completion cannot reopen grant authority for the same Heartbeat turn"
-        );
-        heartbeat_issue_resident_self_grant(&store, "heartbeat-later", "action-later", 12)?
-            .expect("later Heartbeat grant");
-        assert!(prepare_resident_self_launch(&store, &policy, 10_009)?.is_none());
-        assert!(prepare_resident_self_launch(&store, &policy, 10_010)?.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn typed_request_must_belong_to_its_mounted_runtime_store_not_release_runtime() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator;
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_runtime_identity(&policy.runtime_store, "cognitive-runtime")?;
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-foreign-runtime",
-            "foreign-runtime",
-            "implementation-thread-foreign",
-        )?;
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-foreign-runtime".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref:
-                    "cultcache://admitted-model-direction-consideration/request-foreign-runtime"
-                        .into(),
-                objective: "This request must remain in its foreign runtime.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        heartbeat_issue_resident_self_grant(&store, "heartbeat-foreign", "action-foreign", 2)?
-            .expect("foreign request grant fixture");
-        let error = prepare_resident_self_launch(&store, &policy, 3)
-            .expect_err("foreign request must fail closed");
-        assert!(
-            error
-                .to_string()
-                .contains("belongs to runtime foreign-runtime")
-        );
-        assert!(
-            error
-                .to_string()
-                .contains("mounted runtime store belongs to cognitive-runtime")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn superseded_model_direction_request_terminalizes_without_requeue() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        policy.artifact_root = temp.path().join("artifacts");
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-superseded",
-            "cognitive-runtime",
-            "implementation-thread-superseded",
-        )?;
-        enqueue_resident_self_pressure(&store, &ResidentSelfPressure {
-            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: "pressure-superseded".into(),
-            kind: "admitted-model-direction-consideration".into(),
-            provenance_ref: "cultcache://admitted-model-direction-consideration/request-superseded".into(),
-            objective: "Consider the exact admitted model direction.".into(),
-            created_at_millis: 1,
-            status: "pending".into(),
-            consumed_by_grant_id: None,
-            private_state_exposed: false,
-        })?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &store,
-            "heartbeat-superseded",
-            "action-superseded",
-            2,
-        )?.expect("superseded request grant");
-        let prepared = prepare_resident_self_launch(&store, &policy, 3)?
-            .expect("superseded request preparation");
-        let process = LaunchedCoordinator {
-            process_id: 44,
-            process_creation_token: 55,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
-        let lease = acknowledge_resident_self_launch(
-            &store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-
-        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let mut advanced = crate::runtime_current_repo_model(&policy.runtime_store)?
-            .expect("current model fixture");
-        advanced.model_revision += 1;
-        let expected_model = runtime.snapshot_envelopes().into_iter().find(|entry| {
-            entry.r#type == crate::EpiphanyMemoryGraphEntry::TYPE
-                && entry.key == crate::MEMORY_GRAPH_KEY
-        }).expect("current model envelope");
-        let (advanced_entry, _) = runtime.prepare_entry(
-            crate::MEMORY_GRAPH_KEY,
-            &crate::EpiphanyMemoryGraphEntry::from_snapshot(&advanced)?,
-        )?;
-        assert!(SingleFileMessagePackBackingStore::new(&policy.runtime_store)
-            .compare_and_swap_entry(&expected_model, advanced_entry)?);
-        assert!(resident_self_grant_typed_request_is_superseded(
-            &store,
-            &policy.runtime_store,
-            &grant.grant_id,
+        assert!(!enqueue_resident_self_atlas_impact_pressure(
+            &store, &held, 102,
         )?);
 
-        let receipt = crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "coordinator-superseded".into(),
-            session_id: crate::coordinator_run_session_id(
-                &lease.turn_id,
-                Some(&lease.launch_digest),
-            )?,
-            thread_id: lease.turn_id.clone(),
-            mode: "plan".into(),
-            status: "planned".into(),
-            final_action: "waitForImaginationResult".into(),
-            final_reason: None,
-            step_count: 1,
-            created_at: "2026-07-18T00:00:01Z".into(),
-            model_provider: Some("local".into()),
-            runtime_store: policy.runtime_store.display().to_string(),
-            artifact_refs: vec![],
-            sealed_artifact_refs: vec![],
-            metadata: Default::default(),
-            resident_grant_id: Some(lease.grant_id.clone()),
-            resident_launch_digest: Some(lease.launch_digest.clone()),
-            resident_policy_digest: Some(lease.policy_digest.clone()),
-            resident_argv_digest: Some(lease.argv_digest.clone()),
-            resident_objective_digest: Some(lease.objective_digest.clone()),
-            resident_release_commit: Some(lease.release_commit.clone()),
-            resident_release_manifest_digest: Some(lease.release_manifest_digest.clone()),
-            resident_executable_digest: Some(lease.coordinator_executable_digest.clone()),
-        };
-        assert_eq!(settle_resident_self_exited_coordinator(
-            &store,
-            &policy.runtime_store,
-            &lease,
-            &receipt,
-            false,
-            false,
-            false,
-            5,
-            policy.cooldown_seconds,
-        )?, ResidentSelfOutcome::Completed);
-        assert!(load_resident_self_state(&store)?.active_turn.is_none());
-        let pressure = resident_self_pressures(&store)?.into_iter()
-            .find(|pressure| pressure.pressure_id == "pressure-superseded")
-            .expect("superseded pressure");
-        assert_eq!(pressure.status, "consumed");
-        assert_eq!(pressure.consumed_by_grant_id.as_deref(), Some(grant.grant_id.as_str()));
-        let terminal = state_cache(&store)?
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-            .expect("superseded terminal grant");
-        assert_eq!(terminal.terminal_status.as_deref(), Some("superseded"));
-        let ack = pending_resident_self_acks(&store)?.into_iter()
-            .find(|ack| ack.grant_id == grant.grant_id)
-            .expect("superseded terminal acknowledgement");
-        assert_eq!(ack.coordinator_receipt_id, receipt.receipt_id);
-        assert_eq!(ack.terminal_status, "superseded");
-        assert!(heartbeat_issue_resident_self_grant(
-            &store,
-            "heartbeat-after-supersession",
-            "action-after-supersession",
-            6,
-        )?.is_none(), "superseded typed authority must not requeue");
-        Ok(())
-    }
-
-    #[test]
-    fn plain_objective_uses_mounted_runtime_identity_for_thread_and_argv() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator;
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_runtime_identity(&policy.runtime_store, "cognitive-runtime")?;
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "operator-pressure".into(),
-                kind: "operator-objective".into(),
-                provenance_ref: "operator://objective".into(),
-                objective: "Run one bounded planning turn.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        heartbeat_issue_resident_self_grant(&store, "heartbeat-plain", "action-plain", 2)?
-            .expect("plain objective grant");
-        let prepared =
-            prepare_resident_self_launch(&store, &policy, 3)?.expect("plain objective preparation");
-        assert!(
-            prepared
-                .argv
-                .windows(2)
-                .any(|pair| pair == ["--runtime-id", "cognitive-runtime"])
-        );
-        assert_eq!(
-            resident_prepared_launch_thread_id(&prepared)?,
-            "resident-self-thread-cognitive-runtime"
-        );
-        let process = LaunchedCoordinator {
-            process_id: u32::MAX - 20,
-            process_creation_token: 81,
-            process_executable_path: policy.coordinator_bin.clone(),
-        };
-        let claim = claim_resident_self_preparation_as_child(
-            &store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-        validate_resident_self_prepared_objective(
-            &store,
-            &prepared.preparation_id,
-            &claim,
-            "Run one bounded planning turn.",
-        )?;
-        acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
-        validate_resident_self_prepared_objective(
-            &store,
-            &prepared.preparation_id,
-            &claim,
-            "Run one bounded planning turn.",
-        )?;
-        assert!(
-            validate_resident_self_prepared_objective(
-                &store,
-                &prepared.preparation_id,
-                &claim,
-                "Replace the canonical objective.",
-            )
-            .is_err()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn model_direction_grant_waits_for_exact_terminal_imagination_result() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-self.cc");
-        let runtime_store = temp.path().join("runtime.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut resident_policy = policy();
-        resident_policy.coordinator_bin = coordinator.clone();
-        resident_policy.runtime_store = runtime_store.clone();
-        seed_model_direction_request(
-            &runtime_store,
-            "request-model-fulfillment",
-            "test-runtime",
-            "implementation-thread-1",
-        )?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-model-fulfillment".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref:
-                    "cultcache://admitted-model-direction-consideration/request-model-fulfillment"
-                        .into(),
-                objective: "Consider the admitted model direction through Imagination.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-model-fulfillment",
-            "action-model-fulfillment",
-            2,
-        )?
-        .expect("model direction grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &resident_policy, 3)?
-            .expect("model direction preparation");
-        let process = LaunchedCoordinator {
-            process_id: u32::MAX - 11,
-            process_creation_token: 77,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-        let lease = acknowledge_resident_self_launch(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            5,
-        )?;
-        let session_id = crate::coordinator_run_session_id(
-            &lease.turn_id,
-            Some(&lease.launch_digest),
-        )?;
-        crate::open_coordinator_run(
-            &runtime_store,
-            &session_id,
-            &lease.turn_id,
-            Some(&lease.launch_digest),
-            &format!("Resident coordinator launch {}.", lease.objective_digest),
-            "1970-01-01T00:00:00.005Z",
-        )?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Pending
-        );
-
-        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let request = runtime
-            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-model-fulfillment")?
-            .expect("model direction request");
-        let result = crate::AdmittedModelDirectionConsiderationResult {
-            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
-                .into(),
-            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
-                &request.request_id,
-                "job-model-fulfillment",
-            ),
-            request_id: "request-model-fulfillment".into(),
-            runtime_id: "test-runtime".into(),
-            thread_id: "implementation-thread-1".into(),
-            model_revision: 1,
-            model_hash: request.model_hash.clone(),
-            model_admission_receipt_id: "model-admission-1".into(),
-            disposition: crate::AdmittedModelDirectionDisposition::Hold,
-            summary: "Hold while the current admitted direction remains coherent.".into(),
-            option_drafts: vec![],
-            uncertainties: vec![],
-            evidence_refs: vec!["model-admission-1".into()],
-            proposed_at: "2026-07-18T00:00:01Z".into(),
-            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
-            proposal_only: true,
-            terminal: true,
-        };
-        admit_test_model_direction_result(
-            &runtime_store,
-            &request,
-            &result,
-            "job-model-fulfillment",
-        )?;
-        seed_terminal_worker_archive_scaffolding(
-            &runtime_store,
-            "worker-session-model-fulfillment",
-            "job-model-fulfillment",
-            &format!("result-{}", "job-model-fulfillment"),
-        )?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Fulfilled
-        );
-        assert_eq!(
-            settle_resident_self_receipt_free_dead_coordinator(
-                &resident_store,
-                &runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                false,
-                false,
-                false,
-                6,
-                resident_policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::Completed
-        );
-        let settled = load_resident_self_state(&resident_store)?;
-        assert!(settled.active_turn.is_none());
-        let terminal_grant = state_cache(&resident_store)?
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-            .expect("terminal model direction grant");
-        assert_eq!(
-            terminal_grant.terminal_status.as_deref(),
-            Some("recovered-fulfilled")
-        );
-        let pressure = state_cache(&resident_store)?
-            .get::<ResidentSelfPressure>("pressure-model-fulfillment")?
-            .expect("consumed model direction pressure");
-        assert_eq!(pressure.status, "consumed");
-        assert_eq!(
-            pressure.consumed_by_grant_id.as_deref(),
-            Some(grant.grant_id.as_str())
-        );
-        let settled_bytes = std::fs::read(&resident_store)?;
-        assert!(
-            settle_resident_self_receipt_free_dead_coordinator(
-                &resident_store,
-                &runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                false,
-                false,
-                false,
-                8,
-                resident_policy.cooldown_seconds,
-            )
-            .is_err()
-        );
-        assert_eq!(std::fs::read(&resident_store)?, settled_bytes);
-        assert!(
-            heartbeat_issue_resident_self_grant(
-                &resident_store,
-                "heartbeat-must-not-retry",
-                "action-must-not-retry",
-                7,
-            )?
-            .is_none()
-        );
-        for ack in pending_resident_self_acks(&resident_store)? {
-            heartbeat_consume_resident_self_ack(&resident_store, &ack.ack_id, 9)?;
-        }
-        retain_resident_self_lifecycles(&resident_store, 0, 10)?
-            .expect("closed model direction lifecycle must retire");
-        let companion_before = {
-            let mut cache = crate::runtime_spine_cache(&runtime_store)?;
-            cache.pull_all_backing_stores()?;
-            cache.get::<crate::AdmittedModelDirectionConsiderationResult>(&result.result_id)?
-                .expect("model direction companion")
-        };
-        crate::archive_fulfilled_runtime_worker_attempt(
-            &runtime_store,
-            "job-model-fulfillment",
-            &live_resident_self_typed_request_ids(&resident_store)?,
-            "2026-07-18T00:00:04Z",
-        )?;
-        assert_eq!(
-            crate::runtime_typed_request_fulfillment(
-                &runtime_store,
-                crate::RuntimeTypedRequestRef::AdmittedModelDirection(&request.request_id),
-            )?.expect("archived model direction fulfillment").result_id,
-            format!("result-{}", "job-model-fulfillment")
-        );
-        let mut cache = crate::runtime_spine_cache(&runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        assert_eq!(
-            cache.get::<crate::AdmittedModelDirectionConsiderationResult>(&result.result_id)?,
-            Some(companion_before)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn feedback_imagination_grant_settles_only_for_exact_bound_candidate() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-self.cc");
-        let runtime_store = temp.path().join("runtime.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        crate::initialize_runtime_spine(
-            &runtime_store,
-            crate::RuntimeSpineInitOptions {
-                runtime_id: "test-runtime".into(),
-                display_name: "Imagination fulfillment runtime".into(),
-                created_at: "2026-07-18T00:00:00Z".into(),
-            },
-        )?;
-        let mut resident_policy = policy();
-        resident_policy.coordinator_bin = coordinator.clone();
-        resident_policy.runtime_store = runtime_store.clone();
-        let runtime = crate::runtime_spine_cache(&runtime_store)?;
-        let mut model = crate::EpiphanyMemoryGraphSnapshot::default();
-        model.model_revision = 1;
-        let model_hash = crate::memory_graph_model_hash(&model)?;
-        let model_entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
-        let receipt = crate::RepoModelAdmissionReceipt {
-            schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "model-admission-1".into(),
-            review_id: "review-model-1".into(),
-            result_id: None,
-            patch_id: "patch-model-1".into(),
-            patch_sha256: "sha256:patch-model-1".into(),
-            previous_revision: 0,
-            previous_hash: "sha256:previous-model".into(),
-            admitted_revision: model.model_revision,
-            admitted_hash: model_hash.clone(),
-            admitted_at: "2026-07-18T00:00:00Z".into(),
-            contract: crate::REPO_MODEL_ADMISSION_CONTRACT.into(),
-            purpose: crate::RepoModelPatchPurpose::Evolution,
-            frontier_route_id: String::new(),
-            verification_request_id: String::new(),
-            soul_verdict_receipt_id: String::new(),
-            frontier_modeling_request_id: String::new(),
-            proposal_modeling_request_id: String::new(),
-            claim_repair_request_id: String::new(),
-            frontier_plan_decision_id: String::new(),
-            repository_body_observation_basis: None,
-            admission_source: None,
-        };
-        let (model_entry, _) = runtime.prepare_entry(crate::MEMORY_GRAPH_KEY, &model_entry)?;
-        let (receipt_entry, _) = runtime.prepare_entry(&receipt.receipt_id, &receipt)?;
-        let mut backing = SingleFileMessagePackBackingStore::new(&runtime_store);
-        backing.push(&model_entry)?;
-        backing.push(&receipt_entry)?;
-        let request = crate::ImaginationConsiderationRequest {
-            schema_version: crate::IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION.into(),
-            request_id: "request-imagination-fulfillment".into(),
-            feedback_id: "feedback-1".into(),
-            feedback_admission_id: "feedback-admission-1".into(),
-            feedback_packet_sha256: "sha256:feedback-1".into(),
-            source_room_id: "room-1".into(),
-            source_visibility: "public".into(),
-            data_classification: "public_feedback".into(),
-            source_provider_identity_id: "provider-1".into(),
-            runtime_id: "test-runtime".into(),
-            thread_id: "implementation-thread-1".into(),
-            repository: "GameCult/Epiphany".into(),
-            persona_id: "epiphany".into(),
-            model_revision: 1,
-            model_hash,
-            model_admission_receipt_id: "model-admission-1".into(),
-            routing_policy_id: "routing-policy-1".into(),
-            question: crate::ImaginationConsiderationQuestion::CompareWithCurrentBodyAndSuggestCoherentOptions,
-            quoted_evidence: crate::QuotedPersonaFeedbackEvidence {
-                feedback_text: "Consider a quieter operator surface.".into(),
-                source_discussion_refs: vec!["discussion-1".into()],
-                source_room_id: "room-1".into(),
-                source_visibility: "public".into(),
-                data_classification: "public_feedback".into(),
-                source_actor_id: "actor-1".into(),
-                source_provider: "discord".into(),
-            },
-            requested_at: "2026-07-18T00:00:00Z".into(),
-            contract: crate::IMAGINATION_CONSIDERATION_REQUEST_CONTRACT.into(),
-            private_state_included: false,
-        };
-        let (request_entry, _) = runtime.prepare_entry(&request.request_id, &request)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&request_entry)?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-imagination-fulfillment".into(),
-                kind: "imagination-consideration".into(),
-                provenance_ref:
-                    "cultcache://imagination-consideration/request-imagination-fulfillment".into(),
-                objective: "Consider admitted feedback through Imagination.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-imagination-fulfillment",
-            "action-imagination-fulfillment",
-            2,
-        )?
-        .expect("Imagination consideration grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &resident_policy, 3)?
-            .expect("Imagination consideration preparation");
-        let process = LaunchedCoordinator {
-            process_id: u32::MAX - 12,
-            process_creation_token: 78,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-        let lease = acknowledge_resident_self_launch(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            5,
-        )?;
-        let session_id = crate::coordinator_run_session_id(
-            &lease.turn_id,
-            Some(&lease.launch_digest),
-        )?;
-        crate::open_coordinator_run(
-            &runtime_store,
-            &session_id,
-            &lease.turn_id,
-            Some(&lease.launch_digest),
-            &format!("Resident coordinator launch {}.", lease.objective_digest),
-            "1970-01-01T00:00:00.005Z",
-        )?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Pending
-        );
-
-        let worker_job_id = "job-imagination-fulfillment";
-        let candidate = crate::ImaginationConsiderationCandidate {
-            schema_version: crate::IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
-            candidate_id: crate::imagination_consideration_candidate_id_for_launch(
-                &request.request_id,
-                worker_job_id,
-            ),
-            request_id: request.request_id.clone(),
-            feedback_id: request.feedback_id.clone(),
-            feedback_packet_sha256: request.feedback_packet_sha256.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
-            disposition: crate::ImaginationConsiderationDisposition::NoFit,
-            title: "No coherent fit".into(),
-            summary: "The feedback does not yet justify a Body change.".into(),
-            rationale: "Current evidence is insufficient.".into(),
-            option_drafts: vec![],
-            uncertainties: vec![],
-            evidence_refs: vec!["discussion-1".into()],
-            recommended_review_route: crate::ImaginationConsiderationReviewRoute::Silence,
-            proposed_at: "2026-07-18T00:00:02Z".into(),
-            contract: crate::IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT.into(),
-            source_room_id: request.source_room_id.clone(),
-            source_visibility: request.source_visibility.clone(),
-            data_classification: request.data_classification.clone(),
-        };
-        admit_test_imagination_candidate(
-            &runtime_store,
-            &request,
-            &model,
-            &candidate,
-            worker_job_id,
-        )?;
-        seed_terminal_worker_archive_scaffolding(
-            &runtime_store,
-            "worker-session-imagination-fulfillment",
-            worker_job_id,
-            &format!("result-{worker_job_id}"),
-        )?;
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Fulfilled
-        );
-        assert!(crate::coordinator_run_receipts(&runtime_store)?.is_empty());
-        assert_eq!(
-            settle_resident_self_receipt_free_dead_coordinator(
-                &resident_store,
-                &runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                false,
-                false,
-                false,
-                6,
-                resident_policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::Completed
-        );
-        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
-        let cache = state_cache(&resident_store)?;
-        let terminal_grant = cache
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-            .expect("terminal Imagination grant");
-        assert_eq!(
-            terminal_grant.terminal_status.as_deref(),
-            Some("recovered-fulfilled")
-        );
-        let pressure = cache
-            .get::<ResidentSelfPressure>("pressure-imagination-fulfillment")?
-            .expect("consumed Imagination pressure");
-        assert_eq!(pressure.status, "consumed");
-        assert_eq!(
-            pressure.consumed_by_grant_id.as_deref(),
-            Some(grant.grant_id.as_str())
-        );
-        let settled_bytes = std::fs::read(&resident_store)?;
-        assert!(
-            settle_resident_self_receipt_free_dead_coordinator(
-                &resident_store,
-                &runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                false,
-                false,
-                false,
-                8,
-                resident_policy.cooldown_seconds,
-            )
-            .is_err()
-        );
-        assert_eq!(std::fs::read(&resident_store)?, settled_bytes);
-        assert!(
-            heartbeat_issue_resident_self_grant(
-                &resident_store,
-                "heartbeat-imagination-must-not-retry",
-                "action-imagination-must-not-retry",
-                7,
-            )?
-            .is_none()
-        );
-        for ack in pending_resident_self_acks(&resident_store)? {
-            heartbeat_consume_resident_self_ack(&resident_store, &ack.ack_id, 9)?;
-        }
-        let head = retain_resident_self_lifecycles(&resident_store, 0, 10)?
-            .expect("closed Imagination lifecycle must retire");
-        assert_eq!(head.retired_lifecycle_count, 1);
-        assert!(resident_self_pressures(&resident_store)?.is_empty());
-        assert!(pending_resident_self_grant(&resident_store)?.is_none());
-        assert!(pending_resident_self_acks(&resident_store)?.is_empty());
-        assert!(
-            heartbeat_issue_resident_self_grant(
-                &resident_store,
-                "heartbeat-imagination-after-retention",
-                "action-imagination-after-retention",
-                11,
-            )?
-            .is_none()
-        );
-        let candidate_before = {
-            let mut cache = crate::runtime_spine_cache(&runtime_store)?;
-            cache.pull_all_backing_stores()?;
-            cache.get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?
-                .expect("Imagination candidate companion")
-        };
-        crate::archive_fulfilled_runtime_worker_attempt(
-            &runtime_store,
-            worker_job_id,
-            &live_resident_self_typed_request_ids(&resident_store)?,
-            "2026-07-18T00:00:04Z",
-        )?;
-        assert_eq!(
-            crate::runtime_typed_request_fulfillment(
-                &runtime_store,
-                crate::RuntimeTypedRequestRef::ImaginationConsideration(&request.request_id),
-            )?.expect("archived Imagination fulfillment").result_id,
-            format!("result-{worker_job_id}")
-        );
-        let mut cache = crate::runtime_spine_cache(&runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        assert_eq!(
-            cache.get::<crate::ImaginationConsiderationCandidate>(&candidate.candidate_id)?,
-            Some(candidate_before)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn failed_resident_turn_atomically_returns_exact_pressure_to_heartbeat() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-retry-1",
-            &policy.release_runtime_id,
-            "implementation-thread-retry",
-        )?;
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-retry-1".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref:
-                    "cultcache://admitted-model-direction-consideration/request-retry-1".into(),
-                objective: "Launch exact typed model direction request.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let first_grant =
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 2)?
-                .expect("first grant");
-        let prepared = prepare_resident_self_launch(&store, &policy, 3)?.expect("preparation");
-        let process = LaunchedCoordinator {
-            process_id: 44,
-            process_creation_token: 55,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
-        let lease =
-            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
-        let ack = cancel_resident_self_turn(
-            &store,
-            &lease,
-            "unfulfilled",
-            "coordinator exited without the pressure's required consequence",
-            6,
-        )?;
-        assert_eq!(ack.grant_id, first_grant.grant_id);
-        let pressure = state_cache(&store)?
-            .get::<ResidentSelfPressure>("pressure-retry-1")?
-            .expect("requeued pressure");
-        assert_eq!(pressure.status, "pending");
-        assert_eq!(pressure.consumed_by_grant_id, None);
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 7)?.is_none(),
-            "a terminal grant ends authority for its Heartbeat turn"
-        );
-        let terminal_grant = state_cache(&store)?
-            .get::<ResidentSelfHeartbeatGrant>(&first_grant.grant_id)?
-            .expect("terminal first grant");
-        assert_eq!(terminal_grant.terminal_at_millis, Some(6));
-        assert_eq!(
-            terminal_grant.terminal_status.as_deref(),
-            Some("unfulfilled")
-        );
-        let retry_grant =
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-2", "action-2", 8)?
-                .expect("later Heartbeat turn retry grant");
-        assert_eq!(retry_grant.pressure_id, first_grant.pressure_id);
-        assert_ne!(retry_grant.grant_id, first_grant.grant_id);
-        assert!(retry_grant.grant_id.contains("-attempt-2-"));
-        let projection = resident_self_grant_lifecycle_projection(&store, None, 10)?;
-        assert_eq!(projection.len(), 2);
-        assert_eq!(projection[0].grant_id, retry_grant.grant_id);
-        assert!(projection[0].launchable);
-        assert_eq!(projection[1].grant_id, first_grant.grant_id);
-        assert_eq!(projection[1].terminal_status.as_deref(), Some("unfulfilled"));
-        assert!(!projection[1].launchable);
-        assert_eq!(
-            resident_self_grant_lifecycle_projection(
-                &store,
-                Some(&first_grant.grant_id),
-                1,
-            )?[0],
-            projection[1]
-        );
-
-        let prepared = prepare_resident_self_launch(&store, &policy, 9)?.expect("retry preparation");
-        let retry_process = LaunchedCoordinator {
-            process_id: 45,
-            process_creation_token: 56,
-            process_executable_path: process.process_executable_path.clone(),
-        };
-        claim_resident_self_preparation_as_child(
-            &store,
-            &prepared.preparation_id,
-            &retry_process,
-            10,
-        )?;
-        let retry_lease = acknowledge_resident_self_launch(
-            &store,
-            &prepared.preparation_id,
-            &retry_process,
-            11,
-        )?;
-        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let request = runtime
-            .get::<crate::AdmittedModelDirectionConsiderationRequest>("request-retry-1")?
-            .expect("retry request");
-        let result = crate::AdmittedModelDirectionConsiderationResult {
-            schema_version: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
-                .into(),
-            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
-                &request.request_id,
-                "job-retry-hostile",
-            ),
-            request_id: request.request_id.clone(),
-            runtime_id: request.runtime_id.clone(),
-            thread_id: request.thread_id.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
-            model_admission_receipt_id: request.model_admission_receipt_id.clone(),
-            disposition: crate::AdmittedModelDirectionDisposition::Hold,
-            summary: "Hostile terminal claimant fixture.".into(),
-            option_drafts: vec![],
-            uncertainties: vec![],
-            evidence_refs: vec![request.model_admission_receipt_id.clone()],
-            proposed_at: "2026-07-18T00:00:01Z".into(),
-            contract: crate::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT.into(),
-            proposal_only: true,
-            terminal: true,
-        };
-        admit_test_model_direction_result(
-            &policy.runtime_store,
-            &request,
-            &result,
-            "job-retry-hostile",
-        )?;
-        let mut hostile = crate::runtime_role_worker_result(
-            &policy.runtime_store,
-            "job-retry-hostile",
-        )?
-        .expect("persisted worker result");
-        hostile.item_error = Some("terminal typed output failed validation".into());
-        let mut runtime = crate::runtime_spine_cache(&policy.runtime_store)?;
-        runtime.put("job-retry-hostile", &hostile)?;
-        let mut receipt = coordinator_receipt_for_lease(&retry_lease, &policy.runtime_store);
-        receipt.status = "failed".into();
-        assert_eq!(
-            settle_resident_self_exited_coordinator(
-                &store,
-                &policy.runtime_store,
-                &retry_lease,
-                &receipt,
-                false,
-                false,
-                false,
-                12,
-                policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::Failed
-        );
-        let pressure = state_cache(&store)?
-            .get::<ResidentSelfPressure>("pressure-retry-1")?
-            .expect("terminal attempted pressure");
-        assert_eq!(pressure.status, "consumed");
-        assert_eq!(
-            pressure.consumed_by_grant_id.as_deref(),
-            Some(retry_grant.grant_id.as_str())
-        );
-        assert!(
-            heartbeat_issue_resident_self_grant(&store, "heartbeat-3", "action-3", 13)?.is_none(),
-            "a hostile terminal typed claimant cannot resurrect its request as another grant"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn receipt_free_dead_coordinator_recovery_preserves_exact_lease_then_requeues() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        policy.artifact_root = temp.path().join("artifacts");
-        seed_runtime_identity(&policy.runtime_store, "test-runtime")?;
-        let objective = "Recover a coordinator killed after atomic opening.";
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-dead-coordinator".into(),
-                kind: "operator-objective".into(),
-                provenance_ref: "operator://dead-coordinator-test".into(),
-                objective: objective.into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-dead",
-            "action-dead",
-            2,
-        )?
-        .expect("dead coordinator grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
-            .expect("dead coordinator preparation");
-        let first_artifact_index = prepared
-            .argv
-            .iter()
-            .position(|value| value == "--artifact-dir")
-            .expect("first artifact flag");
-        let first_artifact_dir = PathBuf::from(&prepared.argv[first_artifact_index + 1]);
-        std::fs::create_dir_all(&first_artifact_dir)?;
-        let first_artifact = first_artifact_dir.join("sealed-first-attempt.txt");
-        std::fs::write(&first_artifact, b"first attempt evidence")?;
-        let process = LaunchedCoordinator {
-            process_id: u32::MAX - 1,
-            process_creation_token: 155,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-        let lease = acknowledge_resident_self_launch(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            5,
-        )?;
-        let runtime_session_id =
-            crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?;
-        let runtime_session_objective =
-            format!("Resident coordinator launch {}.", lease.objective_digest);
-        crate::open_coordinator_run(
-            &policy.runtime_store,
-            &runtime_session_id,
-            &lease.turn_id,
-            Some(&lease.launch_digest),
-            &runtime_session_objective,
-            "1970-01-01T00:00:00.005Z",
-        )?;
-        assert!(
-            recover_receipt_free_dead_coordinator_session(
-                &resident_store,
-                &policy.runtime_store,
-                &lease,
-                ChildObservation::Running,
-                6,
-            )
-            .is_err()
-        );
-        let recovery = recover_receipt_free_dead_coordinator_session(
-            &resident_store,
-            &policy.runtime_store,
-            &lease,
-            ChildObservation::Missing,
-            6,
-        )?
-        .expect("opened coordinator death recovery");
-        assert_eq!(
-            load_resident_self_state(&resident_store)?.active_turn,
-            Some(lease.clone())
-        );
-        assert_eq!(
-            recover_receipt_free_dead_coordinator_session(
-                &resident_store,
-                &policy.runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                6,
-            )?,
-            Some(recovery.clone())
-        );
-        let fulfilled_copy = temp.path().join("resident-self-fulfilled-copy.cc");
-        std::fs::copy(&resident_store, &fulfilled_copy)?;
-        let recovered_ack = complete_resident_self_turn_after_death(
-            &fulfilled_copy,
-            &lease,
-            &recovery,
-            7,
-            policy.cooldown_seconds,
-        )?;
-        assert_eq!(recovered_ack.terminal_status, "recovered-fulfilled");
-        assert!(load_resident_self_state(&fulfilled_copy)?.active_turn.is_none());
-        assert!(crate::coordinator_run_receipts(&policy.runtime_store)?.is_empty());
-        cancel_resident_self_turn(
-            &resident_store,
-            &lease,
-            "process-failed",
-            "exact coordinator process died without a run receipt",
-            7,
-        )?;
-        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
-        assert!(pending_resident_self_pressure(&resident_store)?);
-        let retry_grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-retry",
-            "action-retry",
-            8,
-        )?
-        .expect("retry grant");
-        let retry_prepared = prepare_resident_self_launch(&resident_store, &policy, 9)?
-            .expect("retry preparation");
-        let retry_artifact_index = retry_prepared
-            .argv
-            .iter()
-            .position(|value| value == "--artifact-dir")
-            .expect("retry artifact flag");
-        let retry_artifact_dir = PathBuf::from(&retry_prepared.argv[retry_artifact_index + 1]);
-        assert_ne!(retry_artifact_dir, first_artifact_dir);
-        assert_eq!(std::fs::read(&first_artifact)?, b"first attempt evidence");
-        let retry_thread = resident_prepared_launch_thread_id(&retry_prepared)?;
-        assert_eq!(retry_thread, lease.turn_id);
-        assert_ne!(retry_prepared.launch_digest, lease.launch_digest);
-        let retry_session_id = crate::coordinator_run_session_id(
-            &retry_thread,
-            Some(&retry_prepared.launch_digest),
-        )?;
-        assert_ne!(retry_session_id, runtime_session_id);
-        crate::open_coordinator_run(
-            &policy.runtime_store,
-            &retry_session_id,
-            &retry_thread,
-            Some(&retry_prepared.launch_digest),
-            &format!(
-                "Resident coordinator launch {}.",
-                retry_prepared.objective_digest
-            ),
-            "1970-01-01T00:00:00.009Z",
-        )?;
-        assert_eq!(retry_grant.terminal_at_millis, None);
-        assert_eq!(
-            state_cache(&resident_store)?
-                .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-                .expect("terminal original grant")
-                .terminal_status
-                .as_deref(),
-            Some("process-failed")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn receipt_free_death_before_runtime_opening_is_proven_absent_and_requeued() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        policy.artifact_root = temp.path().join("artifacts");
-        seed_runtime_identity(&policy.runtime_store, "test-runtime")?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-pre-open-death".into(),
-                kind: "operator-objective".into(),
-                provenance_ref: "operator://pre-open-death".into(),
-                objective: "Recover death before runtime opening.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-pre-open",
-            "action-pre-open",
-            2,
-        )?
-        .expect("pre-open grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
-            .expect("pre-open preparation");
-        let process = LaunchedCoordinator {
-            process_id: u32::MAX - 2,
-            process_creation_token: 255,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            4,
-        )?;
-        let lease = acknowledge_resident_self_launch(
-            &resident_store,
-            &prepared.preparation_id,
-            &process,
-            5,
-        )?;
-        assert_eq!(
-            recover_receipt_free_dead_coordinator_session(
-                &resident_store,
-                &policy.runtime_store,
-                &lease,
-                ChildObservation::Missing,
-                6,
-            )?,
-            None
-        );
-        cancel_resident_self_turn(
-            &resident_store,
-            &lease,
-            "process-failed",
-            "exact child died before runtime opening",
-            7,
-        )?;
-        assert!(pending_resident_self_pressure(&resident_store)?);
-        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn shutdown_cancellation_requeues_pressure_without_failure_backoff() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-self.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-shutdown-1",
-            &policy.release_runtime_id,
-            "implementation-thread-shutdown",
-        )?;
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-shutdown-1".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref:
-                    "cultcache://admitted-model-direction-consideration/request-shutdown-1".into(),
-                objective: "Resume this exact pressure after graceful restart.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        heartbeat_issue_resident_self_grant(&store, "heartbeat-1", "action-1", 2)?.expect("grant");
-        let prepared = prepare_resident_self_launch(&store, &policy, 3)?.expect("preparation");
-        let process = LaunchedCoordinator {
-            process_id: 44,
-            process_creation_token: 55,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(&store, &prepared.preparation_id, &process, 4)?;
-        let lease =
-            acknowledge_resident_self_launch(&store, &prepared.preparation_id, &process, 5)?;
-        let receipt = coordinator_receipt_for_lease(&lease, &policy.runtime_store);
-        let outcome = settle_resident_self_exited_coordinator(
-            &store,
-            &policy.runtime_store,
-            &lease,
-            &receipt,
-            true,
-            false,
-            false,
-            6,
-            policy.cooldown_seconds,
-        )?;
-        assert_eq!(outcome, ResidentSelfOutcome::Braked);
-        let cache = state_cache(&store)?;
-        let state = cache
-            .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
-            .expect("resident state");
-        assert_eq!(state.consecutive_failures, 0);
-        assert!(state.active_turn.is_none());
-        let pressure = cache
-            .get::<ResidentSelfPressure>("pressure-shutdown-1")?
-            .expect("requeued pressure");
-        assert_eq!(pressure.status, "pending");
-        assert_eq!(pressure.consumed_by_grant_id, None);
-        let acknowledgements = state_cache(&store)?.get_all::<ResidentSelfTerminalAck>()?;
-        assert_eq!(acknowledgements.len(), 1);
-        assert_eq!(acknowledgements[0].terminal_status, "shutdown-cancelled");
-        assert!(
-            settle_resident_self_exited_coordinator(
-                &store,
-                &policy.runtime_store,
-                &lease,
-                &receipt,
-                true,
-                false,
-                false,
-                7,
-                policy.cooldown_seconds,
-            )
-            .is_err()
-        );
-        assert_eq!(
-            state_cache(&store)?
-                .get_all::<ResidentSelfTerminalAck>()?
-                .len(),
-            1
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn autonomous_frontier_pressure_launches_exact_modeling_selection_without_objective()
-    -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("resident-autonomous.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator;
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_proposal_modeling_request(
-            &policy.runtime_store,
-            "selection-1",
-            "proposal-1",
-            &policy.release_runtime_id,
-            "implementation-thread-proposal",
-            "2026-07-18T00:00:00Z",
-        )?;
-        enqueue_resident_self_pressure(
-            &store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-autonomous-modeling-1".into(),
-                kind: "repo-frontier-proposal-modeling".into(),
-                provenance_ref: "cultcache://repo-frontier-proposal-modeling/selection-1".into(),
-                objective: "Launch exact autonomous proposal Modeling review.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        heartbeat_issue_resident_self_grant(&store, "heartbeat-autonomous", "action-1", 2)?
-            .expect("autonomous grant");
-        let prepared = prepare_resident_self_launch(&store, &policy, 3)?
-            .expect("autonomous Modeling preparation");
-        assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
-        assert!(
-            prepared
-                .argv
-                .windows(2)
-                .any(|pair| { pair == ["--proposal-modeling-request-id", "selection-1"] })
-        );
-        assert_eq!(
-            resident_prepared_launch_thread_id(&prepared)?,
-            "implementation-thread-proposal"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn exact_coordinator_receipt_owns_one_internal_continuation_launch() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-continuation.cc");
-        let runtime_store = temp.path().join("runtime-continuation.cc");
-        seed_runtime_identity(&runtime_store, "cognitive-runtime")?;
-        let receipt = crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "receipt-review-modeling".into(),
-            session_id: "coordinator-thread-1-resident-deadbeef".into(),
-            thread_id: "thread-1".into(),
-            mode: "plan".into(),
-            status: "needsReview".into(),
-            final_action: "reviewModelingResult".into(),
-            final_reason: Some("typed Modeling result is ready".into()),
-            step_count: 1,
-            created_at: "2026-08-11T00:00:00Z".into(),
-            model_provider: Some("test".into()),
-            runtime_store: runtime_store.display().to_string(),
-            artifact_refs: Vec::new(),
-            sealed_artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
-            resident_grant_id: Some("prior-grant".into()),
-            resident_launch_digest: Some("prior-launch".into()),
-            resident_policy_digest: Some("prior-policy".into()),
-            resident_argv_digest: Some("prior-argv".into()),
-            resident_objective_digest: Some("prior-objective".into()),
-            resident_release_commit: Some("prior-commit".into()),
-            resident_release_manifest_digest: Some("prior-manifest".into()),
-            resident_executable_digest: Some("prior-executable".into()),
-        };
-        crate::runtime_spine_cache(&runtime_store)?.put(&receipt.receipt_id, &receipt)?;
-        let mut state = ResidentSelfState::default();
-        state.last_coordinator_receipt_id = Some(receipt.receipt_id.clone());
-        let cache = state_cache(&resident_store)?;
-        let (entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
-        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
-
-        assert!(!ingest_resident_self_coordinator_continuation_pressure(
-            &resident_store,
-            &runtime_store,
-            1,
-        )?);
-
-        let job_id = "modeling-terminal-job";
-        let thread_state = epiphany_state_model::EpiphanyThreadState {
-            runtime_links: vec![epiphany_state_model::EpiphanyRuntimeLink {
-                id: "runtime-link-modeling-terminal-job".into(),
-                binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
-                surface: "jobLaunch".into(),
-                role_id: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
-                authority_scope: "modeling".into(),
-                runtime_job_id: job_id.into(),
-                runtime_result_id: Some(format!("result-{job_id}")),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-            }],
-            ..Default::default()
-        };
-        let thread_entry = crate::EpiphanyThreadStateEntry::from_state("thread-1", &thread_state)?;
-        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
-        runtime.put(crate::THREAD_STATE_KEY, &thread_entry)?;
-        runtime.put(job_id, &crate::EpiphanyRuntimeJob {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-            job_id: job_id.into(),
-            session_id: "modeling-terminal-session".into(),
-            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
-            status: crate::EpiphanyRuntimeJobStatus::Completed,
-            created_at: "2026-08-11T00:00:00Z".into(),
-            updated_at: "2026-08-11T00:00:01Z".into(),
-            summary: "Modeling completed.".into(),
-            artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
-        })?;
-        runtime.put(&format!("result-{job_id}"), &crate::EpiphanyRuntimeJobResult {
-            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-            result_id: format!("result-{job_id}"),
-            job_id: job_id.into(),
-            session_id: "modeling-terminal-session".into(),
-            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
-            verdict: "completed".into(),
-            summary: "Modeling completed.".into(),
-            completed_at: "2026-08-11T00:00:01Z".into(),
-            next_safe_move: "Review Modeling.".into(),
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
-            decision_context_id: None,
-        })?;
-        runtime.put(job_id, &role_worker_result(job_id, "modeling"))?;
-
-        let mut stale_receipt = receipt.clone();
-        stale_receipt.receipt_id = "receipt-stale-launch-modeling".into();
-        stale_receipt.status = "planned".into();
-        stale_receipt.final_action = "launchModeling".into();
-        runtime.put(&stale_receipt.receipt_id, &stale_receipt)?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-stale-launch-modeling".into(),
-                kind: RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND.into(),
-                provenance_ref: format!(
-                    "{RESIDENT_SELF_COORDINATOR_CONTINUATION_PROVENANCE_PREFIX}{}",
-                    stale_receipt.receipt_id
-                ),
-                objective: "Stale launch must not outrank terminal Modeling evidence.".into(),
-                created_at_millis: 2,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let stale_grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "stale-schedule",
-            "stale-action",
-            3,
-        )?
-        .expect("stale continuation grant");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator;
-        policy.runtime_store = runtime_store.clone();
-        policy.max_steps = 1;
-        assert!(prepare_resident_self_launch(&resident_store, &policy, 4)?.is_none());
-        let terminal = resident_self_grant_lifecycle_projection(
-            &resident_store,
-            Some(&stale_grant.grant_id),
-            1,
-        )?
-        .pop()
-        .expect("superseded stale continuation");
-        assert_eq!(terminal.terminal_status.as_deref(), Some("superseded"));
-        let stale_ack = pending_resident_self_acks(&resident_store)?
-            .pop()
-            .expect("superseded stale continuation acknowledgement");
-        assert_eq!(stale_ack.coordinator_receipt_id, stale_receipt.receipt_id);
-        heartbeat_consume_resident_self_ack(&resident_store, &stale_ack.ack_id, 5)?;
-
-        assert!(ingest_resident_self_coordinator_continuation_pressure(
-            &resident_store,
-            &runtime_store,
-            6,
-        )?);
-        assert!(!ingest_resident_self_coordinator_continuation_pressure(
-            &resident_store,
-            &runtime_store,
-            7,
-        )?);
-        let pressure = resident_self_pressures(&resident_store)?
-            .into_iter()
-            .next()
-            .expect("one continuation pressure");
-        assert_eq!(
-            pressure.kind,
-            RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
-        );
-        heartbeat_issue_resident_self_grant(&resident_store, "schedule", "action", 8)?
-            .expect("one continuation grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 9)?
-            .expect("continuation preparation");
-        assert_eq!(resident_prepared_launch_thread_id(&prepared)?, "thread-1");
-        assert!(prepared.argv.windows(2).any(|pair| pair == ["--mode", "execute"]));
-        assert!(prepared.argv.iter().any(|arg| arg == "--auto-review"));
-        assert!(prepared
-            .argv
-            .iter()
-            .any(|arg| arg == "--supersede-failed-results"));
-        assert!(prepared.argv.windows(2).any(|pair| {
-            pair == ["--required-action", "reviewModelingResult"]
-        }));
-        assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
-        Ok(())
-    }
-
-    #[test]
-    fn coordinator_receipt_cannot_autonomously_continue_into_hands() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident-hands-refusal.cc");
-        let runtime_store = temp.path().join("runtime-hands-refusal.cc");
-        seed_runtime_identity(&runtime_store, "cognitive-runtime")?;
-        let receipt = crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "receipt-hands-refusal".into(),
-            session_id: "coordinator-thread-hands-resident-deadbeef".into(),
-            thread_id: "thread-hands".into(),
-            mode: "plan".into(),
-            status: "needsReview".into(),
-            final_action: "continueImplementation".into(),
-            final_reason: None,
-            step_count: 1,
-            created_at: "2026-08-11T00:00:00Z".into(),
-            model_provider: Some("test".into()),
-            runtime_store: runtime_store.display().to_string(),
-            artifact_refs: Vec::new(),
-            sealed_artifact_refs: Vec::new(),
-            metadata: BTreeMap::new(),
-            resident_grant_id: Some("grant-hands".into()),
-            resident_launch_digest: Some("launch-hands".into()),
-            resident_policy_digest: Some("policy-hands".into()),
-            resident_argv_digest: Some("argv-hands".into()),
-            resident_objective_digest: Some("objective-hands".into()),
-            resident_release_commit: Some("commit-hands".into()),
-            resident_release_manifest_digest: Some("manifest-hands".into()),
-            resident_executable_digest: Some("executable-hands".into()),
-        };
-        crate::runtime_spine_cache(&runtime_store)?.put(&receipt.receipt_id, &receipt)?;
-        let mut state = ResidentSelfState::default();
-        state.last_coordinator_receipt_id = Some(receipt.receipt_id);
-        let cache = state_cache(&resident_store)?;
-        let (entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
-        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
-        assert!(!ingest_resident_self_coordinator_continuation_pressure(
-            &resident_store,
-            &runtime_store,
-            2,
-        )?);
-        assert!(resident_self_pressures(&resident_store)?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn ingestion_exposes_only_the_runtime_owned_proposal_modeling_queue_head() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident.cc");
-        let runtime_store = temp.path().join("runtime.cc");
-        let persona_store = temp.path().join("persona.cc");
-        crate::initialize_runtime_spine(
-            &runtime_store,
-            crate::RuntimeSpineInitOptions {
-                runtime_id: "test-runtime".into(),
-                display_name: "Test runtime".into(),
-                created_at: "2026-07-18T00:00:00Z".into(),
-            },
-        )?;
-        seed_proposal_modeling_request(
-            &runtime_store,
-            "selection-1",
-            "proposal-1",
-            "test-runtime",
-            "implementation-thread-proposal",
-            "2026-07-18T00:00:01Z",
-        )?;
-        seed_proposal_modeling_request(
-            &runtime_store,
-            "selection-2",
-            "proposal-2",
-            "test-runtime",
-            "implementation-thread-proposal",
-            "2026-07-18T00:00:02Z",
-        )?;
-
-        assert_eq!(
-            ingest_resident_self_domain_pressure(
-                &resident_store,
-                &runtime_store,
-                &persona_store,
-                "test-runtime",
-                "GameCult/Epiphany",
-                absolute("workspace").to_str().expect("UTF-8 workspace"),
-                1,
-            )?,
-            1
-        );
-        let pressures = state_cache(&resident_store)?.get_all::<ResidentSelfPressure>()?;
-        assert_eq!(pressures.len(), 1);
-        assert_eq!(
-            pressures[0].provenance_ref,
-            "cultcache://repo-frontier-proposal-modeling/selection-1"
-        );
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "queue-heartbeat",
-            "queue-action",
-            2,
-        )?
-        .expect("queue-head grant");
-        assert_eq!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )?,
-            ResidentSelfGrantFulfillment::Pending
-        );
-
-        let runtime_cache = crate::runtime_spine_cache(&runtime_store)?;
-        let launch = crate::RepoFrontierProposalModelingLaunchBinding {
-            schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION
-                .into(),
-            binding_record_id: "selection-1-launch".into(),
-            proposal_modeling_request_id: "selection-1".into(),
-            proposal_id: "proposal-1".into(),
-            proposal_payload_sha256: "sha256:proposal-1".into(),
-            job_id: "modeling-job-1".into(),
-            binding_id: "modeling-checkpoint-worker".into(),
-            runtime_id: "test-runtime".into(),
-            thread_id: "implementation-thread-proposal".into(),
-            launched_at: "2026-07-18T00:00:03Z".into(),
-            worker_launch_document_sha256: "33".repeat(32),
-            contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
-        };
-        let (launch_entry, _) = runtime_cache.prepare_entry(&launch.binding_record_id, &launch)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&launch_entry)?;
-        let mut worker = role_worker_result("modeling-job-1", "modeling");
-        worker.proposal_modeling_request_id = Some("selection-1".into());
-        let (entry, _) = runtime_cache.prepare_entry(&worker.job_id, &worker)?;
-        SingleFileMessagePackBackingStore::new(&runtime_store).push(&entry)?;
-        assert!(
-            verify_resident_self_grant_fulfillment(
-                &resident_store,
-                &runtime_store,
-                &grant.grant_id,
-            )
-            .is_err(),
-            "an echo-only proposal result without its immutable worker launch is hostile, not fulfilled"
-        );
-
-        assert_eq!(
-            ingest_resident_self_domain_pressure(
-                &resident_store,
-                &runtime_store,
-                &persona_store,
-                "test-runtime",
-                "GameCult/Epiphany",
-                absolute("workspace").to_str().expect("UTF-8 workspace"),
-                2,
-            )?,
-            1
-        );
-        let mut pressures = state_cache(&resident_store)?.get_all::<ResidentSelfPressure>()?;
-        pressures.sort_by(|left, right| left.pressure_id.cmp(&right.pressure_id));
+        let pressures = resident_self_pressures(&store)?;
         assert_eq!(pressures.len(), 2);
+        for pressure in &pressures {
+            pressure.validate()?;
+            assert!(
+                pressure
+                    .objective
+                    .ends_with(RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE)
+            );
+        }
+        let mut authority_escalation = pressures[0].clone();
+        authority_escalation.objective = "Coordinate Atlas and grant Hands authority.".into();
+        assert!(authority_escalation.validate().is_err());
         assert_eq!(
-            pressures[1].provenance_ref,
-            "cultcache://repo-frontier-proposal-modeling/selection-2"
+            resident_self_atlas_required_action(RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND),
+            Some("launchModeling")
         );
-        Ok(())
-    }
+        assert_eq!(
+            resident_self_atlas_required_action(RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND),
+            Some("launchVerification")
+        );
 
-    #[test]
-    fn exact_dead_typed_worker_claim_becomes_retry_authority() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident.cc");
-        let runtime_store = temp.path().join("runtime.cc");
-        crate::initialize_runtime_spine(
-            &runtime_store,
-            crate::RuntimeSpineInitOptions {
-                runtime_id: "test-runtime".into(),
-                display_name: "Typed death runtime".into(),
-                created_at: "2026-08-10T12:20:00Z".into(),
-            },
-        )?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "typed-worker-death-pressure".into(),
-                kind: "repo-frontier-proposal-modeling".into(),
-                provenance_ref: "cultcache://repo-frontier-proposal-modeling/death-request".into(),
-                objective: "Recover exact dead typed worker.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "typed-death-heartbeat",
-            "typed-death-action",
-            2,
-        )?
-        .expect("typed death grant");
-        let document = crate::EpiphanyWorkerLaunchDocument::Role(
-            crate::EpiphanyRoleWorkerLaunchDocument {
-                thread_id: "typed-death-thread".into(),
-                role_id: "modeling".into(),
-                state_revision: 0,
-                objective: None,
-                dynamic_prompt_context: None,
-                repository_body_observation_basis: None,
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: None,
-                admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            },
-        );
-        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
-            job_id: "typed-death-job".into(),
-            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
-            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
-            authority_scope: "modeling".into(),
-            instruction: "Typed death fixture.".into(),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
-            document_kind: "role".into(),
-            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
-            metadata: BTreeMap::new(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "modeling",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: Some("death-request".into()),
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
-        };
-        let mut runtime = crate::runtime_spine_cache(&runtime_store)?;
-        runtime.put(&launch.job_id, &launch)?;
-        let missing_process = crate::ProcessInstanceIdentity {
-            process_id: u32::MAX - 2,
-            creation_token: 91,
-            created_at_rfc3339: None,
-            executable_path: PathBuf::from("/release/epiphany-model-runtime"),
-        };
-        crate::claim_runtime_worker_process(
-            &runtime_store,
-            &launch.job_id,
-            &missing_process,
-            &"b".repeat(64),
-            "2026-08-10T12:20:01Z",
-        )?;
-        assert!(resident_self_typed_attempt_exists(
-            &resident_store,
-            &runtime_store,
-            &grant.grant_id,
-        )?);
-        assert!(recover_dead_resident_typed_worker(
-            &resident_store,
-            &runtime_store,
-            &grant.grant_id,
-            1_786_360_000_000,
-        )?);
-        assert!(!resident_self_typed_attempt_exists(
-            &resident_store,
-            &runtime_store,
-            &grant.grant_id,
-        )?);
-        assert_eq!(
-            crate::runtime_worker_process_claim(&runtime_store, &launch.job_id)?
-                .expect("terminal death claim")
-                .status,
-            "terminal-death"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn exact_dead_typed_worker_settles_active_lease_by_canonical_requeue() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident_store = temp.path().join("resident.cc");
-        let coordinator = temp.path().join("epiphany-mvp-coordinator");
-        std::fs::write(&coordinator, b"witnessed executable")?;
-        let mut policy = policy();
-        policy.coordinator_bin = coordinator.clone();
-        policy.runtime_store = temp.path().join("runtime.cc");
-        seed_model_direction_request(
-            &policy.runtime_store,
-            "request-worker-death-settlement",
-            "cognitive-runtime",
-            "thread-worker-death-settlement",
-        )?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "pressure-worker-death-settlement".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref: "cultcache://admitted-model-direction-consideration/request-worker-death-settlement".into(),
-                objective: "Prove exact worker death settles the resident lease.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let grant = heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "heartbeat-worker-death",
-            "action-worker-death",
-            2,
-        )?
-        .expect("worker death grant");
-        let prepared = prepare_resident_self_launch(&resident_store, &policy, 3)?
-            .expect("worker death preparation");
-        let coordinator_process = LaunchedCoordinator {
-            process_id: 44,
-            process_creation_token: 55,
-            process_executable_path: coordinator,
-        };
-        claim_resident_self_preparation_as_child(
-            &resident_store,
-            &prepared.preparation_id,
-            &coordinator_process,
-            4,
-        )?;
-        let lease = acknowledge_resident_self_launch(
-            &resident_store,
-            &prepared.preparation_id,
-            &coordinator_process,
-            5,
-        )?;
-        let document = crate::EpiphanyWorkerLaunchDocument::Role(
-            crate::EpiphanyRoleWorkerLaunchDocument {
-                thread_id: "thread-worker-death-settlement".into(),
-                role_id: "imagination".into(),
-                state_revision: 0,
-                objective: None,
-                dynamic_prompt_context: None,
-                repository_body_observation_basis: None,
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: None,
-                admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            },
-        );
-        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
-            job_id: "worker-death-settlement-job".into(),
-            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
-            authority_scope: "imagination".into(),
-            instruction: "Typed worker death settlement fixture.".into(),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
-            document_kind: "role".into(),
-            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
-            metadata: BTreeMap::new(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "imagination",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: Some(
-                "request-worker-death-settlement".into(),
-            ),
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
-        };
-        crate::runtime_spine_cache(&policy.runtime_store)?.put(&launch.job_id, &launch)?;
-        let missing_worker = crate::ProcessInstanceIdentity {
-            process_id: u32::MAX - 3,
-            creation_token: 92,
-            created_at_rfc3339: None,
-            executable_path: PathBuf::from("/release/epiphany-imagination-runtime"),
-        };
-        crate::claim_runtime_worker_process(
-            &policy.runtime_store,
-            &launch.job_id,
-            &missing_worker,
-            &"c".repeat(64),
-            "2026-08-10T12:30:01Z",
-        )?;
-        let receipt = coordinator_receipt_for_lease(&lease, &policy.runtime_store);
-        assert_eq!(
-            settle_resident_self_exited_coordinator(
-                &resident_store,
-                &policy.runtime_store,
-                &lease,
-                &receipt,
-                false,
-                false,
-                false,
-                1_786_360_600_000,
-                policy.cooldown_seconds,
-            )?,
-            ResidentSelfOutcome::Failed
-        );
-        assert!(load_resident_self_state(&resident_store)?.active_turn.is_none());
-        let terminal_grant = state_cache(&resident_store)?
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
-            .expect("terminal grant");
-        assert_eq!(terminal_grant.terminal_status.as_deref(), Some("process-failed"));
-        let pressure = state_cache(&resident_store)?
-            .get::<ResidentSelfPressure>("pressure-worker-death-settlement")?
-            .expect("requeued pressure");
-        assert_eq!(pressure.status, "pending");
-        assert_eq!(pressure.consumed_by_grant_id, None);
-        assert_eq!(
-            crate::runtime_worker_process_claim(&policy.runtime_store, &launch.job_id)?
-                .expect("terminal worker death claim")
-                .status,
-            "terminal-death"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn standard_heartbeat_owns_self_grant_selection() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let heartbeat_store = temp.path().join("heartbeat.cc");
-        let resident_store = temp.path().join("resident.cc");
-        let artifacts = temp.path().join("artifacts");
-        crate::initialize_heartbeat_store(&heartbeat_store, 1.0)?;
-        enqueue_resident_self_pressure(
-            &resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "body-map-pressure-1".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref: "cultcache://repo-model/1".into(),
-                objective: "Launch exact admitted Modeling-map direction consideration.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let result = crate::tick_heartbeat_store(
-            &heartbeat_store,
-            &artifacts,
-            crate::HeartbeatTickOptions {
-                target_heartbeat_rate: 1.0,
-                coordinator_action: None,
-                target_role: None,
-                urgency: 0.0,
-                schedule_id: "heartbeat-self-1".into(),
-                source_scene_ref: "test/resident-self".into(),
-                defer_completion: false,
-                agent_store: None,
-                resident_self_store: Some(resident_store.clone()),
-            },
-        )?;
-        assert_eq!(result["event"]["selectedRole"], "coordinator");
-        assert_eq!(result["event"]["turnStatus"], "running");
-        let grant = pending_resident_self_grant(&resident_store)?.expect("heartbeat grant");
-        assert_eq!(grant.heartbeat_schedule_id, "heartbeat-self-1");
+        let grant = heartbeat_issue_resident_self_grant(&store, "atlas", "wake", 102)?
+            .expect("oldest Atlas pressure should receive one resident grant");
         assert_eq!(
             grant.pressure_kind,
-            "admitted-model-direction-consideration"
-        );
-        let ack = ResidentSelfTerminalAck {
-            schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
-            ack_id: "ack-heartbeat-self-1".into(),
-            grant_id: grant.grant_id,
-            heartbeat_schedule_id: grant.heartbeat_schedule_id,
-            heartbeat_action_id: grant.heartbeat_action_id,
-            launch_digest: "sha256:launch".into(),
-            coordinator_receipt_id: "receipt-1".into(),
-            terminal_status: "planned".into(),
-            completed_at_millis: 2,
-            consumed_by_heartbeat_at_millis: None,
-            private_state_exposed: false,
-        };
-        let cache = state_cache(&resident_store)?;
-        let (entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
-        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
-        let ack_pulse = crate::pulse_resident_self_heartbeat(
-            &heartbeat_store,
-            &resident_store,
-            &artifacts,
-            true,
-            "heartbeat-after-ack",
-            "test/resident-self",
-            None,
-        )?;
-        assert_eq!(ack_pulse.status, "braked-after-ack-reconciliation");
-        assert_eq!(
-            ack_pulse.acknowledged_terminal_id.as_deref(),
-            Some(ack.ack_id.as_str())
-        );
-        let heartbeat = crate::load_heartbeat_state_entry(&heartbeat_store)?.expect("heartbeat");
-        assert!(
-            heartbeat
-                .participants
-                .iter()
-                .find(|p| p.role_id == "coordinator")
-                .is_some_and(|p| p.pending_turn.is_none())
+            RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND
         );
         assert!(
-            state_cache(&resident_store)?
-                .get::<ResidentSelfTerminalAck>(&ack.ack_id)?
-                .is_some_and(|ack| ack.consumed_by_heartbeat_at_millis.is_some())
+            grant
+                .objective
+                .ends_with(RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE)
         );
-        let mut crash_gap_ack = ack.clone();
-        crash_gap_ack.consumed_by_heartbeat_at_millis = None;
-        let cache = state_cache(&resident_store)?;
-        let (entry, _) = cache.prepare_entry(&crash_gap_ack.ack_id, &crash_gap_ack)?;
-        SingleFileMessagePackBackingStore::new(&resident_store).push(&entry)?;
-        assert_eq!(
-            crate::reconcile_resident_self_heartbeat_ack(&heartbeat_store, &resident_store)?,
-            Some(crash_gap_ack.ack_id.clone())
-        );
-        assert!(
-            state_cache(&resident_store)?
-                .get::<ResidentSelfTerminalAck>(&crash_gap_ack.ack_id)?
-                .is_some_and(|ack| ack.consumed_by_heartbeat_at_millis.is_some())
-        );
+        let envelopes = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(!envelopes.iter().any(|entry| {
+            entry.r#type == <crate::RepoFrontierHandsAuthority as DatabaseEntry>::TYPE
+        }));
+        std::fs::remove_file(store)?;
         Ok(())
     }
 
     #[test]
-    fn heartbeat_daemon_retains_pressure_under_brake_then_grants_once() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let heartbeat = temp.path().join("heartbeat.cc");
-        let resident = temp.path().join("resident.cc");
-        crate::initialize_heartbeat_store(&heartbeat, 1.0)?;
-        enqueue_resident_self_pressure(
-            &resident,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "body-pressure-braked".into(),
-                kind: "admitted-model-direction-consideration".into(),
-                provenance_ref: "cultcache://admitted-model-direction-consideration/request-braked"
-                    .into(),
-                objective: "Launch exact typed model direction request.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
+    fn atlas_pressure_cannot_wake_an_active_or_prepared_coordinator() -> Result<()> {
+        let active_store = test_store("active");
+        let active_id = uuid::Uuid::new_v4();
+        let active_grant = atlas_grant(crate::AtlasImpactLane::Modeling, active_id);
+        let active_lease = atlas_lease(&active_grant);
+        insert_test_entry(
+            &active_store,
+            RESIDENT_SELF_STATE_KEY,
+            &ResidentSelfState {
+                active_turn: Some(active_lease),
+                ..Default::default()
             },
         )?;
-        let braked = crate::pulse_resident_self_heartbeat(
-            &heartbeat,
-            &resident,
-            temp.path(),
-            true,
-            "pulse-1",
-            "test",
-            None,
+        enqueue_resident_self_atlas_impact_pressure(
+            &active_store,
+            &atlas_decision(crate::AtlasImpactLane::Modeling, active_id),
+            100,
         )?;
-        assert_eq!(braked.status, "braked-after-ack-reconciliation");
-        assert!(pending_resident_self_pressure(&resident)?);
-        assert!(pending_resident_self_grant(&resident)?.is_none());
-        let granted = crate::pulse_resident_self_heartbeat(
-            &heartbeat,
-            &resident,
-            temp.path(),
-            false,
-            "pulse-2",
-            "test",
-            None,
-        )?;
-        assert_eq!(granted.status, "granted");
-        let exact = pending_resident_self_grant(&resident)?
-            .expect("one grant")
-            .grant_id;
-        let repeat = crate::pulse_resident_self_heartbeat(
-            &heartbeat,
-            &resident,
-            temp.path(),
-            false,
-            "pulse-3",
-            "test",
-            None,
-        )?;
-        assert_eq!(repeat.status, "active-coordinator-turn");
-        assert_eq!(
-            pending_resident_self_grant(&resident)?
-                .expect("same grant")
-                .grant_id,
-            exact
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn persona_feedback_remains_persisted_pressure_and_never_becomes_a_grant_objective()
-    -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let resident = temp.path().join("resident.cc");
-        enqueue_resident_self_pressure(
-            &resident,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "persona-feedback-admission-1".into(),
-                kind: "persona-feedback".into(),
-                provenance_ref: "cultmesh://bifrost/persona-feedback-admission/admission-1".into(),
-                objective: "Untrusted social prose must not become a coordinator objective.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        assert!(!pending_resident_self_pressure(&resident)?);
-        assert!(heartbeat_issue_resident_self_grant(&resident, "schedule", "action", 2)?.is_none());
-        let pressure = resident_self_pressures(&resident)?;
-        assert_eq!(pressure.len(), 1);
-        assert_eq!(pressure[0].status, "pending");
-        assert_eq!(pressure[0].consumed_by_grant_id, None);
-        Ok(())
-    }
-
-    #[test]
-    fn heartbeat_restart_recovers_committed_turn_to_one_grant() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let heartbeat = temp.path().join("heartbeat.cc");
-        let resident = temp.path().join("resident.cc");
-        crate::initialize_heartbeat_store(&heartbeat, 1.0)?;
-        let mut state = crate::load_heartbeat_state_entry(&heartbeat)?.expect("heartbeat");
-        let coordinator = state
-            .participants
-            .iter_mut()
-            .find(|participant| participant.role_id == "coordinator")
-            .expect("coordinator");
-        coordinator.pending_turn = Some(crate::HeartbeatPendingTurn {
-            status: "running".into(),
-            schedule_id: "committed-before-crash".into(),
-            action_id: "self-action".into(),
-            ..Default::default()
-        });
-        crate::write_heartbeat_state_entry(&heartbeat, &state)?;
-        enqueue_resident_self_pressure(
-            &resident,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "restart-pressure".into(),
-                kind: "imagination-proposal".into(),
-                provenance_ref: "cultmesh://imagination/1".into(),
-                objective: "Review proposal.".into(),
-                created_at_millis: 1,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?;
-        let recovered = crate::pulse_resident_self_heartbeat(
-            &heartbeat,
-            &resident,
-            temp.path(),
-            false,
-            "new-pulse",
-            "test",
-            None,
-        )?;
-        assert_eq!(recovered.status, "recovered-committed-grant");
-        let grant = pending_resident_self_grant(&resident)?.expect("recovered grant");
-        assert_eq!(grant.heartbeat_schedule_id, "committed-before-crash");
         assert!(
-            crate::pulse_resident_self_heartbeat(
-                &heartbeat,
-                &resident,
-                temp.path(),
-                false,
-                "again",
-                "test",
-                None
-            )?
-            .grant_id
-            .is_none()
+            heartbeat_issue_resident_self_grant(&active_store, "atlas", "active", 101)?.is_none()
         );
+
+        let prepared_store = test_store("prepared");
+        let prepared_id = uuid::Uuid::new_v4();
+        let prepared_grant = atlas_grant(crate::AtlasImpactLane::Soul, prepared_id);
+        insert_test_entry(
+            &prepared_store,
+            RESIDENT_SELF_STATE_KEY,
+            &ResidentSelfState {
+                prepared_launch: Some(ResidentSelfPreparedLaunch {
+                    preparation_id: "atlas-test-prepared".into(),
+                    prepared_at_millis: 100,
+                    grant: prepared_grant,
+                    argv: vec!["--required-action".into(), "launchVerification".into()],
+                    launch_digest: "sha256:atlas-test-launch".into(),
+                    policy_digest: "sha256:atlas-test-policy".into(),
+                    argv_digest: "sha256:atlas-test-argv".into(),
+                    objective_digest: "sha256:atlas-test-objective".into(),
+                    release_commit: "atlas-test-release".into(),
+                    release_manifest_digest: "sha256:atlas-test-manifest".into(),
+                    coordinator_executable_digest: "sha256:atlas-test-executable".into(),
+                }),
+                ..Default::default()
+            },
+        )?;
+        enqueue_resident_self_atlas_impact_pressure(
+            &prepared_store,
+            &atlas_decision(crate::AtlasImpactLane::Soul, prepared_id),
+            100,
+        )?;
+        assert!(
+            heartbeat_issue_resident_self_grant(&prepared_store, "atlas", "prepared", 101)?
+                .is_none()
+        );
+        assert!(pending_resident_self_pressure(&active_store)?);
+        assert!(pending_resident_self_pressure(&prepared_store)?);
+        std::fs::remove_file(active_store)?;
+        std::fs::remove_file(prepared_store)?;
+        Ok(())
+    }
+
+    #[test]
+    fn atlas_lane_cooldown_is_anchored_to_turn_completion() -> Result<()> {
+        let store = test_store("cooldown");
+        let proposal_id = uuid::Uuid::new_v4();
+        let grant = atlas_grant(crate::AtlasImpactLane::Modeling, proposal_id);
+        let lease = atlas_lease(&grant);
+        insert_test_entry(&store, &grant.grant_id, &grant)?;
+        insert_test_entry(
+            &store,
+            RESIDENT_SELF_STATE_KEY,
+            &ResidentSelfState {
+                active_turn: Some(lease.clone()),
+                next_eligible_at_millis: 0,
+                ..Default::default()
+            },
+        )?;
+
+        complete_resident_self_turn_with_terminal(
+            &store,
+            &lease,
+            "atlas-test-terminal",
+            "completed",
+            5_000,
+            7,
+            false,
+        )?;
+        let state = load_resident_self_state(&store)?;
+        assert!(state.active_turn.is_none());
+        assert_eq!(state.next_eligible_at_millis, 12_000);
+        let grant = state_cache(&store)?
+            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .expect("completed Atlas grant");
+        assert_eq!(grant.terminal_at_millis, Some(5_000));
+        std::fs::remove_file(store)?;
         Ok(())
     }
 }

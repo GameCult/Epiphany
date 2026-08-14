@@ -1,5 +1,12 @@
 # Memory Graph Semantic Projection Authority Map
 
+> Superseded for RepoModel authority on 2026-08-14. Keyed
+> `EpiphanyRepoModelView` documents now own the local repository model; the
+> remaining `EpiphanyMemoryGraphSnapshot` is a nonpersisted query/semantic
+> projection only. The federated cross-repository path is documented in
+> `notes/model-atlas-vertical-slice.md`. Nothing in this historical map may be
+> used to restore an aggregate RepoModel writer or admission path.
+
 ## Objective
 
 Give every Epiphany swarm persistent semantic recall over both its Mind and its
@@ -11,9 +18,9 @@ that ranks canonical document identities.
 
 ## Current Mechanism
 
-- The runtime-spine `EpiphanyMemoryGraphEntry` is the admitted RepoModel. Its
-  revision and hash bind Modeling-owned architecture, dataflow, summaries, and
-  frontier.
+- Keyed RepoModel documents admitted by local Mind own architecture, dataflow,
+  summaries, and frontier. `EpiphanyMemoryGraphSnapshot` is derived only for
+  query and semantic projection and has no revision/hash admission authority.
 - Reviewed `EpiphanyAgentMemoryEntry` documents own lane and Persona memory.
   `memory_graph_from_agent_memories` derives their typed Mind graph projection.
 - `plan_memory_graph_context_cut` resolves full typed nodes, edges, summaries,
@@ -29,7 +36,7 @@ that ranks canonical document identities.
 ## Owner
 
 - Mind claims: their admitted typed CultCache documents.
-- Modeling claims: the current runtime-spine RepoModel.
+- Modeling claims: the current validated keyed `EpiphanyRepoModelView`.
 - Projection synchronization and semantic candidate ranking: one shared
   `memory_graph::semantic_projection` organ.
 - Qdrant and Ollama: xenos transport/cache boundaries only.

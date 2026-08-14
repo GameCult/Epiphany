@@ -38,9 +38,9 @@ use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
-use epiphany_core::runtime_repo_frontier_research_lifecycle;
 use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_repo_frontier_research_lifecycle;
 use epiphany_self_policy::crrc_scene_action_to_coordinator_scene_action;
 use epiphany_self_policy::derive_coordinator_finding_signals;
 use epiphany_self_policy::derive_coordinator_status;
@@ -315,17 +315,22 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         epiphany_core::EpiphanyPressureLevel::High => EpiphanyReorientPressureLevel::High,
         epiphany_core::EpiphanyPressureLevel::Critical => EpiphanyReorientPressureLevel::Critical,
     };
-    let reorient_checkpoint = match state_ref.and_then(|state| state.investigation_checkpoint.clone()) {
+    let reorient_checkpoint = match state_ref
+        .and_then(|state| state.investigation_checkpoint.clone())
+    {
         Some(checkpoint) => Some(checkpoint),
         None => match epiphany_core::runtime_current_repo_model(&runtime_store_path)? {
             None => None,
             Some(_) => {
-                let projection = epiphany_core::runtime_modeling_semantic_projection_input(&runtime_store_path)
-                    .context("failed to validate current RepoModel continuity projection")?;
-                Some(epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
-                    projection.snapshot(),
-                    &projection.obligation().obligation_id,
-                ))
+                let projection =
+                    epiphany_core::runtime_modeling_semantic_projection_input(&runtime_store_path)
+                        .context("failed to validate current RepoModel continuity projection")?;
+                Some(
+                    epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
+                        projection.snapshot(),
+                        &projection.obligation().obligation_id,
+                    ),
+                )
             }
         },
     };
@@ -485,7 +490,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         &runtime_store_path,
     )
     .context("failed to derive Imagination frontier eligibility from runtime-spine state")?;
-    let imagination_frontier_ready = frontier_planning_eligibility.current_admission_count == 1
+    let imagination_frontier_ready = frontier_planning_eligibility.current_model_count == 1
         && frontier_planning_eligibility
             .candidates
             .iter()

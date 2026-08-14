@@ -61,16 +61,14 @@ pub fn frontier_plan_mind_request_id(
 
 pub fn admitted_model_direction_request_id(
     runtime_id: &str,
-    model_hash: &str,
-    admission_receipt_id: &str,
+    model_projection_digest: &str,
     previous_terminal_result_id: Option<&str>,
 ) -> String {
     digest_id(
         "admitted-model-direction-consideration",
         &[
             runtime_id,
-            model_hash,
-            admission_receipt_id,
+            model_projection_digest,
             previous_terminal_result_id.unwrap_or(""),
         ],
     )

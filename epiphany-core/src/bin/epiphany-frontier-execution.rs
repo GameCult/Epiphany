@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use epiphany_core::{
-    RepoFrontierExecutionAmendment, RepoFrontierRoute, amend_repo_frontier_execution,
-    runtime_repo_frontier_plan_decision, runtime_repo_model_admission_receipt,
-    runtime_repo_model_admission_review, runtime_spine_cache,
+    RepoFrontierExecutionAmendment, RepoFrontierPlanDecisionReceipt, RepoFrontierRoute,
+    amend_repo_frontier_execution, assemble_repo_model_view, runtime_spine_cache,
+    validate_frontier_plan_decision_chain,
 };
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, env, path::PathBuf};
@@ -45,31 +45,30 @@ fn main() -> Result<()> {
             .ok_or_else(|| anyhow!("route {route_id} does not exist; available: {available}"))?;
         let plan = route
             .adopted_plan
+            .as_ref()
             .ok_or_else(|| anyhow!("route {route_id} has no adopted plan"))?;
-        let admission = runtime_repo_model_admission_receipt(&store, &route.admission_receipt_id)?
-            .ok_or_else(|| anyhow!("route {route_id} admission receipt is absent"))?;
-        let review = runtime_repo_model_admission_review(&store, &admission.review_id)?
-            .ok_or_else(|| anyhow!("route {route_id} admission review is absent"))?;
-        let plan_decision = if admission.frontier_plan_decision_id.is_empty() {
-            None
-        } else {
-            runtime_repo_frontier_plan_decision(&store, &admission.frontier_plan_decision_id)?
-        };
+        let current_model = assemble_repo_model_view(&store)?;
+        let mut plan_decisions = cache
+            .get_all::<RepoFrontierPlanDecisionReceipt>()?
+            .into_iter()
+            .filter(|decision| decision.planning_request_id == plan.planning_request_id)
+            .collect::<Vec<_>>();
+        if plan_decisions.len() != 1 {
+            return Err(anyhow!(
+                "route {route_id} requires exactly one typed plan decision; found {}",
+                plan_decisions.len()
+            ));
+        }
+        let plan_decision = plan_decisions.pop().expect("one decision checked above");
+        validate_frontier_plan_decision_chain(&plan_decision, &route, &current_model)
+            .map_err(anyhow::Error::msg)?;
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
                 "routeId": route.route_id,
-                "modelRevision": route.model_revision,
-                "modelHash": route.model_hash,
-                "admissionReceiptId": route.admission_receipt_id,
-                "admissionResultId": admission.result_id,
-                "admissionReviewId": admission.review_id,
-                "admissionSource": review.admission_source,
-                "admissionPreviousRevision": admission.previous_revision,
-                "admissionPreviousHash": admission.previous_hash,
-                "admissionAdmittedRevision": admission.admitted_revision,
-                "admissionAdmittedHash": admission.admitted_hash,
-                "frontierPlanDecisionId": admission.frontier_plan_decision_id,
+                "modelProjectionDigest": route.model_projection_digest,
+                "modelSourceDocuments": route.model_source_documents,
+                "frontierPlanDecisionId": plan_decision.decision_id,
                 "frontierPlanDecision": plan_decision,
                 "frontierItemId": route.frontier_item_id,
                 "frontierItemHash": route.frontier_item_hash,

@@ -978,32 +978,33 @@ fn raw_manifest_entries(repo: &Path, index: &[u8]) -> Result<Vec<RepositoryBodyM
     let mut entries = std::thread::scope(|scope| -> Result<Vec<_>> {
         let mut workers = Vec::new();
         for chunk in records.chunks(chunk_size.max(1)) {
-            workers.push(scope.spawn(move || -> Result<Vec<RepositoryBodyManifestEntry>> {
-                let mut local = Vec::with_capacity(chunk.len());
-                for record in chunk {
-                    let path_buf = safe_worktree_path(repo, &record.path)?;
-                    let entry = match record.mode.as_str() {
-                        "100644" | "100755" => {
-                            raw_regular_entry(&path_buf, &record.path, &record.mode)?
-                        }
-                        "120000" => raw_symlink_entry(&path_buf, &record.path, &record.mode)?,
-                        "160000" => RepositoryBodyManifestEntry {
-                            path: record.path.clone(),
-                            git_mode: record.mode.clone(),
-                            kind: "gitlink_nonrecursive".into(),
-                            raw_byte_length: 0,
-                            raw_sha256: String::new(),
-                            gitlink_oid: Some(record.oid.clone()),
-                        },
-                        mode => bail!(
-                            "unsupported Git index mode {mode:?} at {:?}",
-                            record.path
-                        ),
-                    };
-                    local.push(entry);
-                }
-                Ok(local)
-            }));
+            workers.push(
+                scope.spawn(move || -> Result<Vec<RepositoryBodyManifestEntry>> {
+                    let mut local = Vec::with_capacity(chunk.len());
+                    for record in chunk {
+                        let path_buf = safe_worktree_path(repo, &record.path)?;
+                        let entry = match record.mode.as_str() {
+                            "100644" | "100755" => {
+                                raw_regular_entry(&path_buf, &record.path, &record.mode)?
+                            }
+                            "120000" => raw_symlink_entry(&path_buf, &record.path, &record.mode)?,
+                            "160000" => RepositoryBodyManifestEntry {
+                                path: record.path.clone(),
+                                git_mode: record.mode.clone(),
+                                kind: "gitlink_nonrecursive".into(),
+                                raw_byte_length: 0,
+                                raw_sha256: String::new(),
+                                gitlink_oid: Some(record.oid.clone()),
+                            },
+                            mode => {
+                                bail!("unsupported Git index mode {mode:?} at {:?}", record.path)
+                            }
+                        };
+                        local.push(entry);
+                    }
+                    Ok(local)
+                }),
+            );
         }
         let mut joined = Vec::with_capacity(records.len());
         for worker in workers {

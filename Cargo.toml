@@ -49,12 +49,13 @@ rmp-serde = "1"
 rmcp = { version = "2.2.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = { version = "1", features = ["serde"] }
 sha1 = "0.10.6"
 sha2 = "0.10"
 tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "rt-multi-thread", "time"] }
 toml = "0.9"
 tracing = "0.1.44"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["serde", "v4"] }
 zeroize = "1"
 
 [features]
@@ -87,6 +88,18 @@ tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev 
 [[bin]]
 name = "epiphany-daemon-supervisor"
 path = "epiphany-core/src/bin/epiphany-daemon-supervisor.rs"
+
+[[bin]]
+name = "epiphany-atlas-publisher"
+path = "epiphany-core/src/bin/epiphany-atlas-publisher.rs"
+
+[[bin]]
+name = "epiphany-model-entanglement-projector"
+path = "epiphany-core/src/bin/epiphany-model-entanglement-projector.rs"
+
+[[bin]]
+name = "epiphany-atlas-impact-ingress"
+path = "epiphany-core/src/bin/epiphany-atlas-impact-ingress.rs"
 
 [[bin]]
 name = "epiphany-release"

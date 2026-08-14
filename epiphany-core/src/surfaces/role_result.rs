@@ -46,7 +46,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub evidence_gaps: Vec<String>,
     pub risks: Vec<String>,
     pub state_patch: Option<EpiphanyRoleStatePatchDocument>,
-    pub repo_model_patch: Option<crate::RepoModelPatch>,
+    pub repo_model_mutation_proposal: Option<crate::EpiphanyRepoModelMutationProposal>,
     pub self_patch: Option<AgentSelfPatch>,
     pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
     pub job_error: Option<String>,
@@ -140,14 +140,14 @@ fn interpret_role_finding(
     let state_patch_parse_error = state_patch_result
         .as_ref()
         .and_then(|result| result.as_ref().err().map(ToString::to_string));
-    let repo_model_patch_result = raw_result
-        .get("repoModelPatch")
+    let repo_model_mutation_proposal_result = raw_result
+        .get("repoModelMutationProposal")
         .cloned()
-        .map(serde_json::from_value::<crate::RepoModelPatch>);
-    let repo_model_patch = repo_model_patch_result
+        .map(serde_json::from_value::<crate::EpiphanyRepoModelMutationProposal>);
+    let repo_model_mutation_proposal = repo_model_mutation_proposal_result
         .as_ref()
         .and_then(|result| result.as_ref().ok().cloned());
-    let repo_model_patch_parse_error = repo_model_patch_result
+    let repo_model_mutation_proposal_parse_error = repo_model_mutation_proposal_result
         .as_ref()
         .and_then(|result| result.as_ref().err().map(ToString::to_string));
     let (self_patch, self_persistence) = raw_result
@@ -166,9 +166,9 @@ fn interpret_role_finding(
         EpiphanyRoleResultRoleId::Modeling => merge_item_error(
             item_error,
             modeling_role_result_error(
-                raw_result.get("repoModelPatch").is_some(),
-                repo_model_patch.as_ref(),
-                repo_model_patch_parse_error,
+                raw_result.get("repoModelMutationProposal").is_some(),
+                repo_model_mutation_proposal.as_ref(),
+                repo_model_mutation_proposal_parse_error,
                 state_patch.as_ref(),
                 state_patch_parse_error,
             ),
@@ -202,7 +202,7 @@ fn interpret_role_finding(
         evidence_gaps: json_string_array_field(raw_result, "evidenceGaps"),
         risks: json_string_array_field(raw_result, "risks"),
         state_patch,
-        repo_model_patch,
+        repo_model_mutation_proposal,
         self_patch,
         self_persistence,
         job_error,
@@ -242,7 +242,7 @@ pub fn interpret_runtime_role_worker_result(
     result: &crate::EpiphanyRuntimeRoleWorkerResult,
 ) -> EpiphanyRoleFindingInterpretation {
     let state_patch_result = result.state_patch();
-    let repo_model_patch_result = result.repo_model_patch();
+    let repo_model_mutation_proposal_result = result.repo_model_mutation_proposal();
     let self_patch_result = result.self_patch();
     let state_patch = state_patch_result
         .as_ref()
@@ -252,7 +252,7 @@ pub fn interpret_runtime_role_worker_result(
         .as_ref()
         .ok()
         .and_then(|patch| patch.clone());
-    let repo_model_patch = repo_model_patch_result
+    let repo_model_mutation_proposal = repo_model_mutation_proposal_result
         .as_ref()
         .ok()
         .and_then(|patch| patch.clone());
@@ -266,7 +266,7 @@ pub fn interpret_runtime_role_worker_result(
     );
     let item_error = merge_item_error(
         item_error,
-        repo_model_patch_result
+        repo_model_mutation_proposal_result
             .as_ref()
             .err()
             .map(ToString::to_string),
@@ -287,7 +287,7 @@ pub fn interpret_runtime_role_worker_result(
         evidence_gaps: result.evidence_gaps.clone(),
         risks: result.risks.clone(),
         state_patch: state_patch.clone(),
-        repo_model_patch: repo_model_patch.clone(),
+        repo_model_mutation_proposal: repo_model_mutation_proposal.clone(),
         self_patch,
         self_persistence: None,
         job_error: None,
@@ -295,8 +295,8 @@ pub fn interpret_runtime_role_worker_result(
             EpiphanyRoleResultRoleId::Modeling => merge_item_error(
                 item_error,
                 modeling_role_result_error(
-                    result.repo_model_patch_msgpack.is_some(),
-                    repo_model_patch.as_ref(),
+                    result.repo_model_mutation_proposal_msgpack.is_some(),
+                    repo_model_mutation_proposal.as_ref(),
                     None,
                     state_patch.as_ref(),
                     None,
@@ -642,7 +642,7 @@ pub fn modeling_role_state_patch_policy_errors(
         || patch.investigation_checkpoint.is_some()
     {
         errors.push(
-            "repository anatomy is not allowed in generic Modeling statePatch; use repoModelPatch"
+            "repository anatomy is not allowed in generic Modeling statePatch; use repoModelOperations"
                 .to_string(),
         );
     }
@@ -807,24 +807,28 @@ pub fn research_role_state_patch_policy_errors(
 }
 
 fn modeling_role_result_error(
-    repo_model_patch_present: bool,
-    repo_model_patch: Option<&crate::RepoModelPatch>,
-    repo_model_patch_parse_error: Option<String>,
+    repo_model_mutation_proposal_present: bool,
+    repo_model_mutation_proposal: Option<&crate::EpiphanyRepoModelMutationProposal>,
+    repo_model_mutation_proposal_parse_error: Option<String>,
     state_patch: Option<&EpiphanyRoleStatePatchDocument>,
     state_patch_parse_error: Option<String>,
 ) -> Option<String> {
-    if !repo_model_patch_present {
-        return Some(
-            "modeling result is not reviewable: missing required repoModelPatch".to_string(),
-        );
-    };
-    if let Some(error) = repo_model_patch_parse_error {
+    if let Some(error) = repo_model_mutation_proposal_parse_error {
         return Some(format!(
-            "modeling result is not reviewable: invalid repoModelPatch ({error})"
+            "modeling result is not reviewable: invalid RepoModel mutation proposal ({error})"
         ));
     }
-    if repo_model_patch.is_none() {
-        return Some("modeling result is not reviewable: invalid repoModelPatch".to_string());
+    if repo_model_mutation_proposal_present && repo_model_mutation_proposal.is_none() {
+        return Some(
+            "modeling result is not reviewable: invalid RepoModel mutation proposal".to_string(),
+        );
+    }
+    if let Some(proposal) = repo_model_mutation_proposal
+        && let Err(error) = proposal.validate()
+    {
+        return Some(format!(
+            "modeling result is not reviewable: invalid RepoModel mutation proposal ({error})"
+        ));
     };
     if let Some(error) = state_patch_parse_error {
         return Some(format!(
@@ -1202,8 +1206,8 @@ mod tests {
     }
 
     #[test]
-    fn marks_modeling_without_patch_unreviewable() {
-        let missing = interpret_role_finding(
+    fn marks_modeling_no_mutation_checkpoint_reviewable() {
+        let checkpoint = interpret_role_finding(
             EpiphanyRoleResultRoleId::Modeling,
             &serde_json::json!({"verdict": "checkpoint-ready"}),
             None,
@@ -1211,31 +1215,7 @@ mod tests {
             None,
         );
 
-        assert!(
-            missing
-                .item_error
-                .as_deref()
-                .is_some_and(|error| error.contains("missing required repoModelPatch"))
-        );
-
-        let reviewable = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Modeling,
-            &serde_json::json!({
-                "repoModelPatch": {
-                    "patch_id": "modeling-result-test",
-                    "base_revision": 0,
-                    "base_hash": "legacy-hash",
-                    "applied_at": "2026-07-13T00:00:00Z",
-                    "purpose": {"kind": "evolution"},
-                    "operations": [{"operation": "retire_node", "node_id": "old"}]
-                }
-            }),
-            None,
-            None,
-            None,
-        );
-
-        assert!(reviewable.item_error.is_none());
+        assert!(checkpoint.item_error.is_none());
     }
 
     #[test]
@@ -1243,14 +1223,6 @@ mod tests {
         let finding = interpret_role_finding(
             EpiphanyRoleResultRoleId::Modeling,
             &serde_json::json!({
-                "repoModelPatch": {
-                    "patch_id": "modeling-anatomy-test",
-                    "base_revision": 0,
-                    "base_hash": "legacy-hash",
-                    "applied_at": "2026-07-13T00:00:00Z",
-                    "purpose": {"kind": "evolution"},
-                    "operations": [{"operation": "retire_node", "node_id": "old"}]
-                },
                 "statePatch": {"graphs": {}}
             }),
             None,
@@ -1258,7 +1230,7 @@ mod tests {
             None,
         );
         assert!(finding.item_error.as_deref().is_some_and(|error| {
-            error.contains("repository anatomy") && error.contains("repoModelPatch")
+            error.contains("repository anatomy") && error.contains("repoModelOperations")
         }));
     }
 

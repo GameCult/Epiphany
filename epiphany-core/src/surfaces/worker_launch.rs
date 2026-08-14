@@ -27,21 +27,21 @@ use crate::EpiphanyReorientReason;
 pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v3";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_proposal_modeling_context.v0";
+    "epiphany.worker.repo_frontier_proposal_modeling_context.v1";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_proposal_modeling_context.v0";
+    "epiphany.repo_frontier_proposal_modeling_context.v1";
 pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_model_claim_repair_context.v0";
+    "epiphany.worker.repo_model_claim_repair_context.v1";
 pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_model_claim_repair_context.v0";
+    "epiphany.repo_model_claim_repair_context.v1";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_planning_context.v0";
+    "epiphany.worker.repo_frontier_planning_context.v1";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_planning_context.v0";
+    "epiphany.repo_frontier_planning_context.v1";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_research_context.v1";
+    "epiphany.worker.repo_frontier_research_context.v2";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_research_context.v1";
+    "epiphany.repo_frontier_research_context.v2";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -154,9 +154,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
 pub struct RepoFrontierResearchContextProjection {
     pub schema_version: String,
     pub request_id: String,
-    pub model_revision: u64,
-    pub model_hash: String,
-    pub admission_receipt_id: String,
+    pub model_projection_digest: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     pub frontier_item_id: String,
     pub frontier_item_hash: String,
     pub source_scope: Vec<String>,
@@ -170,9 +169,8 @@ impl From<&crate::RepoFrontierResearchRequest> for RepoFrontierResearchContextPr
         Self {
             schema_version: REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION.to_string(),
             request_id: request.request_id.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
-            admission_receipt_id: request.admission_receipt_id.clone(),
+            model_projection_digest: request.model_projection_digest.clone(),
+            model_source_documents: request.model_source_documents.clone(),
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
             source_scope: request.source_scope.clone(),
@@ -270,8 +268,8 @@ pub struct RepoFrontierProposalModelingContextProjection {
     #[serde(default)]
     pub public_source_refs: Vec<String>,
     pub private_state_included: bool,
-    pub model_revision: u64,
-    pub model_hash: String,
+    pub model_projection_digest: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,10 +284,10 @@ pub struct RepoModelClaimRepairContextProjection {
     pub eyes_evidence_packet_sha256: String,
     pub source_result_id: String,
     pub source_job_id: String,
-    pub original_admission_receipt_id: String,
-    pub current_admission_receipt_id: String,
-    pub model_revision: u64,
-    pub model_hash: String,
+    pub original_model_projection_digest: String,
+    pub original_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
+    pub current_model_projection_digest: String,
+    pub current_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     pub target_claim_id: String,
     pub target_claim_sha256: String,
     pub runtime_id: String,
@@ -310,10 +308,10 @@ impl RepoModelClaimRepairContextProjection {
             eyes_evidence_packet_sha256: request.eyes_evidence_packet_sha256.clone(),
             source_result_id: request.source_result_id.clone(),
             source_job_id: request.source_job_id.clone(),
-            original_admission_receipt_id: request.original_admission_receipt_id.clone(),
-            current_admission_receipt_id: request.current_admission_receipt_id.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
+            original_model_projection_digest: request.original_model_projection_digest.clone(),
+            original_model_source_documents: request.original_model_source_documents.clone(),
+            current_model_projection_digest: request.current_model_projection_digest.clone(),
+            current_model_source_documents: request.current_model_source_documents.clone(),
             target_claim_id: request.target_claim_id.clone(),
             target_claim_sha256: request.target_claim_sha256.clone(),
             runtime_id: request.runtime_id.clone(),
@@ -330,9 +328,8 @@ pub struct RepoFrontierPlanningContextProjection {
     pub schema_version: String,
     pub contract: String,
     pub request_id: String,
-    pub model_revision: u64,
-    pub model_hash: String,
-    pub admission_receipt_id: String,
+    pub model_projection_digest: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     pub frontier_item_id: String,
     pub frontier_item_hash: String,
     pub selected_organ: String,
@@ -349,9 +346,8 @@ impl RepoFrontierPlanningContextProjection {
             schema_version: REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
             contract: REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT.into(),
             request_id: request.request_id.clone(),
-            model_revision: request.model_revision,
-            model_hash: request.model_hash.clone(),
-            admission_receipt_id: request.admission_receipt_id.clone(),
+            model_projection_digest: request.model_projection_digest.clone(),
+            model_source_documents: request.model_source_documents.clone(),
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
             selected_organ: request.selected_organ.clone(),
@@ -369,13 +365,13 @@ pub struct ImaginationConsiderationContextProjection {
     pub schema_version: String,
     pub contract: String,
     pub request: crate::ImaginationConsiderationRequest,
-    pub model: crate::EpiphanyMemoryGraphSnapshot,
+    pub model: crate::EpiphanyRepoModelView,
 }
 
 impl ImaginationConsiderationContextProjection {
     pub(crate) fn new(
         request: &crate::ImaginationConsiderationRequest,
-        model: &crate::EpiphanyMemoryGraphSnapshot,
+        model: &crate::EpiphanyRepoModelView,
     ) -> Self {
         Self {
             schema_version: IMAGINATION_CONSIDERATION_CONTEXT_SCHEMA_VERSION.into(),
@@ -392,13 +388,13 @@ pub struct AdmittedModelDirectionConsiderationContextProjection {
     pub schema_version: String,
     pub contract: String,
     pub request: crate::AdmittedModelDirectionConsiderationRequest,
-    pub model: crate::EpiphanyMemoryGraphSnapshot,
+    pub model: crate::EpiphanyRepoModelView,
 }
 
 impl AdmittedModelDirectionConsiderationContextProjection {
     pub(crate) fn new(
         request: &crate::AdmittedModelDirectionConsiderationRequest,
-        model: &crate::EpiphanyMemoryGraphSnapshot,
+        model: &crate::EpiphanyRepoModelView,
     ) -> Self {
         Self {
             schema_version: ADMITTED_MODEL_DIRECTION_CONSIDERATION_CONTEXT_SCHEMA_VERSION.into(),

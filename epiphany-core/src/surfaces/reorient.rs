@@ -1,5 +1,5 @@
-use epiphany_state_model::EpiphanyInvestigationDisposition;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashSet;

@@ -7,7 +7,6 @@ pub mod semantic_index;
 pub mod semantic_projection;
 pub mod semantic_projector;
 pub mod semantic_projector_pulse;
-pub mod store;
 pub mod validation;
 
 pub use epiphany_state_model::EpiphanyMemoryAnchor;
@@ -32,9 +31,6 @@ pub use epiphany_state_model::RepoFrontierAdoptedPlan;
 pub use epiphany_state_model::RepoFrontierExecutionAmendment;
 pub use epiphany_state_model::RepoFrontierItem;
 pub use epiphany_state_model::RepoFrontierStatus;
-pub use epiphany_state_model::RepoModelPatch;
-pub use epiphany_state_model::RepoModelPatchOperation;
-pub use epiphany_state_model::RepoModelPatchPurpose;
 
 pub use compose::compose_memory_graph_snapshots;
 pub use context_cut::plan_memory_graph_context_cut;
@@ -53,20 +49,6 @@ pub use semantic_index::*;
 pub use semantic_projection::*;
 pub use semantic_projector::*;
 pub use semantic_projector_pulse::*;
-pub use store::EpiphanyMemoryGraphEntry;
-pub use store::MEMORY_GRAPH_KEY;
-pub use store::MEMORY_GRAPH_SCHEMA_VERSION;
-pub use store::MEMORY_GRAPH_TYPE;
-#[cfg(test)]
-pub(crate) use store::apply_repo_model_patch;
-pub use store::derive_repo_model_patch;
-pub use store::load_memory_graph_entry;
-pub use store::load_memory_graph_snapshot;
-pub use store::memory_graph_cache;
-pub use store::memory_graph_model_hash;
-pub use store::validate_memory_graph_entry;
-pub use store::write_memory_graph_entry;
-pub use store::write_memory_graph_snapshot;
 pub use validation::EpiphanyMemoryGraphValidationError;
 pub use validation::lifecycle_allowed_for_profile;
 pub use validation::validate_memory_graph_snapshot;
@@ -85,5 +67,18 @@ pub(crate) fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<St
     out
 }
 
-#[cfg(test)]
-mod tests;
+pub const MEMORY_GRAPH_PROJECTION_SCHEMA_VERSION: &str = "epiphany.memory_graph.projection.v1";
+
+/// Digest helper for transient memory-context and semantic projection DTOs.
+/// This digest is derived notification state; keyed Mind documents own the
+/// RepoModel and no aggregate revision can be committed through this module.
+pub fn memory_graph_model_hash(snapshot: &EpiphanyMemoryGraphSnapshot) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+
+    let mut canonical = snapshot.clone();
+    canonical.model_hash.clear();
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&canonical)?)
+    ))
+}

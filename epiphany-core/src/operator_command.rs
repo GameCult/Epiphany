@@ -19,17 +19,12 @@ use crate::{
 };
 
 pub const BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
-    "bifrost.operator_command.delivery.v1";
-pub const LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
-    "bifrost.operator_command.delivery.v0";
+    "bifrost.operator_command.delivery.v2";
 pub const BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE: &str = "bifrost.operator_command.delivery";
 pub const LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
-    "epiphany.operator_command.admitted.v1";
-pub const LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
-    "epiphany.operator_command.admitted.v0";
-pub const OPERATOR_COMMAND_RESULT_SCHEMA_VERSION: &str = "epiphany.operator_command.result.v1";
-const SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v1";
-const LEGACY_SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v0";
+    "epiphany.operator_command.admitted.v2";
+pub const OPERATOR_COMMAND_RESULT_SCHEMA_VERSION: &str = "epiphany.operator_command.result.v2";
+const SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,8 +58,8 @@ pub enum OperatorCommand {
         mind_request_id: String,
         candidate_id: String,
         candidate_sha256: String,
-        expected_model_revision: u64,
-        expected_model_hash: String,
+        expected_model_projection_digest: String,
+        expected_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
         decision: RepoFrontierPlanDecision,
     },
 }
@@ -259,6 +254,17 @@ fn command_cache(path: &Path) -> Result<CultCache> {
             };
         }
     }
+    if cache
+        .get_all::<LocalAdmittedOperatorCommand>()?
+        .iter()
+        .any(|entry| entry.schema_version != LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION)
+        || cache
+            .get_all::<OperatorCommandResult>()?
+            .iter()
+            .any(|entry| entry.schema_version != OPERATOR_COMMAND_RESULT_SCHEMA_VERSION)
+    {
+        bail!("operator command store contains an unsupported schema");
+    }
     Ok(cache)
 }
 
@@ -284,9 +290,14 @@ fn validate_admission(
             mind_request_id,
             candidate_id,
             candidate_sha256,
-            expected_model_hash,
+            expected_model_projection_digest,
+            expected_model_source_documents,
             ..
         } => {
+            let model_basis = crate::EpiphanyRepoModelBasis {
+                projection_digest: expected_model_projection_digest.clone(),
+                source_documents: expected_model_source_documents.clone(),
+            };
             !mind_request_id.trim().is_empty()
                 && mind_request_id.len() <= 256
                 && !candidate_id.trim().is_empty()
@@ -295,24 +306,12 @@ fn validate_admission(
                 && candidate_sha256
                     .bytes()
                     .all(|byte| byte.is_ascii_hexdigit())
-                && expected_model_hash.len() == 64
-                && expected_model_hash
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit())
+                && model_basis.validate().is_ok()
         }
         _ => true,
     };
-    let legacy_admission =
-        admission.schema_version == LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION;
-    let admission_version_valid = admission.schema_version
-        == BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
-        || (legacy_admission
-            && !matches!(
-                &packet.command,
-                OperatorCommand::Reviews | OperatorCommand::Review { .. }
-            ));
     if admission.schema_name != BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE
-        || !admission_version_valid
+        || admission.schema_version != BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
         || admission.admission_id.trim().is_empty()
         || packet.command_id.trim().is_empty()
         || packet.nonce.trim().is_empty()
@@ -349,11 +348,7 @@ fn validate_admission(
     }
     verify_host_identity_trust_anchor_signature(
         anchor,
-        if legacy_admission {
-            LEGACY_SIGNING_PURPOSE
-        } else {
-            SIGNING_PURPOSE
-        },
+        SIGNING_PURPOSE,
         &operator_command_admission_signing_payload(admission)?,
         &HostIdentitySignature {
             identity_id: admission.provider_identity_id.clone(),
@@ -378,13 +373,7 @@ pub fn admit_and_execute_bifrost_operator_command(
         validate_admission(admission, trusted_bifrost_identity, policy, now_dt, false)?;
     let packet = &admission.packet;
     let mut admitted = LocalAdmittedOperatorCommand {
-        schema_version: if admission.schema_version
-            == LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
-        {
-            LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into()
-        } else {
-            LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into()
-        },
+        schema_version: LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
         command_id: packet.command_id.clone(),
         admission_id: admission.admission_id.clone(),
         nonce: packet.nonce.clone(),
@@ -685,8 +674,8 @@ pub fn admit_and_execute_bifrost_operator_command(
             mind_request_id,
             candidate_id,
             candidate_sha256,
-            expected_model_revision,
-            expected_model_hash,
+            expected_model_projection_digest,
+            expected_model_source_documents,
             decision,
         } => {
             let review = RepoFrontierPlanOperatorReview {
@@ -697,8 +686,8 @@ pub fn admit_and_execute_bifrost_operator_command(
                 mind_request_id: mind_request_id.clone(),
                 candidate_id: candidate_id.clone(),
                 candidate_sha256: candidate_sha256.clone(),
-                expected_model_revision: *expected_model_revision,
-                expected_model_hash: expected_model_hash.clone(),
+                expected_model_projection_digest: expected_model_projection_digest.clone(),
+                expected_model_source_documents: expected_model_source_documents.clone(),
                 decision: *decision,
                 decided_at: packet.issued_at.clone(),
             };
@@ -819,7 +808,6 @@ fn issued_millis(value: &str) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cultcache_rs::CultCacheEnvelope;
 
     fn policy() -> OperatorCommandPolicy {
         OperatorCommandPolicy {
@@ -876,22 +864,6 @@ mod tests {
         admission.provider_signature = signer
             .sign(
                 SIGNING_PURPOSE,
-                &operator_command_admission_signing_payload(&admission)?,
-            )?
-            .signature;
-        Ok(admission)
-    }
-
-    fn legacy_signed(
-        signer: &crate::HostIdentitySigner,
-        id: &str,
-        command: OperatorCommand,
-    ) -> Result<BifrostOperatorCommandAdmission> {
-        let mut admission = signed(signer, id, command)?;
-        admission.schema_version = LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into();
-        admission.provider_signature = signer
-            .sign(
-                LEGACY_SIGNING_PURPOSE,
                 &operator_command_admission_signing_payload(&admission)?,
             )?
             .signature;
@@ -969,8 +941,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_v0_delivery_replays_across_v1_cutover_but_cannot_carry_review_commands() -> Result<()>
-    {
+    fn superseded_delivery_schema_is_rejected_without_local_writes() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
         let anchor =
@@ -981,139 +952,28 @@ mod tests {
             temp.path().join("resident.cc"),
             temp.path().join("runtime.cc"),
         );
-        let legacy = legacy_signed(
+        let mut superseded = signed(
             &signer,
-            "legacy-sleep",
+            "superseded-sleep",
             OperatorCommand::Sleep {
-                reason: "Drain the v0 delivery.".into(),
+                reason: "This packet uses the superseded delivery contract.".into(),
             },
         )?;
-        let first = admit_and_execute_bifrost_operator_command(
-            &commands,
-            &verse,
-            &resident,
-            &runtime,
-            &legacy,
-            &anchor,
-            &policy(),
-            "2026-07-19T12:00:00Z",
-        )?;
-        let replay = admit_and_execute_bifrost_operator_command(
-            &commands,
-            &verse,
-            &resident,
-            &runtime,
-            &legacy,
-            &anchor,
-            &policy(),
-            "2026-07-19T12:10:00Z",
-        )?;
-        assert_eq!(replay, first);
-        let review = legacy_signed(&signer, "legacy-review", OperatorCommand::Reviews)?;
+        superseded.schema_version = "bifrost.operator_command.delivery.v1".into();
         assert!(
             admit_and_execute_bifrost_operator_command(
                 &commands,
                 &verse,
                 &resident,
                 &runtime,
-                &review,
+                &superseded,
                 &anchor,
                 &policy(),
                 "2026-07-19T12:00:00Z",
             )
             .is_err()
         );
-        Ok(())
-    }
-
-    #[test]
-    fn persisted_v0_command_ledger_replays_after_v1_cutover() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
-        let anchor =
-            crate::export_host_identity_trust_anchor(&signer, &temp.path().join("anchor.cc"))?;
-        let (commands, verse, resident, runtime) = (
-            temp.path().join("commands.cc"),
-            temp.path().join("verse.cc"),
-            temp.path().join("resident.cc"),
-            temp.path().join("runtime.cc"),
-        );
-        let legacy = legacy_signed(&signer, "persisted-v0", OperatorCommand::Status)?;
-        let packet = &legacy.packet;
-        let result_id = format!(
-            "operator-command-result-{:x}",
-            Sha256::digest(format!("{}:{}", packet.command_id, legacy.packet_sha256).as_bytes())
-        );
-        let admitted_at = "2026-07-19T12:00:00Z";
-        let old_admission = (
-            LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
-            packet.command_id.as_str(),
-            legacy.admission_id.as_str(),
-            packet.nonce.as_str(),
-            legacy.packet_sha256.as_str(),
-            packet.source_actor_id.as_str(),
-            "status",
-            packet.target_runtime_id.as_str(),
-            admitted_at,
-            packet.expires_at.as_str(),
-            "exact-command-only",
-            false,
-        );
-        let old_result = (
-            "epiphany.operator_command.result.v0",
-            result_id.as_str(),
-            packet.command_id.as_str(),
-            legacy.packet_sha256.as_str(),
-            packet.target_runtime_id.as_str(),
-            "observed",
-            "operator_snapshot",
-            "snapshot-v0",
-            admitted_at,
-            false,
-            "sleeping",
-            "ready",
-            "none",
-            "engaged",
-            "persisted v0 result",
-        );
-        let backing = SingleFileMessagePackBackingStore::new(&commands);
-        for (key, ty, payload) in [
-            (
-                packet.command_id.as_str(),
-                LocalAdmittedOperatorCommand::TYPE,
-                rmp_serde::to_vec(&old_admission)?,
-            ),
-            (
-                result_id.as_str(),
-                OperatorCommandResult::TYPE,
-                rmp_serde::to_vec(&old_result)?,
-            ),
-        ] {
-            assert!(backing.insert_entry_if_absent(CultCacheEnvelope {
-                key: key.into(),
-                r#type: ty.into(),
-                payload,
-                stored_at: admitted_at.into(),
-                schema_id: Some(ty.into()),
-            })?);
-        }
-
-        let replay = admit_and_execute_bifrost_operator_command(
-            &commands,
-            &verse,
-            &resident,
-            &runtime,
-            &legacy,
-            &anchor,
-            &policy(),
-            admitted_at,
-        )?;
-        assert_eq!(replay.schema_version, "epiphany.operator_command.result.v0");
-        assert_eq!(replay.consequence_ref, "snapshot-v0");
-        assert!(replay.reviews.is_empty());
-        assert!(replay.review_candidate_id.is_empty());
-        assert!(replay.review_decision.is_empty());
-        assert!(!verse.exists() && !resident.exists() && !runtime.exists());
+        assert!(!commands.exists() && !verse.exists() && !resident.exists() && !runtime.exists());
         Ok(())
     }
 
@@ -1196,7 +1056,10 @@ mod tests {
                 "coordinator.run",
                 "persona.public_speech",
                 "daemon.tool_invocation",
-                "daemon.lifecycle_poke"
+                "daemon.lifecycle_poke",
+                "atlas.publish",
+                "atlas.project",
+                "atlas.impact_ingress"
             ]
         );
         assert!(
@@ -1386,97 +1249,6 @@ mod tests {
                 "2026-07-19T12:00:04Z"
             )?,
             result
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn review_replay_recovers_after_mind_consequence_without_command_result() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let (runtime, planning, _, request) =
-            crate::coordinator_launch::tests::operator_review_candidate_fixture(
-                temp.path(),
-                "operator-command-crash",
-            )?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
-        let anchor =
-            crate::export_host_identity_trust_anchor(&signer, &temp.path().join("anchor.cc"))?;
-        let (commands, verse, resident) = (
-            temp.path().join("commands.cc"),
-            temp.path().join("verse.cc"),
-            temp.path().join("resident.cc"),
-        );
-        let admission = signed(
-            &signer,
-            "review-crash-recovery",
-            OperatorCommand::Review {
-                mind_request_id: request.request_id.clone(),
-                candidate_id: request.candidate_id.clone(),
-                candidate_sha256: request.candidate_sha256.clone(),
-                expected_model_revision: planning.model_revision,
-                expected_model_hash: planning.model_hash.clone(),
-                decision: RepoFrontierPlanDecision::Hold,
-            },
-        )?;
-        let packet = &admission.packet;
-        let admitted = LocalAdmittedOperatorCommand {
-            schema_version: LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
-            command_id: packet.command_id.clone(),
-            admission_id: admission.admission_id.clone(),
-            nonce: packet.nonce.clone(),
-            packet_sha256: admission.packet_sha256.clone(),
-            source_actor_id: packet.source_actor_id.clone(),
-            capability: "review".into(),
-            target_runtime_id: packet.target_runtime_id.clone(),
-            admitted_at: "2026-07-19T12:00:00Z".into(),
-            expires_at: packet.expires_at.clone(),
-            authority: "exact-command-only".into(),
-            private_state_exposed: false,
-        };
-        let cache = command_cache(&commands)?;
-        let (entry, _) = cache.prepare_entry(&packet.command_id, &admitted)?;
-        assert!(SingleFileMessagePackBackingStore::new(&commands).insert_entry_if_absent(entry)?);
-        let canonical = commit_operator_repo_frontier_plan_review(
-            &runtime,
-            &RepoFrontierPlanOperatorReview {
-                command_id: packet.command_id.clone(),
-                admission_id: admission.admission_id.clone(),
-                packet_sha256: admission.packet_sha256.clone(),
-                source_actor_id: packet.source_actor_id.clone(),
-                mind_request_id: request.request_id,
-                candidate_id: request.candidate_id,
-                candidate_sha256: request.candidate_sha256,
-                expected_model_revision: planning.model_revision,
-                expected_model_hash: planning.model_hash,
-                decision: RepoFrontierPlanDecision::Hold,
-                decided_at: packet.issued_at.clone(),
-            },
-        )?;
-        let recovered = admit_and_execute_bifrost_operator_command(
-            &commands,
-            &verse,
-            &resident,
-            &runtime,
-            &admission,
-            &anchor,
-            &policy(),
-            "2026-07-19T12:00:00Z",
-        )?;
-        assert_eq!(recovered.disposition, "applied");
-        assert_eq!(recovered.consequence_ref, canonical.decision_id);
-        assert_eq!(recovered.review_decision, "hold");
-        assert_eq!(
-            admit_and_execute_bifrost_operator_command(
-                &commands,
-                &verse,
-                &resident,
-                &runtime,
-                &admission,
-                &anchor,
-                &policy(),
-                "2026-07-19T12:00:01Z",
-            )?,
-            recovered
         );
         Ok(())
     }

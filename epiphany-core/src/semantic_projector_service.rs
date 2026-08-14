@@ -9,7 +9,7 @@ use crate::memory_graph::{
 };
 use crate::{
     MemorySemanticIndexConfig, MemorySemanticProjectionInput,
-    agent_memory_semantic_projection_input, runtime_modeling_semantic_projection_input,
+    agent_memory_semantic_projection_input,
 };
 use anyhow::{Result, anyhow};
 use chrono::{SecondsFormat, Utc};
@@ -189,9 +189,7 @@ impl SemanticProjectorServiceBody {
         config: MemorySemanticIndexConfig,
     ) -> Result<Self> {
         let singleton = acquire_semantic_projector_singleton(&mind_store, &modeling_store)?;
-        let mind_input = agent_memory_semantic_projection_input(&mind_store)?;
-        let modeling_input = runtime_modeling_semantic_projection_input(&modeling_store)?;
-        validate_semantic_projector_source_pair(&mind_input, &modeling_input)?;
+        agent_memory_semantic_projection_input(&mind_store)?;
         let session = LocalIdunnSemanticProjectorSession::new(
             mind_store,
             modeling_store,
@@ -213,20 +211,10 @@ impl SemanticProjectorServiceBody {
     pub fn pulse(&self, fairness_cursor: Option<&str>) -> SemanticProjectorServicePulse {
         let session = &self.pulser.port;
         let mut source_fault_count = 0;
-        let mut inputs = Vec::with_capacity(2);
+        let mut inputs = Vec::with_capacity(1);
         match agent_memory_semantic_projection_input(&session.mind_store) {
             Ok(input) => inputs.push(input),
             Err(_) => source_fault_count += 1,
-        }
-        match runtime_modeling_semantic_projection_input(&session.modeling_store) {
-            Ok(input) => inputs.push(input),
-            Err(_) => source_fault_count += 1,
-        }
-        if inputs.len() == 2
-            && validate_semantic_projector_source_pair(&inputs[0], &inputs[1]).is_err()
-        {
-            source_fault_count += 2;
-            inputs.clear();
         }
         let outcome = self.pulser.pulse(&inputs, fairness_cursor);
         SemanticProjectorServicePulse {

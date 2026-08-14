@@ -21,6 +21,18 @@ path = "src/bin/epiphany-semantic-recovery-smoke.rs"
 required-features = ["semantic-recovery-smoke"]
 
 [[bin]]
+name = "epiphany-atlas-publisher"
+path = "src/bin/epiphany-atlas-publisher.rs"
+
+[[bin]]
+name = "epiphany-model-entanglement-projector"
+path = "src/bin/epiphany-model-entanglement-projector.rs"
+
+[[bin]]
+name = "epiphany-atlas-impact-ingress"
+path = "src/bin/epiphany-atlas-impact-ingress.rs"
+
+[[bin]]
 name = "epiphany-workspace-coverage-recovery-smoke"
 path = "src/bin/epiphany-workspace-coverage-recovery-smoke.rs"
 required-features = ["workspace-coverage-recovery-smoke"]
@@ -76,10 +88,6 @@ path = "src/bin/epiphany-heartbeat-store.rs"
 [[bin]]
 name = "epiphany-host-identity"
 path = "src/bin/epiphany-host-identity.rs"
-
-[[bin]]
-name = "epiphany-memory-graph"
-path = "src/bin/epiphany-memory-graph.rs"
 
 [[bin]]
 name = "epiphany-memory-semantic"
@@ -350,11 +358,12 @@ reqwest = { version = "0.12", features = ["blocking", "json"] }
 rmp-serde = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = { version = "1", features = ["serde"] }
 sha1 = "0.10.6"
 sha2 = "0.10"
 toml = "0.9"
 tracing = "0.1.44"
-uuid = { version = "1", features = ["v4", "v5"] }
+uuid = { version = "1", features = ["serde", "v4", "v5"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

@@ -1,9 +1,9 @@
+#[cfg(test)]
+use crate::runtime_store_backend::RuntimeSpineBackingStore as SingleFileMessagePackBackingStore;
+use crate::runtime_store_backend::runtime_spine_backing_store;
 use crate::{
     EpiphanyThreadStateEntry, THREAD_STATE_KEY, THREAD_STATE_TYPE, coordinator_acceptance_cache,
 };
-use crate::runtime_store_backend::runtime_spine_backing_store;
-#[cfg(test)]
-use crate::runtime_store_backend::RuntimeSpineBackingStore as SingleFileMessagePackBackingStore;
 use anyhow::{Result, anyhow};
 #[cfg(test)]
 use cultcache_rs::CacheBackingStore;

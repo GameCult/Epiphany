@@ -14,9 +14,9 @@ pub const SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.soul.verifi
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_TYPE: &str =
     "epiphany.soul.repo_frontier_verification_request";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.soul.repo_frontier_verification_request.v0";
+    "epiphany.soul.repo_frontier_verification_request.v1";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_verification_request.v0";
+    "epiphany.repo_frontier_verification_request.v1";
 pub const SOUL_INVARIANT_CHECK_SCHEMA_VERSION: &str = "epiphany.soul.invariant_check.v0";
 pub const SOUL_VERDICT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.verdict_receipt.v1";
 pub const SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.regression_receipt.v0";
@@ -66,9 +66,9 @@ pub struct RepoFrontierVerificationRequest {
     #[cultcache(key = 2)]
     pub route_id: String,
     #[cultcache(key = 3)]
-    pub model_revision: u64,
+    pub model_projection_digest: String,
     #[cultcache(key = 4)]
-    pub model_hash: String,
+    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     #[cultcache(key = 5)]
     pub frontier_item_id: String,
     #[cultcache(key = 6)]
@@ -250,7 +250,7 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
-            repo_model_patch: None,
+            repo_model_mutation_proposal: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,

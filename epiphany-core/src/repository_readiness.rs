@@ -6,17 +6,16 @@ use crate::workspace_coverage_projector::{
     WorkspaceCoverageReadinessEvidence, observe_current_workspace_coverage_evidence,
 };
 use crate::{
-    EpiphanyMemoryGraphEntry, EpiphanyMemoryGraphSnapshot,
+    EpiphanyMindDocumentVersion, EpiphanyRepoModelView,
     MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION,
     MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION, MemorySemanticIndexReceipt,
     MemorySemanticProjectionAttempt, MemorySemanticProjectionClaim, MemorySemanticProjectionInput,
     MemorySemanticProjectionObligation, MemorySemanticProjectionReadiness,
-    MemorySemanticProjectionSourceHead, RepoModelAdmissionReceipt, RepositoryBodyObservationBasis,
-    SEMANTIC_PROJECTION_SCHEMA_VERSION, WorkspaceCoveragePolicy,
-    load_memory_semantic_projection_readiness, memory_graph_model_hash,
-    observe_runtime_repository_body_basis, runtime_modeling_semantic_projection_input,
-    runtime_spine_cache, validate_memory_semantic_projection_obligation,
-    validate_repository_body_observation_basis,
+    MemorySemanticProjectionSourceHead, RepositoryBodyObservationBasis,
+    SEMANTIC_PROJECTION_SCHEMA_VERSION, WorkspaceCoveragePolicy, assemble_repo_model_view,
+    load_memory_semantic_projection_readiness, observe_runtime_repository_body_basis,
+    runtime_modeling_semantic_projection_input, runtime_spine_cache,
+    validate_memory_semantic_projection_obligation,
 };
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
@@ -26,12 +25,12 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 
 pub const REPOSITORY_READINESS_PROJECTION_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.repository_readiness_projection.v0";
+    "gamecult.epiphany.repository_readiness_projection.v1";
 pub const REPOSITORY_READINESS_PROJECTION_TYPE: &str =
     "gamecult.epiphany.repository_readiness_projection";
 
 /// A historical proof that Mind joined one exact Repository Body observation,
-/// canonical RepoModel admission, and both live semantic projections. It is not
+/// canonical keyed RepoModel basis, and both live semantic projections. It is not
 /// a current-readiness flag: callers must derive a new projection to claim now.
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -64,11 +63,9 @@ pub struct RepositoryReadinessProjection {
     #[cultcache(key = 11)]
     pub repo_model_graph_id: String,
     #[cultcache(key = 12)]
-    pub repo_model_revision: u64,
+    pub repo_model_projection_digest: String,
     #[cultcache(key = 13)]
-    pub repo_model_hash: String,
-    #[cultcache(key = 14)]
-    pub admission_receipt_id: String,
+    pub repo_model_source_documents: Vec<EpiphanyMindDocumentVersion>,
     #[cultcache(key = 15)]
     pub modeling_obligation_id: String,
     #[cultcache(key = 16)]
@@ -113,8 +110,6 @@ pub struct RepositoryReadinessProjection {
     pub truth_interval_started_at: String,
     #[cultcache(key = 36)]
     pub truth_interval_closed_at: String,
-    #[cultcache(key = 37)]
-    pub admission_envelope_sha256: String,
     #[cultcache(key = 38)]
     pub modeling_source_generation: u64,
     #[cultcache(key = 39)]
@@ -153,8 +148,6 @@ pub struct RepositoryReadinessProjection {
     pub workspace_head_envelope_sha256: String,
     #[cultcache(key = 56)]
     pub workspace_observed_point_set_sha256: String,
-    #[cultcache(key = 57)]
-    pub admission_body_basis: RepositoryBodyObservationBasis,
     #[cultcache(key = 58)]
     pub modeling_obligation_envelope_sha256: String,
     #[cultcache(key = 59)]
@@ -162,7 +155,7 @@ pub struct RepositoryReadinessProjection {
     #[cultcache(key = 60)]
     pub modeling_source_commit_id: String,
     #[cultcache(key = 61)]
-    pub modeling_source_model_hash: String,
+    pub modeling_semantic_source_hash: String,
     #[cultcache(key = 62)]
     pub modeling_current_content_set_hash: String,
     #[cultcache(key = 63)]
@@ -198,11 +191,7 @@ pub struct WorkspaceProjectionIdentity {
 struct JoinedReadinessEvidence {
     r1: RepositoryBodyObservationBasis,
     r2: RepositoryBodyObservationBasis,
-    graph_id: String,
-    model_revision: u64,
-    model_hash: String,
-    admission: RepoModelAdmissionReceipt,
-    admission_envelope_sha256: String,
+    repo_model: EpiphanyRepoModelView,
     modeling_obligation_id: String,
     modeling_receipt_id: String,
     modeling_source_generation: u64,
@@ -216,7 +205,7 @@ struct JoinedReadinessEvidence {
     modeling_obligation_envelope_sha256: String,
     modeling_canonical_source_id: String,
     modeling_source_commit_id: String,
-    modeling_source_model_hash: String,
+    modeling_semantic_source_hash: String,
     modeling_current_content_set_hash: String,
     modeling_claim_envelope_sha256: String,
     modeling_attempt_id: String,
@@ -240,10 +229,6 @@ enum ReadinessAppendResult {
 trait ReadinessObservationPorts {
     fn observe_body(&mut self) -> Result<RepositoryBodyObservationBasis>;
     fn observe_store_snapshot(&mut self) -> Result<Vec<CultCacheEnvelope>>;
-    fn authenticate_historical_body_basis(
-        &mut self,
-        basis: &RepositoryBodyObservationBasis,
-    ) -> Result<()>;
     fn observe_semantic_state(&mut self) -> Result<RawSemanticObservation>;
     fn observe_semantic_live(&mut self) -> Result<Option<MemorySemanticLiveEvidence>>;
     fn observe_workspace_live(
@@ -260,8 +245,47 @@ trait ReadinessObservationPorts {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+struct RepoModelSemanticContent {
+    graph_id: String,
+    domains: Vec<crate::EpiphanyMemoryDomain>,
+    nodes: Vec<crate::EpiphanyMemoryNode>,
+    edges: Vec<crate::EpiphanyMemoryEdge>,
+    summaries: Vec<crate::EpiphanyMemorySummary>,
+    lifecycle_receipts: Vec<crate::EpiphanyMemoryLifecycleReceipt>,
+    frontier: Vec<crate::RepoFrontierItem>,
+}
+
+impl RepoModelSemanticContent {
+    fn from_repo_model(model: &EpiphanyRepoModelView) -> Self {
+        Self {
+            graph_id: model.identity.graph_id.clone(),
+            domains: model.domains.clone(),
+            nodes: model.nodes.clone(),
+            edges: model.edges.clone(),
+            summaries: model.summaries.clone(),
+            lifecycle_receipts: model.lifecycle_receipts.clone(),
+            frontier: model.frontier.clone(),
+        }
+    }
+
+    fn from_semantic_input(input: &MemorySemanticProjectionInput) -> Self {
+        let snapshot = input.snapshot();
+        Self {
+            graph_id: snapshot.graph_id.clone(),
+            domains: snapshot.domains.clone(),
+            nodes: snapshot.nodes.clone(),
+            edges: snapshot.edges.clone(),
+            summaries: snapshot.summaries.clone(),
+            lifecycle_receipts: snapshot.lifecycle_receipts.clone(),
+            frontier: snapshot.frontier.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 struct RawSemanticObservation {
-    snapshot: EpiphanyMemoryGraphSnapshot,
+    repo_model: EpiphanyRepoModelView,
+    semantic_content: RepoModelSemanticContent,
     authority_envelopes: Vec<CultCacheEnvelope>,
     obligation: MemorySemanticProjectionObligation,
     current: MemorySemanticProjectionSourceHead,
@@ -270,8 +294,7 @@ struct RawSemanticObservation {
 
 fn validate_exact_raw_semantic_chain(
     r1: &RepositoryBodyObservationBasis,
-    model: &EpiphanyMemoryGraphSnapshot,
-    model_hash: &str,
+    model: &EpiphanyRepoModelView,
     raw: &RawSemanticObservation,
 ) -> Result<()> {
     let obligation = &raw.obligation;
@@ -282,9 +305,7 @@ fn validate_exact_raw_semantic_chain(
         || obligation.projection_schema_version != SEMANTIC_PROJECTION_SCHEMA_VERSION
         || obligation.partition != "modeling"
         || obligation.swarm_id != r1.swarm_id
-        || obligation.graph_id != model.graph_id
-        || obligation.source_generation != model.model_revision
-        || obligation.source_model_hash != model_hash
+        || obligation.graph_id != model.identity.graph_id
         || obligation.canonical_source_id.trim().is_empty()
         || obligation.source_commit_id.trim().is_empty()
         || obligation.canonical_content_set_hash.trim().is_empty()
@@ -313,8 +334,8 @@ fn validate_exact_raw_semantic_chain(
         || receipt.source_commit_id != obligation.source_commit_id
         || receipt.graph_id != obligation.graph_id
         || receipt.source_generation != obligation.source_generation
-        || receipt.model_revision != model.model_revision
-        || receipt.model_hash != model_hash
+        || receipt.model_revision != obligation.source_generation
+        || receipt.model_hash != obligation.source_model_hash
         || receipt.canonical_content_set_hash != obligation.canonical_content_set_hash
         || receipt.projection_schema_version != obligation.projection_schema_version
         || receipt.collection_name.trim().is_empty()
@@ -332,6 +353,9 @@ fn validate_exact_raw_semantic_chain(
     {
         bail!("raw Modeling receipt does not match its exact obligation and RepoModel");
     }
+    if raw.semantic_content != RepoModelSemanticContent::from_repo_model(model) {
+        bail!("Modeling semantic input is not the canonical keyed RepoModel content");
+    }
     Ok(())
 }
 
@@ -347,13 +371,6 @@ fn observe_with_ports<P: ReadinessObservationPorts>(
         &r1,
         &opening_semantic,
         workspace_identity,
-    )?;
-    ports.authenticate_historical_body_basis(
-        evidence
-            .admission
-            .repository_body_observation_basis
-            .as_ref()
-            .expect("join selected only Body-grounded admission"),
     )?;
     let modeling_live = ports.observe_semantic_live()?;
     let coverage_live = ports.observe_workspace_live(&r1, &evidence)?;
@@ -379,7 +396,7 @@ fn observe_with_ports<P: ReadinessObservationPorts>(
         &closing_semantic,
         workspace_identity,
     )?;
-    if opening_semantic != closing_semantic || evidence.admission != closing_evidence.admission {
+    if opening_semantic != closing_semantic || evidence.repo_model != closing_evidence.repo_model {
         bail!("non-Body readiness authority advanced during observation");
     }
     evidence.r2 = r2;
@@ -402,33 +419,6 @@ fn same_body_content(
         && a.scope == b.scope
         && a.body_binding_sha256 == b.body_binding_sha256
         && a.manifest_root_sha256 == b.manifest_root_sha256
-}
-
-fn select_current_admission(
-    receipts: Vec<(String, RepoModelAdmissionReceipt)>,
-    model_revision: u64,
-    model_hash: &str,
-) -> Result<RepoModelAdmissionReceipt> {
-    let mut matching = receipts.into_iter().filter(|(_, receipt)| {
-        crate::repo_model_admission_receipt_schema_supported(
-            &receipt.schema_version,
-            &receipt.contract,
-        ) && receipt.admitted_revision == model_revision
-            && receipt.admitted_hash == model_hash
-    });
-    let selected = matching.next().ok_or_else(|| {
-        anyhow!("repository readiness requires exactly one current RepoModel admission receipt")
-    })?;
-    if matching.next().is_some() {
-        bail!("repository readiness requires exactly one current RepoModel admission receipt");
-    }
-    if selected.0 != selected.1.receipt_id {
-        bail!("current RepoModel admission is stored under an alien key");
-    }
-    if selected.1.repository_body_observation_basis.is_none() {
-        bail!("current RepoModel admission receipt has no authenticated Body basis");
-    }
-    Ok(selected.1)
 }
 
 fn authority_bytes(rows: &[CultCacheEnvelope]) -> Result<Vec<u8>> {
@@ -458,15 +448,12 @@ fn projection_from_join(
     if !same_body_content(&evidence.r1, &evidence.r2) {
         bail!("Repository Body changed during readiness observation");
     }
-    if evidence.admission.admitted_revision != evidence.model_revision
-        || evidence.admission.admitted_hash != evidence.model_hash
-        || !evidence
-            .admission
-            .repository_body_observation_basis
-            .as_ref()
-            .is_some_and(|basis| same_body_content(basis, &evidence.r1))
+    if evidence.repo_model.identity.workspace_id != evidence.r1.workspace_id
+        || evidence.repo_model.identity.swarm_id != evidence.r1.swarm_id
+        || evidence.repo_model.identity.runtime_id != evidence.r1.runtime_id
+        || evidence.repo_model.identity.body_binding_sha256 != evidence.r1.body_binding_sha256
     {
-        bail!("current RepoModel admission is not authenticated by Body R1");
+        bail!("current keyed RepoModel identity is not authenticated by Body R1");
     }
     let modeling = evidence
         .modeling_live
@@ -494,10 +481,9 @@ fn projection_from_join(
         &evidence.r1.workspace_id,
         &evidence.r1.body_binding_sha256,
         &evidence.r1.manifest_root_sha256,
-        &evidence.graph_id,
-        evidence.model_revision,
-        &evidence.model_hash,
-        &evidence.admission.receipt_id,
+        &evidence.repo_model.identity.graph_id,
+        &evidence.repo_model.projection_digest,
+        &evidence.repo_model.source_documents,
         &evidence.modeling_obligation_id,
         &evidence.modeling_receipt_id,
         &modeling.observed_vector_binding_root_sha256,
@@ -518,10 +504,9 @@ fn projection_from_join(
         body_r1_generation: evidence.r1.generation,
         body_r2_observation_id: evidence.r2.observation_id,
         body_r2_generation: evidence.r2.generation,
-        repo_model_graph_id: evidence.graph_id,
-        repo_model_revision: evidence.model_revision,
-        repo_model_hash: evidence.model_hash,
-        admission_receipt_id: evidence.admission.receipt_id,
+        repo_model_graph_id: evidence.repo_model.identity.graph_id,
+        repo_model_projection_digest: evidence.repo_model.projection_digest,
+        repo_model_source_documents: evidence.repo_model.source_documents,
         modeling_obligation_id: evidence.modeling_obligation_id,
         modeling_receipt_id: evidence.modeling_receipt_id,
         modeling_collection_name: modeling.collection_name,
@@ -544,7 +529,6 @@ fn projection_from_join(
         truth_interval_closed_at: observed_ready_at.into(),
         body_r1: r1,
         body_r2: r2,
-        admission_envelope_sha256: evidence.admission_envelope_sha256,
         modeling_source_generation: evidence.modeling_source_generation,
         modeling_canonical_content_set_hash: evidence.modeling_canonical_content_set_hash,
         modeling_claim_id: evidence.modeling_claim_id,
@@ -564,15 +548,10 @@ fn projection_from_join(
         workspace_receipt_envelope_sha256: coverage.receipt_envelope_digest,
         workspace_head_envelope_sha256: coverage.head_envelope_digest,
         workspace_observed_point_set_sha256: coverage.observed_point_set_sha256,
-        admission_body_basis: evidence
-            .admission
-            .repository_body_observation_basis
-            .clone()
-            .expect("join authenticated admission Body basis"),
         modeling_obligation_envelope_sha256: evidence.modeling_obligation_envelope_sha256,
         modeling_canonical_source_id: evidence.modeling_canonical_source_id,
         modeling_source_commit_id: evidence.modeling_source_commit_id,
-        modeling_source_model_hash: evidence.modeling_source_model_hash,
+        modeling_semantic_source_hash: evidence.modeling_semantic_source_hash,
         modeling_current_content_set_hash: evidence.modeling_current_content_set_hash,
         modeling_claim_envelope_sha256: evidence.modeling_claim_envelope_sha256,
         modeling_attempt_id: evidence.modeling_attempt_id,
@@ -590,8 +569,7 @@ fn readiness_authority_from_snapshot(rows: &[CultCacheEnvelope]) -> Vec<CultCach
         .cloned()
         .filter(|row| {
             row.r#type == crate::EpiphanyRuntimeSwarmBinding::TYPE
-                || row.r#type == EpiphanyMemoryGraphEntry::TYPE
-                || row.r#type == RepoModelAdmissionReceipt::TYPE
+                || row.r#type.starts_with("epiphany.mind.repo_model.")
                 || row.r#type == MemorySemanticProjectionObligation::TYPE
                 || row.r#type == MemorySemanticProjectionClaim::TYPE
                 || row.r#type == MemorySemanticProjectionAttempt::TYPE
@@ -616,33 +594,42 @@ fn exact_envelope<'a, T: DatabaseEntry>(
         .ok_or_else(|| anyhow!("authority is missing {} envelope {key}", T::TYPE))
 }
 
+fn validate_repo_model_basis_against_snapshot(
+    model: &EpiphanyRepoModelView,
+    snapshot: &[CultCacheEnvelope],
+) -> Result<()> {
+    let basis = model.reasoning_basis();
+    basis.validate()?;
+    let mut sources = snapshot
+        .iter()
+        .filter(|row| row.r#type.starts_with("epiphany.mind.repo_model."))
+        .map(|row| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", row))
+        .collect::<Result<Vec<_>>>()?;
+    sources.sort_by(|left, right| {
+        (&left.document_type, &left.document_key).cmp(&(&right.document_type, &right.document_key))
+    });
+    if sources != basis.source_documents {
+        bail!("RepoModel basis does not seal the exact keyed store snapshot");
+    }
+    Ok(())
+}
+
 fn derive_joined_opening(
     snapshot: &[CultCacheEnvelope],
     r1: &RepositoryBodyObservationBasis,
     semantic: &RawSemanticObservation,
     workspace_identity: &WorkspaceProjectionIdentity,
 ) -> Result<JoinedReadinessEvidence> {
-    let model_entry: EpiphanyMemoryGraphEntry = rmp_serde::from_slice(
-        &exact_envelope::<EpiphanyMemoryGraphEntry>(snapshot, crate::MEMORY_GRAPH_KEY)?.payload,
-    )?;
-    let model = model_entry.snapshot()?;
-    let model_hash = memory_graph_model_hash(&model)?;
-    validate_exact_raw_semantic_chain(r1, &model, &model_hash, semantic)?;
-    let admission = select_current_admission(
-        decode_keyed_rows::<RepoModelAdmissionReceipt>(snapshot)?,
-        model.model_revision,
-        &model_hash,
-    )?;
-    if !admission
-        .repository_body_observation_basis
-        .as_ref()
-        .is_some_and(|basis| same_body_content(basis, r1))
+    let model = &semantic.repo_model;
+    validate_repo_model_basis_against_snapshot(model, snapshot)?;
+    if model.identity.workspace_id != r1.workspace_id
+        || model.identity.swarm_id != r1.swarm_id
+        || model.identity.runtime_id != r1.runtime_id
+        || model.identity.body_binding_sha256 != r1.body_binding_sha256
     {
-        bail!("current RepoModel admission does not authenticate Body R1");
+        bail!("current keyed RepoModel identity does not authenticate Body R1");
     }
-    if semantic.snapshot != model {
-        bail!("Modeling semantic input is not the canonical RepoModel");
-    }
+    validate_exact_raw_semantic_chain(r1, model, semantic)?;
     for consumed in &semantic.authority_envelopes {
         if !snapshot.contains(consumed) {
             bail!("Modeling semantic authority is outside the exact store snapshot");
@@ -691,14 +678,7 @@ fn derive_joined_opening(
     Ok(JoinedReadinessEvidence {
         r1: r1.clone(),
         r2: r1.clone(),
-        graph_id: model.graph_id,
-        model_revision: model.model_revision,
-        model_hash,
-        admission_envelope_sha256: envelope_sha256(exact_envelope::<RepoModelAdmissionReceipt>(
-            snapshot,
-            &admission.receipt_id,
-        )?)?,
-        admission,
+        repo_model: model.clone(),
         modeling_obligation_id: obligation.obligation_id.clone(),
         modeling_receipt_id: receipt.receipt_id.clone(),
         modeling_source_generation: receipt.source_generation,
@@ -712,7 +692,7 @@ fn derive_joined_opening(
         modeling_obligation_envelope_sha256: envelope_sha256(obligation_envelope)?,
         modeling_canonical_source_id: obligation.canonical_source_id,
         modeling_source_commit_id: obligation.source_commit_id,
-        modeling_source_model_hash: obligation.source_model_hash,
+        modeling_semantic_source_hash: obligation.source_model_hash,
         modeling_current_content_set_hash: semantic.current.canonical_content_set_hash.clone(),
         modeling_claim_envelope_sha256: envelope_sha256(claim_envelope)?,
         modeling_attempt_id: claim.attempt_id,
@@ -774,19 +754,14 @@ impl ReadinessObservationPorts for ProductionReadinessPorts<'_> {
             .map_err(Into::into)
     }
 
-    fn authenticate_historical_body_basis(
-        &mut self,
-        basis: &RepositoryBodyObservationBasis,
-    ) -> Result<()> {
-        validate_repository_body_observation_basis(self.runtime_store, basis)
-    }
-
     fn observe_semantic_state(&mut self) -> Result<RawSemanticObservation> {
         let input = runtime_modeling_semantic_projection_input(self.runtime_store)?;
         let readiness = load_memory_semantic_projection_readiness(self.runtime_store, &input)?
             .ok_or_else(|| anyhow!("current Modeling semantic projection is not ready"))?;
+        let repo_model = assemble_repo_model_view(self.runtime_store)?;
         let raw = RawSemanticObservation {
-            snapshot: input.snapshot().clone(),
+            semantic_content: RepoModelSemanticContent::from_semantic_input(&input),
+            repo_model,
             authority_envelopes: input.authority.envelopes.clone(),
             obligation: readiness.obligation.clone(),
             current: readiness.current.clone(),
@@ -881,8 +856,6 @@ fn observe_repository_readiness_with_clock(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{REPO_MODEL_ADMISSION_CONTRACT, REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION};
-    use epiphany_state_model::RepoModelPatchPurpose;
 
     #[derive(Clone)]
     struct FakePorts {
@@ -898,7 +871,6 @@ mod tests {
         append: Result<ReadinessAppendResult, &'static str>,
         published: usize,
         coverage_body_ids: Vec<String>,
-        body_basis_auth: Result<(), &'static str>,
     }
 
     impl ReadinessObservationPorts for FakePorts {
@@ -915,14 +887,6 @@ mod tests {
                 "closing-snapshot"
             });
             Ok(self.snapshots.remove(0))
-        }
-
-        fn authenticate_historical_body_basis(
-            &mut self,
-            _basis: &RepositoryBodyObservationBasis,
-        ) -> Result<()> {
-            self.calls.push("authenticate-admission-body");
-            self.body_basis_auth.map_err(|message| anyhow!(message))
         }
 
         fn observe_semantic_state(&mut self) -> Result<RawSemanticObservation> {
@@ -1001,36 +965,6 @@ mod tests {
         }
     }
 
-    fn admission(body: RepositoryBodyObservationBasis) -> RepoModelAdmissionReceipt {
-        RepoModelAdmissionReceipt {
-            schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "admission".into(),
-            review_id: "review".into(),
-            result_id: Some("result".into()),
-            patch_id: "patch".into(),
-            patch_sha256: "patch-hash".into(),
-            previous_revision: 6,
-            previous_hash: "previous".into(),
-            admitted_revision: 7,
-            admitted_hash: "model-hash".into(),
-            admitted_at: "2026-07-16T00:00:00Z".into(),
-            contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
-            purpose: RepoModelPatchPurpose::Evolution,
-            frontier_route_id: String::new(),
-            verification_request_id: String::new(),
-            soul_verdict_receipt_id: String::new(),
-            frontier_modeling_request_id: String::new(),
-            proposal_modeling_request_id: String::new(),
-            claim_repair_request_id: String::new(),
-            frontier_plan_decision_id: String::new(),
-            repository_body_observation_basis: Some(body),
-            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
-                result_id: "result".into(),
-                job_id: "job".into(),
-            }),
-        }
-    }
-
     fn envelope<T: DatabaseEntry>(key: &str, value: &T) -> CultCacheEnvelope {
         CultCacheEnvelope {
             key: key.into(),
@@ -1041,18 +975,47 @@ mod tests {
         }
     }
 
+    fn repo_model(
+        body: &RepositoryBodyObservationBasis,
+    ) -> Result<(Vec<CultCacheEnvelope>, EpiphanyRepoModelView)> {
+        let identity = crate::EpiphanyRepoModelIdentityDocument {
+            schema_epoch: crate::REPO_MODEL_SCHEMA_EPOCH.into(),
+            graph_id: "graph".into(),
+            runtime_id: body.runtime_id.clone(),
+            swarm_id: body.swarm_id.clone(),
+            workspace_id: body.workspace_id.clone(),
+            body_binding_sha256: body.body_binding_sha256.clone(),
+        };
+        let identity_envelope = envelope(crate::REPO_MODEL_IDENTITY_KEY, &identity);
+        let source_documents = vec![EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-mind",
+            &identity_envelope,
+        )?];
+        let projection_digest = format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&source_documents)?)
+        );
+        Ok((
+            vec![identity_envelope],
+            EpiphanyRepoModelView {
+                identity,
+                projection_digest,
+                source_documents,
+                domains: Vec::new(),
+                nodes: Vec::new(),
+                edges: Vec::new(),
+                summaries: Vec::new(),
+                frontier: Vec::new(),
+                lifecycle_receipts: Vec::new(),
+                claim_obligations: Vec::new(),
+            },
+        ))
+    }
+
     fn raw_fixture(
         body: RepositoryBodyObservationBasis,
     ) -> Result<(Vec<CultCacheEnvelope>, RawSemanticObservation)> {
-        let mut model = EpiphanyMemoryGraphSnapshot {
-            graph_id: "graph".into(),
-            model_revision: 7,
-            ..Default::default()
-        };
-        model.model_hash = memory_graph_model_hash(&model)?;
-        let model_entry = EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
-        let mut admitted = admission(body);
-        admitted.admitted_hash = model.model_hash.clone();
+        let (mut rows, model) = repo_model(&body)?;
         let obligation = MemorySemanticProjectionObligation {
             schema_version: MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.into(),
             obligation_id: "semantic-obligation".into(),
@@ -1060,9 +1023,9 @@ mod tests {
             partition: "modeling".into(),
             canonical_source_id: "source".into(),
             source_commit_id: "commit".into(),
-            graph_id: model.graph_id.clone(),
-            source_generation: model.model_revision,
-            source_model_hash: model.model_hash.clone(),
+            graph_id: model.identity.graph_id.clone(),
+            source_generation: 7,
+            source_model_hash: "semantic-model-hash".into(),
             canonical_content_set_hash: "semantic-content".into(),
             projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.into(),
             created_at: "2026-07-16T00:00:00Z".into(),
@@ -1083,9 +1046,9 @@ mod tests {
             swarm_id: "swarm".into(),
             partition: "modeling".into(),
             collection_name: "modeling".into(),
-            graph_id: model.graph_id.clone(),
+            graph_id: model.identity.graph_id.clone(),
             model_revision: 7,
-            model_hash: model.model_hash.clone(),
+            model_hash: obligation.source_model_hash.clone(),
             embedding_provider_id: "semantic-provider".into(),
             embedding_model: "semantic-model".into(),
             vector_dimensions: 1024,
@@ -1134,16 +1097,15 @@ mod tests {
             physical_backend_url: "http://qdrant".into(),
             collection_name: "semantic-modeling".into(),
         };
-        let rows = vec![
-            envelope(crate::MEMORY_GRAPH_KEY, &model_entry),
-            envelope(&admitted.receipt_id, &admitted),
+        rows.extend([
             envelope(&obligation.obligation_id, &obligation),
             envelope(&receipt.receipt_id, &receipt),
             envelope(&claim.scope_id, &claim),
             envelope(&attempt.attempt_id, &attempt),
-        ];
+        ]);
         let raw = RawSemanticObservation {
-            snapshot: model,
+            semantic_content: RepoModelSemanticContent::from_repo_model(&model),
+            repo_model: model,
             authority_envelopes: rows.clone(),
             obligation,
             current,
@@ -1152,25 +1114,15 @@ mod tests {
         Ok((rows, raw))
     }
 
-    fn keyed(receipts: Vec<RepoModelAdmissionReceipt>) -> Vec<(String, RepoModelAdmissionReceipt)> {
-        receipts
-            .into_iter()
-            .map(|receipt| (receipt.receipt_id.clone(), receipt))
-            .collect()
-    }
-
     fn joined(
         r1: RepositoryBodyObservationBasis,
         r2: RepositoryBodyObservationBasis,
     ) -> JoinedReadinessEvidence {
+        let repo_model = repo_model(&r1).unwrap().1;
         JoinedReadinessEvidence {
-            admission: admission(r1.clone()),
-            admission_envelope_sha256: "admission-envelope".into(),
             r1,
             r2,
-            graph_id: "graph".into(),
-            model_revision: 7,
-            model_hash: "model-hash".into(),
+            repo_model,
             modeling_obligation_id: "semantic-obligation".into(),
             modeling_receipt_id: "semantic-receipt".into(),
             modeling_source_generation: 7,
@@ -1184,7 +1136,7 @@ mod tests {
             modeling_obligation_envelope_sha256: "semantic-obligation-envelope".into(),
             modeling_canonical_source_id: "source".into(),
             modeling_source_commit_id: "commit".into(),
-            modeling_source_model_hash: "model-hash".into(),
+            modeling_semantic_source_hash: "semantic-model-hash".into(),
             modeling_current_content_set_hash: "semantic-content".into(),
             modeling_claim_envelope_sha256: "semantic-claim-envelope".into(),
             modeling_attempt_id: "semantic-attempt".into(),
@@ -1251,7 +1203,6 @@ mod tests {
             append: Ok(ReadinessAppendResult::Appended),
             published: 0,
             coverage_body_ids: Vec::new(),
-            body_basis_auth: Ok(()),
         })
     }
 
@@ -1274,7 +1225,6 @@ mod tests {
                 "r1",
                 "opening",
                 "semantic-state",
-                "authenticate-admission-body",
                 "semantic",
                 "coverage",
                 "r2",
@@ -1300,7 +1250,7 @@ mod tests {
         let mut authority_drift = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
         authority_drift.snapshots[1].push(CultCacheEnvelope {
             key: "alien".into(),
-            r#type: RepoModelAdmissionReceipt::TYPE.into(),
+            r#type: crate::EpiphanyRepoModelIdentityDocument::TYPE.into(),
             payload: vec![1],
             stored_at: "2026-07-16T00:00:02Z".into(),
             schema_id: None,
@@ -1310,28 +1260,24 @@ mod tests {
     }
 
     #[test]
-    fn raw_opening_stale_or_alien_admission_is_rejected_before_live_queries() {
+    fn raw_opening_incomplete_or_tampered_keyed_model_is_rejected_before_live_queries() {
         let r1 = basis("a1", 1, "root-a");
         let identity = joined(r1.clone(), r1.clone()).workspace_identity;
-        let mut alien = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
-        alien.snapshots[0]
-            .iter_mut()
-            .find(|row| row.r#type == RepoModelAdmissionReceipt::TYPE)
-            .unwrap()
-            .key = "alien".into();
-        assert!(observe_with_ports(&mut alien, &identity).is_err());
-        assert!(!alien.calls.contains(&"semantic"));
+        let mut incomplete = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
+        incomplete.snapshots[0]
+            .retain(|row| row.r#type != crate::EpiphanyRepoModelIdentityDocument::TYPE);
+        assert!(observe_with_ports(&mut incomplete, &identity).is_err());
+        assert!(!incomplete.calls.contains(&"semantic"));
 
-        let mut stale = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
-        let row = stale.snapshots[0]
+        let mut tampered = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
+        tampered.snapshots[0]
             .iter_mut()
-            .find(|row| row.r#type == RepoModelAdmissionReceipt::TYPE)
-            .unwrap();
-        let mut receipt: RepoModelAdmissionReceipt = rmp_serde::from_slice(&row.payload).unwrap();
-        receipt.admitted_revision -= 1;
-        row.payload = rmp_serde::to_vec_named(&receipt).unwrap();
-        assert!(observe_with_ports(&mut stale, &identity).is_err());
-        assert!(!stale.calls.contains(&"semantic"));
+            .find(|row| row.r#type == crate::EpiphanyRepoModelIdentityDocument::TYPE)
+            .unwrap()
+            .payload
+            .push(0);
+        assert!(observe_with_ports(&mut tampered, &identity).is_err());
+        assert!(!tampered.calls.contains(&"semantic"));
     }
 
     #[test]
@@ -1347,17 +1293,6 @@ mod tests {
         receipt_forgery.semantics[0].receipt.source_commit_id = "alien-commit".into();
         assert!(observe_with_ports(&mut receipt_forgery, &identity).is_err());
         assert!(!receipt_forgery.calls.contains(&"semantic"));
-    }
-
-    #[test]
-    fn unauthenticated_historical_admission_basis_is_rejected_before_live_query() {
-        let r1 = basis("a1", 1, "root-a");
-        let identity = joined(r1.clone(), r1.clone()).workspace_identity;
-        let mut ports = fake_ports(r1.clone(), basis("a2", 2, "root-a")).unwrap();
-        ports.body_basis_auth = Err("historical basis is not authentic");
-        assert!(observe_with_ports(&mut ports, &identity).is_err());
-        assert!(ports.calls.contains(&"authenticate-admission-body"));
-        assert!(!ports.calls.contains(&"semantic"));
     }
 
     #[test]
@@ -1432,33 +1367,6 @@ mod tests {
     }
 
     #[test]
-    fn stale_or_multiple_current_admission_is_refused() {
-        let body = basis("a", 1, "root-a");
-        let mut stale = admission(body.clone());
-        stale.admitted_revision = 6;
-        assert!(select_current_admission(keyed(vec![stale]), 7, "model-hash").is_err());
-        assert!(
-            select_current_admission(
-                keyed(vec![admission(body.clone()), admission(body)]),
-                7,
-                "model-hash"
-            )
-            .is_err()
-        );
-        let grounded = admission(basis("a", 1, "root-a"));
-        let mut ungrounded = grounded.clone();
-        ungrounded.receipt_id = "ungrounded-duplicate".into();
-        ungrounded.repository_body_observation_basis = None;
-        assert!(
-            select_current_admission(keyed(vec![grounded, ungrounded]), 7, "model-hash").is_err()
-        );
-        let alien = admission(basis("a", 1, "root-a"));
-        assert!(
-            select_current_admission(vec![("alien-key".into(), alien)], 7, "model-hash").is_err()
-        );
-    }
-
-    #[test]
     fn missing_semantic_or_stored_only_coverage_cannot_substitute_for_live_evidence() {
         let body = basis("a", 1, "root-a");
         let mut missing_semantic = joined(body.clone(), body.clone());
@@ -1477,7 +1385,7 @@ mod tests {
         let mut advanced = joined(a.clone(), a);
         advanced.closing_authority.push(CultCacheEnvelope {
             key: "duplicate".into(),
-            r#type: "epiphany.mind.repo_model_admission_receipt".into(),
+            r#type: "epiphany.mind.repo_model.node.v1".into(),
             payload: vec![1],
             stored_at: "2026-07-16T00:00:02Z".into(),
             schema_id: None,

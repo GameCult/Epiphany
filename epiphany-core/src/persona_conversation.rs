@@ -614,8 +614,7 @@ fn build_persona_retention_member(
         || conversation.outcome != terminal.outcome
         || conversation.heartbeat_terminal_receipt_id.as_deref()
             != Some(terminal.receipt_id.as_str())
-        || conversation.model_terminal_receipt_id.as_deref()
-            != Some(model_terminal_id.as_str())
+        || conversation.model_terminal_receipt_id.as_deref() != Some(model_terminal_id.as_str())
         || conversation.private_state_exposed
     {
         return Err(anyhow!(
@@ -1132,11 +1131,9 @@ fn validate_model_terminal(
         let context_id = &terminal.decision_context_ids[index];
         let context = runtime_document::<EpiphanyDecisionContext>(runtime_store, context_id)?
             .ok_or_else(|| anyhow!("Persona {expected} decision context is missing"))?;
-        let basis = runtime_document::<EpiphanyReasoningBasis>(
-            runtime_store,
-            &receipt.reasoning_basis_id,
-        )?
-        .ok_or_else(|| anyhow!("Persona {expected} reasoning basis is missing"))?;
+        let basis =
+            runtime_document::<EpiphanyReasoningBasis>(runtime_store, &receipt.reasoning_basis_id)?
+                .ok_or_else(|| anyhow!("Persona {expected} reasoning basis is missing"))?;
         context.validate(&basis)?;
         let expected_predecessors = if index == 0 {
             Vec::new()
@@ -1396,12 +1393,8 @@ mod tests {
             );
             native.reasoning_basis_id = Some(basis.basis_id.clone());
             let provider = epiphany_openai_adapter::request_from_native(&native);
-            let context = crate::EpiphanyDecisionContext::new(
-                &basis,
-                native,
-                provider,
-                Vec::new(),
-            )?;
+            let context =
+                crate::EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?;
             put_runtime_document(runtime_store, &context.context_id, &context)?;
             context_ids.push(context.context_id.clone());
             put_runtime_document(
@@ -1592,24 +1585,30 @@ mod tests {
                 .expect("conversation must route to its model terminal"),
         )?
         .expect("retention must preserve the model terminal");
-        assert!(runtime_document::<PersonaInterpreterEffectDocument>(
-            &runtime,
-            &retired_conversation.effect_document_id,
-        )?
-        .is_some());
-        assert!(runtime_document::<EpiphanyDecisionContext>(
-            &runtime,
-            retired_conversation
-                .interpreter_decision_context_id
-                .as_deref()
-                .expect("conversation must route to its interpreter context"),
-        )?
-        .is_some());
-        assert!(runtime_document::<PersonaModelStageReceipt>(
-            &runtime,
-            &retired_terminal.stage_receipt_ids[0],
-        )?
-        .is_none());
+        assert!(
+            runtime_document::<PersonaInterpreterEffectDocument>(
+                &runtime,
+                &retired_conversation.effect_document_id,
+            )?
+            .is_some()
+        );
+        assert!(
+            runtime_document::<EpiphanyDecisionContext>(
+                &runtime,
+                retired_conversation
+                    .interpreter_decision_context_id
+                    .as_deref()
+                    .expect("conversation must route to its interpreter context"),
+            )?
+            .is_some()
+        );
+        assert!(
+            runtime_document::<PersonaModelStageReceipt>(
+                &runtime,
+                &retired_terminal.stage_receipt_ids[0],
+            )?
+            .is_none()
+        );
         assert!(
             runtime_document::<PersonaConversationExecutionReceipt>(
                 &runtime,

@@ -17,8 +17,8 @@ use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::finalize_coordinator_run;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
-use epiphany_core::open_coordinator_run;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::open_coordinator_run;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_repo_frontier_hands_authority;
@@ -247,9 +247,7 @@ impl Args {
                 "coordinator requires exact --runtime-id for local Verse authority"
             ));
         }
-        if parsed.required_action.is_some()
-            && (parsed.mode != "execute" || parsed.max_steps != 1)
-        {
+        if parsed.required_action.is_some() && (parsed.mode != "execute" || parsed.max_steps != 1) {
             return Err(anyhow!(
                 "--required-action requires execute mode with exactly one step"
             ));
@@ -320,10 +318,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         .resident_binding
         .get("launch-digest")
         .map(String::as_str);
-    let runtime_session_id = epiphany_core::coordinator_run_session_id(
-        &thread_id,
-        resident_launch_digest,
-    )?;
+    let runtime_session_id =
+        epiphany_core::coordinator_run_session_id(&thread_id, resident_launch_digest)?;
     let runtime_session_objective = args
         .resident_binding
         .get("objective-digest")
@@ -354,109 +350,109 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "eventId": runtime_event.event_id,
     }));
     let run_result = (|| -> Result<Value> {
-    if let Some(objective) = args.objective.as_deref() {
-        if let (Some(store), Some(preparation_id), Some(claim)) = (
-            args.resident_state_store.as_deref(),
-            args.resident_preparation_id.as_deref(),
-            resident_claim.as_ref(),
-        ) {
-            epiphany_core::validate_resident_self_prepared_objective(
-                store,
-                preparation_id,
-                claim,
-                objective,
+        if let Some(objective) = args.objective.as_deref() {
+            if let (Some(store), Some(preparation_id), Some(claim)) = (
+                args.resident_state_store.as_deref(),
+                args.resident_preparation_id.as_deref(),
+                resident_claim.as_ref(),
+            ) {
+                epiphany_core::validate_resident_self_prepared_objective(
+                    store,
+                    preparation_id,
+                    claim,
+                    objective,
+                )?;
+                startup_events.push(json!({
+                    "type": "residentObjectiveBinding",
+                    "threadId": thread_id,
+                    "grantId": claim.grant_id,
+                    "preparationId": preparation_id,
+                    "canonicalObjectiveChanged": false,
+                }));
+            } else {
+                let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
+                startup_events.push(json!({
+                    "type": "operatorObjectiveIntake",
+                    "threadId": thread_id,
+                    "mindProjectionDigest": intake.mind.projection_digest,
+                    "commitReceiptId": intake.commit_receipt.receipt_id,
+                    "changed": intake.changed,
+                }));
+            }
+        }
+        if let Some(request_id) = args.imagination_consideration_request_id.as_deref() {
+            if args.objective.is_some() {
+                return Err(anyhow!(
+                    "typed consideration cannot share operator objective intake"
+                ));
+            }
+            let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
+            let state = service
+                .state()?
+                .ok_or_else(|| anyhow!("consideration launch requires coordinator state"))?;
+            let request = epiphany_core::build_epiphany_imagination_consideration_launch_request(
+                &thread_id,
+                Some(state.revision),
+                Some(args.max_runtime_seconds),
+                &state,
+                request_id.to_string(),
+            )
+            .map_err(anyhow::Error::msg)?;
+            let launched = service.launch_job(
+                &thread_id,
+                &state,
+                &request,
+                format!("epiphany-resident-consideration-launch-{}", Uuid::new_v4()),
+                Uuid::new_v4().to_string(),
+                now(),
+            )?;
+            let worker_job_id = launched.backend_job_id.clone();
+            let operator_launch = json!({
+                "bindingId": launched.binding_id,
+                "launcherJobId": launched.launcher_job_id,
+                "backendJobId": launched.backend_job_id,
+                "stateRevision": launched.epiphany_state.revision,
+            });
+            let worker_run = launch_worker_runtime_detached(
+                &model_runtime_bin,
+                &tool_adapter_bin,
+                &args.model_provider,
+                &runtime_store,
+                &codex_home,
+                &mcp_config,
+                &cwd,
+                args.resident_state_store.as_deref(),
+                &worker_job_id,
+                "imagination",
+                0,
+                &artifact_dir,
+                args.max_runtime_seconds,
+                args.auto_tools,
             )?;
             startup_events.push(json!({
-                "type": "residentObjectiveBinding",
-                "threadId": thread_id,
-                "grantId": claim.grant_id,
-                "preparationId": preparation_id,
-                "canonicalObjectiveChanged": false,
-            }));
-        } else {
-            let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
-            startup_events.push(json!({
-                "type": "operatorObjectiveIntake",
-                "threadId": thread_id,
-                "mindProjectionDigest": intake.mind.projection_digest,
-                "commitReceiptId": intake.commit_receipt.receipt_id,
-                "changed": intake.changed,
+                "type": "imaginationConsiderationLaunch",
+                "requestId": request_id,
+                "runtimeJobId": worker_job_id,
+                "launch": status_cli::sanitize_for_operator(operator_launch),
+                "worker": worker_run,
+                "authority": "proposal-only"
             }));
         }
-    }
-    if let Some(request_id) = args.imagination_consideration_request_id.as_deref() {
-        if args.objective.is_some() {
-            return Err(anyhow!(
-                "typed consideration cannot share operator objective intake"
-            ));
-        }
-        let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
-        let state = service
-            .state()?
-            .ok_or_else(|| anyhow!("consideration launch requires coordinator state"))?;
-        let request = epiphany_core::build_epiphany_imagination_consideration_launch_request(
-            &thread_id,
-            Some(state.revision),
-            Some(args.max_runtime_seconds),
-            &state,
-            request_id.to_string(),
-        )
-        .map_err(anyhow::Error::msg)?;
-        let launched = service.launch_job(
-            &thread_id,
-            &state,
-            &request,
-            format!("epiphany-resident-consideration-launch-{}", Uuid::new_v4()),
-            Uuid::new_v4().to_string(),
-            now(),
-        )?;
-        let worker_job_id = launched.backend_job_id.clone();
-        let operator_launch = json!({
-            "bindingId": launched.binding_id,
-            "launcherJobId": launched.launcher_job_id,
-            "backendJobId": launched.backend_job_id,
-            "stateRevision": launched.epiphany_state.revision,
-        });
-        let worker_run = launch_worker_runtime_detached(
-            &model_runtime_bin,
-            &tool_adapter_bin,
-            &args.model_provider,
-            &runtime_store,
-            &codex_home,
-            &mcp_config,
-            &cwd,
-            args.resident_state_store.as_deref(),
-            &worker_job_id,
-            "imagination",
-            0,
-            &artifact_dir,
-            args.max_runtime_seconds,
-            args.auto_tools,
-        )?;
-        startup_events.push(json!({
-            "type": "imaginationConsiderationLaunch",
-            "requestId": request_id,
-            "runtimeJobId": worker_job_id,
-            "launch": status_cli::sanitize_for_operator(operator_launch),
-            "worker": worker_run,
-            "authority": "proposal-only"
-        }));
-    }
 
-    if let Some(request_id) = args
-        .admitted_model_direction_consideration_request_id
-        .as_deref()
-    {
-        if args.objective.is_some() || args.imagination_consideration_request_id.is_some() {
-            return Err(anyhow!(
-                "typed model direction consideration requires exclusive objective-free intake"
-            ));
-        }
-        let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
-        let state = service
-            .state()?
-            .ok_or_else(|| anyhow!("model direction launch requires coordinator state"))?;
-        let request =
+        if let Some(request_id) = args
+            .admitted_model_direction_consideration_request_id
+            .as_deref()
+        {
+            if args.objective.is_some() || args.imagination_consideration_request_id.is_some() {
+                return Err(anyhow!(
+                    "typed model direction consideration requires exclusive objective-free intake"
+                ));
+            }
+            let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
+            let state = service
+                .state()?
+                .ok_or_else(|| anyhow!("model direction launch requires coordinator state"))?;
+            let request =
             epiphany_core::build_epiphany_admitted_model_direction_consideration_launch_request(
                 &thread_id,
                 Some(state.revision),
@@ -465,383 +461,352 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 request_id.to_string(),
             )
             .map_err(anyhow::Error::msg)?;
-        let launched = service.launch_job(
-            &thread_id,
-            &state,
-            &request,
-            format!(
-                "epiphany-resident-model-direction-launch-{}",
-                Uuid::new_v4()
-            ),
-            Uuid::new_v4().to_string(),
-            now(),
-        )?;
-        let worker_job_id = launched.backend_job_id.clone();
-        let worker_run = launch_worker_runtime_detached(
-            &model_runtime_bin,
-            &tool_adapter_bin,
-            &args.model_provider,
-            &runtime_store,
-            &codex_home,
-            &mcp_config,
-            &cwd,
-            args.resident_state_store.as_deref(),
-            &worker_job_id,
-            "imagination",
-            0,
-            &artifact_dir,
-            args.max_runtime_seconds,
-            args.auto_tools,
-        )?;
-        startup_events.push(json!({
-            "type": "admittedModelDirectionConsiderationLaunch",
-            "requestId": request_id,
-            "runtimeJobId": worker_job_id,
-            "worker": worker_run,
-            "authority": "proposal-only"
-        }));
-    }
-
-    if let Some(request_id) = args.proposal_modeling_request_id.as_deref() {
-        if args.objective.is_some()
-            || args.imagination_consideration_request_id.is_some()
-            || args
-                .admitted_model_direction_consideration_request_id
-                .is_some()
-        {
-            return Err(anyhow!(
-                "typed proposal Modeling requires exclusive objective-free intake"
-            ));
-        }
-        let state = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store)
-            .state()?
-            .ok_or_else(|| anyhow!("proposal Modeling launch requires coordinator state"))?;
-        let launched = launch_role(
-            &runtime_store,
-            &local_verse_store,
-            &thread_id,
-            "modeling",
-            Some(state.revision as i64),
-            args.max_runtime_seconds,
-            Some(request_id),
-        )?;
-        let worker_job_id = worker_job_id_from_launch(&launched)?;
-        let worker_run = launch_worker_runtime_detached(
-            &model_runtime_bin,
-            &tool_adapter_bin,
-            &args.model_provider,
-            &runtime_store,
-            &codex_home,
-            &mcp_config,
-            &cwd,
-            args.resident_state_store.as_deref(),
-            &worker_job_id,
-            "modeling",
-            0,
-            &artifact_dir,
-            args.max_runtime_seconds,
-            args.auto_tools,
-        )?;
-        startup_events.push(json!({
-            "type": "proposalModelingLaunch",
-            "requestId": request_id,
-            "runtimeJobId": worker_job_id,
-            "launch": status_cli::sanitize_for_operator(launched),
-            "worker": worker_run,
-            "authority": "proposal-modeling-only"
-        }));
-    }
-
-    let mut manual_regather_approval = args.approve_manual_regather;
-    for index in 0..args.max_steps {
-        let status = collect_coordinator_status(&runtime_store, &thread_id)?;
-        let mut coordinator = status
-            .get("coordinator")
-            .cloned()
-            .unwrap_or_else(|| json!({"action": "regatherManually"}));
-        let mut action = coordinator["action"]
-            .as_str()
-            .unwrap_or("regatherManually")
-            .to_string();
-        if manual_regather_approval {
-            action = apply_manual_regather_approval(&action, &mut coordinator)?;
-            manual_regather_approval = false;
+            let launched = service.launch_job(
+                &thread_id,
+                &state,
+                &request,
+                format!(
+                    "epiphany-resident-model-direction-launch-{}",
+                    Uuid::new_v4()
+                ),
+                Uuid::new_v4().to_string(),
+                now(),
+            )?;
+            let worker_job_id = launched.backend_job_id.clone();
+            let worker_run = launch_worker_runtime_detached(
+                &model_runtime_bin,
+                &tool_adapter_bin,
+                &args.model_provider,
+                &runtime_store,
+                &codex_home,
+                &mcp_config,
+                &cwd,
+                args.resident_state_store.as_deref(),
+                &worker_job_id,
+                "imagination",
+                0,
+                &artifact_dir,
+                args.max_runtime_seconds,
+                args.auto_tools,
+            )?;
+            startup_events.push(json!({
+                "type": "admittedModelDirectionConsiderationLaunch",
+                "requestId": request_id,
+                "runtimeJobId": worker_job_id,
+                "worker": worker_run,
+                "authority": "proposal-only"
+            }));
         }
 
-        let snapshot_name = format!("step-{index:02}-{action}.txt");
-        fs::write(
-            artifact_dir.join(&snapshot_name),
-            status_cli::render_status(&status_cli::sanitize_for_operator(status.clone())),
-        )?;
-        snapshots.push(snapshot_name);
-        let mut step = json!({
-            "index": index,
-            "action": action,
-            "coordinator": coordinator,
-            "stateRevision": state_revision(&status),
-            "events": [],
-        });
-        final_status = status.clone();
-        final_action = coordinator.clone();
-
-        if let Some(required_action) = args.required_action.as_deref()
-            && action != required_action
-        {
-            push_event(
-                &mut step,
-                json!({
-                    "type": "requiredActionRefusal",
-                    "requiredAction": required_action,
-                    "derivedAction": action,
-                    "consequence": "none"
-                }),
-            );
-            append_operator_step_jsonl(&steps_path, &step)?;
-            steps.push(step);
-            break;
+        if let Some(request_id) = args.proposal_modeling_request_id.as_deref() {
+            if args.objective.is_some()
+                || args.imagination_consideration_request_id.is_some()
+                || args
+                    .admitted_model_direction_consideration_request_id
+                    .is_some()
+            {
+                return Err(anyhow!(
+                    "typed proposal Modeling requires exclusive objective-free intake"
+                ));
+            }
+            let state = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store)
+                .state()?
+                .ok_or_else(|| anyhow!("proposal Modeling launch requires coordinator state"))?;
+            let launched = launch_role(
+                &runtime_store,
+                &local_verse_store,
+                &thread_id,
+                "modeling",
+                Some(state.revision as i64),
+                args.max_runtime_seconds,
+                Some(request_id),
+            )?;
+            let worker_job_id = worker_job_id_from_launch(&launched)?;
+            let worker_run = launch_worker_runtime_detached(
+                &model_runtime_bin,
+                &tool_adapter_bin,
+                &args.model_provider,
+                &runtime_store,
+                &codex_home,
+                &mcp_config,
+                &cwd,
+                args.resident_state_store.as_deref(),
+                &worker_job_id,
+                "modeling",
+                0,
+                &artifact_dir,
+                args.max_runtime_seconds,
+                args.auto_tools,
+            )?;
+            startup_events.push(json!({
+                "type": "proposalModelingLaunch",
+                "requestId": request_id,
+                "runtimeJobId": worker_job_id,
+                "launch": status_cli::sanitize_for_operator(launched),
+                "worker": worker_run,
+                "authority": "proposal-modeling-only"
+            }));
         }
 
-        if args.mode == "plan" {
-            append_operator_step_jsonl(&steps_path, &step)?;
-            steps.push(step);
-            break;
-        }
-        if action == "awaitFrontierProposal"
-            || matches!(
-                action.as_str(),
-                "waitForImaginationResult" | "waitForMindPlanResult"
-            )
-            || (action == "reviewFrontierPlanningFailure" && !args.supersede_failed_results)
-            || (is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action))
-        {
-            append_operator_step_jsonl(&steps_path, &step)?;
-            steps.push(step);
-            break;
-        }
+        let mut manual_regather_approval = args.approve_manual_regather;
+        for index in 0..args.max_steps {
+            let status = collect_coordinator_status(&runtime_store, &thread_id)?;
+            let mut coordinator = status
+                .get("coordinator")
+                .cloned()
+                .unwrap_or_else(|| json!({"action": "regatherManually"}));
+            let mut action = coordinator["action"]
+                .as_str()
+                .unwrap_or("regatherManually")
+                .to_string();
+            if manual_regather_approval {
+                action = apply_manual_regather_approval(&action, &mut coordinator)?;
+                manual_regather_approval = false;
+            }
 
-        let revision = state_revision(&status);
-        match action.as_str() {
-            "reviewFrontierPlanningFailure" => {
-                let lifecycle =
-                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                let (result_id, job_id, role_id, binding_id) = match lifecycle.stage {
-                    epiphany_core::RepoFrontierPlanningLifecycleStage::ImaginationFailed => (
-                        lifecycle.imagination_result_id.as_deref(),
-                        lifecycle.imagination_job_id.as_deref(),
-                        "imagination",
-                        epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
-                    ),
-                    epiphany_core::RepoFrontierPlanningLifecycleStage::MindFailed => (
-                        lifecycle.mind_result_id.as_deref(),
-                        lifecycle.mind_job_id.as_deref(),
-                        "mindAdmissionReview",
-                        epiphany_core::EPIPHANY_MIND_ROLE_BINDING_ID,
-                    ),
-                    _ => return Err(anyhow!("frontier planning failure review stage changed")),
-                };
-                let result_id = result_id.ok_or_else(|| {
-                    anyhow!("frontier planning failure review requires a typed result")
-                })?;
-                let job_id = job_id.ok_or_else(|| {
-                    anyhow!("frontier planning failure review requires a launch job")
-                })?;
-                let reviewed = supersede_frontier_planning_failure(
-                    &runtime_store,
-                    &thread_id,
-                    revision,
-                    result_id,
-                    job_id,
-                    role_id,
-                    binding_id,
-                )?;
+            let snapshot_name = format!("step-{index:02}-{action}.txt");
+            fs::write(
+                artifact_dir.join(&snapshot_name),
+                status_cli::render_status(&status_cli::sanitize_for_operator(status.clone())),
+            )?;
+            snapshots.push(snapshot_name);
+            let mut step = json!({
+                "index": index,
+                "action": action,
+                "coordinator": coordinator,
+                "stateRevision": state_revision(&status),
+                "events": [],
+            });
+            final_status = status.clone();
+            final_action = coordinator.clone();
+
+            if let Some(required_action) = args.required_action.as_deref()
+                && action != required_action
+            {
                 push_event(
                     &mut step,
-                    json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(reviewed)}),
+                    json!({
+                        "type": "requiredActionRefusal",
+                        "requiredAction": required_action,
+                        "derivedAction": action,
+                        "consequence": "none"
+                    }),
                 );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                append_operator_step_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
             }
-            "startFrontierPlanning" => {
-                let request = epiphany_core::select_and_commit_repo_frontier_planning_request(
-                    &runtime_store,
-                    &now(),
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "frontierPlanningRequest", "request": request}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+
+            if args.mode == "plan" {
+                append_operator_step_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
             }
-            "launchImagination" => {
-                let lifecycle =
-                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                let request_id = lifecycle.planning_request_id.as_deref().ok_or_else(|| {
-                    anyhow!("launchImagination requires a current planning request")
-                })?;
-                let launch = launch_frontier_imagination(
-                    &runtime_store,
-                    &local_verse_store,
-                    &thread_id,
-                    revision,
-                    args.max_runtime_seconds,
-                    request_id,
-                )?;
-                let worker_job_id = worker_job_id_from_launch(&launch)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "frontierImaginationLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
-                );
-                let worker_run = launch_worker_runtime_detached(
-                    &model_runtime_bin,
-                    &tool_adapter_bin,
-                    &args.model_provider,
-                    &runtime_store,
-                    &codex_home,
-                    &mcp_config,
-                    &cwd,
-                    args.resident_state_store.as_deref(),
-                    &worker_job_id,
-                    "imagination-frontier-planning",
-                    index,
-                    &artifact_dir,
-                    args.max_runtime_seconds,
-                    args.auto_tools,
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "workerRuntime", "roleId": "imagination", "run": worker_run}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+            if action == "awaitFrontierProposal"
+                || matches!(
+                    action.as_str(),
+                    "waitForImaginationResult" | "waitForMindPlanResult"
+                )
+                || (action == "reviewFrontierPlanningFailure" && !args.supersede_failed_results)
+                || (is_stop_action(&action)
+                    && !args.auto_review
+                    && !is_result_review_action(&action))
+            {
+                append_operator_step_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
             }
-            "requestMindPlanReview" => {
-                let lifecycle =
-                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                let result_id = lifecycle.imagination_result_id.as_deref().ok_or_else(|| {
-                    anyhow!("requestMindPlanReview requires a typed Imagination result")
-                })?;
-                let request = epiphany_core::commit_repo_frontier_plan_mind_request(
-                    &runtime_store,
-                    result_id,
-                    &now(),
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "frontierPlanMindRequest", "request": request}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-            }
-            "launchMindPlanReview" => {
-                let lifecycle =
-                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                let request_id = lifecycle.mind_request_id.as_deref().ok_or_else(|| {
-                    anyhow!("launchMindPlanReview requires a current Mind request")
-                })?;
-                let launch = launch_frontier_mind(
-                    &runtime_store,
-                    &thread_id,
-                    revision,
-                    args.max_runtime_seconds,
-                    request_id,
-                )?;
-                let worker_job_id = worker_job_id_from_launch(&launch)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "frontierMindLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
-                );
-                let worker_run = launch_worker_runtime_detached(
-                    &model_runtime_bin,
-                    &tool_adapter_bin,
-                    &args.model_provider,
-                    &runtime_store,
-                    &codex_home,
-                    &mcp_config,
-                    &cwd,
-                    args.resident_state_store.as_deref(),
-                    &worker_job_id,
-                    "mind-frontier-plan-review",
-                    index,
-                    &artifact_dir,
-                    args.max_runtime_seconds,
-                    args.auto_tools,
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "workerRuntime", "roleId": "mind", "run": worker_run}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-            }
-            "commitFrontierPlanDecision" => {
-                let lifecycle =
-                    epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                let result_id = lifecycle.mind_result_id.as_deref().ok_or_else(|| {
-                    anyhow!("commitFrontierPlanDecision requires a typed Mind result")
-                })?;
-                let decision =
-                    epiphany_core::commit_repo_frontier_plan_decision(&runtime_store, result_id)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "frontierPlanDecision", "decision": decision}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-            }
-            "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
-                let role_id = role_id_for_coordinator_action(&action)
-                    .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
-                let result = read_role_result(&runtime_store, &thread_id, role_id)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
-                );
-                if !matches!(
-                    result["status"].as_str(),
-                    Some("completed" | "failed" | "cancelled")
-                ) {
-                    final_action = json!({
-                        "action": wait_action_for_role(role_id),
-                        "reason": result["note"],
-                    });
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
-                }
-                if args.supersede_failed_results && role_result_needs_supersession(role_id, &result)
-                {
-                    let superseded = supersede_role_result(
+
+            let revision = state_revision(&status);
+            match action.as_str() {
+                "reviewFrontierPlanningFailure" => {
+                    let lifecycle =
+                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                    let (result_id, job_id, role_id, binding_id) = match lifecycle.stage {
+                        epiphany_core::RepoFrontierPlanningLifecycleStage::ImaginationFailed => (
+                            lifecycle.imagination_result_id.as_deref(),
+                            lifecycle.imagination_job_id.as_deref(),
+                            "imagination",
+                            epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
+                        ),
+                        epiphany_core::RepoFrontierPlanningLifecycleStage::MindFailed => (
+                            lifecycle.mind_result_id.as_deref(),
+                            lifecycle.mind_job_id.as_deref(),
+                            "mindAdmissionReview",
+                            epiphany_core::EPIPHANY_MIND_ROLE_BINDING_ID,
+                        ),
+                        _ => return Err(anyhow!("frontier planning failure review stage changed")),
+                    };
+                    let result_id = result_id.ok_or_else(|| {
+                        anyhow!("frontier planning failure review requires a typed result")
+                    })?;
+                    let job_id = job_id.ok_or_else(|| {
+                        anyhow!("frontier planning failure review requires a launch job")
+                    })?;
+                    let reviewed = supersede_frontier_planning_failure(
                         &runtime_store,
                         &thread_id,
-                        role_id,
                         revision,
-                        &result,
+                        result_id,
+                        job_id,
+                        role_id,
+                        binding_id,
                     )?;
                     push_event(
                         &mut step,
-                        json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
+                        json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(reviewed)}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                    refresh_final_action_from_status(&final_status, &mut final_action);
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    continue;
                 }
-                let can_accept = args.auto_review
-                    && role_result_auto_acceptable(role_id, &result)
-                    && revision.is_some();
-                if !can_accept {
-                    final_action = json!({
-                        "action": review_action_for_role(role_id),
-                        "reason": result["note"]
-                    });
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
+                "startFrontierPlanning" => {
+                    let request = epiphany_core::select_and_commit_repo_frontier_planning_request(
+                        &runtime_store,
+                        &now(),
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "frontierPlanningRequest", "request": request}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 }
-                let accepted = match accept_role(
-                    &runtime_store,
-                    &thread_id,
-                    role_id,
-                    revision.and_then(|value| u64::try_from(value).ok()),
-                ) {
-                    Ok(accepted) => accepted,
-                    Err(error) if args.supersede_failed_results => {
+                "launchImagination" => {
+                    let lifecycle =
+                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                    let request_id = lifecycle.planning_request_id.as_deref().ok_or_else(|| {
+                        anyhow!("launchImagination requires a current planning request")
+                    })?;
+                    let launch = launch_frontier_imagination(
+                        &runtime_store,
+                        &local_verse_store,
+                        &thread_id,
+                        revision,
+                        args.max_runtime_seconds,
+                        request_id,
+                    )?;
+                    let worker_job_id = worker_job_id_from_launch(&launch)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "frontierImaginationLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        "imagination-frontier-planning",
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": "imagination", "run": worker_run}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
+                "requestMindPlanReview" => {
+                    let lifecycle =
+                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                    let result_id =
+                        lifecycle.imagination_result_id.as_deref().ok_or_else(|| {
+                            anyhow!("requestMindPlanReview requires a typed Imagination result")
+                        })?;
+                    let request = epiphany_core::commit_repo_frontier_plan_mind_request(
+                        &runtime_store,
+                        result_id,
+                        &now(),
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "frontierPlanMindRequest", "request": request}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
+                "launchMindPlanReview" => {
+                    let lifecycle =
+                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                    let request_id = lifecycle.mind_request_id.as_deref().ok_or_else(|| {
+                        anyhow!("launchMindPlanReview requires a current Mind request")
+                    })?;
+                    let launch = launch_frontier_mind(
+                        &runtime_store,
+                        &thread_id,
+                        revision,
+                        args.max_runtime_seconds,
+                        request_id,
+                    )?;
+                    let worker_job_id = worker_job_id_from_launch(&launch)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "frontierMindLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        "mind-frontier-plan-review",
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": "mind", "run": worker_run}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
+                "commitFrontierPlanDecision" => {
+                    let lifecycle =
+                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
+                    let result_id = lifecycle.mind_result_id.as_deref().ok_or_else(|| {
+                        anyhow!("commitFrontierPlanDecision requires a typed Mind result")
+                    })?;
+                    let decision = epiphany_core::commit_repo_frontier_plan_decision(
+                        &runtime_store,
+                        result_id,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "frontierPlanDecision", "decision": decision}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
+                "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
+                    let role_id = role_id_for_coordinator_action(&action)
+                        .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
+                    let result = read_role_result(&runtime_store, &thread_id, role_id)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
+                    );
+                    if !matches!(
+                        result["status"].as_str(),
+                        Some("completed" | "failed" | "cancelled")
+                    ) {
+                        final_action = json!({
+                            "action": wait_action_for_role(role_id),
+                            "reason": result["note"],
+                        });
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                    if args.supersede_failed_results
+                        && role_result_needs_supersession(role_id, &result)
+                    {
                         let superseded = supersede_role_result(
                             &runtime_store,
                             &thread_id,
@@ -851,12 +816,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         )?;
                         push_event(
                             &mut step,
-                            json!({
-                                "type": "roleAdmissionRejected",
-                                "roleId": role_id,
-                                "error": format!("{error:#}"),
-                                "superseded": status_cli::sanitize_for_operator(superseded),
-                            }),
+                            json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         refresh_final_action_from_status(&final_status, &mut final_action);
@@ -864,354 +824,398 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         steps.push(step);
                         continue;
                     }
-                    Err(error) => return Err(error),
-                };
-                if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)? {
-                    let mut accepted_with_memory = accepted.clone();
-                    accepted_with_memory["selfMemoryApply"] = memory;
-                    push_event(
-                        &mut step,
-                        json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted_with_memory)}),
-                    );
-                } else {
-                    push_event(
-                        &mut step,
-                        json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted)}),
-                    );
-                }
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                refresh_final_action_from_status(&final_status, &mut final_action);
-            }
-            "reviewReorientResult" => {
-                let result = read_reorient_result(&runtime_store, &thread_id)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
-                );
-                if !matches!(
-                    result["status"].as_str(),
-                    Some("completed" | "failed" | "cancelled")
-                ) {
-                    final_action =
-                        json!({"action": "waitForReorientResult", "reason": result["note"]});
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
-                }
-                let can_accept = args.auto_review
-                    && reorient_result_auto_acceptable(&result)
-                    && revision.is_some();
-                if can_accept {
-                    let accepted = accept_reorient(
+                    let can_accept = args.auto_review
+                        && role_result_auto_acceptable(role_id, &result)
+                        && revision.is_some();
+                    if !can_accept {
+                        final_action = json!({
+                            "action": review_action_for_role(role_id),
+                            "reason": result["note"]
+                        });
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                    let accepted = match accept_role(
                         &runtime_store,
                         &thread_id,
+                        role_id,
                         revision.and_then(|value| u64::try_from(value).ok()),
-                    )?;
+                    ) {
+                        Ok(accepted) => accepted,
+                        Err(error) if args.supersede_failed_results => {
+                            let superseded = supersede_role_result(
+                                &runtime_store,
+                                &thread_id,
+                                role_id,
+                                revision,
+                                &result,
+                            )?;
+                            push_event(
+                                &mut step,
+                                json!({
+                                    "type": "roleAdmissionRejected",
+                                    "roleId": role_id,
+                                    "error": format!("{error:#}"),
+                                    "superseded": status_cli::sanitize_for_operator(superseded),
+                                }),
+                            );
+                            final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                            refresh_final_action_from_status(&final_status, &mut final_action);
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            continue;
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)?
+                    {
+                        let mut accepted_with_memory = accepted.clone();
+                        accepted_with_memory["selfMemoryApply"] = memory;
+                        push_event(
+                            &mut step,
+                            json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted_with_memory)}),
+                        );
+                    } else {
+                        push_event(
+                            &mut step,
+                            json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted)}),
+                        );
+                    }
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    refresh_final_action_from_status(&final_status, &mut final_action);
+                }
+                "reviewReorientResult" => {
+                    let result = read_reorient_result(&runtime_store, &thread_id)?;
                     push_event(
                         &mut step,
-                        json!({"type": "reorientAccept", "accepted": status_cli::sanitize_for_operator(accepted)}),
+                        json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
                     );
-                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    continue;
-                }
-                final_action = json!({"action": "reviewReorientResult", "reason": result["note"]});
-                append_operator_step_jsonl(&steps_path, &step)?;
-                steps.push(step);
-                break;
-            }
-            "continueImplementation" => {
-                let gate = record_hands_implementation_gate(
-                    &runtime_store,
-                    &artifact_dir,
-                    &thread_id,
-                    index,
-                    &status,
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "handsActionGate", "gate": gate.clone()}),
-                );
-                coordinator["handsActionGate"] = gate;
-                final_action = coordinator;
-                append_operator_step_jsonl(&steps_path, &step)?;
-                steps.push(step);
-                break;
-            }
-            "launchResearch" | "launchModeling" | "launchVerification" => {
-                let role_id = role_id_for_coordinator_action(&action)
-                    .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
-                let pending_proposal_request_id = if role_id == "modeling" {
-                    status["findingSignals"]["pendingProposalModelingRequestId"].as_str()
-                } else {
-                    None
-                };
-                let proposal_modeling_request_id = if role_id == "modeling" {
-                    resolve_proposal_modeling_request_hint(
-                        args.proposal_modeling_request_id.as_deref(),
-                        pending_proposal_request_id,
-                    )?
-                } else {
-                    None
-                };
-                let launch = launch_role(
-                    &runtime_store,
-                    &local_verse_store,
-                    &thread_id,
-                    role_id,
-                    revision,
-                    args.max_runtime_seconds,
-                    if role_id == "modeling" {
-                        proposal_modeling_request_id
-                    } else {
-                        None
-                    },
-                )?;
-                let worker_job_id = worker_job_id_from_launch(&launch)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
-                );
-                let worker_run = launch_worker_runtime_detached(
-                    &model_runtime_bin,
-                    &tool_adapter_bin,
-                    &args.model_provider,
-                    &runtime_store,
-                    &codex_home,
-                    &mcp_config,
-                    &cwd,
-                    args.resident_state_store.as_deref(),
-                    &worker_job_id,
-                    role_id,
-                    index,
-                    &artifact_dir,
-                    args.max_runtime_seconds,
-                    args.auto_tools,
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
-                );
-                let result = read_role_result(&runtime_store, &thread_id, role_id)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                if !matches!(
-                    result["status"].as_str(),
-                    Some("completed" | "failed" | "cancelled")
-                ) {
-                    final_action = json!({
-                        "action": wait_action_for_role(role_id),
-                        "reason": result["note"],
-                    });
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
-                }
-                if !args.auto_review {
-                    final_action = json!({
-                        "action": review_action_for_role(role_id),
-                        "reason": result["note"],
-                    });
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
-                }
-            }
-            "launchReorientWorker" => {
-                let launch = launch_reorient(
-                    &runtime_store,
-                    &local_verse_store,
-                    &thread_id,
-                    revision,
-                    args.max_runtime_seconds,
-                )?;
-                let worker_job_id = worker_job_id_from_launch(&launch)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
-                );
-                let worker_run = launch_worker_runtime_detached(
-                    &model_runtime_bin,
-                    &tool_adapter_bin,
-                    &args.model_provider,
-                    &runtime_store,
-                    &codex_home,
-                    &mcp_config,
-                    &cwd,
-                    args.resident_state_store.as_deref(),
-                    &worker_job_id,
-                    "reorient-worker",
-                    index,
-                    &artifact_dir,
-                    args.max_runtime_seconds,
-                    args.auto_tools,
-                )?;
-                push_event(
-                    &mut step,
-                    json!({"type": "workerRuntime", "roleId": "reorient-worker", "run": worker_run}),
-                );
-                let result = read_reorient_result(&runtime_store, &thread_id)?;
-                push_event(
-                    &mut step,
-                    json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
-                );
-                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                if !matches!(
-                    result["status"].as_str(),
-                    Some("completed" | "failed" | "cancelled")
-                ) {
-                    final_action =
-                        json!({"action": "waitForReorientResult", "reason": result["note"]});
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    break;
-                }
-                if !args.auto_review {
+                    if !matches!(
+                        result["status"].as_str(),
+                        Some("completed" | "failed" | "cancelled")
+                    ) {
+                        final_action =
+                            json!({"action": "waitForReorientResult", "reason": result["note"]});
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                    let can_accept = args.auto_review
+                        && reorient_result_auto_acceptable(&result)
+                        && revision.is_some();
+                    if can_accept {
+                        let accepted = accept_reorient(
+                            &runtime_store,
+                            &thread_id,
+                            revision.and_then(|value| u64::try_from(value).ok()),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "reorientAccept", "accepted": status_cli::sanitize_for_operator(accepted)}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     final_action =
                         json!({"action": "reviewReorientResult", "reason": result["note"]});
                     append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
+                "continueImplementation" => {
+                    let gate = record_hands_implementation_gate(
+                        &runtime_store,
+                        &artifact_dir,
+                        &thread_id,
+                        index,
+                        &status,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "handsActionGate", "gate": gate.clone()}),
+                    );
+                    coordinator["handsActionGate"] = gate;
+                    final_action = coordinator;
+                    append_operator_step_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    break;
+                }
+                "launchResearch" | "launchModeling" | "launchVerification" => {
+                    let role_id = role_id_for_coordinator_action(&action)
+                        .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
+                    let pending_proposal_request_id = if role_id == "modeling" {
+                        status["findingSignals"]["pendingProposalModelingRequestId"].as_str()
+                    } else {
+                        None
+                    };
+                    let proposal_modeling_request_id = if role_id == "modeling" {
+                        resolve_proposal_modeling_request_hint(
+                            args.proposal_modeling_request_id.as_deref(),
+                            pending_proposal_request_id,
+                        )?
+                    } else {
+                        None
+                    };
+                    let launch = launch_role(
+                        &runtime_store,
+                        &local_verse_store,
+                        &thread_id,
+                        role_id,
+                        revision,
+                        args.max_runtime_seconds,
+                        if role_id == "modeling" {
+                            proposal_modeling_request_id
+                        } else {
+                            None
+                        },
+                    )?;
+                    let worker_job_id = worker_job_id_from_launch(&launch)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        role_id,
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
+                    );
+                    let result = read_role_result(&runtime_store, &thread_id, role_id)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    if !matches!(
+                        result["status"].as_str(),
+                        Some("completed" | "failed" | "cancelled")
+                    ) {
+                        final_action = json!({
+                            "action": wait_action_for_role(role_id),
+                            "reason": result["note"],
+                        });
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                    if !args.auto_review {
+                        final_action = json!({
+                            "action": review_action_for_role(role_id),
+                            "reason": result["note"],
+                        });
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                }
+                "launchReorientWorker" => {
+                    let launch = launch_reorient(
+                        &runtime_store,
+                        &local_verse_store,
+                        &thread_id,
+                        revision,
+                        args.max_runtime_seconds,
+                    )?;
+                    let worker_job_id = worker_job_id_from_launch(&launch)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        "reorient-worker",
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": "reorient-worker", "run": worker_run}),
+                    );
+                    let result = read_reorient_result(&runtime_store, &thread_id)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    if !matches!(
+                        result["status"].as_str(),
+                        Some("completed" | "failed" | "cancelled")
+                    ) {
+                        final_action =
+                            json!({"action": "waitForReorientResult", "reason": result["note"]});
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                    if !args.auto_review {
+                        final_action =
+                            json!({"action": "reviewReorientResult", "reason": result["note"]});
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        break;
+                    }
+                }
+                "compactRehydrateReorient" => {
+                    push_event(
+                        &mut step,
+                        json!({"type": "compactUnsupportedInNativeSmoke"}),
+                    );
+                }
+                _ => {}
             }
-            "compactRehydrateReorient" => {
-                push_event(
-                    &mut step,
-                    json!({"type": "compactUnsupportedInNativeSmoke"}),
-                );
-            }
-            _ => {}
+            append_operator_step_jsonl(&steps_path, &step)?;
+            steps.push(step);
         }
-        append_operator_step_jsonl(&steps_path, &step)?;
-        steps.push(step);
-    }
 
-    let operator_final_status = status_cli::sanitize_for_operator(final_status);
-    let final_rendered = status_cli::render_status(&operator_final_status);
-    let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
-    let artifact_manifest = vec![
-        "coordinator-summary.json".to_string(),
-        "coordinator-steps.jsonl".to_string(),
-        "coordinator-final-status.json".to_string(),
-        "coordinator-final-status.txt".to_string(),
-        "coordinator-final-action.txt".to_string(),
-        "agent-function-telemetry.json".to_string(),
-        "runtime-spine-status.json".to_string(),
-    ];
-    let sealed_artifact_manifest = Vec::new();
-    let receipt_created_at = now();
-    let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
-        schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: format!(
-            "coordinator-run-{}-{}",
-            sanitize_id(&thread_id),
-            chrono::Utc::now().timestamp_millis()
-        ),
-        session_id: runtime_session_id.clone(),
-        thread_id: thread_id.clone(),
-        mode: args.mode.clone(),
-        status: coordinator_receipt_status(&args.mode, &final_action),
-        final_action: final_action_name(&final_action),
-        final_reason: final_action_reason(&final_action),
-        step_count: operator_steps
-            .as_array()
-            .map_or(0, |items| items.len() as u64),
-        created_at: receipt_created_at,
-        model_provider: Some(args.model_provider.clone()),
-        runtime_store: runtime_store.display().to_string(),
-        artifact_refs: artifact_manifest.clone(),
-        sealed_artifact_refs: sealed_artifact_manifest.clone(),
-        metadata: BTreeMap::from([
-            (
-                "artifactDir".to_string(),
-                artifact_dir.display().to_string(),
+        let operator_final_status = status_cli::sanitize_for_operator(final_status);
+        let final_rendered = status_cli::render_status(&operator_final_status);
+        let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
+        let artifact_manifest = vec![
+            "coordinator-summary.json".to_string(),
+            "coordinator-steps.jsonl".to_string(),
+            "coordinator-final-status.json".to_string(),
+            "coordinator-final-status.txt".to_string(),
+            "coordinator-final-action.txt".to_string(),
+            "agent-function-telemetry.json".to_string(),
+            "runtime-spine-status.json".to_string(),
+        ];
+        let sealed_artifact_manifest = Vec::new();
+        let receipt_created_at = now();
+        let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
+            schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: format!(
+                "coordinator-run-{}-{}",
+                sanitize_id(&thread_id),
+                chrono::Utc::now().timestamp_millis()
             ),
-            (
-                "modelRuntimeBin".to_string(),
-                model_runtime_bin.display().to_string(),
+            session_id: runtime_session_id.clone(),
+            thread_id: thread_id.clone(),
+            mode: args.mode.clone(),
+            status: coordinator_receipt_status(&args.mode, &final_action),
+            final_action: final_action_name(&final_action),
+            final_reason: final_action_reason(&final_action),
+            step_count: operator_steps
+                .as_array()
+                .map_or(0, |items| items.len() as u64),
+            created_at: receipt_created_at,
+            model_provider: Some(args.model_provider.clone()),
+            runtime_store: runtime_store.display().to_string(),
+            artifact_refs: artifact_manifest.clone(),
+            sealed_artifact_refs: sealed_artifact_manifest.clone(),
+            metadata: BTreeMap::from([
+                (
+                    "artifactDir".to_string(),
+                    artifact_dir.display().to_string(),
+                ),
+                (
+                    "modelRuntimeBin".to_string(),
+                    model_runtime_bin.display().to_string(),
+                ),
+                (
+                    "toolAdapterBin".to_string(),
+                    tool_adapter_bin.display().to_string(),
+                ),
+                ("mcpConfig".to_string(), mcp_config.display().to_string()),
+                ("autoTools".to_string(), args.auto_tools.to_string()),
+            ]),
+            resident_grant_id: args.resident_binding.get("grant-id").cloned(),
+            resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
+            resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
+            resident_argv_digest: args.resident_binding.get("argv-digest").cloned(),
+            resident_objective_digest: args.resident_binding.get("objective-digest").cloned(),
+            resident_release_commit: args.resident_binding.get("release-commit").cloned(),
+            resident_release_manifest_digest: args
+                .resident_binding
+                .get("release-manifest-digest")
+                .cloned(),
+            resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
+        };
+        finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
+        let runtime_status = runtime_spine_status(&runtime_store)?;
+        let summary = json!({
+            "objective": "Coordinate the Epiphany MVP lanes through native typed state and runtime organs.",
+            "artifactDir": artifact_dir,
+            "modelRuntimeBin": model_runtime_bin,
+            "toolAdapterBin": tool_adapter_bin,
+            "autoTools": args.auto_tools,
+            "modelProvider": args.model_provider,
+            "codexHome": codex_home,
+            "mcpConfig": mcp_config,
+            "runtimeStore": runtime_store,
+            "runtimeSpine": runtime_status,
+            "workspace": cwd,
+            "threadId": operator_final_status["threadId"],
+            "mode": args.mode,
+            "startupEvents": startup_events,
+            "steps": operator_steps,
+            "snapshots": snapshots,
+            "finalAction": status_cli::sanitize_for_operator(final_action),
+            "finalStatus": operator_final_status,
+            "coordinatorRunReceipt": {
+                "documentType": COORDINATOR_RUN_RECEIPT_TYPE,
+                "receiptId": coordinator_run_receipt.receipt_id,
+                "store": runtime_store,
+            },
+            "artifactManifest": artifact_manifest,
+            "sealedArtifactManifest": []
+        });
+        write_json(&artifact_dir.join("coordinator-summary.json"), &summary)?;
+        write_json(
+            &artifact_dir.join("coordinator-final-status.json"),
+            &summary["finalStatus"],
+        )?;
+        write_json(
+            &artifact_dir.join("runtime-spine-status.json"),
+            &summary["runtimeSpine"],
+        )?;
+        fs::write(
+            artifact_dir.join("coordinator-final-status.txt"),
+            final_rendered,
+        )?;
+        fs::write(
+            artifact_dir.join("coordinator-final-action.txt"),
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&summary["finalAction"])?
             ),
-            (
-                "toolAdapterBin".to_string(),
-                tool_adapter_bin.display().to_string(),
-            ),
-            ("mcpConfig".to_string(), mcp_config.display().to_string()),
-            ("autoTools".to_string(), args.auto_tools.to_string()),
-        ]),
-        resident_grant_id: args.resident_binding.get("grant-id").cloned(),
-        resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
-        resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
-        resident_argv_digest: args.resident_binding.get("argv-digest").cloned(),
-        resident_objective_digest: args.resident_binding.get("objective-digest").cloned(),
-        resident_release_commit: args.resident_binding.get("release-commit").cloned(),
-        resident_release_manifest_digest: args
-            .resident_binding
-            .get("release-manifest-digest")
-            .cloned(),
-        resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
-    };
-    finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
-    let runtime_status = runtime_spine_status(&runtime_store)?;
-    let summary = json!({
-        "objective": "Coordinate the Epiphany MVP lanes through native typed state and runtime organs.",
-        "artifactDir": artifact_dir,
-        "modelRuntimeBin": model_runtime_bin,
-        "toolAdapterBin": tool_adapter_bin,
-        "autoTools": args.auto_tools,
-        "modelProvider": args.model_provider,
-        "codexHome": codex_home,
-        "mcpConfig": mcp_config,
-        "runtimeStore": runtime_store,
-        "runtimeSpine": runtime_status,
-        "workspace": cwd,
-        "threadId": operator_final_status["threadId"],
-        "mode": args.mode,
-        "startupEvents": startup_events,
-        "steps": operator_steps,
-        "snapshots": snapshots,
-        "finalAction": status_cli::sanitize_for_operator(final_action),
-        "finalStatus": operator_final_status,
-        "coordinatorRunReceipt": {
-            "documentType": COORDINATOR_RUN_RECEIPT_TYPE,
-            "receiptId": coordinator_run_receipt.receipt_id,
-            "store": runtime_store,
-        },
-        "artifactManifest": artifact_manifest,
-        "sealedArtifactManifest": []
-    });
-    write_json(&artifact_dir.join("coordinator-summary.json"), &summary)?;
-    write_json(
-        &artifact_dir.join("coordinator-final-status.json"),
-        &summary["finalStatus"],
-    )?;
-    write_json(
-        &artifact_dir.join("runtime-spine-status.json"),
-        &summary["runtimeSpine"],
-    )?;
-    fs::write(
-        artifact_dir.join("coordinator-final-status.txt"),
-        final_rendered,
-    )?;
-    fs::write(
-        artifact_dir.join("coordinator-final-action.txt"),
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&summary["finalAction"])?
-        ),
-    )?;
-    write_json(
-        &telemetry_path,
-        &json!({
-            "source": "epiphany-native-coordinator",
-            "transport": "cultcache",
-            "appServerCalls": 0,
-            "rawTextExposed": false,
-        }),
-    )?;
-    Ok(summary)
+        )?;
+        write_json(
+            &telemetry_path,
+            &json!({
+                "source": "epiphany-native-coordinator",
+                "transport": "cultcache",
+                "appServerCalls": 0,
+                "rawTextExposed": false,
+            }),
+        )?;
+        Ok(summary)
     })();
     match run_result {
         Ok(summary) => Ok(summary),
@@ -1434,8 +1438,8 @@ fn record_hands_implementation_gate(
         schema_version: REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.to_string(),
         authority_id: format!("repo-frontier-hands-authority-{}", intent.intent_id),
         route_id: route.route_id.clone(),
-        model_revision: route.model_revision,
-        model_hash: route.model_hash.clone(),
+        model_projection_digest: route.model_projection_digest.clone(),
+        model_source_documents: route.model_source_documents.clone(),
         frontier_item_id: route.frontier_item_id.clone(),
         frontier_item_hash: route.frontier_item_hash.clone(),
         hands_intent_id: intent.intent_id.clone(),
@@ -1454,8 +1458,8 @@ fn record_hands_implementation_gate(
         "intentId": intent.intent_id,
         "reviewId": review.review_id,
         "routeId": route.route_id,
-        "modelRevision": route.model_revision,
-        "modelHash": route.model_hash,
+        "modelProjectionDigest": route.model_projection_digest,
+        "modelSourceDocuments": route.model_source_documents,
         "frontierItemId": route.frontier_item_id,
         "requestedPaths": requested_paths,
         "requiredReceipts": review.required_receipts,
@@ -1529,10 +1533,9 @@ fn launch_role(
         == epiphany_core::EpiphanyRoleResultRoleId::Research
         && epiphany_core::runtime_has_actionable_eyes_frontier(runtime_store)?
     {
-        Some(epiphany_core::select_and_commit_repo_frontier_research_request(
-            runtime_store,
-            &now(),
-        )?)
+        Some(
+            epiphany_core::select_and_commit_repo_frontier_research_request(runtime_store, &now())?,
+        )
     } else {
         None
     };
@@ -1593,10 +1596,7 @@ fn launch_role(
     request.repo_frontier_research_request_id = repo_frontier_research_request
         .as_ref()
         .map(|selected| selected.request_id.clone());
-    if let (
-        Some(selected),
-        epiphany_core::EpiphanyWorkerLaunchDocument::Role(document),
-    ) = (
+    if let (Some(selected), epiphany_core::EpiphanyWorkerLaunchDocument::Role(document)) = (
         repo_frontier_research_request.as_ref(),
         &mut request.launch_document,
     ) {
@@ -1847,7 +1847,13 @@ fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
     match role_id {
         "verification" => true,
         "research" | "imagination" => finding["statePatch"].is_object(),
-        "modeling" => finding["repoModelPatch"].is_object(),
+        "modeling" => {
+            finding["repoModelMutationProposal"].is_object()
+                || (matches!(
+                    finding["verdict"].as_str(),
+                    Some("checkpoint-ready" | "regather-needed")
+                ) && finding["repoModelMutationProposal"].is_null())
+        }
         _ => false,
     }
 }
@@ -2611,8 +2617,16 @@ mod tests {
             .filter(|event| event.session_id.as_deref() == Some(session.session_id.as_str()))
             .collect::<Vec<_>>();
         assert_eq!(events.len(), 2);
-        assert!(events.iter().any(|event| event.event_type == "coordinator.started"));
-        assert!(events.iter().any(|event| event.event_type == "session.completed"));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "coordinator.started")
+        );
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "session.completed")
+        );
         Ok(())
     }
 
@@ -2700,7 +2714,10 @@ mod tests {
 
         let repeated = intake_operator_objective(&store, "thread-1", " Map the machine ")?;
         assert!(!repeated.changed);
-        assert_eq!(repeated.mind.projection_digest, first.mind.projection_digest);
+        assert_eq!(
+            repeated.mind.projection_digest,
+            first.mind.projection_digest
+        );
         assert_eq!(repeated.commit_receipt, first.commit_receipt);
 
         let error = intake_operator_objective(&store, "thread-1", "Replace the machine")
@@ -2750,19 +2767,16 @@ mod tests {
     }
 
     #[test]
-    fn auto_review_accepts_modeling_repo_patch_without_generic_state_patch() {
+    fn auto_review_accepts_runtime_authored_modeling_proposal_without_generic_state_patch() {
         let result = json!({
             "status": "completed",
             "finding": {
+                "verdict": "checkpoint-update-needed",
                 "runtimeResultId": "result-modeling-typed",
                 "runtimeJobId": "job-modeling-typed",
-                "repoModelPatch": {
-                    "patch_id": "patch-typed",
-                    "base_revision": 0,
-                    "base_hash": "base",
-                    "applied_at": "2026-07-16T00:00:00Z",
-                    "purpose": {"kind": "evolution"},
-                    "operations": [{"operation": "retire_node", "node_id": "old"}]
+                "repoModelMutationProposal": {
+                    "proposal_id": "runtime-owned-proposal",
+                    "source_result_id": "result-modeling-typed"
                 },
                 "statePatch": null
             }
@@ -2791,13 +2805,9 @@ mod tests {
                 "summary": "Mapped with state.",
                 "runtimeResultId": "result-modeling-2",
                 "runtimeJobId": "job-modeling-2",
-                "repoModelPatch": {
-                    "patch_id": "patch-modeling-2",
-                    "base_revision": 0,
-                    "base_hash": "base",
-                    "applied_at": "2026-07-16T00:00:00Z",
-                    "purpose": {"kind": "evolution"},
-                    "operations": [{"operation": "retire_node", "node_id": "old"}]
+                "repoModelMutationProposal": {
+                    "proposal_id": "runtime-owned-proposal-2",
+                    "source_result_id": "result-modeling-2"
                 },
                 "statePatch": {"scratch": {"summary": "mapped"}}
             }
@@ -2819,83 +2829,6 @@ mod tests {
             "verification",
             &unreviewable
         ));
-    }
-
-    #[test]
-    fn hands_implementation_gate_persists_grant_intent_and_review() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("runtime-spine.msgpack");
-        initialize_runtime_spine(
-            &store,
-            RuntimeSpineInitOptions {
-                runtime_id: "epiphany-test".to_string(),
-                display_name: "Epiphany Test".to_string(),
-                created_at: "2026-06-02T00:00:00Z".to_string(),
-            },
-        )?;
-        seed_hands_frontier(&store)?;
-        let status = json!({
-            "scene": {
-                "scene": {
-                    "investigationCheckpoint": {
-                        "codeRefs": [{"path": "epiphany-core/src/lib.rs"}]
-                    }
-                }
-            }
-        });
-
-        let gate =
-            record_hands_implementation_gate(&store, temp.path(), "thread-test", 2, &status)?;
-        let grant_id = gate["substrateGateGrantReceiptId"]
-            .as_str()
-            .expect("grant id");
-        let intent_id = gate["intentId"].as_str().expect("intent id");
-        let review_id = gate["reviewId"].as_str().expect("review id");
-
-        let grant =
-            epiphany_core::runtime_substrate_gate_repo_access_grant_receipt(&store, grant_id)?
-                .expect("stored substrate grant");
-        let intent = epiphany_core::runtime_hands_action_intent(&store, intent_id)?
-            .expect("stored Hands intent");
-        let review = epiphany_core::runtime_hands_action_review(&store, review_id)?
-            .expect("stored Hands review");
-
-        assert_eq!(grant.receipt_id, intent.substrate_gate_grant_receipt_id);
-        assert_eq!(intent.intent_id, review.intent_id);
-        assert_eq!(intent.requested_action, "continueImplementation");
-        assert_eq!(
-            Some(intent.frontier_route_id.as_str()),
-            gate["routeId"].as_str()
-        );
-        assert_eq!(intent.plan_candidate_sha256, "coordinator-plan-hash-test");
-        assert_eq!(
-            intent.plan_action,
-            "Implement the bounded coordinator gate test."
-        );
-        assert_eq!(
-            gate.pointer("/recordPassCommand/executable")
-                .and_then(serde_json::Value::as_str),
-            Some("epiphany-hands-action")
-        );
-        assert_eq!(
-            gate["plannedCommand"].as_str(),
-            Some("cargo test --bin epiphany-mvp-coordinator")
-        );
-        assert_eq!(
-            gate.pointer("/recordPassCommand/args/10")
-                .and_then(serde_json::Value::as_str),
-            Some("cargo test --bin epiphany-mvp-coordinator"),
-            "the operator command surface must carry the exact Mind-admitted command"
-        );
-        assert_eq!(
-            review.required_receipts,
-            vec![
-                HANDS_PATCH_RECEIPT_TYPE.to_string(),
-                HANDS_COMMAND_RECEIPT_TYPE.to_string(),
-                HANDS_COMMIT_RECEIPT_TYPE.to_string(),
-            ]
-        );
-        Ok(())
     }
 
     #[test]
@@ -2924,96 +2857,6 @@ mod tests {
                 .contains("requires Self to derive regatherManually")
         );
         assert_eq!(unrelated["action"], "launchModeling");
-        Ok(())
-    }
-
-    fn seed_hands_frontier(store: &Path) -> Result<()> {
-        let mut item = epiphany_core::RepoFrontierItem {
-            id: "coordinator-hands-frontier-test".to_string(),
-            migration_body: "Exercise the coordinator-owned Hands gate.".to_string(),
-            question: "Does Self route the admitted implementation frontier?".to_string(),
-            gap: "Hands cannot act without a routed Modeling frontier.".to_string(),
-            target_claim_ids: vec!["coordinator-hands-claim-test".to_string()],
-            source_scope: vec!["epiphany-core/src".to_string()],
-            recommended_next_organ: "Hands".to_string(),
-            evidence_refs: vec!["fixture:mvp-coordinator".to_string()],
-            status: epiphany_core::RepoFrontierStatus::Active,
-            ..Default::default()
-        };
-        item.adopted_plan = Some(epiphany_core::RepoFrontierAdoptedPlan {
-            planning_request_id: "coordinator-planning-request-test".to_string(),
-            result_id: "coordinator-imagination-result-test".to_string(),
-            job_id: "coordinator-imagination-job-test".to_string(),
-            candidate_id: "coordinator-plan-candidate-test".to_string(),
-            candidate_sha256: "coordinator-plan-hash-test".to_string(),
-            safe_paths: item.source_scope.clone(),
-            action: "Implement the bounded coordinator gate test.".to_string(),
-            command: "cargo test --bin epiphany-mvp-coordinator".to_string(),
-            checks: vec!["focused coordinator test passes".to_string()],
-            stop_conditions: vec!["authority scope changes".to_string()],
-            rollback_steps: vec!["revert the bounded change".to_string()],
-            commit_message: "Bind Hands intent to adopted plan".to_string(),
-            execution_amendment: None,
-        });
-        let mut model = epiphany_core::EpiphanyMemoryGraphSnapshot {
-            schema_version: Some(epiphany_core::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
-            graph_id: "mvp-coordinator-test-model".to_string(),
-            model_revision: 1,
-            domains: vec![epiphany_core::EpiphanyMemoryDomain {
-                id: "repo".to_string(),
-                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
-                title: "Repository".to_string(),
-                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
-                ..Default::default()
-            }],
-            nodes: vec![epiphany_core::EpiphanyMemoryNode {
-                id: "coordinator-hands-claim-test".to_string(),
-                domain_id: "repo".to_string(),
-                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
-                kind: epiphany_core::EpiphanyMemoryNodeKind::RuntimeContract,
-                title: "Coordinator Hands gate".to_string(),
-                claim: "Implementation begins from an admitted routed frontier.".to_string(),
-                question: "Is the route current?".to_string(),
-                action_implication: "Route the exact admitted source scope.".to_string(),
-                source_hashes: vec!["anchor:missing".to_string()],
-                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
-                ..Default::default()
-            }],
-            frontier: vec![item],
-            ..Default::default()
-        };
-        model.model_hash = epiphany_core::memory_graph_model_hash(&model)?;
-        let entry = epiphany_core::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
-        let admission = epiphany_core::RepoModelAdmissionReceipt {
-            schema_version: epiphany_core::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "coordinator-hands-admission-test".to_string(),
-            review_id: "coordinator-hands-model-review-test".to_string(),
-            result_id: Some("coordinator-hands-model-result-test".to_string()),
-            patch_id: "coordinator-hands-model-patch-test".to_string(),
-            patch_sha256: "fixture".to_string(),
-            previous_revision: 0,
-            previous_hash: String::new(),
-            admitted_revision: model.model_revision,
-            admitted_hash: model.model_hash.clone(),
-            admitted_at: "2026-06-02T00:00:00Z".to_string(),
-            contract: epiphany_core::REPO_MODEL_ADMISSION_CONTRACT.to_string(),
-            purpose: epiphany_core::RepoModelPatchPurpose::Evolution,
-            frontier_route_id: String::new(),
-            verification_request_id: String::new(),
-            soul_verdict_receipt_id: String::new(),
-            frontier_modeling_request_id: String::new(),
-            proposal_modeling_request_id: String::new(),
-            claim_repair_request_id: String::new(),
-            frontier_plan_decision_id: String::new(),
-            repository_body_observation_basis: None,
-            admission_source: Some(epiphany_core::RepoModelAdmissionSource::WorkerResult {
-                result_id: "coordinator-hands-model-result-test".into(),
-                job_id: "coordinator-hands-model-job-test".into(),
-            }),
-        };
-        let mut cache = epiphany_core::runtime_spine_cache(store)?;
-        cache.put(epiphany_core::MEMORY_GRAPH_KEY, &entry)?;
-        cache.put(&admission.receipt_id, &admission)?;
         Ok(())
     }
 }

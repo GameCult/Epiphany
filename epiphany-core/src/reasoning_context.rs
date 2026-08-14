@@ -316,6 +316,10 @@ pub enum EpiphanyMindCommitAuthority {
     OperatorProvenance {
         provenance: EpiphanyMindDocumentVersion,
     },
+    TypedOrganProvenance {
+        organ: String,
+        provenance: EpiphanyMindDocumentVersion,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -608,6 +612,32 @@ pub fn commit_operator_mind_mutation(
     commit_authorized_mind_mutation(
         store_path,
         authority,
+        invariant_owner,
+        strong_reads,
+        writes,
+        vec![provenance],
+        committed_at,
+    )
+}
+
+pub fn commit_typed_organ_mind_mutation(
+    store_path: &Path,
+    organ: &str,
+    provenance: CultCacheEnvelope,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
+    require_non_empty(organ, "Mind mutation organ")?;
+    let provenance_version =
+        EpiphanyMindDocumentVersion::from_envelope("epiphany-organ", &provenance)?;
+    commit_authorized_mind_mutation(
+        store_path,
+        EpiphanyMindCommitAuthority::TypedOrganProvenance {
+            organ: organ.to_string(),
+            provenance: provenance_version,
+        },
         invariant_owner,
         strong_reads,
         writes,
