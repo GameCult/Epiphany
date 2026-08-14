@@ -6,7 +6,7 @@ Updated: 2026-08-14
 
 The five-day shakedown remains paused for architectural consolidation. The
 latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live`
-through exact `bd5034cd`.
+through exact `8ad16be0`.
 
 The active campaign is now the hard Decision-Auditable Concurrent Mind
 migration. Its first foundation is implemented locally: typed content-addressed
@@ -53,15 +53,22 @@ only semantic writes. A stale read-only dependency blocks the whole mutation
 without partial insertion. Full core remains 690 passing with one ignored
 cross-process helper.
 
-The first concrete RepoModel mutation planner now accepts a persisted typed
-semantic proposal and owns dependency derivation for node put/retire and
-frontier put/revision. It reads exact domains, nodes, frontier dependencies,
-the RepoModel identity, and affected per-node obligation documents; callers do
-not supply a strong-read list. It validates the complete projected graph before
-returning one Mind mutation plan. A fresh node retirement and a concurrent new
-frontier target both write the same previously absent obligation identity, so
-only one can commit. The acceptance test makes the frontier win and proves the
-stale retirement leaves the node unchanged.
+The concrete RepoModel mutation planner now accepts a persisted typed semantic
+proposal and owns dependency derivation for domains, nodes, edges, summaries,
+and frontier documents. Node and edge retirement are semantic operations;
+admission and lifecycle receipts remain runtime-owned. Callers do not supply a
+strong-read list. One mutation can create a complete domain/node/edge/summary
+slice in dependency-reversed order, while duplicate semantic identities refuse.
+A fresh node retirement and a concurrent new frontier target both write the
+same previously absent obligation identity, so only one can commit.
+
+Exact `8ad16be0` cuts the first aggregate RepoModel bootstrap path.
+`epiphany-repository-body bootstrap` now admits an `EpiphanyRepoModelSeed` as
+typed operator provenance and atomically writes only keyed RepoModel documents,
+derived claim obligations, and the generic Mind commit receipt. Identical seed
+replay is inert; divergent replay and any aggregate RepoModel envelope refuse.
+The seed contains no revision/hash head. Full core passes 692 tests with one
+ignored cross-process helper, and the repository-body binary checks cleanly.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
@@ -176,12 +183,12 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Extend the keyed RepoModel mutation planner across domain, edge, summary, and
-lifecycle operations, then cut its aggregate
-admission writers. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
+Delete the remaining legacy RepoModel bootstrap/migration binary and callers,
+then make launch context assemble the keyed view rather than creating or
+reading an aggregate. Cut aggregate admission writers after that read boundary
+is gone. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
 checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
 their keyed documents. Delete the aggregate transaction, reader, and schema
 before enabling old writable-store refusal; do not translate or dual-read it.
-Then split RepoModel into exact semantic-key documents. Do not touch the
-original c011 volumes, resume the shakedown, add capability surfaces, or build
-on Yggdrasil.
+Do not touch the original c011 volumes, resume the shakedown, add capability
+surfaces, or build on Yggdrasil.

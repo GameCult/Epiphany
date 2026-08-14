@@ -4630,16 +4630,33 @@ partial state.
 ### Keyed RepoModel mutation planning
 
 `EpiphanyRepoModelMutationProposal` is a durable typed semantic proposal, not a
-base-revision patch. The bounded planner currently owns node put/retire and
-frontier put/revision. It derives exact identity, domain, node, dependency
-frontier, and per-node claim-obligation envelopes from the store, projects the
-candidate graph, validates it, and emits deterministic strong-read and write
-sets. Callers cannot choose which stale inputs are harmless.
+base-revision patch. The bounded planner owns domain, node, edge, summary, and
+frontier puts plus node and edge retirement. It derives exact identity, domain,
+node/edge, covered-summary member, dependency-frontier, and per-node
+claim-obligation envelopes from the store, projects the candidate graph,
+validates it, and emits deterministic strong-read and write sets. Callers cannot
+choose which stale inputs are harmless. Admission purpose, commit time, and
+lifecycle receipts are deliberately absent from model-authored operations.
 
 Node retirement writes an empty per-node obligation even when none existed.
 Frontier targeting writes that same identity with its live membership. Thus a
 retirement planned concurrently with a new frontier target cannot pass by an
 absence scan: the two operations contend on one document. The test commits the
 frontier and proves the stale retirement returns a typed conflict while the node
-remains accepted. Domain, edge, summary, and lifecycle operations remain the
-next expansion of this closed planner before aggregate admission cutover.
+remains accepted. A second proof creates a complete domain/node/edge/summary
+slice in dependency-reversed order, retires the edge, and rejects a proposal
+that addresses the same edge twice.
+
+### Fresh keyed RepoModel seed
+
+`EpiphanyRepoModelSeed` is the only new-store bootstrap input. It contains the
+Body binding and canonical semantic documents, but no aggregate revision/hash.
+`initialize_keyed_repo_model` derives unresolved-claim obligations and commits
+the typed seed provenance, keyed documents, and generic Mind commit receipt in
+one exact-envelope transaction. Exact replay returns the same projected state;
+divergent seed identity or an aggregate RepoModel envelope refuses.
+
+Exact `8ad16be0` moves the production `epiphany-repository-body bootstrap`
+command onto this owner. The legacy bootstrap/migration binary and launch-time
+aggregate reader remain the next deletion line; the shakedown stays paused
+until they and aggregate admission are gone.
