@@ -5,8 +5,8 @@ Updated: 2026-08-14
 ## Current state
 
 The five-day shakedown remains paused for architectural consolidation. The
-latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live` at
-exact `f90f1186`.
+latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live`
+through exact `833d3964`.
 
 The active campaign is now the hard Decision-Auditable Concurrent Mind
 migration. Its first foundation is implemented locally: typed content-addressed
@@ -18,10 +18,14 @@ role/reorient results plus their generic job result bind the terminal context.
 Tool-round-limit and repeated-tool-loop failures seal the last request context
 before worker failure. Model-session archives preserve their basis/context IDs,
 and fulfilled worker-attempt tombstones preserve and revalidate the exact
-decision context instead of collapsing it to a digest. Exact-envelope batch CAS merges disjoint Mind documents and explicitly refuses
-same-identity or changed-strong-read conflicts. Model failures, Persona stages,
-the remaining provider-error/timeout failure edges, Persona stages, Persona
-retention, keyed canonical Mind state, and keyed RepoModel remain to be cut.
+decision context instead of collapsing it to a digest. Exact-envelope batch CAS
+merges disjoint Mind documents and explicitly refuses same-identity or
+changed-strong-read conflicts. All three Persona stages now seal
+predecessor-bound contexts, the effect and terminal commit atomically, and
+Persona retention preserves the structured effect, conversation/consequence
+receipts, terminal receipt, reasoning bases, and decision contexts while
+removing stage/execution scaffolding. Provider-error/timeout failure edges,
+keyed canonical Mind state, and keyed RepoModel remain to be cut.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
@@ -136,11 +140,10 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Finish decision-context ownership before normalizing state: bind model-backed
-failures and all three Persona stages, make their terminal commits atomic, and
-make session/worker/Persona retention preserve the Basis -> Context -> decision
-route after streams and transport scaffolding disappear. Then delete persisted
-thread-state authority and split canonical Mind and RepoModel into semantic-key
-documents under exact-envelope batch CAS. There is no writable-store migrator
-or compatibility read path. Do not touch the original c011 volumes, resume the
-shakedown, add capability surfaces, or build on Yggdrasil.
+Finish decision-context ownership before normalizing state: bind provider-error
+and timeout failures to the last exact request that actually reached the
+provider. Then delete persisted thread-state authority and split canonical Mind
+and RepoModel into semantic-key documents under exact-envelope batch CAS. There
+is no writable-store migrator or compatibility read path. Do not touch the
+original c011 volumes, resume the shakedown, add capability surfaces, or build
+on Yggdrasil.

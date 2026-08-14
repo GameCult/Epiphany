@@ -4536,3 +4536,25 @@ same-identity divergence, and writes an immutable Mind commit receipt with the
 mutation. It never rebases model output. This foundation does not yet replace
 persisted thread state or aggregate RepoModel; those obsolete authorities are
 the next hard deletion line.
+
+### Persona decision chain and retention
+
+Each Projector, Persona, and Interpreter pass seals its own typed reasoning
+basis and terminal decision context. Persona and Interpreter bases cite the
+preceding stage context, so replay validates the exact three-stage causal chain
+without consulting model-event prose. The Interpreter effect cites its context;
+the terminal receipt cites all three contexts; the conversation receipt cites
+the terminal and Interpreter context.
+
+Runtime commits the Interpreter effect and Persona terminal receipt in one
+snapshot-fenced batch. Conversation retention deletes only stage receipts and
+effect-execution intents. The structured effect, conversation and consequence
+receipts, model terminal, reasoning bases, and decision contexts remain durable
+decision authority. Heartbeat may retire the scheduling turn, but it cannot
+erase or reconstruct the decision.
+
+Exact `833d3964` proves this cut with 689 passing core tests (one ignored
+cross-process helper) and all 42 OpenAI runtime targets. Persona inputs are
+already sealed inside typed projection variants; binding those projections to
+the forthcoming keyed Mind source-document versions remains part of the hard
+Mind cut.
