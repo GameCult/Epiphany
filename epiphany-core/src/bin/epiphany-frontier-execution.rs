@@ -1,7 +1,6 @@
 use anyhow::{Result, anyhow};
 use epiphany_core::{
     RepoFrontierExecutionAmendment, RepoFrontierRoute, amend_repo_frontier_execution,
-    apply_supervisor_modeling_acceptance_correction, read_coordinator_state,
     runtime_repo_frontier_plan_decision, runtime_repo_model_admission_receipt,
     runtime_repo_model_admission_review, runtime_spine_cache,
 };
@@ -12,11 +11,7 @@ fn main() -> Result<()> {
     let mut values = BTreeMap::new();
     let mut args = env::args().skip(1);
     let command = args.next().ok_or_else(|| anyhow!(usage()))?;
-    if command != "amend-frontier-execution"
-        && command != "inspect-frontier-execution"
-        && command != "inspect-thread-acceptances"
-        && command != "supersede-modeling-acceptance"
-    {
+    if command != "amend-frontier-execution" && command != "inspect-frontier-execution" {
         return Err(anyhow!("unknown command {command}\n{}", usage()));
     }
     while let Some(flag) = args.next() {
@@ -34,35 +29,6 @@ fn main() -> Result<()> {
             .ok_or_else(|| anyhow!("missing {name}"))
     };
     let store = PathBuf::from(take("--store")?);
-    if command == "inspect-thread-acceptances" {
-        let thread_id = take("--thread-id")?;
-        let state = read_coordinator_state(&store)?
-            .ok_or_else(|| anyhow!("coordinator state is absent"))?;
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "threadId": thread_id,
-                "revision": state.revision,
-                "lastUpdatedTurnId": state.last_updated_turn_id,
-                "acceptanceReceipts": state.acceptance_receipts,
-            }))?
-        );
-        return Ok(());
-    }
-    if command == "supersede-modeling-acceptance" {
-        let receipt = apply_supervisor_modeling_acceptance_correction(
-            &store,
-            &take("--thread-id")?,
-            take("--expected-revision")?.parse()?,
-            &take("--receipt-id")?,
-            &take("--result-id")?,
-            &take("--source-actor-id")?,
-            &take("--reason")?,
-            &take("--corrected-at")?,
-        )?;
-        println!("{}", serde_json::to_string_pretty(&receipt)?);
-        return Ok(());
-    }
     let route_id = take("--route-id")?;
     if command == "inspect-frontier-execution" {
         let mut cache = runtime_spine_cache(&store)?;
@@ -155,5 +121,5 @@ fn main() -> Result<()> {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-mind-repair inspect-thread-acceptances --store PATH --thread-id ID\n       epiphany-mind-repair inspect-frontier-execution --store PATH --route-id ID\n       epiphany-mind-repair amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339\n       epiphany-mind-repair supersede-modeling-acceptance --store PATH --thread-id ID --expected-revision N --receipt-id ID --result-id ID --source-actor-id ID --reason missing-typed-future-frontier --corrected-at RFC3339"
+    "usage: epiphany-frontier-execution inspect-frontier-execution --store PATH --route-id ID\n       epiphany-frontier-execution amend-frontier-execution --store PATH --route-id ID --source-actor-id ID --command-id ID --admission-id ID --packet-sha256 SHA256 --previous-action TEXT --previous-command TEXT --action TEXT --replacement-command TEXT --rationale TEXT --amended-at RFC3339"
 }

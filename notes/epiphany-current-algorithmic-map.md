@@ -4579,3 +4579,24 @@ transaction are still live production authorities. The new view does not read,
 translate, mirror, or migrate that aggregate. Concrete admission owners must
 move to keyed mutations, after which the aggregate schema and writer are
 deleted and old writable stores are refused.
+
+### First live cut: operator objective
+
+Exact `bd5034cd` makes `Self.user_objective_intake` the first migrated owner.
+Its inputs are one typed operator intake and the initialized Mind epoch. Its
+outputs are the semantic objective document, immutable intake, and Mind commit
+receipt written in one exact-envelope CAS. Receipt authority is a closed choice
+between a model decision context and typed operator provenance; operator action
+cannot impersonate model reasoning.
+
+`thread_id` is no longer an objective owner; it remains intake provenance.
+Global revision and `EpiphanyThreadStateEntry` are absent from this path, and
+the operator-facing event reports the Mind projection digest and commit receipt.
+Exact replay recovers the same receipt. Objective replacement and split
+intake/objective state refuse without mutation.
+
+The aggregate-only supervisor Modeling-acceptance correction is deleted rather
+than translated. It existed to repair receipt-shaped routing authority;
+unresolved typed state must own routing instead. Its commands and exported
+writer are gone. The remaining frontier execution inspector/amendment tool is
+named `epiphany-frontier-execution`, matching its actual authority.

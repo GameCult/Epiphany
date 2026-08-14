@@ -6,7 +6,7 @@ Updated: 2026-08-14
 
 The five-day shakedown remains paused for architectural consolidation. The
 latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live`
-through exact `71505941`.
+through exact `bd5034cd`.
 
 The active campaign is now the hard Decision-Auditable Concurrent Mind
 migration. Its first foundation is implemented locally: typed content-addressed
@@ -31,6 +31,15 @@ the keyed Mind document family, deterministic `EpiphanyMindView`, atomic
 runtime/Mind epoch identity, and a mutation gate that rejects non-Mind envelopes
 or semantic key drift. The old aggregate Mind owner and keyed RepoModel remain
 to be cut; the keyed view does not read or translate the aggregate.
+
+Exact `bd5034cd` is the first live authority cut. Operator objective intake now
+atomically writes one semantic objective document, its immutable typed operator
+provenance, and one Mind commit receipt. It writes no thread-state aggregate;
+thread identity is provenance, and replacement refuses without changing store
+bytes. The commit authority is explicitly model context or operator provenance,
+so operator decisions do not counterfeit model reasoning. The aggregate-only
+Modeling acceptance repair writer and commands are deleted; frontier execution
+inspection/amendment remains under a truthfully named binary.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
@@ -145,7 +154,7 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Migrate concrete objective, focus/mode, subgoal/invariant, evidence/observation,
+Migrate concrete focus/mode, subgoal/invariant, evidence/observation,
 checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
 their keyed documents. Delete the aggregate transaction, reader, and schema
 before enabling old writable-store refusal; do not translate or dual-read it.
