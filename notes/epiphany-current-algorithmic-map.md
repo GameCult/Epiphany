@@ -4403,10 +4403,12 @@ transport and result JSON remain transport cargo, not evidence authority.
 
 - Owner: resident Self owns OS cleanup for model-worker grandchildren that its
   bounded coordinator children orphan into resident PID 1.
-- Inputs: typed `EpiphanyRuntimeWorkerProcessClaim` rows and the kernel's exact
-  child/exit relation. Claims are sorted for deterministic inspection.
-- Outputs: exact nonblocking `waitpid(pid, WNOHANG)` for claimed worker PIDs.
-  `ECHILD` and a still-running child are clean no-ops.
+- Inputs: typed `EpiphanyRuntimeWorkerProcessClaim` rows reconstructed as full
+  `ProcessInstanceIdentity` values, plus the kernel's exact child/exit relation.
+  Claims are sorted for deterministic inspection.
+- Outputs: nonblocking `waitpid(pid, WNOHANG)` only after the full claimed
+  incarnation is observed `ExactExited`. `ECHILD`, a live child, a missing
+  process, and a reused PID are clean no-ops.
 - Derived state: runtime job, result, process-claim, archive, and coordinator
   receipt documents remain cognitive evidence. Reaping changes none of them.
 - Forbidden writers: retention, PID age, executable-name scans, generic
@@ -4415,9 +4417,10 @@ transport and result JSON remain transport cargo, not evidence authority.
 - Shared paths: every resident once/serve cycle reaps before maintenance can
   archive the exact claim. Known coordinator children remain owned and reaped
   through their `Child::try_wait` handles.
-- Cut line: add no signal-handler policy, global scavenger, retry writer, or
-  process-name registry. The typed runtime claim supplies identity; the kernel
-  supplies parenthood and terminality.
+- Cut line: there is no PID-only reaping API, signal-handler policy, global
+  scavenger, retry writer, or process-name registry. The typed runtime claim
+  supplies full incarnation identity; the kernel supplies parenthood and
+  terminality.
 - Verification: c010 exposed six defunct adopted workers. Exact `465af24d`
   passes six focused Windows process tests, nine swarm tests, and the Unix
   exact-child test on Starfire. Its authenticated 24-binary release is
@@ -4443,6 +4446,19 @@ and the next cycle reaped PID 275. Resident PID 1 again had no defunct child.
 Heartbeat returned to routine physiology and the result produced no further
 admitted work. This closes the successful-path reaper gate across Modeling and
 Imagination without adding a lifecycle-specific process rule.
+
+The copied `08383c6d` public-Eyes run later falsified the original claim that a
+numeric claimed PID was exact enough. After PID reuse, a historical worker claim
+reaped a newer coordinator child; its Rust `Child` handle then received
+`ECHILD`, terminating resident Self. Exact `f90f1186` changes the reaper port to
+require the full `ProcessInstanceIdentity` and observes `ExactExited` before
+calling `waitpid`. The Linux negative test proves a stale incarnation cannot
+reap the matching current PID. Its exact 24-binary release
+`sha256-0e41c9106eb0e37a9cf3e7a4b67671d494b880b7e71fec65336a8c3e7e1129b4`,
+witness `sha256-a310c72292a44f950ce7b0ab469779d02e6edd1068670fe37f990f7d82846ee4`,
+completed two Research launch/review/Mind-acceptance cycles, survived the process
+turnover that killed `08383c6d`, and stopped both copied daemons braked with exit
+zero.
 ## Causal current-frontier Research routing - 2026-08-11
 
 - Owner: the exact actionable Eyes frontier in the uniquely admitted current
@@ -4471,6 +4487,32 @@ Imagination without adding a lifecycle-specific process rule.
   old request inert.
 - Verification: deterministic selection/replay across a coordinator-thread
   transition, strict public-ref projection, exact carrier validation, exact
-  packet coverage, historical-acceptance routing, the full 680-test core pass,
-  24 Self-policy tests, and 39 OpenAI runtime tests are green. Exact packaged
-  copied-state public Eyes-to-Mind proof remains open.
+  packet coverage, historical-acceptance routing, and focused Self/OpenAI tests
+  are green. Exact `40beb6a9` made the lifecycle emit typed Launch/Review action;
+  exact `08383c6d` made coordinator policy consume that action before stale role
+  history. Exact packaged `f90f1186` completed two immutable public lookup and
+  Mind-acceptance cycles with no Hands consequence.
+
+## Exact Research continuation owner and public-source closure (2026-08-14)
+
+- Owner: `RepoFrontierResearchLifecycle` owns the one current Research action.
+- Inputs: exact current Research request, its bound launch/attempt, terminal
+  review receipt, and accepted Eyes packet.
+- Outputs: `LaunchResearch`, `ReviewResearchResult`, or no action.
+- Derived state: role-board terminal/reviewable state remains an operator display
+  and review target for its historical job. It does not decide whether the
+  current frontier needs a new launch.
+- Forbidden writers: coordinator thread, generic role binding, completed
+  superseded result, status mapper, and Resident retry logic cannot override or
+  repair the lifecycle action.
+- Shared paths: Resident pressure ingestion, coordinator policy, and status use
+  the same typed lifecycle projection.
+- Cut line: the `eyes_frontier_ready` boolean and later role-projection launch
+  suppression are gone. There is no mode flag, retry exception, or registry.
+- Verification: `40beb6a9` exposed lifecycle action to Resident and status;
+  `08383c6d` routed coordinator policy from it and live-relaunched after a
+  superseded Research result. `f90f1186` then completed two exact public-source
+  lookup and Mind-admission cycles. The prior packaged no-grant run refused
+  before network under `--network none`, preserved byte-identical runtime state,
+  and emitted no receipt. Together these close the immutable public Eyes
+  success/denial pair.

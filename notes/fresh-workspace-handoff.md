@@ -1,18 +1,19 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-13
+Updated: 2026-08-14
 
 ## Current state
 
-The five-day shakedown remains paused for architectural consolidation. Source is
-clean and pushed on `codex/epiphany-shakedown-live` at exact `3d13b1ea`.
+The five-day shakedown remains paused for architectural consolidation. The
+latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live` at
+exact `f90f1186`.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
 and remain untouched. Historical c011 zero-zombie and organ-circuit evidence is
-still valid, but it is not current liveness. The copied a4a41006 public-Eyes body
-was re-braked and stopped after the positive gate exposed a deeper acceptance
-hole. Yggdrasil remains the public crossing and never builds Epiphany.
+still valid, but it is not current liveness. Every copied public-Eyes body is
+braked and stopped. Yggdrasil remains the public crossing and never builds
+Epiphany.
 
 ## Consolidation cut
 
@@ -40,13 +41,28 @@ consolidation now gives each repeated invariant one named owner.
   set. One launch-to-request derivation is shared by Self coverage, Research
   acceptance, and final Mind revalidation. Capability grants, prompts, and
   locally inspected files are not substitutes for exact requested receipts.
+- `RepoFrontierResearchLifecycle` owns the exact current Research continuation.
+  Resident Self, coordinator policy, and status consume its typed Launch/Review
+  action. A completed superseded role lane is display history, not a launch
+  suppressor or compensating repair path.
+- Worker reaping consumes the full `ProcessInstanceIdentity`, not a PID. The
+  kernel wait occurs only after that exact incarnation is observed exited. A
+  historical claim cannot reap a reused coordinator child.
 
-Core passes 684 active tests with one intentional ignored cross-process helper;
-the final public-source and current-frontier focused tests also pass. The
-packaged no-grant execution gate passed under `--network none` with byte-identical
-state and no receipt. The copied positive run reached exact `launchResearch`,
-then two Research attempts failed output shape and invoked only local tools.
-Therefore packaged public Eyes-to-Mind success remains open.
+Core passes 687 active tests with one intentional ignored cross-process helper.
+The packaged no-grant execution gate passed under `--network none` with
+byte-identical state and no receipt. Exact packaged `f90f1186`, release
+`sha256-0e41c9106eb0e37a9cf3e7a4b67671d494b880b7e71fec65336a8c3e7e1129b4`,
+witness `sha256-a310c72292a44f950ce7b0ab469779d02e6edd1068670fe37f990f7d82846ee4`,
+then completed two copied immutable-public-source Research/Mind acceptance
+cycles. Public tool receipts advanced from 53 to 61, Hands stayed false, and
+both daemons stopped braked with exit zero.
+
+The preceding `08383c6d` run is retained as falsification evidence: it proved
+the typed Research lifecycle cut, then died with `ECHILD` because PID-only
+reaping let a historical worker claim steal a reused coordinator child's wait
+status. `f90f1186` removes the PID-only API and survived the same process
+turnover.
 
 ## Authority map
 
@@ -93,15 +109,16 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Acceptance gates before shakedown resumes
 
-1. Package exact `3d13b1ea`, replay no-grant denial, and prove immutable public
-   Eyes success on a fresh copied body. Research must cite the exact lookup and
-   final Mind admission must reauthenticate the complete requested set.
+1. Generalize exact current-work lifecycle ownership across Modeling and
+   Verification so neither family can repeat Research's stale-role-lane split.
 2. Run one fresh-repository source -> Hands -> Soul -> Modeling -> Mind -> Self
    capstone before claiming organism-level readiness.
 
 ## Immediate next action
 
-Build the exact 3d13b1ea isolated Linux package, then use a fresh copy of the
-quiescent c011 volumes for the public Eyes success/denial pair. Do not reuse the
-stopped a4 proof state, touch the original c011 volumes, add capability surfaces,
-or build on Yggdrasil.
+Map Modeling and Verification's exact causal currency, then give each family
+one typed continuation owner consumed by Resident Self, coordinator policy, and
+status. Preserve their distinct invariants; do not create a generic registry or
+let the mutable role-board projection decide current work. Replay the accepted
+circuits before the fresh-repository capstone. Do not touch the original c011
+volumes, add capability surfaces, or build on Yggdrasil.

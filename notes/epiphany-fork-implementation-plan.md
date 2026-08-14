@@ -204,11 +204,11 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Refresh the Perfect Machine audit against current source and live proofs. The
-generation-one repo-work Modeling chain is complete from immutable
-generation-zero failure through Mind revision, scheduler selection, consumer
-schema preflight, Idunn lifecycle ownership, real runtime-authored
-generation-one finding, and canonical current-generation admission. Remove
-stale roadmap gaps that describe landed work, then select the next missing
-organ boundary from authoritative source instead of extending this campaign by
-inertia.
+Keep the live shakedown paused and consolidate current-work lifecycle ownership.
+Research now has one typed Launch/Review owner shared by Resident Self,
+coordinator policy, and status. Map Modeling and Verification's exact causal
+currency and give each the same single-owner shape without erasing their
+distinct prerequisites or creating a generic registry. Delete any stale role
+projection that can still suppress, fork, or repair current work. Replay the
+accepted organ circuits, then run the fresh-repository source -> Hands -> Soul
+-> Modeling -> Mind -> Self capstone.
