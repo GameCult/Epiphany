@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -41,7 +42,7 @@ use epiphany_openai_runtime::record_openai_events;
 use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_openai_model_turn;
 use epiphany_openai_runtime::run_tool_followup_model_turn;
-use epiphany_openai_runtime::run_worker_launch;
+use epiphany_openai_runtime::run_worker_launch_observed;
 use epiphany_openai_runtime::worker_model_session_id;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::tool_invocation_intent_key;
@@ -153,19 +154,25 @@ async fn main() -> Result<()> {
             let options = parse_run_worker_options(args.collect())?;
             require_supported_provider(&options.provider)?;
             claim_and_wait_for_worker_activation(&options)?;
-            let timeout_guard = start_run_worker_timeout_watchdog(&options);
+            let pass_progress = WorkerPassProgress::default();
+            let timeout_guard = start_run_worker_timeout_watchdog(&options, pass_progress.clone());
             let timeout_seconds = options.max_runtime_seconds;
             let timeout_store = options.store_path.clone();
             let timeout_job_id = options.job_id.clone();
             let summary = if let Some(seconds) = timeout_seconds {
                 match tokio::time::timeout(
                     Duration::from_secs(seconds),
-                    run_worker_options(options),
+                    run_worker_options(options, pass_progress.clone()),
                 )
                 .await
                 {
                     Ok(result) => {
-                        seal_worker_runtime_result(&timeout_store, &timeout_job_id, result)?
+                        seal_worker_runtime_result(
+                            &timeout_store,
+                            &timeout_job_id,
+                            result,
+                            &pass_progress,
+                        )?
                     }
                     Err(_) => {
                         let summary = format!("Worker runtime timed out after {seconds} seconds.");
@@ -175,6 +182,7 @@ async fn main() -> Result<()> {
                             summary.clone(),
                             "Inspect provider/tool transport before relaunching the worker."
                                 .to_string(),
+                            pass_progress.terminal_request_id().as_deref(),
                         )?;
                         json!({
                             "status": "timeout",
@@ -190,7 +198,8 @@ async fn main() -> Result<()> {
                 seal_worker_runtime_result(
                     &timeout_store,
                     &timeout_job_id,
-                    run_worker_options(options).await,
+                    run_worker_options(options, pass_progress.clone()).await,
+                    &pass_progress,
                 )?
             };
             timeout_guard.store(true, Ordering::SeqCst);
@@ -768,7 +777,27 @@ fn default_worker_model() -> String {
         .unwrap_or_else(|_| "gpt-5.4".to_string())
 }
 
-fn start_run_worker_timeout_watchdog(options: &RunWorkerCliOptions) -> Arc<AtomicBool> {
+#[derive(Clone, Default)]
+struct WorkerPassProgress(Arc<Mutex<Option<String>>>);
+
+impl WorkerPassProgress {
+    fn note_model_request(&self, request_id: &str) {
+        *self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
+            Some(request_id.to_string());
+    }
+
+    fn terminal_request_id(&self) -> Option<String> {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+}
+
+fn start_run_worker_timeout_watchdog(
+    options: &RunWorkerCliOptions,
+    pass_progress: WorkerPassProgress,
+) -> Arc<AtomicBool> {
     let completed = Arc::new(AtomicBool::new(false));
     let Some(seconds) = options.max_runtime_seconds else {
         return completed;
@@ -787,6 +816,7 @@ fn start_run_worker_timeout_watchdog(options: &RunWorkerCliOptions) -> Arc<Atomi
             &job_id,
             summary.clone(),
             "Inspect provider/tool transport before relaunching the worker.".to_string(),
+            pass_progress.terminal_request_id().as_deref(),
         );
         process::exit(124);
     });
@@ -798,8 +828,21 @@ fn fail_worker_and_openai_jobs(
     job_id: &str,
     summary: String,
     next_safe_move: String,
+    terminal_request_id: Option<&str>,
 ) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
-    let result = fail_worker_job(store_path, job_id, summary.clone(), next_safe_move)?;
+    let result = if let Some(request_id) = terminal_request_id
+        && persisted_model_request_exists(store_path, request_id)?
+    {
+        fail_model_backed_worker_job(
+            store_path,
+            job_id,
+            request_id,
+            summary.clone(),
+            next_safe_move,
+        )?
+    } else {
+        fail_worker_job(store_path, job_id, summary.clone(), next_safe_move)?
+    };
     let openai_job_id = format!("openai-worker-{job_id}");
     let _ = fail_worker_job_with_retry(
         store_path,
@@ -810,10 +853,19 @@ fn fail_worker_and_openai_jobs(
     Ok(result)
 }
 
+fn persisted_model_request_exists(store_path: &Path, request_id: &str) -> Result<bool> {
+    let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    Ok(cache
+        .get::<EpiphanyModelRequest>(request_id)?
+        .is_some())
+}
+
 fn fail_worker_for_runtime_error(
     store_path: &Path,
     job_id: &str,
     error: String,
+    terminal_request_id: Option<&str>,
 ) -> Result<serde_json::Value> {
     let summary = format!("Worker runtime failed before producing usable output: {error}");
     let launch = load_worker_launch_request(store_path, job_id)?;
@@ -828,6 +880,7 @@ fn fail_worker_for_runtime_error(
         summary.clone(),
         "Inspect provider/tool transport and runtime adapter errors before relaunching the worker."
             .to_string(),
+        terminal_request_id,
     )?;
     Ok(json!({
         "status": "runtime-error",
@@ -843,10 +896,16 @@ fn seal_worker_runtime_result(
     store_path: &Path,
     job_id: &str,
     result: Result<serde_json::Value>,
+    pass_progress: &WorkerPassProgress,
 ) -> Result<serde_json::Value> {
     match result {
         Ok(summary) => Ok(summary),
-        Err(error) => fail_worker_for_runtime_error(store_path, job_id, error.to_string()),
+        Err(error) => fail_worker_for_runtime_error(
+            store_path,
+            job_id,
+            error.to_string(),
+            pass_progress.terminal_request_id().as_deref(),
+        ),
     }
 }
 
@@ -871,6 +930,7 @@ fn fail_worker_job_with_retry(
 
 async fn run_worker_launch_with_tool_continuation(
     options: RunWorkerCliOptions,
+    pass_progress: WorkerPassProgress,
 ) -> Result<serde_json::Value> {
     let tool_adapter_bin = options
         .tool_adapter_bin
@@ -925,6 +985,7 @@ async fn run_worker_launch_with_tool_continuation(
         default_model: Some(options.model.clone()),
     };
     let mut current_request_id = initial_request.request_id.clone();
+    pass_progress.note_model_request(&current_request_id);
     let mut current_options = openai_options.clone();
     let mut openai_summary =
         run_model_turn(&options.provider, current_options.clone(), initial_request).await?;
@@ -963,6 +1024,7 @@ async fn run_worker_launch_with_tool_continuation(
             )?);
         }
         let followup_request_id = format!("{}-tool-followup-{round}", current_request_id);
+        pass_progress.note_model_request(&followup_request_id);
         current_options.job_id = format!("{}-tool-followup-{round}", openai_options.job_id);
         openai_summary = run_tool_followup_model_turn(
             &options.provider,
@@ -1699,10 +1761,51 @@ mod tests {
             },
         )?;
 
+        let launch = epiphany_core::runtime_worker_launch_request(
+            &store,
+            "worker-job-runtime-error",
+        )?
+        .expect("worker launch");
+        let basis = epiphany_core::worker_reasoning_basis(&store, &launch)?;
+        epiphany_core::put_reasoning_basis(&store, &basis)?;
+        let mut request = EpiphanyModelRequest::new(
+            "request-runtime-error",
+            "conversation-runtime-error",
+            DEFAULT_PROVIDER,
+            "gpt-test",
+            "Fail after provider admission.",
+        );
+        request.source_worker_job_id = Some("worker-job-runtime-error".into());
+        request.reasoning_basis_id = Some(basis.basis_id);
+        let provider_request = epiphany_openai_adapter::request_from_native(&request);
+        epiphany_core::open_runtime_model_execution(
+            &store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: "openai-runtime-error".into(),
+                objective: "Exercise model-backed runtime failure.".into(),
+                created_at: now(),
+                coordinator_note: "test".into(),
+            },
+            epiphany_core::RuntimeSpineJobOptions {
+                job_id: "openai-job-runtime-error".into(),
+                session_id: "openai-runtime-error".into(),
+                role: OPENAI_RUNTIME_ROLE.into(),
+                created_at: now(),
+                summary: "provider admitted request".into(),
+                artifact_refs: Vec::new(),
+            },
+            &request,
+            &provider_request,
+            &now(),
+        )?;
+        let pass_progress = WorkerPassProgress::default();
+        pass_progress.note_model_request(&request.request_id);
+
         let status = seal_worker_runtime_result(
             &store,
             "worker-job-runtime-error",
             Err(anyhow!("tool adapter exploded")),
+            &pass_progress,
         )?;
 
         assert_eq!(status["status"], "runtime-error");
@@ -1714,7 +1817,20 @@ mod tests {
         let snapshot =
             runtime_job_snapshot(&store, "worker-job-runtime-error")?.expect("worker snapshot");
         assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
-        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        let result = snapshot.result.expect("worker result");
+        assert_eq!(result.verdict, "failed");
+        let context_id = result
+            .decision_context_id
+            .expect("model-backed runtime failure must retain its context");
+        let mut cache = epiphany_core::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<epiphany_core::EpiphanyDecisionContext>(&context_id)?
+                .expect("failure context")
+                .terminal_request_id,
+            "request-runtime-error"
+        );
         Ok(())
     }
 
@@ -1859,18 +1975,24 @@ mod tests {
     }
 }
 
-async fn run_worker_options(options: RunWorkerCliOptions) -> Result<serde_json::Value> {
+async fn run_worker_options(
+    options: RunWorkerCliOptions,
+    pass_progress: WorkerPassProgress,
+) -> Result<serde_json::Value> {
     if options.auto_tools {
-        run_worker_launch_with_tool_continuation(options).await
+        run_worker_launch_with_tool_continuation(options, pass_progress).await
     } else {
         Ok(serde_json::to_value(
-            run_worker_launch(EpiphanyWorkerRuntimeOptions {
-                store_path: options.store_path,
-                codex_home: options.codex_home,
-                provider: options.provider,
-                job_id: options.job_id,
-                model: options.model,
-            })
+            run_worker_launch_observed(
+                EpiphanyWorkerRuntimeOptions {
+                    store_path: options.store_path,
+                    codex_home: options.codex_home,
+                    provider: options.provider,
+                    job_id: options.job_id,
+                    model: options.model,
+                },
+                |request_id| pass_progress.note_model_request(request_id),
+            )
             .await?,
         )?)
     }

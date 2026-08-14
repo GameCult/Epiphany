@@ -320,6 +320,16 @@ pub async fn run_tool_followup_model_turn(
 pub async fn run_worker_launch(
     options: EpiphanyWorkerRuntimeOptions,
 ) -> Result<EpiphanyWorkerRuntimeRunSummary> {
+    run_worker_launch_observed(options, |_| {}).await
+}
+
+pub async fn run_worker_launch_observed<F>(
+    options: EpiphanyWorkerRuntimeOptions,
+    on_model_request: F,
+) -> Result<EpiphanyWorkerRuntimeRunSummary>
+where
+    F: FnOnce(&str),
+{
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
     if !epiphany_core::runtime_requested_public_source_refs_for_worker(
         &options.store_path,
@@ -353,6 +363,7 @@ pub async fn run_worker_launch(
             .to_string(),
         default_model: Some(options.model),
     };
+    on_model_request(&model_request.request_id);
     let openai_summary = run_model_turn(
         &options.provider,
         openai_options.clone(),
