@@ -132,6 +132,7 @@ pub enum EpiphanyRepoModelMutationOperation {
     PutNode { node: EpiphanyMemoryNode },
     RetireNode { node_id: String },
     PutEdge { edge: EpiphanyMemoryEdge },
+    RetireEdge { edge_id: String },
     PutSummary { summary: EpiphanyMemorySummary },
     PutFrontier { item: RepoFrontierItem },
 }
@@ -335,6 +336,7 @@ pub fn plan_repo_model_mutation(
         .iter()
         .filter_map(|operation| match operation {
             EpiphanyRepoModelMutationOperation::PutEdge { edge } => Some(edge.id.clone()),
+            EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => Some(edge_id.clone()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -450,6 +452,25 @@ pub fn plan_repo_model_mutation(
                     &mut writes,
                     cache
                         .prepare_entry(&edge.id, &EpiphanyRepoModelEdgeDocument::new(edge)?)?
+                        .0,
+                )?;
+            }
+            EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => {
+                require_semantic_id(edge_id, "RepoModel edge")?;
+                let mut edge = edges
+                    .get(edge_id)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("RepoModel mutation retires a missing edge"))?;
+                let existing = cache
+                    .get_envelope::<EpiphanyRepoModelEdgeDocument>(edge_id)?
+                    .ok_or_else(|| anyhow!("RepoModel edge lost its envelope"))?;
+                insert_strong_envelope(&mut strong, existing)?;
+                edge.lifecycle = epiphany_state_model::EpiphanyMemoryLifecycle::Retired;
+                edges.insert(edge_id.clone(), edge.clone());
+                insert_envelope(
+                    &mut writes,
+                    cache
+                        .prepare_entry(edge_id, &EpiphanyRepoModelEdgeDocument::new(&edge)?)?
                         .0,
                 )?;
             }
@@ -590,6 +611,7 @@ fn repo_model_operation_identity(
         EpiphanyRepoModelMutationOperation::PutNode { node } => ("node", &node.id),
         EpiphanyRepoModelMutationOperation::RetireNode { node_id } => ("node", node_id),
         EpiphanyRepoModelMutationOperation::PutEdge { edge } => ("edge", &edge.id),
+        EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => ("edge", edge_id),
         EpiphanyRepoModelMutationOperation::PutSummary { summary } => ("summary", &summary.id),
         EpiphanyRepoModelMutationOperation::PutFrontier { item } => ("frontier", &item.id),
     };
@@ -1028,8 +1050,43 @@ mod tests {
         let view = assemble_repo_model_view(&store)?;
         assert_eq!(view.domains, [domain]);
         assert_eq!(view.nodes, [left, right]);
-        assert_eq!(view.edges, [edge]);
+        assert_eq!(view.edges, [edge.clone()]);
         assert_eq!(view.summaries, [summary]);
+
+        let retire = EpiphanyRepoModelMutationProposal::new(
+            "proposal-retire-edge",
+            vec![EpiphanyRepoModelMutationOperation::RetireEdge {
+                edge_id: "edge-flow".into(),
+            }],
+        )?;
+        let retire_plan = plan_repo_model_mutation(&store, &retire)?;
+        let retire_provenance = cache.prepare_entry(&retire.proposal_id, &retire)?.0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                retire_provenance,
+                "Modeling.repo_model_mutation",
+                retire_plan.strong_reads,
+                retire_plan.writes,
+                "2026-08-14T00:00:02Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        assert_eq!(
+            assemble_repo_model_view(&store)?.edges[0].lifecycle,
+            EpiphanyMemoryLifecycle::Retired
+        );
+
+        let duplicate = EpiphanyRepoModelMutationProposal::new(
+            "proposal-duplicate-edge",
+            vec![
+                EpiphanyRepoModelMutationOperation::PutEdge { edge },
+                EpiphanyRepoModelMutationOperation::RetireEdge {
+                    edge_id: "edge-flow".into(),
+                },
+            ],
+        )?;
+        assert!(plan_repo_model_mutation(&store, &duplicate).is_err());
         Ok(())
     }
 }
