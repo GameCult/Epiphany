@@ -6,7 +6,7 @@ Updated: 2026-08-14
 
 The five-day shakedown remains paused for architectural consolidation. The
 latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live`
-through exact `8ad16be0`.
+through exact `120663fa`.
 
 The active campaign is now the hard Decision-Auditable Concurrent Mind
 migration. Its first foundation is implemented locally: typed content-addressed
@@ -69,6 +69,12 @@ derived claim obligations, and the generic Mind commit receipt. Identical seed
 replay is inert; divergent replay and any aggregate RepoModel envelope refuse.
 The seed contains no revision/hash head. Full core passes 692 tests with one
 ignored cross-process helper, and the repository-body binary checks cleanly.
+Exact `18d3783a` deletes the old thread-state-to-aggregate bootstrap binary.
+Exact `120663fa` removes aggregate bootstrap/read behavior from launch context:
+prompt assembly loads `EpiphanyRepoModelView`, derives a nonpersisted query-only
+graph projection, and renders only its projection digest. The derived snapshot
+has no revision/hash authority. All seven launch-context tests and the full core
+suite pass.
 
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
@@ -183,10 +189,10 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Delete the remaining legacy RepoModel bootstrap/migration binary and callers,
-then make launch context assemble the keyed view rather than creating or
-reading an aggregate. Cut aggregate admission writers after that read boundary
-is gone. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
+Cut model-authored `RepoModelPatch` and aggregate admission next. The provider
+schema must expose semantic operations only; runtime composes the durable
+mutation proposal and the concrete family owner derives strong reads and commit
+metadata. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
 checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
 their keyed documents. Delete the aggregate transaction, reader, and schema
 before enabling old writable-store refusal; do not translate or dual-read it.

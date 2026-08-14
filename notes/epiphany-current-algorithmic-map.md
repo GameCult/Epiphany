@@ -4660,3 +4660,12 @@ Exact `8ad16be0` moves the production `epiphany-repository-body bootstrap`
 command onto this owner. The legacy bootstrap/migration binary and launch-time
 aggregate reader remain the next deletion line; the shakedown stays paused
 until they and aggregate admission are gone.
+
+Exact `18d3783a` deletes the legacy bootstrap binary. Exact `120663fa` makes
+launch-context assembly read `EpiphanyRepoModelView` directly. The existing
+memory context cutter receives a temporary graph-shaped projection for query
+selection only; that projection is never persisted and its revision/hash fields
+are inert. Modeling prompt context names the view projection digest and semantic
+document identities instead of a global model revision/hash. Missing keyed
+RepoModel state now refuses launch context rather than bootstrapping shared
+authority from thread state.
