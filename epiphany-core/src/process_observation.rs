@@ -81,8 +81,15 @@ pub fn terminate_process_instance(expected: &ProcessInstanceIdentity) -> Result<
 /// This is OS lifecycle cleanup only. Callers must supply identity from their
 /// own typed authority; this function does not discover or classify processes.
 #[cfg(unix)]
-pub fn reap_exited_child_process(process_id: u32) -> Result<bool> {
-    let pid = i32::try_from(process_id).context("child process id exceeds Unix pid range")?;
+pub fn reap_exited_child_process(expected: &ProcessInstanceIdentity) -> Result<bool> {
+    if !matches!(
+        observe_process_instance(expected),
+        ProcessInstanceObservation::ExactExited { .. }
+    ) {
+        return Ok(false);
+    }
+    let pid = i32::try_from(expected.process_id)
+        .context("child process id exceeds Unix pid range")?;
     loop {
         let mut status = 0;
         let observed = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
@@ -104,7 +111,7 @@ pub fn reap_exited_child_process(process_id: u32) -> Result<bool> {
 }
 
 #[cfg(windows)]
-pub fn reap_exited_child_process(_process_id: u32) -> Result<bool> {
+pub fn reap_exited_child_process(_expected: &ProcessInstanceIdentity) -> Result<bool> {
     Ok(false)
 }
 
@@ -629,9 +636,10 @@ mod tests {
             .args(["-c", "exit 0"])
             .spawn()
             .unwrap();
+        let identity = capture_process_instance(child.id()).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
-            if reap_exited_child_process(child.id()).unwrap() {
+            if reap_exited_child_process(&identity).unwrap() {
                 break;
             }
             assert!(
@@ -640,6 +648,36 @@ mod tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        assert!(!reap_exited_child_process(child.id()).unwrap());
+        assert!(!reap_exited_child_process(&identity).unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stale_process_identity_cannot_reap_a_reused_pid() {
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .unwrap();
+        let mut stale_identity = capture_process_instance(child.id()).unwrap();
+        stale_identity.creation_token = stale_identity.creation_token.saturating_add(1);
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if matches!(
+                observe_process_instance(&stale_identity),
+                ProcessInstanceObservation::Replaced { .. }
+                    | ProcessInstanceObservation::Indeterminate { .. }
+            ) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "child did not exit before stale-identity reaping check"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        assert!(!reap_exited_child_process(&stale_identity).unwrap());
+        assert!(child.wait().is_ok(), "stale identity reaped the current child");
     }
 }

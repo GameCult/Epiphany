@@ -676,7 +676,13 @@ impl<'a> NativePorts<'a> {
     fn reap_adopted_worker_children(&mut self) -> Result<usize> {
         let mut reaped = 0;
         for claim in runtime_worker_process_claims(&self.policy.runtime_store)? {
-            if reap_exited_child_process(claim.process_id)? {
+            let expected = ProcessInstanceIdentity {
+                process_id: claim.process_id,
+                creation_token: claim.process_creation_token,
+                created_at_rfc3339: None,
+                executable_path: claim.process_executable_path.into(),
+            };
+            if reap_exited_child_process(&expected)? {
                 reaped += 1;
             }
         }
