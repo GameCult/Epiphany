@@ -41,6 +41,18 @@ so operator decisions do not counterfeit model reasoning. The aggregate-only
 Modeling acceptance repair writer and commands are deleted; frontier execution
 inspection/amendment remains under a truthfully named binary.
 
+The keyed RepoModel foundation now gives identity, domain, node, edge, summary,
+frontier, lifecycle receipt, and per-node unresolved-claim obligations separate
+CultCache identities. Its deterministic validated view is part of
+`EpiphanyMindView` and has no revision/hash head. Documents store canonical
+named MessagePack behind typed constructors because direct compact nesting let
+skipped middle fields shift into the wrong schema positions. Mind CAS strong
+reads are now genuine read fences: CultCache receives byte-identical expected
+envelopes as required by its physical primitive, while the commit receipt lists
+only semantic writes. A stale read-only dependency blocks the whole mutation
+without partial insertion. Full core remains 690 passing with one ignored
+cross-process helper.
+
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
 and remain untouched. Historical c011 zero-zombie and organ-circuit evidence is
@@ -154,7 +166,8 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Migrate concrete focus/mode, subgoal/invariant, evidence/observation,
+Build the concrete keyed RepoModel mutation planner and cut its aggregate
+admission writers. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
 checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
 their keyed documents. Delete the aggregate transaction, reader, and schema
 before enabling old writable-store refusal; do not translate or dual-read it.

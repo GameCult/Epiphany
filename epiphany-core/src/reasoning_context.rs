@@ -644,13 +644,8 @@ fn commit_authorized_mind_mutation(
         .collect::<BTreeSet<_>>();
     let write_ids = writes
         .iter()
-        .map(|entry| (entry.r#type.as_str(), entry.key.as_str()))
+        .map(|entry| (entry.r#type.clone(), entry.key.clone()))
         .collect::<BTreeSet<_>>();
-    if !expected_ids.is_subset(&write_ids) {
-        return Err(anyhow!(
-            "Mind mutation must replace every strongly read identity"
-        ));
-    }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let mut companion_expected = Vec::new();
@@ -701,6 +696,12 @@ fn commit_authorized_mind_mutation(
         return Ok(EpiphanyMindCommitOutcome::Committed(existing));
     }
     let mut replacements = writes;
+    replacements.extend(
+        strong_reads
+            .iter()
+            .filter(|entry| !write_ids.contains(&(entry.r#type.clone(), entry.key.clone())))
+            .cloned(),
+    );
     replacements.extend(companion_replacements);
     replacements.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
     let mut expected = strong_reads.clone();
@@ -1117,6 +1118,53 @@ mod tests {
             )?,
             EpiphanyMindCommitOutcome::Conflict { .. }
         ));
+        let hands = backing
+            .pull_all()?
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == crate::EpiphanyMindObservationDocument::TYPE && entry.key == "hands"
+            })
+            .unwrap();
+        assert!(matches!(
+            commit_mind_mutation(
+                &store,
+                &context.context_id,
+                "test-owner",
+                vec![hands.clone()],
+                vec![make("modeling", "read-only dependency")?],
+                "2026-08-14T00:00:06Z"
+            )?,
+            EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        assert!(matches!(
+            commit_mind_mutation(
+                &store,
+                &context.context_id,
+                "test-owner",
+                vec![hands.clone()],
+                vec![make("hands", "dependency changed")?],
+                "2026-08-14T00:00:07Z"
+            )?,
+            EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        assert!(matches!(
+            commit_mind_mutation(
+                &store,
+                &context.context_id,
+                "test-owner",
+                vec![hands],
+                vec![make("verification", "must not partially appear")?],
+                "2026-08-14T00:00:08Z"
+            )?,
+            EpiphanyMindCommitOutcome::Conflict { .. }
+        ));
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<crate::EpiphanyMindObservationDocument>("verification")?
+                .is_none()
+        );
         let _ = EpiphanyRuntimeJobStatus::Completed;
         Ok(())
     }

@@ -3,9 +3,10 @@ use std::path::Path;
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
-    EpiphanyBacklogItem, EpiphanyEvidenceRecord, EpiphanyInvestigationCheckpoint,
-    EpiphanyInvariant, EpiphanyModeState, EpiphanyObjectiveDraft, EpiphanyObservation,
-    EpiphanyPlanningCapture, EpiphanyPlanningState, EpiphanyRoadmapStream, EpiphanySubgoal,
+    EpiphanyBacklogItem, EpiphanyEvidenceRecord, EpiphanyInvariant,
+    EpiphanyInvestigationCheckpoint, EpiphanyModeState, EpiphanyObjectiveDraft,
+    EpiphanyObservation, EpiphanyPlanningCapture, EpiphanyPlanningState, EpiphanyRoadmapStream,
+    EpiphanySubgoal,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -27,7 +28,10 @@ pub struct EpiphanyMindIdentity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.objective.v1", schema = "EpiphanyMindObjectiveDocument")]
+#[cultcache(
+    type = "epiphany.mind.objective.v1",
+    schema = "EpiphanyMindObjectiveDocument"
+)]
 pub struct EpiphanyMindObjectiveDocument {
     #[cultcache(key = 0)]
     pub objective: String,
@@ -50,28 +54,40 @@ pub struct EpiphanyMindModeDocument {
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.subgoal.v1", schema = "EpiphanyMindSubgoalDocument")]
+#[cultcache(
+    type = "epiphany.mind.subgoal.v1",
+    schema = "EpiphanyMindSubgoalDocument"
+)]
 pub struct EpiphanyMindSubgoalDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanySubgoal,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.invariant.v1", schema = "EpiphanyMindInvariantDocument")]
+#[cultcache(
+    type = "epiphany.mind.invariant.v1",
+    schema = "EpiphanyMindInvariantDocument"
+)]
 pub struct EpiphanyMindInvariantDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyInvariant,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.observation.v1", schema = "EpiphanyMindObservationDocument")]
+#[cultcache(
+    type = "epiphany.mind.observation.v1",
+    schema = "EpiphanyMindObservationDocument"
+)]
 pub struct EpiphanyMindObservationDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyObservation,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.evidence.v1", schema = "EpiphanyMindEvidenceDocument")]
+#[cultcache(
+    type = "epiphany.mind.evidence.v1",
+    schema = "EpiphanyMindEvidenceDocument"
+)]
 pub struct EpiphanyMindEvidenceDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyEvidenceRecord,
@@ -88,28 +104,40 @@ pub struct EpiphanyMindInvestigationCheckpointDocument {
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.planning_capture.v1", schema = "EpiphanyMindPlanningCaptureDocument")]
+#[cultcache(
+    type = "epiphany.mind.planning_capture.v1",
+    schema = "EpiphanyMindPlanningCaptureDocument"
+)]
 pub struct EpiphanyMindPlanningCaptureDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyPlanningCapture,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.backlog_item.v1", schema = "EpiphanyMindBacklogItemDocument")]
+#[cultcache(
+    type = "epiphany.mind.backlog_item.v1",
+    schema = "EpiphanyMindBacklogItemDocument"
+)]
 pub struct EpiphanyMindBacklogItemDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyBacklogItem,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.roadmap_stream.v1", schema = "EpiphanyMindRoadmapStreamDocument")]
+#[cultcache(
+    type = "epiphany.mind.roadmap_stream.v1",
+    schema = "EpiphanyMindRoadmapStreamDocument"
+)]
 pub struct EpiphanyMindRoadmapStreamDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyRoadmapStream,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(type = "epiphany.mind.objective_draft.v1", schema = "EpiphanyMindObjectiveDraftDocument")]
+#[cultcache(
+    type = "epiphany.mind.objective_draft.v1",
+    schema = "EpiphanyMindObjectiveDraftDocument"
+)]
 pub struct EpiphanyMindObjectiveDraftDocument {
     #[cultcache(key = 0)]
     pub value: EpiphanyObjectiveDraft,
@@ -128,6 +156,7 @@ pub struct EpiphanyMindView {
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
     pub planning: EpiphanyPlanningState,
+    pub repo_model: Option<crate::EpiphanyRepoModelView>,
 }
 
 pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> {
@@ -144,10 +173,19 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindBacklogItemDocument>()?;
     cache.register_entry_type::<EpiphanyMindRoadmapStreamDocument>()?;
     cache.register_entry_type::<EpiphanyMindObjectiveDraftDocument>()?;
+    crate::repo_model_documents::register_repo_model_document_types(cache)?;
     Ok(())
 }
 
 pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
+    if let Some(expected_key) = crate::repo_model_documents::repo_model_write_key(envelope)? {
+        if envelope.key != expected_key {
+            return Err(anyhow!(
+                "RepoModel document semantic identity does not match its envelope key"
+            ));
+        }
+        return Ok(());
+    }
     let expected_key = if envelope.r#type == EpiphanyMindIdentity::TYPE {
         let value: EpiphanyMindIdentity = rmp_serde::from_slice(&envelope.payload)?;
         if value.schema_epoch != MIND_SCHEMA_EPOCH || value.runtime_id.trim().is_empty() {
@@ -167,25 +205,41 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         let _: EpiphanyMindModeDocument = rmp_serde::from_slice(&envelope.payload)?;
         MIND_MODE_KEY.to_string()
     } else if envelope.r#type == EpiphanyMindSubgoalDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindSubgoalDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindSubgoalDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindInvariantDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindInvariantDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindInvariantDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindObservationDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindObservationDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindObservationDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindEvidenceDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindEvidenceDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindEvidenceDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindInvestigationCheckpointDocument::TYPE {
         rmp_serde::from_slice::<EpiphanyMindInvestigationCheckpointDocument>(&envelope.payload)?
             .value
             .checkpoint_id
     } else if envelope.r#type == EpiphanyMindPlanningCaptureDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindPlanningCaptureDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindPlanningCaptureDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindBacklogItemDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindBacklogItemDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindBacklogItemDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindRoadmapStreamDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindRoadmapStreamDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindRoadmapStreamDocument>(&envelope.payload)?
+            .value
+            .id
     } else if envelope.r#type == EpiphanyMindObjectiveDraftDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyMindObjectiveDraftDocument>(&envelope.payload)?.value.id
+        rmp_serde::from_slice::<EpiphanyMindObjectiveDraftDocument>(&envelope.payload)?
+            .value
+            .id
     } else {
         return Err(anyhow!(
             "Mind mutation cannot write non-canonical document type {:?}",
@@ -207,7 +261,9 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         .get::<EpiphanyMindIdentity>(MIND_SCHEMA_EPOCH)?
         .ok_or_else(|| anyhow!("writable Mind store has no v1 identity"))?;
     if identity.schema_epoch != MIND_SCHEMA_EPOCH {
-        return Err(anyhow!("writable Mind store has an unsupported schema epoch"));
+        return Err(anyhow!(
+            "writable Mind store has an unsupported schema epoch"
+        ));
     }
 
     let objective = cache
@@ -222,10 +278,8 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     let mut observations =
         values::<EpiphanyMindObservationDocument, _>(&cache, |value| value.value)?;
     let mut evidence = values::<EpiphanyMindEvidenceDocument, _>(&cache, |value| value.value)?;
-    let checkpoints = values::<EpiphanyMindInvestigationCheckpointDocument, _>(
-        &cache,
-        |value| value.value,
-    )?;
+    let checkpoints =
+        values::<EpiphanyMindInvestigationCheckpointDocument, _>(&cache, |value| value.value)?;
     let mut captures =
         values::<EpiphanyMindPlanningCaptureDocument, _>(&cache, |value| value.value)?;
     let mut backlog_items =
@@ -234,6 +288,14 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         values::<EpiphanyMindRoadmapStreamDocument, _>(&cache, |value| value.value)?;
     let mut objective_drafts =
         values::<EpiphanyMindObjectiveDraftDocument, _>(&cache, |value| value.value)?;
+    let repo_model = if cache
+        .get::<crate::EpiphanyRepoModelIdentityDocument>(crate::REPO_MODEL_IDENTITY_KEY)?
+        .is_some()
+    {
+        Some(crate::assemble_repo_model_view(store_path.as_ref())?)
+    } else {
+        None
+    };
     subgoals.sort_by(|left, right| left.id.cmp(&right.id));
     invariants.sort_by(|left, right| left.id.cmp(&right.id));
     observations.sort_by(|left, right| left.id.cmp(&right.id));
@@ -256,10 +318,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     };
     let mut source_documents = canonical_mind_versions(&cache.snapshot_envelopes())?;
     source_documents.sort_by(|left, right| {
-        (&left.document_type, &left.document_key).cmp(&(
-            &right.document_type,
-            &right.document_key,
-        ))
+        (&left.document_type, &left.document_key).cmp(&(&right.document_type, &right.document_key))
     });
     let projection_digest = digest_versions(&source_documents)?;
     Ok(EpiphanyMindView {
@@ -280,6 +339,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
             roadmap_streams,
             objective_drafts,
         },
+        repo_model,
     })
 }
 
@@ -359,5 +419,4 @@ mod tests {
         assert!(first.projection_digest.starts_with("sha256:"));
         Ok(())
     }
-
 }

@@ -4600,3 +4600,29 @@ than translated. It existed to repair receipt-shaped routing authority;
 unresolved typed state must own routing instead. Its commands and exported
 writer are gone. The remaining frontier execution inspector/amendment tool is
 named `epiphany-frontier-execution`, matching its actual authority.
+
+### Keyed RepoModel foundation
+
+RepoModel identity, domains, nodes, edges, summaries, frontier items, lifecycle
+receipts, and per-node unresolved-claim obligations are distinct Mind document
+identities. `EpiphanyRepoModelView` deterministically sorts and validates those
+documents and is included in `EpiphanyMindView`; it has a projection digest but
+no global revision or model hash. It never reads or translates the aggregate.
+
+Each semantic document owns canonical named MessagePack behind a typed
+constructor and decoder. Directly nesting the existing optional-rich graph
+structs exposed compact MessagePack field shifting when a skipped middle field
+was absent; canonical named payloads make that corruption structurally
+unavailable while keeping the `.cc` contract typed.
+
+Per-node claim obligations are the narrow concurrency index for the phantom
+invariant: unresolved frontier targeting and node retirement must contend on
+the same semantic node identity. The view validates both directions so neither
+a missing membership nor a dead frontier can masquerade as a live obligation.
+
+Strong reads in `commit_mind_mutation` are logical fences, not compulsory
+writes. CultCache's physical CAS requires expected envelopes in its replacement
+batch, so read-only dependencies are re-emitted byte-identically; the Mind
+receipt still lists only actual writes. Tests prove a disjoint insert can depend
+on an unchanged document and that a stale dependency refuses the insert with no
+partial state.
