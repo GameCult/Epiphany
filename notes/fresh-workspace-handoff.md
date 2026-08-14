@@ -5,10 +5,11 @@ Updated: 2026-08-14
 ## Current state
 
 The five-day shakedown remains paused. The active code campaign is now complete
-through exact `4c0cbd57` on `codex/epiphany-shakedown-live`: the keyed Mind hard
-cut and the federated Model Atlas vertical slice landed together. Historical
-aggregate RepoModel stores are evidence only. No production model output,
-registry, command, admission path, or repair path can restore their authority.
+through exact `f60db0a2` on `codex/epiphany-shakedown-live`: the keyed Mind hard
+cut, federated Model Atlas vertical slice, and ordinary Modeling authoring path
+are landed. Historical aggregate RepoModel stores are evidence only. No
+production model output, registry, command, admission path, or repair path can
+restore their authority.
 
 The Atlas keeps the federation sharp. A provider Mind owns an offer. A consumer
 Mind owns a claim. Soul owns verification evidence for exact endpoint versions.
@@ -21,21 +22,30 @@ and no organ opens a foreign repository Mind store.
 Epiphany exact `4c0cbd57` contains the typed contracts, per-family CAS planners,
 signing and trust, immutable publication stores, publisher/projector/ingress
 daemons, brake scopes, Resident Self scheduling, and three-repository smoke.
+Exact `f60db0a2` closes the production authoring/evidence seam: ordinary
+Modeling emits semantic offer/claim transitions only; runtime proposal v2 binds
+the exact request, result, evidence set, and current Body basis; the planner
+resolves authenticated manifest digests and opaque IDs; and the publisher
+refuses drifted Body evidence. The projection and Eve tree carry endpoint
+labels/contracts/lifecycle/Body evidence, exact current Soul evidence,
+publisher age/watermarks, cycles, and blast radius.
 Odin exact `d34cb7e` persists and serves the publication, projection, and
 canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `076d212` provide the canonical Atlas provider advertisement and one
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
-Verification is green: Epiphany core 553/553, OpenAI runtime 22/22, coordinator
+Verification is green: Epiphany core 555/555, OpenAI runtime 23/23, coordinator
 18/18, and workspace all-target check; Odin Node 1/1 and Rust 15/15; Eve Atlas
 conformance 4/4 and Eve contracts 6/6. The workspace-wide all-features check
 still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
 
 These are implementation and isolated proof claims. They are not sustained
-Starfire dogfood. Gate 1 is the next rite: separate real stores and identities,
-all three Atlas brakes engaged, signed publications and the Eve surface visible,
-and no autonomous scheduling.
+Starfire dogfood. Gate 1 is the next rite: use separate real stores and
+identities; keep impact ingress absent while ordinary Modeling seeds facts and
+publishers/projector establish signed sight; then engage all three Atlas brakes
+and prove later organ cycles are held while the last Eve projection remains
+visibly stale/read-only and no lane wakes.
 
 The completed Decision-Auditable Concurrent Mind foundation uses typed,
 content-addressed reasoning bases that preserve exact source envelopes and a
@@ -206,9 +216,12 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Model Atlas rollout gates
 
-1. Run isolated Epiphany, Odin, and Eve publisher/projector/ingress stores with
-   all Atlas brakes engaged. Prove signatures, watermarks, rejections, stale
-   retention, and the canonical Eve tree without lane scheduling.
+1. Run isolated Epiphany, Odin, and Eve stores with impact ingress absent. Seed
+   the local facts through ordinary Modeling, then run publishers/projector to
+   establish signed publications, watermarks, rejection telemetry, and the
+   canonical Eve tree. Engage all three Atlas brakes, rerun the publisher,
+   projector, and first ingress cycles, and prove held writes/scheduling plus
+   visibly stale read-only retained state.
 2. Release only Atlas Modeling/Soul wake scopes. Change the temporary Eve
    contract and prove Odin Modeling then Epiphany Modeling wake without an
    operator `Continue`; Hands remains under its existing gate.
@@ -222,9 +235,11 @@ unchanged; the lifecycle authorities above remain separate.
 
 Execute Model Atlas Gate 1 on Starfire. Use separate state roots and service
 identities for `F:\Projects\Epiphany`, `F:\Projects\Odin`, and
-`F:\Projects\Eve`; separate local Mind, private identity, publisher, Odin
-catalog, projector, and ingress stores; and engage `atlas.publish`,
-`atlas.project`, and `atlas.impact_ingress` before launch. Record exact
-publication IDs, watermarks, projection digest, retained Eve documents, and
-read-only brake behavior. Do not release scheduling, register operational
+`F:\Projects\Eve`, plus separate local Mind, private identity, publisher, Odin
+catalog, projector, and ingress stores. Keep ingress absent while ordinary
+Modeling admits the seed facts and the publishers/projector establish signed
+sight. Then engage `atlas.publish`, `atlas.project`, and
+`atlas.impact_ingress`; rerun all three cycles and record the held outcomes,
+exact publication IDs, watermarks, projection digest, retained Eve documents,
+and read-only brake behavior. Do not release scheduling, register operational
 topology, touch the original c011 volumes, or build on Yggdrasil.
