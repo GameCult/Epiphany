@@ -115,17 +115,20 @@ struct LocalClaimRead {
 pub struct RuntimeAtlasMindSnapshotSource {
     runtime_store: PathBuf,
     repository: AtlasRepositoryIdentity,
+    body_basis: crate::RepositoryBodyObservationBasis,
 }
 
 impl RuntimeAtlasMindSnapshotSource {
     pub fn new(
         runtime_store: impl Into<PathBuf>,
         repository: AtlasRepositoryIdentity,
+        body_basis: crate::RepositoryBodyObservationBasis,
     ) -> Result<Self> {
         repository.validate()?;
         Ok(Self {
             runtime_store: runtime_store.into(),
             repository,
+            body_basis,
         })
     }
 }
@@ -134,6 +137,13 @@ impl AtlasLocalMindSnapshotSource for RuntimeAtlasMindSnapshotSource {
     fn load_local_atlas_mind_snapshot(&self) -> Result<AtlasLocalMindSnapshot> {
         let mut cache = crate::runtime_spine_cache(&self.runtime_store)?;
         cache.pull_all_backing_stores()?;
+        if crate::load_current_runtime_repository_body_basis(&self.runtime_store)?
+            != self.body_basis
+        {
+            bail!("Atlas publisher lost its exact current Repository Body basis")
+        }
+        let manifest =
+            crate::authenticated_repository_body_manifest(&self.runtime_store, &self.body_basis)?;
         let snapshot = cache.snapshot_envelopes();
         let receipts = snapshot
             .iter()
@@ -169,6 +179,7 @@ impl AtlasLocalMindSnapshotSource for RuntimeAtlasMindSnapshotSource {
             {
                 bail!("local Atlas Mind document has foreign ownership or a substituted key")
             }
+            validate_atlas_body_evidence_for_manifest(&payload, &manifest)?;
             let source = atlas_source_for_payload("epiphany-mind", &payload)?;
             let receipt = latest_exact_mind_commit(&receipts, &envelope)?;
             let mind_commit = AtlasMindCommitBinding {
@@ -193,6 +204,39 @@ impl AtlasLocalMindSnapshotSource for RuntimeAtlasMindSnapshotSource {
             current_mind_documents: documents,
         })
     }
+}
+
+fn validate_atlas_body_evidence_for_manifest(
+    payload: &AtlasPublicationPayload,
+    manifest: &crate::RepositoryBodyManifest,
+) -> Result<()> {
+    let evidence = match payload {
+        AtlasPublicationPayload::SurfaceOffer(offer) => &offer.body_evidence,
+        AtlasPublicationPayload::DependencyClaim(claim) => &claim.body_evidence,
+        AtlasPublicationPayload::DependencyVerification(_) => return Ok(()),
+        AtlasPublicationPayload::PublisherStatus(_) => return Ok(()),
+    };
+    let entries = manifest
+        .entries
+        .iter()
+        .map(|entry| (entry.path.as_str(), entry))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for source in evidence {
+        source.validate()?;
+        let entry = entries.get(source.path.as_str()).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Atlas Body evidence path {:?} is absent from the current manifest",
+                source.path
+            )
+        })?;
+        if entry.kind != "regular" || entry.raw_sha256 != source.raw_sha256 {
+            bail!(
+                "Atlas Body evidence path {:?} no longer has its admitted content",
+                source.path
+            )
+        }
+    }
+    Ok(())
 }
 
 pub fn run_atlas_publisher_once(
@@ -224,8 +268,11 @@ pub fn run_atlas_publisher_once(
     let store = AtlasCultCacheStore::new(&config.publisher_store, config.repository.clone())?;
     ensure_local_publisher_trust(&store, &signer, config.now_unix_ms)?;
     let heartbeat_sequence = next_heartbeat_sequence(&store)?;
-    let mind =
-        RuntimeAtlasMindSnapshotSource::new(&config.runtime_mind_store, config.repository.clone())?;
+    let mind = RuntimeAtlasMindSnapshotSource::new(
+        &config.runtime_mind_store,
+        config.repository.clone(),
+        body_basis.clone(),
+    )?;
     let adapter = AtlasPublisherSnapshotAdapter::new(&mind, &store);
     let batch = publish_local_atlas_state(
         &adapter,
@@ -1119,6 +1166,11 @@ mod tests {
         crate::runtime_spine::tests::bind_test_runtime_swarm(&store, "swarm")?;
         crate::runtime_spine::tests::bind_test_repository_body(&store, "workspace")?;
         let body = crate::observe_runtime_repository_body_basis(&store)?;
+        let manifest = crate::authenticated_repository_body_manifest(&store, &body)?;
+        let body_evidence = vec![AtlasBodyEvidenceRef {
+            path: manifest.entries[0].path.clone(),
+            raw_sha256: manifest.entries[0].raw_sha256.clone(),
+        }];
         let local = AtlasRepositoryIdentity::new("swarm", "workspace")?;
         let provider = AtlasRepositoryIdentity::new("swarm", "provider")?;
 
@@ -1131,6 +1183,8 @@ mod tests {
                 version: Version::parse("1.0.0")?,
             },
             lifecycle: AtlasOfferLifecycle::Active,
+            label: "Local contract surface".into(),
+            body_evidence: body_evidence.clone(),
         };
         let offer_intent = admit_surface_offer(AtlasSurfaceOfferAdmissionInput {
             context: AtlasPlannerContext {
@@ -1160,6 +1214,8 @@ mod tests {
             failure_semantics: AtlasFailureSemantics::FailClosed,
             impact_scope: AtlasImpactScope::WholeRepository,
             lifecycle: AtlasClaimLifecycle::Active,
+            label: "Provider runtime dependency".into(),
+            body_evidence: body_evidence.clone(),
         };
         let claim_intent = admit_dependency_claim(AtlasDependencyClaimAdmissionInput {
             context: AtlasPlannerContext {
@@ -1270,6 +1326,8 @@ mod tests {
                 version: Version::parse("1.2.0")?,
             },
             lifecycle: AtlasOfferLifecycle::Active,
+            label: "Provider contract surface".into(),
+            body_evidence,
         };
         let mut provider_body = body.clone();
         provider_body.workspace_id = provider.workspace_id.clone();
@@ -1336,6 +1394,16 @@ mod tests {
             )?,
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
+
+        std::fs::write(
+            store
+                .with_extension("workspace.body-repo")
+                .join("body-seed.txt"),
+            b"changed provider evidence",
+        )?;
+        let changed_body = crate::observe_runtime_repository_body_basis(&store)?;
+        let stale_source = RuntimeAtlasMindSnapshotSource::new(&store, local, changed_body)?;
+        assert!(stale_source.load_local_atlas_mind_snapshot().is_err());
         Ok(())
     }
 }

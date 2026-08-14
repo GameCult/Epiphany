@@ -6,10 +6,10 @@ use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
 
 use super::contracts::{
-    ATLAS_PROJECTION_SCHEMA, AtlasCompatibility, AtlasEntanglementKind,
-    AtlasEntanglementProjection, AtlasFailureSemantics, AtlasImpactScope,
-    AtlasProjectedEntanglement, AtlasPublicationFreshness, AtlasRepositoryIdentity,
-    AtlasVerificationState,
+    ATLAS_PROJECTION_SCHEMA, AtlasBodyEvidenceRef, AtlasCompatibility, AtlasContractDescriptor,
+    AtlasContractRequirement, AtlasCycleClass, AtlasEntanglementKind, AtlasEntanglementProjection,
+    AtlasFailureSemantics, AtlasImpactScope, AtlasOfferLifecycle, AtlasProjectedEntanglement,
+    AtlasPublicationFreshness, AtlasRepositoryIdentity, AtlasVerificationState,
 };
 use super::projector::atlas_projection_digest;
 
@@ -503,7 +503,7 @@ fn surface_document(
                 state_bindings: Vec::new(),
                 children: vec![
                     attention_component(projection, presentation, selected_id, options),
-                    drilldown_component(selected),
+                    drilldown_component(projection, selected),
                     graph_component(projection),
                 ],
             },
@@ -527,7 +527,7 @@ fn attention_component(
                 .attention_filter
                 .accepts(entanglement_state(edge))
         })
-        .map(entanglement_item)
+        .map(|edge| entanglement_item(projection, edge))
         .collect();
 
     EveComponent {
@@ -607,19 +607,24 @@ fn attention_component(
     }
 }
 
-fn drilldown_component(selected: Option<&AtlasProjectedEntanglement>) -> EveComponent {
+fn drilldown_component(
+    projection: &AtlasEntanglementProjection,
+    selected: Option<&AtlasProjectedEntanglement>,
+) -> EveComponent {
     let title = selected
         .map(entanglement_label)
         .unwrap_or_else(|| "Selected entanglement".into());
     let summary = selected
-        .map(entanglement_summary)
+        .map(|edge| entanglement_summary(projection, edge))
         .unwrap_or_else(|| "No entanglement is present in the current projection.".into());
     let status = selected
         .map(entanglement_state)
         .map(AtlasEveEntanglementState::as_wire_name)
         .unwrap_or("empty");
     let claims = selected.map(claim_items).unwrap_or_default();
-    let evidence = selected.map(evidence_items).unwrap_or_default();
+    let evidence = selected
+        .map(|edge| evidence_items(projection, edge))
+        .unwrap_or_default();
 
     EveComponent {
         id: MODEL_ATLAS_DRILLDOWN_ID.into(),
@@ -705,7 +710,7 @@ fn graph_component(projection: &AtlasEntanglementProjection) -> EveComponent {
     let linear_items = projection
         .entanglements
         .iter()
-        .map(entanglement_item)
+        .map(|edge| entanglement_item(projection, edge))
         .collect();
 
     EveComponent {
@@ -821,7 +826,8 @@ fn repository_node_id(repository: &AtlasRepositoryIdentity) -> String {
 
 fn entanglement_label(edge: &AtlasProjectedEntanglement) -> String {
     format!(
-        "{} -> {}",
+        "{}: {} -> {}",
+        edge.claim_label,
         edge.consumer.workspace_id,
         edge.provider
             .as_ref()
@@ -830,9 +836,15 @@ fn entanglement_label(edge: &AtlasProjectedEntanglement) -> String {
     )
 }
 
-fn entanglement_summary(edge: &AtlasProjectedEntanglement) -> String {
+fn entanglement_summary(
+    projection: &AtlasEntanglementProjection,
+    edge: &AtlasProjectedEntanglement,
+) -> String {
+    let publisher_age = entanglement_publisher_age_ms(projection, edge)
+        .map(|age_ms| format!("{age_ms} ms"))
+        .unwrap_or_else(|| "unknown".into());
     format!(
-        "{} dependency; failure semantics {}; compatibility {}; verification {}; claim freshness {}; offer freshness {}.",
+        "{} dependency; failure semantics {}; compatibility {}; verification {}; claim freshness {}; offer freshness {}; publisher age {}.",
         entanglement_kind_name(edge.entanglement_kind),
         failure_semantics_name(edge.failure_semantics),
         compatibility_name(edge.compatibility),
@@ -841,14 +853,18 @@ fn entanglement_summary(edge: &AtlasProjectedEntanglement) -> String {
         edge.offer_freshness
             .map(freshness_name)
             .unwrap_or("missing"),
+        publisher_age,
     )
 }
 
-fn entanglement_item(edge: &AtlasProjectedEntanglement) -> EveListItem {
+fn entanglement_item(
+    projection: &AtlasEntanglementProjection,
+    edge: &AtlasProjectedEntanglement,
+) -> EveListItem {
     EveListItem {
         label: entanglement_label(edge),
         status: entanglement_state(edge).as_wire_name().into(),
-        detail: entanglement_summary(edge),
+        detail: entanglement_summary(projection, edge),
         badges: vec![
             entanglement_kind_name(edge.entanglement_kind).into(),
             failure_semantics_name(edge.failure_semantics).into(),
@@ -858,21 +874,26 @@ fn entanglement_item(edge: &AtlasProjectedEntanglement) -> EveListItem {
 
 fn claim_items(edge: &AtlasProjectedEntanglement) -> Vec<EveListItem> {
     let mut items = vec![EveListItem {
-        label: "Consumer claim".into(),
+        label: format!("Consumer claim: {}", edge.claim_label),
         status: freshness_name(edge.claim_freshness).into(),
         detail: format!(
-            "{} owns claim {} from publication {} with {} impact scope.",
+            "{} owns claim {} from publication {} with {} impact scope; requires {}; Body evidence {}.",
             edge.consumer.repository_uri,
             edge.claim_id,
             edge.claim_publication_id,
             impact_scope_name(&edge.impact_scope),
+            contract_requirement_name(&edge.claim_requirement),
+            body_evidence_name(&edge.claim_body_evidence),
         ),
         badges: vec![edge.consumer.workspace_id.clone()],
     }];
 
     if let Some(provider) = &edge.provider {
         items.push(EveListItem {
-            label: "Provider offer".into(),
+            label: format!(
+                "Provider offer: {}",
+                edge.offer_label.as_deref().unwrap_or("missing")
+            ),
             status: edge
                 .offer_freshness
                 .map(freshness_name)
@@ -880,8 +901,19 @@ fn claim_items(edge: &AtlasProjectedEntanglement) -> Vec<EveListItem> {
                 .into(),
             detail: match (&edge.surface_id, &edge.offer_publication_id) {
                 (Some(surface_id), Some(publication_id)) => format!(
-                    "{} owns surface {} from publication {}.",
-                    provider.repository_uri, surface_id, publication_id
+                    "{} owns surface {} from publication {}; contract {}; lifecycle {}; Body evidence {}.",
+                    provider.repository_uri,
+                    surface_id,
+                    publication_id,
+                    edge.offer_contract
+                        .as_ref()
+                        .map(contract_descriptor_name)
+                        .unwrap_or_else(|| "missing".into()),
+                    edge.offer_lifecycle
+                        .as_ref()
+                        .map(offer_lifecycle_name)
+                        .unwrap_or("missing"),
+                    body_evidence_name(&edge.offer_body_evidence),
                 ),
                 _ => format!(
                     "{} has no admitted offer for this claim.",
@@ -895,27 +927,161 @@ fn claim_items(edge: &AtlasProjectedEntanglement) -> Vec<EveListItem> {
     items
 }
 
-fn evidence_items(edge: &AtlasProjectedEntanglement) -> Vec<EveListItem> {
-    vec![
+fn evidence_items(
+    projection: &AtlasEntanglementProjection,
+    edge: &AtlasProjectedEntanglement,
+) -> Vec<EveListItem> {
+    let mut items = vec![
         EveListItem {
             label: "Compatibility".into(),
             status: compatibility_name(edge.compatibility).into(),
             detail: format!(
-                "Epiphany Modeling derived {} from the admitted claim and offer publications.",
-                compatibility_name(edge.compatibility)
+                "Epiphany Modeling compared requirement {} with offer {} and derived {}.",
+                contract_requirement_name(&edge.claim_requirement),
+                edge.offer_contract
+                    .as_ref()
+                    .map(contract_descriptor_name)
+                    .unwrap_or_else(|| "missing".into()),
+                compatibility_name(edge.compatibility),
             ),
             badges: vec!["modeling".into()],
         },
         EveListItem {
             label: "Soul verification".into(),
             status: verification_name(edge.verification).into(),
-            detail: format!(
-                "Exact claim/offer verification state is {}.",
-                verification_name(edge.verification)
-            ),
+            detail: match (
+                &edge.verification_publication_id,
+                &edge.verification_evidence_sha256,
+            ) {
+                (Some(publication), Some(evidence)) => format!(
+                    "Exact claim/offer verification state is {}; publication {}; evidence {}.",
+                    verification_name(edge.verification),
+                    publication,
+                    evidence,
+                ),
+                _ => format!(
+                    "Exact claim/offer verification state is {}; no current exact Soul evidence applies.",
+                    verification_name(edge.verification)
+                ),
+            },
             badges: vec!["soul".into()],
         },
-    ]
+    ];
+    let cycle_memberships = projection
+        .cycles
+        .iter()
+        .filter(|cycle| {
+            cycle
+                .repositories
+                .iter()
+                .any(|repository| repository == &edge.consumer)
+                && edge.provider.as_ref().is_some_and(|provider| {
+                    cycle
+                        .repositories
+                        .iter()
+                        .any(|repository| repository == provider)
+                })
+                && cycle.entanglement_kinds.contains(&edge.entanglement_kind)
+        })
+        .map(|cycle| cycle_class_name(cycle.classification))
+        .collect::<Vec<_>>();
+    items.push(EveListItem {
+        label: "Cycle membership".into(),
+        status: if cycle_memberships.is_empty() {
+            "none".into()
+        } else {
+            "present".into()
+        },
+        detail: if cycle_memberships.is_empty() {
+            "This edge is not a member of a projected cycle.".into()
+        } else {
+            format!(
+                "Projected cycle classes: {}.",
+                cycle_memberships.join(" | ")
+            )
+        },
+        badges: vec!["projector".into()],
+    });
+    let radius = edge.provider.as_ref().and_then(|provider| {
+        edge.surface_id.and_then(|surface_id| {
+            projection
+                .blast_radii
+                .iter()
+                .find(|radius| radius.source == *provider && radius.source_surface_id == surface_id)
+        })
+    });
+    items.push(EveListItem {
+        label: "Blast radius".into(),
+        status: radius.map(|_| "derived").unwrap_or("none").into(),
+        detail: radius
+            .map(|radius| {
+                radius
+                    .affected
+                    .iter()
+                    .map(|affected| {
+                        format!(
+                            "{}:{} hop(s)",
+                            affected.repository.workspace_id, affected.minimum_hops
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            })
+            .filter(|detail| !detail.is_empty())
+            .unwrap_or_else(|| "No downstream repository is projected from this surface.".into()),
+        badges: vec!["projector".into()],
+    });
+    let watermarks = projection
+        .publisher_status
+        .iter()
+        .filter(|status| {
+            status.publisher == edge.consumer
+                || edge
+                    .provider
+                    .as_ref()
+                    .is_some_and(|provider| status.publisher == *provider)
+        })
+        .map(|status| {
+            format!(
+                "{} heartbeat={} age_ms={} documents={}",
+                status.publisher.workspace_id,
+                status.heartbeat_sequence,
+                projection
+                    .evaluated_at_unix_ms
+                    .saturating_sub(status.heartbeat_at_unix_ms),
+                status.watermarks.len()
+            )
+        })
+        .collect::<Vec<_>>();
+    items.push(EveListItem {
+        label: "Publisher watermarks".into(),
+        status: "bounded".into(),
+        detail: watermarks.join(" | "),
+        badges: vec!["odin".into()],
+    });
+    items
+}
+
+fn entanglement_publisher_age_ms(
+    projection: &AtlasEntanglementProjection,
+    edge: &AtlasProjectedEntanglement,
+) -> Option<u64> {
+    projection
+        .publisher_status
+        .iter()
+        .filter(|status| {
+            status.publisher == edge.consumer
+                || edge
+                    .provider
+                    .as_ref()
+                    .is_some_and(|provider| status.publisher == *provider)
+        })
+        .map(|status| {
+            projection
+                .evaluated_at_unix_ms
+                .saturating_sub(status.heartbeat_at_unix_ms)
+        })
+        .max()
 }
 
 fn graph_values(
@@ -1137,6 +1303,66 @@ fn impact_scope_name(scope: &AtlasImpactScope) -> String {
     }
 }
 
+fn contract_descriptor_name(contract: &AtlasContractDescriptor) -> String {
+    match contract {
+        AtlasContractDescriptor::Semver {
+            contract_id,
+            version,
+        } => format!("semver:{contract_id}@{version}"),
+        AtlasContractDescriptor::ExactSchema {
+            contract_id,
+            schema_id,
+        } => format!("exact_schema:{contract_id}@{schema_id}"),
+        AtlasContractDescriptor::ExactDigest {
+            contract_id,
+            sha256,
+        } => format!("exact_digest:{contract_id}@{sha256}"),
+    }
+}
+
+fn contract_requirement_name(requirement: &AtlasContractRequirement) -> String {
+    match requirement {
+        AtlasContractRequirement::Semver {
+            contract_id,
+            requirement,
+        } => format!("semver:{contract_id}@{requirement}"),
+        AtlasContractRequirement::ExactSchema {
+            contract_id,
+            schema_id,
+        } => format!("exact_schema:{contract_id}@{schema_id}"),
+        AtlasContractRequirement::ExactDigest {
+            contract_id,
+            sha256,
+        } => format!("exact_digest:{contract_id}@{sha256}"),
+    }
+}
+
+fn offer_lifecycle_name(lifecycle: &AtlasOfferLifecycle) -> &'static str {
+    match lifecycle {
+        AtlasOfferLifecycle::Active => "active",
+        AtlasOfferLifecycle::Deprecated { .. } => "deprecated",
+        AtlasOfferLifecycle::Withdrawn => "withdrawn",
+    }
+}
+
+fn body_evidence_name(evidence: &[AtlasBodyEvidenceRef]) -> String {
+    evidence
+        .iter()
+        .map(|source| format!("{}@{}", source.path, source.raw_sha256))
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+fn cycle_class_name(classification: AtlasCycleClass) -> &'static str {
+    match classification {
+        AtlasCycleClass::ForbiddenBuild => "forbidden_build",
+        AtlasCycleClass::ForbiddenDeployment => "forbidden_deployment",
+        AtlasCycleClass::ForbiddenInfrastructureControl => "forbidden_infrastructure_control",
+        AtlasCycleClass::ReviewRequired => "review_required",
+        AtlasCycleClass::Informational => "informational",
+    }
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -1170,9 +1396,28 @@ mod tests {
     fn edge(compatibility: AtlasCompatibility) -> AtlasProjectedEntanglement {
         AtlasProjectedEntanglement {
             claim_id: Uuid::from_u128(7),
+            claim_label: "Epiphany consumes Eve".into(),
+            claim_requirement: AtlasContractRequirement::ExactSchema {
+                contract_id: "eve-surface".into(),
+                schema_id: "gamecult.eve.surface.v1".into(),
+            },
+            claim_body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
             consumer: repository("epiphany"),
             provider: Some(repository("eve")),
             surface_id: Some(Uuid::from_u128(9)),
+            offer_label: Some("Canonical Eve surface".into()),
+            offer_contract: Some(AtlasContractDescriptor::ExactSchema {
+                contract_id: "eve-surface".into(),
+                schema_id: "gamecult.eve.surface.v1".into(),
+            }),
+            offer_lifecycle: Some(AtlasOfferLifecycle::Active),
+            offer_body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "schemas/gamecult.eve.surface.v1.schema.json".into(),
+                raw_sha256: "1".repeat(64),
+            }],
             entanglement_kind: AtlasEntanglementKind::SchemaProtocol,
             failure_semantics: AtlasFailureSemantics::HumanDecision,
             impact_scope: AtlasImpactScope::WholeRepository,
@@ -1182,6 +1427,8 @@ mod tests {
             verification: AtlasVerificationState::Passed,
             claim_publication_id: format!("sha256-{}", "1".repeat(64)),
             offer_publication_id: Some(format!("sha256-{}", "2".repeat(64))),
+            verification_publication_id: Some(format!("sha256-{}", "3".repeat(64))),
+            verification_evidence_sha256: Some(format!("sha256-{}", "4".repeat(64))),
         }
     }
 
@@ -1247,6 +1494,43 @@ mod tests {
             }) if role == "secondary" && presentation_fallback == "children"
         ));
         assert_eq!(root.children[2].children[0].kind, "list");
+    }
+
+    #[test]
+    fn attention_and_drilldown_report_the_oldest_endpoint_publisher_age() {
+        let mut projection = projection_with(vec![edge(AtlasCompatibility::Compatible)]);
+        projection.publisher_status = vec![
+            crate::AtlasPublisherProjectionStatus {
+                publisher: repository("epiphany"),
+                runtime_id: "epiphany-runtime".into(),
+                runtime_incarnation_id: "epiphany-incarnation".into(),
+                heartbeat_sequence: 3,
+                heartbeat_at_unix_ms: projection.evaluated_at_unix_ms - 250,
+                freshness: AtlasPublicationFreshness::Current,
+                watermarks: Vec::new(),
+                status_publication_id: format!("sha256-{}", "5".repeat(64)),
+            },
+            crate::AtlasPublisherProjectionStatus {
+                publisher: repository("eve"),
+                runtime_id: "eve-runtime".into(),
+                runtime_incarnation_id: "eve-incarnation".into(),
+                heartbeat_sequence: 7,
+                heartbeat_at_unix_ms: projection.evaluated_at_unix_ms - 900,
+                freshness: AtlasPublicationFreshness::Current,
+                watermarks: Vec::new(),
+                status_publication_id: format!("sha256-{}", "6".repeat(64)),
+            },
+        ];
+
+        let summary = entanglement_summary(&projection, &projection.entanglements[0]);
+        assert!(summary.contains("publisher age 900 ms"));
+        let evidence = evidence_items(&projection, &projection.entanglements[0]);
+        assert!(
+            evidence
+                .iter()
+                .find(|item| item.label == "Publisher watermarks")
+                .is_some_and(|item| item.detail.contains("age_ms=900"))
+        );
     }
 
     #[test]

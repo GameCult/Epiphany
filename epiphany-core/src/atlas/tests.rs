@@ -25,6 +25,13 @@ fn body_digest(seed: &str) -> String {
     digest(seed).trim_start_matches("sha256-").to_owned()
 }
 
+fn body_evidence() -> Vec<AtlasBodyEvidenceRef> {
+    vec![AtlasBodyEvidenceRef {
+        path: "Cargo.toml".into(),
+        raw_sha256: body_digest("atlas-test-source"),
+    }]
+}
+
 fn repo(temp: &TempDir, ordinal: u128, name: &str) -> Result<Repo> {
     let identity = AtlasRepositoryIdentity::new("gamecult", format!("workspace-{name}"))?;
     let signer = enroll_service_identity_at::<AtlasRepositorySigningIdentity>(
@@ -85,6 +92,8 @@ fn offer_payload(provider: &Repo, surface_id: Uuid, version: &str) -> AtlasPubli
         surface_id,
         contract: semver_descriptor("contract:api", version),
         lifecycle: AtlasOfferLifecycle::Active,
+        label: "API surface".into(),
+        body_evidence: body_evidence(),
     })
 }
 
@@ -118,6 +127,8 @@ fn claim_payload(
         },
         impact_scope: AtlasImpactScope::WholeRepository,
         lifecycle: AtlasClaimLifecycle::Active,
+        label: "API dependency".into(),
+        body_evidence: body_evidence(),
     })
 }
 
@@ -249,6 +260,8 @@ fn three_repo_vertical_slice_wakes_direct_then_transitive_modeling() -> Result<(
                 schema_id: schema_id.into(),
             },
             lifecycle: AtlasOfferLifecycle::Active,
+            label: format!("{} surface", owner.identity.workspace_id),
+            body_evidence: body_evidence(),
         })
     };
     let eve_offer = mind_publication(
@@ -289,6 +302,8 @@ fn three_repo_vertical_slice_wakes_direct_then_transitive_modeling() -> Result<(
             surface_ids: vec![odin_catalog],
         },
         lifecycle: AtlasClaimLifecycle::Active,
+        label: "Odin consumes Eve surface".into(),
+        body_evidence: body_evidence(),
     };
     let odin_claim = mind_publication(
         &odin,
@@ -311,6 +326,8 @@ fn three_repo_vertical_slice_wakes_direct_then_transitive_modeling() -> Result<(
         failure_semantics: AtlasFailureSemantics::FailClosed,
         impact_scope: AtlasImpactScope::WholeRepository,
         lifecycle: AtlasClaimLifecycle::Active,
+        label: "Epiphany consumes Odin catalog".into(),
+        body_evidence: body_evidence(),
     };
     let epiphany_claim = mind_publication(
         &epiphany,
@@ -355,6 +372,13 @@ fn three_repo_vertical_slice_wakes_direct_then_transitive_modeling() -> Result<(
             .iter()
             .all(|edge| edge.compatibility == AtlasCompatibility::Exact)
     );
+    assert!(projection.entanglements.iter().all(|edge| {
+        !edge.claim_label.is_empty()
+            && !edge.claim_body_evidence.is_empty()
+            && edge.offer_label.is_some()
+            && edge.offer_contract.is_some()
+            && !edge.offer_body_evidence.is_empty()
+    }));
     let eve_radius = projection
         .blast_radii
         .iter()
@@ -752,6 +776,8 @@ fn contracts_are_closed_and_local_authority_is_explicit() -> Result<()> {
             schema_id: "schema:api:v1".into(),
         },
         lifecycle: AtlasOfferLifecycle::Active,
+        label: "Exact schema API surface".into(),
+        body_evidence: body_evidence(),
     };
     assert_eq!(
         evaluate_atlas_compatibility(&claim, Some(&offer)),
@@ -908,6 +934,14 @@ fn deterministic_join_uses_exact_status_watermarks_and_exact_verification() -> R
     assert_eq!(
         first.entanglements[0].verification,
         AtlasVerificationState::Passed
+    );
+    assert_eq!(
+        first.entanglements[0].verification_publication_id,
+        Some(verification.statement.publication_id.clone())
+    );
+    assert_eq!(
+        first.entanglements[0].verification_evidence_sha256,
+        Some(digest("verified"))
     );
     assert_eq!(first.source_publication_ids.len(), 5);
     assert_eq!(atlas_projection_digest(&first)?, first.projection_sha256);

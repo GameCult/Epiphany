@@ -1597,7 +1597,7 @@ fn worker_output_contract_text(
             "Required proposal-Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, proposalFrontierDraft. Emit only the semantic frontier draft. Runtime owns and composes proposal identity, Body observation basis, proposal/request provenance, active status, timestamps, and the mandatory proposal evidence binding. Do not emit repoModelOperations, proposalModelingRequestId, repositoryBodyObservationBasis, statePatch, selfPatch, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers emit repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, or receipts. Ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. Use checkpoint-ready when no new frontier authority is needed and regather-needed when source evidence is insufficient; neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers emit repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, or receipts. Ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1794,115 +1794,149 @@ fn role_worker_result_from_ingress(
     runtime_evidence_ids: Vec<String>,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeRoleWorkerResult {
+    let accepted_evidence_ids = {
+        let mut evidence_ids = clean_string_vec(&result.evidence_ids);
+        evidence_ids.extend(clean_string_vec(&runtime_evidence_ids));
+        if let Some(context) = proposal_modeling_context {
+            evidence_ids.push(context.proposal_id.clone());
+        }
+        evidence_ids.sort();
+        evidence_ids.dedup();
+        evidence_ids
+    };
+    let repo_model_proposal = |operations| {
+        let body_basis = repository_body_observation_basis.cloned().ok_or_else(|| {
+            anyhow!("repoModelOperations: Modeling launch has no current Body basis")
+        })?;
+        epiphany_core::EpiphanyRepoModelMutationProposal::new(
+            format!("repo-model-mutation-proposal-{}", launch_request.job_id),
+            launch_request.job_id.clone(),
+            result_id.to_string(),
+            accepted_evidence_ids.clone(),
+            body_basis,
+            operations,
+        )
+    };
     let (state_patch_msgpack, state_patch_error) =
         encode_optional_document(&result.state_patch, "statePatch");
-    let (repo_model_mutation_proposal_msgpack, repo_model_mutation_proposal_error) =
-        if let Some(context) = proposal_modeling_context {
-            match result.proposal_frontier_draft.as_ref() {
-                Some(draft) => {
-                    let mut target_claim_ids = clean_string_vec(&draft.target_claim_ids);
-                    target_claim_ids.sort();
-                    target_claim_ids.dedup();
-                    let mut source_scope = clean_string_vec(&draft.source_scope);
-                    source_scope.sort();
-                    source_scope.dedup();
-                    let mut dependency_item_ids = clean_string_vec(&draft.dependency_item_ids);
-                    dependency_item_ids.sort();
-                    dependency_item_ids.dedup();
-                    let mut evidence_refs = clean_string_vec(&draft.evidence_refs);
-                    evidence_refs.push(context.proposal_id.clone());
-                    evidence_refs.sort();
-                    evidence_refs.dedup();
-                    let frontier_id = format!(
-                        "frontier-proposal-{:x}",
-                        sha2::Sha256::digest(context.request_id.as_bytes())
-                    );
-                    let proposal = epiphany_core::EpiphanyRepoModelMutationProposal::new(
-                        format!("repo-model-mutation-proposal-{}", launch_request.job_id),
-                        vec![
-                            epiphany_core::EpiphanyRepoModelMutationOperation::PutFrontier {
-                                item: epiphany_core::RepoFrontierItem {
-                                    id: frontier_id,
-                                    migration_body: draft.migration_body.trim().to_string(),
-                                    question: draft.question.trim().to_string(),
-                                    gap: draft.gap.trim().to_string(),
-                                    target_claim_ids,
-                                    source_scope,
-                                    recommended_next_organ: draft
-                                        .recommended_next_organ
-                                        .trim()
-                                        .to_string(),
-                                    adopted_plan: None,
-                                    dependency_item_ids,
-                                    status: epiphany_core::RepoFrontierStatus::Active,
-                                    evidence_refs,
-                                    public_source_refs: if draft.recommended_next_organ.trim()
-                                        == "Eyes"
-                                    {
-                                        context.public_source_refs.clone()
-                                    } else {
-                                        Vec::new()
-                                    },
-                                    created_at: Some(completed_at.to_string()),
-                                    updated_at: Some(completed_at.to_string()),
-                                    retired_at: None,
-                                    superseded_by: None,
-                                },
+    let (repo_model_mutation_proposal_msgpack, repo_model_mutation_proposal_error) = if let Some(
+        context,
+    ) =
+        proposal_modeling_context
+    {
+        match result.proposal_frontier_draft.as_ref() {
+            Some(draft) => {
+                let mut target_claim_ids = clean_string_vec(&draft.target_claim_ids);
+                target_claim_ids.sort();
+                target_claim_ids.dedup();
+                let mut source_scope = clean_string_vec(&draft.source_scope);
+                source_scope.sort();
+                source_scope.dedup();
+                let mut dependency_item_ids = clean_string_vec(&draft.dependency_item_ids);
+                dependency_item_ids.sort();
+                dependency_item_ids.dedup();
+                let mut evidence_refs = clean_string_vec(&draft.evidence_refs);
+                evidence_refs.push(context.proposal_id.clone());
+                evidence_refs.sort();
+                evidence_refs.dedup();
+                let frontier_id = format!(
+                    "frontier-proposal-{:x}",
+                    sha2::Sha256::digest(context.request_id.as_bytes())
+                );
+                let proposal = repo_model_proposal(vec![
+                    epiphany_core::EpiphanyRepoModelMutationOperation::PutFrontier {
+                        item: epiphany_core::RepoFrontierItem {
+                            id: frontier_id,
+                            migration_body: draft.migration_body.trim().to_string(),
+                            question: draft.question.trim().to_string(),
+                            gap: draft.gap.trim().to_string(),
+                            target_claim_ids,
+                            source_scope,
+                            recommended_next_organ: draft.recommended_next_organ.trim().to_string(),
+                            adopted_plan: None,
+                            dependency_item_ids,
+                            status: epiphany_core::RepoFrontierStatus::Active,
+                            evidence_refs,
+                            public_source_refs: if draft.recommended_next_organ.trim() == "Eyes" {
+                                context.public_source_refs.clone()
+                            } else {
+                                Vec::new()
                             },
-                        ],
-                    );
-                    match proposal {
-                        Ok(proposal) => {
-                            encode_optional_document(&Some(proposal), "proposalFrontierDraft")
-                        }
-                        Err(error) => (None, Some(format!("proposalFrontierDraft: {error}"))),
+                            created_at: Some(completed_at.to_string()),
+                            updated_at: Some(completed_at.to_string()),
+                            retired_at: None,
+                            superseded_by: None,
+                        },
+                    },
+                ]);
+                match proposal {
+                    Ok(proposal) => {
+                        encode_optional_document(&Some(proposal), "proposalFrontierDraft")
                     }
+                    Err(error) => (None, Some(format!("proposalFrontierDraft: {error}"))),
                 }
-                None => (
-                    None,
-                    Some("proposalFrontierDraft: missing semantic draft".to_string()),
-                ),
             }
-        } else if let Some(authority) = repo_frontier_verdict_modeling_authority {
-            match clean_optional_string(result.frontier_verdict_gap.as_deref()) {
-                Some(gap) => {
-                    let mut item = authority.frontier_item.clone();
-                    item.gap = gap;
-                    item.status = match authority.request.allowed_disposition {
-                        epiphany_core::RepoFrontierVerdictDisposition::Resolved => {
-                            epiphany_core::RepoFrontierStatus::Resolved
-                        }
-                        epiphany_core::RepoFrontierVerdictDisposition::Blocked => {
-                            epiphany_core::RepoFrontierStatus::Blocked
-                        }
-                    };
-                    item.updated_at = Some(completed_at.to_string());
-                    item.evidence_refs
-                        .push(authority.request.verification_request_id.clone());
-                    item.evidence_refs
-                        .push(authority.request.soul_verdict_receipt_id.clone());
-                    item.evidence_refs.sort();
-                    item.evidence_refs.dedup();
-                    match epiphany_core::EpiphanyRepoModelMutationProposal::new(
-                        format!("repo-model-mutation-proposal-{}", launch_request.job_id),
-                        vec![
-                            epiphany_core::EpiphanyRepoModelMutationOperation::PutFrontier { item },
-                        ],
-                    ) {
-                        Ok(proposal) => {
-                            encode_optional_document(&Some(proposal), "frontierVerdictGap")
-                        }
-                        Err(error) => (None, Some(format!("frontierVerdictGap: {error}"))),
+            None => (
+                None,
+                Some("proposalFrontierDraft: missing semantic draft".to_string()),
+            ),
+        }
+    } else if let Some(authority) = repo_frontier_verdict_modeling_authority {
+        match clean_optional_string(result.frontier_verdict_gap.as_deref()) {
+            Some(gap) => {
+                let mut item = authority.frontier_item.clone();
+                item.gap = gap;
+                item.status = match authority.request.allowed_disposition {
+                    epiphany_core::RepoFrontierVerdictDisposition::Resolved => {
+                        epiphany_core::RepoFrontierStatus::Resolved
                     }
+                    epiphany_core::RepoFrontierVerdictDisposition::Blocked => {
+                        epiphany_core::RepoFrontierStatus::Blocked
+                    }
+                };
+                item.updated_at = Some(completed_at.to_string());
+                item.evidence_refs
+                    .push(authority.request.verification_request_id.clone());
+                item.evidence_refs
+                    .push(authority.request.soul_verdict_receipt_id.clone());
+                item.evidence_refs.sort();
+                item.evidence_refs.dedup();
+                match repo_model_proposal(vec![
+                    epiphany_core::EpiphanyRepoModelMutationOperation::PutFrontier { item },
+                ]) {
+                    Ok(proposal) => encode_optional_document(&Some(proposal), "frontierVerdictGap"),
+                    Err(error) => (None, Some(format!("frontierVerdictGap: {error}"))),
                 }
-                None => (
-                    None,
-                    Some("frontierVerdictGap: missing semantic verdict finding".to_string()),
-                ),
             }
-        } else if role_id.eq_ignore_ascii_case("modeling")
-            && !result.repo_model_operations.is_empty()
-        {
+            None => (
+                None,
+                Some("frontierVerdictGap: missing semantic verdict finding".to_string()),
+            ),
+        }
+    } else if role_id.eq_ignore_ascii_case("modeling") && !result.repo_model_operations.is_empty() {
+        if result
+                .verdict
+                .as_deref()
+                .is_some_and(|verdict| verdict.eq_ignore_ascii_case("checkpoint-ready"))
+                && result.repo_model_operations.iter().any(|operation| {
+                    !matches!(
+                        operation,
+                        epiphany_core::EpiphanyRepoModelMutationOperation::CreateSurfaceOffer { .. }
+                            | epiphany_core::EpiphanyRepoModelMutationOperation::DeprecateSurfaceOffer { .. }
+                            | epiphany_core::EpiphanyRepoModelMutationOperation::WithdrawSurfaceOffer { .. }
+                            | epiphany_core::EpiphanyRepoModelMutationOperation::CreateDependencyClaim { .. }
+                            | epiphany_core::EpiphanyRepoModelMutationOperation::RetireDependencyClaim { .. }
+                    )
+                })
+            {
+                (
+                    None,
+                    Some(
+                        "repoModelOperations: checkpoint-ready may carry only local Atlas offer/claim transitions"
+                            .to_string(),
+                    ),
+                )
+            } else {
             let mut operations = result.repo_model_operations.clone();
             for operation in &mut operations {
                 match operation {
@@ -1927,26 +1961,20 @@ fn role_worker_result_from_ingress(
                     _ => {}
                 }
             }
-            match epiphany_core::EpiphanyRepoModelMutationProposal::new(
-                format!("repo-model-mutation-proposal-{}", launch_request.job_id),
-                operations,
-            ) {
+            match repo_model_proposal(operations) {
                 Ok(proposal) => encode_optional_document(&Some(proposal), "repoModelOperations"),
                 Err(error) => (None, Some(format!("repoModelOperations: {error}"))),
             }
-        } else if !role_id.eq_ignore_ascii_case("modeling")
-            && !result.repo_model_operations.is_empty()
-        {
-            (
-                None,
-                Some(
-                    "repoModelOperations: only Modeling may propose RepoModel mutations"
-                        .to_string(),
-                ),
-            )
-        } else {
-            (None, None)
-        };
+            }
+    } else if !role_id.eq_ignore_ascii_case("modeling") && !result.repo_model_operations.is_empty()
+    {
+        (
+            None,
+            Some("repoModelOperations: only Modeling may propose RepoModel mutations".to_string()),
+        )
+    } else {
+        (None, None)
+    };
     let (self_patch_msgpack, self_patch_error) =
         encode_optional_document(&result.self_patch, "selfPatch");
     let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) = if let Some(ingress) =
@@ -2155,16 +2183,7 @@ fn role_worker_result_from_ingress(
         scratch_summary: clean_optional_string(result.scratch_summary.as_deref()),
         files_inspected: clean_string_vec(&result.files_inspected),
         frontier_node_ids: clean_string_vec(&result.frontier_node_ids),
-        evidence_ids: {
-            let mut evidence_ids = clean_string_vec(&result.evidence_ids);
-            evidence_ids.extend(clean_string_vec(&runtime_evidence_ids));
-            if let Some(context) = proposal_modeling_context {
-                evidence_ids.push(context.proposal_id.clone());
-            }
-            evidence_ids.sort();
-            evidence_ids.dedup();
-            evidence_ids
-        },
+        evidence_ids: accepted_evidence_ids,
         artifact_refs,
         open_questions: clean_string_vec(&result.open_questions),
         evidence_gaps: clean_string_vec(&result.evidence_gaps),
@@ -2764,6 +2783,129 @@ mod tests {
     }
 
     #[test]
+    fn checkpoint_ready_modeling_carries_only_semantic_atlas_transitions() -> Result<()> {
+        let body = epiphany_core::RepositoryBodyObservationBasis {
+            schema_version: "epiphany.repository_body.v2".into(),
+            workspace_id: "eve".into(),
+            swarm_id: "gamecult-local".into(),
+            runtime_id: "atlas-runtime".into(),
+            scope: ".".into(),
+            body_binding_sha256: "0".repeat(64),
+            observation_id: "eve:1".into(),
+            generation: 1,
+            manifest_root_sha256: "1".repeat(64),
+            scan_started_at: "2026-08-14T00:00:00Z".into(),
+            scan_finished_at: "2026-08-14T00:00:01Z".into(),
+        };
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "atlas-modeling-job".into(),
+            binding_id: epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            authority_scope: "epiphany.role.modeling".into(),
+            instruction: "Model local Atlas facts.".into(),
+            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: Vec::new(),
+            metadata: std::collections::BTreeMap::new(),
+            organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                "epiphany.role.modeling",
+                "role",
+                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let atlas = RoleWorkerResultIngress {
+            role_id: Some("modeling".into()),
+            verdict: Some("checkpoint-ready".into()),
+            repo_model_operations: vec![
+                epiphany_core::EpiphanyRepoModelMutationOperation::CreateSurfaceOffer {
+                    label: "Canonical Eve surface".into(),
+                    contract: epiphany_core::AtlasContractDescriptor::ExactSchema {
+                        contract_id: "eve-surface".into(),
+                        schema_id: "gamecult.eve.surface.v1".into(),
+                    },
+                    source_refs: vec!["packages/eve-contracts/schema.rs".into()],
+                },
+            ],
+            ..Default::default()
+        };
+        let accepted = role_worker_result_from_ingress(
+            &launch,
+            "modeling",
+            Some(&body),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "2026-08-14T00:00:00Z",
+            "atlas-result",
+            "atlas-decision-context",
+            &atlas,
+            vec!["openai-request:atlas-test".into()],
+            Vec::new(),
+        );
+        assert!(accepted.item_error.is_none());
+        let proposal = accepted
+            .repo_model_mutation_proposal()?
+            .expect("semantic Atlas proposal");
+        assert_eq!(proposal.causal_request_id, launch.job_id);
+        assert_eq!(proposal.causal_result_id, "atlas-result");
+        assert_eq!(proposal.evidence_ids, ["openai-request:atlas-test"]);
+        assert_eq!(proposal.repository_body_observation_basis, body);
+        assert!(matches!(
+            proposal.operations()?.as_slice(),
+            [epiphany_core::EpiphanyRepoModelMutationOperation::CreateSurfaceOffer { .. }]
+        ));
+
+        let hostile = RoleWorkerResultIngress {
+            role_id: Some("modeling".into()),
+            verdict: Some("checkpoint-ready".into()),
+            repo_model_operations: vec![
+                epiphany_core::EpiphanyRepoModelMutationOperation::PutFrontier {
+                    item: epiphany_core::RepoFrontierItem::default(),
+                },
+            ],
+            ..Default::default()
+        };
+        let refused = role_worker_result_from_ingress(
+            &launch,
+            "modeling",
+            Some(&body),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "2026-08-14T00:00:00Z",
+            "hostile-result",
+            "hostile-decision-context",
+            &hostile,
+            Vec::new(),
+            Vec::new(),
+        );
+        assert!(refused.repo_model_mutation_proposal_msgpack.is_none());
+        assert!(
+            refused
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("only local Atlas"))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn proposal_modeling_request_carries_narrow_schema_only_as_response_format() -> Result<()> {
         let context = epiphany_core::RepoFrontierProposalModelingContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION
@@ -3117,6 +3259,10 @@ mod tests {
                 frontier: Vec::new(),
                 lifecycle_receipts: Vec::new(),
                 claim_obligations: Vec::new(),
+                surface_offers: Vec::new(),
+                dependency_claims: Vec::new(),
+                dependency_verifications: Vec::new(),
+                dependency_impacts: Vec::new(),
             },
         };
         let launch = EpiphanyRuntimeWorkerLaunchRequest {

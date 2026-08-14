@@ -137,13 +137,22 @@ pub fn project_atlas(
                 _ => None,
             });
         let compatibility = evaluate_atlas_compatibility(claim, offer);
-        let verification = evaluate_verification(
-            accepted_claim,
-            accepted_offer,
-            verifications
-                .get(&(claim.consumer.repository_uri.clone(), claim.claim_id))
-                .copied(),
-        );
+        let accepted_verification = verifications
+            .get(&(claim.consumer.repository_uri.clone(), claim.claim_id))
+            .copied();
+        let verification =
+            evaluate_verification(accepted_claim, accepted_offer, accepted_verification);
+        let exact_verification = accepted_verification.filter(|_| {
+            !matches!(
+                verification,
+                AtlasVerificationState::Missing | AtlasVerificationState::ExactEdgeMismatch
+            )
+        });
+        let verification_document =
+            exact_verification.and_then(|accepted| match &accepted.publication.statement.payload {
+                AtlasPublicationPayload::DependencyVerification(verification) => Some(verification),
+                _ => None,
+            });
         // The consumer's active exact claim owns dependency truth. Missing,
         // withdrawn, or incompatible provider state changes compatibility; it
         // must not erase the claimed edge or its transitive blast radius.
@@ -160,9 +169,18 @@ pub fn project_atlas(
         }
         entanglements.push(AtlasProjectedEntanglement {
             claim_id: claim.claim_id,
+            claim_label: claim.label.clone(),
+            claim_requirement: claim.target.requirement().clone(),
+            claim_body_evidence: claim.body_evidence.clone(),
             consumer: claim.consumer.clone(),
             provider: exact_target.map(|(provider, _, _)| provider.clone()),
             surface_id: exact_target.map(|(_, surface_id, _)| surface_id),
+            offer_label: offer.map(|offer| offer.label.clone()),
+            offer_contract: offer.map(|offer| offer.contract.clone()),
+            offer_lifecycle: offer.map(|offer| offer.lifecycle.clone()),
+            offer_body_evidence: offer
+                .map(|offer| offer.body_evidence.clone())
+                .unwrap_or_default(),
             entanglement_kind: claim.entanglement_kind,
             failure_semantics: claim.failure_semantics,
             impact_scope: claim.impact_scope.clone(),
@@ -173,6 +191,10 @@ pub fn project_atlas(
             claim_publication_id: accepted_claim.publication.statement.publication_id.clone(),
             offer_publication_id: accepted_offer
                 .map(|offer| offer.publication.statement.publication_id.clone()),
+            verification_publication_id: exact_verification
+                .map(|accepted| accepted.publication.statement.publication_id.clone()),
+            verification_evidence_sha256: verification_document
+                .map(|verification| verification.evidence_sha256.clone()),
         });
     }
     entanglements.sort_by(|left, right| {
@@ -856,6 +878,11 @@ mod tests {
                 schema_id: schema_id.into(),
             },
             lifecycle: AtlasOfferLifecycle::Active,
+            label: "Exact schema offer".into(),
+            body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
         })
     }
 
@@ -885,6 +912,11 @@ mod tests {
             failure_semantics: AtlasFailureSemantics::HumanDecision,
             impact_scope,
             lifecycle: AtlasClaimLifecycle::Active,
+            label: "Exact schema dependency".into(),
+            body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
         })
     }
 

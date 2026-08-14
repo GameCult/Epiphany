@@ -1008,6 +1008,10 @@ mod tests {
                 frontier: Vec::new(),
                 lifecycle_receipts: Vec::new(),
                 claim_obligations: Vec::new(),
+                surface_offers: Vec::new(),
+                dependency_claims: Vec::new(),
+                dependency_verifications: Vec::new(),
+                dependency_impacts: Vec::new(),
             },
         ))
     }

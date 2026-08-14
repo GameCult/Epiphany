@@ -49,6 +49,30 @@ No organ opens another repository's Mind store. Publishers read only their own
 runtime Mind store. The projector reads Odin. Impact ingress reads the
 projection plus its own local claims.
 
+## Modeling authoring and Body evidence
+
+Ordinary Modeling is the sole production authoring path for offers and claims.
+Its model output names only semantic operations: create, deprecate, withdraw,
+or retire. Creation includes a human label, a closed contract shape, and a
+non-empty sorted set of repository-relative source paths. It cannot supply
+UUIDs, source digests, causal identifiers, Body bases, CAS reads, timestamps,
+receipts, or writes.
+
+The runtime constructs `epiphany.repo_model.mutation_proposal.v2` from the
+exact worker request, exact result, ordered evidence identifiers, and the Body
+basis sealed into the launch. The keyed planner re-reads the current Body
+basis, authenticates the manifest, resolves every requested source path to its
+raw SHA-256, derives opaque UUIDv5 identities, and produces the exact Mind CAS.
+An old Body observation or changed source refuses before any document is
+written.
+
+The publisher repeats the Body check at the federation boundary. It refuses to
+publish an offer or claim unless every stored source path and digest still
+matches the current authenticated Body manifest. The projector retains those
+endpoint labels, contracts, lifecycle states, and Body references alongside
+the exact applicable Soul evidence. Eve can therefore show why an edge exists,
+not merely that the projector drew one.
+
 ## Invariants
 
 - Repository identity is
@@ -68,6 +92,9 @@ projection plus its own local claims.
 - Local offer, claim, verification, and impact writes use dedicated typed
   planners and exact CultCache CAS. A stale Body or source version refuses the
   entire mutation.
+- Model-authored offer and claim operations contain semantic intent and source
+  paths only. Runtime-owned proposal v2 binds exact cause, evidence, current
+  Body basis, resolved source digests, derived identities, and CAS authority.
 - Publications bind repository, runtime incarnation, Body basis, Verse,
   source schema/key/version/digest, Mind receipt, canonical payload digest,
   publication time, and service signature.
@@ -120,9 +147,14 @@ pinned by exact repository coordinates; key rotation is operator-gated.
 
 ## Rollout gates
 
-1. Engage all three Atlas brake scopes. Run the three publishers, projector,
-   and impact ingresses against isolated pilot stores. Inspect publications,
-   watermarks, rejections, and the retained Eve tree without lane scheduling.
+1. Keep impact ingress absent. Let ordinary Modeling admit the three local seed
+   facts into isolated Mind stores, then run the publishers and projector until
+   signed publications, exact watermarks, and the retained Eve tree exist.
+   Engage `atlas.publish`, `atlas.project`, and `atlas.impact_ingress`, run one
+   more publisher/projector cycle plus the first ingress cycle, and prove every
+   write/schedule is held while the last projection remains visibly stale and
+   read-only. A brake cannot both forbid the first publication and prove that a
+   publication exists; ordering is part of the invariant.
 2. Release Atlas scopes for Modeling and Soul while leaving existing Hands
    authorization unchanged. A temporary Eve contract change must wake Odin
    Modeling and then Epiphany Modeling without an operator prompt.
@@ -132,8 +164,9 @@ pinned by exact repository coordinates; key rotation is operator-gated.
 4. Only after sustained local proof, register topology and recovery runbooks in
    `gamecult-ops`. Yggdrasil and the public Verse remain outside V1.
 
-The implementation and isolated proofs close the code slice. Gates 2 through 4
-are operational evidence, not claims that can be manufactured by unit tests.
+The implementation and isolated proofs close the code slice. All four rollout
+gates are operational evidence, not claims that can be manufactured by unit
+tests.
 
 ## Verification
 
@@ -141,8 +174,11 @@ The focused proofs cover:
 
 - no production `RepoModelPatch`, aggregate RepoModel store, aggregate
   admission reader/writer, or aggregate memory-graph key;
-- runtime-owned semantic Modeling ingress and exact keyed reasoning bases;
-- local offer/claim admission through current real Body evidence and Mind CAS;
+- runtime-owned proposal-v2 construction from exact request, result, evidence,
+  and launch Body basis; models provide semantic operations only;
+- local offer/claim admission through current authenticated Body manifests,
+  resolved source digests, derived UUIDs, exact reasoning bases, and Mind CAS;
+- publisher refusal after local Body evidence drifts;
 - signature tamper, trust-coordinate substitution, rollback, replay,
   watermark, and payload-size refusal;
 - order-independent projection digests, closed compatibility, verification
@@ -154,8 +190,13 @@ The focused proofs cover:
   informational visibility without wake, and absence of Hands authority;
 - Odin persistence of only the registered Atlas/projection/Eve schemas without
   Odin-authored edges;
-- Eve conformance for one canonical GUI/TUI tree with presentation-only select
-  and filter commands.
+- Eve conformance for one canonical GUI/TUI tree with endpoint contracts,
+  source evidence, exact Soul evidence, publisher age/watermarks, cycles, blast
+  radius, and presentation-only select/filter commands.
+
+Current counts are Epiphany core 555/555, OpenAI Modeling ingress 23/23,
+coordinator 18/18, Odin Node 1/1 plus Rust 15/15, and Eve Atlas 4/4 plus Eve
+contracts 6/6. The ordinary Epiphany all-target workspace check also passes.
 
 Current verification commands:
 

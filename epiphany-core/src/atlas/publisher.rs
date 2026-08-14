@@ -375,6 +375,11 @@ mod tests {
                 version: Version::new(1, 0, 0),
             },
             lifecycle: AtlasOfferLifecycle::Active,
+            label: "Published surface".into(),
+            body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
         });
         let payload_sha256 = sha256(&atlas_source_payload_msgpack(&payload).unwrap());
         let source = AtlasMindSourceVersion {

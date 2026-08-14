@@ -138,6 +138,148 @@ fn repo_model_edge_output_schema() -> serde_json::Value {
     })
 }
 
+fn atlas_repository_identity_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["swarm_id", "workspace_id", "repository_uri"],
+        "properties": {
+            "swarm_id": {"type": "string", "minLength": 1},
+            "workspace_id": {"type": "string", "minLength": 1},
+            "repository_uri": {"type": "string", "pattern": "^gamecult://swarm/[^/]+/workspace/[^/]+$"}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn atlas_contract_descriptor_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "anyOf": [
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "version"],
+                "properties": {
+                    "version_scheme": {"const": "semver"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "version": {"type": "string", "minLength": 1}
+                },
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "schema_id"],
+                "properties": {
+                    "version_scheme": {"const": "exact_schema"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "schema_id": {"type": "string", "minLength": 1}
+                },
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "sha256"],
+                "properties": {
+                    "version_scheme": {"const": "exact_digest"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "sha256": {"type": "string", "pattern": "^sha256-[0-9a-f]{64}$"}
+                },
+                "additionalProperties": false
+            }
+        ]
+    })
+}
+
+fn atlas_contract_requirement_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "anyOf": [
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "requirement"],
+                "properties": {
+                    "version_scheme": {"const": "semver"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "requirement": {"type": "string", "minLength": 1}
+                },
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "schema_id"],
+                "properties": {
+                    "version_scheme": {"const": "exact_schema"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "schema_id": {"type": "string", "minLength": 1}
+                },
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["version_scheme", "contract_id", "sha256"],
+                "properties": {
+                    "version_scheme": {"const": "exact_digest"},
+                    "contract_id": {"type": "string", "minLength": 1},
+                    "sha256": {"type": "string", "pattern": "^sha256-[0-9a-f]{64}$"}
+                },
+                "additionalProperties": false
+            }
+        ]
+    })
+}
+
+fn atlas_dependency_target_output_schema() -> serde_json::Value {
+    let requirement = atlas_contract_requirement_output_schema();
+    serde_json::json!({
+        "anyOf": [
+            {
+                "type": "object",
+                "required": ["resolution", "provider", "surface_id", "requirement"],
+                "properties": {
+                    "resolution": {"const": "exact"},
+                    "provider": atlas_repository_identity_output_schema(),
+                    "surface_id": {"type": "string", "format": "uuid"},
+                    "requirement": requirement.clone()
+                },
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["resolution", "requirement"],
+                "properties": {
+                    "resolution": {"const": "unresolved"},
+                    "requirement": requirement
+                },
+                "additionalProperties": false
+            }
+        ]
+    })
+}
+
+fn atlas_impact_scope_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "anyOf": [
+            {
+                "type": "object",
+                "required": ["scope"],
+                "properties": {"scope": {"const": "whole_repository"}},
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "required": ["scope", "surface_ids"],
+                "properties": {
+                    "scope": {"const": "local_surfaces"},
+                    "surface_ids": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {"type": "string", "format": "uuid"}
+                    }
+                },
+                "additionalProperties": false
+            }
+        ]
+    })
+}
+
 fn code_ref_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -519,7 +661,20 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                             {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}, "additionalProperties": false},
                             {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "put_edge"}, "edge": repo_model_edge_output_schema()}, "additionalProperties": false},
                             {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}, "additionalProperties": false},
-                            {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "put_frontier"}, "item": repo_frontier_item_output_schema()}, "additionalProperties": false}
+                            {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "put_frontier"}, "item": repo_frontier_item_output_schema()}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "label", "contract", "source_refs"], "properties": {"operation": {"const": "create_surface_offer"}, "label": {"type": "string", "minLength": 1}, "contract": atlas_contract_descriptor_output_schema(), "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "surface_id"], "properties": {"operation": {"const": "deprecate_surface_offer"}, "surface_id": {"type": "string", "format": "uuid"}, "replacement_surface_id": {"type": "string", "format": "uuid"}}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "surface_id"], "properties": {"operation": {"const": "withdraw_surface_offer"}, "surface_id": {"type": "string", "format": "uuid"}}, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "label", "target", "entanglement_kind", "failure_semantics", "impact_scope", "source_refs"], "properties": {
+                                "operation": {"const": "create_dependency_claim"},
+                                "label": {"type": "string", "minLength": 1},
+                                "target": atlas_dependency_target_output_schema(),
+                                "entanglement_kind": {"type": "string", "enum": ["build", "runtime", "deployment", "schema_protocol", "data_state", "infrastructure_control", "governance", "lore_persona"]},
+                                "failure_semantics": {"type": "string", "enum": ["fail_closed", "degrade", "last_known_safe", "human_decision"]},
+                                "impact_scope": atlas_impact_scope_output_schema(),
+                                "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+                            }, "additionalProperties": false},
+                            {"type": "object", "required": ["operation", "claim_id"], "properties": {"operation": {"const": "retire_dependency_claim"}, "claim_id": {"type": "string", "format": "uuid"}}, "additionalProperties": false}
                         ]
                     }
                 }),
@@ -570,7 +725,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             },
             {
                 "if": {
-                    "properties": {"verdict": {"enum": ["checkpoint-ready", "regather-needed"]}},
+                    "properties": {"verdict": {"const": "regather-needed"}},
                     "required": ["verdict"]
                 },
                 "then": {
@@ -1555,7 +1710,12 @@ mod tests {
                 "retire_node",
                 "put_edge",
                 "retire_edge",
-                "put_frontier"
+                "put_frontier",
+                "create_surface_offer",
+                "deprecate_surface_offer",
+                "withdraw_surface_offer",
+                "create_dependency_claim",
+                "retire_dependency_claim"
             ]
         );
         let node_kinds = operations[0]["properties"]["node"]["properties"]["kind"]["enum"]
@@ -1567,6 +1727,24 @@ mod tests {
             operations[0]["properties"]["node"]["properties"]
                 .get("created_at")
                 .is_none()
+        );
+        assert!(operations[5]["properties"].get("surface_id").is_none());
+        assert!(operations[8]["properties"].get("claim_id").is_none());
+        assert_eq!(
+            operations[5]["required"],
+            serde_json::json!(["operation", "label", "contract", "source_refs"])
+        );
+        assert_eq!(
+            operations[8]["required"],
+            serde_json::json!([
+                "operation",
+                "label",
+                "target",
+                "entanglement_kind",
+                "failure_semantics",
+                "impact_scope",
+                "source_refs"
+            ])
         );
         assert_eq!(
             schema["allOf"][0]["then"]["properties"]["repoModelOperations"]["maxContains"],

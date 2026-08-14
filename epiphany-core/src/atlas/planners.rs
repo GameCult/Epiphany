@@ -1246,6 +1246,11 @@ mod tests {
             surface_id,
             contract: descriptor("2.1.0"),
             lifecycle: AtlasOfferLifecycle::Active,
+            label: "Test surface".into(),
+            body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
         }
     }
 
@@ -1268,6 +1273,11 @@ mod tests {
             failure_semantics: AtlasFailureSemantics::HumanDecision,
             impact_scope: AtlasImpactScope::WholeRepository,
             lifecycle: AtlasClaimLifecycle::Active,
+            label: "Test dependency".into(),
+            body_evidence: vec![AtlasBodyEvidenceRef {
+                path: "Cargo.toml".into(),
+                raw_sha256: "0".repeat(64),
+            }],
         }
     }
 
@@ -1499,9 +1509,19 @@ mod tests {
             publisher_status: Vec::new(),
             entanglements: vec![AtlasProjectedEntanglement {
                 claim_id,
+                claim_label: claim_read.document.label.clone(),
+                claim_requirement: claim_read.document.target.requirement().clone(),
+                claim_body_evidence: claim_read.document.body_evidence.clone(),
                 consumer: consumer.identity.clone(),
                 provider: Some(provider.identity.clone()),
                 surface_id: Some(surface_id),
+                offer_label: Some("Provider surface".into()),
+                offer_contract: Some(descriptor("2.1.0")),
+                offer_lifecycle: Some(AtlasOfferLifecycle::Active),
+                offer_body_evidence: vec![AtlasBodyEvidenceRef {
+                    path: "Cargo.toml".into(),
+                    raw_sha256: "0".repeat(64),
+                }],
                 entanglement_kind: AtlasEntanglementKind::Runtime,
                 failure_semantics: AtlasFailureSemantics::HumanDecision,
                 impact_scope: AtlasImpactScope::WholeRepository,
@@ -1511,6 +1531,8 @@ mod tests {
                 verification: AtlasVerificationState::Missing,
                 claim_publication_id,
                 offer_publication_id: Some(offer_publication_id),
+                verification_publication_id: None,
+                verification_evidence_sha256: None,
             }],
             cycles: Vec::new(),
             blast_radii: Vec::new(),

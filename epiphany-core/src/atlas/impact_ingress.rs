@@ -520,6 +520,13 @@ mod tests {
         sha256(seed.as_bytes())
     }
 
+    fn body_evidence() -> Vec<AtlasBodyEvidenceRef> {
+        vec![AtlasBodyEvidenceRef {
+            path: "Cargo.toml".into(),
+            raw_sha256: "0".repeat(64),
+        }]
+    }
+
     fn repository(workspace: &str) -> AtlasRepositoryIdentity {
         AtlasRepositoryIdentity::new("swarm", workspace).unwrap()
     }
@@ -541,6 +548,8 @@ mod tests {
             failure_semantics: AtlasFailureSemantics::Degrade,
             impact_scope: AtlasImpactScope::WholeRepository,
             lifecycle: AtlasClaimLifecycle::Active,
+            label: "Consumer runtime dependency".into(),
+            body_evidence: body_evidence(),
         }
     }
 
@@ -562,9 +571,22 @@ mod tests {
     ) -> AtlasProjectedEntanglement {
         AtlasProjectedEntanglement {
             claim_id: Uuid::from_u128(1),
+            claim_label: "Consumer runtime dependency".into(),
+            claim_requirement: AtlasContractRequirement::ExactSchema {
+                contract_id: "contract.surface".into(),
+                schema_id: "schema.surface.v1".into(),
+            },
+            claim_body_evidence: body_evidence(),
             consumer: repository("consumer"),
             provider: Some(repository("provider")),
             surface_id: Some(Uuid::from_u128(2)),
+            offer_label: Some("Provider runtime surface".into()),
+            offer_contract: Some(AtlasContractDescriptor::ExactSchema {
+                contract_id: "contract.surface".into(),
+                schema_id: "schema.surface.v1".into(),
+            }),
+            offer_lifecycle: Some(AtlasOfferLifecycle::Active),
+            offer_body_evidence: body_evidence(),
             entanglement_kind: AtlasEntanglementKind::Runtime,
             failure_semantics: AtlasFailureSemantics::Degrade,
             impact_scope: AtlasImpactScope::WholeRepository,
@@ -574,6 +596,13 @@ mod tests {
             verification,
             claim_publication_id: digest("claim-publication"),
             offer_publication_id: Some(digest("offer-publication")),
+            verification_publication_id: (!matches!(verification, AtlasVerificationState::Missing))
+                .then(|| digest("verification-publication")),
+            verification_evidence_sha256: (!matches!(
+                verification,
+                AtlasVerificationState::Missing
+            ))
+            .then(|| digest("verification-evidence")),
         }
     }
 

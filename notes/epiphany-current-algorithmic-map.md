@@ -4702,6 +4702,51 @@ blast radius. A consumer ingress re-reads its local claim and the exact
 projection before committing an impact and asking Resident Self for a bounded
 Modeling or Soul wake. The wake explicitly grants no Hands authority.
 
+Ordinary Modeling authors offers and claims through
+`EpiphanyRepoModelMutationOperation`. The model supplies only a semantic
+transition, a display label, a closed contract/requirement, and sorted current
+repository-relative source paths. The OpenAI runtime constructs
+`epiphany.repo_model.mutation_proposal.v2` from the exact launch request,
+terminal result, evidence identifiers, and sealed Body basis. The keyed planner
+requires that basis to equal the live runtime Body observation, authenticates
+its manifest, resolves every source path to the exact raw file digest, derives
+the opaque UUID, and then emits the Mind strong reads and writes. The publisher
+independently revalidates the stored Body references against the current
+manifest before exporting them. Body drift therefore refuses both stale local
+admission and stale federation; no eventual repair loop owns correctness.
+
+The entanglement projection carries the current endpoint labels, exact claim
+requirement and offer contract, offer lifecycle, both endpoint Body evidence
+sets, and only the Soul publication/evidence that matches the exact current
+claim and offer versions. Eve derives its attention age from the projection's
+evaluation time and endpoint publisher heartbeats, then shows contracts, Body
+evidence, Soul evidence, cycles, blast radius, source publications, and
+watermarks in the same retained tree.
+
+Atlas authority map:
+
+- Owner: each local Modeling/Mind pair owns its offers and claims; Soul/Mind
+  owns exact verification; the projector owns deterministic derivation only.
+- Inputs: semantic Modeling operations, the exact causal request/result and
+  evidence IDs, current authenticated Body basis and manifest, signed local
+  publications, pinned trust, and audience visibility.
+- Outputs: keyed local facts, signed immutable publications, one deterministic
+  projection, exact local impacts, and bounded Self pressure.
+- Derived state: shared edges, compatibility, freshness, cycles, blast radius,
+  attention age, and Eve views. None can rewrite an endpoint fact.
+- Forbidden writers: models cannot choose IDs/digests/CAS; publishers cannot
+  open foreign Mind stores; Odin cannot derive edges; the projector cannot
+  mutate dependencies; Atlas cannot grant Hands authority.
+- Shared paths: direct model completion and resident Modeling completion use
+  the same proposal-v2 constructor and keyed planner; publisher and impact
+  ingress re-read the same typed local facts before consequence.
+- Cut line: aggregate memory-graph authority, `RepoModelPatch`, model-authored
+  revision/timestamp/receipt fields, and foreign-store reads remain absent.
+- Verification layer: CAS/body-drift refusals prove local ownership; signature,
+  replay, trust, determinism, cycle, partition, transitive-radius, Eve
+  conformance, wake-dedupe, cooldown, brake, and no-Hands tests prove the
+  federation boundary.
+
 The provider-owned Eve projection is one `gamecult.eve.surface.v1` retained
 tree with attention, drilldown, and secondary graph views. Select/filter are
 presentation-only; domain mutation routes back to the owning repository's

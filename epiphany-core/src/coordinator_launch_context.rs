@@ -665,9 +665,144 @@ fn append_modeling_repo_model_shape_snapshot(
             item.source_scope.join(" | "),
         ));
     }
-    context.push_str("RepoModel mutations address semantic document identities directly. New nodes must reference one exact existing domain id or a domain created by the same mutation. Every unresolved frontier item must target at least one exact existing claim id or a claim created by the same mutation. Every frontier source_scope must be non-empty and contain safe relative paths in strict lexicographic ascending order without duplicates. Recommended next organ must use its exact canonical spelling. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. The projection digest is display and audit identity, never a global stale-write fence.\n");
+    context.push_str("existingSurfaceOffers:\n");
+    for offer in &view.surface_offers {
+        context.push_str(&format!(
+            "- surfaceId={} label={} contract={} lifecycle={} sourceRefs={}\n",
+            offer.surface_id,
+            offer.label,
+            render_atlas_contract_descriptor(&offer.contract),
+            render_atlas_offer_lifecycle(&offer.lifecycle),
+            offer
+                .body_evidence
+                .iter()
+                .map(|source| format!("{}@{}", source.path, source.raw_sha256))
+                .collect::<Vec<_>>()
+                .join(" | "),
+        ));
+    }
+    context.push_str("existingDependencyClaims:\n");
+    for claim in &view.dependency_claims {
+        context.push_str(&format!(
+            "- claimId={} label={} target={} kind={} failureSemantics={} impactScope={} lifecycle={} sourceRefs={}\n",
+            claim.claim_id,
+            claim.label,
+            render_atlas_dependency_target(&claim.target),
+            debug_variant_snake_case(claim.entanglement_kind),
+            debug_variant_snake_case(claim.failure_semantics),
+            render_atlas_impact_scope(&claim.impact_scope),
+            debug_variant_snake_case(claim.lifecycle),
+            claim
+                .body_evidence
+                .iter()
+                .map(|source| format!("{}@{}", source.path, source.raw_sha256))
+                .collect::<Vec<_>>()
+                .join(" | "),
+        ));
+    }
+    context.push_str("currentDependencyVerifications:\n");
+    for verification in &view.dependency_verifications {
+        context.push_str(&format!(
+            "- claimId={} verdict={} claimPublication={} offerPublication={}\n",
+            verification.claim_id,
+            debug_variant_snake_case(verification.verdict),
+            verification.claim_publication_id,
+            verification.offer_publication_id,
+        ));
+    }
+    context.push_str("currentDependencyImpacts:\n");
+    for impact in &view.dependency_impacts {
+        context.push_str(&format!(
+            "- impactId={} claimId={} criticality={} projection={}\n",
+            impact.impact_id,
+            impact.claim_id,
+            debug_variant_snake_case(impact.criticality),
+            impact.projection_sha256,
+        ));
+    }
+    context.push_str("RepoModel mutations address semantic document identities directly. New nodes must reference one exact existing domain id or a domain created by the same mutation. Every unresolved frontier item must target at least one exact existing claim id or a claim created by the same mutation. Every frontier source_scope must be non-empty and contain safe relative paths in strict lexicographic ascending order without duplicates. Recommended next organ must use its exact canonical spelling. RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Atlas create operations do not accept caller-authored offer or claim ids: runtime derives opaque UUIDs from the admitted proposal. Lifecycle operations may name only ids listed above. Exact dependency targets must name a provider repository and surface; unresolved targets remain unresolved. Local-surface impact scopes may name only locally owned surface ids listed above. The projection digest is display and audit identity, never a global stale-write fence.\n");
     context.push_str("</canonical_repo_model_shape>");
     context
+}
+
+fn render_atlas_contract_descriptor(contract: &crate::AtlasContractDescriptor) -> String {
+    match contract {
+        crate::AtlasContractDescriptor::Semver {
+            contract_id,
+            version,
+        } => format!("semver:{contract_id}@{version}"),
+        crate::AtlasContractDescriptor::ExactSchema {
+            contract_id,
+            schema_id,
+        } => format!("exact_schema:{contract_id}@{schema_id}"),
+        crate::AtlasContractDescriptor::ExactDigest {
+            contract_id,
+            sha256,
+        } => format!("exact_digest:{contract_id}@{sha256}"),
+    }
+}
+
+fn render_atlas_contract_requirement(requirement: &crate::AtlasContractRequirement) -> String {
+    match requirement {
+        crate::AtlasContractRequirement::Semver {
+            contract_id,
+            requirement,
+        } => format!("semver:{contract_id}@{requirement}"),
+        crate::AtlasContractRequirement::ExactSchema {
+            contract_id,
+            schema_id,
+        } => format!("exact_schema:{contract_id}@{schema_id}"),
+        crate::AtlasContractRequirement::ExactDigest {
+            contract_id,
+            sha256,
+        } => format!("exact_digest:{contract_id}@{sha256}"),
+    }
+}
+
+fn render_atlas_offer_lifecycle(lifecycle: &crate::AtlasOfferLifecycle) -> String {
+    match lifecycle {
+        crate::AtlasOfferLifecycle::Active => "active".to_string(),
+        crate::AtlasOfferLifecycle::Deprecated {
+            replacement_surface_id: Some(replacement_surface_id),
+        } => format!("deprecated:replacement={replacement_surface_id}"),
+        crate::AtlasOfferLifecycle::Deprecated {
+            replacement_surface_id: None,
+        } => "deprecated".to_string(),
+        crate::AtlasOfferLifecycle::Withdrawn => "withdrawn".to_string(),
+    }
+}
+
+fn render_atlas_dependency_target(target: &crate::AtlasDependencyTarget) -> String {
+    match target {
+        crate::AtlasDependencyTarget::Exact {
+            provider,
+            surface_id,
+            requirement,
+        } => format!(
+            "exact:{}#{} requires {}",
+            provider.repository_uri,
+            surface_id,
+            render_atlas_contract_requirement(requirement)
+        ),
+        crate::AtlasDependencyTarget::Unresolved { requirement } => format!(
+            "unresolved:{}",
+            render_atlas_contract_requirement(requirement)
+        ),
+    }
+}
+
+fn render_atlas_impact_scope(scope: &crate::AtlasImpactScope) -> String {
+    match scope {
+        crate::AtlasImpactScope::WholeRepository => "whole_repository".to_string(),
+        crate::AtlasImpactScope::LocalSurfaces { surface_ids } => format!(
+            "local_surfaces:{}",
+            surface_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("|")
+        ),
+    }
 }
 
 fn debug_variant_snake_case(value: impl std::fmt::Debug) -> String {

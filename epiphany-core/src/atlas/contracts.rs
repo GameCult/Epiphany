@@ -162,6 +162,30 @@ pub enum AtlasOfferLifecycle {
     Withdrawn,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlasBodyEvidenceRef {
+    pub path: String,
+    pub raw_sha256: String,
+}
+
+impl AtlasBodyEvidenceRef {
+    pub fn validate(&self) -> Result<()> {
+        if self.path.is_empty()
+            || self.path.len() > 1024
+            || self.path.starts_with('/')
+            || self.path.contains('\\')
+            || self
+                .path
+                .split('/')
+                .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+        {
+            bail!("Atlas Body evidence path is not a canonical portable relative path")
+        }
+        validate_repository_body_sha256(&self.raw_sha256, "Atlas Body evidence raw content digest")
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "gamecult.model.surface_offer.v0",
@@ -178,6 +202,10 @@ pub struct AtlasSurfaceOffer {
     pub contract: AtlasContractDescriptor,
     #[cultcache(key = 4)]
     pub lifecycle: AtlasOfferLifecycle,
+    #[cultcache(key = 5)]
+    pub label: String,
+    #[cultcache(key = 6)]
+    pub body_evidence: Vec<AtlasBodyEvidenceRef>,
 }
 
 impl AtlasSurfaceOffer {
@@ -188,6 +216,7 @@ impl AtlasSurfaceOffer {
             bail!("Atlas surface id must be an opaque non-nil UUID")
         }
         self.contract.validate()?;
+        validate_label_and_body_evidence(&self.label, &self.body_evidence, "Atlas surface offer")?;
         if matches!(
             self.lifecycle,
             AtlasOfferLifecycle::Deprecated {
@@ -297,6 +326,10 @@ pub struct AtlasDependencyClaim {
     pub impact_scope: AtlasImpactScope,
     #[cultcache(key = 7)]
     pub lifecycle: AtlasClaimLifecycle,
+    #[cultcache(key = 8)]
+    pub label: String,
+    #[cultcache(key = 9)]
+    pub body_evidence: Vec<AtlasBodyEvidenceRef>,
 }
 
 impl AtlasDependencyClaim {
@@ -308,6 +341,11 @@ impl AtlasDependencyClaim {
         }
         self.target.validate()?;
         self.impact_scope.validate()?;
+        validate_label_and_body_evidence(
+            &self.label,
+            &self.body_evidence,
+            "Atlas dependency claim",
+        )?;
         if let AtlasDependencyTarget::Exact { provider, .. } = &self.target {
             if provider == &self.consumer {
                 bail!("Atlas dependency claim cannot target its owning repository")
@@ -681,9 +719,16 @@ pub enum AtlasVerificationState {
 #[serde(rename_all = "camelCase")]
 pub struct AtlasProjectedEntanglement {
     pub claim_id: Uuid,
+    pub claim_label: String,
+    pub claim_requirement: AtlasContractRequirement,
+    pub claim_body_evidence: Vec<AtlasBodyEvidenceRef>,
     pub consumer: AtlasRepositoryIdentity,
     pub provider: Option<AtlasRepositoryIdentity>,
     pub surface_id: Option<Uuid>,
+    pub offer_label: Option<String>,
+    pub offer_contract: Option<AtlasContractDescriptor>,
+    pub offer_lifecycle: Option<AtlasOfferLifecycle>,
+    pub offer_body_evidence: Vec<AtlasBodyEvidenceRef>,
     pub entanglement_kind: AtlasEntanglementKind,
     pub failure_semantics: AtlasFailureSemantics,
     pub impact_scope: AtlasImpactScope,
@@ -693,6 +738,8 @@ pub struct AtlasProjectedEntanglement {
     pub verification: AtlasVerificationState,
     pub claim_publication_id: String,
     pub offer_publication_id: Option<String>,
+    pub verification_publication_id: Option<String>,
+    pub verification_evidence_sha256: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -825,6 +872,23 @@ pub(crate) fn validate_sorted_unique_sha256(
 
 fn strictly_sorted_unique<T: Ord>(values: &[T]) -> bool {
     values.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+fn validate_label_and_body_evidence(
+    label: &str,
+    evidence: &[AtlasBodyEvidenceRef],
+    field: &str,
+) -> Result<()> {
+    if label.trim().is_empty() || label.len() > 320 {
+        bail!("{field} label must be non-empty and bounded")
+    }
+    if evidence.is_empty() || !strictly_sorted_unique(evidence) {
+        bail!("{field} Body evidence must be a non-empty strictly sorted set")
+    }
+    for source in evidence {
+        source.validate()?;
+    }
+    Ok(())
 }
 
 pub(crate) fn canonical_entanglement_kinds(

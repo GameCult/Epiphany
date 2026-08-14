@@ -7494,6 +7494,13 @@ fn commit_repo_frontier_plan_decision_inner(
         });
         let proposal = crate::EpiphanyRepoModelMutationProposal::new(
             format!("repo-frontier-plan-adoption-{decision_id}"),
+            mind_request.request_id.clone(),
+            decision_id.clone(),
+            vec![
+                candidate.candidate_id.clone(),
+                mind_request.imagination_result_id.clone(),
+            ],
+            crate::load_current_runtime_repository_body_basis(runtime_store)?,
             vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
         )?;
         let plan = crate::plan_repo_model_mutation(runtime_store, &proposal)?;
@@ -9154,6 +9161,10 @@ pub fn relinquish_repo_frontier_hands_route(
     item.retired_at = Some(relinquished_at.clone());
     let proposal = crate::EpiphanyRepoModelMutationProposal::new(
         format!("repo-frontier-relinquishment-{refusal_receipt_id}"),
+        route.route_id.clone(),
+        refusal_receipt_id.to_string(),
+        vec![authority.authority_id.clone(), intent_id.to_string()],
+        crate::load_current_runtime_repository_body_basis(store_path)?,
         vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
     )?;
     let plan = crate::plan_repo_model_mutation(store_path, &proposal)?;
@@ -9301,6 +9312,13 @@ pub fn amend_repo_frontier_execution(
             "repo-frontier-execution-amendment-{}",
             amendment.amendment_id
         ),
+        amendment.command_id.clone(),
+        amendment.amendment_id.clone(),
+        vec![
+            amendment.admission_id.clone(),
+            amendment.packet_sha256.clone(),
+        ],
+        crate::load_current_runtime_repository_body_basis(store_path)?,
         vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
     )?;
     let mutation = crate::plan_repo_model_mutation(store_path, &proposal)?;

@@ -122,6 +122,10 @@ pub struct EpiphanyRepoModelView {
     pub frontier: Vec<RepoFrontierItem>,
     pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
     pub claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
+    pub surface_offers: Vec<crate::AtlasSurfaceOffer>,
+    pub dependency_claims: Vec<crate::AtlasDependencyClaim>,
+    pub dependency_verifications: Vec<crate::AtlasDependencyVerification>,
+    pub dependency_impacts: Vec<crate::AtlasDependencyImpact>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,7 +246,7 @@ impl EpiphanyRepoModelBasis {
 }
 
 pub const REPO_MODEL_MUTATION_PROPOSAL_SCHEMA_VERSION: &str =
-    "epiphany.repo_model.mutation_proposal.v1";
+    "epiphany.repo_model.mutation_proposal.v2";
 pub const REPO_MODEL_SEED_SCHEMA_VERSION: &str = "epiphany.repo_model.seed.v1";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -360,18 +364,55 @@ impl EpiphanyRepoModelSeed {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum EpiphanyRepoModelMutationOperation {
-    PutDomain { domain: EpiphanyMemoryDomain },
-    PutNode { node: EpiphanyMemoryNode },
-    RetireNode { node_id: String },
-    PutEdge { edge: EpiphanyMemoryEdge },
-    RetireEdge { edge_id: String },
-    PutSummary { summary: EpiphanyMemorySummary },
-    PutFrontier { item: RepoFrontierItem },
+    PutDomain {
+        domain: EpiphanyMemoryDomain,
+    },
+    PutNode {
+        node: EpiphanyMemoryNode,
+    },
+    RetireNode {
+        node_id: String,
+    },
+    PutEdge {
+        edge: EpiphanyMemoryEdge,
+    },
+    RetireEdge {
+        edge_id: String,
+    },
+    PutSummary {
+        summary: EpiphanyMemorySummary,
+    },
+    PutFrontier {
+        item: RepoFrontierItem,
+    },
+    CreateSurfaceOffer {
+        label: String,
+        contract: crate::AtlasContractDescriptor,
+        source_refs: Vec<String>,
+    },
+    DeprecateSurfaceOffer {
+        surface_id: uuid::Uuid,
+        replacement_surface_id: Option<uuid::Uuid>,
+    },
+    WithdrawSurfaceOffer {
+        surface_id: uuid::Uuid,
+    },
+    CreateDependencyClaim {
+        label: String,
+        target: crate::AtlasDependencyTarget,
+        entanglement_kind: crate::AtlasEntanglementKind,
+        failure_semantics: crate::AtlasFailureSemantics,
+        impact_scope: crate::AtlasImpactScope,
+        source_refs: Vec<String>,
+    },
+    RetireDependencyClaim {
+        claim_id: uuid::Uuid,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.repo_model.mutation_proposal.v1",
+    type = "epiphany.repo_model.mutation_proposal.v2",
     schema = "EpiphanyRepoModelMutationProposal"
 )]
 pub struct EpiphanyRepoModelMutationProposal {
@@ -380,17 +421,35 @@ pub struct EpiphanyRepoModelMutationProposal {
     #[cultcache(key = 1)]
     pub proposal_id: String,
     #[cultcache(key = 2)]
+    pub causal_request_id: String,
+    #[cultcache(key = 3)]
+    pub causal_result_id: String,
+    #[cultcache(key = 4)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 5)]
+    pub repository_body_observation_basis: crate::RepositoryBodyObservationBasis,
+    #[cultcache(key = 6)]
     pub operations_msgpack: Vec<u8>,
 }
 
 impl EpiphanyRepoModelMutationProposal {
     pub fn new(
         proposal_id: impl Into<String>,
+        causal_request_id: impl Into<String>,
+        causal_result_id: impl Into<String>,
+        mut evidence_ids: Vec<String>,
+        repository_body_observation_basis: crate::RepositoryBodyObservationBasis,
         operations: Vec<EpiphanyRepoModelMutationOperation>,
     ) -> Result<Self> {
+        evidence_ids.sort();
+        evidence_ids.dedup();
         let proposal = Self {
             schema_version: REPO_MODEL_MUTATION_PROPOSAL_SCHEMA_VERSION.into(),
             proposal_id: proposal_id.into(),
+            causal_request_id: causal_request_id.into(),
+            causal_result_id: causal_result_id.into(),
+            evidence_ids,
+            repository_body_observation_basis,
             operations_msgpack: rmp_serde::to_vec_named(&operations)?,
         };
         proposal.validate()?;
@@ -405,6 +464,14 @@ impl EpiphanyRepoModelMutationProposal {
     pub fn validate(&self) -> Result<()> {
         if self.schema_version != REPO_MODEL_MUTATION_PROPOSAL_SCHEMA_VERSION
             || self.proposal_id.trim().is_empty()
+            || self.causal_request_id.trim().is_empty()
+            || self.causal_result_id.trim().is_empty()
+            || self.evidence_ids.is_empty()
+            || self
+                .evidence_ids
+                .iter()
+                .any(|value| value.trim().is_empty())
+            || !self.evidence_ids.windows(2).all(|pair| pair[0] < pair[1])
             || self.operations()?.is_empty()
         {
             return Err(anyhow!("RepoModel mutation proposal is empty"));
@@ -628,6 +695,22 @@ pub(crate) fn repo_model_write_key(envelope: &CultCacheEnvelope) -> Result<Optio
             return Err(anyhow!("RepoModel claim obligations are not canonical"));
         }
         value.node_id
+    } else if envelope.r#type == crate::AtlasSurfaceOffer::TYPE {
+        let value: crate::AtlasSurfaceOffer = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.surface_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyClaim::TYPE {
+        let value: crate::AtlasDependencyClaim = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.claim_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyVerification::TYPE {
+        let value: crate::AtlasDependencyVerification = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.claim_id.to_string()
+    } else if envelope.r#type == crate::AtlasDependencyImpact::TYPE {
+        let value: crate::AtlasDependencyImpact = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.impact_id.to_string()
     } else {
         return Ok(None);
     };
@@ -642,10 +725,41 @@ pub fn plan_repo_model_mutation(
     proposal: &EpiphanyRepoModelMutationProposal,
 ) -> Result<EpiphanyRepoModelMutationPlan> {
     proposal.validate()?;
+    crate::validate_repository_body_observation_basis(
+        store_path.as_ref(),
+        &proposal.repository_body_observation_basis,
+    )?;
+    if crate::load_current_runtime_repository_body_basis(store_path.as_ref())?
+        != proposal.repository_body_observation_basis
+    {
+        return Err(anyhow!(
+            "RepoModel mutation proposal lost its exact current Repository Body basis"
+        ));
+    }
     let operations = proposal.operations()?;
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     let view = assemble_repo_model_view(store_path.as_ref())?;
+    let local_repository = crate::AtlasRepositoryIdentity::new(
+        view.identity.swarm_id.clone(),
+        view.identity.workspace_id.clone(),
+    )?;
+    if proposal.repository_body_observation_basis.swarm_id != view.identity.swarm_id
+        || proposal.repository_body_observation_basis.workspace_id != view.identity.workspace_id
+        || proposal.repository_body_observation_basis.runtime_id != view.identity.runtime_id
+        || proposal
+            .repository_body_observation_basis
+            .body_binding_sha256
+            != view.identity.body_binding_sha256
+    {
+        return Err(anyhow!(
+            "RepoModel mutation proposal Body basis disagrees with the keyed model identity"
+        ));
+    }
+    let body_manifest = crate::authenticated_repository_body_manifest(
+        store_path.as_ref(),
+        &proposal.repository_body_observation_basis,
+    )?;
     let identity_envelope = cache
         .get_envelope::<EpiphanyRepoModelIdentityDocument>(REPO_MODEL_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("RepoModel mutation lost its identity envelope"))?;
@@ -717,7 +831,15 @@ pub fn plan_repo_model_mutation(
         .collect::<BTreeSet<_>>();
     let operation_identities = operations
         .iter()
-        .map(repo_model_operation_identity)
+        .enumerate()
+        .map(|(index, operation)| {
+            repo_model_operation_identity(
+                &proposal.proposal_id,
+                index,
+                &local_repository,
+                operation,
+            )
+        })
         .collect::<Result<BTreeSet<_>>>()?;
     if operation_identities.len() != operations.len() {
         return Err(anyhow!(
@@ -733,7 +855,7 @@ pub fn plan_repo_model_mutation(
         identity_envelope,
     )]);
     let mut writes = BTreeMap::new();
-    for operation in &operations {
+    for (operation_index, operation) in operations.iter().enumerate() {
         match operation {
             EpiphanyRepoModelMutationOperation::PutDomain { domain } => {
                 require_semantic_id(&domain.id, "RepoModel domain")?;
@@ -958,6 +1080,150 @@ pub fn plan_repo_model_mutation(
                         .0,
                 )?;
             }
+            EpiphanyRepoModelMutationOperation::CreateSurfaceOffer {
+                label,
+                contract,
+                source_refs,
+            } => {
+                contract.validate()?;
+                let body_evidence = resolve_atlas_body_evidence(&body_manifest, source_refs)?;
+                let surface_id = derived_atlas_operation_id(
+                    &proposal.proposal_id,
+                    operation_index,
+                    &local_repository,
+                    "surface-offer",
+                );
+                let offer = crate::AtlasSurfaceOffer {
+                    schema_version: crate::ATLAS_SURFACE_OFFER_SCHEMA.into(),
+                    provider: local_repository.clone(),
+                    surface_id,
+                    contract: contract.clone(),
+                    lifecycle: crate::AtlasOfferLifecycle::Active,
+                    label: label.clone(),
+                    body_evidence,
+                };
+                offer.validate()?;
+                if let Some(existing) =
+                    cache.get_envelope::<crate::AtlasSurfaceOffer>(&surface_id.to_string())?
+                {
+                    insert_strong_envelope(&mut strong, existing)?;
+                }
+                insert_envelope(
+                    &mut writes,
+                    cache.prepare_entry(&surface_id.to_string(), &offer)?.0,
+                )?;
+            }
+            EpiphanyRepoModelMutationOperation::DeprecateSurfaceOffer {
+                surface_id,
+                replacement_surface_id,
+            } => {
+                let (mut offer, current_envelope) =
+                    load_local_surface_offer(&cache, &local_repository, *surface_id)?;
+                if offer.lifecycle != crate::AtlasOfferLifecycle::Active {
+                    return Err(anyhow!(
+                        "Atlas offer deprecation requires an active local surface"
+                    ));
+                }
+                insert_strong_envelope(&mut strong, current_envelope)?;
+                if let Some(replacement_id) = replacement_surface_id {
+                    let (replacement, replacement_envelope) =
+                        load_local_surface_offer(&cache, &local_repository, *replacement_id)?;
+                    if replacement.surface_id == offer.surface_id
+                        || replacement.lifecycle != crate::AtlasOfferLifecycle::Active
+                        || replacement.contract.contract_id() != offer.contract.contract_id()
+                    {
+                        return Err(anyhow!(
+                            "Atlas replacement surface is recursive, inactive, or contract-ambiguous"
+                        ));
+                    }
+                    insert_strong_envelope(&mut strong, replacement_envelope)?;
+                }
+                offer.lifecycle = crate::AtlasOfferLifecycle::Deprecated {
+                    replacement_surface_id: *replacement_surface_id,
+                };
+                offer.validate()?;
+                insert_envelope(
+                    &mut writes,
+                    cache.prepare_entry(&surface_id.to_string(), &offer)?.0,
+                )?;
+            }
+            EpiphanyRepoModelMutationOperation::WithdrawSurfaceOffer { surface_id } => {
+                let (mut offer, current_envelope) =
+                    load_local_surface_offer(&cache, &local_repository, *surface_id)?;
+                if !matches!(
+                    offer.lifecycle,
+                    crate::AtlasOfferLifecycle::Active
+                        | crate::AtlasOfferLifecycle::Deprecated { .. }
+                ) {
+                    return Err(anyhow!(
+                        "Atlas offer withdrawal requires an active or deprecated local surface"
+                    ));
+                }
+                insert_strong_envelope(&mut strong, current_envelope)?;
+                offer.lifecycle = crate::AtlasOfferLifecycle::Withdrawn;
+                offer.validate()?;
+                insert_envelope(
+                    &mut writes,
+                    cache.prepare_entry(&surface_id.to_string(), &offer)?.0,
+                )?;
+            }
+            EpiphanyRepoModelMutationOperation::CreateDependencyClaim {
+                label,
+                target,
+                entanglement_kind,
+                failure_semantics,
+                impact_scope,
+                source_refs,
+            } => {
+                target.validate()?;
+                impact_scope.validate()?;
+                let body_evidence = resolve_atlas_body_evidence(&body_manifest, source_refs)?;
+                require_local_impact_scope(&cache, &local_repository, impact_scope, &mut strong)?;
+                let claim_id = derived_atlas_operation_id(
+                    &proposal.proposal_id,
+                    operation_index,
+                    &local_repository,
+                    "dependency-claim",
+                );
+                let claim = crate::AtlasDependencyClaim {
+                    schema_version: crate::ATLAS_DEPENDENCY_CLAIM_SCHEMA.into(),
+                    consumer: local_repository.clone(),
+                    claim_id,
+                    target: target.clone(),
+                    entanglement_kind: *entanglement_kind,
+                    failure_semantics: *failure_semantics,
+                    impact_scope: impact_scope.clone(),
+                    lifecycle: crate::AtlasClaimLifecycle::Active,
+                    label: label.clone(),
+                    body_evidence,
+                };
+                claim.validate()?;
+                if let Some(existing) =
+                    cache.get_envelope::<crate::AtlasDependencyClaim>(&claim_id.to_string())?
+                {
+                    insert_strong_envelope(&mut strong, existing)?;
+                }
+                insert_envelope(
+                    &mut writes,
+                    cache.prepare_entry(&claim_id.to_string(), &claim)?.0,
+                )?;
+            }
+            EpiphanyRepoModelMutationOperation::RetireDependencyClaim { claim_id } => {
+                let (mut claim, current_envelope) =
+                    load_local_dependency_claim(&cache, &local_repository, *claim_id)?;
+                if claim.lifecycle != crate::AtlasClaimLifecycle::Active {
+                    return Err(anyhow!(
+                        "Atlas claim retirement requires an active local claim"
+                    ));
+                }
+                insert_strong_envelope(&mut strong, current_envelope)?;
+                claim.lifecycle = crate::AtlasClaimLifecycle::Retired;
+                claim.validate()?;
+                insert_envelope(
+                    &mut writes,
+                    cache.prepare_entry(&claim_id.to_string(), &claim)?.0,
+                )?;
+            }
         }
     }
 
@@ -979,19 +1245,159 @@ pub fn plan_repo_model_mutation(
 }
 
 fn repo_model_operation_identity(
+    proposal_id: &str,
+    operation_index: usize,
+    local_repository: &crate::AtlasRepositoryIdentity,
     operation: &EpiphanyRepoModelMutationOperation,
 ) -> Result<(String, String)> {
     let (kind, id) = match operation {
-        EpiphanyRepoModelMutationOperation::PutDomain { domain } => ("domain", &domain.id),
-        EpiphanyRepoModelMutationOperation::PutNode { node } => ("node", &node.id),
-        EpiphanyRepoModelMutationOperation::RetireNode { node_id } => ("node", node_id),
-        EpiphanyRepoModelMutationOperation::PutEdge { edge } => ("edge", &edge.id),
-        EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => ("edge", edge_id),
-        EpiphanyRepoModelMutationOperation::PutSummary { summary } => ("summary", &summary.id),
-        EpiphanyRepoModelMutationOperation::PutFrontier { item } => ("frontier", &item.id),
+        EpiphanyRepoModelMutationOperation::PutDomain { domain } => ("domain", domain.id.clone()),
+        EpiphanyRepoModelMutationOperation::PutNode { node } => ("node", node.id.clone()),
+        EpiphanyRepoModelMutationOperation::RetireNode { node_id } => ("node", node_id.clone()),
+        EpiphanyRepoModelMutationOperation::PutEdge { edge } => ("edge", edge.id.clone()),
+        EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => ("edge", edge_id.clone()),
+        EpiphanyRepoModelMutationOperation::PutSummary { summary } => {
+            ("summary", summary.id.clone())
+        }
+        EpiphanyRepoModelMutationOperation::PutFrontier { item } => ("frontier", item.id.clone()),
+        EpiphanyRepoModelMutationOperation::CreateSurfaceOffer { .. } => (
+            "surface_offer",
+            derived_atlas_operation_id(
+                proposal_id,
+                operation_index,
+                local_repository,
+                "surface-offer",
+            )
+            .to_string(),
+        ),
+        EpiphanyRepoModelMutationOperation::DeprecateSurfaceOffer { surface_id, .. }
+        | EpiphanyRepoModelMutationOperation::WithdrawSurfaceOffer { surface_id } => {
+            ("surface_offer", surface_id.to_string())
+        }
+        EpiphanyRepoModelMutationOperation::CreateDependencyClaim { .. } => (
+            "dependency_claim",
+            derived_atlas_operation_id(
+                proposal_id,
+                operation_index,
+                local_repository,
+                "dependency-claim",
+            )
+            .to_string(),
+        ),
+        EpiphanyRepoModelMutationOperation::RetireDependencyClaim { claim_id } => {
+            ("dependency_claim", claim_id.to_string())
+        }
     };
-    require_semantic_id(id, "RepoModel operation")?;
-    Ok((kind.into(), id.clone()))
+    require_semantic_id(&id, "RepoModel operation")?;
+    Ok((kind.into(), id))
+}
+
+fn derived_atlas_operation_id(
+    proposal_id: &str,
+    operation_index: usize,
+    local_repository: &crate::AtlasRepositoryIdentity,
+    kind: &str,
+) -> uuid::Uuid {
+    let name = format!(
+        "{}/epiphany/modeling/{proposal_id}/{kind}/{operation_index}",
+        local_repository.repository_uri
+    );
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, name.as_bytes())
+}
+
+fn load_local_surface_offer(
+    cache: &CultCache,
+    local_repository: &crate::AtlasRepositoryIdentity,
+    surface_id: uuid::Uuid,
+) -> Result<(crate::AtlasSurfaceOffer, CultCacheEnvelope)> {
+    if surface_id.is_nil() {
+        return Err(anyhow!("Atlas surface transition requires a non-nil UUID"));
+    }
+    let key = surface_id.to_string();
+    let envelope = cache
+        .get_envelope::<crate::AtlasSurfaceOffer>(&key)?
+        .ok_or_else(|| anyhow!("Atlas surface transition targets a missing local offer"))?;
+    let offer: crate::AtlasSurfaceOffer = rmp_serde::from_slice(&envelope.payload)?;
+    offer.validate()?;
+    if offer.provider != *local_repository || offer.surface_id != surface_id {
+        return Err(anyhow!(
+            "Atlas surface transition cannot write a foreign or substituted offer"
+        ));
+    }
+    Ok((offer, envelope))
+}
+
+fn load_local_dependency_claim(
+    cache: &CultCache,
+    local_repository: &crate::AtlasRepositoryIdentity,
+    claim_id: uuid::Uuid,
+) -> Result<(crate::AtlasDependencyClaim, CultCacheEnvelope)> {
+    if claim_id.is_nil() {
+        return Err(anyhow!("Atlas claim transition requires a non-nil UUID"));
+    }
+    let key = claim_id.to_string();
+    let envelope = cache
+        .get_envelope::<crate::AtlasDependencyClaim>(&key)?
+        .ok_or_else(|| anyhow!("Atlas claim transition targets a missing local claim"))?;
+    let claim: crate::AtlasDependencyClaim = rmp_serde::from_slice(&envelope.payload)?;
+    claim.validate()?;
+    if claim.consumer != *local_repository || claim.claim_id != claim_id {
+        return Err(anyhow!(
+            "Atlas claim transition cannot write a foreign or substituted claim"
+        ));
+    }
+    Ok((claim, envelope))
+}
+
+fn require_local_impact_scope(
+    cache: &CultCache,
+    local_repository: &crate::AtlasRepositoryIdentity,
+    impact_scope: &crate::AtlasImpactScope,
+    strong: &mut BTreeMap<(String, String), CultCacheEnvelope>,
+) -> Result<()> {
+    let crate::AtlasImpactScope::LocalSurfaces { surface_ids } = impact_scope else {
+        return Ok(());
+    };
+    for surface_id in surface_ids {
+        let (_, envelope) = load_local_surface_offer(cache, local_repository, *surface_id)?;
+        insert_strong_envelope(strong, envelope)?;
+    }
+    Ok(())
+}
+
+fn resolve_atlas_body_evidence(
+    manifest: &crate::RepositoryBodyManifest,
+    source_refs: &[String],
+) -> Result<Vec<crate::AtlasBodyEvidenceRef>> {
+    if source_refs.is_empty() || !source_refs.windows(2).all(|pair| pair[0] < pair[1]) {
+        return Err(anyhow!(
+            "Atlas offer and claim source refs must be a non-empty strictly sorted set"
+        ));
+    }
+    let entries = manifest
+        .entries
+        .iter()
+        .map(|entry| (entry.path.as_str(), entry))
+        .collect::<BTreeMap<_, _>>();
+    source_refs
+        .iter()
+        .map(|path| {
+            let entry = entries.get(path.as_str()).ok_or_else(|| {
+                anyhow!("Atlas source ref {path:?} is absent from the exact Body manifest")
+            })?;
+            if entry.kind != "regular" {
+                return Err(anyhow!(
+                    "Atlas source ref {path:?} is not a regular repository Body file"
+                ));
+            }
+            let evidence = crate::AtlasBodyEvidenceRef {
+                path: path.clone(),
+                raw_sha256: entry.raw_sha256.clone(),
+            };
+            evidence.validate()?;
+            Ok(evidence)
+        })
+        .collect()
 }
 
 fn insert_envelope(
@@ -1096,6 +1502,10 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     let mut lifecycle_receipts =
         values::<EpiphanyRepoModelLifecycleReceiptDocument, _>(&cache, |entry| entry.value())?;
     let mut claim_obligations = cache.get_all::<EpiphanyRepoModelClaimObligationsDocument>()?;
+    let mut surface_offers = cache.get_all::<crate::AtlasSurfaceOffer>()?;
+    let mut dependency_claims = cache.get_all::<crate::AtlasDependencyClaim>()?;
+    let mut dependency_verifications = cache.get_all::<crate::AtlasDependencyVerification>()?;
+    let mut dependency_impacts = cache.get_all::<crate::AtlasDependencyImpact>()?;
     domains.sort_by(|left, right| left.id.cmp(&right.id));
     nodes.sort_by(|left, right| left.id.cmp(&right.id));
     edges.sort_by(|left, right| left.id.cmp(&right.id));
@@ -1103,6 +1513,32 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     frontier.sort_by(|left, right| left.id.cmp(&right.id));
     lifecycle_receipts.sort_by(|left, right| left.id.cmp(&right.id));
     claim_obligations.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+    surface_offers.sort_by_key(|offer| offer.surface_id);
+    dependency_claims.sort_by_key(|claim| claim.claim_id);
+    dependency_verifications.sort_by_key(|verification| verification.claim_id);
+    dependency_impacts.sort_by_key(|impact| impact.impact_id);
+
+    let local_repository = crate::AtlasRepositoryIdentity::new(
+        identity.swarm_id.clone(),
+        identity.workspace_id.clone(),
+    )?;
+    if surface_offers
+        .iter()
+        .any(|offer| offer.provider != local_repository || offer.validate().is_err())
+        || dependency_claims
+            .iter()
+            .any(|claim| claim.consumer != local_repository || claim.validate().is_err())
+        || dependency_verifications.iter().any(|verification| {
+            verification.consumer != local_repository || verification.validate().is_err()
+        })
+        || dependency_impacts
+            .iter()
+            .any(|impact| impact.consumer != local_repository || impact.validate().is_err())
+    {
+        return Err(anyhow!(
+            "keyed RepoModel view contains a foreign or invalid local Atlas document"
+        ));
+    }
 
     validate_repo_model_parts(
         &identity,
@@ -1118,7 +1554,7 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     let mut source_documents = cache
         .snapshot_envelopes()
         .into_iter()
-        .filter(|entry| entry.r#type.starts_with("epiphany.mind.repo_model."))
+        .filter(|entry| repo_model_write_key(entry).is_ok_and(|key| key.is_some()))
         .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &entry))
         .collect::<Result<Vec<_>>>()?;
     source_documents.sort_by(|left, right| {
@@ -1139,6 +1575,10 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         frontier,
         lifecycle_receipts,
         claim_obligations,
+        surface_offers,
+        dependency_claims,
+        dependency_verifications,
+        dependency_impacts,
     })
 }
 
@@ -1238,6 +1678,31 @@ mod tests {
         EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind,
         EpiphanyMemoryProfile, RepoFrontierStatus,
     };
+
+    fn bind_test_body(
+        store: &Path,
+        swarm_id: &str,
+        workspace_id: &str,
+    ) -> Result<crate::RepositoryBodyObservationBasis> {
+        crate::runtime_spine::tests::bind_test_runtime_swarm(store, swarm_id)?;
+        crate::runtime_spine::tests::bind_test_repository_body(store, workspace_id)?;
+        crate::observe_runtime_repository_body_basis(store)
+    }
+
+    fn make_proposal(
+        proposal_id: &str,
+        body: &crate::RepositoryBodyObservationBasis,
+        operations: Vec<EpiphanyRepoModelMutationOperation>,
+    ) -> Result<EpiphanyRepoModelMutationProposal> {
+        EpiphanyRepoModelMutationProposal::new(
+            proposal_id,
+            format!("request-{proposal_id}"),
+            format!("result-{proposal_id}"),
+            vec![format!("evidence-{proposal_id}")],
+            body.clone(),
+            operations,
+        )
+    }
 
     #[test]
     fn fresh_repo_model_seed_commits_keyed_documents_and_refuses_divergent_replay() -> Result<()> {
@@ -1350,6 +1815,7 @@ mod tests {
                 created_at: "2026-08-14T00:00:00Z".into(),
             },
         )?;
+        let body = bind_test_body(&store, "swarm-1", "workspace-1")?;
         let mut cache = runtime_spine_cache(&store)?;
         cache.put(
             REPO_MODEL_IDENTITY_KEY,
@@ -1359,7 +1825,7 @@ mod tests {
                 runtime_id: "repo-model-view".into(),
                 swarm_id: "swarm-1".into(),
                 workspace_id: "workspace-1".into(),
-                body_binding_sha256: "sha256:body".into(),
+                body_binding_sha256: body.body_binding_sha256.clone(),
             },
         )?;
         cache.put(
@@ -1396,15 +1862,17 @@ mod tests {
         let mind = crate::assemble_mind_view(&store)?;
         assert_eq!(mind.repo_model.as_ref(), Some(&first));
 
-        let retire = EpiphanyRepoModelMutationProposal::new(
+        let retire = make_proposal(
             "proposal-retire",
+            &body,
             vec![EpiphanyRepoModelMutationOperation::RetireNode {
                 node_id: "node-1".into(),
             }],
         )?;
         let retire_plan = plan_repo_model_mutation(&store, &retire)?;
-        let add_frontier = EpiphanyRepoModelMutationProposal::new(
+        let add_frontier = make_proposal(
             "proposal-frontier",
+            &body,
             vec![EpiphanyRepoModelMutationOperation::PutFrontier {
                 item: RepoFrontierItem {
                     id: "frontier-1".into(),
@@ -1466,6 +1934,7 @@ mod tests {
                 created_at: "2026-08-14T00:00:00Z".into(),
             },
         )?;
+        let body = bind_test_body(&store, "swarm-1", "workspace-1")?;
         let mut cache = runtime_spine_cache(&store)?;
         cache.put(
             REPO_MODEL_IDENTITY_KEY,
@@ -1475,7 +1944,7 @@ mod tests {
                 runtime_id: "repo-model-atomic-slice".into(),
                 swarm_id: "swarm-1".into(),
                 workspace_id: "workspace-1".into(),
-                body_binding_sha256: "sha256:body".into(),
+                body_binding_sha256: body.body_binding_sha256.clone(),
             },
         )?;
         let domain = EpiphanyMemoryDomain {
@@ -1521,8 +1990,9 @@ mod tests {
             action_implication: "Commit the exact keyed slice".into(),
             ..Default::default()
         };
-        let proposal = EpiphanyRepoModelMutationProposal::new(
+        let proposal = make_proposal(
             "proposal-atomic-slice",
+            &body,
             vec![
                 EpiphanyRepoModelMutationOperation::PutSummary {
                     summary: summary.clone(),
@@ -1556,8 +2026,9 @@ mod tests {
         assert_eq!(view.edges, [edge.clone()]);
         assert_eq!(view.summaries, [summary]);
 
-        let retire = EpiphanyRepoModelMutationProposal::new(
+        let retire = make_proposal(
             "proposal-retire-edge",
+            &body,
             vec![EpiphanyRepoModelMutationOperation::RetireEdge {
                 edge_id: "edge-flow".into(),
             }],
@@ -1580,8 +2051,9 @@ mod tests {
             EpiphanyMemoryLifecycle::Retired
         );
 
-        let duplicate = EpiphanyRepoModelMutationProposal::new(
+        let duplicate = make_proposal(
             "proposal-duplicate-edge",
+            &body,
             vec![
                 EpiphanyRepoModelMutationOperation::PutEdge { edge },
                 EpiphanyRepoModelMutationOperation::RetireEdge {
@@ -1590,6 +2062,188 @@ mod tests {
             ],
         )?;
         assert!(plan_repo_model_mutation(&store, &duplicate).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn modeling_operations_own_local_atlas_offer_and_claim_lifecycles() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("repo-model-atlas.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "repo-model-atlas".into(),
+                display_name: "RepoModel Atlas".into(),
+                created_at: "2026-08-14T00:00:00Z".into(),
+            },
+        )?;
+        let body = bind_test_body(&store, "gamecult-local", "odin")?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(
+            REPO_MODEL_IDENTITY_KEY,
+            &EpiphanyRepoModelIdentityDocument {
+                schema_epoch: REPO_MODEL_SCHEMA_EPOCH.into(),
+                graph_id: "graph-atlas".into(),
+                runtime_id: "repo-model-atlas".into(),
+                swarm_id: "gamecult-local".into(),
+                workspace_id: "odin".into(),
+                body_binding_sha256: body.body_binding_sha256.clone(),
+            },
+        )?;
+
+        let offer_proposal = make_proposal(
+            "modeling-job-create-offer",
+            &body,
+            vec![EpiphanyRepoModelMutationOperation::CreateSurfaceOffer {
+                label: "Odin provider catalog".into(),
+                contract: crate::AtlasContractDescriptor::ExactSchema {
+                    contract_id: "odin-provider-catalog".into(),
+                    schema_id: "cultmesh://odin/rendezvous/provider-catalog".into(),
+                },
+                source_refs: vec!["body-seed.txt".into()],
+            }],
+        )?;
+        let offer_plan = plan_repo_model_mutation(&store, &offer_proposal)?;
+        let offer_provenance = cache
+            .prepare_entry(&offer_proposal.proposal_id, &offer_proposal)?
+            .0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                offer_provenance,
+                "Modeling.repo_model_mutation",
+                offer_plan.strong_reads,
+                offer_plan.writes,
+                "2026-08-14T00:00:01Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let offer_view = assemble_repo_model_view(&store)?;
+        let offer_id = offer_view.surface_offers[0].surface_id;
+        assert_eq!(offer_view.surface_offers[0].provider.workspace_id, "odin");
+        let manifest = crate::authenticated_repository_body_manifest(&store, &body)?;
+        assert_eq!(
+            offer_view.surface_offers[0].body_evidence,
+            [crate::AtlasBodyEvidenceRef {
+                path: manifest.entries[0].path.clone(),
+                raw_sha256: manifest.entries[0].raw_sha256.clone(),
+            }]
+        );
+        assert!(offer_view.source_documents.iter().any(|source| {
+            source.document_type == crate::AtlasSurfaceOffer::TYPE
+                && source.document_key == offer_id.to_string()
+        }));
+        offer_view.reasoning_basis().validate_current(&store)?;
+
+        let eve = crate::AtlasRepositoryIdentity::new("gamecult-local", "eve")?;
+        let eve_surface = uuid::Uuid::new_v4();
+        let claim_proposal = make_proposal(
+            "modeling-job-create-claim",
+            &body,
+            vec![EpiphanyRepoModelMutationOperation::CreateDependencyClaim {
+                label: "Odin consumes Eve surfaces".into(),
+                target: crate::AtlasDependencyTarget::Exact {
+                    provider: eve,
+                    surface_id: eve_surface,
+                    requirement: crate::AtlasContractRequirement::ExactSchema {
+                        contract_id: "eve-surface".into(),
+                        schema_id: "gamecult.eve.surface.v1".into(),
+                    },
+                },
+                entanglement_kind: crate::AtlasEntanglementKind::SchemaProtocol,
+                failure_semantics: crate::AtlasFailureSemantics::FailClosed,
+                impact_scope: crate::AtlasImpactScope::LocalSurfaces {
+                    surface_ids: vec![offer_id],
+                },
+                source_refs: vec!["body-seed.txt".into()],
+            }],
+        )?;
+        let claim_plan = plan_repo_model_mutation(&store, &claim_proposal)?;
+        let stale_claim_plan = claim_plan.clone();
+        let claim_provenance = cache
+            .prepare_entry(&claim_proposal.proposal_id, &claim_proposal)?
+            .0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                claim_provenance,
+                "Modeling.repo_model_mutation",
+                claim_plan.strong_reads,
+                claim_plan.writes,
+                "2026-08-14T00:00:02Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let claim_id = assemble_repo_model_view(&store)?.dependency_claims[0].claim_id;
+
+        let withdraw = make_proposal(
+            "modeling-job-withdraw-offer",
+            &body,
+            vec![EpiphanyRepoModelMutationOperation::WithdrawSurfaceOffer {
+                surface_id: offer_id,
+            }],
+        )?;
+        let withdraw_plan = plan_repo_model_mutation(&store, &withdraw)?;
+        let withdraw_provenance = cache.prepare_entry(&withdraw.proposal_id, &withdraw)?.0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                withdraw_provenance,
+                "Modeling.repo_model_mutation",
+                withdraw_plan.strong_reads,
+                withdraw_plan.writes,
+                "2026-08-14T00:00:03Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let stale_provenance = cache
+            .prepare_entry("modeling-job-stale-claim", &claim_proposal)?
+            .0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                stale_provenance,
+                "Modeling.repo_model_mutation",
+                stale_claim_plan.strong_reads,
+                stale_claim_plan.writes,
+                "2026-08-14T00:00:04Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Conflict { .. }
+        ));
+
+        let retire = make_proposal(
+            "modeling-job-retire-claim",
+            &body,
+            vec![EpiphanyRepoModelMutationOperation::RetireDependencyClaim { claim_id }],
+        )?;
+        let retire_plan = plan_repo_model_mutation(&store, &retire)?;
+        let retire_provenance = cache.prepare_entry(&retire.proposal_id, &retire)?.0;
+        assert!(matches!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                retire_provenance,
+                "Modeling.repo_model_mutation",
+                retire_plan.strong_reads,
+                retire_plan.writes,
+                "2026-08-14T00:00:05Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let final_view = assemble_repo_model_view(&store)?;
+        assert_eq!(
+            final_view.surface_offers[0].lifecycle,
+            crate::AtlasOfferLifecycle::Withdrawn
+        );
+        assert_eq!(
+            final_view.dependency_claims[0].lifecycle,
+            crate::AtlasClaimLifecycle::Retired
+        );
+        std::fs::write(
+            store.with_extension("odin.body-repo").join("body-seed.txt"),
+            b"changed Atlas evidence",
+        )?;
+        crate::observe_runtime_repository_body_basis(&store)?;
+        assert!(plan_repo_model_mutation(&store, &offer_proposal).is_err());
         Ok(())
     }
 }
