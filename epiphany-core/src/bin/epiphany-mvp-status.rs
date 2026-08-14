@@ -480,10 +480,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let research_lifecycle = runtime_repo_frontier_research_lifecycle(&runtime_store_path)
         .context("failed to derive exact Eyes frontier lifecycle from runtime-spine state")?;
-    let eyes_frontier_ready = matches!(
-        research_lifecycle.continuation_action(),
-        Some(epiphany_core::RepoFrontierResearchContinuationAction::LaunchResearch)
-    );
+    let research_continuation_action = research_lifecycle.continuation_action();
     let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
         &runtime_store_path,
     )
@@ -545,7 +542,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
         hands_frontier_ready,
-        eyes_frontier_ready,
+        research_continuation_action,
         frontier_planning_stage: frontier_planning.stage,
         proposal_modeling_request_ready: pending_proposal.is_some(),
     });

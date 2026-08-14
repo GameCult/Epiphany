@@ -7,6 +7,7 @@ use super::EpiphanyPressureLevel;
 use super::EpiphanyReorientAction;
 use super::EpiphanyRoleBoardLane;
 use crate::RepoFrontierPlanningLifecycleStage;
+use crate::RepoFrontierResearchContinuationAction;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -157,10 +158,9 @@ pub struct EpiphanyCoordinatorInput {
     /// True only when the canonical runtime RepoModel has exactly one current
     /// admission and an Active, dependency-ready Hands frontier item.
     pub hands_frontier_ready: bool,
-    /// True only when the canonical runtime RepoModel has exactly one current
-    /// admission and an Active, dependency-ready Eyes frontier item not yet
-    /// covered by an accepted packet from its typed Research request.
-    pub eyes_frontier_ready: bool,
+    /// Exact next action projected by the current frontier Research lifecycle.
+    /// Legacy role-lane status remains observable but cannot override it.
+    pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     /// Read-only projection of the single typed Imagination -> Mind planning
     /// lifecycle. Self may advance it, but only Mind's result can decide adoption.
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
@@ -214,7 +214,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
     pub hands_frontier_ready: bool,
-    pub eyes_frontier_ready: bool,
+    pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling_request_ready: bool,
 }

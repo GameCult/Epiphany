@@ -5,6 +5,7 @@ use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::RepoFrontierPlanningLifecycleStage;
+use epiphany_core::RepoFrontierResearchContinuationAction;
 use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_core::research_role_state_patch_policy_errors;
 use epiphany_state_model::EpiphanyThreadState;
@@ -91,7 +92,7 @@ pub fn derive_coordinator_status(
         verification_result_needs_evidence: input.verification_result_needs_evidence,
         reorient_finding_accepted: input.reorient_finding_accepted,
         hands_frontier_ready: input.hands_frontier_ready,
-        eyes_frontier_ready: input.eyes_frontier_ready,
+        research_continuation_action: input.research_continuation_action,
         frontier_planning_stage: input.frontier_planning_stage,
         proposal_modeling_request_ready: input.proposal_modeling_request_ready,
     });
@@ -700,6 +701,27 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if let Some(action) = input.research_continuation_action {
+        return match action {
+            RepoFrontierResearchContinuationAction::LaunchResearch => build(
+                EpiphanyCoordinatorAction::LaunchResearch,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The exact frontier Research lifecycle requires another bounded attempt.",
+            ),
+            RepoFrontierResearchContinuationAction::ReviewResearchResult => build(
+                EpiphanyCoordinatorAction::ReviewResearchResult,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The exact frontier Research lifecycle has one terminal result awaiting review.",
+            ),
+        };
+    }
+
     if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.research_result_accepted
     {
@@ -1138,23 +1160,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.eyes_frontier_ready
-        && !matches!(
-            input.signals.research_result_status,
-            EpiphanyCoordinatorRoleResultStatus::Pending
-                | EpiphanyCoordinatorRoleResultStatus::Running
-        )
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchResearch,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Mind has admitted an actionable Eyes frontier; launch Research against that source-gathering authority.",
-        );
-    }
-
     if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && input.verification_result_accepted
         && !input.verification_result_allows_implementation
@@ -1353,7 +1358,7 @@ mod tests {
             verification_result_needs_evidence: false,
             reorient_finding_accepted: false,
             hands_frontier_ready: false,
-            eyes_frontier_ready: false,
+            research_continuation_action: None,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
             proposal_modeling_request_ready: false,
         }
@@ -2343,11 +2348,15 @@ mod tests {
                 research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 ..modeling_done
             },
-            research_result_accepted: true,
+            research_result_accepted: false,
+            research_result_reviewable: true,
+            research_result_failure_reviewed: true,
             modeling_result_accepted: true,
             modeling_result_reviewable: true,
             hands_frontier_ready: false,
-            eyes_frontier_ready: true,
+            research_continuation_action: Some(
+                RepoFrontierResearchContinuationAction::LaunchResearch,
+            ),
             ..input()
         });
         assert_eq!(
@@ -2359,7 +2368,7 @@ mod tests {
             Some(EpiphanyCoordinatorRoleId::Research)
         );
         assert!(eyes_frontier.can_auto_run);
-        assert!(eyes_frontier.reason.contains("Eyes frontier"));
+        assert!(eyes_frontier.reason.contains("Research lifecycle"));
 
         let consequences_exist = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: modeling_done,
