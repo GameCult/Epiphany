@@ -1468,6 +1468,7 @@ mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         crate::put_runtime_role_worker_result(store, &result)?;
         crate::commit_repo_model_admission(
@@ -2174,6 +2175,7 @@ mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         crate::put_runtime_role_worker_result(&runtime_store, &verification_result)?;
         crate::put_soul_verdict_receipt(

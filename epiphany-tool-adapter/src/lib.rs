@@ -13,6 +13,27 @@ pub fn tool_invocation_receipt_key(intent_id: &str) -> String {
     format!("receipt:{intent_id}")
 }
 
+/// Canonical lowering of a governed receipt into the exact tool-result text
+/// supplied to a model. Decision audit and execution must share this owner.
+pub fn receipt_output_for_model(
+    intent: &EpiphanyToolInvocationIntent,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> String {
+    if let Some(result) = receipt.result_json.as_ref() {
+        return result.clone();
+    }
+    serde_json::json!({
+        "status": receipt.status,
+        "adapter": receipt.adapter,
+        "server": receipt.server,
+        "toolName": receipt.tool_name,
+        "intentId": intent.intent_id,
+        "receiptId": receipt.receipt_id,
+        "error": receipt.error,
+    })
+    .to_string()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.tool_capability.v0",

@@ -366,6 +366,8 @@ pub struct EpiphanyRuntimeModelExecutionBinding {
     pub bound_at: String,
     #[cultcache(key = 7, default)]
     pub source_worker_job_id: Option<String>,
+    #[cultcache(key = 8, default)]
+    pub reasoning_basis_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -645,6 +647,8 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub admitted_model_direction_consideration_request_id: Option<String>,
     #[cultcache(key = 34, default)]
     pub admitted_model_direction_consideration_result_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 35)]
+    pub decision_context_id: String,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -736,6 +740,8 @@ pub struct EpiphanyRuntimeReorientWorkerResult {
     pub item_error: Option<String>,
     #[cultcache(key = 14, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 15)]
+    pub decision_context_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -768,6 +774,8 @@ pub struct EpiphanyRuntimeJobResult {
     pub artifact_refs: Vec<String>,
     #[cultcache(key = 11, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 12, default)]
+    pub decision_context_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -982,6 +990,7 @@ pub struct RuntimeSpineJobResultOptions {
     pub next_safe_move: String,
     pub evidence_refs: Vec<String>,
     pub artifact_refs: Vec<String>,
+    pub decision_context_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1117,6 +1126,9 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
+    cache.register_entry_type::<crate::EpiphanyReasoningBasis>()?;
+    cache.register_entry_type::<crate::EpiphanyDecisionContext>()?;
+    cache.register_entry_type::<crate::EpiphanyMindCommitReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeToolExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyArchivedRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
@@ -1673,10 +1685,7 @@ pub fn open_runtime_model_execution(
     validate_non_empty(bound_at, "model execution binding time")?;
     chrono::DateTime::parse_from_rfc3339(bound_at)
         .map_err(|error| anyhow!("model execution binding time is invalid: {error}"))?;
-    if provider_request.request_id != model_request.request_id
-        || provider_request.conversation_id != model_request.conversation_id
-        || provider_request.model != model_request.model
-    {
+    if provider_request != &epiphany_openai_adapter::request_from_native(model_request) {
         return Err(anyhow!(
             "native and provider model requests do not describe one execution"
         ));
@@ -1689,9 +1698,25 @@ pub fn open_runtime_model_execution(
     require_runtime_identity_not_archived(&cache, "session", &session_options.session_id)?;
     require_runtime_identity_not_archived(&cache, "job", &job_options.job_id)?;
     require_runtime_identity_not_archived(&cache, "model-request", &model_request.request_id)?;
+    let mut reasoning_basis_envelope = None;
     let source_worker_envelopes = if let Some(worker_job_id) =
         model_request.source_worker_job_id.as_deref()
     {
+        let basis_id = model_request.reasoning_basis_id.as_deref().ok_or_else(|| {
+            anyhow!("decision-bearing worker model execution has no reasoning basis")
+        })?;
+        let basis = cache
+            .get::<crate::EpiphanyReasoningBasis>(basis_id)?
+            .ok_or_else(|| anyhow!("model execution reasoning basis is absent"))?;
+        basis.validate()?;
+        if basis.pass_id != worker_job_id {
+            return Err(anyhow!("model execution reasoning basis belongs to another pass"));
+        }
+        reasoning_basis_envelope = Some(
+            cache
+                .get_envelope::<crate::EpiphanyReasoningBasis>(basis_id)?
+                .ok_or_else(|| anyhow!("model execution lost its reasoning basis envelope"))?,
+        );
         let launch = cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
             .ok_or_else(|| {
@@ -1819,12 +1844,16 @@ pub fn open_runtime_model_execution(
         provider: model_request.provider.clone(),
         bound_at: bound_at.to_string(),
         source_worker_job_id: model_request.source_worker_job_id.clone(),
+        reasoning_basis_id: model_request.reasoning_basis_id.clone(),
     };
     let identity_envelope = cache
         .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("model execution lost its exact runtime identity envelope"))?;
     let mut expected = vec![identity_envelope.clone()];
     expected.extend(source_worker_envelopes.iter().cloned());
+    if let Some(envelope) = reasoning_basis_envelope.as_ref() {
+        expected.push(envelope.clone());
+    }
     if existing_session.is_some() {
         expected.push(
             cache
@@ -1848,6 +1877,9 @@ pub fn open_runtime_model_execution(
             .0,
     ];
     replacements.extend(source_worker_envelopes);
+    if let Some(envelope) = reasoning_basis_envelope {
+        replacements.push(envelope);
+    }
     if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
             "model execution request publication lost its snapshot fence"
@@ -4417,11 +4449,13 @@ pub fn put_runtime_role_worker_result(
     validate_non_empty(&result.job_id, "role worker result job id")?;
     validate_non_empty(&result.result_id, "role worker result id")?;
     validate_non_empty(&result.role_id, "role worker result role id")?;
+    validate_non_empty(&result.decision_context_id, "role worker result decision context id")?;
     if result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION {
         return Err(anyhow!("role worker result schema version mismatch"));
     }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    require_worker_decision_context(&cache, &result.decision_context_id, &result.job_id)?;
     let worker_launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
         .ok_or_else(|| anyhow!("role worker result requires its immutable worker launch"))?;
@@ -9963,9 +9997,25 @@ pub fn put_runtime_reorient_worker_result(
     validate_non_empty(&result.job_id, "reorient worker result job id")?;
     validate_non_empty(&result.result_id, "reorient worker result id")?;
     validate_non_empty(&result.mode, "reorient worker result mode")?;
+    validate_non_empty(&result.decision_context_id, "reorient worker result decision context id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    require_worker_decision_context(&cache, &result.decision_context_id, &result.job_id)?;
     cache.put(&result.job_id, result)?;
+    Ok(())
+}
+
+fn require_worker_decision_context(
+    cache: &cultcache_rs::CultCache,
+    context_id: &str,
+    worker_job_id: &str,
+) -> Result<()> {
+    let context = cache
+        .get::<crate::EpiphanyDecisionContext>(context_id)?
+        .ok_or_else(|| anyhow!("worker result decision context is absent"))?;
+    if context.native_request()?.source_worker_job_id.as_deref() != Some(worker_job_id) {
+        return Err(anyhow!("worker result decision context belongs to another worker"));
+    }
     Ok(())
 }
 
@@ -12963,6 +13013,7 @@ pub fn complete_runtime_job(
         evidence_refs: options.evidence_refs,
         artifact_refs: options.artifact_refs,
         metadata: BTreeMap::new(),
+        decision_context_id: options.decision_context_id,
     };
     let event = EpiphanyRuntimeEvent {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
@@ -14648,6 +14699,7 @@ pub(crate) mod tests {
                 next_safe_move: "Close the session.".to_string(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
         close_runtime_session(
@@ -14842,6 +14894,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         assert!(put_runtime_role_worker_result(&store, &result).is_err());
         assert!(
@@ -14940,6 +14993,7 @@ pub(crate) mod tests {
                 next_safe_move: "Retry only from this terminal process authority.".into(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
         let claim = runtime_worker_process_claim(&store, "worker-failure-job")?
@@ -15044,6 +15098,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         assert!(put_runtime_role_worker_result(&store, &result).is_err());
         result.result_id = "other-late-result".into();
@@ -15326,6 +15381,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -15991,6 +16047,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
@@ -16440,6 +16497,7 @@ pub(crate) mod tests {
             admitted_model_direction_consideration_result_msgpack: Some(rmp_serde::to_vec_named(
                 &direction,
             )?),
+            decision_context_id: "decision-context-fixture".into(),
         };
         put_runtime_role_worker_result(&store, &worker_result)?;
         let mut companion_cache = runtime_spine_cache(&store)?;
@@ -17594,6 +17652,7 @@ pub(crate) mod tests {
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
                 metadata: BTreeMap::new(),
+                decision_context_id: None,
             },
         )?;
         let continuation_receipt = EpiphanyCoordinatorRunReceipt {
@@ -17760,6 +17819,7 @@ pub(crate) mod tests {
                 imagination_consideration_candidate_msgpack: None,
                 admitted_model_direction_consideration_request_id: None,
                 admitted_model_direction_consideration_result_msgpack: None,
+                decision_context_id: "decision-context-fixture".into(),
             },
         )?;
         assert_eq!(
@@ -18331,6 +18391,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         put_test_non_modeling_worker_launch(&store, &verification_result.job_id, "verification")?;
         put_runtime_role_worker_result(&store, &verification_result)?;
@@ -18526,6 +18587,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -18874,6 +18936,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         put_test_non_modeling_worker_launch(&fixture.store, &adjacent.job_id, "verification")?;
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
@@ -18964,6 +19027,7 @@ pub(crate) mod tests {
                     next_safe_move: "Launch the next isolated fixture.".into(),
                     evidence_refs: Vec::new(),
                     artifact_refs: Vec::new(),
+                    decision_context_id: None,
                 },
             )?;
             let mut cache = runtime_spine_cache(&fixture.store)?;
@@ -20497,6 +20561,7 @@ pub(crate) mod tests {
                 next_safe_move: "Complete the session.".to_string(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
 
@@ -21104,6 +21169,7 @@ pub(crate) mod tests {
                 next_safe_move: "Authenticate the terminal attempt evidence.".to_string(),
                 evidence_refs: vec![format!("eyes-source-{}", exact.intent_id)],
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
         assert!(require_runtime_tool_execution_binding(&store, &exact.intent_id).is_err());
@@ -21279,6 +21345,7 @@ pub(crate) mod tests {
                 next_safe_move: "Close the session.".to_string(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
         close_runtime_session(
@@ -21541,6 +21608,7 @@ pub(crate) mod tests {
                 next_safe_move: "Launch verification.".to_string(),
                 evidence_refs: vec!["evidence:model".to_string()],
                 artifact_refs: vec!["artifact:model".to_string()],
+                decision_context_id: None,
             },
         )?;
         assert_eq!(result.role, "modeling");
@@ -22735,6 +22803,7 @@ pub(crate) mod tests {
             completed_at: "2026-08-10T20:00:02Z".into(), verdict: "failed".into(),
             summary: "Typed worker attempt failed.".into(), next_safe_move: "Retry after resident closure.".into(),
             evidence_refs: Vec::new(), artifact_refs: Vec::new(),
+            decision_context_id: None,
         })?;
         let before = std::fs::read(&store)?;
         assert!(archive_failed_runtime_worker_attempt(&store, &job_id,
@@ -22799,6 +22868,7 @@ pub(crate) mod tests {
             summary: "Newer typed worker attempt failed.".into(),
             next_safe_move: "Preserve the newest failed attempt.".into(),
             evidence_refs: Vec::new(), artifact_refs: Vec::new(),
+            decision_context_id: None,
         })?;
         let retained = retain_failed_runtime_worker_attempts(
             &store, 1, &BTreeSet::new(), "2026-08-10T20:00:06Z")?;
@@ -22836,6 +22906,7 @@ pub(crate) mod tests {
             completed_at: "2026-08-10T21:00:02Z".into(), verdict: "pass".into(),
             summary: "Typed worker attempt completed.".into(), next_safe_move: "Retire worker scaffolding.".into(),
             evidence_refs: Vec::new(), artifact_refs: Vec::new(),
+            decision_context_id: None,
         })?;
         let expected = runtime_typed_request_fulfillment(
             &store, RuntimeTypedRequestRef::ProposalModeling(&request_id))?.expect("live fulfillment");

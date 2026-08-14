@@ -37,7 +37,6 @@ use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
-use epiphany_openai_adapter::EpiphanyOpenAiToolDefinition;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
@@ -46,11 +45,12 @@ use epiphany_openai_codex_spine::status_from_auth_manager;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
+use epiphany_tool_adapter::receipt_output_for_model;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use serde::de::MapAccess;
 use serde::de::SeqAccess;
-use serde::de::DeserializeOwned;
 use serde::de::Visitor;
 use sha2::Digest;
 
@@ -332,8 +332,14 @@ pub async fn run_worker_launch(
             options.job_id
         ));
     }
-    let model_request =
-        build_worker_model_request(&launch_request, &options.provider, &options.model)?;
+    let basis = epiphany_core::worker_reasoning_basis(&options.store_path, &launch_request)?;
+    epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
+    let model_request = build_worker_model_request(
+        &launch_request,
+        &options.provider,
+        &options.model,
+        &basis.basis_id,
+    )?;
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home,
@@ -489,6 +495,7 @@ pub fn record_openai_events(
                 .to_string(),
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
+            decision_context_id: None,
         },
     )?;
 
@@ -597,7 +604,11 @@ pub fn build_worker_model_request(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     provider: &str,
     model: &str,
+    reasoning_basis_id: &str,
 ) -> Result<EpiphanyModelRequest> {
+    if reasoning_basis_id.trim().is_empty() {
+        return Err(anyhow!("worker model request requires a reasoning basis"));
+    }
     let launch_document = launch_request.launch_document()?;
     let output_schema_json = worker_output_schema_json(launch_request, &launch_document)?;
     let request_id = format!(
@@ -632,6 +643,7 @@ pub fn build_worker_model_request(
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
     request.output_schema_json = Some(output_schema_json);
     request.source_worker_job_id = Some(launch_request.job_id.clone());
+    request.reasoning_basis_id = Some(reasoning_basis_id.to_string());
     if matches!(
         launch_request.binding_id.as_str(),
         epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID
@@ -650,6 +662,8 @@ pub fn complete_worker_job_from_assistant_text(
     openai_summary: &EpiphanyOpenAiRuntimeRunSummary,
     assistant_text: &str,
 ) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+    let decision_context =
+        epiphany_core::seal_model_decision_context(store_path.as_ref(), openai_request_id)?;
     let launch_document = launch_request.launch_document()?;
     let parsed_result = parse_worker_result_ingress(&launch_document, assistant_text);
     let parse_error = parsed_result
@@ -718,6 +732,7 @@ pub fn complete_worker_job_from_assistant_text(
                         .as_ref(),
                     &completed_at,
                     &result_id,
+                    &decision_context.context_id,
                     parsed,
                     evidence_refs.clone(),
                     artifact_refs.clone(),
@@ -728,6 +743,7 @@ pub fn complete_worker_job_from_assistant_text(
                 let typed_result = reorient_worker_result_from_ingress(
                     launch_request,
                     &result_id,
+                    &decision_context.context_id,
                     parsed,
                     artifact_refs.clone(),
                 );
@@ -751,6 +767,7 @@ pub fn complete_worker_job_from_assistant_text(
             next_safe_move,
             evidence_refs,
             artifact_refs,
+            decision_context_id: Some(decision_context.context_id),
         },
     )
 }
@@ -772,6 +789,7 @@ pub fn fail_worker_job(
             next_safe_move,
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
+            decision_context_id: None,
         },
     )
 }
@@ -938,7 +956,7 @@ pub fn build_tool_followup_model_request(
         });
         input.push(EpiphanyModelInputItem::ToolResult {
             call_id,
-            output: tool_receipt_output_for_model(&intent, &receipt),
+            output: receipt_output_for_model(&intent, &receipt),
         });
     }
     followup.input = input;
@@ -1018,9 +1036,7 @@ pub fn append_requested_public_source_receipts(
             .as_deref()
             .ok_or_else(|| anyhow!("requested public source intent has no call id"))?;
         let receipt = cache
-            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
-                &intent.intent_id,
-            ))?
+            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(&intent.intent_id))?
             .ok_or_else(|| {
                 anyhow!(
                     "requested public source intent {:?} has no terminal receipt",
@@ -1044,29 +1060,10 @@ pub fn append_requested_public_source_receipts(
         });
         request.input.push(EpiphanyModelInputItem::ToolResult {
             call_id: call_id.to_string(),
-            output: tool_receipt_output_for_model(intent, &receipt),
+            output: receipt_output_for_model(intent, &receipt),
         });
     }
     Ok(())
-}
-
-fn tool_receipt_output_for_model(
-    intent: &EpiphanyToolInvocationIntent,
-    receipt: &EpiphanyToolInvocationReceipt,
-) -> String {
-    if let Some(result) = receipt.result_json.as_ref() {
-        return result.clone();
-    }
-    serde_json::json!({
-        "status": receipt.status,
-        "adapter": receipt.adapter,
-        "server": receipt.server,
-        "toolName": receipt.tool_name,
-        "intentId": intent.intent_id,
-        "receiptId": receipt.receipt_id,
-        "error": receipt.error,
-    })
-    .to_string()
 }
 
 pub fn default_options(
@@ -1170,6 +1167,7 @@ pub fn model_request_from_openai_request(
         previous_response_id: request.previous_response_id.clone(),
         output_schema_json: request.output_schema_json.clone(),
         source_worker_job_id: None,
+        reasoning_basis_id: None,
         tools: request
             .tools
             .iter()
@@ -1185,33 +1183,7 @@ pub fn model_request_from_openai_request(
 pub fn openai_request_from_model_request(
     request: &EpiphanyModelRequest,
 ) -> EpiphanyOpenAiModelRequest {
-    EpiphanyOpenAiModelRequest {
-        schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_REQUEST_SCHEMA_ID.to_string(),
-        request_id: request.request_id.clone(),
-        conversation_id: request.conversation_id.clone(),
-        model: request.model.clone(),
-        instructions: request.instructions.clone(),
-        input: request
-            .input
-            .iter()
-            .map(openai_input_from_model_input)
-            .collect(),
-        reasoning_effort: request.reasoning_effort.clone(),
-        reasoning_summary: request.reasoning_summary.clone(),
-        service_tier: request.service_tier.clone(),
-        output_contract_id: request.output_contract_id.clone(),
-        previous_response_id: request.previous_response_id.clone(),
-        output_schema_json: request.output_schema_json.clone(),
-        tools: request
-            .tools
-            .iter()
-            .map(|tool| EpiphanyOpenAiToolDefinition {
-                name: tool.name.clone(),
-                description: tool.description.clone(),
-                parameters_json: tool.parameters_json.clone(),
-            })
-            .collect(),
-    }
+    epiphany_openai_adapter::request_from_native(request)
 }
 
 fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
@@ -1311,32 +1283,6 @@ fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyMod
         },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
             EpiphanyModelInputItem::ToolResult {
-                call_id: call_id.clone(),
-                output: output.clone(),
-            }
-        }
-    }
-}
-
-fn openai_input_from_model_input(input: &EpiphanyModelInputItem) -> EpiphanyOpenAiInputItem {
-    match input {
-        EpiphanyModelInputItem::UserText { text } => {
-            EpiphanyOpenAiInputItem::UserText { text: text.clone() }
-        }
-        EpiphanyModelInputItem::AssistantText { text } => {
-            EpiphanyOpenAiInputItem::AssistantText { text: text.clone() }
-        }
-        EpiphanyModelInputItem::ToolCall {
-            call_id,
-            name,
-            arguments,
-        } => EpiphanyOpenAiInputItem::ToolCall {
-            call_id: call_id.clone(),
-            name: name.clone(),
-            arguments: arguments.clone(),
-        },
-        EpiphanyModelInputItem::ToolResult { call_id, output } => {
-            EpiphanyOpenAiInputItem::ToolResult {
                 call_id: call_id.clone(),
                 output: output.clone(),
             }
@@ -1802,6 +1748,7 @@ fn role_worker_result_from_ingress(
     >,
     completed_at: &str,
     result_id: &str,
+    decision_context_id: &str,
     result: &RoleWorkerResultIngress,
     runtime_evidence_ids: Vec<String>,
     artifact_refs: Vec<String>,
@@ -2121,6 +2068,7 @@ fn role_worker_result_from_ingress(
             admitted_model_direction_consideration_context
                 .map(|context| context.request.request_id.clone()),
         admitted_model_direction_consideration_result_msgpack,
+        decision_context_id: decision_context_id.to_string(),
     }
 }
 
@@ -2181,12 +2129,14 @@ pub fn failed_frontier_planning_role_result(
         imagination_consideration_candidate_msgpack: None,
         admitted_model_direction_consideration_request_id: None,
         admitted_model_direction_consideration_result_msgpack: None,
+        decision_context_id: String::new(),
     }))
 }
 
 fn reorient_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     result_id: &str,
+    decision_context_id: &str,
     result: &ReorientWorkerResultIngress,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeReorientWorkerResult {
@@ -2211,6 +2161,7 @@ fn reorient_worker_result_from_ingress(
         continuity_risks: clean_string_vec(&result.continuity_risks),
         item_error: None,
         metadata: std::collections::BTreeMap::new(),
+        decision_context_id: decision_context_id.to_string(),
     }
 }
 
@@ -2301,7 +2252,9 @@ impl<'de> Visitor<'de> for UniqueJsonValueVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
-        Ok(UniqueJsonValue(serde_json::Value::String(value.to_string())))
+        Ok(UniqueJsonValue(serde_json::Value::String(
+            value.to_string(),
+        )))
     }
 
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
@@ -2334,9 +2287,7 @@ impl<'de> Visitor<'de> for UniqueJsonValueVisitor {
         let mut values = serde_json::Map::new();
         while let Some((key, value)) = object.next_entry::<String, UniqueJsonValue>()? {
             if values.insert(key.clone(), value.0).is_some() {
-                return Err(serde::de::Error::custom(format!(
-                    "duplicate field `{key}`"
-                )));
+                return Err(serde::de::Error::custom(format!("duplicate field `{key}`")));
             }
         }
         Ok(UniqueJsonValue(serde_json::Value::Object(values)))
@@ -2642,6 +2593,7 @@ mod tests {
             None,
             "2026-08-11T08:00:02Z",
             "result-proposal-job-1",
+            "decision-context-test",
             &ingress,
             vec!["openai-request:proposal".into()],
             Vec::new(),
@@ -2758,7 +2710,12 @@ mod tests {
             repo_frontier_verdict_modeling_authority_msgpack: None,
         };
 
-        let request = build_worker_model_request(&launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        let request = build_worker_model_request(
+            &launch,
+            DEFAULT_MODEL_PROVIDER,
+            "gpt-5.4",
+            "reasoning-basis-test",
+        )?;
         let schema: serde_json::Value = serde_json::from_str(
             request
                 .output_schema_json
@@ -2818,6 +2775,7 @@ mod tests {
             None,
             "2026-07-15T10:00:00Z",
             "verification-result-1",
+            "decision-context-test",
             &parsed,
             vec!["openai-request:verification-request-1".to_string()],
             Vec::new(),
@@ -2899,6 +2857,7 @@ mod tests {
             None,
             "2026-07-15T10:00:00Z",
             "planning-result-1",
+            "decision-context-test",
             &parsed,
             Vec::new(),
             Vec::new(),
@@ -3032,6 +2991,7 @@ mod tests {
             None,
             "2026-07-15T10:00:00Z",
             "consideration-result-1",
+            "decision-context-test",
             &parsed,
             Vec::new(),
             Vec::new(),
@@ -3227,6 +3187,7 @@ mod tests {
             None,
             "2026-07-15T10:00:00Z",
             "mind-result-1",
+            "decision-context-test",
             &parsed,
             Vec::new(),
             Vec::new(),
@@ -3521,8 +3482,35 @@ mod tests {
             },
         )?;
         let launch_request = load_worker_launch_request(&store, "worker-job-1")?;
-        let model_request =
-            build_worker_model_request(&launch_request, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        let reasoning_basis = epiphany_core::worker_reasoning_basis(&store, &launch_request)?;
+        epiphany_core::put_reasoning_basis(&store, &reasoning_basis)?;
+        let model_request = build_worker_model_request(
+            &launch_request,
+            DEFAULT_MODEL_PROVIDER,
+            "gpt-5.4",
+            &reasoning_basis.basis_id,
+        )?;
+        let provider_request = openai_request_from_model_request(&model_request);
+        epiphany_core::open_runtime_model_execution(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
+                objective: "Run the exact Modeling pass.".into(),
+                created_at: "2026-08-14T00:00:00Z".into(),
+                coordinator_note: "decision context fixture".into(),
+            },
+            RuntimeSpineJobOptions {
+                job_id: "openai-worker-worker-job-1".into(),
+                session_id: "openai-worker-session-modeling-checkpoint-worker".into(),
+                role: "openai-model-adapter".into(),
+                created_at: "2026-08-14T00:00:00Z".into(),
+                summary: "Execute the Modeling request.".into(),
+                artifact_refs: Vec::new(),
+            },
+            &model_request,
+            &provider_request,
+            "2026-08-14T00:00:00Z",
+        )?;
         assert_eq!(
             model_request.output_contract_id.as_deref(),
             Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID)
@@ -3718,8 +3706,12 @@ mod tests {
             },
         )?;
         let launch_request = load_worker_launch_request(&store, "verification-job-1")?;
-        let model_request =
-            build_worker_model_request(&launch_request, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        let model_request = build_worker_model_request(
+            &launch_request,
+            DEFAULT_MODEL_PROVIDER,
+            "gpt-5.4",
+            "reasoning-basis-test",
+        )?;
         let tool_names = model_request
             .tools
             .iter()
@@ -3752,12 +3744,18 @@ mod tests {
         research_launch.binding_id = epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string();
         research_launch.role = epiphany_core::EPIPHANY_RESEARCH_OWNER_ROLE.to_string();
         research_launch.authority_scope = "epiphany.role.research".to_string();
-        let research_request =
-            build_worker_model_request(&research_launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
-        assert!(!research_request
-            .tools
-            .iter()
-            .any(|tool| tool.name == "mcp__epiphany_public__github_file"));
+        let research_request = build_worker_model_request(
+            &research_launch,
+            DEFAULT_MODEL_PROVIDER,
+            "gpt-5.4",
+            "reasoning-basis-test",
+        )?;
+        assert!(
+            !research_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_public__github_file")
+        );
         assert!(
             research_request
                 .instructions

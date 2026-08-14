@@ -3625,6 +3625,7 @@ mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         }
     }
 
@@ -5694,6 +5695,7 @@ mod tests {
             evidence_refs: Vec::new(),
             artifact_refs: Vec::new(),
             metadata: BTreeMap::new(),
+            decision_context_id: None,
         })?;
         runtime.put(job_id, &role_worker_result(job_id, "modeling"))?;
 

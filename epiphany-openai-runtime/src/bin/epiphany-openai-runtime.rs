@@ -25,8 +25,8 @@ use epiphany_openai_adapter::OPENAI_ADAPTER_REQUEST_SCHEMA_ID;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
-use epiphany_openai_runtime::assistant_text_from_model_events;
 use epiphany_openai_runtime::append_requested_public_source_receipts;
+use epiphany_openai_runtime::assistant_text_from_model_events;
 use epiphany_openai_runtime::build_tool_followup_model_request;
 use epiphany_openai_runtime::build_worker_model_request;
 use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
@@ -658,8 +658,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
                 max_runtime_seconds = Some(next_value(&mut iter, "--max-runtime-seconds")?.parse()?)
             }
             "--activation-token-sha256" => {
-                activation_token_sha256 =
-                    Some(next_value(&mut iter, "--activation-token-sha256")?)
+                activation_token_sha256 = Some(next_value(&mut iter, "--activation-token-sha256")?)
             }
             other => return Err(anyhow!("unknown run-worker argument: {other}")),
         }
@@ -693,16 +692,16 @@ fn claim_and_wait_for_worker_activation(options: &RunWorkerCliOptions) -> Result
     )?;
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     loop {
-        let claim = epiphany_core::runtime_worker_process_claim(
-            &options.store_path,
-            &options.job_id,
-        )?
-        .ok_or_else(|| anyhow!("worker activation gate lost its process claim"))?;
+        let claim =
+            epiphany_core::runtime_worker_process_claim(&options.store_path, &options.job_id)?
+                .ok_or_else(|| anyhow!("worker activation gate lost its process claim"))?;
         if claim.process_id != process.process_id
             || claim.process_creation_token != process.creation_token
             || claim.process_executable_path != process.executable_path.display().to_string()
         {
-            return Err(anyhow!("worker activation gate observed a substituted process claim"));
+            return Err(anyhow!(
+                "worker activation gate observed a substituted process claim"
+            ));
         }
         match claim.status.as_str() {
             "active" => return Ok(()),
@@ -723,7 +722,9 @@ fn claim_and_wait_for_worker_activation(options: &RunWorkerCliOptions) -> Result
                     "Runtime Continuity may supersede only from the terminal unactivated process claim."
                         .into(),
                 )?;
-                return Err(anyhow!("worker activation gate expired before model/tool work"));
+                return Err(anyhow!(
+                    "worker activation gate expired before model/tool work"
+                ));
             }
             status => {
                 return Err(anyhow!(
@@ -875,20 +876,24 @@ async fn run_worker_launch_with_tool_continuation(
         .clone()
         .context("run-worker --auto-tools requires --tool-adapter-bin")?;
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
-    let mut initial_request =
-        build_worker_model_request(&launch_request, &options.provider, &options.model)?;
-    let requested_public_source_intents = if launch_request
-        .repo_frontier_research_request_id
-        .is_some()
-    {
-        epiphany_core::put_runtime_requested_public_source_intents(
-            &options.store_path,
-            &options.job_id,
-            &now(),
-        )?
-    } else {
-        Vec::new()
-    };
+    let basis = epiphany_core::worker_reasoning_basis(&options.store_path, &launch_request)?;
+    epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
+    let mut initial_request = build_worker_model_request(
+        &launch_request,
+        &options.provider,
+        &options.model,
+        &basis.basis_id,
+    )?;
+    let requested_public_source_intents =
+        if launch_request.repo_frontier_research_request_id.is_some() {
+            epiphany_core::put_runtime_requested_public_source_intents(
+                &options.store_path,
+                &options.job_id,
+                &now(),
+            )?
+        } else {
+            Vec::new()
+        };
     let mut requested_public_source_runs = Vec::new();
     for intent in &requested_public_source_intents {
         requested_public_source_runs.push(run_tool_adapter(
@@ -1241,11 +1246,7 @@ mod tests {
     #[test]
     fn worker_cli_requires_activation_capability_before_runtime_path() -> Result<()> {
         assert!(
-            parse_run_worker_options(vec![
-                "--job-id".into(),
-                "job-without-gate".into(),
-            ])
-            .is_err()
+            parse_run_worker_options(vec!["--job-id".into(), "job-without-gate".into(),]).is_err()
         );
         let options = parse_run_worker_options(vec![
             "--job-id".into(),

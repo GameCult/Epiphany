@@ -1,4 +1,5 @@
 use cultcache_rs::DatabaseEntry;
+use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -94,6 +95,61 @@ impl EpiphanyOpenAiModelRequest {
             previous_response_id: None,
             tools: Vec::new(),
             output_schema_json: None,
+        }
+    }
+}
+
+/// The only lowering from a native model request to the OpenAI transport.
+/// Internal audit identity stays on the native request; every provider-bearing
+/// byte is derived here.
+pub fn request_from_native(request: &EpiphanyModelRequest) -> EpiphanyOpenAiModelRequest {
+    EpiphanyOpenAiModelRequest {
+        schema_id: OPENAI_ADAPTER_REQUEST_SCHEMA_ID.to_string(),
+        request_id: request.request_id.clone(),
+        conversation_id: request.conversation_id.clone(),
+        model: request.model.clone(),
+        instructions: request.instructions.clone(),
+        input: request.input.iter().map(input_from_native).collect(),
+        reasoning_effort: request.reasoning_effort.clone(),
+        reasoning_summary: request.reasoning_summary.clone(),
+        service_tier: request.service_tier.clone(),
+        output_contract_id: request.output_contract_id.clone(),
+        previous_response_id: request.previous_response_id.clone(),
+        tools: request
+            .tools
+            .iter()
+            .map(|tool| EpiphanyOpenAiToolDefinition {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                parameters_json: tool.parameters_json.clone(),
+            })
+            .collect(),
+        output_schema_json: request.output_schema_json.clone(),
+    }
+}
+
+fn input_from_native(input: &EpiphanyModelInputItem) -> EpiphanyOpenAiInputItem {
+    match input {
+        EpiphanyModelInputItem::UserText { text } => {
+            EpiphanyOpenAiInputItem::UserText { text: text.clone() }
+        }
+        EpiphanyModelInputItem::AssistantText { text } => {
+            EpiphanyOpenAiInputItem::AssistantText { text: text.clone() }
+        }
+        EpiphanyModelInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyOpenAiInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: name.clone(),
+            arguments: arguments.clone(),
+        },
+        EpiphanyModelInputItem::ToolResult { call_id, output } => {
+            EpiphanyOpenAiInputItem::ToolResult {
+                call_id: call_id.clone(),
+                output: output.clone(),
+            }
         }
     }
 }

@@ -8,6 +8,17 @@ The five-day shakedown remains paused for architectural consolidation. The
 latest behavior cut is clean and pushed on `codex/epiphany-shakedown-live` at
 exact `f90f1186`.
 
+The active campaign is now the hard Decision-Auditable Concurrent Mind
+migration. Its first foundation is implemented locally: typed content-addressed
+reasoning bases preserve exact source envelopes and a closed projection;
+terminal decision contexts preserve the exact native request, the provider
+request derived from it, and every ordered governed tool intent/receipt actually
+fed to the model. Worker model requests require a sealed basis, and structured
+role/reorient results plus their generic job result bind the terminal context.
+Exact-envelope batch CAS merges disjoint Mind documents and explicitly refuses
+same-identity or changed-strong-read conflicts. Model failures, Persona stages,
+retention, keyed canonical Mind state, and keyed RepoModel remain to be cut.
+
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
 and remain untouched. Historical c011 zero-zombie and organ-circuit evidence is
@@ -109,16 +120,23 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Acceptance gates before shakedown resumes
 
-1. Generalize exact current-work lifecycle ownership across Modeling and
-   Verification so neither family can repeat Research's stale-role-lane split.
-2. Run one fresh-repository source -> Hands -> Soul -> Modeling -> Mind -> Self
-   capstone before claiming organism-level readiness.
+1. Every model-authored terminal decision or typed failure recovers its exact
+   reasoning basis and terminal request after transcript/session retention.
+2. Persisted thread state, aggregate RepoModel revision/hash, timestamps,
+   events, and role lanes can no longer manufacture or suppress current work.
+3. Concurrent disjoint Persona, Hands, Modeling, evidence, and Verification
+   mutations merge; same semantic identity and changed strong reads refuse
+   without partial writes or silent model-output rebasing.
+4. Run the fresh-store concurrent decision-audit capstone, including Body ->
+   Modeling without Eyes and Eyes only for explicit external-evidence work.
 
 ## Immediate next action
 
-Map Modeling and Verification's exact causal currency, then give each family
-one typed continuation owner consumed by Resident Self, coordinator policy, and
-status. Preserve their distinct invariants; do not create a generic registry or
-let the mutable role-board projection decide current work. Replay the accepted
-circuits before the fresh-repository capstone. Do not touch the original c011
-volumes, add capability surfaces, or build on Yggdrasil.
+Finish decision-context ownership before normalizing state: bind model-backed
+failures and all three Persona stages, make their terminal commits atomic, and
+make session/worker/Persona retention preserve the Basis -> Context -> decision
+route after streams and transport scaffolding disappear. Then delete persisted
+thread-state authority and split canonical Mind and RepoModel into semantic-key
+documents under exact-envelope batch CAS. There is no writable-store migrator
+or compatibility read path. Do not touch the original c011 volumes, resume the
+shakedown, add capability surfaces, or build on Yggdrasil.

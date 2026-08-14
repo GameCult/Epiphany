@@ -2149,6 +2149,7 @@ name = "epiphany-openai-adapter"
 version = "0.1.0"
 dependencies = [
  "cultcache-rs",
+ "epiphany-model-adapter",
  "serde",
 ]
 
@@ -2280,6 +2281,7 @@ version = "0.1.0"
 dependencies = [
  "cultcache-rs",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

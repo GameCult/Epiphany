@@ -4516,3 +4516,23 @@ zero.
   before network under `--network none`, preserved byte-identical runtime state,
   and emitted no receipt. Together these close the immutable public Eyes
   success/denial pair.
+## Decision-auditable concurrent Mind foundation (2026-08-14)
+
+The migration seals a reasoning pass before inference. One
+`EpiphanyReasoningBasis` content-addresses the exact typed source envelopes and
+one closed projection variant. Every decision-bearing native model request
+binds that basis. The OpenAI request is derived from the native request by the
+adapter; callers cannot author an independent provider request.
+
+At terminal inference, `EpiphanyDecisionContext` records the final native and
+provider requests plus the ordered governed tool intent/receipt versions that
+the final request actually contains. Validation compares exact call identity,
+tool name, arguments, lowered result bytes, runtime model binding, worker,
+session, and basis. Stream deltas are not decision authority.
+
+`commit_mind_mutation` accepts exact strong-read envelopes and exact writes.
+CultCache batch CAS merges disjoint identities, refuses changed strong reads or
+same-identity divergence, and writes an immutable Mind commit receipt with the
+mutation. It never rebases model output. This foundation does not yet replace
+persisted thread state or aggregate RepoModel; those obsolete authorities are
+the next hard deletion line.

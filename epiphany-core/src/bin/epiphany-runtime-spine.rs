@@ -290,6 +290,7 @@ fn main() -> Result<()> {
                     next_safe_move,
                     evidence_refs,
                     artifact_refs,
+                    decision_context_id: None,
                 },
             )?;
             println!("runtime job completed");

@@ -1531,6 +1531,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         })
     }
 
@@ -1693,6 +1694,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         })
     }
 
@@ -1848,6 +1850,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         put_runtime_role_worker_result(store, &result)
             .map_err(|error| anyhow!("persist frontier Mind result: {error}"))?;
@@ -3216,6 +3219,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         crate::put_runtime_role_worker_result(&store, &verification_result)?;
         let soul_verdict = crate::SoulVerdictReceipt {
@@ -3356,6 +3360,7 @@ pub(crate) mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "decision-context-fixture".into(),
         };
         crate::put_runtime_role_worker_result(&store, &modeling_result)?;
         let incorporation_review = crate::RepoModelAdmissionReview {
@@ -3508,6 +3513,7 @@ pub(crate) mod tests {
                 next_safe_move: "Review before retry.".into(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
 
@@ -3684,6 +3690,7 @@ pub(crate) mod tests {
                 next_safe_move: "Review before retry.".into(),
                 evidence_refs: Vec::new(),
                 artifact_refs: Vec::new(),
+                decision_context_id: None,
             },
         )?;
         assert_eq!(
