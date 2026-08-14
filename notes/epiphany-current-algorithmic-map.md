@@ -4626,3 +4626,20 @@ batch, so read-only dependencies are re-emitted byte-identically; the Mind
 receipt still lists only actual writes. Tests prove a disjoint insert can depend
 on an unchanged document and that a stale dependency refuses the insert with no
 partial state.
+
+### Keyed RepoModel mutation planning
+
+`EpiphanyRepoModelMutationProposal` is a durable typed semantic proposal, not a
+base-revision patch. The bounded planner currently owns node put/retire and
+frontier put/revision. It derives exact identity, domain, node, dependency
+frontier, and per-node claim-obligation envelopes from the store, projects the
+candidate graph, validates it, and emits deterministic strong-read and write
+sets. Callers cannot choose which stale inputs are harmless.
+
+Node retirement writes an empty per-node obligation even when none existed.
+Frontier targeting writes that same identity with its live membership. Thus a
+retirement planned concurrently with a new frontier target cannot pass by an
+absence scan: the two operations contend on one document. The test commits the
+frontier and proves the stale retirement returns a typed conflict while the node
+remains accepted. Domain, edge, summary, and lifecycle operations remain the
+next expansion of this closed planner before aggregate admission cutover.

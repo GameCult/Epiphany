@@ -53,6 +53,16 @@ only semantic writes. A stale read-only dependency blocks the whole mutation
 without partial insertion. Full core remains 690 passing with one ignored
 cross-process helper.
 
+The first concrete RepoModel mutation planner now accepts a persisted typed
+semantic proposal and owns dependency derivation for node put/retire and
+frontier put/revision. It reads exact domains, nodes, frontier dependencies,
+the RepoModel identity, and affected per-node obligation documents; callers do
+not supply a strong-read list. It validates the complete projected graph before
+returning one Mind mutation plan. A fresh node retirement and a concurrent new
+frontier target both write the same previously absent obligation identity, so
+only one can commit. The acceptance test makes the frontier win and proves the
+stale retirement leaves the node unchanged.
+
 Operational correction: the original c011 resident and Heartbeat containers
 are not alive; both exited 255 on 2026-08-11. Their named volumes are quiescent
 and remain untouched. Historical c011 zero-zombie and organ-circuit evidence is
@@ -166,7 +176,8 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Build the concrete keyed RepoModel mutation planner and cut its aggregate
+Extend the keyed RepoModel mutation planner across domain, edge, summary, and
+lifecycle operations, then cut its aggregate
 admission writers. In parallel sequence, migrate focus/mode, subgoal/invariant, evidence/observation,
 checkpoint, and planning admission owners from `EpiphanyThreadStateEntry` to
 their keyed documents. Delete the aggregate transaction, reader, and schema
