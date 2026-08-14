@@ -1114,6 +1114,7 @@ pub struct EpiphanyRuntimeJobSnapshot {
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
+    crate::mind_documents::register_mind_document_types(&mut cache)?;
     cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
@@ -1227,6 +1228,18 @@ pub fn initialize_runtime_spine(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let existing = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
+    let existing_mind = cache.get::<crate::EpiphanyMindIdentity>(crate::MIND_SCHEMA_EPOCH)?;
+    if existing.is_some() != existing_mind.is_some() {
+        return Err(anyhow!(
+            "runtime and Mind schema identities are split across epochs"
+        ));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|identity| identity.runtime_id != options.runtime_id)
+    {
+        return Err(anyhow!("runtime identity cannot change during initialization"));
+    }
     let created_at = existing
         .as_ref()
         .map(|identity| identity.created_at.clone())
@@ -1241,7 +1254,28 @@ pub fn initialize_runtime_spine(
         supported_document_types: runtime_registered_document_types(),
         metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
     };
-    cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
+    let mind_identity = crate::EpiphanyMindIdentity {
+        schema_epoch: crate::MIND_SCHEMA_EPOCH.to_string(),
+        runtime_id: identity.runtime_id.clone(),
+    };
+    if let Some(existing_mind) = existing_mind {
+        if existing_mind != mind_identity {
+            return Err(anyhow!("Mind schema identity collision"));
+        }
+        cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
+        return Ok(identity);
+    }
+    let runtime_envelope = cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0;
+    let mind_envelope = cache
+        .prepare_entry(crate::MIND_SCHEMA_EPOCH, &mind_identity)?
+        .0;
+    if !runtime_spine_backing_store(store_path)?
+        .compare_and_swap_batch(&[], vec![runtime_envelope, mind_envelope])?
+    {
+        return Err(anyhow!(
+            "runtime and Mind schema identities lost their atomic initialization"
+        ));
+    }
     Ok(identity)
 }
 

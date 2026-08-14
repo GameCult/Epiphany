@@ -1716,8 +1716,8 @@ mod tests {
         open_runtime_spine_heartbeat_job(
             &runtime_store,
             RuntimeSpineHeartbeatJobOptions {
-                runtime_id: EPIPHANY_LOCAL_VERSE_RUNTIME_ID.to_string(),
-                display_name: "Epiphany Local".to_string(),
+                runtime_id: "launch-context-runtime".to_string(),
+                display_name: "Launch context test".to_string(),
                 session_id: "epiphany-main".to_string(),
                 objective: "Test persisted launch context.".to_string(),
                 coordinator_note: "Bridge launch-context smoke.".to_string(),

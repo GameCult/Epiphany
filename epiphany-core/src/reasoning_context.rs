@@ -566,6 +566,9 @@ pub fn commit_mind_mutation(
     if writes.is_empty() {
         return Err(anyhow!("Mind mutation requires at least one write"));
     }
+    for write in &writes {
+        crate::mind_documents::validate_mind_write_envelope(write)?;
+    }
     validate_unique_envelope_identities(&strong_reads, "strong read")?;
     validate_unique_envelope_identities(&writes, "write")?;
     let expected_ids = strong_reads
@@ -973,18 +976,17 @@ mod tests {
         let backing = SingleFileMessagePackBackingStore::new(&store);
         let make = |key: &str, summary: &str| -> Result<CultCacheEnvelope> {
             let cache = runtime_spine_cache(&store)?;
-            let event = crate::EpiphanyRuntimeEvent {
-                schema_version: crate::runtime_spine::RUNTIME_SPINE_SCHEMA_VERSION.into(),
-                event_id: key.into(),
-                occurred_at: "2026-08-14T00:00:01Z".into(),
-                event_type: "test.mind.mutation".into(),
-                source: "reasoning-context-test".into(),
-                session_id: None,
-                job_id: None,
-                summary: summary.into(),
-                metadata: Default::default(),
+            let document = crate::EpiphanyMindObservationDocument {
+                value: epiphany_state_model::EpiphanyObservation {
+                    id: key.into(),
+                    summary: summary.into(),
+                    source_kind: "test".into(),
+                    status: "accepted".into(),
+                    code_refs: Vec::new(),
+                    evidence_ids: Vec::new(),
+                },
             };
-            Ok(cache.prepare_entry(key, &event)?.0)
+            Ok(cache.prepare_entry(key, &document)?.0)
         };
         assert!(matches!(
             commit_mind_mutation(
@@ -1012,7 +1014,8 @@ mod tests {
             .pull_all()?
             .into_iter()
             .find(|entry| {
-                entry.r#type == crate::EpiphanyRuntimeEvent::TYPE && entry.key == "persona"
+                entry.r#type == crate::EpiphanyMindObservationDocument::TYPE
+                    && entry.key == "persona"
             })
             .unwrap();
         assert!(matches!(
