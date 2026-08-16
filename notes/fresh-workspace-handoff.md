@@ -302,9 +302,12 @@ unchanged; the lifecycle authorities above remain separate.
 ## Immediate next action
 
 Complete the persisted thread-state hard deletion described in the campaign
-plan. Start with one typed current-work projection over keyed Mind and exact
-runtime receipts, migrate status and coordinator routing to it, then migrate
-family acceptance and delete the aggregate schema/transaction. Run the source
+plan. The Body-generation Modeling work identity now exists at exact
+`59292e2f`, but do not admit its decision receipt yet: first replace the
+aggregate-shaped role prompt with one sealed typed projection assembled from
+the exact keyed Mind versions it cites. Then finish current-work routing,
+migrate status/coordinator consumers and family acceptance, and delete the
+aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational

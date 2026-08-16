@@ -216,18 +216,22 @@ declares the organism missing because it reads persisted
 
 Cut in this order:
 
-1. Add one pure typed current-work projection over keyed Mind/runtime receipts.
+1. Replace the aggregate-shaped role reasoning input with one sealed typed
+   projection assembled from exact keyed Mind document versions. The final
+   model request must render that projection; citing keyed sources while
+   rendering the old thread snapshot is explicitly forbidden.
+2. Complete the pure typed current-work projection over keyed Mind/runtime receipts.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
    from explicit external-evidence obligations.
-2. Move status and coordinator launch/review consumers to that projection and
+3. Move status and coordinator launch/review consumers to that projection and
    exact request/result identities. Thread ID remains immutable pass provenance
    only.
-3. Move role/reorient acceptance from aggregate state patches to family-owned
+4. Move role/reorient acceptance from aggregate state patches to family-owned
    `MindMutation` plans and exact commit receipts.
-4. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+5. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-5. Replay fresh-store concurrency and decision-context acceptance. Only then
+6. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap

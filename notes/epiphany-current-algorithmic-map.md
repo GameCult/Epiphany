@@ -4826,3 +4826,14 @@ Remaining hard-cut authority map:
   state; disjoint Persona/Hands work remains concurrent; source guards find no
   production aggregate reference; restart preserves obligations without
   authority resurrection.
+
+Exact `59292e2f` introduces the first replacement work identity without wiring
+it around the obsolete prompt path. Current Body observation generation owns
+baseline Modeling work; the exact RepoModel basis is reasoning cargo and does
+not mint a second obligation merely because Modeling changed the graph. A
+terminal decision receipt can fulfill that Body work after the graph changes.
+The next attempted integration was deliberately discarded: a reasoning basis
+must not cite keyed Mind versions while the final model request still renders
+the aggregate `EpiphanyRoleWorkerLaunchDocument`. The sealed typed role
+projection and its prompt rendering therefore precede decision-receipt
+admission and routing migration.
