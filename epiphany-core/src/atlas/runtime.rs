@@ -7,7 +7,10 @@ use cultcache_rs::{
     CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
     SingleFileMessagePackBackingStore,
 };
-use cultnet_rs::{ServiceIdentityProfile, ServiceIdentityTrustAnchor, enroll_service_identity_at};
+use cultnet_rs::{
+    ServiceIdentityProfile, ServiceIdentitySigner, ServiceIdentityTrustAnchor,
+    enroll_service_identity_at, export_service_identity_trust_anchor, open_service_identity_at,
+};
 
 use super::*;
 
@@ -39,6 +42,7 @@ pub struct AtlasPublisherRunConfig {
     pub publisher_store: PathBuf,
     pub publisher_cultmesh_store: PathBuf,
     pub identity_store: PathBuf,
+    pub trust_anchor_store: PathBuf,
     pub odin_endpoint: SocketAddr,
     pub now_unix_ms: u64,
 }
@@ -248,6 +252,7 @@ pub fn run_atlas_publisher_once(
         &config.publisher_store,
         &config.publisher_cultmesh_store,
         &config.identity_store,
+        &config.trust_anchor_store,
     ])?;
     if let Some(brake_id) = atlas_brake_id(
         &config.local_verse_store,
@@ -263,8 +268,8 @@ pub fn run_atlas_publisher_once(
     {
         bail!("Atlas publisher repository/runtime differs from its current Body basis")
     }
-    let signer =
-        enroll_service_identity_at::<AtlasRepositorySigningIdentity>(&config.identity_store)?;
+    let signer = open_or_enroll_atlas_repository_identity(&config.identity_store)?;
+    export_service_identity_trust_anchor(&signer, &config.trust_anchor_store)?;
     let store = AtlasCultCacheStore::new(&config.publisher_store, config.repository.clone())?;
     ensure_local_publisher_trust(&store, &signer, config.now_unix_ms)?;
     let heartbeat_sequence = next_heartbeat_sequence(&store)?;
@@ -317,6 +322,16 @@ pub fn run_atlas_publisher_once(
         new_publications,
         transported_publications: publications.len(),
     })
+}
+
+fn open_or_enroll_atlas_repository_identity(
+    identity_store: &Path,
+) -> Result<ServiceIdentitySigner<AtlasRepositorySigningIdentity>> {
+    if identity_store.exists() {
+        open_service_identity_at::<AtlasRepositorySigningIdentity>(identity_store)
+    } else {
+        enroll_service_identity_at::<AtlasRepositorySigningIdentity>(identity_store)
+    }
 }
 
 pub fn run_atlas_projector_once(
@@ -1404,6 +1419,26 @@ mod tests {
         let changed_body = crate::observe_runtime_repository_body_basis(&store)?;
         let stale_source = RuntimeAtlasMindSnapshotSource::new(&store, local, changed_body)?;
         assert!(stale_source.load_local_atlas_mind_snapshot().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn publisher_identity_reopens_and_exports_one_stable_public_anchor() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let identity_store = temp.path().join("publisher-identity.cc");
+        let trust_anchor_store = temp.path().join("publisher-trust-anchor.cc");
+
+        let enrolled = open_or_enroll_atlas_repository_identity(&identity_store)?;
+        let first_anchor = export_service_identity_trust_anchor(&enrolled, &trust_anchor_store)?;
+        let reopened = open_or_enroll_atlas_repository_identity(&identity_store)?;
+        let replayed_anchor = export_service_identity_trust_anchor(&reopened, &trust_anchor_store)?;
+
+        assert_eq!(enrolled.entry(), reopened.entry());
+        assert_eq!(first_anchor, replayed_anchor);
+        assert_eq!(
+            read_atlas_repository_trust_anchor(&trust_anchor_store)?,
+            first_anchor
+        );
         Ok(())
     }
 }

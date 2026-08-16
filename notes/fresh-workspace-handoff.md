@@ -47,6 +47,15 @@ publishers/projector establish signed sight; then engage all three Atlas brakes
 and prove later organ cycles are held while the last Eve projection remains
 visibly stale/read-only and no lane wakes.
 
+Gate 1 preflight exposed and cut one publisher lifecycle defect before live
+evidence was admitted. The publisher now enrolls its private signing identity
+only when absent, reopens that exact identity on later heartbeats, and exports
+one idempotent public trust anchor to a separate operator-readable store. This
+keeps identity rotation impossible by retry and gives the projector a real
+public anchor to pin without reading private state. The focused identity
+reopen/export test passes; the operational gate remains in progress and is not
+yet accepted.
+
 Public positioning was synchronized on 2026-08-16 without changing that next
 rite. `docs/positioning.md` is the current claim owner: Epiphany is the
 organizational layer above frontier AI workers; the primary failure is global

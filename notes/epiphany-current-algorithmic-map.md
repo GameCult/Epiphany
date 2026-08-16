@@ -4753,3 +4753,12 @@ presentation-only; domain mutation routes back to the owning repository's
 Modeling interface. Brake scopes `atlas.publish`, `atlas.project`, and
 `atlas.impact_ingress` freeze writes and scheduling while preserving the last
 projection as visibly stale read-only state.
+
+The repository publisher also owns the lifecycle of its signing identity.
+Its private identity store is enrolled only when absent and reopened exactly on
+later cycles; retries cannot rotate or replace it. Every unbraked cycle exports
+the same public trust anchor idempotently to a physically separate store for
+operator-gated projector pinning. The projector never reads the private store,
+and an existing divergent public anchor refuses instead of being repaired.
+This cut is required for both the second publisher heartbeat and real trust
+enrollment; one-shot identity creation is not a viable daemon lifecycle.

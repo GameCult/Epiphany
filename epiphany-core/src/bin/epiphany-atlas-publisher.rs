@@ -29,6 +29,7 @@ fn main() -> Result<()> {
             publisher_store: path(&args, "--publisher-store")?,
             publisher_cultmesh_store: path(&args, "--cultmesh-store")?,
             identity_store: path(&args, "--identity-store")?,
+            trust_anchor_store: path(&args, "--trust-anchor-store")?,
             odin_endpoint: required(&args, "--odin-endpoint")?.parse()?,
             now_unix_ms: now_unix_ms()?,
         };
