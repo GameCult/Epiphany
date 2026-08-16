@@ -56,6 +56,16 @@ public anchor to pin without reading private state. The focused identity
 reopen/export test passes; the operational gate remains in progress and is not
 yet accepted.
 
+The first fresh Eve bootstrap then falsified a second missing owner: repository
+Body bootstrap called the legacy agent-memory admission gate against an empty
+store, which correctly refused because no canonical organ rows existed. Fresh
+bootstrap now initializes the immutable swarm identity and all seven typed
+organ-memory rows before admitting generation one through the shared witness
+primitive. Legacy admission remains migration-only. The nine focused
+agent-memory tests pass, including exact fresh replay. The refused partial Eve
+root is retained in the Gate 1 artifact directory; the operational retry must
+use a new state root.
+
 Public positioning was synchronized on 2026-08-16 without changing that next
 rite. `docs/positioning.md` is the current claim owner: Epiphany is the
 organizational layer above frontier AI workers; the primary failure is global

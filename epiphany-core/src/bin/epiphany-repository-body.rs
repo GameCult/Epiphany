@@ -1,12 +1,13 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
-    admit_legacy_agent_memory_generation, bind_repository_body, bind_runtime_to_agent_memory_swarm,
-    bind_runtime_workspace_coverage_store, ensure_agent_memory_swarm_identity,
+    EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode,
+    EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, EpiphanyRepoModelSeed,
+    EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
+    bind_runtime_to_agent_memory_swarm, bind_runtime_workspace_coverage_store,
+    ensure_agent_memory_swarm_identity, initialize_fresh_agent_memory_store,
     initialize_keyed_repo_model, initialize_runtime_spine, load_repository_body_status,
-    observe_repository_body, EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryLifecycle,
-    EpiphanyMemoryNode, EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, EpiphanyRepoModelSeed,
-    EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions,
+    observe_repository_body,
 };
 use std::path::PathBuf;
 
@@ -35,8 +36,7 @@ fn main() -> Result<()> {
                     created_at: at.clone(),
                 },
             )?;
-            ensure_agent_memory_swarm_identity(&agent_store, swarm_id)?;
-            admit_legacy_agent_memory_generation(&agent_store)?;
+            initialize_fresh_agent_memory_store(&agent_store, swarm_id)?;
             bind_runtime_to_agent_memory_swarm(&runtime_store, &agent_store, &at)?;
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
             bind_runtime_workspace_coverage_store(&runtime_store, &workspace_coverage_store, &at)?;

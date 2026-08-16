@@ -167,6 +167,7 @@ pub use agent_memory::apply_agent_memory_lifecycle_operation;
 pub use agent_memory::apply_agent_self_patch;
 pub use agent_memory::apply_agent_self_patch_document;
 pub use agent_memory::ensure_agent_memory_swarm_identity;
+pub use agent_memory::initialize_fresh_agent_memory_store;
 pub use agent_memory::load_agent_memory_entry_for_role;
 pub use agent_memory::load_agent_memory_generation_witness;
 pub use agent_memory::load_agent_memory_swarm_identity;

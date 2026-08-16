@@ -172,6 +172,133 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
     ("coordinator", "epiphany.self", "self.agent-state.json"),
 ];
 
+pub fn initialize_fresh_agent_memory_store(
+    store_path: impl AsRef<Path>,
+    swarm_id: &str,
+) -> Result<AgentMemoryGenerationWitness> {
+    let store_path = store_path.as_ref();
+    let swarm_id = swarm_id.trim();
+    if swarm_id.is_empty() {
+        return Err(anyhow!("fresh agent memory requires a non-empty swarm id"));
+    }
+    let identity = AgentMemorySwarmIdentity {
+        schema_version: AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION.to_string(),
+        swarm_id: swarm_id.to_string(),
+    };
+    let entries = ROLE_TARGETS
+        .iter()
+        .map(|(role_id, agent_id, _)| fresh_agent_memory_entry(role_id, agent_id))
+        .collect::<Vec<_>>();
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let opening = cache.snapshot_envelopes();
+    if opening.is_empty() {
+        let mut batch = vec![
+            cache
+                .prepare_entry(AGENT_MEMORY_SWARM_IDENTITY_KEY, &identity)?
+                .0,
+        ];
+        for entry in &entries {
+            batch.push(cache.prepare_entry(&entry.role_id, entry)?.0);
+        }
+        if !SingleFileMessagePackBackingStore::new(store_path).compare_and_swap_batch(&[], batch)? {
+            return Err(anyhow!(
+                "fresh agent memory initialization lost exact atomic compare-and-swap"
+            ));
+        }
+    } else {
+        if cache.get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)? != Some(identity)
+        {
+            return Err(anyhow!(
+                "fresh agent memory initialization collided with another swarm identity"
+            ));
+        }
+        for entry in &entries {
+            if cache.get::<EpiphanyAgentMemoryEntry>(&entry.role_id)? != Some(entry.clone()) {
+                return Err(anyhow!(
+                    "fresh agent memory initialization collided with role {:?}",
+                    entry.role_id
+                ));
+            }
+        }
+    }
+    admit_initial_agent_memory_generation(
+        store_path,
+        "fresh-bootstrap-admission",
+        "Admit freshly initialized canonical organ memory rows.",
+        ROLE_TARGETS
+            .iter()
+            .map(|(role_id, _, _)| (*role_id).to_string())
+            .collect(),
+    )
+}
+
+fn fresh_agent_memory_entry(role_id: &str, agent_id: &str) -> EpiphanyAgentMemoryEntry {
+    let display_name = match role_id {
+        "Persona" => "Persona".to_string(),
+        "coordinator" => "Self".to_string(),
+        "verification" => "Soul".to_string(),
+        "implementation" => "Hands".to_string(),
+        "research" => "Eyes".to_string(),
+        other => {
+            let mut chars = other.chars();
+            chars
+                .next()
+                .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                .unwrap_or_default()
+        }
+    };
+    let mut canonical_state = GhostlightCanonicalState::default();
+    if role_id == "Persona" {
+        let baseline = BTreeMap::from([(
+            "baseline".to_string(),
+            GhostlightTraitVector {
+                mean: 0.5,
+                plasticity: 0.5,
+                current_activation: 0.5,
+            },
+        )]);
+        canonical_state.underlying_organization = baseline.clone();
+        canonical_state.stable_dispositions = baseline.clone();
+        canonical_state.behavioral_dimensions = baseline.clone();
+        canonical_state.presentation_strategy = baseline.clone();
+        canonical_state.voice_style = baseline.clone();
+        canonical_state.situational_state = baseline;
+    }
+    EpiphanyAgentMemoryEntry {
+        schema_version: AGENT_MEMORY_SCHEMA_VERSION.to_string(),
+        role_id: role_id.to_string(),
+        world: GhostlightWorld {
+            world_id: "epiphany-agent-memory".to_string(),
+            setting: "Fresh local Epiphany organ memory".to_string(),
+            time: GhostlightTime {
+                label: "initial generation".to_string(),
+            },
+            canon_context: vec![
+                "Typed organ memory begins empty and grows only through admitted decisions."
+                    .to_string(),
+            ],
+        },
+        agent: GhostlightAgent {
+            agent_id: agent_id.to_string(),
+            identity: GhostlightIdentity {
+                name: display_name,
+                roles: vec![role_id.to_string()],
+                origin: "Fresh local Epiphany organ".to_string(),
+                public_description: format!("Epiphany {role_id} organ memory."),
+                private_notes: Vec::new(),
+            },
+            canonical_state,
+            goals: Vec::new(),
+            memories: GhostlightMemories::default(),
+            perceived_state_overlays: Vec::new(),
+        },
+        relationships: Vec::new(),
+        events: Vec::new(),
+        scenes: Vec::new(),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.agent_memory", schema = "EpiphanyAgentMemoryEntry")]
 pub struct EpiphanyAgentMemoryEntry {
@@ -1146,12 +1273,25 @@ fn commit_agent_memory_generation(
 pub fn admit_legacy_agent_memory_generation(
     store_path: impl AsRef<Path>,
 ) -> Result<AgentMemoryGenerationWitness> {
-    let store_path = store_path.as_ref();
+    admit_initial_agent_memory_generation(
+        store_path.as_ref(),
+        "legacy-bootstrap-admission",
+        "Admit existing canonical Mind rows without changing their content.",
+        Vec::new(),
+    )
+}
+
+fn admit_initial_agent_memory_generation(
+    store_path: &Path,
+    mutation_kind: &str,
+    reason: &str,
+    changed_role_ids: Vec<String>,
+) -> Result<AgentMemoryGenerationWitness> {
     let mut cache = agent_memory_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let identity = cache
         .get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("legacy Mind admission requires immutable swarm identity"))?;
+        .ok_or_else(|| anyhow!("initial Mind admission requires immutable swarm identity"))?;
     let source_hash = canonical_agent_memory_source_hash(&mut cache, &identity, &BTreeMap::new())?;
     if let Some(existing) =
         cache.get::<AgentMemoryGenerationWitness>(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)?
@@ -1161,10 +1301,10 @@ pub fn admit_legacy_agent_memory_generation(
             || existing.generation != 1
             || existing.previous_generation != 0
             || existing.source_hash != source_hash
-            || existing.mutation_kind != "legacy-bootstrap-admission"
+            || existing.mutation_kind != mutation_kind
         {
             return Err(anyhow!(
-                "legacy Mind admission collides with live generation"
+                "initial Mind admission collides with live generation"
             ));
         }
         let obligations = cache
@@ -1174,7 +1314,7 @@ pub fn admit_legacy_agent_memory_generation(
             .collect::<Vec<_>>();
         if obligations.len() != 1 {
             return Err(anyhow!(
-                "legacy Mind admission lost its exact semantic projection obligation"
+                "initial Mind admission lost its exact semantic projection obligation"
             ));
         }
         return Ok(existing);
@@ -1184,21 +1324,18 @@ pub fn admit_legacy_agent_memory_generation(
     for (role_id, expected_agent_id, _) in ROLE_TARGETS {
         let entry = cache
             .get::<EpiphanyAgentMemoryEntry>(role_id)?
-            .ok_or_else(|| anyhow!("legacy Mind admission requires role {role_id:?}"))?;
+            .ok_or_else(|| anyhow!("initial Mind admission requires role {role_id:?}"))?;
         let errors = validate_agent_entry(&entry, expected_agent_id);
         if !errors.is_empty() {
             return Err(anyhow!(
-                "legacy Mind role {role_id:?} is invalid: {}",
+                "initial Mind role {role_id:?} is invalid: {}",
                 errors.join("; ")
             ));
         }
         entries.push(entry);
     }
     let committed_at = now_rfc3339();
-    let fingerprint = format!(
-        "{}|legacy-bootstrap-admission|{}",
-        identity.swarm_id, source_hash
-    );
+    let fingerprint = format!("{}|{}|{}", identity.swarm_id, mutation_kind, source_hash);
     let witness_id = format!(
         "mind-generation-{}",
         uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, fingerprint.as_bytes())
@@ -1207,7 +1344,7 @@ pub fn admit_legacy_agent_memory_generation(
         "mind-admission-{}",
         uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_OID,
-            format!("{fingerprint}|admit existing canonical Mind rows").as_bytes()
+            format!("{fingerprint}|{reason}").as_bytes()
         )
     );
     let receipt = AgentMemoryMindAdmissionReceipt {
@@ -1215,8 +1352,8 @@ pub fn admit_legacy_agent_memory_generation(
         receipt_id: receipt_id.clone(),
         swarm_id: identity.swarm_id.clone(),
         role_id: "mind".to_string(),
-        mutation_kind: "legacy-bootstrap-admission".to_string(),
-        reason: "Admit existing canonical Mind rows without changing their content.".to_string(),
+        mutation_kind: mutation_kind.to_string(),
+        reason: reason.to_string(),
         status: "admitted".to_string(),
         resulting_source_hash: source_hash.clone(),
     };
@@ -1229,8 +1366,8 @@ pub fn admit_legacy_agent_memory_generation(
         previous_source_hash: source_hash.clone(),
         source_hash: source_hash.clone(),
         authority_receipt_id: receipt_id.clone(),
-        mutation_kind: "legacy-bootstrap-admission".to_string(),
-        changed_role_ids: Vec::new(),
+        mutation_kind: mutation_kind.to_string(),
+        changed_role_ids,
         committed_at: committed_at.clone(),
     };
     let mut snapshot =
@@ -1261,7 +1398,7 @@ pub fn admit_legacy_agent_memory_generation(
     }
     if expected.len() != ROLE_TARGETS.len() + 1 {
         return Err(anyhow!(
-            "legacy Mind admission could not authenticate every canonical source envelope"
+            "initial Mind admission could not authenticate every canonical source envelope"
         ));
     }
     replacements.push(
@@ -1279,7 +1416,7 @@ pub fn admit_legacy_agent_memory_generation(
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     if !backing.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
-            "legacy Mind admission lost exact atomic compare-and-swap"
+            "initial Mind admission lost exact atomic compare-and-swap"
         ));
     }
     Ok(witness)
@@ -3177,6 +3314,33 @@ fn upsert_values(records: &mut Vec<GhostlightValue>, incoming: Vec<SelfPatchValu
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn fresh_agent_memory_initializes_all_organs_and_replays_exactly() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("fresh-agent-memory.cc");
+        let witness = initialize_fresh_agent_memory_store(&store, "fresh-swarm")?;
+
+        assert_eq!(witness.generation, 1);
+        assert_eq!(witness.previous_generation, 0);
+        assert_eq!(witness.mutation_kind, "fresh-bootstrap-admission");
+        assert_eq!(witness.changed_role_ids.len(), ROLE_TARGETS.len());
+        assert_eq!(
+            initialize_fresh_agent_memory_store(&store, "fresh-swarm")?,
+            witness
+        );
+
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        for (role_id, agent_id, _) in ROLE_TARGETS {
+            let entry = cache
+                .get::<EpiphanyAgentMemoryEntry>(role_id)?
+                .expect("fresh role entry");
+            assert_eq!(entry.agent.agent_id, *agent_id);
+            assert!(validate_agent_entry(&entry, agent_id).is_empty());
+        }
+        Ok(())
+    }
 
     #[test]
     fn legacy_mind_admission_preserves_rows_and_adds_exact_generation_pressure() -> Result<()> {

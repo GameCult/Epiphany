@@ -4762,3 +4762,13 @@ operator-gated projector pinning. The projector never reads the private store,
 and an existing divergent public anchor refuses instead of being repaired.
 This cut is required for both the second publisher heartbeat and real trust
 enrollment; one-shot identity creation is not a viable daemon lifecycle.
+
+Fresh repository bootstrap owns a distinct agent-memory initialization path.
+It atomically creates the immutable swarm identity and the seven typed organ
+memory rows, then admits generation one through the shared generation witness,
+receipt, and semantic-projection obligation primitive. Legacy admission only
+authenticates pre-existing migrated rows and is never asked to invent a fresh
+Mind. Exact fresh replay is inert; a different swarm or any divergent organ row
+refuses. Repository Body bootstrap consumes this fresh owner before binding the
+runtime, so a new project organism does not copy another repository's Persona
+or depend on a JSON seed directory.
