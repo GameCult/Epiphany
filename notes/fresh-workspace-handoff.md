@@ -4,13 +4,21 @@ Updated: 2026-08-16
 
 ## Current state
 
-The five-day shakedown remains paused. The active source is exact `d11e6511` on
+The five-day shakedown remains paused. The active source is exact `2ba6b9dc` on
 `codex/epiphany-shakedown-live`: the keyed Mind hard cut, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
 only. No production model output, registry, command, admission path, projector,
 or repair path can restore their authority.
+
+This is not yet the full Concurrent Mind cut. Persisted
+`EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
+launch/acceptance/status readers remain live production authorities. Fresh Gate
+preflight proved the consequence: both keyed semantic partitions reached ready,
+but status still called the organism missing because no thread aggregate
+existed. Model Atlas Gate 1 is therefore paused behind that deletion, not merely
+behind another operational retry.
 
 The Atlas keeps the federation sharp. A provider Mind owns an offer. A consumer
 Mind owns a claim. Soul owns verification evidence for exact endpoint versions.
@@ -76,6 +84,21 @@ documents, and the Mind commit receipt. It is not a Mind document and cannot be
 repaired by status or a projector. Replay validates the existing companion;
 the focused seed/replay test passes. The three partial stores without this
 companion remain read-only evidence. Resume Gate 1 only from a fresh state root.
+
+Exact `2ba6b9dc` closes the next preflight defect. The semantic projector body
+owned two canonical stores but enumerated only agent-memory Mind; it now loads
+and validates both Mind and Modeling inputs on every pulse while allowing one
+faulty source to remain visible without hiding the other. CultMesh semantic
+health also distinguishes terminal-ready from query-eligible, so a successful
+empty partition no longer degrades the provider. On the fresh root, Eve, Odin,
+and Epiphany each executed Modeling once, then settled idle with two inspected
+sources and zero source, retention, or health faults.
+
+The following production status read falsified the remaining campaign premise:
+`EpiphanyThreadStateEntry` still owns coordinator presence/routing. Canonical
+docs previously described the keyed foundation too broadly. The hard cut is
+now the immediate campaign; Gate 1 cannot resume until production source has no
+thread aggregate writer or behavioral reader.
 
 Public positioning was synchronized on 2026-08-16 without changing that next
 rite. `docs/positioning.md` is the current claim owner: Epiphany is the
@@ -278,13 +301,11 @@ unchanged; the lifecycle authorities above remain separate.
 
 ## Immediate next action
 
-Execute Model Atlas Gate 1 on Starfire. Use separate state roots and service
-identities for `F:\Projects\Epiphany`, `F:\Projects\Odin`, and
-`F:\Projects\Eve`, plus separate local Mind, private identity, publisher, Odin
-catalog, projector, and ingress stores. Keep ingress absent while ordinary
-Modeling admits the seed facts and the publishers/projector establish signed
-sight. Then engage `atlas.publish`, `atlas.project`, and
-`atlas.impact_ingress`; rerun all three cycles and record the held outcomes,
-exact publication IDs, watermarks, projection digest, retained Eve documents,
-and read-only brake behavior. Do not release scheduling, register operational
+Complete the persisted thread-state hard deletion described in the campaign
+plan. Start with one typed current-work projection over keyed Mind and exact
+runtime receipts, migrate status and coordinator routing to it, then migrate
+family acceptance and delete the aggregate schema/transaction. Run the source
+guards and fresh-store concurrency/decision-context suite. Only after that may
+Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
+partial roots read-only; do not release scheduling, register operational
 topology, touch the original c011 volumes, or build on Yggdrasil.

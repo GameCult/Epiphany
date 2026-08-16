@@ -4788,3 +4788,41 @@ into the seed owner's batch CAS. It is derived from the exact keyed envelopes,
 remains outside canonical Mind, and cannot be synthesized later by status or a
 projector. Historical partial Gate roots remain read-only evidence; the live
 retry must use a fresh root.
+
+Exact `2ba6b9dc` makes the semantic projector enumerate both stores it owns.
+Mind and Modeling inputs are loaded independently each pulse, exact shared
+swarm identity is validated when both exist, and one surviving source remains
+actionable when the other refuses. CultMesh health no longer conflates a
+terminal-ready empty projection with query eligibility. Fresh Eve, Odin, and
+Epiphany stores each projected Modeling once and then inspected both partitions
+idle with zero source, retention, or health faults.
+
+That success exposed the remaining hard-cut boundary rather than clearing the
+operational gate. `epiphany-mvp-status`, coordinator launch/acceptance, Resident
+Self continuation, and several request selectors still read persisted
+`EpiphanyThreadStateEntry`; the coordinator transaction still writes it.
+Consequently a fully initialized keyed Mind is reported as missing without the
+legacy aggregate. This is live obsolete authority, not compatibility evidence.
+
+Remaining hard-cut authority map:
+
+- Owner: keyed Mind documents plus exact runtime request/result/receipt families
+  own durable decisions and unresolved work.
+- Inputs: sealed Mind views, current Body/RepoModel document versions, and exact
+  family lifecycle receipts; thread ID is pass provenance only.
+- Outputs: one pure typed current-work projection, family launch requests, and
+  family-owned Mind mutations/receipts.
+- Derived state: coordinator status, role boards, events, latest-result slots,
+  and UI views are projections only.
+- Forbidden writers: `EpiphanyThreadStateEntry`, global revision checks,
+  `coordinator_state_transaction`, aggregate state patches, accepted-at ordering,
+  and generic lane terminality must cease deciding behavior.
+- Shared paths: operator and resident launches use the same current-work
+  derivation and family commit primitive; restart re-derives identical work.
+- Cut line: migrate routing, launch/review, and acceptance consumers; then delete
+  the aggregate schema, writer, readers, and old-writable-store path. No mirror,
+  dual read, bootstrap aggregate, or migrator survives.
+- Verification: fresh objective+Body launches Modeling without Eyes or thread
+  state; disjoint Persona/Hands work remains concurrent; source guards find no
+  production aggregate reference; restart preserves obligations without
+  authority resurrection.

@@ -14,9 +14,11 @@ earned OpenAI-compatible authentication or model-transport capability.
 ## Current Mechanism
 
 - `epiphany-state-model` owns durable Mind shape.
-- `epiphany-core` owns coordinator policy, state admission, runtime spine,
-  surfaces, organ gates, heartbeat physiology, Persona loop, and CultMesh
-  integration.
+- `epiphany-core` owns keyed Mind admission, runtime spine, organ gates,
+  heartbeat physiology, Persona, and CultMesh integration. Its coordinator and
+  status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
+  that aggregate is an obsolete live authority and currently blocks fresh keyed
+  stores from coordinating.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -38,7 +40,8 @@ earned OpenAI-compatible authentication or model-transport capability.
 
 ## Completed Foundation
 
-- Native typed thread state and state-update validation.
+- Typed reasoning bases, terminal decision contexts, exact Mind batch CAS, and
+  keyed objective/RepoModel documents.
 - Native coordinator facade and derived status/recommendation surfaces.
 - CultCache runtime spine with worker, Mind, Eyes, Substrate Gate, Hands, Soul,
   Continuity, and coordinator receipts.
@@ -204,24 +207,30 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Keep the five-day shakedown paused and execute Model Atlas Gate 1 on Starfire.
-Use separate Epiphany, Odin, and Eve repository identities and fresh local
-Mind, private identity, publisher, catalog, projector, ingress, and resident
-stores. Keep impact ingress absent while ordinary Modeling admits the three
-local seed facts and the publishers plus projector establish signed
-publications, exact watermarks, rejection telemetry, and the canonical retained
-Eve tree. Ordering is part of the invariant: a brake cannot forbid the first
-publication and also prove that signed sight exists.
+Keep the five-day shakedown and Model Atlas operational Gate 1 paused. Complete
+the remaining Decision-Auditable Concurrent Mind hard cut before another live
+coordinator run. Fresh Gate preflight proved that keyed Mind and both semantic
+partitions become ready, then falsified coordinator ownership: status still
+declares the organism missing because it reads persisted
+`EpiphanyThreadStateEntry` as the presence and routing head.
 
-After sight is established, engage `atlas.publish`, `atlas.project`, and
-`atlas.impact_ingress`. Run one more publisher and projector cycle plus the
-first ingress cycle. Prove that all three owners report held work, no local
-Modeling or Soul pressure is scheduled, no Atlas state advances, and the last
-Eve projection remains available as visibly stale, read-only state.
+Cut in this order:
 
-Do not release autonomous scheduling, register topology in `gamecult-ops`,
-touch Yggdrasil, reuse the historical c011 volumes, or treat isolated tests as
-the operational proof. If Gate 1 passes, Gate 2 may release only the Atlas
-Modeling/Soul wake scopes for a temporary Eve contract change while preserving
-the existing Hands gate. Daemon supervision, sustained physiology, and
-operational registration remain later gates.
+1. Add one pure typed current-work projection over keyed Mind/runtime receipts.
+   Modeling must derive from the current Body/RepoModel obligation; Eyes only
+   from explicit external-evidence obligations.
+2. Move status and coordinator launch/review consumers to that projection and
+   exact request/result identities. Thread ID remains immutable pass provenance
+   only.
+3. Move role/reorient acceptance from aggregate state patches to family-owned
+   `MindMutation` plans and exact commit receipts.
+4. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+   expected revisions, aggregate update APIs, and all source references from
+   production. Refuse old writable stores; add no dual reader or migrator.
+5. Replay fresh-store concurrency and decision-context acceptance. Only then
+   restart Model Atlas Gate 1 from a new external root.
+
+Do not preserve the aggregate for compatibility, manufacture a bootstrap
+thread, release autonomous scheduling, register topology in `gamecult-ops`,
+touch Yggdrasil, reuse historical/partial Gate roots, or treat semantic
+readiness as coordinator acceptance.
