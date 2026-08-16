@@ -949,6 +949,7 @@ pub use persona_turn::PersonaTranscriptMessage;
 pub use persona_turn::PersonaTurnInput;
 pub use persona_turn::build_persona_interpreter_prompt;
 pub use persona_turn::build_persona_projector_prompt;
+pub use persona_turn::build_persona_projector_prompt_with_transcript;
 pub use persona_turn::build_persona_turn_prompt;
 pub use persona_turn::parse_and_validate_persona_interpreter_effect_set;
 pub use persona_turn::persona_interpreter_effect_set_json_schema;

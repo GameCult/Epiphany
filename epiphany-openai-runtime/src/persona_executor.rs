@@ -9,9 +9,10 @@ use epiphany_core::{
     PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION, PersonaInterpreterEffectDocument,
     PersonaInterpreterInput, PersonaModelStageReceipt, PersonaModelTerminalReceipt,
     PersonaProjectorInput, PersonaTranscriptMessage, PersonaTurnInput,
-    build_persona_interpreter_prompt, build_persona_projector_prompt, build_persona_turn_prompt,
-    parse_and_validate_persona_interpreter_effect_set, persona_interpreter_effect_set_json_schema,
-    persona_projected_surface_is_clean, runtime_spine_cache,
+    build_persona_interpreter_prompt, build_persona_projector_prompt_with_transcript,
+    build_persona_turn_prompt, parse_and_validate_persona_interpreter_effect_set,
+    persona_interpreter_effect_set_json_schema, persona_projected_surface_is_clean,
+    runtime_spine_cache,
 };
 use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use sha2::{Digest, Sha256};
@@ -117,7 +118,8 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
     }
 
     require_persona_execution_unbraked(plan)?;
-    let projector_prompt = build_persona_projector_prompt(&plan.projector_input);
+    let projector_prompt =
+        build_persona_projector_prompt_with_transcript(&plan.projector_input, &plan.transcript);
     let projector = run_stage(
         store_path,
         plan,
@@ -138,11 +140,6 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
     let persona_input = PersonaTurnInput {
         identity: plan.projector_input.identity.clone(),
         projected_state: projector.output.clone(),
-        semantic_memory_recall: plan.projector_input.semantic_memory_recall.clone(),
-        pending_mentions: plan.projector_input.pending_mentions.clone(),
-        repo_activity: plan.projector_input.repo_activity.clone(),
-        social_affordances: plan.projector_input.social_affordances.clone(),
-        transcript: plan.transcript.clone(),
     };
     let persona_prompt = build_persona_turn_prompt(&persona_input);
     let persona = run_stage(
@@ -159,7 +156,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
 
     let interpreter_input = PersonaInterpreterInput {
         identity: plan.projector_input.identity.clone(),
-        persona_prompt,
+        persona_prompt: projector.output.clone(),
         persona_output: persona.output.clone(),
         semantic_memory_recall: plan.projector_input.semantic_memory_recall.clone(),
         dynamic_semantic_memory_recall: plan.dynamic_semantic_memory_recall.clone(),

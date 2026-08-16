@@ -4,6 +4,13 @@ Updated: 2026-08-16
 
 ## Current state
 
+The Persona projection membrane now consumes Ghostlight's generalized
+`ghostlight-persona-projection` crate pinned to Ghostlight commit `51fc7495`.
+The live executor projects transcript and typed Persona context before Persona
+cognition; Persona receives one lived stream only. Epiphany still owns typed
+effects, receipts, Mind admission, brakes, external consequence gates, and
+terminal commit. Focused core and OpenAI-runtime Persona suites pass.
+
 The five-day shakedown remains paused. The active source is exact `2ba6b9dc` on
 `codex/epiphany-shakedown-live`: the keyed Mind hard cut, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,

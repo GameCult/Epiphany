@@ -257,16 +257,6 @@ pub struct PersonaProjectorInput {
 pub struct PersonaTurnInput {
     pub identity: PersonaIdentity,
     pub projected_state: String,
-    #[serde(default)]
-    pub semantic_memory_recall: String,
-    #[serde(default)]
-    pub pending_mentions: Vec<HeartbeatPendingMention>,
-    #[serde(default)]
-    pub repo_activity: Vec<PersonaRepoActivity>,
-    #[serde(default)]
-    pub social_affordances: Vec<PersonaSocialAffordance>,
-    #[serde(default)]
-    pub transcript: Vec<PersonaTranscriptMessage>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -286,6 +276,13 @@ pub struct PersonaInterpreterInput {
 }
 
 pub fn build_persona_projector_prompt(input: &PersonaProjectorInput) -> String {
+    build_persona_projector_prompt_with_transcript(input, &[])
+}
+
+pub fn build_persona_projector_prompt_with_transcript(
+    input: &PersonaProjectorInput,
+    transcript: &[PersonaTranscriptMessage],
+) -> String {
     let memory = input
         .memory
         .as_ref()
@@ -296,46 +293,9 @@ pub fn build_persona_projector_prompt(input: &PersonaProjectorInput) -> String {
     } else {
         input.organ_dependencies.clone()
     };
-    format!(
-        r#"<!-- prompt:{schema} -->
-You are Imagination acting as the Persona Projector for {name}.
-
-You are not the Persona. You are not Mind. You are the membrane that turns typed role memory, pending social pressure, repo-body activity, relationship affordances, and organ dependencies into lived narrative context.
-
-Hard boundary:
-- Do not choose public speech.
-- Do not decide durable state; Mind is the Interpreter and state guardian after Persona thinks.
-- Do not decide repo access; Substrate Gate grants substrate access before repo facts enter this packet.
-- Do not emit action blocks, JSON, state patches, SAY blocks, drafts, or Discord instructions.
-- Do not summarize the Persona as a job label. Project personhood: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what the repo-body motion feels like from inside this Persona.
-- Project the dependency web. Every sub-agent depends on all the other sub-agents; Persona's scene should feel the pressure of Self, Imagination, Eyes, Modeling, Hands, Soul, and Continuity protocols without pretending Persona owns them.
-- If the state is sparse, say what is sparse without inventing history.
-
-Persona identity:
-{identity}
-
-Typed memory packet:
-{memory}
-
-Semantic memory recall:
-{semantic_recall}
-
-Pending addressed pressure:
-{mentions}
-
-Recent home-repo activity:
-{activity}
-
-Live social affordances:
-{affordances}
-
-Organ dependency contract:
-{dependencies}
-
-Return only narrative context for the Persona to inhabit.
-"#,
+    let typed_context = format!(
+        "prompt schema: {schema}\nPersona identity:\n{identity}\n\nTyped memory packet:\n{memory}\n\nSemantic memory recall:\n{semantic_recall}\n\nPending addressed pressure:\n{mentions}\n\nRecent home-repo activity:\n{activity}\n\nLive social affordances:\n{affordances}\n\nOrgan dependency contract:\n{dependencies}",
         schema = PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION,
-        name = input.identity.display_name,
         identity = render_identity(&input.identity),
         memory = memory,
         semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
@@ -343,64 +303,31 @@ Return only narrative context for the Persona to inhabit.
         activity = render_repo_activity(&input.repo_activity),
         affordances = render_social_affordances(&input.social_affordances),
         dependencies = render_organ_dependencies(&dependencies),
+    );
+    ghostlight_persona_projection::build_projector_prompt(
+        &ghostlight_persona_projection::ProjectorPrompt {
+            identity: &input.identity.display_name,
+            typed_context: &typed_context,
+            visible_stimulus: &render_transcript(transcript),
+            domain_guidance: "Project personhood rather than a job label: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what repo-body motion feels like from inside. The dependency web may be felt but grants no organ authority. Mind alone admits durable state; Substrate Gate alone grants repo access.",
+        },
     )
 }
 
 pub fn build_persona_turn_prompt(input: &PersonaTurnInput) -> String {
-    format!(
-        r#"<!-- prompt:{schema} -->
-You are {name}, the Persona of {repo}.
-
-Think narratively. Speak, hold silence, wonder, disagree, or form a private thought as yourself.
-
-Hard boundary:
-- Do not emit JSON, tool calls, SAY blocks, STATE NOTE blocks, action blocks, or Discord routing syntax.
-- You may describe what you want to say or remember in natural language.
-- Your side effects are not yours to execute. A parent Interpreter will decide whether your natural turn becomes bounded memory, a public speech request, or silence.
-- Read the raw transcript directly. Recent human correction beats stale memory.
-
-Projected inner state from Imagination:
-{projected}
-
-Semantic memory recall:
-{semantic_recall}
-
-Recent home-repo activity, before room pressure:
-{activity}
-
-Pending addressed pressure:
-{mentions}
-
-Live social affordances:
-{affordances}
-
-Raw room transcript, oldest to newest:
-{transcript}
-
-Write one natural Persona turn.
-"#,
-        schema = PERSONA_TURN_PROMPT_SCHEMA_VERSION,
-        name = input.identity.display_name,
-        repo = input.identity.repo_name,
-        projected = input.projected_state.trim(),
-        semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
-        activity = render_repo_activity(&input.repo_activity),
-        mentions = render_pending_mentions(&input.pending_mentions),
-        affordances = render_social_affordances(&input.social_affordances),
-        transcript = render_transcript(&input.transcript),
+    ghostlight_persona_projection::build_persona_prompt(
+        &ghostlight_persona_projection::PersonaPrompt {
+            identity: &input.identity.display_name,
+            lived_stream: input.projected_state.trim(),
+            domain_guidance: "This is Epiphany Persona cognition. Speak, hold silence, wonder, disagree, or form a private thought naturally. A parent Interpreter may propose bounded memory, public speech, or silence; Mind and external gates retain all consequence authority.",
+        },
     )
 }
 
 pub fn build_persona_interpreter_prompt(input: &PersonaInterpreterInput) -> String {
-    format!(
-        r#"<!-- prompt:{schema} -->
-You are the parent Persona Interpreter for {name}.
-
-You are not the Persona. You own the boundary between natural narrative thought and durable side effects.
-
-Hard boundary:
-- The Persona was forbidden from action syntax. Do not punish natural prose for lacking blocks.
-- Decide side effects from the Persona output plus the original prompt evidence.
+    let domain_guidance = format!(
+        r#"prompt schema: {schema}
+The Persona was forbidden from action syntax. Do not punish natural prose for lacking blocks.
 - Public speech must sound like the Persona speaking to people, not a scheduler, status report, provenance label, or maintenance note.
 - If the Persona chooses silence, omit SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
 - Do not claim posting. Emit only the bounded typed effects supported by this v0 contract.
@@ -429,22 +356,8 @@ Initial semantic memory recall from the Persona turn:
 
 Dynamic self-memory recall from the Persona output:
 {dynamic_semantic_recall}
-
-Original Persona prompt:
-```
-{persona_prompt}
-```
-
-Persona output:
-```
-{persona_output}
-```
-
-Return exactly one JSON object matching this schema. Do not wrap it in Markdown:
-{effect_schema}
 "#,
         schema = PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION,
-        name = input.identity.display_name,
         channels = render_allowed_channels(&input.allowed_channel_ids),
         mentions = render_pending_mentions(&input.pending_mentions),
         semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
@@ -456,9 +369,15 @@ Return exactly one JSON object matching this schema. Do not wrap it in Markdown:
                 .then_some(input.semantic_memory_recall.as_str())
                 .unwrap_or(input.dynamic_semantic_memory_recall.as_str())
         ),
-        persona_prompt = input.persona_prompt.trim(),
-        persona_output = input.persona_output.trim(),
-        effect_schema = persona_interpreter_effect_set_json_schema(),
+    );
+    ghostlight_persona_projection::build_interpreter_prompt(
+        &ghostlight_persona_projection::InterpreterPrompt {
+            identity: &input.identity.display_name,
+            lived_stream: input.persona_prompt.trim(),
+            persona_output: input.persona_output.trim(),
+            output_schema: &persona_interpreter_effect_set_json_schema(),
+            domain_guidance: &domain_guidance,
+        },
     )
 }
 
@@ -641,6 +560,9 @@ pub fn semantic_memory_recall_from_heartbeat_action(action: &Value) -> String {
 }
 
 pub fn persona_projected_surface_is_clean(surface: &str) -> bool {
+    if !ghostlight_persona_projection::narrative_stream_is_clean(surface) {
+        return false;
+    }
     let forbidden = [
         "STATE NOTE",
         "SAY:",
@@ -854,33 +776,40 @@ mod tests {
             }],
             ..PersonaProjectorInput::default()
         });
-        assert!(projector.contains("You are Imagination acting as the Persona Projector"));
-        assert!(projector.contains("You are not the Persona"));
-        assert!(projector.contains("Mind is the Interpreter"));
-        assert!(projector.contains("Substrate Gate grants substrate access"));
-        assert!(projector.contains("Every sub-agent depends on all the other sub-agents"));
-        assert!(projector.contains("Continuity protocols"));
-        assert!(projector.contains("Do not choose public speech"));
+        assert!(projector.contains("ghostlight.persona_projection_membrane.v1:projector"));
+        assert!(projector.contains("Mind alone admits durable state"));
+        assert!(projector.contains("Substrate Gate alone grants repo access"));
+        assert!(projector.contains("Organ dependency contract"));
+        assert!(projector.contains("Continuity"));
+        assert!(projector.contains("Do not choose actions"));
+
+        let transcript = vec![PersonaTranscriptMessage {
+            channel_id: "aquarium".to_string(),
+            message_id: "m1".to_string(),
+            author_id: "human".to_string(),
+            author_name: "Metacrat".to_string(),
+            is_agent: false,
+            content: "Epiphany, report the live cut.".to_string(),
+            timestamp: "2026-05-24T00:00:00+00:00".to_string(),
+        }];
+        let projector_with_stimulus = build_persona_projector_prompt_with_transcript(
+            &PersonaProjectorInput {
+                identity: identity(),
+                ..PersonaProjectorInput::default()
+            },
+            &transcript,
+        );
+        assert!(projector_with_stimulus.contains("Epiphany, report the live cut"));
 
         let persona = build_persona_turn_prompt(&PersonaTurnInput {
             identity: identity(),
             projected_state: "Epiphany feels the queue as a direct tug, not a ticket.".to_string(),
-            pending_mentions: vec![pending.clone()],
-            transcript: vec![PersonaTranscriptMessage {
-                channel_id: "aquarium".to_string(),
-                message_id: "m1".to_string(),
-                author_id: "human".to_string(),
-                author_name: "Metacrat".to_string(),
-                is_agent: false,
-                content: "Epiphany, report the live cut.".to_string(),
-                timestamp: "2026-05-24T00:00:00+00:00".to_string(),
-            }],
-            ..PersonaTurnInput::default()
         });
-        assert!(persona.contains("Think narratively"));
-        assert!(persona.contains("Projected inner state from Imagination"));
-        assert!(persona.contains("Do not emit JSON"));
-        assert!(persona.contains("A parent Interpreter will decide"));
+        assert!(persona.contains("ghostlight.persona_projection_membrane.v1:persona"));
+        assert!(persona.contains("complete lived stream"));
+        assert!(persona.contains("do not emit JSON"));
+        assert!(persona.contains("parent Interpreter may propose"));
+        assert!(!persona.contains("Epiphany, report the live cut"));
 
         let interpreter = build_persona_interpreter_prompt(&PersonaInterpreterInput {
             identity: identity(),
@@ -938,11 +867,10 @@ mod tests {
         let persona = build_persona_turn_prompt(&PersonaTurnInput {
             identity: identity(),
             projected_state: "Epiphany feels the pressure of the public room.".to_string(),
-            semantic_memory_recall: recall.clone(),
-            ..PersonaTurnInput::default()
         });
-        assert!(persona.contains("Semantic memory recall"));
-        assert!(persona.contains("Clean typed contracts"));
+        assert!(persona.contains("Epiphany feels the pressure of the public room"));
+        assert!(!persona.contains("Semantic memory recall"));
+        assert!(!persona.contains("Clean typed contracts"));
 
         let interpreter = build_persona_interpreter_prompt(&PersonaInterpreterInput {
             identity: identity(),

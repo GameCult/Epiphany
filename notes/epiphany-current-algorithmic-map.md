@@ -572,6 +572,17 @@ world actions pass through Bifrost identity/governance and Heimdall capability
 proofs. Persona speech audits are typed CultMesh witnesses; public speech does
 not expose private worker or operator state.
 
+The generalized Projector → Persona → Interpreter prompt membrane is owned by
+Ghostlight's `ghostlight-persona-projection` crate and consumed here at an exact
+Git revision. Epiphany supplies its typed memory, repo activity, social
+affordances, transcript, and organ dependencies to the Projector. The Persona
+receives only the resulting lived narrative stream; raw transcript, semantic
+recall, mentions, repo activity, and typed state are no longer parallel Persona
+prompt authorities. The Interpreter receives that lived stream, the natural
+Persona turn, and Epiphany's bounded effect schema. Epiphany remains owner of
+stage receipts, reasoning projections, effect validation, Mind admission,
+swarm-brake enforcement, Bifrost consequences, and atomic terminal commit.
+
 ## Heartbeat And Daemon Physiology
 
 `heartbeat_state.rs`, `epiphany-heartbeat-store`,

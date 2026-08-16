@@ -68,13 +68,11 @@ fn main() {
     let persona_prompt = build_persona_turn_prompt(&PersonaTurnInput {
         identity: identity.clone(),
         projected_state: "The public mouth remains receipt-bound.".to_string(),
-        semantic_memory_recall: recall.clone(),
-        ..Default::default()
     });
     let persona_output = "I can speak, but consequence still needs a receipt.";
     let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
         identity,
-        persona_prompt: persona_prompt.clone(),
+        persona_prompt: "The public mouth remains receipt-bound.".to_string(),
         persona_output: persona_output.to_string(),
         semantic_memory_recall: recall.clone(),
         dynamic_semantic_memory_recall: recall,
@@ -82,7 +80,7 @@ fn main() {
         allowed_channel_ids: vec!["aquarium".to_string()],
     });
     assert_contains(&projector_prompt, "Semantic memory recall");
-    assert_contains(&persona_prompt, "canonical Mind graph documents");
+    assert_not_contains(&persona_prompt, "canonical Mind graph documents");
     assert_contains(&interpreter_prompt, "Dynamic self-memory recall");
 
     println!(
@@ -94,5 +92,12 @@ fn assert_contains(haystack: &str, needle: &str) {
     assert!(
         haystack.contains(needle),
         "expected prompt to contain `{needle}`"
+    );
+}
+
+fn assert_not_contains(haystack: &str, needle: &str) {
+    assert!(
+        !haystack.contains(needle),
+        "expected prompt not to contain `{needle}`"
     );
 }
