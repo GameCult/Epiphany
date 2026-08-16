@@ -204,11 +204,24 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Keep the live shakedown paused and consolidate current-work lifecycle ownership.
-Research now has one typed Launch/Review owner shared by Resident Self,
-coordinator policy, and status. Map Modeling and Verification's exact causal
-currency and give each the same single-owner shape without erasing their
-distinct prerequisites or creating a generic registry. Delete any stale role
-projection that can still suppress, fork, or repair current work. Replay the
-accepted organ circuits, then run the fresh-repository source -> Hands -> Soul
--> Modeling -> Mind -> Self capstone.
+Keep the five-day shakedown paused and execute Model Atlas Gate 1 on Starfire.
+Use separate Epiphany, Odin, and Eve repository identities and fresh local
+Mind, private identity, publisher, catalog, projector, ingress, and resident
+stores. Keep impact ingress absent while ordinary Modeling admits the three
+local seed facts and the publishers plus projector establish signed
+publications, exact watermarks, rejection telemetry, and the canonical retained
+Eve tree. Ordering is part of the invariant: a brake cannot forbid the first
+publication and also prove that signed sight exists.
+
+After sight is established, engage `atlas.publish`, `atlas.project`, and
+`atlas.impact_ingress`. Run one more publisher and projector cycle plus the
+first ingress cycle. Prove that all three owners report held work, no local
+Modeling or Soul pressure is scheduled, no Atlas state advances, and the last
+Eve projection remains available as visibly stale, read-only state.
+
+Do not release autonomous scheduling, register topology in `gamecult-ops`,
+touch Yggdrasil, reuse the historical c011 volumes, or treat isolated tests as
+the operational proof. If Gate 1 passes, Gate 2 may release only the Atlas
+Modeling/Soul wake scopes for a temporary Eve contract change while preserving
+the existing Hands gate. Daemon supervision, sustained physiology, and
+operational registration remain later gates.
