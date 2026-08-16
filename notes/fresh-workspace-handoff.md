@@ -4,12 +4,13 @@ Updated: 2026-08-16
 
 ## Current state
 
-The five-day shakedown remains paused. The active code campaign is now complete
-through exact `f60db0a2` on `codex/epiphany-shakedown-live`: the keyed Mind hard
-cut, federated Model Atlas vertical slice, and ordinary Modeling authoring path
-are landed. Historical aggregate RepoModel stores are evidence only. No
-production model output, registry, command, admission path, or repair path can
-restore their authority.
+The five-day shakedown remains paused. The active source is exact `d11e6511` on
+`codex/epiphany-shakedown-live`: the keyed Mind hard cut, federated Model Atlas
+vertical slice, ordinary Modeling authoring path, durable publisher identity,
+fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
+landed. Historical aggregate RepoModel and partial Gate stores are evidence
+only. No production model output, registry, command, admission path, projector,
+or repair path can restore their authority.
 
 The Atlas keeps the federation sharp. A provider Mind owns an offer. A consumer
 Mind owns a claim. Soul owns verification evidence for exact endpoint versions.
@@ -65,6 +66,16 @@ primitive. Legacy admission remains migration-only. The nine focused
 agent-memory tests pass, including exact fresh replay. The refused partial Eve
 root is retained in the Gate 1 artifact directory; the operational retry must
 use a new state root.
+
+The next fresh three-repository bootstrap falsified a third missing owner. The
+keyed RepoModel seed committed, but bootstrap did not emit the Modeling
+semantic-projection obligation that readiness requires. Exact `d11e6511`
+derives that obligation from the exact keyed seed envelopes and commits it as a
+derived runtime companion in the same batch CAS as seed provenance, keyed Mind
+documents, and the Mind commit receipt. It is not a Mind document and cannot be
+repaired by status or a projector. Replay validates the existing companion;
+the focused seed/replay test passes. The three partial stores without this
+companion remain read-only evidence. Resume Gate 1 only from a fresh state root.
 
 Public positioning was synchronized on 2026-08-16 without changing that next
 rite. `docs/positioning.md` is the current claim owner: Epiphany is the

@@ -4671,9 +4671,17 @@ that addresses the same edge twice.
 `EpiphanyRepoModelSeed` is the only new-store bootstrap input. It contains the
 Body binding and canonical semantic documents, but no aggregate revision/hash.
 `initialize_keyed_repo_model` derives unresolved-claim obligations and commits
-the typed seed provenance, keyed documents, and generic Mind commit receipt in
-one exact-envelope transaction. Exact replay returns the same projected state;
-divergent seed identity or an aggregate RepoModel envelope refuses.
+the typed seed provenance, keyed documents, generic Mind commit receipt, and
+the first Modeling semantic-projection obligation in one exact-envelope
+transaction. The obligation is a derived runtime companion, not a canonical
+Mind document or a second commit authority. One shared pure derivation owns the
+projection source identity for both bootstrap and readiness. Exact replay
+validates the existing companion and returns the same projected state;
+divergent seed identity, an orphaned seed, or an aggregate RepoModel envelope
+refuses. No projector or status loop repairs a partial bootstrap.
+
+Exact `d11e6511` closes this fresh-store seam. The focused seed/replay test
+passes against the shared target and asserts one current Modeling obligation.
 
 Exact `8ad16be0` moved the production `epiphany-repository-body bootstrap`
 command onto this owner. Exact `18d3783a` then deleted the legacy aggregate
@@ -4772,3 +4780,11 @@ Mind. Exact fresh replay is inert; a different swarm or any divergent organ row
 refuses. Repository Body bootstrap consumes this fresh owner before binding the
 runtime, so a new project organism does not copy another repository's Persona
 or depend on a JSON seed directory.
+
+Gate 1 then exposed the analogous RepoModel bootstrap seam: the keyed Mind seed
+committed successfully but produced no Modeling semantic-projection obligation,
+so readiness correctly refused the store. Exact `d11e6511` moves that companion
+into the seed owner's batch CAS. It is derived from the exact keyed envelopes,
+remains outside canonical Mind, and cannot be synthesized later by status or a
+projector. Historical partial Gate roots remain read-only evidence; the live
+retry must use a fresh root.
