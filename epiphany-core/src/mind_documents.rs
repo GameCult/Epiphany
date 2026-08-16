@@ -181,6 +181,7 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<crate::AtlasDependencyClaim>()?;
     cache.register_entry_type::<crate::AtlasDependencyVerification>()?;
     cache.register_entry_type::<crate::AtlasDependencyImpact>()?;
+    crate::register_current_work_types(cache)?;
     Ok(())
 }
 
@@ -218,6 +219,19 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         let value: crate::AtlasDependencyImpact = rmp_serde::from_slice(&envelope.payload)?;
         value.validate()?;
         value.impact_id.to_string()
+    } else if envelope.r#type == crate::EpiphanyBodyModelingDecisionReceipt::TYPE {
+        let value: crate::EpiphanyBodyModelingDecisionReceipt =
+            rmp_serde::from_slice(&envelope.payload)?;
+        let work = crate::EpiphanyBodyModelingWorkProjection::derive(
+            value.runtime_id.clone(),
+            value.body_basis.clone(),
+            crate::EpiphanyRepoModelBasis {
+                projection_digest: value.repo_model_projection_digest.clone(),
+                source_documents: value.repo_model_source_documents.clone(),
+            },
+        )?;
+        value.validate(&work)?;
+        value.work_id
     } else if envelope.r#type == EpiphanyMindIdentity::TYPE {
         let value: EpiphanyMindIdentity = rmp_serde::from_slice(&envelope.payload)?;
         if value.schema_epoch != MIND_SCHEMA_EPOCH || value.runtime_id.trim().is_empty() {
