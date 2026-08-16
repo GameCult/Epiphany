@@ -102,6 +102,22 @@ different parts of the same production system: games, realtime services,
 creator tooling, art pipelines, identity, deployment, community memory, and
 long-lived architecture.
 
+The target operating body is federated: one locally owned Epiphany project
+organism per project Body, normally a repo-owned swarm with a private Mind and
+one or more project-facing Personas. Project organisms exchange typed offers,
+claims, requests, evidence, and receipts; none receives ambient authority to
+inspect or change a sibling project. This creates a swarm-of-swarms proof
+surface instead of one central agent with a studio-sized prompt.
+
+The longer social direction is for project Personas to maintain durable,
+publicly visible relationships with other Personas, contributors, players, and
+visitors. Public surfaces may support observation, conversation, and submitted
+evidence or proposals. They must not expose private Mind or turn popularity,
+repetition, or relationship into admission or execution authority. The current
+alpha does not yet provide the full fleet, visitor experience, or social
+governance rail. Any remembered relationship requires opt-in, visible retention
+limits, inspection, correction, revocation, and exit.
+
 The diligence artifact should therefore be longitudinal rather than a polished
 single demo. It should preserve:
 

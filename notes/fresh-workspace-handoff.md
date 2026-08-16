@@ -52,10 +52,15 @@ rite. `docs/positioning.md` is the current claim owner: Epiphany is the
 organizational layer above frontier AI workers; the primary failure is global
 coherence collapse rather than context-window exhaustion; prompts are bounded
 projections of governed organizational state; humans retain purpose, judgment,
-authority, disagreement, exceptions, and acceptance; and GameCult product work
-is the longitudinal evidence program. Complete Bifrost attribution, sustained
-autonomous production, and external design-partner pilots remain explicitly
-gated supervised-alpha targets.
+authority, disagreement, exceptions, and acceptance; and GameCult is the forge
+and longitudinal evidence program for a target federation of one locally owned
+Epiphany project organism per living project Body. Those organisms collaborate
+through governed typed surfaces while private Mind and consequence authority
+remain local. Durable public Persona relationships and visitor-facing surfaces
+are intended social infrastructure, not deployed capability. The fleet, real
+three-repository Gate 1, complete Bifrost attribution, sustained autonomous
+production, visitor experience, and external design-partner pilots remain
+explicitly gated supervised-alpha targets.
 
 The completed Decision-Auditable Concurrent Mind foundation uses typed,
 content-addressed reasoning bases that preserve exact source envelopes and a

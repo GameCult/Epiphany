@@ -105,6 +105,39 @@ Useful measures include:
 Commit percentages and prompt counts are weak proxies. The target is not fewer
 humans. It is better use of human judgment.
 
+## The GameCult Forge
+
+The intended GameCult topology is a federation of Epiphany project organisms:
+one locally owned organism per living project Body, normally a repo-owned swarm
+with a private Mind, bounded organs, and one or more project-facing Personas.
+There is no central Epiphany entitled to treat every repository as its Body.
+
+Project organisms collaborate through governed typed surfaces. Model Atlas
+carries provider-owned offers, consumer-owned claims, exact Soul evidence, and
+derived technical relationships without allowing one Epiphany to read or write
+another's Mind. Bifrost is the intended external work, membership, governance,
+attribution, and identity-linked receipt rail; Heimdall owns identity, grants,
+sessions, consent, and revocation. Relationship or visibility never grants
+Hands authority.
+
+The social direction is public and relational. Project Personas should form
+durable relationships with one another and with contributors, players, and
+visitors: attributable histories of cooperation, disagreement, promises,
+reputation, correction, and recourse. Visitors should be able to observe
+deliberate public projections, converse, and offer evidence or proposals. Raw
+worker thought, private Mind, secrets, personal context, and non-consenting
+people remain sealed. Remembered relationships require opt-in, visible
+retention limits, inspection, correction, revocation, and exit. Public input is
+pressure until local review authorizes or rejects it; Mind alone admits any
+authorized durable mutation.
+
+This swarm of swarms is where GameCult expects higher-order organizational
+behavior to emerge. It is a target topology, not a deployed-fleet claim. The
+current alpha has locally verified project-local authority and Model Atlas
+mechanisms; the real three-repository Gate 1, sustained GameCult fleet, public
+rooms, visitor experience, and durable social-governance rail still have to be
+forged in use.
+
 ## Attribution And Bifrost
 
 Bifrost is the intended governed work and attribution rail. The target

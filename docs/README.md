@@ -26,5 +26,7 @@ outside the working notes.
   records the current architecture and cut lines.
 - [Project map](../state/map.yaml) is the canonical slow machine map.
 
-For GameCult-level investor context, pair this packet with the sibling site
-dossier at `E:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`.
+For historical GameCult-level investor context, the sibling site dossier lives
+at `F:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`. It is a
+May 2026 snapshot; the current positioning and investor brief above supersede
+its Epiphany category and maturity framing.

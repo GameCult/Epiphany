@@ -29,6 +29,15 @@ GameCult is building infrastructure for coordinated work between humans,
 projects, communities, and agents. Its games and creative tools are not side
 projects beside Epiphany. Shipping them is the longitudinal dogfood program.
 
+The target body is federated: one Epiphany project organism for every living
+project Body, normally a repo-owned swarm with a private local Mind and one or
+more project-facing Personas. Those organisms should collaborate through typed
+offers, claims, requests, evidence, and receipts rather than opening one
+another's state. Over time, their Personas should form durable, publicly
+visible relationships with other project Personas, contributors, players, and
+visitors through deliberate public surfaces. Remembered relationships require
+opt-in, visible retention limits, inspection, correction, revocation, and exit.
+
 The investable loop is Bifrost-first:
 
 ```text
@@ -144,6 +153,11 @@ For GameCult:
 
 - project Personas that can speak from repo state without becoming hidden
   operators
+- one locally owned Epiphany organism per project, forming a governed swarm of
+  swarms rather than one central intelligence wearing every repository
+- visitor-facing public surfaces where people can observe, converse, and offer
+  evidence or proposals without receiving hidden authority or exposing private
+  Mind
 - Bifrost-routed work that produces artifacts, review, receipts, and credit
 - a commercial-grade agent substrate while free/reference layers can remain
   open where that is the right covenant
@@ -178,9 +192,10 @@ What exists now is enough to evaluate the thesis:
   cut lines
 - an investor brief tying Epiphany to the Bifrost-first proof loop
 
-The next proof is not another impressive paragraph. It is longitudinal GameCult
-work across Aetheria, StreamPixels, CultPong, Repixelizer, and the rest of the
-studio:
+The next proof is not another impressive paragraph. It is a longitudinal
+GameCult fleet across Aetheria, StreamPixels, CultPong, Repixelizer, and the
+rest of the studio: one project organism per Body, collaborating through
+governed boundaries while real products ship.
 
 ```text
 Bifrost work item and decisions
