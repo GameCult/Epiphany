@@ -2764,7 +2764,7 @@ fn validate_semantic_projection_health(
     let has_receipt = row.receipt_id.is_some()
         && row.indexed_document_count.is_some()
         && row.vector_dimensions.is_some();
-    if row.query_eligible_display_only != (row.status == "ready")
+    if (row.query_eligible_display_only && row.status != "ready")
         || has_receipt != (row.status == "ready")
     {
         return Err(anyhow!(
@@ -8421,6 +8421,11 @@ mod tests {
         )?;
         assert_eq!(ready.status, "ready");
         assert!(ready.query_eligible_display_only);
+        let mut empty_ready = ready.clone();
+        empty_ready.indexed_document_count = Some(0);
+        empty_ready.vector_dimensions = Some(0);
+        empty_ready.query_eligible_display_only = false;
+        validate_semantic_projection_health(&empty_ready)?;
 
         let repair =
             crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(

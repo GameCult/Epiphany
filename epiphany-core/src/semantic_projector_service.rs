@@ -9,7 +9,7 @@ use crate::memory_graph::{
 };
 use crate::{
     MemorySemanticIndexConfig, MemorySemanticProjectionInput,
-    agent_memory_semantic_projection_input,
+    agent_memory_semantic_projection_input, runtime_modeling_semantic_projection_input,
 };
 use anyhow::{Result, anyhow};
 use chrono::{SecondsFormat, Utc};
@@ -189,7 +189,6 @@ impl SemanticProjectorServiceBody {
         config: MemorySemanticIndexConfig,
     ) -> Result<Self> {
         let singleton = acquire_semantic_projector_singleton(&mind_store, &modeling_store)?;
-        agent_memory_semantic_projection_input(&mind_store)?;
         let session = LocalIdunnSemanticProjectorSession::new(
             mind_store,
             modeling_store,
@@ -210,18 +209,33 @@ impl SemanticProjectorServiceBody {
 
     pub fn pulse(&self, fairness_cursor: Option<&str>) -> SemanticProjectorServicePulse {
         let session = &self.pulser.port;
-        let mut source_fault_count = 0;
-        let mut inputs = Vec::with_capacity(1);
-        match agent_memory_semantic_projection_input(&session.mind_store) {
-            Ok(input) => inputs.push(input),
-            Err(_) => source_fault_count += 1,
-        }
+        let (inputs, source_fault_count) = collect_semantic_projection_inputs(
+            agent_memory_semantic_projection_input(&session.mind_store),
+            runtime_modeling_semantic_projection_input(&session.modeling_store),
+        );
         let outcome = self.pulser.pulse(&inputs, fairness_cursor);
         SemanticProjectorServicePulse {
             outcome,
             inputs,
             source_fault_count,
         }
+    }
+}
+
+fn collect_semantic_projection_inputs(
+    mind: Result<MemorySemanticProjectionInput>,
+    modeling: Result<MemorySemanticProjectionInput>,
+) -> (Vec<MemorySemanticProjectionInput>, u32) {
+    match (mind, modeling) {
+        (Ok(mind), Ok(modeling))
+            if validate_semantic_projector_source_pair(&mind, &modeling).is_ok() =>
+        {
+            (vec![mind, modeling], 0)
+        }
+        (Ok(_), Ok(_)) => (Vec::new(), 2),
+        (Ok(mind), Err(_)) => (vec![mind], 1),
+        (Err(_), Ok(modeling)) => (vec![modeling], 1),
+        (Err(_), Err(_)) => (Vec::new(), 2),
     }
 }
 
@@ -369,6 +383,27 @@ mod tests {
             validate_semantic_projector_source_pair(&input("a", "modeling"), &input("a", "mind"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn pulse_source_collection_keeps_both_partitions_and_does_not_hide_one_survivor() {
+        let (both, faults) =
+            collect_semantic_projection_inputs(Ok(input("a", "mind")), Ok(input("a", "modeling")));
+        assert_eq!(both.len(), 2);
+        assert_eq!(faults, 0);
+
+        let (modeling, faults) = collect_semantic_projection_inputs(
+            Err(anyhow!("Mind source failed")),
+            Ok(input("a", "modeling")),
+        );
+        assert_eq!(modeling.len(), 1);
+        assert_eq!(modeling[0].obligation().partition, "modeling");
+        assert_eq!(faults, 1);
+
+        let (foreign_pair, faults) =
+            collect_semantic_projection_inputs(Ok(input("a", "mind")), Ok(input("b", "modeling")));
+        assert!(foreign_pair.is_empty());
+        assert_eq!(faults, 2);
     }
 
     #[test]
