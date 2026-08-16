@@ -348,7 +348,7 @@ epiphany-release-construction = { path = "../epiphany-release-construction" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 epiphany-state-model = { path = "../epiphany-state-model" }
-ghostlight-persona-projection = { git = "https://github.com/GameCult/Ghostlight.git", rev = "51fc7495f3667fccfe371c62cca3f458a273edc5", package = "ghostlight-persona-projection" }
+ghostlight-persona-projection = { git = "https://github.com/GameCult/Ghostlight.git", rev = "22281891cbf9258db80c15a9fd465e6fa251e7dd", package = "ghostlight-persona-projection" }
 ed25519-dalek = "2"
 fs2 = "0.4"
 ignore = "0.4.23"

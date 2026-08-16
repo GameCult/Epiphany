@@ -2712,7 +2712,7 @@ dependencies = [
 [[package]]
 name = "ghostlight-persona-projection"
 version = "0.1.0"
-source = "git+https://github.com/GameCult/Ghostlight.git?rev=51fc7495f3667fccfe371c62cca3f458a273edc5#51fc7495f3667fccfe371c62cca3f458a273edc5"
+source = "git+https://github.com/GameCult/Ghostlight.git?rev=22281891cbf9258db80c15a9fd465e6fa251e7dd#22281891cbf9258db80c15a9fd465e6fa251e7dd"
 dependencies = [
  "serde",
  "sha2 0.10.9",

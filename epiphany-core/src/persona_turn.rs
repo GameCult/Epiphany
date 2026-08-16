@@ -370,9 +370,15 @@ Dynamic self-memory recall from the Persona output:
                 .unwrap_or(input.dynamic_semantic_memory_recall.as_str())
         ),
     );
+    let typed_context = format!(
+        "Allowed channel ids:\n{}\n\nPending addressed-pressure records:\n{}",
+        render_allowed_channels(&input.allowed_channel_ids),
+        render_pending_mentions(&input.pending_mentions),
+    );
     ghostlight_persona_projection::build_interpreter_prompt(
         &ghostlight_persona_projection::InterpreterPrompt {
             identity: &input.identity.display_name,
+            typed_context: &typed_context,
             lived_stream: input.persona_prompt.trim(),
             persona_output: input.persona_output.trim(),
             output_schema: &persona_interpreter_effect_set_json_schema(),
