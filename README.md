@@ -4,19 +4,21 @@
   <img src="docs/assets/epiphany-avatar-4x.png" width="1024" alt="Epiphany avatar portrait targeting JSON heresy" />
 </p>
 
-Epiphany is GameCult's agent-control body: the system that lets AI agents do
-real project work without hiding their memory, authority, evidence, or mistakes
-inside a chat transcript.
+Epiphany is GameCult's organizational layer above frontier AI workers: governed
+shared state, bounded authority, coordinated action, and inspectable receipts
+for work that must remain coherent beyond one prompt, one agent, or one
+session.
 
 The bet is simple and unpleasantly large:
 
-> AI agents are becoming capable enough to matter, but organizations cannot
-> safely route important work through them until the work is inspectable,
-> reviewable, permissioned, and attached to receipts.
+> Frontier agents can keep producing good-looking local progress after the
+> architecture has stopped making sense. Organizations need a shared Mind for
+> the work, not a longer pile of private prompts.
 
-Epiphany is the control plane for that missing layer. It makes the agent show
-its map, preserve evidence, separate roles, survive context loss, and stop when
-it no longer understands the machine it is changing.
+Epiphany is the control plane for that missing layer. It gives capable workers
+a governed model of the project, routes bounded work, preserves evidence,
+separates authority, and stops or escalates when the machine no longer knows
+enough to act honestly.
 
 This is not a faster autocomplete costume. It is the beginning of governed
 human/agent labor.
@@ -24,7 +26,8 @@ human/agent labor.
 ## The GameCult Bet
 
 GameCult is building infrastructure for coordinated work between humans,
-projects, communities, and agents.
+projects, communities, and agents. Its games and creative tools are not side
+projects beside Epiphany. Shipping them is the longitudinal dogfood program.
 
 The investable loop is Bifrost-first:
 
@@ -44,16 +47,22 @@ CultNet carry typed state between organs instead of letting private chats,
 Discord bots, scripts, or dashboards become shadow governments.
 
 That is the core of the GameCult thesis: not "AI writes code," but "AI work
-becomes accountable enough to govern, fund, review, credit, and repeat."
+becomes accountable enough to govern, fund, review, credit, and repeat." The
+studio's products create value and supply the pressure needed to prove the
+production system in reality.
 
 ## Why Epiphany Exists
 
 Current agents can write plausible code. That is no longer the hard part.
 
-The expensive failure is architectural drift: an agent keeps moving after it
-has lost the global design. It adds an adapter around a compensator around a
-cache, passes a narrow test, and leaves the next worker inheriting fog as if it
-were architecture.
+The expensive failure is global coherence collapse: an agent keeps moving
+after the project has lost a valid global model. It adds an adapter around a
+compensator around a cache, passes a narrow test, and leaves the next worker
+inheriting fog as if it were architecture.
+
+This is not merely context-window exhaustion. A larger window can still hold
+contradictory objectives, stale architecture, split authority, and a handsome
+collection of unreviewed local victories.
 
 Epiphany attacks that failure by turning understanding into shared state:
 
@@ -70,10 +79,35 @@ Epiphany attacks that failure by turning understanding into shared state:
 
 The point is not maximal motion. The point is coherent motion.
 
+## Organization, Not Prompt Box
+
+Epiphany treats objectives, work, decisions, permissions, evidence, review, and
+accepted knowledge as governed organizational state. Model prompts are bounded
+projections of that state. They are not the durable Mind of the project.
+
+```text
+governed organizational state
+-> scoped Epiphany work
+-> frontier model and tool execution
+-> artifacts, evidence, and receipts
+-> review under human-governed acceptance authority
+-> accepted knowledge and updated organizational state
+```
+
+Humans own purpose, values, authority, exceptions, acceptance, disagreement,
+and ambiguous tradeoffs. They should not have to spend the day scheduling
+agents, reconstructing context, or typing `Continue`. Agents continue when
+state, authority, and evidence justify it; they ask when judgment or authority
+is genuinely missing.
+
+The target promise is blunt:
+
+> Epiphany is being built so organizations can delegate bounded work to
+> capable AI without turning every employee into an AI operator.
+
 ## What She Is
 
-Epiphany is an opinionated Codex-derived harness being cut into a native
-GameCult runtime.
+Epiphany is a native GameCult runtime that began as an opinionated Codex fork.
 
 Her body is made of:
 
@@ -84,23 +118,24 @@ Her body is made of:
 - provider-neutral model and tool request/receipt documents
 - Mind, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and heartbeat
   authority surfaces
-- a Codex compatibility spine retained for honest OpenAI subscription auth and
-  model transport while Epiphany-owned state leaves Codex behind
+- Codex retained only for honest OpenAI subscription auth and model transport;
+  Epiphany does not publish a Codex-owned project-state surface
 
-That last clause matters. Epiphany began inside Codex because Codex already had
-useful practical machinery. The product is not "Codex with better vibes." The
-product is the extraction: agent memory, execution, receipts, review, and
-operator surfaces moving into typed GameCult infrastructure.
+That last clause matters. Codex and other frontier agents can be excellent
+workers. They do not decide which organizational state is authoritative, who
+may change it, how disagreements resolve, or how an accepted artifact traces
+back to work, evidence, and review. Epiphany owns that layer.
 
 ## What She Makes Possible
 
 For engineering teams:
 
-- agents that preserve project memory across long work and compaction
+- agents that work from governed project memory across long work and
+  compaction
 - visible separation between research, modeling, implementation, and
   verification
-- less review time spent reverse-engineering whether the agent still
-  understands the repo
+- human attention spent on judgment and acceptance instead of agent scheduling
+  and context reconstruction
 - explicit permission and receipt trails for commands, edits, commits, and
   tool calls
 - durable postmortem evidence when a path fails
@@ -118,16 +153,17 @@ For GameCult:
 For investors and partners:
 
 - a differentiated wedge in AI-native work governance
-- measurable proof targets: accepted useful work per human review hour, cost
-  per accepted artifact, fresh-repo success rate, review load, and public-proof
-  export quality
+- measurable proof targets: accepted work between interventions, review burden,
+  cost per accepted artifact, early escalation of bad assumptions, attribution
+  completeness, and failure recovery
 - a path from internal agent tooling to design-partner workflows, enterprise
   services, commercial licensing, and mission-aligned infrastructure funding
 
 ## What Exists Now
 
-The machine is not finished. Good. Finished machines in this category are
-usually toys or sales pages with a backend quietly sweating through its shirt.
+Epiphany is a supervised engineering alpha. Its typed Mind, execution, receipt,
+verification, and operator surfaces exist. Sustained autonomous GameCult
+production and complete Bifrost attribution have not yet been earned.
 
 What exists now is enough to evaluate the thesis:
 
@@ -142,28 +178,34 @@ What exists now is enough to evaluate the thesis:
   cut lines
 - an investor brief tying Epiphany to the Bifrost-first proof loop
 
-The next proof is not another impressive paragraph. The next proof is repeated
-external work:
+The next proof is not another impressive paragraph. It is longitudinal GameCult
+work across Aetheria, StreamPixels, CultPong, Repixelizer, and the rest of the
+studio:
 
 ```text
-Bifrost work item
+Bifrost work item and decisions
 -> Epiphany execution
--> reviewed artifact
+-> artifact, commit, evidence, and receipts
+-> review under human-governed acceptance authority
 -> accepted or rejected outcome
--> cost/review/receipt/credit record
+-> cost, intervention, failure, recovery, and credit record
 ```
 
-If that loop produces accepted work with lower coordination cost than the usual
-pile of meetings, tickets, freelancers, and brittle agent transcripts, the bet
-gets teeth.
+The evidence should show whether human intervention shifts from pulse
+maintenance and cleanup toward product, architecture, and governance judgment.
+Failure and recovery belong in that record. Otherwise it is merely a victory
+reel wearing a lab coat.
 
 ## Start Here
 
 For investors and serious business-development readers:
 
+- [Current positioning and evidence boundary](docs/positioning.md)
 - [Epiphany investor brief](docs/epiphany_investor_brief.md)
-- [Epiphany Body whitepaper PDF](docs/epiphany_body_whitepaper.pdf)
-- [Epiphany Body whitepaper TeX](docs/epiphany_body_whitepaper.tex)
+- [Epiphany Body whitepaper PDF](docs/epiphany_body_whitepaper.pdf) (June 2026
+  architecture snapshot; historical)
+- [Epiphany Body whitepaper TeX](docs/epiphany_body_whitepaper.tex) (historical
+  source)
 - [GameCult / Epiphany / Bifrost integrated dossier](https://github.com/GameCult/gamecult-site/blob/main/docs/gamecult_integrated_dossier.tex)
   for the broader investment thesis
 

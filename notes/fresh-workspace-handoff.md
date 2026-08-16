@@ -1,6 +1,6 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-14
+Updated: 2026-08-16
 
 ## Current state
 
@@ -46,6 +46,16 @@ identities; keep impact ingress absent while ordinary Modeling seeds facts and
 publishers/projector establish signed sight; then engage all three Atlas brakes
 and prove later organ cycles are held while the last Eve projection remains
 visibly stale/read-only and no lane wakes.
+
+Public positioning was synchronized on 2026-08-16 without changing that next
+rite. `docs/positioning.md` is the current claim owner: Epiphany is the
+organizational layer above frontier AI workers; the primary failure is global
+coherence collapse rather than context-window exhaustion; prompts are bounded
+projections of governed organizational state; humans retain purpose, judgment,
+authority, disagreement, exceptions, and acceptance; and GameCult product work
+is the longitudinal evidence program. Complete Bifrost attribution, sustained
+autonomous production, and external design-partner pilots remain explicitly
+gated supervised-alpha targets.
 
 The completed Decision-Auditable Concurrent Mind foundation uses typed,
 content-addressed reasoning bases that preserve exact source envelopes and a

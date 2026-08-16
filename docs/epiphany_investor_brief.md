@@ -1,166 +1,204 @@
 # Epiphany Investor Brief
 
-Status: June 2026 discussion packet  
+Status: August 2026 discussion packet; maturity: supervised engineering alpha
 Audience: investors, design partners, and diligence reviewers
 
 ## One Sentence
 
-Epiphany is a project-native agent control plane that makes AI coding work
-inspectable: the agent must show its map, preserve evidence, separate roles,
-survive context loss, and route real changes through reviewable authority
-instead of pretending the chat transcript is a brain.
+Epiphany is the organizational layer above frontier AI workers: governed shared
+state, bounded authority, coordinated action, and inspectable receipts for work
+that must remain coherent beyond one prompt, one agent, or one session.
 
 ## Why It Matters
 
-Most coding-agent products sell speed. Epiphany is aimed at the more expensive
-failure: agents can keep producing plausible local edits after they have lost
-the global architecture. That failure burns review time, creates adapter piles,
-and leaves teams unable to tell whether the next tool swing still belongs to
-the machine being built.
+Frontier coding agents can produce plausible local edits after the project has
+lost a valid global model. Code compiles. Narrow tests pass. Each decision sounds
+reasonable. The organization still accumulates stale assumptions, split
+authority, contradictory decisions, and adapter sediment.
 
-Epiphany turns that hidden state into shared objects:
+This is global coherence collapse, not merely context-window exhaustion. A
+larger window can remember more fragments without deciding which fragment owns
+reality.
 
-- objective and active work
-- architecture and dataflow maps
-- scratch versus durable memory
-- source-grounded evidence
-- role lanes for implementation, modeling, research, verification, planning,
+Epiphany turns the missing organizational state into governed objects:
+
+- objectives, work, architecture, and dataflow maps
+- accepted decisions and unresolved conflicts
+- scratch separated from durable memory
+- source-grounded evidence and explicit uncertainty
+- role lanes for execution, modeling, research, verification, planning,
   Persona, and reorientation
-- runtime receipts, tool receipts, and model receipts
+- bounded tool, model, command, patch, and commit authority
 - review gates before findings become project truth
-- compact operator surfaces for humans and future clients
+- operator-safe artifacts that do not expose private worker context
 
-The product thesis is not "the model writes more code." The thesis is
-coherence-preserving agent labor: a system where humans can inspect what the
-agent believes, why it believes it, who authorized action, what evidence exists,
-and what should happen next.
+Prompts are bounded projections of that state. They are not the organization's
+memory or the worker's private property.
+
+## Product Category
+
+Epiphany does not compete with frontier labs at the intelligence layer. Codex
+and other capable agents are workers. Epiphany is the coordination and
+governance layer that answers:
+
+- What does the organization currently believe?
+- What work is active, and who may change which state?
+- How are contradictory decisions reconciled?
+- Where must uncertainty return to human judgment?
+- How does an accepted artifact trace back to work, evidence, execution, and
+  review?
+
+The operating loop is:
+
+```text
+governed organizational state
+-> scoped Epiphany work
+-> frontier model and tool execution
+-> artifacts, evidence, and receipts
+-> review under human-governed acceptance authority
+-> accepted knowledge and updated organizational state
+```
+
+The target promise is that organizations can delegate bounded work to capable
+AI without turning every employee into an AI operator.
+
+## Human Authority
+
+Humans remain participants in judgment and governance. They own purpose,
+values, authority, exceptions, acceptance, disagreement, and ambiguous
+tradeoffs. They should not become schedulers who repeatedly reconstruct context
+and type `Continue`.
+
+Agents own bounded execution. They continue when shared state, authority, and
+evidence justify the next move. They escalate when authority is missing, state
+conflicts, or a consequential judgment cannot be derived honestly.
 
 ## What Exists Now
 
-Epiphany is already more than a pitch deck. The current repo contains:
+The current native Epiphany body includes:
 
-- typed Rust state and policy in `epiphany-core` and `epiphany-state-model`
-- a Codex compatibility bridge rather than a Codex-owned product brain
-- CultCache `.cc` stores for runtime, heartbeat, agent, local Verse, memory
-  graph, and thread state
-- provider-neutral model request/event/receipt documents
-- typed tool capability, invocation intent, and invocation receipt documents
+- typed Rust domain organs in `epiphany-core` and `epiphany-state-model`
+- keyed Mind state with typed projection and promotion paths
+- RepoModel and Model Atlas surfaces for source-grounded architectural belief
+- CultCache `.cc` state and CultMesh/CultNet contracts
+- provider-neutral model request, event, and receipt documents
+- typed tool capability, invocation-intent, and invocation-receipt documents
 - runtime-spine job and worker-result documents
-- Mind, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and heartbeat
-  contract surfaces
-- local operator commands for status, coordinator runs, smoke checks, and
-  CultMesh/Verse context
-- a Modeling whitepaper that maps the body, owners, inputs, outputs,
-  invariants, bridges, and current cut line
+- Mind, Modeling, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and
+  heartbeat authority surfaces
+- local operator status, coordinator, smoke, and Verse-context commands
 
-The key architectural move is extraction: Epiphany began as a Codex-derived
-harness, but the product architecture is moving into typed Rust, CultCache,
-CultMesh, and CultNet documents. Codex is being narrowed to the honest
-compatibility spine for subscription auth, model transport, and useful host
-affordances.
+Codex is retained only for OpenAI authentication and model transport. Epiphany
+does not publish Codex app-server state as its project Mind.
+
+The mechanisms are locally verifiable. Sustained autonomous GameCult production
+and complete attribution across every mutation path are not yet proven.
+
+## GameCult As The Proof Program
+
+GameCult's games, creative tools, and infrastructure are the dogfood surface.
+Aetheria, StreamPixels, CultPong, Repixelizer, and the wider studio exercise
+different parts of the same production system: games, realtime services,
+creator tooling, art pipelines, identity, deployment, community memory, and
+long-lived architecture.
+
+The diligence artifact should therefore be longitudinal rather than a polished
+single demo. It should preserve:
+
+```text
+work item and decisions
+-> producing agent and execution
+-> artifacts, commits, evidence, and receipts
+-> human questions and answers
+-> review and acceptance
+-> cost, failure, recovery, and lessons
+```
+
+Useful measures include accepted work between synchronous interventions, time
+spent on judgment versus scheduling, bad assumptions escalated early, review
+burden, cost per accepted artifact, failure recovery, architectural coherence,
+and attribution completeness. Agent-written commit percentage is not a useful
+substitute for this evidence.
 
 ## Where Bifrost Fits
 
-The GameCult investment dossier raises the proof bar. Epiphany should not be
-sold as a local demo. The investor-ready loop is Bifrost-first:
+Bifrost is the intended governed work and attribution rail. Epiphany owns
+bounded execution, typed project memory, coordination, evidence, and
+verification pressure. Bifrost owns work records, dispatch, identity-linked
+receipts, review outcomes, credit, and governance.
 
-```text
-Bifrost topic or work item
--> scoped Epiphany execution request
--> bounded role work
--> artifacts and receipts
--> maintainer review
--> accepted or rejected outcome
--> cost, review load, credit, and public-safe proof
-```
+The target invariant is:
 
-Bifrost owns public work records, dispatch packets, receipts, credit, reward
-pressure, and governance. Epiphany owns bounded execution, typed memory,
-coordination, verification pressure, and operator-safe proof artifacts. Discord,
-VoidBot, repo Personas, and scripts may mirror or initiate pressure, but they
-must not become shadow governance.
+> Every admitted mutation of governed project state has an attributable
+> mutation receipt naming its actor, authority, basis, and outcome. An
+> agent-caused mutation also links its exact execution receipt.
 
-## Recent Public Narrative
+The complete agent-execution chain should connect an accepted artifact or commit to the
+producing agent, authorizing or accepting human, Bifrost execution, work item,
+decisions, evidence, model and provider, tools and material commands, repository
+and worktree, and review outcome.
 
-Recent GameCult public material gives investors a clean translation layer:
+A Git object hash makes later changes detectable. A valid commit signature
+links those commit bytes to a trusted signing key. Neither proves correctness,
+execution authority, or complete provenance. The full chain remains an
+engineering and dogfood target, not a completed claim.
 
-- `The Free Mouth And The Native Body` frames VoidBot as the free live mouth
-  and Epiphany as the native high-leverage body.
-- `Epiphany In The Interview Chair` gives the job-interview pitch: Epiphany
-  makes an AI coding agent show its map, prove its cuts, survive context loss,
-  and stop when it no longer understands the machine.
-- The June 2026 GameCult site project pages frame Epiphany as active harness
-  work, EpiphanyAquarium as the operator interface, Bifrost as public work and
-  receipts, and Heimdall as identity/grants.
-- The daily damage report turns repo motion into a public work log, which is
-  useful raw material for future Bifrost receipts.
+## Near-Term Commercial Offer
 
-The investor wrapper should lead with ordinary words: agent work, receipts,
-review, cost accounting, identity, governance, and accepted artifacts. The
-mythic language is internal doctrine and studio voice; the investable object is
-measured human/agent production.
+The planned offer, after the Bifrost bridge and longitudinal GameCult dogfood
+clear their gates, is a supervised co-development pilot: one repository, one
+repeatable workflow, and a two-to-four-week proof period. The deliverable would
+be a working setup plus evidence about:
 
-## Value Proposition
+- output quality and accepted artifacts
+- human scheduling and review burden
+- authority and attribution coverage
+- failure modes and recovery
+- model and tool cost
+- architectural coherence across repeated work
 
-For developer teams:
-
-- less review time wasted on incoherent agent output
-- persistent project memory across long tasks and context loss
-- visible role separation between modeling, implementation, research, and
-  verification
-- safer authority boundaries for tools, file edits, and commits
-- artifact and receipt trails suitable for audits and postmortems
-
-For GameCult:
-
-- a native agent substrate that can absorb the live lessons from VoidBot
-- public/project Personas without hidden state authority
-- Bifrost-routed proof work with receipts and credit
-- a commercially licensable control plane while preserving free/reference
-  layers where appropriate
-
-For investors:
-
-- a differentiated wedge in AI-native work governance, not just code
-  generation
-- measurable diligence targets: accepted useful work per human review hour,
-  cost per accepted artifact, fresh-repo success rate, and sealed public-proof
-  export quality
-- optional commercial paths through enterprise Epiphany/Bifrost services,
-  source-available licensing, support contracts, or mission-aligned affiliates
+That is narrow enough to falsify and useful enough to reveal whether Epiphany
+reduces coordination load while preserving human authority.
 
 ## Proof To Ask For
 
-The next diligence pass should ask for live evidence, not vibes:
-
-1. Fresh-repo Epiphany demo with scoped objective, typed state, role routing,
-   artifact output, review, and receipt.
-2. Bifrost demo showing topic/work item, dispatch packet, agent transport,
-   receipt, ledger or credit record, and outcome.
-3. Cost accounting: model spend, role time, human review load, accepted
-   artifact count, rejected-output reasons, and lessons added to memory.
-4. Public/private export proof: no raw worker thoughts, transcripts, private
+1. Repeated GameCult work showing governed scope, decisions, execution,
+   artifacts, review, failures, and recovery across product boundaries.
+2. Bifrost work and attribution proof from accepted artifact back to identity,
+   authority, evidence, model, tools, and review.
+3. Human-intervention accounting that separates scheduling and cleanup from
+   product, architecture, governance, and acceptance judgment.
+4. Cost accounting for model spend, role time, review load, accepted artifacts,
+   and rejected-output reasons.
+5. Public/private export proof: no raw worker thoughts, transcripts, private
    notes, secrets, or operator context in public artifacts.
-5. Security model for identity, secrets, write permissions, revocation,
-   external repo access, and public publishing.
-6. Design-partner proof on at least one external or semi-external repo without
-   supervisor contamination.
+6. Security proof for identity, secrets, write permissions, revocation,
+   external-repo access, and publishing.
+7. A bounded design-partner run on an external or semi-external repository
+   without supervisor contamination.
+
+## Evidence Boundary
+
+Epiphany is a supervised engineering alpha. It should not be presented as
+production-ready, fully autonomous, fully attributable, model-independent, or
+a solved form of organizational intelligence. Inspectability enables
+accountability only when authority, review, and consequence are also real.
 
 ## Packet Contents
 
-- `docs/epiphany_body_whitepaper.pdf`: shareable architecture whitepaper.
-- `docs/epiphany_body_whitepaper.tex`: source for the whitepaper.
+- `docs/positioning.md`: current category, proof model, and claims boundary.
+- `docs/epiphany_body_whitepaper.pdf`: June 2026 architecture snapshot;
+  historical, not the current product contract.
 - `notes/epiphany-investor-readiness-roadmap.md`: internal readiness roadmap.
-- `E:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`: broader
-  GameCult / Epiphany / Bifrost investment dossier.
-- `E:\Projects\gamecult-site\GameCult\Blog\the-free-mouth-and-the-native-body.md`
-  and
-  `E:\Projects\gamecult-site\GameCult\Blog\epiphany-in-the-interview-chair.md`:
-  public narrative source material.
+- `notes/epiphany-current-algorithmic-map.md`: current native control flow.
+- `state/map.yaml`: canonical slow machine map and verification status.
+- `F:\Projects\gamecult-site\GameCult\Projects\Epiphany.md`: public site
+  projection.
 
 ## Bottom Line
 
-Epiphany is valuable if it can repeatedly turn ambiguous project work into
-bounded agent labor with inspectable state, receipts, review, cost accounting,
-and accepted artifacts. The whitepaper proves the body is becoming legible.
-The investor proof is the Bifrost-first loop producing useful external work.
+Epiphany is valuable if capable AI workers can complete increasingly long runs
+of accepted work without humans becoming pulse operators, while the
+organization retains judgment, authority, architectural coherence, and a
+traceable account of what happened. GameCult is building that evidence in real
+products before asking anyone to confuse ambition with proof.

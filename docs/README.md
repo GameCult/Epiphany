@@ -5,12 +5,16 @@ outside the working notes.
 
 ## Investor Packet
 
-- [Epiphany investor brief](./epiphany_investor_brief.md): one-page value
-  summary for investors, partners, and design-partner conversations.
+- [Current positioning](./positioning.md): category, operating model, human
+  authority boundary, GameCult dogfood program, attribution target, and claims
+  the supervised alpha has not yet earned.
+- [Epiphany investor brief](./epiphany_investor_brief.md): compact value and
+  diligence summary for investors, partners, and design-partner conversations.
 - [Epiphany Body whitepaper](./epiphany_body_whitepaper.tex): source TeX for
-  the Modeling architecture overview.
+  the June 2026 Modeling architecture snapshot. This is historical material;
+  use the positioning document and canonical maps for current product claims.
 - [Epiphany Body whitepaper PDF](./epiphany_body_whitepaper.pdf): compiled
-  whitepaper for sharing.
+  historical snapshot for sharing with that caveat.
 
 ## Source Notes
 

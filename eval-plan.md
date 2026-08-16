@@ -4,10 +4,10 @@ The first question is not whether this protocol is elegant. The first question i
 
 ## Conditions
 
-1. Plain prompting with no explicit map
-2. Plain prompting with a pinned architecture map in context
-3. External typed state with no verifier stack
-4. External typed state with verifier checks
+1. Private session and prompt state with no explicit organizational map
+2. Private session state with a pinned architecture map in context
+3. Governed external typed state with no verifier stack
+4. Governed external typed state with verifier checks and review
 
 ## Candidate Metrics
 
@@ -18,12 +18,26 @@ The first question is not whether this protocol is elegant. The first question i
 - contradiction rate between map and final patch
 - branch kill rate
 - human rating of architectural coherence
+- global-invariant retention across repeated work items
+- contradictory-decision and stale-state incident rate
+- human interventions spent on scheduling or context reconstruction
+- human interventions spent on product, architecture, governance, and
+  acceptance
+- assumptions escalated before they become expensive edits
+- attribution completeness from accepted artifact back to work, authority,
+  evidence, model, tools, and review
+- review burden and cost per accepted artifact
+- conflict-resolution latency and recovery quality after failed work
 
 ## Good First Tasks
 
 - fix a bug without regressing adjacent behavior
 - refactor a medium file while preserving invariants
 - add one feature that touches multiple connected modules
+
+The first tasks test the mechanism. The product claim requires longitudinal
+GameCult dogfood across repeated work, repositories, failures, reviews, and
+re-entry—not one clean demo with flattering lighting.
 
 ## Failure Smells
 
@@ -34,4 +48,6 @@ The first question is not whether this protocol is elegant. The first question i
 
 ## Exit Criteria For The Prototype
 
-The prototype is worth keeping if it reliably reduces drift or makes failure easier to diagnose without adding absurd overhead.
+The prototype is worth keeping if it reliably reduces drift, makes failure
+easier to diagnose, and moves human attention from pulse maintenance toward
+judgment without adding absurd overhead.

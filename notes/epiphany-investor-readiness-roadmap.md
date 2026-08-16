@@ -17,9 +17,9 @@ not merely as local harness hardening.
 
 The operating todo list is:
 
-1. Make the local Mom MVP a repeatable proof bundle: Persona entry, Bifrost-linked
-   scope, one bounded coordinator action, runtime result, review, receipt, sleep,
-   and sealed operator-safe artifacts.
+1. Make the local proof bundle repeatable: Persona entry, Bifrost-linked scope,
+   one bounded coordinator action, runtime result, review, receipt, sleep, and
+   sealed operator-safe artifacts.
 2. Build the Bifrost-first external-work bridge: topics, work items, Epiphany
    execution requests, artifacts, receipts, credit, and ledger entries. Bifrost
    is the GameCult identity provider and bridge policy owner; Heimdall supplies
@@ -27,8 +27,8 @@ The operating todo list is:
    that identity.
 3. Add accounting surfaces: model spend, role time, human review load, accepted
    artifact count, rejected-output reasons, and lessons written to memory.
-4. Keep fresh-repo operation repeatable without supervisor contamination, and
-   extend that proof toward an external or semi-external repo when the
+4. Use repeated work across real GameCult products as the primary evidence
+   program, then extend that proof to a design-partner repo when the
    Bifrost-first bridge is ready.
 5. Keep public proof export clean: no raw worker thoughts, transcripts, private
    notes, repo secrets, or operator context in public/operator-safe artifacts.
@@ -51,14 +51,15 @@ Every investor-scale Objective Draft should answer:
 - What maintainer or human review accepts or rejects the artifact?
 - What public/operator-safe evidence can be shown without exporting private
   worker, operator, or agent context?
-- What compute/model spend, human review load, accepted artifact count, and
+- What compute/model spend, scheduling intervention, judgment/review load,
+  accepted artifact count, attribution completeness, failure recovery, and
   lessons-added metrics will be recorded?
 - What consent, legal, security, and public/private export gates must clear
   before the path scales?
 
 ## Roadmap Shape
 
-1. Fresh-repo Epiphany proof: repo-swarm substrate tests may demonstrate local
+1. Mechanism proof: repo-swarm substrate tests may demonstrate local
    Persona entry, bounded routing, artifact production, and Git ancestry. A
    genuine Bifrost body and reviewer must supply publication and review proof;
    local fixture strings are not substitutes for those authorities.
@@ -66,11 +67,13 @@ Every investor-scale Objective Draft should answer:
    topics/work items/bridge receipts/credit, with Bifrost identity and
    Heimdall-backed outside-account capability references where needed, before
    Discord, VoidBot, Persona, or scripts can mirror it.
-3. Public proof sprint: selected consented tasks record scope, roles, model
-   spend, review load, artifacts, outcome, memory lessons, and case-study
-   permission.
-4. Design partners: prove the loop on external organizations without requiring
-   them to adopt GameCult mythology or tolerate private-context leakage.
+3. Longitudinal GameCult dogfood: selected consented work across real products
+   records scope, questions, human decisions, model spend, scheduling
+   interventions, review load, artifacts, failures, recovery, outcome, memory
+   lessons, and attribution from accepted artifact back to governed work.
+4. Design partners: run a bounded two-to-four-week pilot on one repository and
+   one repeatable workflow without requiring the organization to adopt GameCult
+   mythology or tolerate private-context leakage.
 5. Support and reward pilots: only after legal/policy gates, portable records,
    exit rights, and anti-capture controls exist.
 
