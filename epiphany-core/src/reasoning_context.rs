@@ -604,18 +604,41 @@ pub fn commit_operator_mind_mutation(
     writes: Vec<CultCacheEnvelope>,
     committed_at: &str,
 ) -> Result<EpiphanyMindCommitOutcome> {
+    commit_operator_mind_mutation_with_derived_companions(
+        store_path,
+        provenance,
+        invariant_owner,
+        strong_reads,
+        writes,
+        Vec::new(),
+        committed_at,
+    )
+}
+
+pub(crate) fn commit_operator_mind_mutation_with_derived_companions(
+    store_path: &Path,
+    provenance: CultCacheEnvelope,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    derived_companions: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
     let provenance_version =
         EpiphanyMindDocumentVersion::from_envelope("epiphany-operator", &provenance)?;
     let authority = EpiphanyMindCommitAuthority::OperatorProvenance {
         provenance: provenance_version,
     };
+    let mut companions = Vec::with_capacity(derived_companions.len() + 1);
+    companions.push(provenance);
+    companions.extend(derived_companions);
     commit_authorized_mind_mutation(
         store_path,
         authority,
         invariant_owner,
         strong_reads,
         writes,
-        vec![provenance],
+        companions,
         committed_at,
     )
 }

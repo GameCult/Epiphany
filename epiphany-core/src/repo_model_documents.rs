@@ -161,6 +161,23 @@ impl EpiphanyRepoModelView {
     }
 }
 
+pub(crate) fn derive_repo_model_semantic_projection_obligation(
+    view: &EpiphanyRepoModelView,
+    created_at: &str,
+) -> Result<crate::MemorySemanticProjectionObligation> {
+    let mut projection = view.memory_context_projection();
+    projection.model_revision = 1;
+    projection.model_hash = crate::memory_graph_model_hash(&projection)?;
+    crate::derive_memory_semantic_projection_obligation(
+        &projection,
+        &view.identity.swarm_id,
+        crate::SemanticPartition::Modeling,
+        &format!("epiphany.runtime/{}/repo-model", view.identity.runtime_id),
+        &view.projection_digest,
+        created_at,
+    )
+}
+
 impl EpiphanyRepoModelBasis {
     pub fn validate(&self) -> Result<()> {
         let digest = self
@@ -551,6 +568,7 @@ pub fn initialize_keyed_repo_model(
         if !repo_model_view_matches_seed(&view, seed)? {
             return Err(anyhow!("RepoModel seed replay found divergent keyed state"));
         }
+        crate::runtime_modeling_semantic_projection_input(store_path)?;
         return Ok(view);
     }
 
@@ -606,16 +624,50 @@ pub fn initialize_keyed_repo_model(
     for obligation in obligations {
         writes.push(cache.prepare_entry(&obligation.node_id, &obligation)?.0);
     }
+    let mut source_documents = writes
+        .iter()
+        .filter(|entry| repo_model_write_key(entry).is_ok_and(|key| key.is_some()))
+        .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", entry))
+        .collect::<Result<Vec<_>>>()?;
+    source_documents.sort_by(|left, right| {
+        (&left.document_type, &left.document_key).cmp(&(&right.document_type, &right.document_key))
+    });
+    let projection_digest = format!(
+        "sha256:{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&source_documents)?)
+    );
+    let seed_view = EpiphanyRepoModelView {
+        identity: identity.clone(),
+        projection_digest: projection_digest.clone(),
+        source_documents,
+        domains: documents.domains.clone(),
+        nodes: documents.nodes.clone(),
+        edges: documents.edges.clone(),
+        summaries: documents.summaries.clone(),
+        frontier: documents.frontier.clone(),
+        lifecycle_receipts: documents.lifecycle_receipts.clone(),
+        claim_obligations: claim_obligations_for_frontier(&documents.frontier),
+        surface_offers: Vec::new(),
+        dependency_claims: Vec::new(),
+        dependency_verifications: Vec::new(),
+        dependency_impacts: Vec::new(),
+    };
+    let semantic_obligation =
+        derive_repo_model_semantic_projection_obligation(&seed_view, seeded_at)?;
+    let semantic_obligation_envelope = cache
+        .prepare_entry(&semantic_obligation.obligation_id, &semantic_obligation)?
+        .0;
     let mind_envelope = cache
         .get_envelope::<crate::EpiphanyMindIdentity>(crate::MIND_SCHEMA_EPOCH)?
         .ok_or_else(|| anyhow!("RepoModel seed lost its Mind identity envelope"))?;
     let provenance = cache.prepare_entry(&seed.seed_id, seed)?.0;
-    match crate::commit_operator_mind_mutation(
+    match crate::reasoning_context::commit_operator_mind_mutation_with_derived_companions(
         store_path,
         provenance,
         "Modeling.repo_model_seed",
         vec![mind_envelope],
         writes,
+        vec![semantic_obligation_envelope],
         seeded_at,
     )? {
         crate::EpiphanyMindCommitOutcome::Committed(_) => assemble_repo_model_view(store_path),
@@ -1716,6 +1768,7 @@ mod tests {
                 created_at: "2026-08-14T00:00:00Z".into(),
             },
         )?;
+        let body = bind_test_body(&store, "swarm-seed", "workspace-seed")?;
         let domain = EpiphanyMemoryDomain {
             id: "domain-seed".into(),
             profile: EpiphanyMemoryProfile::RepoArchitecture,
@@ -1751,7 +1804,7 @@ mod tests {
             "graph-seed",
             "swarm-seed",
             "workspace-seed",
-            "sha256:body-seed",
+            body.body_binding_sha256.clone(),
             EpiphanyRepoModelSeedDocuments {
                 domains: vec![domain],
                 nodes: vec![node],
@@ -1777,6 +1830,14 @@ mod tests {
                 .iter()
                 .any(|receipt| receipt.invariant_owner == "Modeling.repo_model_seed")
         );
+        assert_eq!(
+            cache
+                .get_all::<crate::MemorySemanticProjectionObligation>()?
+                .into_iter()
+                .filter(|obligation| obligation.partition == "modeling")
+                .count(),
+            1
+        );
         assert!(
             cache
                 .snapshot_envelopes()
@@ -1789,7 +1850,7 @@ mod tests {
             "other-graph",
             "swarm-seed",
             "workspace-seed",
-            "sha256:body-seed",
+            body.body_binding_sha256,
             EpiphanyRepoModelSeedDocuments {
                 domains: Vec::new(),
                 nodes: Vec::new(),

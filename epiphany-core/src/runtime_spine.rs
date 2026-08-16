@@ -6369,12 +6369,8 @@ pub fn runtime_modeling_semantic_projection_input(
         ));
     }
     let obligation = matches.into_iter().next().expect("one obligation");
-    let expected = crate::derive_memory_semantic_projection_obligation(
-        &snapshot,
-        &binding.swarm_id,
-        crate::SemanticPartition::Modeling,
-        &canonical_source_id,
-        &obligation.source_commit_id,
+    let expected = crate::repo_model_documents::derive_repo_model_semantic_projection_obligation(
+        &view,
         &obligation.created_at,
     )?;
     if obligation != expected {
