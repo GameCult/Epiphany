@@ -959,19 +959,37 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     } else {
                         None
                     };
-                    let launch = launch_role(
-                        &runtime_store,
-                        &local_verse_store,
-                        &thread_id,
-                        role_id,
-                        revision,
-                        args.max_runtime_seconds,
-                        if role_id == "modeling" {
-                            proposal_modeling_request_id
-                        } else {
-                            None
-                        },
-                    )?;
+                    let launch = if role_id == "modeling"
+                        && proposal_modeling_request_id.is_none()
+                        && status["currentWork"]["bodyModeling"].is_object()
+                    {
+                        let binding = epiphany_core::launch_current_body_modeling_work(
+                            &runtime_store,
+                            epiphany_core::EpiphanyBodyModelingLaunchOptions {
+                                job_id: Uuid::new_v4().to_string(),
+                                created_at: now(),
+                            },
+                        )?;
+                        json!({
+                            "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
+                            "backendJobId": binding.job_id,
+                            "bodyModelingLaunchBinding": binding,
+                        })
+                    } else {
+                        launch_role(
+                            &runtime_store,
+                            &local_verse_store,
+                            &thread_id,
+                            role_id,
+                            revision,
+                            args.max_runtime_seconds,
+                            if role_id == "modeling" {
+                                proposal_modeling_request_id
+                            } else {
+                                None
+                            },
+                        )?
+                    };
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,

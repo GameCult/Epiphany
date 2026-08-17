@@ -496,7 +496,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
             .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
     if frontier_planning.stage != current_work.frontier_planning_stage {
-        return Err(anyhow!("current-work frontier planning projection diverged"));
+        return Err(anyhow!(
+            "current-work frontier planning projection diverged"
+        ));
     }
     let frontier_relinquishment =
         epiphany_core::runtime_latest_repo_frontier_relinquishment(&runtime_store_path)
@@ -548,6 +550,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         research_continuation_action,
         frontier_planning_stage: frontier_planning.stage,
         proposal_modeling_request_ready: pending_proposal.is_some(),
+        body_modeling_work_ready: current_work.body_modeling.is_some(),
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;

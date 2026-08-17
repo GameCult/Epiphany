@@ -166,6 +166,7 @@ pub struct EpiphanyCoordinatorInput {
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     /// True when an explicitly selected user proposal has no Modeling launch.
     pub proposal_modeling_request_ready: bool,
+    pub body_modeling_work_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,6 +218,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling_request_ready: bool,
+    pub body_modeling_work_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

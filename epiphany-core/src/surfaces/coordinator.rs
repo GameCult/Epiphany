@@ -95,6 +95,7 @@ pub fn derive_coordinator_status(
         research_continuation_action: input.research_continuation_action,
         frontier_planning_stage: input.frontier_planning_stage,
         proposal_modeling_request_ready: input.proposal_modeling_request_ready,
+        body_modeling_work_ready: input.body_modeling_work_ready,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -702,6 +703,17 @@ pub fn recommend_coordinator_action(
             false,
             true,
             "An explicitly selected typed user proposal is waiting for its single Modeling launch; route that authority before generic regather or stale lane repair.",
+        );
+    }
+
+    if input.body_modeling_work_ready {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "The admitted repository Body has unresolved Modeling work; launch it from the keyed Mind obligation.",
         );
     }
 
@@ -1365,6 +1377,7 @@ mod tests {
             research_continuation_action: None,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
             proposal_modeling_request_ready: false,
+            body_modeling_work_ready: false,
         }
     }
 
@@ -1444,6 +1457,20 @@ mod tests {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             proposal_modeling_request_ready: true,
+            ..input()
+        });
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(decision.can_auto_run);
+    }
+
+    #[test]
+    fn unresolved_body_work_routes_modeling_without_research_or_thread_state() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            body_modeling_work_ready: true,
             ..input()
         });
         assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
