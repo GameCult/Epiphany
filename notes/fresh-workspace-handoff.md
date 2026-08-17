@@ -11,8 +11,8 @@ cognition; Persona receives one lived stream only. Epiphany still owns typed
 effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
-The five-day shakedown remains paused. The active source is exact `79346523` on
-`codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+The five-day shakedown remains paused. The active branch includes exact
+`2eb95df6` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -50,8 +50,9 @@ canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `076d212` provide the canonical Atlas provider advertisement and one
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
-Verification is green: Epiphany core 555/555, OpenAI runtime 23/23, coordinator
-18/18, and workspace all-target check; Odin Node 1/1 and Rust 15/15; Eve Atlas
+Verification is green at the latest ownership cut: Epiphany core 563/563,
+OpenAI runtime 23/23, and the OpenAI runtime all-target check. Earlier coordinator
+18/18 and workspace checks remain accepted; Odin Node 1/1 and Rust 15/15; Eve Atlas
 conformance 4/4 and Eve contracts 6/6. The workspace-wide all-features check
 still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
@@ -145,6 +146,17 @@ the keyed Mind document family, deterministic `EpiphanyMindView`, atomic
 runtime/Mind epoch identity, and a mutation gate that rejects non-Mind envelopes
 or semantic key drift. The keyed view is now the sole current RepoModel source;
 it does not read or translate historical aggregate stores.
+
+Exact `2eb95df6` closes the external Body prompt seam. A repository observation
+is first authenticated against the Body store, then admitted into the runtime
+Mind as one immutable semantic-key document containing its exact typed basis
+and exact source envelope. The Body organ's provenance is recorded in the same
+Mind commit receipt; no raw transcript or JSON sidecar participates. The
+highest authenticated Body generation is derived from those admitted
+documents. Baseline Body Modeling work and sealed role reasoning now read that
+Mind state only. A focused counter proves current-work projection performs zero
+Body-store and zero repository-file reads, and a substituted external
+observation refuses without changing the Mind bytes.
 
 Exact `bd5034cd` is the first live authority cut. Operator objective intake now
 atomically writes one semantic objective document, its immutable typed operator
@@ -313,7 +325,9 @@ plan. Exact `79346523` replaces the aggregate role prompt with a sealed v2 role
 projection assembled from the exact keyed Mind and RepoModel documents it
 names; the final native/provider request renders that projection, and baseline
 Modeling admission writes its Body-work decision receipt in the same Mind CAS
-as any graph mutation. Finish current-work routing, migrate status/coordinator
+as any graph mutation. Exact `2eb95df6` admits Body observations into keyed Mind
+before they can steer that projection. Build the shared typed current-work
+projection, finish baseline Modeling routing, migrate status/coordinator
 consumers and the remaining family acceptance paths, and delete the aggregate
 schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may

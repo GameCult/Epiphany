@@ -4863,3 +4863,28 @@ verdict Modeling remain distinct request families and cannot satisfy baseline
 Body work. Core 561/561 and OpenAI runtime 23/23 pass; an explicit negative
 proves the obsolete aggregate objective and `stateRevision` never reach model
 input.
+
+Exact `2eb95df6` closes the remaining external Body read at that boundary.
+Repository Body still owns scanning, manifests, and its authenticated generation
+chain, but it no longer supplies prompt state directly. Each accepted generation
+crosses once as `EpiphanyMindRepositoryBodyObservationDocument`, keyed by its
+semantic observation ID and carrying both the exact
+`RepositoryBodyObservationBasis` and the exact external observation envelope as
+typed provenance. `assemble_mind_view` validates the singular generation chain
+and derives the current observation from the highest admitted generation.
+
+Owner: runtime Mind owns the admitted Body observation used by reasoning and
+scheduling. Input: one exact Body-store observation already authenticated
+against the runtime route and manifest chain. Output: one immutable keyed Mind
+document plus its typed-organ Mind commit receipt. Derived state: the current
+Body basis is the highest admitted generation; the Body-store head remains
+physiology and transport authority only. Forbidden writers: prompt renderers,
+current-work selectors, status, and role launch code may not observe the
+repository or Body store to manufacture reasoning state. Shared path:
+`observe_runtime_repository_body_basis` and the repository-Body CLI both admit
+through the same Mind CAS primitive. Cut line: `current_body_modeling_work`
+reads only the admitted Mind view, and `put_reasoning_basis` requires a launch's
+Body basis to equal that sealed projection. Verification: current-work incurs
+zero Body-store/file reads; exact admission replays; a tampered external source
+refuses with the Mind store byte-identical; core 563/563 and OpenAI runtime
+23/23 pass.

@@ -220,11 +220,12 @@ Cut in this order:
    projection assembled from exact keyed Mind document versions. The final
    model request must render that projection; citing keyed sources while
    rendering the old thread snapshot is explicitly forbidden.
-2. Complete the pure typed current-work projection over keyed Mind/runtime receipts.
+2. **Body admission landed at `2eb95df6`; scheduling remains open:** complete the pure typed current-work projection over keyed Mind/runtime receipts.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
    from explicit external-evidence obligations. Body-generation Modeling
-   identity and atomic decision admission are landed; scheduling consumers are
-   not yet migrated.
+   identity, typed Body-to-Mind admission, sealed reasoning, and atomic decision
+   admission are landed. Current-work no longer reads the external Body store,
+   but scheduling consumers are not yet migrated.
 3. Move status and coordinator launch/review consumers to that projection and
    exact request/result identities. Thread ID remains immutable pass provenance
    only.
