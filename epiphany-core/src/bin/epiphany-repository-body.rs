@@ -3,10 +3,11 @@ use chrono::Utc;
 use epiphany_core::{
     EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode,
     EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, EpiphanyRepoModelSeed,
-    EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
-    bind_runtime_to_agent_memory_swarm, bind_runtime_workspace_coverage_store,
-    ensure_agent_memory_swarm_identity, initialize_fresh_agent_memory_store,
-    initialize_keyed_repo_model, initialize_runtime_spine, load_repository_body_status,
+    EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions,
+    admit_repository_body_observation, bind_repository_body, bind_runtime_to_agent_memory_swarm,
+    bind_runtime_workspace_coverage_store, ensure_agent_memory_swarm_identity,
+    initialize_fresh_agent_memory_store, initialize_keyed_repo_model, initialize_runtime_spine,
+    load_current_runtime_repository_body_basis, load_repository_body_status,
     observe_repository_body,
 };
 use std::path::PathBuf;
@@ -41,6 +42,8 @@ fn main() -> Result<()> {
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
             bind_runtime_workspace_coverage_store(&runtime_store, &workspace_coverage_store, &at)?;
             observe_repository_body(&repo, &store, &runtime_store)?;
+            let body_basis = load_current_runtime_repository_body_basis(&runtime_store)?;
+            admit_repository_body_observation(&runtime_store, &body_basis)?;
             let seed = EpiphanyRepoModelSeed::new(
                 format!("repo-model-seed-{}", binding.runtime_id),
                 format!("{}-repo-model", binding.runtime_id),
@@ -122,11 +125,14 @@ fn main() -> Result<()> {
             let repo = required(&args, "--repo")?;
             let store = required(&args, "--store")?;
             let runtime_store = required(&args, "--runtime-store")?;
-            match observe_repository_body(
+            let outcome = observe_repository_body(
                 &PathBuf::from(repo),
                 &PathBuf::from(store),
                 &PathBuf::from(runtime_store),
-            )? {
+            )?;
+            let basis = load_current_runtime_repository_body_basis(&PathBuf::from(runtime_store))?;
+            admit_repository_body_observation(&PathBuf::from(runtime_store), &basis)?;
+            match outcome {
                 ObserveOutcome::Created(value) => println!(
                     "created generation={} tree={}",
                     value.generation, value.tree_oid
@@ -204,6 +210,8 @@ fn smoke() -> Result<()> {
         "2026-07-15T00:00:02Z",
     )?;
     let outcome = observe_repository_body(&root, &store, &runtime_store)?;
+    let basis = load_current_runtime_repository_body_basis(&runtime_store)?;
+    admit_repository_body_observation(&runtime_store, &basis)?;
     let observed = load_repository_body_status(&store)?
         .ok_or_else(|| anyhow::anyhow!("smoke observation missing after commit"))?;
     std::fs::remove_file(&store)?;

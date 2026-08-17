@@ -380,7 +380,7 @@ pub fn observe_runtime_repository_body_basis(
     )? {
         ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value,
     };
-    Ok(RepositoryBodyObservationBasis {
+    let basis = RepositoryBodyObservationBasis {
         schema_version: BODY_SCHEMA_VERSION.into(),
         workspace_id: body.workspace_id,
         swarm_id: body.swarm_id,
@@ -392,7 +392,59 @@ pub fn observe_runtime_repository_body_basis(
         manifest_root_sha256: observation.manifest_root_sha256,
         scan_started_at: observation.scan_started_at,
         scan_finished_at: observation.scan_finished_at,
-    })
+    };
+    admit_repository_body_observation(runtime_store, &basis)?;
+    Ok(basis)
+}
+
+pub fn admit_repository_body_observation(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+) -> Result<crate::EpiphanyMindRepositoryBodyObservationDocument> {
+    validate_repository_body_observation_basis(runtime_store, basis)?;
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let source = find(&entries, BODY_OBSERVATION_TYPE, &basis.observation_id)
+        .ok_or_else(|| anyhow!("repository Body observation source is absent"))?;
+    let source_observation =
+        crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-repository-body", source)?;
+    let document = crate::EpiphanyMindRepositoryBodyObservationDocument {
+        basis: basis.clone(),
+        source_observation: source_observation.clone(),
+    };
+    document.validate()?;
+    let mut cache = crate::runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    if let Some(existing) =
+        cache.get::<crate::EpiphanyMindRepositoryBodyObservationDocument>(&basis.observation_id)?
+    {
+        if existing != document {
+            bail!("Mind repository Body observation identity collision");
+        }
+        return Ok(existing);
+    }
+    let write = cache.prepare_entry(&basis.observation_id, &document)?.0;
+    match crate::commit_external_typed_observation_mind_mutation(
+        runtime_store,
+        "Body",
+        source_observation,
+        "repository-body-observation-admission",
+        Vec::new(),
+        vec![write],
+        &basis.scan_finished_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(_) => Ok(document),
+        crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
+            bail!("Mind repository Body observation lost its insert race")
+        }
+    }
+}
+
+pub fn current_mind_repository_body_observation(
+    runtime_store: &Path,
+) -> Result<Option<RepositoryBodyObservationBasis>> {
+    Ok(crate::assemble_mind_view(runtime_store)?.repository_body_observation)
 }
 
 /// Loads the authenticated current Repository Body basis already persisted for
@@ -1669,6 +1721,21 @@ mod tests {
         write(&d.path().join("tracked.txt"), "one")?;
         run(d.path(), &["add", "."])?;
         let observed = observe_runtime_repository_body_basis(&runtime)?;
+        assert_eq!(
+            current_mind_repository_body_observation(&runtime)?,
+            Some(observed.clone())
+        );
+        let mut mind = crate::runtime_spine_cache(&runtime)?;
+        mind.pull_all_backing_stores()?;
+        let admitted = mind
+            .get::<crate::EpiphanyMindRepositoryBodyObservationDocument>(&observed.observation_id)?
+            .ok_or_else(|| anyhow!("Mind Body observation admission is absent"))?;
+        admitted.validate()?;
+        assert_eq!(admitted.basis, observed);
+        assert_eq!(
+            admitted.source_observation.store_id,
+            "epiphany-repository-body"
+        );
         let before = std::fs::read(&store)?;
 
         write(&d.path().join("tracked.txt"), "two")?;
@@ -1685,6 +1752,35 @@ mod tests {
             load_current_runtime_repository_body_basis(&runtime)?,
             advanced
         );
+        Ok(())
+    }
+    #[test]
+    fn body_admission_refuses_tampered_external_source_without_mutating_mind() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(d.path(), state.path(), "admitted", "runtime", "swarm")?;
+        write(&d.path().join("tracked.txt"), "one")?;
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        let mind_before = std::fs::read(&runtime)?;
+
+        let backing = SingleFileMessagePackBackingStore::new(&store);
+        let opening = backing.pull_all()?;
+        let original = find(&opening, BODY_OBSERVATION_TYPE, &basis.observation_id)
+            .unwrap()
+            .clone();
+        let mut tampered: RepositoryBodyObservation = decode(&original)?;
+        tampered.manifest_root_sha256 = "sha256:tampered".into();
+        assert!(backing.compare_and_swap_batch(
+            &[original],
+            vec![envelope(
+                BODY_OBSERVATION_TYPE,
+                &basis.observation_id,
+                &tampered,
+            )?],
+        )?);
+
+        assert!(admit_repository_body_observation(&runtime, &basis).is_err());
+        assert_eq!(std::fs::read(&runtime)?, mind_before);
         Ok(())
     }
     #[test]

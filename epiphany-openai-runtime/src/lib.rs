@@ -2563,6 +2563,7 @@ mod tests {
             investigation_checkpoint: None,
             mode: None,
             planning: Default::default(),
+            repository_body_observation: None,
             repo_model: None,
         };
         epiphany_core::EpiphanyReasoningBasis::new(
@@ -3754,13 +3755,13 @@ mod tests {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         let body_basis = epiphany_core::RepositoryBodyObservationBasis {
-            schema_version: "epiphany.repository_body.observation_basis.v0".to_string(),
+            schema_version: epiphany_core::BODY_SCHEMA_VERSION.to_string(),
             workspace_id: "workspace-test".to_string(),
             swarm_id: "swarm-test".to_string(),
             runtime_id: "epiphany-test".to_string(),
             scope: "whole_repository".to_string(),
             body_binding_sha256: "body-binding".to_string(),
-            observation_id: "body-observation-1".to_string(),
+            observation_id: "workspace-test:1".to_string(),
             generation: 1,
             manifest_root_sha256: "manifest-root".to_string(),
             scan_started_at: "2026-07-13T00:00:00Z".to_string(),
@@ -3873,6 +3874,49 @@ mod tests {
                 created_at: now(),
             },
         )?;
+        let source_observation = epiphany_core::RepositoryBodyObservation {
+            schema_version: body_basis.schema_version.clone(),
+            observation_id: body_basis.observation_id.clone(),
+            workspace_id: body_basis.workspace_id.clone(),
+            swarm_id: body_basis.swarm_id.clone(),
+            runtime_id: body_basis.runtime_id.clone(),
+            scope: body_basis.scope.clone(),
+            generation: body_basis.generation,
+            git_top_level: "C:/fixture".into(),
+            object_format: "sha1".into(),
+            head_oid: None,
+            tree_oid: "tree".into(),
+            core_ignorecase: true,
+            core_symlinks: false,
+            sparse_checkout: false,
+            sparse_checkout_cone: false,
+            submodule_limitation: "gitlinks-only".into(),
+            scan_started_at: body_basis.scan_started_at.clone(),
+            scan_finished_at: body_basis.scan_finished_at.clone(),
+            first_tree_oid: "tree".into(),
+            second_tree_oid: "tree".into(),
+            two_scan_outcome: "stable".into(),
+            global_excludes_policy: "disabled".into(),
+            manifest_root_sha256: body_basis.manifest_root_sha256.clone(),
+            manifest_entry_count: 0,
+        };
+        let source_envelope = cultcache_rs::CultCacheEnvelope {
+            key: body_basis.observation_id.clone(),
+            r#type: epiphany_core::BODY_OBSERVATION_TYPE.into(),
+            payload: rmp_serde::to_vec_named(&source_observation)?,
+            stored_at: body_basis.scan_finished_at.clone(),
+            schema_id: Some(epiphany_core::BODY_OBSERVATION_TYPE.into()),
+        };
+        let admitted_body = epiphany_core::EpiphanyMindRepositoryBodyObservationDocument {
+            basis: body_basis.clone(),
+            source_observation: epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
+                "epiphany-repository-body",
+                &source_envelope,
+            )?,
+        };
+        admitted_body.validate()?;
+        let mut mind = epiphany_core::runtime_spine_cache(&store)?;
+        mind.put(&body_basis.observation_id, &admitted_body)?;
         let launch_request = load_worker_launch_request(&store, "worker-job-1")?;
         let reasoning_basis = epiphany_core::worker_reasoning_basis(&store, &launch_request)?;
         epiphany_core::put_reasoning_basis(&store, &reasoning_basis)?;

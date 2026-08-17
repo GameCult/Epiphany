@@ -187,7 +187,8 @@ pub(crate) fn body_modeling_decision_envelope(
 pub fn current_body_modeling_work(
     store_path: impl AsRef<Path>,
 ) -> Result<EpiphanyBodyModelingWorkProjection> {
-    let body_basis = crate::observe_runtime_repository_body_basis(store_path.as_ref())?;
+    let body_basis = crate::current_mind_repository_body_observation(store_path.as_ref())?
+        .ok_or_else(|| anyhow!("Mind has no admitted repository Body observation"))?;
     let repo_model_basis = crate::assemble_repo_model_view(store_path.as_ref())?.reasoning_basis();
     EpiphanyBodyModelingWorkProjection::derive(
         body_basis.runtime_id.clone(),
@@ -385,6 +386,10 @@ mod tests {
             )?,
             "2026-08-17T00:00:01Z",
         )?;
+        crate::reset_repository_body_read_counters();
+        let projected_work = current_body_modeling_work(&store)?;
+        assert_eq!(projected_work.body_basis, body);
+        assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let document =
             crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: "creation-thread".into(),

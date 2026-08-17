@@ -19,6 +19,51 @@ pub const MIND_FOCUS_KEY: &str = "focus";
 pub const MIND_MODE_KEY: &str = "mode";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.repository_body_observation.v1",
+    schema = "EpiphanyMindRepositoryBodyObservationDocument"
+)]
+pub struct EpiphanyMindRepositoryBodyObservationDocument {
+    #[cultcache(key = 0)]
+    pub basis: crate::RepositoryBodyObservationBasis,
+    #[cultcache(key = 1)]
+    pub source_observation: EpiphanyMindDocumentVersion,
+}
+
+impl EpiphanyMindRepositoryBodyObservationDocument {
+    pub fn validate(&self) -> Result<()> {
+        self.source_observation.validate()?;
+        if self.source_observation.store_id != "epiphany-repository-body"
+            || self.source_observation.document_type != crate::BODY_OBSERVATION_TYPE
+            || self.source_observation.document_key != self.basis.observation_id
+        {
+            return Err(anyhow!(
+                "Mind Body observation does not bind its exact external observation"
+            ));
+        }
+        let source: crate::RepositoryBodyObservation =
+            rmp_serde::from_slice(&self.source_observation.payload_msgpack)?;
+        if self.basis.schema_version != crate::BODY_SCHEMA_VERSION
+            || source.schema_version != self.basis.schema_version
+            || source.observation_id != self.basis.observation_id
+            || source.workspace_id != self.basis.workspace_id
+            || source.swarm_id != self.basis.swarm_id
+            || source.runtime_id != self.basis.runtime_id
+            || source.scope != self.basis.scope
+            || source.generation != self.basis.generation
+            || source.manifest_root_sha256 != self.basis.manifest_root_sha256
+            || source.scan_started_at != self.basis.scan_started_at
+            || source.scan_finished_at != self.basis.scan_finished_at
+        {
+            return Err(anyhow!(
+                "Mind Body observation basis diverges from its exact source payload"
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.mind.identity.v1", schema = "EpiphanyMindIdentity")]
 pub struct EpiphanyMindIdentity {
     #[cultcache(key = 0)]
@@ -158,6 +203,7 @@ pub struct EpiphanyMindView {
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
     pub planning: EpiphanyPlanningState,
+    pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
     pub repo_model: Option<crate::EpiphanyRepoModelView>,
 }
 
@@ -175,6 +221,7 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindBacklogItemDocument>()?;
     cache.register_entry_type::<EpiphanyMindRoadmapStreamDocument>()?;
     cache.register_entry_type::<EpiphanyMindObjectiveDraftDocument>()?;
+    cache.register_entry_type::<EpiphanyMindRepositoryBodyObservationDocument>()?;
     crate::repo_model_documents::register_repo_model_document_types(cache)?;
     cache.register_entry_type::<crate::RepoFrontierPlanDecisionReceipt>()?;
     cache.register_entry_type::<crate::RepoFrontierRelinquishmentReceipt>()?;
@@ -288,6 +335,11 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         rmp_serde::from_slice::<EpiphanyMindObjectiveDraftDocument>(&envelope.payload)?
             .value
             .id
+    } else if envelope.r#type == EpiphanyMindRepositoryBodyObservationDocument::TYPE {
+        let value: EpiphanyMindRepositoryBodyObservationDocument =
+            rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.basis.observation_id
     } else {
         return Err(anyhow!(
             "Mind mutation cannot write non-canonical document type {:?}",
@@ -336,6 +388,24 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         values::<EpiphanyMindRoadmapStreamDocument, _>(&cache, |value| value.value)?;
     let mut objective_drafts =
         values::<EpiphanyMindObjectiveDraftDocument, _>(&cache, |value| value.value)?;
+    let mut body_observations = cache.get_all::<EpiphanyMindRepositoryBodyObservationDocument>()?;
+    for observation in &body_observations {
+        observation.validate()?;
+        if observation.basis.runtime_id != identity.runtime_id {
+            return Err(anyhow!("Mind Body observation belongs to another runtime"));
+        }
+    }
+    body_observations.sort_by_key(|value| value.basis.generation);
+    if body_observations.windows(2).any(|pair| {
+        pair[0].basis.generation == pair[1].basis.generation
+            || pair[0].basis.workspace_id != pair[1].basis.workspace_id
+            || pair[0].basis.body_binding_sha256 != pair[1].basis.body_binding_sha256
+    }) {
+        return Err(anyhow!(
+            "Mind Body observation chain is not singular and ordered"
+        ));
+    }
+    let repository_body_observation = body_observations.last().map(|value| value.basis.clone());
     let repo_model = if cache
         .get::<crate::EpiphanyRepoModelIdentityDocument>(crate::REPO_MODEL_IDENTITY_KEY)?
         .is_some()
@@ -398,6 +468,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
             roadmap_streams,
             objective_drafts,
         },
+        repository_body_observation,
         repo_model,
     })
 }
@@ -430,6 +501,7 @@ fn canonical_mind_versions(
                     | EpiphanyMindBacklogItemDocument::TYPE
                     | EpiphanyMindRoadmapStreamDocument::TYPE
                     | EpiphanyMindObjectiveDraftDocument::TYPE
+                    | EpiphanyMindRepositoryBodyObservationDocument::TYPE
             )
         })
         .map(|envelope| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope))

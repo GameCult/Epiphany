@@ -1255,7 +1255,11 @@ mod tests {
             Some(claim.clone())
         );
         assert_eq!(
-            cache.get_all::<crate::EpiphanyMindCommitReceipt>()?.len(),
+            cache
+                .get_all::<crate::EpiphanyMindCommitReceipt>()?
+                .into_iter()
+                .filter(|receipt| receipt.invariant_owner.starts_with("Modeling.atlas."))
+                .count(),
             2
         );
 

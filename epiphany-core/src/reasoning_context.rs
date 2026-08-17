@@ -109,6 +109,7 @@ pub struct EpiphanyMindPromptProjection {
     pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
     pub mode: Option<epiphany_state_model::EpiphanyModeState>,
     pub planning: epiphany_state_model::EpiphanyPlanningState,
+    pub repository_body_observation: Option<crate::RepositoryBodyObservationBasis>,
     pub repo_model: Option<EpiphanyRepoModelPromptProjection>,
 }
 
@@ -127,6 +128,7 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
             investigation_checkpoint: value.investigation_checkpoint,
             mode: value.mode,
             planning: value.planning,
+            repository_body_observation: value.repository_body_observation,
             repo_model: value.repo_model.map(Into::into),
         }
     }
@@ -549,6 +551,8 @@ pub fn put_reasoning_basis(
         if projection.authority != document.into()
             || projection.mind != current_mind.clone().into()
             || basis.source_documents != current_mind.source_documents
+            || projection.authority.repository_body_observation_basis
+                != current_mind.repository_body_observation
         {
             return Err(anyhow!(
                 "role reasoning projection diverges from its exact launch or keyed Mind sources"
@@ -861,6 +865,31 @@ pub fn commit_typed_organ_mind_mutation(
         strong_reads,
         writes,
         vec![provenance],
+        committed_at,
+    )
+}
+
+pub(crate) fn commit_external_typed_observation_mind_mutation(
+    store_path: &Path,
+    organ: &str,
+    provenance: EpiphanyMindDocumentVersion,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
+    require_non_empty(organ, "Mind mutation organ")?;
+    provenance.validate()?;
+    commit_authorized_mind_mutation(
+        store_path,
+        EpiphanyMindCommitAuthority::TypedOrganProvenance {
+            organ: organ.to_string(),
+            provenance,
+        },
+        invariant_owner,
+        strong_reads,
+        writes,
+        Vec::new(),
         committed_at,
     )
 }
@@ -1265,6 +1294,7 @@ mod tests {
                 investigation_checkpoint: None,
                 mode: None,
                 planning: Default::default(),
+                repository_body_observation: None,
                 repo_model: None,
             },
         });
