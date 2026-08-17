@@ -4888,3 +4888,25 @@ Body basis to equal that sealed projection. Verification: current-work incurs
 zero Body-store/file reads; exact admission replays; a tampered external source
 refuses with the Mind store byte-identical; core 563/563 and OpenAI runtime
 23/23 pass.
+
+Exact `e42788c9` lands the shared current-work owner. One pure
+`EpiphanyCurrentWorkProjection` assembles keyed Mind once, derives unresolved
+Body-generation Modeling work, and carries the exact family-owned projections
+for Eyes continuation, frontier planning, proposal Modeling, and Hands
+readiness. `epiphany-mvp-status` consumes those fields instead of repeating the
+derivations. The projection is not a work registry and writes nothing; family
+requests and receipts remain their semantic owners.
+
+Owner: keyed Mind plus exact family request/result/decision receipts own whether
+work exists; `project_current_work` owns only their deterministic joint view.
+Inputs: one sealed `EpiphanyMindView` and existing typed lifecycle families.
+Outputs: one typed scheduling/display projection with the Mind projection
+digest. Derived state: status JSON and coordinator recommendations. Forbidden
+writers: events, latest-result lanes, accepted-at ordering, and thread revisions
+cannot manufacture or suppress current work. Shared path: status is migrated;
+operator and Resident Self actuation must consume the same projection after the
+launch transaction is cut. Cut line: Body Modeling is observable but cannot yet
+recommend `launchModeling`, because the surviving coordinator launch still
+writes `EpiphanyThreadStateEntry`. Verification: Body work appears before its
+exact decision receipt, clears after that receipt, and performs zero external
+Body reads; the coordinator-runtime status binary builds.
