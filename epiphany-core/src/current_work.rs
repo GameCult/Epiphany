@@ -19,7 +19,7 @@ pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
     pub body_modeling: Option<EpiphanyBodyModelingWorkProjection>,
-    pub body_modeling_action: Option<EpiphanyBodyModelingContinuationAction>,
+    pub body_modeling_action: Option<EpiphanyModelingContinuationAction>,
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
@@ -28,7 +28,7 @@ pub struct EpiphanyCurrentWorkProjection {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum EpiphanyProposalModelingContinuationAction {
+pub enum EpiphanyModelingContinuationAction {
     Launch,
     Wait,
     Review,
@@ -37,16 +37,8 @@ pub enum EpiphanyProposalModelingContinuationAction {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyProposalModelingWorkProjection {
     pub request: RepoFrontierProposalModelingRequest,
-    pub action: EpiphanyProposalModelingContinuationAction,
+    pub action: EpiphanyModelingContinuationAction,
     pub job_id: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyBodyModelingContinuationAction {
-    Launch,
-    Wait,
-    Review,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -307,7 +299,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
                 Some(work) => {
                     let action = body_modeling_continuation_action(&cache, &work.work_id)?;
                     (
-                        (action == EpiphanyBodyModelingContinuationAction::Launch).then_some(work),
+                        (action == EpiphanyModelingContinuationAction::Launch).then_some(work),
                         Some(action),
                     )
                 }
@@ -336,7 +328,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
 fn body_modeling_continuation_action(
     cache: &CultCache,
     work_id: &str,
-) -> Result<EpiphanyBodyModelingContinuationAction> {
+) -> Result<EpiphanyModelingContinuationAction> {
     let mut bindings = cache
         .get_all::<EpiphanyBodyModelingLaunchBinding>()?
         .into_iter()
@@ -344,26 +336,26 @@ fn body_modeling_continuation_action(
         .collect::<Vec<_>>();
     bindings.sort_by_key(|binding| binding.attempt_ordinal);
     let Some(binding) = bindings.last() else {
-        return Ok(EpiphanyBodyModelingContinuationAction::Launch);
+        return Ok(EpiphanyModelingContinuationAction::Launch);
     };
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
     Ok(match job.status {
         crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-            EpiphanyBodyModelingContinuationAction::Launch
+            EpiphanyModelingContinuationAction::Launch
         }
         crate::EpiphanyRuntimeJobStatus::Completed => {
             if cache
                 .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
                 .is_some()
             {
-                EpiphanyBodyModelingContinuationAction::Review
+                EpiphanyModelingContinuationAction::Review
             } else {
-                EpiphanyBodyModelingContinuationAction::Wait
+                EpiphanyModelingContinuationAction::Wait
             }
         }
-        _ => EpiphanyBodyModelingContinuationAction::Wait,
+        _ => EpiphanyModelingContinuationAction::Wait,
     })
 }
 
@@ -392,7 +384,7 @@ fn current_proposal_modeling_work(
         let Some(binding) = request_bindings.last() else {
             return Ok(Some(EpiphanyProposalModelingWorkProjection {
                 request,
-                action: EpiphanyProposalModelingContinuationAction::Launch,
+                action: EpiphanyModelingContinuationAction::Launch,
                 job_id: None,
             }));
         };
@@ -421,16 +413,16 @@ fn current_proposal_modeling_work(
         let action = match job.status {
             crate::EpiphanyRuntimeJobStatus::Failed
             | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyProposalModelingContinuationAction::Launch
+                EpiphanyModelingContinuationAction::Launch
             }
             crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
                 crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
                     cache,
                     result.as_ref().expect("checked terminal result"),
                 )?;
-                EpiphanyProposalModelingContinuationAction::Review
+                EpiphanyModelingContinuationAction::Review
             }
-            _ => EpiphanyProposalModelingContinuationAction::Wait,
+            _ => EpiphanyModelingContinuationAction::Wait,
         };
         return Ok(Some(EpiphanyProposalModelingWorkProjection {
             request,
@@ -444,7 +436,7 @@ fn current_proposal_modeling_work(
 pub fn body_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyBodyModelingContinuationAction>> {
+) -> Result<Option<EpiphanyModelingContinuationAction>> {
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let bindings = cache
@@ -475,7 +467,7 @@ pub fn body_modeling_continuation_action_for_job(
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
     let store_path = store_path.as_ref();
     if crate::project_current_work(store_path)?.body_modeling_action
-        != Some(EpiphanyBodyModelingContinuationAction::Review)
+        != Some(EpiphanyModelingContinuationAction::Review)
     {
         return Ok(None);
     }
@@ -494,7 +486,7 @@ pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Resu
 pub fn proposal_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyProposalModelingContinuationAction>> {
+) -> Result<Option<EpiphanyModelingContinuationAction>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
         .filter(|work| work.job_id.as_deref() == Some(job_id))
@@ -506,7 +498,7 @@ pub fn current_proposal_modeling_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
-        .filter(|work| work.action == EpiphanyProposalModelingContinuationAction::Review)
+        .filter(|work| work.action == EpiphanyModelingContinuationAction::Review)
         .and_then(|work| work.job_id))
 }
 
@@ -839,7 +831,7 @@ pub fn launch_current_proposal_modeling_work(
     }
     let work = project_current_work(store_path)?
         .proposal_modeling
-        .filter(|work| work.action == EpiphanyProposalModelingContinuationAction::Launch)
+        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable proposal Modeling work"))?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -1230,7 +1222,7 @@ mod tests {
         assert_eq!(current_work.body_modeling, Some(projected_work.clone()));
         assert_eq!(
             current_work.body_modeling_action,
-            Some(EpiphanyBodyModelingContinuationAction::Launch)
+            Some(EpiphanyModelingContinuationAction::Launch)
         );
         assert_eq!(
             current_work.mind_projection_digest,
@@ -1260,7 +1252,7 @@ mod tests {
         assert!(scheduled_work.body_modeling.is_none());
         assert_eq!(
             scheduled_work.body_modeling_action,
-            Some(EpiphanyBodyModelingContinuationAction::Wait)
+            Some(EpiphanyModelingContinuationAction::Wait)
         );
         assert!(crate::resident_self_body_modeling_pressure(&store, 2)?.is_none());
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
@@ -1360,7 +1352,7 @@ mod tests {
         cache.put(&job.job_id, &job)?;
         assert_eq!(
             project_current_work(&store)?.body_modeling_action,
-            Some(EpiphanyBodyModelingContinuationAction::Review)
+            Some(EpiphanyModelingContinuationAction::Review)
         );
         let continuation = crate::EpiphanyCoordinatorRunReceipt {
             schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
@@ -1440,7 +1432,7 @@ mod tests {
         assert_eq!(proposal_work.request, request);
         assert_eq!(
             proposal_work.action,
-            EpiphanyProposalModelingContinuationAction::Launch
+            EpiphanyModelingContinuationAction::Launch
         );
         let racers = (0..2)
             .map(|_| {
@@ -1483,7 +1475,7 @@ mod tests {
                 .proposal_modeling
                 .expect("launched proposal remains current")
                 .action,
-            EpiphanyProposalModelingContinuationAction::Wait
+            EpiphanyModelingContinuationAction::Wait
         );
         assert!(
             launch_current_proposal_modeling_work(
@@ -1645,7 +1637,7 @@ mod tests {
                 .proposal_modeling
                 .expect("terminal proposal remains current until admission")
                 .action,
-            EpiphanyProposalModelingContinuationAction::Review
+            EpiphanyModelingContinuationAction::Review
         );
         let proposal_commit = accept_proposal_modeling_result(
             &store,

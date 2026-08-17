@@ -1,7 +1,7 @@
 use epiphany_core::EpiphanyCrrcAction;
 use epiphany_core::EpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyProposalModelingContinuationAction;
+use epiphany_core::EpiphanyModelingContinuationAction;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
@@ -699,7 +699,7 @@ pub fn recommend_coordinator_action(
 
     if let Some(action) = input.proposal_modeling_action {
         return match action {
-            EpiphanyProposalModelingContinuationAction::Launch => build(
+            EpiphanyModelingContinuationAction::Launch => build(
                 EpiphanyCoordinatorAction::LaunchModeling,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
@@ -707,7 +707,7 @@ pub fn recommend_coordinator_action(
                 true,
                 "The oldest unresolved proposal request is ready for its exact Modeling attempt.",
             ),
-            EpiphanyProposalModelingContinuationAction::Wait => build(
+            EpiphanyModelingContinuationAction::Wait => build(
                 EpiphanyCoordinatorAction::WaitForModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
@@ -715,7 +715,7 @@ pub fn recommend_coordinator_action(
                 false,
                 "The exact proposal Modeling attempt is still running.",
             ),
-            EpiphanyProposalModelingContinuationAction::Review => build(
+            EpiphanyModelingContinuationAction::Review => build(
                 EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
@@ -1489,7 +1489,7 @@ mod tests {
     fn selected_user_proposal_preempts_generic_regather() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            proposal_modeling_action: Some(EpiphanyProposalModelingContinuationAction::Launch),
+            proposal_modeling_action: Some(EpiphanyModelingContinuationAction::Launch),
             ..input()
         });
         assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);

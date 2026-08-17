@@ -552,7 +552,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         proposal_modeling_action: proposal_modeling_work.map(|work| work.action),
         body_modeling_work_ready: current_work.body_modeling.is_some(),
         body_modeling_review_ready: current_work.body_modeling_action
-            == Some(epiphany_core::EpiphanyBodyModelingContinuationAction::Review),
+            == Some(epiphany_core::EpiphanyModelingContinuationAction::Review),
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
@@ -647,7 +647,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "imaginationFrontierReady": imagination_frontier_ready,
             "pendingProposalModelingRequestId": proposal_modeling_work
-                .filter(|work| work.action == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch)
+                .filter(|work| work.action == epiphany_core::EpiphanyModelingContinuationAction::Launch)
                 .map(|work| work.request.request_id.as_str()),
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,

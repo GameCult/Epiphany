@@ -1210,7 +1210,7 @@ pub fn ingest_resident_self_domain_pressure(
     // the next one on a later ingestion cycle.
     if let Some(selection) = crate::project_current_work(runtime_store)?
         .proposal_modeling
-        .filter(|work| work.action == crate::EpiphanyProposalModelingContinuationAction::Launch)
+        .filter(|work| work.action == crate::EpiphanyModelingContinuationAction::Launch)
         .map(|work| work.request)
     {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
@@ -1358,11 +1358,11 @@ pub(crate) fn resident_self_safe_continuation_action(
                 crate::body_modeling_continuation_action_for_job(runtime_store, job_id)?
             {
                 return Ok(match action {
-                    crate::EpiphanyBodyModelingContinuationAction::Launch => {
+                    crate::EpiphanyModelingContinuationAction::Launch => {
                         Some("launchModeling".to_string())
                     }
-                    crate::EpiphanyBodyModelingContinuationAction::Wait => None,
-                    crate::EpiphanyBodyModelingContinuationAction::Review => {
+                    crate::EpiphanyModelingContinuationAction::Wait => None,
+                    crate::EpiphanyModelingContinuationAction::Review => {
                         Some("reviewModelingResult".to_string())
                     }
                 });
@@ -1371,11 +1371,11 @@ pub(crate) fn resident_self_safe_continuation_action(
                 crate::proposal_modeling_continuation_action_for_job(runtime_store, job_id)?
             {
                 return Ok(match action {
-                    crate::EpiphanyProposalModelingContinuationAction::Launch => {
+                    crate::EpiphanyModelingContinuationAction::Launch => {
                         Some("launchModeling".to_string())
                     }
-                    crate::EpiphanyProposalModelingContinuationAction::Wait => None,
-                    crate::EpiphanyProposalModelingContinuationAction::Review => {
+                    crate::EpiphanyModelingContinuationAction::Wait => None,
+                    crate::EpiphanyModelingContinuationAction::Review => {
                         Some("reviewModelingResult".to_string())
                     }
                 });
@@ -1521,13 +1521,13 @@ fn resident_self_failed_receipt_typed_continuation_action(
     Ok(
         match crate::proposal_modeling_continuation_action_for_job(runtime_store, &evidence.job_id)?
         {
-            Some(crate::EpiphanyProposalModelingContinuationAction::Review) => {
+            Some(crate::EpiphanyModelingContinuationAction::Review) => {
                 Some("reviewModelingResult".to_string())
             }
-            Some(crate::EpiphanyProposalModelingContinuationAction::Launch) => {
+            Some(crate::EpiphanyModelingContinuationAction::Launch) => {
                 Some("launchModeling".to_string())
             }
-            Some(crate::EpiphanyProposalModelingContinuationAction::Wait) | None => None,
+            Some(crate::EpiphanyModelingContinuationAction::Wait) | None => None,
         },
     )
 }

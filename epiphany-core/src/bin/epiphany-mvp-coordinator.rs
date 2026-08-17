@@ -513,7 +513,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             let current = epiphany_core::project_current_work(&runtime_store)?
                 .proposal_modeling
                 .filter(|work| {
-                    work.action == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch
+                    work.action == epiphany_core::EpiphanyModelingContinuationAction::Launch
                 })
                 .ok_or_else(|| anyhow!("proposal Modeling request is not launchable"))?;
             if current.request.request_id != request_id {
@@ -1055,7 +1055,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             .proposal_modeling
                             .filter(|work| {
                                 work.action
-                                    == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch
+                                    == epiphany_core::EpiphanyModelingContinuationAction::Launch
                             })
                             .ok_or_else(|| anyhow!("proposal Modeling work is not launchable"))?;
                         if current.request.request_id != request_id {

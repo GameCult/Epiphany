@@ -6,7 +6,7 @@ use super::EpiphanyPressure;
 use super::EpiphanyPressureLevel;
 use super::EpiphanyReorientAction;
 use super::EpiphanyRoleBoardLane;
-use crate::EpiphanyProposalModelingContinuationAction;
+use crate::EpiphanyModelingContinuationAction;
 use crate::RepoFrontierPlanningLifecycleStage;
 use crate::RepoFrontierResearchContinuationAction;
 use serde::{Deserialize, Serialize};
@@ -167,7 +167,7 @@ pub struct EpiphanyCoordinatorInput {
     /// lifecycle. Self may advance it, but only Mind's result can decide adoption.
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     /// Exact current action for the oldest unresolved proposal Modeling request.
-    pub proposal_modeling_action: Option<EpiphanyProposalModelingContinuationAction>,
+    pub proposal_modeling_action: Option<EpiphanyModelingContinuationAction>,
     pub body_modeling_work_ready: bool,
     pub body_modeling_review_ready: bool,
 }
@@ -220,7 +220,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub hands_frontier_ready: bool,
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
-    pub proposal_modeling_action: Option<EpiphanyProposalModelingContinuationAction>,
+    pub proposal_modeling_action: Option<EpiphanyModelingContinuationAction>,
     pub body_modeling_work_ready: bool,
     pub body_modeling_review_ready: bool,
 }
