@@ -471,16 +471,6 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
                     .flatten()
             })
             .is_some_and(|result| result.proposal_modeling_request_id.is_some());
-    let native_hands_consequence_after_boundary = match state_ref {
-        Some(state) => {
-            epiphany_core::has_complete_hands_consequence_after_latest_accepted_boundary(
-                &runtime_store_path,
-                state,
-            )
-            .map_err(anyhow::Error::msg)?
-        }
-        None => false,
-    };
     let hands_frontier_ready = current_work.hands_frontier_ready;
     let research_continuation_action = current_work.research_continuation_action;
     let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
@@ -534,8 +524,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
-            .implementation_evidence_after_verification
-            || native_hands_consequence_after_boundary,
+            .implementation_evidence_after_verification,
         verification_result_cites_implementation_evidence: finding_signals
             .verification_result_cites_implementation_evidence,
         verification_result_covers_current_modeling: finding_signals
@@ -554,9 +543,10 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             .frontier_verdict_modeling
             .as_ref()
             .map(|work| work.action),
+        verification_action: current_work.verification.as_ref().map(|work| work.action),
         body_modeling_work_ready: current_work.body_modeling.is_some(),
         body_modeling_review_ready: current_work.body_modeling_action
-            == Some(epiphany_core::EpiphanyModelingContinuationAction::Review),
+            == Some(epiphany_core::EpiphanyAgentPassContinuationAction::Review),
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
@@ -648,10 +638,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "modelingResultReviewable": finding_signals.modeling_result_reviewable,
             "modelingResultFailureReviewed": finding_signals.modeling_result_failure_reviewed,
             "modelingResultProposalBound": modeling_result_proposal_bound,
-            "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "imaginationFrontierReady": imagination_frontier_ready,
             "pendingProposalModelingRequestId": proposal_modeling_work
-                .filter(|work| work.action == epiphany_core::EpiphanyModelingContinuationAction::Launch)
+                .filter(|work| work.action == epiphany_core::EpiphanyAgentPassContinuationAction::Launch)
                 .map(|work| work.request.request_id.as_str()),
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,

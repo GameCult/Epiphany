@@ -34,6 +34,7 @@ pub struct EpiphanyRolePassAuthorityProjection {
         Option<crate::RepoFrontierVerdictModelingLaunchAuthority>,
     pub frontier_planning_context: Option<crate::RepoFrontierPlanningContextProjection>,
     pub frontier_research_context: Option<crate::RepoFrontierResearchContextProjection>,
+    pub frontier_verification_context: Option<crate::RepoFrontierVerificationContextProjection>,
     pub frontier_plan_mind_context: Option<crate::RepoFrontierPlanMindContextProjection>,
     pub imagination_consideration_context: Option<crate::ImaginationConsiderationContextProjection>,
     pub admitted_model_direction_consideration_context:
@@ -51,6 +52,7 @@ impl From<EpiphanyRoleWorkerLaunchDocument> for EpiphanyRolePassAuthorityProject
             frontier_verdict_modeling_context: value.frontier_verdict_modeling_context,
             frontier_planning_context: value.frontier_planning_context,
             frontier_research_context: value.frontier_research_context,
+            frontier_verification_context: value.frontier_verification_context,
             frontier_plan_mind_context: value.frontier_plan_mind_context,
             imagination_consideration_context: value.imagination_consideration_context,
             admitted_model_direction_consideration_context: value
@@ -107,6 +109,7 @@ pub struct EpiphanyMindPromptProjection {
     pub invariants: Vec<epiphany_state_model::EpiphanyInvariant>,
     pub observations: Vec<epiphany_state_model::EpiphanyObservation>,
     pub evidence: Vec<epiphany_state_model::EpiphanyEvidenceRecord>,
+    pub verification_audits: Vec<crate::EpiphanyMindVerificationAuditDocument>,
     pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
     pub mode: Option<epiphany_state_model::EpiphanyModeState>,
     pub planning: epiphany_state_model::EpiphanyPlanningState,
@@ -126,6 +129,7 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
             invariants: value.invariants,
             observations: value.observations,
             evidence: value.evidence,
+            verification_audits: value.verification_audits,
             investigation_checkpoint: value.investigation_checkpoint,
             mode: value.mode,
             planning: value.planning,
@@ -1254,6 +1258,7 @@ mod tests {
             frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
+            frontier_verification_context: None,
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
@@ -1298,6 +1303,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         })
     }
 
@@ -1327,6 +1333,7 @@ mod tests {
                 invariants: Vec::new(),
                 observations: Vec::new(),
                 evidence: Vec::new(),
+                verification_audits: Vec::new(),
                 investigation_checkpoint: None,
                 mode: None,
                 planning: Default::default(),

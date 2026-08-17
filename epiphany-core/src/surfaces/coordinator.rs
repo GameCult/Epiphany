@@ -1,7 +1,7 @@
+use epiphany_core::EpiphanyAgentPassContinuationAction;
 use epiphany_core::EpiphanyCrrcAction;
 use epiphany_core::EpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyModelingContinuationAction;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
@@ -97,6 +97,7 @@ pub fn derive_coordinator_status(
         frontier_planning_stage: input.frontier_planning_stage,
         proposal_modeling_action: input.proposal_modeling_action,
         frontier_verdict_modeling_action: input.frontier_verdict_modeling_action,
+        verification_action: input.verification_action,
         body_modeling_work_ready: input.body_modeling_work_ready,
         body_modeling_review_ready: input.body_modeling_review_ready,
     });
@@ -700,7 +701,7 @@ pub fn recommend_coordinator_action(
 
     if let Some(action) = input.proposal_modeling_action {
         return match action {
-            EpiphanyModelingContinuationAction::Launch => build(
+            EpiphanyAgentPassContinuationAction::Launch => build(
                 EpiphanyCoordinatorAction::LaunchModeling,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
@@ -708,7 +709,7 @@ pub fn recommend_coordinator_action(
                 true,
                 "The oldest unresolved proposal request is ready for its exact Modeling attempt.",
             ),
-            EpiphanyModelingContinuationAction::Wait => build(
+            EpiphanyAgentPassContinuationAction::Wait => build(
                 EpiphanyCoordinatorAction::WaitForModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
@@ -716,7 +717,7 @@ pub fn recommend_coordinator_action(
                 false,
                 "The exact proposal Modeling attempt is still running.",
             ),
-            EpiphanyModelingContinuationAction::Review => build(
+            EpiphanyAgentPassContinuationAction::Review => build(
                 EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
@@ -751,7 +752,7 @@ pub fn recommend_coordinator_action(
 
     if let Some(action) = input.frontier_verdict_modeling_action {
         return match action {
-            EpiphanyModelingContinuationAction::Launch => build(
+            EpiphanyAgentPassContinuationAction::Launch => build(
                 EpiphanyCoordinatorAction::LaunchModeling,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
@@ -759,7 +760,7 @@ pub fn recommend_coordinator_action(
                 true,
                 "An exact Soul verdict has unresolved keyed frontier Modeling work.",
             ),
-            EpiphanyModelingContinuationAction::Wait => build(
+            EpiphanyAgentPassContinuationAction::Wait => build(
                 EpiphanyCoordinatorAction::WaitForModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
@@ -767,13 +768,42 @@ pub fn recommend_coordinator_action(
                 false,
                 "The exact frontier verdict Modeling attempt is still running.",
             ),
-            EpiphanyModelingContinuationAction::Review => build(
+            EpiphanyAgentPassContinuationAction::Review => build(
                 EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
                 true,
                 false,
                 "The exact frontier verdict Modeling result awaits keyed Mind admission.",
+            ),
+        };
+    }
+
+    if let Some(action) = input.verification_action {
+        return match action {
+            EpiphanyAgentPassContinuationAction::Launch => build(
+                EpiphanyCoordinatorAction::LaunchVerification,
+                Some(EpiphanyCoordinatorRoleId::Verification),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "An exact Hands consequence has unresolved keyed Verification work.",
+            ),
+            EpiphanyAgentPassContinuationAction::Wait => build(
+                EpiphanyCoordinatorAction::ReviewVerificationResult,
+                Some(EpiphanyCoordinatorRoleId::Verification),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                false,
+                false,
+                "The exact frontier Verification attempt is still running.",
+            ),
+            EpiphanyAgentPassContinuationAction::Review => build(
+                EpiphanyCoordinatorAction::ReviewVerificationResult,
+                Some(EpiphanyCoordinatorRoleId::Verification),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The exact frontier Verification result awaits Soul admission.",
             ),
         };
     }
@@ -797,26 +827,6 @@ pub fn recommend_coordinator_action(
                 "The exact frontier Research lifecycle has one terminal result awaiting review.",
             ),
         };
-    }
-
-    if input.implementation_evidence_after_verification
-        && matches!(
-            input.signals.verification_result_status,
-            EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                | EpiphanyCoordinatorRoleResultStatus::Failed
-        )
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "A complete Hands consequence chain awaits Soul independently of any Eyes lifecycle.",
-        );
     }
 
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
@@ -902,132 +912,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && !input.verification_result_covers_current_modeling
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "The completed verification/review finding does not cover the currently accepted modeling evidence; relaunch verification before implementation continues.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && !input.verification_result_accepted
-    {
-        return build(
-            EpiphanyCoordinatorAction::ReviewVerificationResult,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            true,
-            false,
-            "A verification/review finding is complete and must be reviewed before continuation.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
-        && !input.verification_result_accepted
-        && input.verification_result_failure_reviewed
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "The failed verification/review result has a supersession review receipt; relaunch Soul against the current evidence.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
-        && !input.verification_result_accepted
-    {
-        return build(
-            EpiphanyCoordinatorAction::ReviewVerificationResult,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "The verification/review worker failed; inspect the failed Soul result before relaunching verification or continuing implementation.",
-        );
-    }
-
-    if input.verification_result_accepted && input.implementation_evidence_after_verification {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Implementation evidence was produced after the accepted verification/review finding; rerun verification before implementation continues.",
-        );
-    }
-
-    if matches!(
-        input.signals.verification_result_status,
-        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
-    ) {
-        return build(
-            EpiphanyCoordinatorAction::ReviewVerificationResult,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "A verification/review specialist is already running; wait for its result.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
-        && input.verification_result_needs_evidence
-        && input.modeling_result_accepted
-        && input.verification_result_covers_current_modeling
-        && input.hands_frontier_ready
-    {
-        return build(
-            EpiphanyCoordinatorAction::ContinueImplementation,
-            Some(EpiphanyCoordinatorRoleId::Implementation),
-            None,
-            false,
-            false,
-            "The accepted verification/review finding asks for implementation evidence from the current modeling checkpoint; continue only the bounded evidence-gathering implementation step before re-verification.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
-        && !input.modeling_result_accepted_after_verification
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "The accepted verification/review finding did not pass; strengthen modeling/checkpoint evidence before implementation continues.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && input.verification_result_allows_implementation
-        && !input.modeling_result_accepted_after_verification
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Soul has accepted the Hands consequence evidence; route Modeling to update the machine model before another implementation turn.",
-        );
-    }
-
     if input.hands_frontier_ready {
         return build(
             EpiphanyCoordinatorAction::ContinueImplementation,
@@ -1076,34 +960,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.implementation_evidence_after_verification
-        && role_status(&input.roles, EpiphanyCoordinatorRoleId::Verification).is_some_and(
-            |status| {
-                matches!(
-                    status,
-                    EpiphanyCoordinatorRoleStatus::Ready | EpiphanyCoordinatorRoleStatus::Needed
-                )
-            },
-        )
-        && matches!(
-            input.signals.verification_result_status,
-            EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                | EpiphanyCoordinatorRoleResultStatus::Failed
-        )
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchVerification,
-            Some(EpiphanyCoordinatorRoleId::Verification),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "A complete Hands consequence chain is newer than the last accepted Soul boundary; launch Verification against its typed request and receipts.",
-        );
-    }
-
     if input.recommendation.action == EpiphanyCrrcAction::RegatherManually {
         return build(
             EpiphanyCoordinatorAction::RegatherManually,
@@ -1112,25 +968,6 @@ pub fn recommend_coordinator_action(
             true,
             false,
             "CRRC requires explicit operator regather; only an exact external-evidence obligation may launch Eyes.",
-        );
-    }
-
-    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && input.verification_result_accepted
-        && !input.verification_result_allows_implementation
-        && (input.verification_result_needs_evidence
-            || input.verification_result_cites_implementation_evidence)
-        && input.modeling_result_accepted
-        && input.verification_result_covers_current_modeling
-        && !input.hands_frontier_ready
-    {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "Soul requests another bounded consequence, but Self has no admitted actionable Hands frontier; reconcile the RepoModel before acting.",
         );
     }
 
@@ -1318,6 +1155,7 @@ mod tests {
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
             proposal_modeling_action: None,
             frontier_verdict_modeling_action: None,
+            verification_action: None,
             body_modeling_work_ready: false,
             body_modeling_review_ready: false,
         }
@@ -1398,7 +1236,7 @@ mod tests {
     fn selected_user_proposal_preempts_generic_regather() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            proposal_modeling_action: Some(EpiphanyModelingContinuationAction::Launch),
+            proposal_modeling_action: Some(EpiphanyAgentPassContinuationAction::Launch),
             ..input()
         });
         assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
@@ -1823,7 +1661,8 @@ mod tests {
         );
 
         let exact_modeling_work = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            frontier_verdict_modeling_action: Some(EpiphanyModelingContinuationAction::Launch),
+            frontier_verdict_modeling_action: Some(EpiphanyAgentPassContinuationAction::Launch),
+            verification_action: None,
             ..base.clone()
         });
         assert_eq!(

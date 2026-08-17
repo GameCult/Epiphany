@@ -14,9 +14,9 @@ pub const SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.soul.verifi
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_TYPE: &str =
     "epiphany.soul.repo_frontier_verification_request";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.soul.repo_frontier_verification_request.v1";
+    "epiphany.soul.repo_frontier_verification_request.v2";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_verification_request.v1";
+    "epiphany.repo_frontier_verification_request.v2";
 pub const SOUL_INVARIANT_CHECK_SCHEMA_VERSION: &str = "epiphany.soul.invariant_check.v0";
 pub const SOUL_VERDICT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.verdict_receipt.v1";
 pub const SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.regression_receipt.v0";
@@ -87,6 +87,8 @@ pub struct RepoFrontierVerificationRequest {
     pub requested_at: String,
     #[cultcache(key = 13)]
     pub contract: String,
+    #[cultcache(key = 14)]
+    pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

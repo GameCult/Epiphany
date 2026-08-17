@@ -1563,6 +1563,9 @@ mod tests {
                 .clone(),
             repo_frontier_modeling_request_id: launch.repo_frontier_modeling_request_id.clone(),
             repo_frontier_research_request_id: launch.repo_frontier_research_request_id.clone(),
+            repo_frontier_verification_request_id: launch
+                .repo_frontier_verification_request_id
+                .clone(),
         };
         let grant = epiphany_core::substrate_gate_repo_access_grant_for_launch(
             format!("substrate-grant-{}", launch.job_id),
@@ -1603,6 +1606,7 @@ mod tests {
                         frontier_verdict_modeling_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
+                        frontier_verification_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1634,6 +1638,7 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
                 repo_frontier_research_request_id: None,
+                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1714,6 +1719,7 @@ mod tests {
                         frontier_verdict_modeling_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
+                        frontier_verification_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1745,6 +1751,7 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
                 repo_frontier_research_request_id: None,
+                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1849,6 +1856,7 @@ mod tests {
                         frontier_verdict_modeling_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
+                        frontier_verification_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -1880,6 +1888,7 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
                 repo_frontier_research_request_id: None,
+                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;

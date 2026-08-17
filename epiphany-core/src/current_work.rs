@@ -19,17 +19,18 @@ pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
     pub body_modeling: Option<EpiphanyBodyModelingWorkProjection>,
-    pub body_modeling_action: Option<EpiphanyModelingContinuationAction>,
+    pub body_modeling_action: Option<EpiphanyAgentPassContinuationAction>,
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
     pub frontier_verdict_modeling: Option<EpiphanyFrontierVerdictModelingWorkProjection>,
+    pub verification: Option<EpiphanyVerificationWorkProjection>,
     pub hands_frontier_ready: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum EpiphanyModelingContinuationAction {
+pub enum EpiphanyAgentPassContinuationAction {
     Launch,
     Wait,
     Review,
@@ -38,14 +39,21 @@ pub enum EpiphanyModelingContinuationAction {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyProposalModelingWorkProjection {
     pub request: RepoFrontierProposalModelingRequest,
-    pub action: EpiphanyModelingContinuationAction,
+    pub action: EpiphanyAgentPassContinuationAction,
     pub job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyFrontierVerdictModelingWorkProjection {
     pub request: crate::RepoFrontierModelingRequest,
-    pub action: EpiphanyModelingContinuationAction,
+    pub action: EpiphanyAgentPassContinuationAction,
+    pub job_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyVerificationWorkProjection {
+    pub request: crate::RepoFrontierVerificationRequest,
+    pub action: EpiphanyAgentPassContinuationAction,
     pub job_id: Option<String>,
 }
 
@@ -307,7 +315,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
                 Some(work) => {
                     let action = body_modeling_continuation_action(&cache, &work.work_id)?;
                     (
-                        (action == EpiphanyModelingContinuationAction::Launch).then_some(work),
+                        (action == EpiphanyAgentPassContinuationAction::Launch).then_some(work),
                         Some(action),
                     )
                 }
@@ -330,8 +338,99 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
         frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
         proposal_modeling: current_proposal_modeling_work(&cache)?,
         frontier_verdict_modeling: current_frontier_verdict_modeling_work(&cache)?,
+        verification: current_verification_work(&cache)?,
         hands_frontier_ready: crate::runtime_has_actionable_hands_frontier(store_path)?,
     })
+}
+
+fn verification_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("frontier-verification-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("frontier Verification job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("frontier Verification attempt ordinal is invalid"))
+}
+
+fn current_verification_work(
+    cache: &CultCache,
+) -> Result<Option<EpiphanyVerificationWorkProjection>> {
+    let mut requests = cache.get_all::<crate::RepoFrontierVerificationRequest>()?;
+    requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    for request in requests {
+        crate::runtime_spine::validate_repo_frontier_verification_request_intrinsic(&request)?;
+        let mut request_launches = launches
+            .iter()
+            .filter(|launch| {
+                launch.repo_frontier_verification_request_id.as_deref()
+                    == Some(request.request_id.as_str())
+            })
+            .map(|launch| {
+                Ok((
+                    verification_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                    launch,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        request_launches.sort_by_key(|(ordinal, _)| *ordinal);
+        if let Some((_, launch)) = request_launches.last()
+            && let Some(result) =
+                cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?
+            && receipts.iter().any(|receipt| {
+                receipt.invariant_owner == "Soul.verification"
+                    && matches!(
+                        &receipt.authority,
+                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                            decision_context_id
+                        } if decision_context_id == &result.decision_context_id
+                    )
+            })
+        {
+            continue;
+        }
+        let Some((_, launch)) = request_launches.last() else {
+            if crate::runtime_spine::verification_frontier_is_current(cache, &request)? {
+                return Ok(Some(EpiphanyVerificationWorkProjection {
+                    request,
+                    action: EpiphanyAgentPassContinuationAction::Launch,
+                    job_id: None,
+                }));
+            }
+            continue;
+        };
+        let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
+        if let Some(result) = result.as_ref()
+            && (result.verification_request_id.as_deref() != Some(request.request_id.as_str())
+                || result.frontier_route_id.as_deref() != Some(request.route_id.as_str()))
+        {
+            return Err(anyhow!(
+                "frontier Verification result crossed request authority"
+            ));
+        }
+        let job = cache
+            .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
+            .ok_or_else(|| anyhow!("frontier Verification launch lost its runtime job"))?;
+        let action = match job.status {
+            crate::EpiphanyRuntimeJobStatus::Failed
+            | crate::EpiphanyRuntimeJobStatus::Cancelled
+                if crate::runtime_spine::verification_frontier_is_current(cache, &request)? =>
+            {
+                EpiphanyAgentPassContinuationAction::Launch
+            }
+            crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
+                EpiphanyAgentPassContinuationAction::Review
+            }
+            _ => EpiphanyAgentPassContinuationAction::Wait,
+        };
+        return Ok(Some(EpiphanyVerificationWorkProjection {
+            request,
+            action,
+            job_id: Some(launch.job_id.clone()),
+        }));
+    }
+    Ok(None)
 }
 
 fn frontier_verdict_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
@@ -384,7 +483,7 @@ fn current_frontier_verdict_modeling_work(
         let Some((_, launch)) = request_launches.last() else {
             return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
                 request,
-                action: EpiphanyModelingContinuationAction::Launch,
+                action: EpiphanyAgentPassContinuationAction::Launch,
                 job_id: None,
             }));
         };
@@ -403,12 +502,12 @@ fn current_frontier_verdict_modeling_work(
         let action = match job.status {
             crate::EpiphanyRuntimeJobStatus::Failed
             | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyModelingContinuationAction::Launch
+                EpiphanyAgentPassContinuationAction::Launch
             }
             crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
-                EpiphanyModelingContinuationAction::Review
+                EpiphanyAgentPassContinuationAction::Review
             }
-            _ => EpiphanyModelingContinuationAction::Wait,
+            _ => EpiphanyAgentPassContinuationAction::Wait,
         };
         return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
             request,
@@ -422,7 +521,7 @@ fn current_frontier_verdict_modeling_work(
 fn body_modeling_continuation_action(
     cache: &CultCache,
     work_id: &str,
-) -> Result<EpiphanyModelingContinuationAction> {
+) -> Result<EpiphanyAgentPassContinuationAction> {
     let mut bindings = cache
         .get_all::<EpiphanyBodyModelingLaunchBinding>()?
         .into_iter()
@@ -430,26 +529,26 @@ fn body_modeling_continuation_action(
         .collect::<Vec<_>>();
     bindings.sort_by_key(|binding| binding.attempt_ordinal);
     let Some(binding) = bindings.last() else {
-        return Ok(EpiphanyModelingContinuationAction::Launch);
+        return Ok(EpiphanyAgentPassContinuationAction::Launch);
     };
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
     Ok(match job.status {
         crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-            EpiphanyModelingContinuationAction::Launch
+            EpiphanyAgentPassContinuationAction::Launch
         }
         crate::EpiphanyRuntimeJobStatus::Completed => {
             if cache
                 .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
                 .is_some()
             {
-                EpiphanyModelingContinuationAction::Review
+                EpiphanyAgentPassContinuationAction::Review
             } else {
-                EpiphanyModelingContinuationAction::Wait
+                EpiphanyAgentPassContinuationAction::Wait
             }
         }
-        _ => EpiphanyModelingContinuationAction::Wait,
+        _ => EpiphanyAgentPassContinuationAction::Wait,
     })
 }
 
@@ -478,7 +577,7 @@ fn current_proposal_modeling_work(
         let Some(binding) = request_bindings.last() else {
             return Ok(Some(EpiphanyProposalModelingWorkProjection {
                 request,
-                action: EpiphanyModelingContinuationAction::Launch,
+                action: EpiphanyAgentPassContinuationAction::Launch,
                 job_id: None,
             }));
         };
@@ -507,16 +606,16 @@ fn current_proposal_modeling_work(
         let action = match job.status {
             crate::EpiphanyRuntimeJobStatus::Failed
             | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyModelingContinuationAction::Launch
+                EpiphanyAgentPassContinuationAction::Launch
             }
             crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
                 crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
                     cache,
                     result.as_ref().expect("checked terminal result"),
                 )?;
-                EpiphanyModelingContinuationAction::Review
+                EpiphanyAgentPassContinuationAction::Review
             }
-            _ => EpiphanyModelingContinuationAction::Wait,
+            _ => EpiphanyAgentPassContinuationAction::Wait,
         };
         return Ok(Some(EpiphanyProposalModelingWorkProjection {
             request,
@@ -530,7 +629,7 @@ fn current_proposal_modeling_work(
 pub fn body_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyModelingContinuationAction>> {
+) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let bindings = cache
@@ -561,7 +660,7 @@ pub fn body_modeling_continuation_action_for_job(
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
     let store_path = store_path.as_ref();
     if crate::project_current_work(store_path)?.body_modeling_action
-        != Some(EpiphanyModelingContinuationAction::Review)
+        != Some(EpiphanyAgentPassContinuationAction::Review)
     {
         return Ok(None);
     }
@@ -580,7 +679,7 @@ pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Resu
 pub fn proposal_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyModelingContinuationAction>> {
+) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
         .filter(|work| work.job_id.as_deref() == Some(job_id))
@@ -592,14 +691,14 @@ pub fn current_proposal_modeling_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
-        .filter(|work| work.action == EpiphanyModelingContinuationAction::Review)
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
         .and_then(|work| work.job_id))
 }
 
 pub fn frontier_verdict_modeling_continuation_action_for_job(
     store_path: impl AsRef<Path>,
     job_id: &str,
-) -> Result<Option<EpiphanyModelingContinuationAction>> {
+) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
     Ok(project_current_work(store_path)?
         .frontier_verdict_modeling
         .filter(|work| work.job_id.as_deref() == Some(job_id))
@@ -611,7 +710,7 @@ pub fn current_frontier_verdict_modeling_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .frontier_verdict_modeling
-        .filter(|work| work.action == EpiphanyModelingContinuationAction::Review)
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
         .and_then(|work| work.job_id))
 }
 
@@ -624,6 +723,191 @@ pub fn current_frontier_research_review_job_id(
             .then_some(lifecycle.worker_job_id)
             .flatten(),
     )
+}
+
+pub fn current_frontier_verification_review_job_id(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<String>> {
+    Ok(project_current_work(store_path)?
+        .verification
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.job_id))
+}
+
+pub fn launch_current_frontier_verification_work(
+    store_path: impl AsRef<Path>,
+    created_at: &str,
+) -> Result<String> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("frontier Verification launch time is invalid"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let work = current_verification_work(&cache)?
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
+        .ok_or_else(|| anyhow!("Mind has no launchable frontier Verification work"))?;
+    let request = work.request;
+    let context = crate::runtime_spine::repo_frontier_verification_context(&cache, &request)?;
+    let identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier Verification launch requires runtime identity"))?;
+    let attempt_ordinal = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| {
+            launch.repo_frontier_verification_request_id.as_deref()
+                == Some(request.request_id.as_str())
+        })
+        .count()
+        + cache
+            .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
+            .into_iter()
+            .filter(|attempt| {
+                attempt.request_kind == "frontier-verification"
+                    && attempt.request_id == request.request_id
+            })
+            .count();
+    let job_id = format!(
+        "frontier-verification-{}-attempt-{attempt_ordinal}",
+        request.request_id
+    );
+    let launch_document =
+        crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+            thread_id: job_id.clone(),
+            role_id: "verification".into(),
+            state_revision: 0,
+            objective: None,
+            dynamic_prompt_context: None,
+            repository_body_observation_basis: None,
+            proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
+            frontier_planning_context: None,
+            frontier_research_context: None,
+            frontier_verification_context: Some(context.clone()),
+            frontier_plan_mind_context: None,
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        });
+    let authority_scope = "epiphany.role.verification".to_string();
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let prepared = crate::prepare_runtime_spine_heartbeat_job(
+        &cache,
+        crate::RuntimeSpineHeartbeatJobOptions {
+            runtime_id: identity.runtime_id,
+            display_name: "Epiphany Local".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Audit one exact Hands consequence against its routed invariant".into(),
+            coordinator_note:
+                "Verification current-work launch transaction opened this session.".into(),
+            job_id: job_id.clone(),
+            role: crate::EPIPHANY_VERIFICATION_OWNER_ROLE.into(),
+            binding_id: crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.clone(),
+            instruction: "Act as Epiphany Verification. Audit only the exact typed Hands consequence and route carried by this request; return a structured verdict, evidence ids, and risks.".into(),
+            launch_document,
+            output_contract_id: output_contract_id.clone(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                &authority_scope,
+                "role",
+                &output_contract_id,
+            ),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: Some(request.request_id.clone()),
+            created_at: created_at.to_string(),
+        },
+    )?;
+    let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
+        format!("substrate-grant-{job_id}"),
+        job_id.clone(),
+        crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.into(),
+        crate::EPIPHANY_VERIFICATION_OWNER_ROLE.into(),
+        authority_scope,
+        false,
+        created_at.to_string(),
+    );
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (
+            crate::RepoFrontierVerificationRequest::TYPE,
+            request.request_id.as_str(),
+        ),
+        (crate::RepoFrontierRoute::TYPE, request.route_id.as_str()),
+        (
+            crate::RepoFrontierHandsAuthority::TYPE,
+            context.hands_authority.authority_id.as_str(),
+        ),
+        (
+            crate::HandsActionIntent::TYPE,
+            request.hands_intent_id.as_str(),
+        ),
+        (
+            crate::HandsActionReview::TYPE,
+            request.hands_review_id.as_str(),
+        ),
+        (
+            crate::HandsPatchReceipt::TYPE,
+            request.hands_patch_receipt_id.as_str(),
+        ),
+        (
+            crate::HandsCommandReceipt::TYPE,
+            request.hands_command_receipt_id.as_str(),
+        ),
+        (
+            crate::HandsCommitReceipt::TYPE,
+            request.hands_commit_receipt_id.as_str(),
+        ),
+    ] {
+        expected.push(
+            snapshot
+                .iter()
+                .find(|value| value.r#type == document_type && value.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("frontier Verification launch lost a strong source"))?,
+        );
+    }
+    for source in &request.frontier_authority_documents {
+        let envelope = snapshot
+            .iter()
+            .find(|value| value.r#type == source.document_type && value.key == source.document_key)
+            .ok_or_else(|| anyhow!("frontier Verification launch lost frontier authority"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!(
+                "frontier Verification launch strong source changed"
+            ));
+        }
+        if !expected.contains(envelope) {
+            expected.push(envelope.clone());
+        }
+    }
+    commit_current_work_launch(
+        store_path,
+        &cache,
+        expected,
+        prepared.envelopes,
+        vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
+        "frontier Verification",
+    )?;
+    Ok(job_id)
 }
 
 pub fn launch_current_frontier_research_work(
@@ -678,6 +962,7 @@ pub fn launch_current_frontier_research_work(
             frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: Some((&request).into()),
+            frontier_verification_context: None,
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
@@ -725,6 +1010,7 @@ pub fn launch_current_frontier_research_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: Some(request.request_id.clone()),
+            repo_frontier_verification_request_id: None,
             created_at: created_at.to_string(),
         },
     )?;
@@ -991,6 +1277,239 @@ pub fn accept_frontier_research_result(
     }
 }
 
+pub fn accept_frontier_verification_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    accepted_at: &str,
+) -> Result<crate::EpiphanyMindCommitReceipt> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(accepted_at)
+        .map_err(|_| anyhow!("frontier Verification acceptance time is invalid"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if let Some(result) = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)? {
+        let mut receipts = cache
+            .get_all::<crate::EpiphanyMindCommitReceipt>()?
+            .into_iter()
+            .filter(|receipt| {
+                receipt.invariant_owner == "Soul.verification"
+                    && matches!(
+                        &receipt.authority,
+                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                            decision_context_id
+                        } if decision_context_id == &result.decision_context_id
+                    )
+            })
+            .collect::<Vec<_>>();
+        if receipts.len() > 1 {
+            return Err(anyhow!(
+                "frontier Verification result has multiple Mind commit authorities"
+            ));
+        }
+        if let Some(receipt) = receipts.pop() {
+            let audit_id = format!("verification-audit-{}", result.result_id);
+            let verdict_id = format!("soul-verdict-{}", result.result_id);
+            let audit = cache
+                .get::<crate::EpiphanyMindVerificationAuditDocument>(&audit_id)?
+                .ok_or_else(|| anyhow!("frontier Verification replay lost its audit"))?;
+            let verdict = cache
+                .get::<crate::SoulVerdictReceipt>(&verdict_id)?
+                .ok_or_else(|| anyhow!("frontier Verification replay lost its Soul verdict"))?;
+            let modeling_requests = cache
+                .get_all::<crate::RepoFrontierModelingRequest>()?
+                .into_iter()
+                .filter(|request| request.soul_verdict_receipt_id == verdict_id)
+                .collect::<Vec<_>>();
+            if audit.decision_context_id != result.decision_context_id
+                || audit.result_id != result.result_id
+                || verdict.source_result_id != result.result_id
+                || modeling_requests.len() != 1
+                || !receipt.writes.iter().any(|write| {
+                    write.document_type == crate::EpiphanyMindVerificationAuditDocument::TYPE
+                        && write.document_key == audit_id
+                })
+            {
+                return Err(anyhow!(
+                    "frontier Verification replay does not preserve its exact accepted decision"
+                ));
+            }
+            return Ok(receipt);
+        }
+    }
+    if current_frontier_verification_review_job_id(store_path)?.as_deref() != Some(job_id) {
+        return Err(anyhow!(
+            "frontier Verification result is not current review work"
+        ));
+    }
+    let job = cache
+        .get::<crate::EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Verification acceptance lost its runtime job"))?;
+    if job.status != crate::EpiphanyRuntimeJobStatus::Completed {
+        return Err(anyhow!(
+            "frontier Verification runtime job is not completed"
+        ));
+    }
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Verification acceptance lost its launch"))?;
+    let request = crate::runtime_spine::frontier_verification_request_for_launch(&cache, &launch)?
+        .ok_or_else(|| anyhow!("frontier Verification acceptance lost its exact request"))?;
+    let fulfillment = crate::runtime_typed_request_fulfillment(
+        store_path,
+        crate::RuntimeTypedRequestRef::FrontierVerification(&request.request_id),
+    )?
+    .ok_or_else(|| anyhow!("frontier Verification result is not exact typed fulfillment"))?;
+    if fulfillment.job_id != job_id {
+        return Err(anyhow!(
+            "frontier Verification fulfillment belongs to another attempt"
+        ));
+    }
+    let result = cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Verification acceptance lost its typed result"))?;
+    if !result.role_id.eq_ignore_ascii_case("verification")
+        || result.verification_request_id.as_deref() != Some(request.request_id.as_str())
+        || result.frontier_route_id.as_deref() != Some(request.route_id.as_str())
+        || result.item_error.is_some()
+    {
+        return Err(anyhow!(
+            "frontier Verification result crossed request authority"
+        ));
+    }
+    if !crate::runtime_spine::verification_frontier_is_current(&cache, &request)? {
+        return Err(anyhow!(
+            "frontier Verification decision remains recorded but its strong frontier changed; a fresh pass is required"
+        ));
+    }
+    let mut evidence_ids = result.evidence_ids.clone();
+    evidence_ids.sort();
+    evidence_ids.dedup();
+    let audit_id = format!("verification-audit-{}", result.result_id);
+    let audit = crate::EpiphanyMindVerificationAuditDocument {
+        audit_id: audit_id.clone(),
+        verification_request_id: request.request_id.clone(),
+        frontier_route_id: request.route_id.clone(),
+        job_id: job_id.to_string(),
+        result_id: result.result_id.clone(),
+        decision_context_id: result.decision_context_id.clone(),
+        verdict: result.verdict.clone(),
+        summary: result.summary.clone(),
+        evidence_ids: evidence_ids.clone(),
+        risks: result.risks.clone(),
+        audited_at: accepted_at.to_string(),
+    };
+    audit.validate()?;
+    let verdict = crate::SoulVerdictReceipt {
+        schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("soul-verdict-{}", result.result_id),
+        source_result_id: result.result_id.clone(),
+        source_job_id: result.job_id.clone(),
+        verdict: result.verdict.clone(),
+        summary: result.summary.clone(),
+        evidence_ids,
+        risks: result.risks.clone(),
+        emitted_at: accepted_at.to_string(),
+        contract: "Soul verdict emitted by the exact Verification Mind admission owner.".into(),
+        verification_request_id: request.request_id.clone(),
+        frontier_route_id: request.route_id.clone(),
+    };
+    let modeling_request =
+        crate::runtime_spine::derive_repo_frontier_modeling_request(&cache, &verdict)?;
+    let snapshot = cache.snapshot_envelopes();
+    let mut strong_reads = Vec::new();
+    for (document_type, document_key) in [
+        (
+            crate::RepoFrontierVerificationRequest::TYPE,
+            request.request_id.as_str(),
+        ),
+        (crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
+        (crate::EpiphanyRuntimeJob::TYPE, job_id),
+        (crate::EpiphanyRuntimeRoleWorkerResult::TYPE, job_id),
+        (
+            crate::EpiphanyDecisionContext::TYPE,
+            result.decision_context_id.as_str(),
+        ),
+        (crate::RepoFrontierRoute::TYPE, request.route_id.as_str()),
+        (
+            crate::HandsActionIntent::TYPE,
+            request.hands_intent_id.as_str(),
+        ),
+        (
+            crate::HandsActionReview::TYPE,
+            request.hands_review_id.as_str(),
+        ),
+        (
+            crate::HandsPatchReceipt::TYPE,
+            request.hands_patch_receipt_id.as_str(),
+        ),
+        (
+            crate::HandsCommandReceipt::TYPE,
+            request.hands_command_receipt_id.as_str(),
+        ),
+        (
+            crate::HandsCommitReceipt::TYPE,
+            request.hands_commit_receipt_id.as_str(),
+        ),
+    ] {
+        strong_reads.push(
+            snapshot
+                .iter()
+                .find(|value| value.r#type == document_type && value.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("frontier Verification admission lost a strong source"))?,
+        );
+    }
+    for source in &request.frontier_authority_documents {
+        let envelope = snapshot
+            .iter()
+            .find(|value| value.r#type == source.document_type && value.key == source.document_key)
+            .ok_or_else(|| anyhow!("frontier Verification admission lost frontier authority"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!(
+                "frontier Verification output cannot be rebased onto changed frontier authority"
+            ));
+        }
+        if !strong_reads.contains(envelope) {
+            strong_reads.push(envelope.clone());
+        }
+    }
+    let hands_authority = cache
+        .get_all::<crate::RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .find(|authority| authority.route_id == request.route_id)
+        .ok_or_else(|| anyhow!("frontier Verification admission lost Hands authority"))?;
+    strong_reads.push(
+        cache
+            .get_envelope::<crate::RepoFrontierHandsAuthority>(&hands_authority.authority_id)?
+            .ok_or_else(|| anyhow!("frontier Verification admission lost Hands envelope"))?,
+    );
+    let writes = vec![crate::mind_documents::prepare_mind_document(
+        &cache, &audit_id, &audit,
+    )?];
+    let companions = vec![
+        cache.prepare_entry(&verdict.receipt_id, &verdict)?.0,
+        cache
+            .prepare_entry(&modeling_request.request_id, &modeling_request)?
+            .0,
+    ];
+    match crate::reasoning_context::commit_mind_mutation_with_derived_companions(
+        store_path,
+        &result.decision_context_id,
+        "Soul.verification",
+        strong_reads,
+        writes,
+        companions,
+        accepted_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => Err(anyhow!(
+            "frontier Verification admission lost exact keyed reads: {document_identities:?}"
+        )),
+    }
+}
+
 pub fn accept_body_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
@@ -1135,7 +1654,7 @@ pub fn accept_frontier_verdict_modeling_result(
     cache.pull_all_backing_stores()?;
     let current = current_frontier_verdict_modeling_work(&cache)?
         .filter(|work| {
-            work.action == EpiphanyModelingContinuationAction::Review
+            work.action == EpiphanyAgentPassContinuationAction::Review
                 && work.job_id.as_deref() == Some(job_id)
         })
         .ok_or_else(|| anyhow!("frontier verdict Modeling result is not current review work"))?;
@@ -1271,7 +1790,7 @@ pub fn launch_current_body_modeling_work(
     )?
     .is_none()
         || body_modeling_continuation_action(&cache, &work.work_id)?
-            != EpiphanyModelingContinuationAction::Launch
+            != EpiphanyAgentPassContinuationAction::Launch
     {
         return Err(anyhow!("Mind has no launchable Body Modeling work"));
     }
@@ -1307,6 +1826,7 @@ pub fn launch_current_body_modeling_work(
             frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
+            frontier_verification_context: None,
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
@@ -1355,6 +1875,7 @@ pub fn launch_current_body_modeling_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
             created_at: options.created_at.clone(),
         },
     )?;
@@ -1416,7 +1937,7 @@ pub fn launch_current_proposal_modeling_work(
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let work = current_proposal_modeling_work(&cache)?
-        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable proposal Modeling work"))?;
     let request = work.request;
     let proposal = cache
@@ -1476,6 +1997,7 @@ pub fn launch_current_proposal_modeling_work(
             frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
+            frontier_verification_context: None,
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
@@ -1527,6 +2049,7 @@ pub fn launch_current_proposal_modeling_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
             created_at: options.created_at.clone(),
         },
     )?;
@@ -1597,7 +2120,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let work = current_frontier_verdict_modeling_work(&cache)?
-        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable frontier verdict Modeling work"))?;
     let request = work.request;
     let verdict = cache
@@ -1647,6 +2170,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
             frontier_verdict_modeling_context: Some(authority),
             frontier_planning_context: None,
             frontier_research_context: None,
+            frontier_verification_context: None,
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
@@ -1694,6 +2218,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: Some(request.request_id.clone()),
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
             created_at: created_at.to_string(),
         },
     )?;
@@ -1953,7 +2478,7 @@ mod tests {
         assert_eq!(current_work.body_modeling, Some(projected_work.clone()));
         assert_eq!(
             current_work.body_modeling_action,
-            Some(EpiphanyModelingContinuationAction::Launch)
+            Some(EpiphanyAgentPassContinuationAction::Launch)
         );
         assert_eq!(
             current_work.mind_projection_digest,
@@ -1983,7 +2508,7 @@ mod tests {
         assert!(scheduled_work.body_modeling.is_none());
         assert_eq!(
             scheduled_work.body_modeling_action,
-            Some(EpiphanyModelingContinuationAction::Wait)
+            Some(EpiphanyAgentPassContinuationAction::Wait)
         );
         assert!(crate::resident_self_body_modeling_pressure(&store, 2)?.is_none());
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
@@ -2083,7 +2608,7 @@ mod tests {
         cache.put(&job.job_id, &job)?;
         assert_eq!(
             project_current_work(&store)?.body_modeling_action,
-            Some(EpiphanyModelingContinuationAction::Review)
+            Some(EpiphanyAgentPassContinuationAction::Review)
         );
         let continuation = crate::EpiphanyCoordinatorRunReceipt {
             schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
@@ -2163,7 +2688,7 @@ mod tests {
         assert_eq!(proposal_work.request, request);
         assert_eq!(
             proposal_work.action,
-            EpiphanyModelingContinuationAction::Launch
+            EpiphanyAgentPassContinuationAction::Launch
         );
         let racers = (0..2)
             .map(|_| {
@@ -2206,7 +2731,7 @@ mod tests {
                 .proposal_modeling
                 .expect("launched proposal remains current")
                 .action,
-            EpiphanyModelingContinuationAction::Wait
+            EpiphanyAgentPassContinuationAction::Wait
         );
         assert!(
             launch_current_proposal_modeling_work(
@@ -2368,7 +2893,7 @@ mod tests {
                 .proposal_modeling
                 .expect("terminal proposal remains current until admission")
                 .action,
-            EpiphanyModelingContinuationAction::Review
+            EpiphanyAgentPassContinuationAction::Review
         );
         let proposal_commit = accept_proposal_modeling_result(
             &store,
@@ -2416,26 +2941,202 @@ mod tests {
             selected_at: "2026-08-17T00:00:14Z".into(),
             contract: crate::REPO_FRONTIER_ROUTE_CONTRACT.into(),
         };
-        let verification_request = crate::RepoFrontierVerificationRequest {
-            schema_version: crate::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.into(),
-            request_id: "verification-proposal-frontier".into(),
+        accepted_cache.put(&route.route_id, &route)?;
+
+        let hands_job_id = "hands-verification-fixture";
+        let grant = crate::substrate_gate_coordinator_implementation_grant(
+            "substrate-grant-hands-verification-fixture".into(),
+            hands_job_id.into(),
+            route.source_scope.clone(),
+            "2026-08-17T00:00:14.100Z".into(),
+        );
+        crate::put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        let intent = crate::HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.into(),
+            intent_id: "hands-intent-verification-fixture".into(),
+            runtime_job_id: hands_job_id.into(),
+            binding_id: "implementation-worker".into(),
+            role: "epiphany-hands".into(),
+            authority_scope: "epiphany.role.implementation".into(),
+            requested_action: "continueImplementation".into(),
+            requested_paths: route.source_scope.clone(),
+            substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_at: "2026-08-17T00:00:14.200Z".into(),
+            contract: "The exact Hands consequence under Verification.".into(),
+            frontier_route_id: String::new(),
+            plan_candidate_sha256: String::new(),
+            plan_action: String::new(),
+        };
+        crate::put_hands_action_intent(&store, &intent)?;
+        let mut hands_review = crate::hands_action_review_for_intent(
+            "hands-review-verification-fixture".into(),
+            &intent,
+            "approved".into(),
+            vec!["patch".into(), "command".into(), "commit".into()],
+            vec!["Bounded fixture consequence is authorized.".into()],
+            "2026-08-17T00:00:14.300Z".into(),
+        );
+        hands_review.required_receipts = vec![
+            crate::HANDS_PATCH_RECEIPT_TYPE.into(),
+            crate::HANDS_COMMAND_RECEIPT_TYPE.into(),
+            crate::HANDS_COMMIT_RECEIPT_TYPE.into(),
+        ];
+        crate::put_hands_action_review(&store, &hands_review)?;
+        let hands_authority = crate::RepoFrontierHandsAuthority {
+            schema_version: crate::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.into(),
+            authority_id: "repo-frontier-hands-authority-verification-fixture".into(),
             route_id: route.route_id.clone(),
             model_projection_digest: route.model_projection_digest.clone(),
             model_source_documents: route.model_source_documents.clone(),
             frontier_item_id: route.frontier_item_id.clone(),
             frontier_item_hash: route.frontier_item_hash.clone(),
-            hands_intent_id: "hands-intent".into(),
-            hands_review_id: "hands-review".into(),
-            hands_patch_receipt_id: "hands-patch".into(),
-            hands_command_receipt_id: "hands-command".into(),
-            hands_commit_receipt_id: "hands-commit".into(),
-            requested_at: "2026-08-17T00:00:15Z".into(),
-            contract: crate::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
+            hands_intent_id: intent.intent_id.clone(),
+            hands_review_id: hands_review.review_id.clone(),
+            substrate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_paths: route.source_scope.clone(),
+            granted_at: hands_review.reviewed_at.clone(),
+            contract: crate::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.into(),
         };
+        crate::put_repo_frontier_hands_authority(&store, &hands_authority)?;
+        let hands_patch = crate::hands_patch_receipt_for_review(
+            "hands-patch-verification-fixture".into(),
+            &intent,
+            &hands_review,
+            route.source_scope.clone(),
+            "Applied the exact bounded change.".into(),
+            "2026-08-17T00:00:14.400Z".into(),
+        );
+        crate::put_hands_patch_receipt(&store, &hands_patch)?;
+        let hands_command = crate::hands_command_receipt_for_review(
+            "hands-command-verification-fixture".into(),
+            &intent,
+            &hands_review,
+            "cargo test exact-verification-fixture".into(),
+            "0".into(),
+            "verification.stdout".into(),
+            "verification.stderr".into(),
+            "The bounded command passed.".into(),
+            "2026-08-17T00:00:14.500Z".into(),
+        );
+        crate::put_hands_command_receipt(&store, &hands_command)?;
+        let hands_commit = crate::hands_commit_receipt_for_review(
+            "hands-commit-verification-fixture".into(),
+            &intent,
+            &hands_review,
+            "0123456789abcdef0123456789abcdef01234567".into(),
+            "codex/verification-fixture".into(),
+            route.source_scope.clone(),
+            "Committed the exact bounded consequence.".into(),
+            "2026-08-17T00:00:14.600Z".into(),
+        );
+        crate::put_hands_commit_receipt(&store, &hands_commit)?;
+
+        accepted_cache.pull_all_backing_stores()?;
+        let mut verification_requests = accepted_cache
+            .get_all::<crate::RepoFrontierVerificationRequest>()?
+            .into_iter()
+            .filter(|request| request.route_id == route.route_id)
+            .collect::<Vec<_>>();
+        assert_eq!(verification_requests.len(), 1);
+        let verification_request = verification_requests.pop().unwrap();
+        assert_eq!(
+            project_current_work(&store)?
+                .verification
+                .expect("Hands commit creates exact Verification work")
+                .action,
+            EpiphanyAgentPassContinuationAction::Launch
+        );
+        let verification_job_id =
+            launch_current_frontier_verification_work(&store, "2026-08-17T00:00:14.700Z")?;
+        accepted_cache.pull_all_backing_stores()?;
+        let verification_launch = accepted_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&verification_job_id)?
+            .expect("exact Verification launch");
+        assert_eq!(
+            verification_launch
+                .repo_frontier_verification_request_id
+                .as_deref(),
+            Some(verification_request.request_id.as_str())
+        );
+        let crate::EpiphanyWorkerLaunchDocument::Role(verification_document) =
+            verification_launch.launch_document()?
+        else {
+            panic!("Verification must launch as a role pass")
+        };
+        assert!(verification_document.dynamic_prompt_context.is_none());
+        assert_eq!(
+            verification_document
+                .frontier_verification_context
+                .as_ref()
+                .expect("sealed typed Verification projection")
+                .request,
+            verification_request
+        );
+        let verification_basis = crate::worker_reasoning_basis(&store, &verification_launch)?;
+        crate::put_reasoning_basis(&store, &verification_basis)?;
+        let mut verification_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "verification-model-request",
+            "verification-conversation",
+            "openai-codex",
+            "gpt-test",
+            "verify",
+        );
+        verification_native.reasoning_basis_id = Some(verification_basis.basis_id.clone());
+        verification_native.source_worker_job_id = Some(verification_job_id.clone());
+        let verification_provider =
+            epiphany_openai_adapter::request_from_native(&verification_native);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "verification-model-session".into(),
+                objective: "Verify the exact Hands consequence.".into(),
+                created_at: "2026-08-17T00:00:14.750Z".into(),
+                coordinator_note: "Bound Verification model pass.".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "verification-model-job".into(),
+                session_id: "verification-model-session".into(),
+                role: "openai-model".into(),
+                created_at: "2026-08-17T00:00:14.750Z".into(),
+                summary: "Bound Verification inference.".into(),
+                artifact_refs: Vec::new(),
+            },
+            &verification_native,
+            &verification_provider,
+            "2026-08-17T00:00:14.750Z",
+        )?;
+        let verification_context = crate::EpiphanyDecisionContext::new(
+            &verification_basis,
+            verification_native,
+            verification_provider,
+            Vec::new(),
+        )?;
+        crate::put_decision_context(&store, &verification_context)?;
+        let verification_process = crate::ProcessInstanceIdentity {
+            process_id: 42,
+            creation_token: 7,
+            created_at_rfc3339: Some("2026-08-17T00:00:14.800Z".into()),
+            executable_path: "verification-worker".into(),
+        };
+        let verification_activation = "verification-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &verification_job_id,
+            &verification_process,
+            &format!("{:x}", Sha256::digest(verification_activation.as_bytes())),
+            "2026-08-17T00:00:14.800Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &verification_job_id,
+            &verification_process,
+            verification_activation,
+            "2026-08-17T00:00:14.900Z",
+        )?;
         let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: "verification-result".into(),
-            job_id: "verification-job".into(),
+            job_id: verification_job_id.clone(),
             role_id: "verification".into(),
             verdict: "pass".into(),
             summary: "verified exact consequence".into(),
@@ -2444,7 +3145,7 @@ mod tests {
             scratch_summary: None,
             files_inspected: Vec::new(),
             frontier_node_ids: vec!["body-node".into()],
-            evidence_ids: vec!["hands-commit".into()],
+            evidence_ids: vec![hands_commit.receipt_id.clone()],
             artifact_refs: Vec::new(),
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
@@ -2468,33 +3169,160 @@ mod tests {
             imagination_consideration_candidate_msgpack: None,
             admitted_model_direction_consideration_request_id: None,
             admitted_model_direction_consideration_result_msgpack: None,
-            decision_context_id: "verification-context".into(),
+            decision_context_id: verification_context.context_id.clone(),
         };
-        let verdict = crate::SoulVerdictReceipt {
-            schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "soul-verdict-verification-result".into(),
-            source_result_id: verification_result.result_id.clone(),
-            source_job_id: verification_result.job_id.clone(),
-            verdict: verification_result.verdict.clone(),
-            summary: verification_result.summary.clone(),
-            evidence_ids: verification_result.evidence_ids.clone(),
-            risks: verification_result.risks.clone(),
-            emitted_at: "2026-08-17T00:00:16Z".into(),
-            contract: "test Soul verdict".into(),
-            verification_request_id: verification_request.request_id.clone(),
-            frontier_route_id: route.route_id.clone(),
-        };
-        accepted_cache.put(&route.route_id, &route)?;
-        accepted_cache.put(&verification_request.request_id, &verification_request)?;
-        accepted_cache.put(&verification_result.job_id, &verification_result)?;
-        accepted_cache.put(&verdict.receipt_id, &verdict)?;
-        let verdict_request = crate::commit_repo_frontier_modeling_request(&store, &verdict)?;
+        crate::put_runtime_role_worker_result(&store, &verification_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{verification_job_id}"),
+                job_id: verification_job_id.clone(),
+                completed_at: "2026-08-17T00:00:15Z".into(),
+                verdict: verification_result.verdict.clone(),
+                summary: verification_result.summary.clone(),
+                next_safe_move: verification_result.next_safe_move.clone(),
+                evidence_refs: verification_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(verification_context.context_id.clone()),
+            },
+        )?;
+        assert_eq!(
+            project_current_work(&store)?
+                .verification
+                .expect("terminal Verification work awaits admission")
+                .action,
+            EpiphanyAgentPassContinuationAction::Review
+        );
+
+        // The same terminal decision must refuse without mutation if its exact
+        // frontier changes. There is no silent rebase onto newer strong state.
+        let verification_conflict_store = temp.path().join("verification-conflict.cc");
+        std::fs::copy(&store, &verification_conflict_store)?;
+        let mut competing_verification_item = frontier_item.clone();
+        competing_verification_item.gap =
+            "A competing decision changed the exact verified frontier.".into();
+        competing_verification_item.updated_at = Some("2026-08-17T00:00:15.050Z".into());
+        let competing_verification_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-verification-conflict",
+            "verification-conflict-request",
+            "verification-conflict-result",
+            vec![hands_commit.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: competing_verification_item,
+            }],
+        )?;
+        let competing_verification_plan = crate::plan_repo_model_mutation(
+            &verification_conflict_store,
+            &competing_verification_proposal,
+        )?;
+        let mut verification_conflict_cache =
+            crate::runtime_spine_cache(&verification_conflict_store)?;
+        verification_conflict_cache.pull_all_backing_stores()?;
+        let conflict_provenance = verification_conflict_cache
+            .get_envelope::<crate::HandsCommitReceipt>(&hands_commit.receipt_id)?
+            .expect("typed Hands conflict provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &verification_conflict_store,
+                "Modeling",
+                conflict_provenance,
+                "Modeling.verification_conflict_fixture",
+                competing_verification_plan.strong_reads,
+                competing_verification_plan.writes,
+                "2026-08-17T00:00:15.050Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        verification_conflict_cache.pull_all_backing_stores()?;
+        let conflict_before = verification_conflict_cache.snapshot_envelopes();
+        let conflict_error = accept_frontier_verification_result(
+            &verification_conflict_store,
+            &verification_job_id,
+            "2026-08-17T00:00:16Z",
+        )
+        .expect_err("stale exact frontier must block Verification admission");
+        assert!(conflict_error.to_string().contains("frontier"));
+        verification_conflict_cache.pull_all_backing_stores()?;
+        assert_eq!(
+            verification_conflict_cache.snapshot_envelopes(),
+            conflict_before
+        );
+
+        // An unrelated keyed graph write after inference must not stale this
+        // decision. Verification owns the exact frontier and Hands chain, not
+        // a global RepoModel revision.
+        let mut concurrent_node = model
+            .nodes
+            .iter()
+            .find(|node| node.id == "body-node")
+            .cloned()
+            .expect("seeded Body node");
+        concurrent_node.id = "verification-concurrent-node".into();
+        concurrent_node.title = "Concurrent Verification neighbor".into();
+        concurrent_node.claim = "Disjoint keyed Mind writes merge.".into();
+        concurrent_node.updated_at = Some("2026-08-17T00:00:15.100Z".into());
+        let concurrent_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-verification-concurrent",
+            verification_request.request_id.clone(),
+            verification_result.result_id.clone(),
+            vec![hands_commit.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutNode {
+                node: concurrent_node,
+            }],
+        )?;
+        let concurrent_plan = crate::plan_repo_model_mutation(&store, &concurrent_proposal)?;
+        accepted_cache.pull_all_backing_stores()?;
+        let hands_provenance = accepted_cache
+            .get_envelope::<crate::HandsCommitReceipt>(&hands_commit.receipt_id)?
+            .expect("typed Hands provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                hands_provenance,
+                "Modeling.verification_concurrent_fixture",
+                concurrent_plan.strong_reads,
+                concurrent_plan.writes,
+                "2026-08-17T00:00:15.100Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+
+        let verification_commit = accept_frontier_verification_result(
+            &store,
+            &verification_job_id,
+            "2026-08-17T00:00:16Z",
+        )?;
+        assert_eq!(verification_commit.invariant_owner, "Soul.verification");
+        assert!(project_current_work(&store)?.verification.is_none());
+        let replayed_verification_commit = accept_frontier_verification_result(
+            &store,
+            &verification_job_id,
+            "2026-08-17T00:00:16Z",
+        )?;
+        assert_eq!(replayed_verification_commit, verification_commit);
+        accepted_cache.pull_all_backing_stores()?;
+        let verdict = accepted_cache
+            .get::<crate::SoulVerdictReceipt>(&format!(
+                "soul-verdict-{}",
+                verification_result.result_id
+            ))?
+            .expect("Verification admission writes its Soul verdict");
+        let verdict_request =
+            crate::runtime_spine::derive_repo_frontier_modeling_request(&accepted_cache, &verdict)?;
+        assert!(
+            accepted_cache
+                .get::<crate::RepoFrontierModelingRequest>(&verdict_request.request_id)?
+                .is_some()
+        );
         assert_eq!(
             project_current_work(&store)?
                 .frontier_verdict_modeling
                 .expect("Soul verdict creates frontier Modeling work")
                 .action,
-            EpiphanyModelingContinuationAction::Launch
+            EpiphanyAgentPassContinuationAction::Launch
         );
         let verdict_racers = (0..2)
             .map(|_| {
@@ -2707,7 +3535,7 @@ mod tests {
                 .frontier_verdict_modeling
                 .expect("terminal verdict work awaits admission")
                 .action,
-            EpiphanyModelingContinuationAction::Review
+            EpiphanyAgentPassContinuationAction::Review
         );
 
         // The same fixture, copied before admission, proves the other half of

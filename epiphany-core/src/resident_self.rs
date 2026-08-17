@@ -1201,7 +1201,7 @@ pub fn ingest_resident_self_domain_pressure(
     }
     if let Some(work) = crate::project_current_work(runtime_store)?
         .frontier_verdict_modeling
-        .filter(|work| work.action == crate::EpiphanyModelingContinuationAction::Launch)
+        .filter(|work| work.action == crate::EpiphanyAgentPassContinuationAction::Launch)
     {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
@@ -1233,7 +1233,7 @@ pub fn ingest_resident_self_domain_pressure(
     // the next one on a later ingestion cycle.
     if let Some(selection) = crate::project_current_work(runtime_store)?
         .proposal_modeling
-        .filter(|work| work.action == crate::EpiphanyModelingContinuationAction::Launch)
+        .filter(|work| work.action == crate::EpiphanyAgentPassContinuationAction::Launch)
         .map(|work| work.request)
     {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
@@ -1348,12 +1348,6 @@ fn resident_continuation_launch_was_overtaken(
             crate::EpiphanyRoleResultRoleId::Modeling,
             crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
         ),
-        "launchVerification" => role_projection_is_terminal_for_continuation(
-            runtime_store,
-            thread_id,
-            crate::EpiphanyRoleResultRoleId::Verification,
-            crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-        ),
         _ => Ok(false),
     }
 }
@@ -1381,11 +1375,11 @@ pub(crate) fn resident_self_safe_continuation_action(
                 crate::body_modeling_continuation_action_for_job(runtime_store, job_id)?
             {
                 return Ok(match action {
-                    crate::EpiphanyModelingContinuationAction::Launch => {
+                    crate::EpiphanyAgentPassContinuationAction::Launch => {
                         Some("launchModeling".to_string())
                     }
-                    crate::EpiphanyModelingContinuationAction::Wait => None,
-                    crate::EpiphanyModelingContinuationAction::Review => {
+                    crate::EpiphanyAgentPassContinuationAction::Wait => None,
+                    crate::EpiphanyAgentPassContinuationAction::Review => {
                         Some("reviewModelingResult".to_string())
                     }
                 });
@@ -1394,11 +1388,11 @@ pub(crate) fn resident_self_safe_continuation_action(
                 crate::proposal_modeling_continuation_action_for_job(runtime_store, job_id)?
             {
                 return Ok(match action {
-                    crate::EpiphanyModelingContinuationAction::Launch => {
+                    crate::EpiphanyAgentPassContinuationAction::Launch => {
                         Some("launchModeling".to_string())
                     }
-                    crate::EpiphanyModelingContinuationAction::Wait => None,
-                    crate::EpiphanyModelingContinuationAction::Review => {
+                    crate::EpiphanyAgentPassContinuationAction::Wait => None,
+                    crate::EpiphanyAgentPassContinuationAction::Review => {
                         Some("reviewModelingResult".to_string())
                     }
                 });
@@ -1407,21 +1401,38 @@ pub(crate) fn resident_self_safe_continuation_action(
                 crate::frontier_verdict_modeling_continuation_action_for_job(runtime_store, job_id)?
             {
                 return Ok(match action {
-                    crate::EpiphanyModelingContinuationAction::Launch => {
+                    crate::EpiphanyAgentPassContinuationAction::Launch => {
                         Some("launchModeling".to_string())
                     }
-                    crate::EpiphanyModelingContinuationAction::Wait => None,
-                    crate::EpiphanyModelingContinuationAction::Review => {
+                    crate::EpiphanyAgentPassContinuationAction::Wait => None,
+                    crate::EpiphanyAgentPassContinuationAction::Review => {
                         Some("reviewModelingResult".to_string())
                     }
                 });
             }
         }
     }
+    if matches!(
+        receipt.final_action.as_str(),
+        "launchVerification" | "waitForVerificationResult" | "reviewVerificationResult"
+    ) {
+        return Ok(crate::project_current_work(runtime_store)?
+            .verification
+            .map(|work| match work.action {
+                crate::EpiphanyAgentPassContinuationAction::Launch => {
+                    "launchVerification".to_string()
+                }
+                crate::EpiphanyAgentPassContinuationAction::Wait => {
+                    "waitForVerificationResult".to_string()
+                }
+                crate::EpiphanyAgentPassContinuationAction::Review => {
+                    "reviewVerificationResult".to_string()
+                }
+            }));
+    }
     let direct = matches!(
         receipt.final_action.as_str(),
         "launchModeling"
-            | "launchVerification"
             | "startFrontierPlanning"
             | "launchImagination"
             | "requestMindPlanReview"
@@ -1449,16 +1460,6 @@ pub(crate) fn resident_self_safe_continuation_action(
         {
             Some("reviewModelingResult")
         }
-        "reviewVerificationResult"
-            if role_projection_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Verification,
-                crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-            )? =>
-        {
-            Some("reviewVerificationResult")
-        }
         "waitForModelingResult"
             if role_projection_is_terminal_for_continuation(
                 runtime_store,
@@ -1468,16 +1469,6 @@ pub(crate) fn resident_self_safe_continuation_action(
             )? =>
         {
             Some("reviewModelingResult")
-        }
-        "waitForVerificationResult"
-            if role_projection_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Verification,
-                crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-            )? =>
-        {
-            Some("reviewVerificationResult")
         }
         "waitForImaginationResult" => {
             match crate::runtime_repo_frontier_planning_lifecycle(runtime_store)?.stage {
@@ -1568,13 +1559,13 @@ fn resident_self_failed_receipt_typed_continuation_action(
         _ => None,
     };
     Ok(match action {
-        Some(crate::EpiphanyModelingContinuationAction::Review) => {
+        Some(crate::EpiphanyAgentPassContinuationAction::Review) => {
             Some("reviewModelingResult".to_string())
         }
-        Some(crate::EpiphanyModelingContinuationAction::Launch) => {
+        Some(crate::EpiphanyAgentPassContinuationAction::Launch) => {
             Some("launchModeling".to_string())
         }
-        Some(crate::EpiphanyModelingContinuationAction::Wait) | None => None,
+        Some(crate::EpiphanyAgentPassContinuationAction::Wait) | None => None,
     })
 }
 

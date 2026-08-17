@@ -182,6 +182,11 @@ pub fn accept_coordinator_role_finding(
             "generic role acceptance cannot admit Research; the exact frontier Research current-work owner must commit it"
         ));
     }
+    if role_id == EpiphanyRoleResultRoleId::Verification {
+        return Err(anyhow::anyhow!(
+            "generic role acceptance cannot admit Verification; the exact frontier Verification current-work owner must commit it"
+        ));
+    }
     let snapshot = read_role_result_snapshot(Some(state), Some(store), role_id, binding_id);
     if snapshot.status != EpiphanyCoordinatorRoleResultStatus::Completed {
         return Err(anyhow::anyhow!(
@@ -205,47 +210,8 @@ pub fn accept_coordinator_role_finding(
     .map_err(anyhow::Error::msg)?;
     let contract = acceptance_launch_contract_for_binding(store, state, binding_id, "role")
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let mut available = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
-    let mut prerequisites = Vec::new();
-    if role_id == EpiphanyRoleResultRoleId::Verification {
-        let request_id = finding
-            .verification_request_id
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("Verification finding omitted verificationRequestId"))?;
-        finding
-            .frontier_route_id
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("Verification finding omitted frontierRouteId"))?;
-        let request = crate::runtime_repo_frontier_verification_request(store, request_id)?
-            .ok_or_else(|| anyhow::anyhow!("Verification finding names a missing request"))?;
-        crate::put_repo_frontier_verification_request(store, &request)?;
-        validate_verification_finding_binding(&finding, &request)?;
-        if request.hands_intent_id.trim().is_empty()
-            || request.hands_patch_receipt_id.trim().is_empty()
-            || request.hands_command_receipt_id.trim().is_empty()
-            || request.hands_commit_receipt_id.trim().is_empty()
-        {
-            return Err(anyhow::anyhow!(
-                "Verification finding does not echo its exact frontier request and route"
-            ));
-        }
-        let verdict = soul_verdict_receipt_from_verification_finding(
-            format!(
-                "soul-verdict-{}",
-                finding.runtime_result_id.as_deref().unwrap_or_default()
-            ),
-            &finding,
-            accepted_at.clone(),
-        );
-        let cache = coordinator_acceptance_cache(store)?;
-        let modeling_request =
-            crate::runtime_spine::derive_repo_frontier_modeling_request(&cache, &verdict)?;
-        available.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
-        prerequisites.push(EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
-            verdict,
-            modeling_request,
-        });
-    }
+    let available = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    let prerequisites = Vec::new();
     enforce_acceptance_receipt_proofs(
         &contract,
         &role_acceptance_claimed_effects(role_id, &update.changed_fields),
@@ -322,20 +288,6 @@ pub fn accept_coordinator_role_finding(
         finding,
         update,
     })
-}
-
-fn validate_verification_finding_binding(
-    finding: &EpiphanyRoleFindingInterpretation,
-    request: &RepoFrontierVerificationRequest,
-) -> anyhow::Result<()> {
-    if finding.verification_request_id.as_deref() != Some(request.request_id.as_str())
-        || finding.frontier_route_id.as_deref() != Some(request.route_id.as_str())
-    {
-        return Err(anyhow::anyhow!(
-            "Verification finding does not echo its exact frontier request and route"
-        ));
-    }
-    Ok(())
 }
 
 pub fn completed_role_finding(
@@ -568,10 +520,6 @@ pub fn read_accepted_coordinator_state(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EpiphanyAcceptancePrerequisite {
-    SoulFrontierVerdict {
-        verdict: SoulVerdictReceipt,
-        modeling_request: crate::RepoFrontierModelingRequest,
-    },
     Continuity(ContinuityRecoveryReceipt),
 }
 
@@ -602,35 +550,11 @@ fn commit_state_with_mind_witness(
         store_path,
         expected_state,
     )?;
-    for prerequisite in prerequisites {
-        if let EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
-            verdict,
-            modeling_request,
-        } = prerequisite
-            && crate::runtime_spine::derive_repo_frontier_modeling_request(&cache, verdict)?
-                != *modeling_request
-        {
-            return Err(anyhow::anyhow!(
-                "Soul verdict and frontier Modeling request lost exact typed causality"
-            ));
-        }
-    }
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
     let mut batch = vec![review_envelope, commit_envelope];
     for prerequisite in prerequisites {
         let envelope = match prerequisite {
-            EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
-                verdict,
-                modeling_request,
-            } => {
-                batch.push(
-                    cache
-                        .prepare_entry(&modeling_request.request_id, modeling_request)?
-                        .0,
-                );
-                cache.prepare_entry(&verdict.receipt_id, verdict)?.0
-            }
             EpiphanyAcceptancePrerequisite::Continuity(document) => {
                 cache.prepare_entry(&document.receipt_id, document)?.0
             }
@@ -848,66 +772,6 @@ fn role_label_lower(role_id: EpiphanyRoleResultRoleId) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sha2::Digest;
-
-    #[test]
-    fn verification_finding_refuses_swapped_request_or_route() {
-        let request = RepoFrontierVerificationRequest {
-            schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
-            request_id: "verification-request-1".to_string(),
-            route_id: "frontier-route-1".to_string(),
-            model_projection_digest: format!("sha256:{}", "a".repeat(64)),
-            model_source_documents: vec![crate::EpiphanyMindDocumentVersion {
-                store_id: "epiphany-mind".into(),
-                document_type: "epiphany.mind.repo_model.identity.v1".into(),
-                document_key: crate::REPO_MODEL_IDENTITY_KEY.into(),
-                schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
-                payload_msgpack: vec![1],
-                payload_sha256: format!("sha256:{:x}", sha2::Sha256::digest([1])),
-            }],
-            frontier_item_id: "frontier-1".to_string(),
-            frontier_item_hash: "frontier-hash".to_string(),
-            hands_intent_id: "intent-1".to_string(),
-            hands_review_id: "review-1".to_string(),
-            hands_patch_receipt_id: "patch-1".to_string(),
-            hands_command_receipt_id: "command-1".to_string(),
-            hands_commit_receipt_id: "commit-1".to_string(),
-            requested_at: "2026-07-13T00:00:00Z".to_string(),
-            contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
-        };
-        let mut finding = EpiphanyRoleFindingInterpretation {
-            verdict: Some("pass".to_string()),
-            summary: Some("verified".to_string()),
-            next_safe_move: None,
-            checkpoint_summary: None,
-            scratch_summary: None,
-            files_inspected: Vec::new(),
-            frontier_node_ids: Vec::new(),
-            evidence_ids: Vec::new(),
-            artifact_refs: Vec::new(),
-            runtime_result_id: Some("result-1".to_string()),
-            runtime_job_id: Some("job-1".to_string()),
-            open_questions: Vec::new(),
-            evidence_gaps: Vec::new(),
-            risks: Vec::new(),
-            state_patch: None,
-            repo_model_mutation_proposal: None,
-            self_patch: None,
-            self_persistence: None,
-            job_error: None,
-            item_error: None,
-            verification_request_id: Some(request.request_id.clone()),
-            frontier_route_id: Some(request.route_id.clone()),
-            proposal_modeling_request_id: None,
-        };
-        validate_verification_finding_binding(&finding, &request).expect("exact binding");
-
-        finding.frontier_route_id = Some("frontier-route-2".to_string());
-        assert!(validate_verification_finding_binding(&finding, &request).is_err());
-        finding.frontier_route_id = Some(request.route_id.clone());
-        finding.verification_request_id = Some("verification-request-2".to_string());
-        assert!(validate_verification_finding_binding(&finding, &request).is_err());
-    }
 
     #[test]
     fn completed_finding_admission_refuses_missing_binding() {

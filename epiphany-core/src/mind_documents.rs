@@ -138,6 +138,68 @@ pub struct EpiphanyMindEvidenceDocument {
     pub value: EpiphanyEvidenceRecord,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.verification_audit.v1",
+    schema = "EpiphanyMindVerificationAuditDocument"
+)]
+pub struct EpiphanyMindVerificationAuditDocument {
+    #[cultcache(key = 0)]
+    pub audit_id: String,
+    #[cultcache(key = 1)]
+    pub verification_request_id: String,
+    #[cultcache(key = 2)]
+    pub frontier_route_id: String,
+    #[cultcache(key = 3)]
+    pub job_id: String,
+    #[cultcache(key = 4)]
+    pub result_id: String,
+    #[cultcache(key = 5)]
+    pub decision_context_id: String,
+    #[cultcache(key = 6)]
+    pub verdict: String,
+    #[cultcache(key = 7)]
+    pub summary: String,
+    #[cultcache(key = 8)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 9)]
+    pub risks: Vec<String>,
+    #[cultcache(key = 10)]
+    pub audited_at: String,
+}
+
+impl EpiphanyMindVerificationAuditDocument {
+    pub fn validate(&self) -> Result<()> {
+        if [
+            self.audit_id.as_str(),
+            self.verification_request_id.as_str(),
+            self.frontier_route_id.as_str(),
+            self.job_id.as_str(),
+            self.result_id.as_str(),
+            self.decision_context_id.as_str(),
+            self.verdict.as_str(),
+            self.summary.as_str(),
+        ]
+        .into_iter()
+        .any(str::is_empty)
+            || !matches!(
+                self.verdict.trim().to_ascii_lowercase().as_str(),
+                "pass" | "needs-review" | "needs-evidence" | "fail"
+            )
+            || chrono::DateTime::parse_from_rfc3339(&self.audited_at).is_err()
+        {
+            return Err(anyhow!("Verification audit document is invalid"));
+        }
+        let mut evidence_ids = self.evidence_ids.clone();
+        evidence_ids.sort();
+        evidence_ids.dedup();
+        if evidence_ids != self.evidence_ids {
+            return Err(anyhow!("Verification audit evidence ids are not canonical"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.mind.investigation_checkpoint.v1",
@@ -200,6 +262,7 @@ pub struct EpiphanyMindView {
     pub invariants: Vec<EpiphanyInvariant>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
+    pub verification_audits: Vec<EpiphanyMindVerificationAuditDocument>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
     pub planning: EpiphanyPlanningState,
@@ -216,6 +279,7 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindInvariantDocument>()?;
     cache.register_entry_type::<EpiphanyMindObservationDocument>()?;
     cache.register_entry_type::<EpiphanyMindEvidenceDocument>()?;
+    cache.register_entry_type::<EpiphanyMindVerificationAuditDocument>()?;
     cache.register_entry_type::<EpiphanyMindInvestigationCheckpointDocument>()?;
     cache.register_entry_type::<EpiphanyMindPlanningCaptureDocument>()?;
     cache.register_entry_type::<EpiphanyMindBacklogItemDocument>()?;
@@ -329,6 +393,11 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         rmp_serde::from_slice::<EpiphanyMindEvidenceDocument>(&envelope.payload)?
             .value
             .id
+    } else if envelope.r#type == EpiphanyMindVerificationAuditDocument::TYPE {
+        let value: EpiphanyMindVerificationAuditDocument =
+            rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.audit_id
     } else if envelope.r#type == EpiphanyMindInvestigationCheckpointDocument::TYPE {
         rmp_serde::from_slice::<EpiphanyMindInvestigationCheckpointDocument>(&envelope.payload)?
             .value
@@ -392,6 +461,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     let mut observations =
         values::<EpiphanyMindObservationDocument, _>(&cache, |value| value.value)?;
     let mut evidence = values::<EpiphanyMindEvidenceDocument, _>(&cache, |value| value.value)?;
+    let mut verification_audits = cache.get_all::<EpiphanyMindVerificationAuditDocument>()?;
     let checkpoints =
         values::<EpiphanyMindInvestigationCheckpointDocument, _>(&cache, |value| value.value)?;
     let mut captures =
@@ -432,6 +502,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     invariants.sort_by(|left, right| left.id.cmp(&right.id));
     observations.sort_by(|left, right| left.id.cmp(&right.id));
     evidence.sort_by(|left, right| left.id.cmp(&right.id));
+    verification_audits.sort_by(|left, right| left.audit_id.cmp(&right.audit_id));
     captures.sort_by(|left, right| left.id.cmp(&right.id));
     backlog_items.sort_by(|left, right| left.id.cmp(&right.id));
     roadmap_streams.sort_by(|left, right| left.id.cmp(&right.id));
@@ -473,6 +544,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         invariants,
         observations,
         evidence,
+        verification_audits,
         investigation_checkpoint,
         mode,
         planning: EpiphanyPlanningState {
@@ -510,6 +582,7 @@ fn canonical_mind_versions(
                     | EpiphanyMindInvariantDocument::TYPE
                     | EpiphanyMindObservationDocument::TYPE
                     | EpiphanyMindEvidenceDocument::TYPE
+                    | EpiphanyMindVerificationAuditDocument::TYPE
                     | EpiphanyMindInvestigationCheckpointDocument::TYPE
                     | EpiphanyMindPlanningCaptureDocument::TYPE
                     | EpiphanyMindBacklogItemDocument::TYPE

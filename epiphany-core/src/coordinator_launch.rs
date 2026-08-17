@@ -301,6 +301,9 @@ fn commit_coordinator_job_launch_in_cache(
                 .clone(),
             repo_frontier_modeling_request_id: request.repo_frontier_modeling_request_id.clone(),
             repo_frontier_research_request_id: request.repo_frontier_research_request_id.clone(),
+            repo_frontier_verification_request_id: request
+                .repo_frontier_verification_request_id
+                .clone(),
             created_at: created_at.clone(),
         },
     )?;

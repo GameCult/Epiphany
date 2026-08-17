@@ -447,6 +447,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub organ_launch_contract: EpiphanyLaunchOrganContract,
     #[cultcache(key = 11, default)]
     pub proposal_modeling_request_id: Option<String>,
+    #[cultcache(key = 12, default)]
+    pub repo_frontier_verification_request_id: Option<String>,
     #[cultcache(key = 13, default)]
     pub frontier_planning_request_id: Option<String>,
     #[cultcache(key = 14, default)]
@@ -1012,6 +1014,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub admitted_model_direction_consideration_request_id: Option<String>,
     pub repo_frontier_modeling_request_id: Option<String>,
     pub repo_frontier_research_request_id: Option<String>,
+    pub repo_frontier_verification_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -1066,6 +1069,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub admitted_model_direction_consideration_request_id: Option<String>,
     pub repo_frontier_modeling_request_id: Option<String>,
     pub repo_frontier_research_request_id: Option<String>,
+    pub repo_frontier_verification_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3135,6 +3139,12 @@ pub fn open_runtime_spine_heartbeat_job(
         options.repo_frontier_research_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_frontier_verification_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.repo_frontier_verification_request_id.as_deref(),
+        &options.launch_document,
+    )?;
     validate_imagination_consideration_launch_carrier(
         &options.role,
         &options.binding_id,
@@ -3237,6 +3247,7 @@ pub fn open_runtime_spine_heartbeat_job(
             .admitted_model_direction_consideration_request_id,
         repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
         repo_frontier_research_request_id: options.repo_frontier_research_request_id,
+        repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -3269,6 +3280,12 @@ pub fn prepare_runtime_spine_heartbeat_job(
         &options.role,
         &options.binding_id,
         options.repo_frontier_research_request_id.as_deref(),
+        &options.launch_document,
+    )?;
+    validate_frontier_verification_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.repo_frontier_verification_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_imagination_consideration_launch_carrier(
@@ -3399,6 +3416,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
             .admitted_model_direction_consideration_request_id,
         repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
         repo_frontier_research_request_id: options.repo_frontier_research_request_id,
+        repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -3753,6 +3771,45 @@ fn validate_frontier_research_launch_carrier(
     Ok(())
 }
 
+fn validate_frontier_verification_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    verification_request_id: Option<&str>,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.frontier_verification_context.as_ref()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(request_id) = verification_request_id else {
+        if projection.is_some() {
+            return Err(anyhow!(
+                "frontier Verification context requires its typed request id"
+            ));
+        }
+        return Ok(());
+    };
+    validate_non_empty(request_id, "frontier Verification request id")?;
+    if role != crate::EPIPHANY_VERIFICATION_OWNER_ROLE
+        || binding_id != crate::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "frontier Verification request may only be transported by the Verification role launch"
+        ));
+    }
+    let projection = projection
+        .ok_or_else(|| anyhow!("frontier Verification request requires its typed context"))?;
+    if projection.request.request_id != request_id
+        || projection.schema_version != crate::REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION
+        || projection.contract != crate::REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT
+    {
+        return Err(anyhow!("frontier Verification context/request mismatch"));
+    }
+    Ok(())
+}
+
 pub fn put_runtime_requested_public_source_intents(
     store_path: impl AsRef<Path>,
     worker_job_id: &str,
@@ -3889,6 +3946,48 @@ pub(crate) fn frontier_research_request_for_launch(
     {
         return Err(anyhow!(
             "frontier Research launch carries substituted context"
+        ));
+    }
+    Ok(Some(request))
+}
+
+pub(crate) fn frontier_verification_request_for_launch(
+    cache: &CultCache,
+    launch: &EpiphanyRuntimeWorkerLaunchRequest,
+) -> Result<Option<RepoFrontierVerificationRequest>> {
+    let document: EpiphanyWorkerLaunchDocument =
+        rmp_serde::from_slice(&launch.launch_document_msgpack)?;
+    validate_frontier_verification_launch_carrier(
+        &launch.role,
+        &launch.binding_id,
+        launch.repo_frontier_verification_request_id.as_deref(),
+        &document,
+    )?;
+    let Some(request_id) = launch.repo_frontier_verification_request_id.as_deref() else {
+        return Ok(None);
+    };
+    let request = cache
+        .get::<RepoFrontierVerificationRequest>(request_id)?
+        .ok_or_else(|| anyhow!("frontier Verification launch lost its typed request"))?;
+    validate_repo_frontier_verification_request_intrinsic(&request)?;
+    let carried = match document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_verification_context,
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    }
+    .ok_or_else(|| anyhow!("frontier Verification launch lost its typed context"))?;
+    if carried.request != request
+        || carried.route.route_id != request.route_id
+        || carried.hands_authority.route_id != request.route_id
+        || carried.hands_authority.hands_intent_id != request.hands_intent_id
+        || carried.hands_authority.hands_review_id != request.hands_review_id
+        || carried.hands_intent.intent_id != request.hands_intent_id
+        || carried.hands_review.review_id != request.hands_review_id
+        || carried.patch_receipt.receipt_id != request.hands_patch_receipt_id
+        || carried.command_receipt.receipt_id != request.hands_command_receipt_id
+        || carried.commit_receipt.receipt_id != request.hands_commit_receipt_id
+    {
+        return Err(anyhow!(
+            "frontier Verification launch context diverges from its request and Hands receipts"
         ));
     }
     Ok(Some(request))
@@ -4599,6 +4698,25 @@ pub fn put_runtime_role_worker_result(
         if result.repo_frontier_research_request_id.as_deref() != Some(request.request_id.as_str())
         {
             return Err(anyhow!("Research result substituted its typed request"));
+        }
+    }
+    let is_frontier_verification = worker_launch
+        .repo_frontier_verification_request_id
+        .is_some();
+    if is_verification != is_frontier_verification {
+        return Err(anyhow!(
+            "Verification result and launch must share one exact frontier request"
+        ));
+    }
+    if is_frontier_verification {
+        let request = frontier_verification_request_for_launch(&cache, &worker_launch)?
+            .ok_or_else(|| anyhow!("Verification result lost its typed request"))?;
+        if result.verification_request_id.as_deref() != Some(request.request_id.as_str())
+            || result.frontier_route_id.as_deref() != Some(request.route_id.as_str())
+        {
+            return Err(anyhow!(
+                "Verification result substituted its exact request or route"
+            ));
         }
     }
     if is_modeling
@@ -5431,6 +5549,7 @@ pub fn runtime_typed_request_fulfillment(
         }
         RuntimeTypedRequestRef::FrontierVerdictModeling(_) => {}
         RuntimeTypedRequestRef::FrontierResearch(_) => {}
+        RuntimeTypedRequestRef::FrontierVerification(_) => {}
         RuntimeTypedRequestRef::ImaginationConsideration(_) => {
             let candidate = result
                 .imagination_consideration_candidate()?
@@ -8712,16 +8831,29 @@ fn validate_repo_frontier_hands_authority_chain(
     let route = cache
         .get::<RepoFrontierRoute>(&authority.route_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted route"))?;
-    let current = require_keyed_repo_model_basis(
-        cache,
-        &authority.model_projection_digest,
-        &authority.model_source_documents,
-    )?;
-    let current_item = current
-        .frontier
+    let frontier_source = route
+        .model_source_documents
         .iter()
-        .find(|item| item.id == route.frontier_item_id)
+        .find(|source| {
+            source.document_type == crate::EpiphanyRepoModelFrontierDocument::TYPE
+                && source.document_key == route.frontier_item_id
+        })
+        .ok_or_else(|| anyhow!("Hands authority route lost its exact frontier version"))?;
+    let current_frontier_envelope = cache
+        .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&route.frontier_item_id)?
         .ok_or_else(|| anyhow!("Hands authority lost its model frontier"))?;
+    if crate::EpiphanyMindDocumentVersion::from_envelope(
+        "epiphany-mind",
+        &current_frontier_envelope,
+    )? != *frontier_source
+    {
+        return Err(anyhow!(
+            "Hands authority frontier version is no longer current"
+        ));
+    }
+    let current_item: crate::EpiphanyRepoModelFrontierDocument =
+        rmp_serde::from_slice(&current_frontier_envelope.payload)?;
+    let current_item = current_item.value()?;
     let intent = cache
         .get::<HandsActionIntent>(&authority.hands_intent_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted intent"))?;
@@ -8829,11 +8961,6 @@ pub fn put_repo_frontier_hands_authority(
     let route = cache
         .get::<RepoFrontierRoute>(&authority.route_id)?
         .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted route"))?;
-    require_keyed_repo_model_basis(
-        &cache,
-        &authority.model_projection_digest,
-        &authority.model_source_documents,
-    )?;
     let intent = cache
         .get::<HandsActionIntent>(&authority.hands_intent_id)?
         .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted intent"))?;
@@ -8875,11 +9002,23 @@ pub fn put_repo_frontier_hands_authority(
     }
     let (envelope, _) = cache.prepare_entry(&authority.authority_id, authority)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: authority.model_projection_digest.clone(),
-        source_documents: authority.model_source_documents.clone(),
-    };
-    let expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    let expected = vec![
+        cache
+            .get_envelope::<RepoFrontierRoute>(&route.route_id)?
+            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its route envelope"))?,
+        cache
+            .get_envelope::<HandsActionIntent>(&intent.intent_id)?
+            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its intent envelope"))?,
+        cache
+            .get_envelope::<HandsActionReview>(&review.review_id)?
+            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its review envelope"))?,
+        cache
+            .get_envelope::<SubstrateGateRepoAccessGrantReceipt>(&grant.receipt_id)?
+            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its grant envelope"))?,
+        cache
+            .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&authority.frontier_item_id)?
+            .ok_or_else(|| anyhow!("repo frontier Hands authority lost its frontier envelope"))?,
+    ];
     let mut writes = expected.clone();
     writes.push(envelope);
     if backing.compare_and_swap_batch(&expected, writes)? {
@@ -9100,6 +9239,11 @@ fn worker_result_has_keyed_mind_commit(
                                 | crate::EpiphanyMindObservationDocument::TYPE
                         )
                     })
+            } else if result.role_id.eq_ignore_ascii_case("verification") {
+                receipt.invariant_owner == "Soul.verification"
+                    && receipt.writes.iter().any(|write| {
+                        write.document_type == crate::EpiphanyMindVerificationAuditDocument::TYPE
+                    })
             } else {
                 false
             }
@@ -9224,31 +9368,95 @@ pub fn amend_repo_frontier_execution(
     }
 }
 
-pub fn put_repo_frontier_verification_request(
-    store_path: impl AsRef<Path>,
+pub(crate) fn validate_repo_frontier_verification_request_intrinsic(
     request: &RepoFrontierVerificationRequest,
-) -> Result<()> {
-    let store_path = store_path.as_ref();
+) -> Result<crate::RepoFrontierItem> {
     if request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
         || request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
         || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
-        || request.request_id.trim().is_empty()
+        || [
+            request.request_id.as_str(),
+            request.route_id.as_str(),
+            request.frontier_item_id.as_str(),
+            request.frontier_item_hash.as_str(),
+            request.hands_intent_id.as_str(),
+            request.hands_review_id.as_str(),
+            request.hands_patch_receipt_id.as_str(),
+            request.hands_command_receipt_id.as_str(),
+            request.hands_commit_receipt_id.as_str(),
+        ]
+        .into_iter()
+        .any(str::is_empty)
+        || request.frontier_authority_documents.len() != 1
     {
         return Err(anyhow!(
             "invalid repo frontier verification request contract"
         ));
     }
+    crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
+    }
+    .validate()?;
+    let source = &request.frontier_authority_documents[0];
+    source.validate()?;
+    if source.store_id != "epiphany-mind"
+        || source.document_type != crate::EpiphanyRepoModelFrontierDocument::TYPE
+        || source.document_key != request.frontier_item_id
+    {
+        return Err(anyhow!(
+            "Verification request frontier authority has the wrong identity"
+        ));
+    }
+    let frontier: crate::EpiphanyRepoModelFrontierDocument =
+        rmp_serde::from_slice(&source.payload_msgpack)?;
+    let frontier = frontier.value()?;
+    let frontier_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&frontier)?));
+    if frontier.id != request.frontier_item_id || frontier_hash != request.frontier_item_hash {
+        return Err(anyhow!(
+            "Verification request frontier authority does not bind its exact item"
+        ));
+    }
+    Ok(frontier)
+}
+
+pub(crate) fn verification_frontier_is_current(
+    cache: &CultCache,
+    request: &RepoFrontierVerificationRequest,
+) -> Result<bool> {
+    validate_repo_frontier_verification_request_intrinsic(request)?;
+    let source = &request.frontier_authority_documents[0];
+    Ok(cache
+        .snapshot_envelopes()
+        .iter()
+        .find(|envelope| {
+            envelope.r#type == source.document_type && envelope.key == source.document_key
+        })
+        .map(|envelope| {
+            crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)
+                .map(|current| current == *source)
+        })
+        .transpose()?
+        .unwrap_or(false))
+}
+
+pub fn put_repo_frontier_verification_request(
+    store_path: impl AsRef<Path>,
+    request: &RepoFrontierVerificationRequest,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    validate_repo_frontier_verification_request_intrinsic(request)?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     let route = cache
         .get::<RepoFrontierRoute>(&request.route_id)?
         .ok_or_else(|| anyhow!("verification request requires its exact frontier route"))?;
-    require_keyed_repo_model_basis(
-        &cache,
-        &request.model_projection_digest,
-        &request.model_source_documents,
-    )?;
+    if !verification_frontier_is_current(&cache, request)? {
+        return Err(anyhow!(
+            "verification request frontier authority is no longer current"
+        ));
+    }
     let authorities = cache
         .get_all::<RepoFrontierHandsAuthority>()?
         .into_iter()
@@ -9331,11 +9539,41 @@ pub fn put_repo_frontier_verification_request(
     }
     let (envelope, _) = cache.prepare_entry(&request.request_id, request)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: request.model_projection_digest.clone(),
-        source_documents: request.model_source_documents.clone(),
-    };
-    let expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (RepoFrontierRoute::TYPE, request.route_id.as_str()),
+        (
+            RepoFrontierHandsAuthority::TYPE,
+            authority.authority_id.as_str(),
+        ),
+        (HandsActionIntent::TYPE, request.hands_intent_id.as_str()),
+        (HandsActionReview::TYPE, request.hands_review_id.as_str()),
+        (
+            HandsPatchReceipt::TYPE,
+            request.hands_patch_receipt_id.as_str(),
+        ),
+        (
+            HandsCommandReceipt::TYPE,
+            request.hands_command_receipt_id.as_str(),
+        ),
+        (
+            HandsCommitReceipt::TYPE,
+            request.hands_commit_receipt_id.as_str(),
+        ),
+        (
+            crate::EpiphanyRepoModelFrontierDocument::TYPE,
+            request.frontier_item_id.as_str(),
+        ),
+    ] {
+        expected.push(
+            cache
+                .snapshot_envelopes()
+                .iter()
+                .find(|value| value.r#type == document_type && value.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("verification request lost an exact authority"))?,
+        );
+    }
     let mut writes = expected.clone();
     writes.push(envelope);
     if backing.compare_and_swap_batch(&expected, writes)? {
@@ -9356,6 +9594,85 @@ pub fn runtime_repo_frontier_verification_request(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<RepoFrontierVerificationRequest>(request_id)
+}
+
+pub(crate) fn repo_frontier_verification_context(
+    cache: &CultCache,
+    request: &RepoFrontierVerificationRequest,
+) -> Result<crate::RepoFrontierVerificationContextProjection> {
+    repo_frontier_verification_context_with_commit(cache, request, None)
+}
+
+fn repo_frontier_verification_context_with_commit(
+    cache: &CultCache,
+    request: &RepoFrontierVerificationRequest,
+    prospective_commit: Option<&HandsCommitReceipt>,
+) -> Result<crate::RepoFrontierVerificationContextProjection> {
+    validate_repo_frontier_verification_request_intrinsic(request)?;
+    if !verification_frontier_is_current(cache, request)? {
+        return Err(anyhow!(
+            "Verification context cannot be projected from stale frontier authority"
+        ));
+    }
+    let route = cache
+        .get::<RepoFrontierRoute>(&request.route_id)?
+        .ok_or_else(|| anyhow!("Verification context lost its route"))?;
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|authority| {
+            authority.route_id == request.route_id
+                && authority.hands_intent_id == request.hands_intent_id
+                && authority.hands_review_id == request.hands_review_id
+        })
+        .collect::<Vec<_>>();
+    let [hands_authority] = authorities.as_slice() else {
+        return Err(anyhow!(
+            "Verification context requires one exact Hands authority"
+        ));
+    };
+    validate_repo_frontier_hands_authority_chain(cache, hands_authority)?;
+    let hands_intent = cache
+        .get::<HandsActionIntent>(&request.hands_intent_id)?
+        .ok_or_else(|| anyhow!("Verification context lost its Hands intent"))?;
+    let hands_review = cache
+        .get::<HandsActionReview>(&request.hands_review_id)?
+        .ok_or_else(|| anyhow!("Verification context lost its Hands review"))?;
+    let patch_receipt = cache
+        .get::<HandsPatchReceipt>(&request.hands_patch_receipt_id)?
+        .ok_or_else(|| anyhow!("Verification context lost its patch receipt"))?;
+    let command_receipt = cache
+        .get::<HandsCommandReceipt>(&request.hands_command_receipt_id)?
+        .ok_or_else(|| anyhow!("Verification context lost its command receipt"))?;
+    let commit_receipt = match prospective_commit {
+        Some(receipt)
+            if receipt.receipt_id == request.hands_commit_receipt_id
+                && receipt.intent_id == request.hands_intent_id
+                && receipt.review_id == request.hands_review_id =>
+        {
+            receipt.clone()
+        }
+        Some(_) => {
+            return Err(anyhow!(
+                "prospective Hands commit does not exactly bind its Verification request"
+            ));
+        }
+        None => cache
+            .get::<HandsCommitReceipt>(&request.hands_commit_receipt_id)?
+            .ok_or_else(|| anyhow!("Verification context lost its commit receipt"))?,
+    };
+    Ok(crate::RepoFrontierVerificationContextProjection {
+        schema_version: crate::REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION.into(),
+        request: request.clone(),
+        route,
+        hands_authority: hands_authority.clone(),
+        hands_intent,
+        hands_review,
+        patch_receipt,
+        command_receipt,
+        commit_receipt,
+        contract: crate::REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT.into(),
+    })
 }
 
 pub fn runtime_repo_frontier_route(
@@ -9566,13 +9883,11 @@ fn consequence_paths_within_authority(
         })
 }
 
-pub fn commit_repo_frontier_verification_request_for_chain(
-    store_path: impl AsRef<Path>,
+fn derive_repo_frontier_verification_request_for_chain(
+    cache: &CultCache,
     chain: &RuntimeHandsReceiptChainSummary,
     requested_at: &str,
 ) -> Result<RepoFrontierVerificationRequest> {
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
     let authorities = cache
         .get_all::<RepoFrontierHandsAuthority>()?
         .into_iter()
@@ -9586,6 +9901,13 @@ pub fn commit_repo_frontier_verification_request_for_chain(
         ));
     }
     let authority = &authorities[0];
+    let frontier_envelope = cache
+        .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(&authority.frontier_item_id)?
+        .ok_or_else(|| anyhow!("Hands authority lost its exact frontier document"))?;
+    let frontier_authority_documents = vec![crate::EpiphanyMindDocumentVersion::from_envelope(
+        "epiphany-mind",
+        &frontier_envelope,
+    )?];
     let request_id = format!(
         "frontier-verification-{}-{}",
         authority.route_id, chain.commit_receipt_id
@@ -9609,7 +9931,20 @@ pub fn commit_repo_frontier_verification_request_for_chain(
         hands_commit_receipt_id: chain.commit_receipt_id.clone(),
         requested_at,
         contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
+        frontier_authority_documents,
     };
+    Ok(request)
+}
+
+pub fn commit_repo_frontier_verification_request_for_chain(
+    store_path: impl AsRef<Path>,
+    chain: &RuntimeHandsReceiptChainSummary,
+    requested_at: &str,
+) -> Result<RepoFrontierVerificationRequest> {
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let request = derive_repo_frontier_verification_request_for_chain(&cache, chain, requested_at)?;
     put_repo_frontier_verification_request(store_path, &request)?;
     Ok(request)
 }
@@ -9882,16 +10217,103 @@ pub fn put_hands_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    let patch = cache
+        .get_all::<HandsPatchReceipt>()?
+        .into_iter()
+        .filter(|patch| {
+            patch.intent_id == receipt.intent_id
+                && patch.review_id == receipt.review_id
+                && patch.runtime_job_id == receipt.runtime_job_id
+                && patch.emitted_at <= receipt.emitted_at
+        })
+        .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        .ok_or_else(|| anyhow!("Hands commit requires its exact patch receipt"))?;
+    let command = cache
+        .get_all::<HandsCommandReceipt>()?
+        .into_iter()
+        .filter(|command| {
+            command.intent_id == receipt.intent_id
+                && command.review_id == receipt.review_id
+                && command.runtime_job_id == receipt.runtime_job_id
+                && command.exit_code == "0"
+                && command.emitted_at <= receipt.emitted_at
+        })
+        .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        .ok_or_else(|| anyhow!("Hands commit requires its successful command receipt"))?;
+    let chain = RuntimeHandsReceiptChainSummary {
+        patch_schema_version: patch.schema_version.clone(),
+        patch_receipt_id: patch.receipt_id.clone(),
+        command_schema_version: command.schema_version.clone(),
+        command_receipt_id: command.receipt_id.clone(),
+        commit_schema_version: receipt.schema_version.clone(),
+        commit_receipt_id: receipt.receipt_id.clone(),
+        intent_id: receipt.intent_id.clone(),
+        review_id: receipt.review_id.clone(),
+        runtime_job_id: receipt.runtime_job_id.clone(),
+        substrate_gate_grant_receipt_id: command.substrate_gate_grant_receipt_id.clone(),
+        changed_paths: receipt.changed_paths.clone(),
+        command: command.command.clone(),
+        exit_code: command.exit_code.clone(),
+        stdout_artifact: command.stdout_artifact.clone(),
+        stderr_artifact: command.stderr_artifact.clone(),
+        commit_sha: receipt.commit_sha.clone(),
+        branch: receipt.branch.clone(),
+        summary: receipt.summary.clone(),
+        emitted_at: receipt.emitted_at.clone(),
+    };
+    let request =
+        derive_repo_frontier_verification_request_for_chain(&cache, &chain, &receipt.emitted_at)?;
+    let context = repo_frontier_verification_context_with_commit(&cache, &request, Some(receipt))?;
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (RepoFrontierRoute::TYPE, request.route_id.as_str()),
+        (
+            RepoFrontierHandsAuthority::TYPE,
+            context.hands_authority.authority_id.as_str(),
+        ),
+        (HandsActionIntent::TYPE, request.hands_intent_id.as_str()),
+        (HandsActionReview::TYPE, request.hands_review_id.as_str()),
+        (
+            HandsPatchReceipt::TYPE,
+            request.hands_patch_receipt_id.as_str(),
+        ),
+        (
+            HandsCommandReceipt::TYPE,
+            request.hands_command_receipt_id.as_str(),
+        ),
+        (
+            crate::EpiphanyRepoModelFrontierDocument::TYPE,
+            request.frontier_item_id.as_str(),
+        ),
+    ] {
+        expected.push(
+            snapshot
+                .iter()
+                .find(|value| value.r#type == document_type && value.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("Hands commit lost exact Verification authority"))?,
+        );
+    }
+    let mut writes = expected.clone();
+    writes.push(cache.prepare_entry(&receipt.receipt_id, receipt)?.0);
+    writes.push(cache.prepare_entry(&request.request_id, &request)?.0);
     if SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&[], vec![envelope])?
+        .compare_and_swap_batch(&expected, writes)?
     {
         return Ok(());
     }
     let mut reloaded = runtime_spine_cache(store_path)?;
     reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<HandsCommitReceipt>(&receipt.receipt_id)? {
-        Some(existing) if existing == *receipt => Ok(()),
+    match (
+        reloaded.get::<HandsCommitReceipt>(&receipt.receipt_id)?,
+        reloaded.get::<RepoFrontierVerificationRequest>(&request.request_id)?,
+    ) {
+        (Some(existing), Some(existing_request))
+            if existing == *receipt && existing_request == request =>
+        {
+            Ok(())
+        }
         _ => Err(anyhow!("Hands commit receipt ids are immutable")),
     }
 }
@@ -10066,12 +10488,7 @@ pub fn runtime_hands_receipt_chain_matches_current_model(
     let route = cache
         .get::<RepoFrontierRoute>(&authority.route_id)?
         .ok_or_else(|| anyhow!("Hands receipt chain lost its persisted route"))?;
-    let current = require_keyed_repo_model_basis(
-        &cache,
-        &route.model_projection_digest,
-        &route.model_source_documents,
-    )
-    .is_ok();
+    let current = validate_repo_frontier_hands_authority_chain(&cache, authority).is_ok();
     Ok(authority.hands_review_id == chain.review_id
         && authority.substrate_grant_receipt_id == chain.substrate_gate_grant_receipt_id
         && authority.route_id == route.route_id
@@ -10542,6 +10959,7 @@ where
                 RuntimeTypedRequestRef::FrontierVerdictModeling(request_id)
             }
             "frontier-research" => RuntimeTypedRequestRef::FrontierResearch(request_id),
+            "frontier-verification" => RuntimeTypedRequestRef::FrontierVerification(request_id),
             "imagination-consideration" => {
                 RuntimeTypedRequestRef::ImaginationConsideration(request_id)
             }
@@ -10563,7 +10981,10 @@ where
         }
         if matches!(
             request_kind,
-            "proposal-modeling" | "frontier-verdict-modeling" | "frontier-research"
+            "proposal-modeling"
+                | "frontier-verdict-modeling"
+                | "frontier-research"
+                | "frontier-verification"
         ) && !worker_result_has_keyed_mind_commit(
             &cache,
             role_result

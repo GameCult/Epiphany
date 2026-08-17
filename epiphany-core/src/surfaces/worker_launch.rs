@@ -38,6 +38,10 @@ pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_research_context.v3";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_research_context.v3";
+pub const REPO_FRONTIER_VERIFICATION_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.repo_frontier_verification_context.v1";
+pub const REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT: &str =
+    "epiphany.repo_frontier_verification_context.v1";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -111,6 +115,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_research_context: Option<RepoFrontierResearchContextProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontier_verification_context: Option<RepoFrontierVerificationContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_plan_mind_context: Option<RepoFrontierPlanMindContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -317,6 +323,21 @@ pub struct ImaginationConsiderationContextProjection {
     pub model: crate::EpiphanyRepoModelView,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierVerificationContextProjection {
+    pub schema_version: String,
+    pub request: crate::RepoFrontierVerificationRequest,
+    pub route: crate::RepoFrontierRoute,
+    pub hands_authority: crate::RepoFrontierHandsAuthority,
+    pub hands_intent: crate::HandsActionIntent,
+    pub hands_review: crate::HandsActionReview,
+    pub patch_receipt: crate::HandsPatchReceipt,
+    pub command_receipt: crate::HandsCommandReceipt,
+    pub commit_receipt: crate::HandsCommitReceipt,
+    pub contract: String,
+}
+
 impl ImaginationConsiderationContextProjection {
     pub(crate) fn new(
         request: &crate::ImaginationConsiderationRequest,
@@ -427,6 +448,7 @@ pub fn build_reorient_job_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
+        repo_frontier_verification_request_id: None,
     }
 }
 

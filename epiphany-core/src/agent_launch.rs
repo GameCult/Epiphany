@@ -561,10 +561,6 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             "additionalProperties": false
         }
     });
-    if role_id == EpiphanyRoleResultRoleId::Verification {
-        properties["verificationRequestId"] = serde_json::json!({"type": "string", "minLength": 1});
-        properties["frontierRouteId"] = serde_json::json!({"type": "string", "minLength": 1});
-    }
     let mut required = vec![
         "roleId",
         "verdict",
@@ -572,10 +568,6 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         "nextSafeMove",
         "filesInspected",
     ];
-    if role_id == EpiphanyRoleResultRoleId::Verification {
-        required.push("verificationRequestId");
-        required.push("frontierRouteId");
-    }
     if role_id == EpiphanyRoleResultRoleId::Imagination {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
@@ -1095,6 +1087,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         frontier_verdict_modeling_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
+        frontier_verification_context: None,
         frontier_plan_mind_context: None,
         imagination_consideration_context: None,
         admitted_model_direction_consideration_context: None,
@@ -1146,6 +1139,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
+        repo_frontier_verification_request_id: None,
     })
 }
 
@@ -1197,6 +1191,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         frontier_verdict_modeling_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
+        frontier_verification_context: None,
         frontier_plan_mind_context: None,
         imagination_consideration_context: None,
         admitted_model_direction_consideration_context: None,
@@ -1247,6 +1242,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
+        repo_frontier_verification_request_id: None,
     })
 }
 
@@ -1411,6 +1407,7 @@ pub fn build_epiphany_job_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
+        repo_frontier_verification_request_id: None,
     }
 }
 

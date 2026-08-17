@@ -1611,6 +1611,11 @@ fn worker_output_contract_text(
         {
             "Required proposal-Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, proposalFrontierDraft. Emit only the semantic frontier draft. Runtime owns and composes proposal identity, Body observation basis, proposal/request provenance, active status, timestamps, and the mandatory proposal evidence binding. Do not emit repoModelOperations, proposalModelingRequestId, repositoryBodyObservationBasis, statePatch, selfPatch, commands, release, or deployment cargo."
         }
+        EpiphanyWorkerLaunchDocument::Role(document)
+            if document.frontier_verification_context.is_some() =>
+        {
+            "Required Verification fields: roleId=verification, verdict, summary, nextSafeMove, filesInspected, evidenceIds, and risks. Audit only the exact typed request, route, and Hands receipts in the sealed projection. Runtime owns request and route identity; do not emit identity, statePatch, repoModelOperations, commands, release, or deployment cargo."
+        }
         EpiphanyWorkerLaunchDocument::Role(_) => {
             "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers emit repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, or receipts. Ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
@@ -1640,8 +1645,6 @@ struct RoleWorkerResultIngress {
     repo_model_operations: Vec<epiphany_core::EpiphanyRepoModelMutationOperation>,
     frontier_verdict_gap: Option<String>,
     self_patch: Option<epiphany_core::AgentSelfPatch>,
-    verification_request_id: Option<String>,
-    frontier_route_id: Option<String>,
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
     imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
@@ -1809,6 +1812,14 @@ fn role_worker_result_from_ingress(
     runtime_evidence_ids: Vec<String>,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeRoleWorkerResult {
+    let verification_authority = rmp_serde::from_slice::<EpiphanyWorkerLaunchDocument>(
+        &launch_request.launch_document_msgpack,
+    )
+    .ok()
+    .and_then(|document| match document {
+        EpiphanyWorkerLaunchDocument::Role(role) => role.frontier_verification_context,
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    });
     let accepted_evidence_ids = {
         let mut evidence_ids = clean_string_vec(&result.evidence_ids);
         evidence_ids.extend(clean_string_vec(&runtime_evidence_ids));
@@ -2223,8 +2234,12 @@ fn role_worker_result_from_ingress(
         ),
         metadata: std::collections::BTreeMap::new(),
         repo_model_mutation_proposal_msgpack,
-        verification_request_id: clean_optional_string(result.verification_request_id.as_deref()),
-        frontier_route_id: clean_optional_string(result.frontier_route_id.as_deref()),
+        verification_request_id: verification_authority
+            .as_ref()
+            .map(|authority| authority.request.request_id.clone()),
+        frontier_route_id: verification_authority
+            .as_ref()
+            .map(|authority| authority.route.route_id.clone()),
         repo_frontier_modeling_request_id: launch_request.repo_frontier_modeling_request_id.clone(),
         proposal_modeling_request_id: launch_request.proposal_modeling_request_id.clone(),
         repo_frontier_research_request_id: launch_request.repo_frontier_research_request_id.clone(),
@@ -2555,6 +2570,7 @@ mod tests {
             invariants: Vec::new(),
             observations: Vec::new(),
             evidence: Vec::new(),
+            verification_audits: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
             planning: Default::default(),
@@ -2727,6 +2743,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let basis = epiphany_core::RepositoryBodyObservationBasis {
             schema_version: "epiphany.repository_body.v2".into(),
@@ -2874,6 +2891,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let atlas = RoleWorkerResultIngress {
             role_id: Some("modeling".into()),
@@ -2996,6 +3014,7 @@ mod tests {
                 frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
+                frontier_verification_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -3036,6 +3055,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
 
         let request = build_worker_model_request(
@@ -3067,7 +3087,7 @@ mod tests {
     }
 
     #[test]
-    fn verification_ingress_preserves_exact_request_and_route_binding() -> Result<()> {
+    fn verification_ingress_cannot_author_request_or_route_identity() -> Result<()> {
         let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{"roleId":"verification","verdict":"pass","summary":"verified","nextSafeMove":"admit","verificationRequestId":" verification-request-1 ","frontierRouteId":" frontier-route-1 "}"#,
         )?;
@@ -3094,6 +3114,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -3112,14 +3133,8 @@ mod tests {
             vec!["openai-request:verification-request-1".to_string()],
             Vec::new(),
         );
-        assert_eq!(
-            result.verification_request_id.as_deref(),
-            Some("verification-request-1")
-        );
-        assert_eq!(
-            result.frontier_route_id.as_deref(),
-            Some("frontier-route-1")
-        );
+        assert!(result.verification_request_id.is_none());
+        assert!(result.frontier_route_id.is_none());
         assert_eq!(
             result.evidence_ids,
             vec!["openai-request:verification-request-1"]
@@ -3169,6 +3184,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let planning_context = epiphany_core::RepoFrontierPlanningContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
@@ -3338,6 +3354,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -3406,6 +3423,7 @@ mod tests {
                 frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
+                frontier_verification_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
@@ -3446,6 +3464,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
             .expect("typed planning failure");
@@ -3487,6 +3506,7 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
         };
         let context = epiphany_core::RepoFrontierPlanMindContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION.into(),
@@ -3813,6 +3833,7 @@ mod tests {
             hands_commit_receipt_id: "hands-commit-1".into(),
             requested_at: "2026-08-08T00:00:00Z".into(),
             contract: epiphany_core::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
+            frontier_authority_documents: route.model_source_documents.clone(),
         };
         let verification_result = EpiphanyRuntimeRoleWorkerResult {
             schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
@@ -3903,6 +3924,7 @@ mod tests {
                         ),
                         frontier_planning_context: None,
                         frontier_research_context: None,
+                        frontier_verification_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -3934,6 +3956,7 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: Some(frontier_request.request_id.clone()),
                 repo_frontier_research_request_id: None,
+                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -4188,6 +4211,7 @@ mod tests {
                         frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
+                frontier_verification_context: None,
                 frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
@@ -4219,6 +4243,7 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
                 repo_frontier_research_request_id: None,
+                repo_frontier_verification_request_id: None,
                 created_at: now(),
             },
         )?;

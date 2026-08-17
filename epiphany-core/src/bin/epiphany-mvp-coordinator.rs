@@ -513,7 +513,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             let current = epiphany_core::project_current_work(&runtime_store)?
                 .proposal_modeling
                 .filter(|work| {
-                    work.action == epiphany_core::EpiphanyModelingContinuationAction::Launch
+                    work.action == epiphany_core::EpiphanyAgentPassContinuationAction::Launch
                 })
                 .ok_or_else(|| anyhow!("proposal Modeling request is not launchable"))?;
             if current.request.request_id != request_id {
@@ -836,6 +836,45 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         steps.push(step);
                         continue;
                     }
+                    if role_id == "verification"
+                        && let Some(job_id) =
+                            epiphany_core::current_frontier_verification_review_job_id(
+                                &runtime_store,
+                            )?
+                    {
+                        let result =
+                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
+                                .ok_or_else(|| {
+                                    anyhow!("frontier Verification review lost its typed result")
+                                })?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierVerificationResult", "roleId": role_id, "result": result}),
+                        );
+                        if !args.auto_review {
+                            final_action = json!({
+                                "action": "reviewVerificationResult",
+                                "reason": "The exact frontier Verification result awaits Soul admission.",
+                                "runtimeJobId": job_id,
+                            });
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            break;
+                        }
+                        let accepted = epiphany_core::accept_frontier_verification_result(
+                            &runtime_store,
+                            &job_id,
+                            &now(),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierVerificationAccept", "roleId": role_id, "commit": accepted}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     if role_id == "modeling"
                         && let Some(job_id) =
                             epiphany_core::current_proposal_modeling_review_job_id(&runtime_store)?
@@ -1124,6 +1163,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         None
                     };
                     let thread_free_role = role_id == "research"
+                        || role_id == "verification"
                         || (role_id == "modeling"
                             && (proposal_modeling_request_id.is_some()
                                 || status["currentWork"]["bodyModeling"].is_object()
@@ -1137,6 +1177,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             "bindingId": epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
                             "backendJobId": job_id,
                         })
+                    } else if role_id == "verification" {
+                        let job_id = epiphany_core::launch_current_frontier_verification_work(
+                            &runtime_store,
+                            &now(),
+                        )?;
+                        json!({
+                            "bindingId": epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+                            "backendJobId": job_id,
+                        })
                     } else if role_id == "modeling"
                         && let Some(request_id) = proposal_modeling_request_id
                     {
@@ -1144,7 +1193,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             .proposal_modeling
                             .filter(|work| {
                                 work.action
-                                    == epiphany_core::EpiphanyModelingContinuationAction::Launch
+                                    == epiphany_core::EpiphanyAgentPassContinuationAction::Launch
                             })
                             .ok_or_else(|| anyhow!("proposal Modeling work is not launchable"))?;
                         if current.request.request_id != request_id {
@@ -1779,10 +1828,15 @@ fn launch_role(
             "Research launch must use the keyed frontier Research current-work owner"
         ));
     }
+    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
+        return Err(anyhow!(
+            "Verification launch must use the keyed frontier Verification current-work owner"
+        ));
+    }
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
-    let mut context = if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
+    let context = if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
         epiphany_core::render_modeling_launch_dynamic_prompt_context(
             runtime_store,
             local_verse_store,
@@ -1799,14 +1853,6 @@ fn launch_role(
     }
     .map_err(anyhow::Error::msg)?;
     let dynamic_context_rendered_ms = started.elapsed().as_millis();
-    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
-        context = epiphany_core::append_verification_hands_receipt_context(
-            context,
-            runtime_store,
-            &state,
-        )
-        .map_err(anyhow::Error::msg)?;
-    }
     let role_context_augmented_ms = started.elapsed().as_millis();
     let request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
@@ -1933,6 +1979,11 @@ fn accept_role(
         .state()?
         .ok_or_else(|| anyhow!("cannot accept role without native coordinator state"))?;
     let role = parse_role_id(role_id)?;
+    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
+        return Err(anyhow!(
+            "Verification acceptance must use the keyed frontier Verification current-work owner"
+        ));
+    }
     let accepted = service.accept_role(
         thread_id,
         &state,
@@ -2889,7 +2940,6 @@ mod tests {
         for required in [
             "render_launch_dynamic_prompt_context",
             "render_modeling_launch_dynamic_prompt_context",
-            "append_verification_hands_receipt_context",
             ".launch_job(",
             ".accept_role(",
         ] {
@@ -2901,6 +2951,7 @@ mod tests {
         for forbidden in [
             concat!("append_modeling_work_loop_telemetry_", "context"),
             concat!("accepted_research_is_newest_", "unmodeled_boundary"),
+            concat!("append_verification_hands_receipt_", "context"),
         ] {
             assert!(!source.contains(forbidden));
         }
