@@ -145,6 +145,8 @@ pub struct EpiphanyMindObjectiveDraftDocument {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EpiphanyMindView {
+    pub schema_epoch: String,
+    pub runtime_id: String,
     pub projection_digest: String,
     pub source_documents: Vec<EpiphanyMindDocumentVersion>,
     pub objective: Option<String>,
@@ -363,11 +365,22 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         None => None,
     };
     let mut source_documents = canonical_mind_versions(&cache.snapshot_envelopes())?;
+    if let Some(repo_model) = &repo_model {
+        source_documents.extend(repo_model.source_documents.clone());
+    }
     source_documents.sort_by(|left, right| {
         (&left.document_type, &left.document_key).cmp(&(&right.document_type, &right.document_key))
     });
-    let projection_digest = digest_versions(&source_documents)?;
+    if source_documents
+        .windows(2)
+        .any(|pair| pair[0].identity() == pair[1].identity())
+    {
+        return Err(anyhow!("Mind view repeats a canonical source document"));
+    }
+    let projection_digest = mind_view_digest(&source_documents)?;
     Ok(EpiphanyMindView {
+        schema_epoch: identity.schema_epoch,
+        runtime_id: identity.runtime_id,
         projection_digest,
         source_documents,
         objective,
@@ -401,16 +414,37 @@ fn canonical_mind_versions(
 ) -> Result<Vec<EpiphanyMindDocumentVersion>> {
     envelopes
         .iter()
-        .filter(|envelope| envelope.r#type.starts_with("epiphany.mind."))
+        .filter(|envelope| {
+            matches!(
+                envelope.r#type.as_str(),
+                EpiphanyMindIdentity::TYPE
+                    | EpiphanyMindObjectiveDocument::TYPE
+                    | EpiphanyMindFocusDocument::TYPE
+                    | EpiphanyMindModeDocument::TYPE
+                    | EpiphanyMindSubgoalDocument::TYPE
+                    | EpiphanyMindInvariantDocument::TYPE
+                    | EpiphanyMindObservationDocument::TYPE
+                    | EpiphanyMindEvidenceDocument::TYPE
+                    | EpiphanyMindInvestigationCheckpointDocument::TYPE
+                    | EpiphanyMindPlanningCaptureDocument::TYPE
+                    | EpiphanyMindBacklogItemDocument::TYPE
+                    | EpiphanyMindRoadmapStreamDocument::TYPE
+                    | EpiphanyMindObjectiveDraftDocument::TYPE
+            )
+        })
         .map(|envelope| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope))
         .collect()
 }
 
-fn digest_versions(versions: &[EpiphanyMindDocumentVersion]) -> Result<String> {
+pub(crate) fn mind_view_digest(versions: &[EpiphanyMindDocumentVersion]) -> Result<String> {
     let mut digest = Sha256::new();
     digest.update(b"epiphany.mind_view.v1\0");
     digest.update(rmp_serde::to_vec_named(versions)?);
     Ok(format!("sha256:{:x}", digest.finalize()))
+}
+
+pub fn epiphany_mind_projection_digest(versions: &[EpiphanyMindDocumentVersion]) -> Result<String> {
+    mind_view_digest(versions)
 }
 
 #[cfg(test)]

@@ -316,13 +316,52 @@ pub fn accept_coordinator_role_finding(
                 anyhow::anyhow!("Modeling result has no Repository Body observation basis")
             })?;
         validate_repository_body_observation_basis(store, &repository_body_observation_basis)?;
-        if let Some(proposal) = result.repo_model_mutation_proposal()? {
+        let proposal = result.repo_model_mutation_proposal()?;
+        let is_body_modeling = result.proposal_modeling_request_id.is_none()
+            && result.claim_repair_request_id.is_none()
+            && result.repo_frontier_modeling_request_id.is_none();
+        if proposal.is_none()
+            && !finding.verdict.as_deref().is_some_and(|verdict| {
+                verdict.eq_ignore_ascii_case("checkpoint-ready")
+                    || verdict.eq_ignore_ascii_case("regather-needed")
+            })
+        {
+            return Err(anyhow::anyhow!(
+                "Modeling result requiring RepoModel change has no semantic mutation proposal"
+            ));
+        }
+        let mut strong_reads = Vec::new();
+        let mut writes = Vec::new();
+        if let Some(proposal) = proposal.as_ref() {
             if proposal.proposal_id != format!("repo-model-mutation-proposal-{job_id}") {
                 return Err(anyhow::anyhow!(
                     "Modeling RepoModel mutation proposal identity is not runtime-owned"
                 ));
             }
             let plan = plan_repo_model_mutation(store, &proposal)?;
+            strong_reads = plan.strong_reads;
+            writes = plan.writes;
+        }
+        if is_body_modeling {
+            let disposition = if proposal.is_some() {
+                "modeled"
+            } else if finding
+                .verdict
+                .as_deref()
+                .is_some_and(|verdict| verdict.eq_ignore_ascii_case("checkpoint-ready"))
+            {
+                "checkpoint-ready"
+            } else {
+                "regather-needed"
+            };
+            writes.push(crate::body_modeling_decision_envelope(
+                store,
+                &result,
+                disposition,
+                &accepted_at,
+            )?);
+        }
+        if !writes.is_empty() {
             let invariant_owner = if result.proposal_modeling_request_id.is_some() {
                 "Modeling.proposal_frontier"
             } else if result.claim_repair_request_id.is_some() {
@@ -330,14 +369,14 @@ pub fn accept_coordinator_role_finding(
             } else if result.repo_frontier_modeling_request_id.is_some() {
                 "Modeling.frontier_verdict"
             } else {
-                "Modeling.repo_model"
+                "Modeling.body_projection"
             };
             match commit_mind_mutation(
                 store,
                 &result.decision_context_id,
                 invariant_owner,
-                plan.strong_reads,
-                plan.writes,
+                strong_reads,
+                writes,
                 &accepted_at,
             )? {
                 EpiphanyMindCommitOutcome::Committed(_) => {}
@@ -349,13 +388,6 @@ pub fn accept_coordinator_role_finding(
                     ));
                 }
             }
-        } else if !finding.verdict.as_deref().is_some_and(|verdict| {
-            verdict.eq_ignore_ascii_case("checkpoint-ready")
-                || verdict.eq_ignore_ascii_case("regather-needed")
-        }) {
-            return Err(anyhow::anyhow!(
-                "Modeling result requiring RepoModel change has no semantic mutation proposal"
-            ));
         }
     }
     let commit = mind_state_commit_receipt(

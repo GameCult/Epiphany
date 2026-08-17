@@ -348,7 +348,7 @@ where
         &launch_request,
         &options.provider,
         &options.model,
-        &basis.basis_id,
+        &basis,
     )?;
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
@@ -615,20 +615,40 @@ pub fn build_worker_model_request(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     provider: &str,
     model: &str,
-    reasoning_basis_id: &str,
+    reasoning_basis: &epiphany_core::EpiphanyReasoningBasis,
 ) -> Result<EpiphanyModelRequest> {
-    if reasoning_basis_id.trim().is_empty() {
-        return Err(anyhow!("worker model request requires a reasoning basis"));
+    reasoning_basis.validate()?;
+    if reasoning_basis.pass_id != launch_request.job_id {
+        return Err(anyhow!(
+            "worker model request reasoning basis belongs to another pass"
+        ));
     }
     let launch_document = launch_request.launch_document()?;
+    let reasoning_projection = reasoning_basis.projection()?;
+    match (&launch_document, &reasoning_projection) {
+        (
+            EpiphanyWorkerLaunchDocument::Role(document),
+            epiphany_core::EpiphanyReasoningProjection::RolePass(projection),
+        ) if projection.authority
+            == epiphany_core::EpiphanyRolePassAuthorityProjection::from(document.clone()) => {}
+        (
+            EpiphanyWorkerLaunchDocument::Reorient(document),
+            epiphany_core::EpiphanyReasoningProjection::ReorientLaunch(projection),
+        ) if projection == document => {}
+        _ => {
+            return Err(anyhow!(
+                "worker model request reasoning projection does not match its launch authority"
+            ));
+        }
+    }
     let output_schema_json = worker_output_schema_json(launch_request, &launch_document)?;
     let request_id = format!(
         "worker-{}-{}",
         sanitize_request_id(&launch_request.job_id),
         chrono::Utc::now().timestamp_millis()
     );
-    let launch_document_text = serde_json::to_string_pretty(&launch_document)
-        .context("failed to render worker launch document for model input")?;
+    let reasoning_projection_text = serde_json::to_string_pretty(&reasoning_projection)
+        .context("failed to render sealed worker reasoning projection for model input")?;
     let mut instructions = worker_instructions(launch_request, &launch_document);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, artifact directories, command artifacts, commit diffs, Hands receipt bodies, or resident grant lifecycle are not inspectable, call the governed read-only tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact files, `mcp__epiphany_source__directory_inventory` for bounded workspace directory counts and bytes, `mcp__epiphany_source__git_show` for commit diffs, `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts, and `mcp__epiphany_state__resident_grant_lifecycle` for exact or bounded recent grant-owned lifecycle state. Directory totals are authoritative only when the tool reports `complete=true`. Grant launchability is authoritative only from the typed state projection, never artifact names or acknowledgement presence. If a tool fails, cite that failed tool result and the exact remaining blocker.");
@@ -646,7 +666,7 @@ pub fn build_worker_model_request(
     );
     request.input.push(EpiphanyModelInputItem::UserText {
         text: format!(
-            "Execute this Epiphany worker launch document.\n\n```json\n{launch_document_text}\n```"
+            "Execute this sealed Epiphany reasoning projection.\n\n```json\n{reasoning_projection_text}\n```"
         ),
     });
     request.reasoning_effort = Some("low".to_string());
@@ -654,7 +674,7 @@ pub fn build_worker_model_request(
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
     request.output_schema_json = Some(output_schema_json);
     request.source_worker_job_id = Some(launch_request.job_id.clone());
-    request.reasoning_basis_id = Some(reasoning_basis_id.to_string());
+    request.reasoning_basis_id = Some(reasoning_basis.basis_id.clone());
     if matches!(
         launch_request.binding_id.as_str(),
         epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID
@@ -2509,7 +2529,55 @@ mod tests {
     use epiphany_core::open_runtime_spine_heartbeat_job;
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
+    use sha2::{Digest, Sha256};
     use tempfile::tempdir;
+
+    fn test_reasoning_basis(
+        launch: &EpiphanyRuntimeWorkerLaunchRequest,
+    ) -> Result<epiphany_core::EpiphanyReasoningBasis> {
+        let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document()? else {
+            return Err(anyhow!("test fixture requires a role launch"));
+        };
+        let payload_msgpack = rmp_serde::to_vec_named(&epiphany_core::EpiphanyMindIdentity {
+            schema_epoch: epiphany_core::MIND_SCHEMA_EPOCH.into(),
+            runtime_id: "test-runtime".into(),
+        })?;
+        let source_documents = vec![epiphany_core::EpiphanyMindDocumentVersion {
+            store_id: "epiphany-mind".into(),
+            document_type: "epiphany.mind.identity.v1".into(),
+            document_key: epiphany_core::MIND_SCHEMA_EPOCH.into(),
+            schema_id: None,
+            payload_sha256: format!("sha256:{:x}", Sha256::digest(&payload_msgpack)),
+            payload_msgpack,
+        }];
+        let mind = epiphany_core::EpiphanyMindPromptProjection {
+            schema_epoch: epiphany_core::MIND_SCHEMA_EPOCH.into(),
+            runtime_id: "test-runtime".into(),
+            projection_digest: epiphany_core::epiphany_mind_projection_digest(&source_documents)?,
+            objective: None,
+            active_subgoal_id: None,
+            subgoals: Vec::new(),
+            invariants: Vec::new(),
+            observations: Vec::new(),
+            evidence: Vec::new(),
+            investigation_checkpoint: None,
+            mode: None,
+            planning: Default::default(),
+            repo_model: None,
+        };
+        epiphany_core::EpiphanyReasoningBasis::new(
+            &launch.job_id,
+            &launch.role,
+            epiphany_core::WORKER_REASONING_PROJECTION_POLICY,
+            source_documents,
+            epiphany_core::EpiphanyReasoningProjection::RolePass(
+                epiphany_core::EpiphanyRoleReasoningProjection {
+                    authority: document.into(),
+                    mind,
+                },
+            ),
+        )
+    }
 
     #[test]
     fn model_authored_body_basis_has_no_ingress_authority() -> Result<()> {
@@ -2937,7 +3005,7 @@ mod tests {
                 thread_id: "thread-1".into(),
                 role_id: "modeling".into(),
                 state_revision: 1,
-                objective: None,
+                objective: Some("obsolete aggregate objective must not cross inference".into()),
                 dynamic_prompt_context: None,
                 repository_body_observation_basis: None,
                 proposal_modeling_context: Some(context),
@@ -2992,7 +3060,7 @@ mod tests {
             &launch,
             DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
-            "reasoning-basis-test",
+            &test_reasoning_basis(&launch)?,
         )?;
         let schema: serde_json::Value = serde_json::from_str(
             request
@@ -3009,6 +3077,10 @@ mod tests {
                 .instructions
                 .contains("Emit only the semantic frontier draft")
         );
+        let rendered_input = serde_json::to_string(&request.input)?;
+        assert!(rendered_input.contains("sealed Epiphany reasoning projection"));
+        assert!(!rendered_input.contains("obsolete aggregate objective"));
+        assert!(!rendered_input.contains("stateRevision"));
         Ok(())
     }
 
@@ -3808,7 +3880,7 @@ mod tests {
             &launch_request,
             DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
-            &reasoning_basis.basis_id,
+            &reasoning_basis,
         )?;
         let provider_request = openai_request_from_model_request(&model_request);
         epiphany_core::open_runtime_model_execution(
@@ -4037,7 +4109,7 @@ mod tests {
             &launch_request,
             DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
-            "reasoning-basis-test",
+            &test_reasoning_basis(&launch_request)?,
         )?;
         let tool_names = model_request
             .tools
@@ -4075,7 +4147,7 @@ mod tests {
             &research_launch,
             DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
-            "reasoning-basis-test",
+            &test_reasoning_basis(&research_launch)?,
         )?;
         assert!(
             !research_request

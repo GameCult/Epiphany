@@ -21,7 +21,122 @@ pub const REASONING_BASIS_SCHEMA_VERSION: &str = "epiphany.reasoning_basis.v1";
 pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v1";
 pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_receipt.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
-    "epiphany.reasoning_projection.worker_launch.v1";
+    "epiphany.reasoning_projection.worker_launch.v2";
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EpiphanyRolePassAuthorityProjection {
+    pub creation_thread_id: String,
+    pub role_id: String,
+    pub dynamic_prompt_context: Option<String>,
+    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
+    pub proposal_modeling_context: Option<crate::RepoFrontierProposalModelingContextProjection>,
+    pub claim_repair_context: Option<crate::RepoModelClaimRepairContextProjection>,
+    pub frontier_planning_context: Option<crate::RepoFrontierPlanningContextProjection>,
+    pub frontier_research_context: Option<crate::RepoFrontierResearchContextProjection>,
+    pub frontier_plan_mind_context: Option<crate::RepoFrontierPlanMindContextProjection>,
+    pub imagination_consideration_context: Option<crate::ImaginationConsiderationContextProjection>,
+    pub admitted_model_direction_consideration_context:
+        Option<crate::AdmittedModelDirectionConsiderationContextProjection>,
+}
+
+impl From<EpiphanyRoleWorkerLaunchDocument> for EpiphanyRolePassAuthorityProjection {
+    fn from(value: EpiphanyRoleWorkerLaunchDocument) -> Self {
+        Self {
+            creation_thread_id: value.thread_id,
+            role_id: value.role_id,
+            dynamic_prompt_context: value.dynamic_prompt_context,
+            repository_body_observation_basis: value.repository_body_observation_basis,
+            proposal_modeling_context: value.proposal_modeling_context,
+            claim_repair_context: value.claim_repair_context,
+            frontier_planning_context: value.frontier_planning_context,
+            frontier_research_context: value.frontier_research_context,
+            frontier_plan_mind_context: value.frontier_plan_mind_context,
+            imagination_consideration_context: value.imagination_consideration_context,
+            admitted_model_direction_consideration_context: value
+                .admitted_model_direction_consideration_context,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyRepoModelPromptProjection {
+    pub identity: crate::EpiphanyRepoModelIdentityDocument,
+    pub projection_digest: String,
+    pub domains: Vec<epiphany_state_model::EpiphanyMemoryDomain>,
+    pub nodes: Vec<epiphany_state_model::EpiphanyMemoryNode>,
+    pub edges: Vec<epiphany_state_model::EpiphanyMemoryEdge>,
+    pub summaries: Vec<epiphany_state_model::EpiphanyMemorySummary>,
+    pub frontier: Vec<epiphany_state_model::RepoFrontierItem>,
+    pub lifecycle_receipts: Vec<epiphany_state_model::EpiphanyMemoryLifecycleReceipt>,
+    pub claim_obligations: Vec<crate::EpiphanyRepoModelClaimObligationsDocument>,
+    pub surface_offers: Vec<crate::AtlasSurfaceOffer>,
+    pub dependency_claims: Vec<crate::AtlasDependencyClaim>,
+    pub dependency_verifications: Vec<crate::AtlasDependencyVerification>,
+    pub dependency_impacts: Vec<crate::AtlasDependencyImpact>,
+}
+
+impl From<crate::EpiphanyRepoModelView> for EpiphanyRepoModelPromptProjection {
+    fn from(value: crate::EpiphanyRepoModelView) -> Self {
+        Self {
+            identity: value.identity,
+            projection_digest: value.projection_digest,
+            domains: value.domains,
+            nodes: value.nodes,
+            edges: value.edges,
+            summaries: value.summaries,
+            frontier: value.frontier,
+            lifecycle_receipts: value.lifecycle_receipts,
+            claim_obligations: value.claim_obligations,
+            surface_offers: value.surface_offers,
+            dependency_claims: value.dependency_claims,
+            dependency_verifications: value.dependency_verifications,
+            dependency_impacts: value.dependency_impacts,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EpiphanyMindPromptProjection {
+    pub schema_epoch: String,
+    pub runtime_id: String,
+    pub projection_digest: String,
+    pub objective: Option<String>,
+    pub active_subgoal_id: Option<String>,
+    pub subgoals: Vec<epiphany_state_model::EpiphanySubgoal>,
+    pub invariants: Vec<epiphany_state_model::EpiphanyInvariant>,
+    pub observations: Vec<epiphany_state_model::EpiphanyObservation>,
+    pub evidence: Vec<epiphany_state_model::EpiphanyEvidenceRecord>,
+    pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
+    pub mode: Option<epiphany_state_model::EpiphanyModeState>,
+    pub planning: epiphany_state_model::EpiphanyPlanningState,
+    pub repo_model: Option<EpiphanyRepoModelPromptProjection>,
+}
+
+impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
+    fn from(value: crate::EpiphanyMindView) -> Self {
+        Self {
+            schema_epoch: value.schema_epoch,
+            runtime_id: value.runtime_id,
+            projection_digest: value.projection_digest,
+            objective: value.objective,
+            active_subgoal_id: value.active_subgoal_id,
+            subgoals: value.subgoals,
+            invariants: value.invariants,
+            observations: value.observations,
+            evidence: value.evidence,
+            investigation_checkpoint: value.investigation_checkpoint,
+            mode: value.mode,
+            planning: value.planning,
+            repo_model: value.repo_model.map(Into::into),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EpiphanyRoleReasoningProjection {
+    pub authority: EpiphanyRolePassAuthorityProjection,
+    pub mind: EpiphanyMindPromptProjection,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyMindDocumentVersion {
@@ -71,20 +186,11 @@ impl EpiphanyMindDocumentVersion {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EpiphanyReasoningProjection {
-    RoleLaunch(EpiphanyRoleWorkerLaunchDocument),
+    RolePass(EpiphanyRoleReasoningProjection),
     ReorientLaunch(crate::EpiphanyReorientWorkerLaunchDocument),
     PersonaProjector(PersonaProjectorInput),
     PersonaTurn(PersonaTurnInput),
     PersonaInterpreter(PersonaInterpreterInput),
-}
-
-impl From<EpiphanyWorkerLaunchDocument> for EpiphanyReasoningProjection {
-    fn from(value: EpiphanyWorkerLaunchDocument) -> Self {
-        match value {
-            EpiphanyWorkerLaunchDocument::Role(document) => Self::RoleLaunch(document),
-            EpiphanyWorkerLaunchDocument::Reorient(document) => Self::ReorientLaunch(document),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -157,8 +263,21 @@ impl EpiphanyReasoningBasis {
                 "reasoning basis source documents are not canonical"
             ));
         }
-        let _: EpiphanyReasoningProjection = rmp_serde::from_slice(&self.projection_msgpack)
-            .map_err(|error| anyhow!("reasoning projection is invalid: {error}"))?;
+        let projection: EpiphanyReasoningProjection =
+            rmp_serde::from_slice(&self.projection_msgpack)
+                .map_err(|error| anyhow!("reasoning projection is invalid: {error}"))?;
+        if let EpiphanyReasoningProjection::RolePass(role) = &projection {
+            if role.authority.creation_thread_id.trim().is_empty()
+                || role.authority.role_id.trim().is_empty()
+                || self.source_documents.is_empty()
+                || role.mind.projection_digest
+                    != crate::mind_documents::mind_view_digest(&self.source_documents)?
+            {
+                return Err(anyhow!(
+                    "role reasoning projection does not bind its exact keyed Mind sources"
+                ));
+            }
+        }
         if self
             .predecessor_decision_context_ids
             .iter()
@@ -339,17 +458,77 @@ pub fn worker_reasoning_basis(
     let launch_envelope = cache
         .get_envelope::<EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
         .ok_or_else(|| anyhow!("worker reasoning basis lost its launch envelope"))?;
-    let source_documents = vec![EpiphanyMindDocumentVersion::from_envelope(
-        "epiphany-mind",
-        &launch_envelope,
-    )?];
+    let launch_document = launch.launch_document()?;
+    let (source_documents, projection) = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            let mind = crate::assemble_mind_view(store_path)?;
+            let source_documents = mind.source_documents.clone();
+            (
+                source_documents,
+                EpiphanyReasoningProjection::RolePass(EpiphanyRoleReasoningProjection {
+                    authority: document.into(),
+                    mind: mind.into(),
+                }),
+            )
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(document) => (
+            vec![EpiphanyMindDocumentVersion::from_envelope(
+                "epiphany-mind",
+                &launch_envelope,
+            )?],
+            EpiphanyReasoningProjection::ReorientLaunch(document),
+        ),
+    };
     EpiphanyReasoningBasis::new(
         &launch.job_id,
         &launch.role,
         WORKER_REASONING_PROJECTION_POLICY,
         source_documents,
-        launch.launch_document()?.into(),
+        projection,
     )
+}
+
+pub fn reasoning_repo_model_basis(
+    basis: &EpiphanyReasoningBasis,
+) -> Result<crate::EpiphanyRepoModelBasis> {
+    basis.validate()?;
+    let source_documents = basis
+        .source_documents
+        .iter()
+        .filter(|source| {
+            source
+                .document_type
+                .starts_with("epiphany.mind.repo_model.")
+                || matches!(
+                    source.document_type.as_str(),
+                    crate::AtlasSurfaceOffer::TYPE
+                        | crate::AtlasDependencyClaim::TYPE
+                        | crate::AtlasDependencyVerification::TYPE
+                        | crate::AtlasDependencyImpact::TYPE
+                )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let repo_model_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: sha256(&rmp_serde::to_vec_named(&source_documents)?),
+        source_documents,
+    };
+    repo_model_basis.validate()?;
+    let EpiphanyReasoningProjection::RolePass(role) = basis.projection()? else {
+        return Err(anyhow!("RepoModel reasoning basis is not a role pass"));
+    };
+    if role
+        .mind
+        .repo_model
+        .as_ref()
+        .map(|model| model.projection_digest.as_str())
+        != Some(repo_model_basis.projection_digest.as_str())
+    {
+        return Err(anyhow!(
+            "role reasoning projection RepoModel diverges from its exact sources"
+        ));
+    }
+    Ok(repo_model_basis)
 }
 
 pub fn put_reasoning_basis(
@@ -359,6 +538,23 @@ pub fn put_reasoning_basis(
     basis.validate()?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    if let EpiphanyReasoningProjection::RolePass(projection) = basis.projection()? {
+        let launch = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&basis.pass_id)?
+            .ok_or_else(|| anyhow!("role reasoning basis lost its worker launch"))?;
+        let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document()? else {
+            return Err(anyhow!("role reasoning basis cites a non-role launch"));
+        };
+        let current_mind = crate::assemble_mind_view(store_path)?;
+        if projection.authority != document.into()
+            || projection.mind != current_mind.clone().into()
+            || basis.source_documents != current_mind.source_documents
+        {
+            return Err(anyhow!(
+                "role reasoning projection diverges from its exact launch or keyed Mind sources"
+            ));
+        }
+    }
     for source in &basis.source_documents {
         if source.store_id != "epiphany-mind" {
             return Err(anyhow!(
@@ -979,41 +1175,104 @@ mod tests {
     use epiphany_model_adapter::EpiphanyModelInputItem;
     use tempfile::tempdir;
 
+    fn role_document() -> EpiphanyRoleWorkerLaunchDocument {
+        EpiphanyRoleWorkerLaunchDocument {
+            thread_id: "creation-thread".into(),
+            role_id: "Modeling".into(),
+            state_revision: 7,
+            objective: Some("Map the Body".into()),
+            dynamic_prompt_context: Some("typed projection".into()),
+            repository_body_observation_basis: None,
+            proposal_modeling_context: None,
+            claim_repair_context: None,
+            frontier_planning_context: None,
+            frontier_research_context: None,
+            frontier_plan_mind_context: None,
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        }
+    }
+
+    fn role_launch() -> Result<EpiphanyRuntimeWorkerLaunchRequest> {
+        let document = EpiphanyWorkerLaunchDocument::Role(role_document());
+        Ok(EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "pass-1".into(),
+            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            role: "Modeling".into(),
+            authority_scope: "epiphany.role.modeling".into(),
+            instruction: "Map the Body".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: Default::default(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "epiphany.role.modeling",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        })
+    }
+
     fn basis() -> Result<EpiphanyReasoningBasis> {
-        let projection =
-            EpiphanyReasoningProjection::RoleLaunch(EpiphanyRoleWorkerLaunchDocument {
-                thread_id: "creation-thread".into(),
-                role_id: "Modeling".into(),
-                state_revision: 7,
-                objective: Some("Map the Body".into()),
-                dynamic_prompt_context: Some("typed projection".into()),
-                repository_body_observation_basis: None,
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: None,
-                admitted_model_direction_consideration_context: None,
+        let authority = EpiphanyRolePassAuthorityProjection::from(role_document());
+        let payload_msgpack = rmp_serde::to_vec_named(&crate::EpiphanyMindIdentity {
+            schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+            runtime_id: "test-runtime".into(),
+        })?;
+        let source_documents = vec![EpiphanyMindDocumentVersion {
+            store_id: "epiphany-mind".into(),
+            document_type: "epiphany.mind.identity.v1".into(),
+            document_key: crate::MIND_SCHEMA_EPOCH.into(),
+            schema_id: None,
+            payload_sha256: sha256(&payload_msgpack),
+            payload_msgpack,
+        }];
+        let projection = EpiphanyReasoningProjection::RolePass(EpiphanyRoleReasoningProjection {
+            authority,
+            mind: EpiphanyMindPromptProjection {
+                schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+                runtime_id: "test-runtime".into(),
+                projection_digest: crate::epiphany_mind_projection_digest(&source_documents)?,
+                objective: None,
                 active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
+                subgoals: Vec::new(),
                 invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            });
+                observations: Vec::new(),
+                evidence: Vec::new(),
+                investigation_checkpoint: None,
+                mode: None,
+                planning: Default::default(),
+                repo_model: None,
+            },
+        });
         EpiphanyReasoningBasis::new(
             "pass-1",
             "Modeling",
             WORKER_REASONING_PROJECTION_POLICY,
-            Vec::new(),
+            source_documents,
             projection,
         )
     }
@@ -1067,6 +1326,44 @@ mod tests {
     }
 
     #[test]
+    fn role_basis_refuses_projection_not_derived_from_its_mind_sources() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "mind-projection-test".into(),
+                display_name: "Mind projection test".into(),
+                created_at: "2026-08-17T00:00:00Z".into(),
+            },
+        )?;
+        let launch = role_launch()?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(&launch.job_id, &launch)?;
+        let canonical = worker_reasoning_basis(&store, &launch)?;
+        let EpiphanyReasoningProjection::RolePass(mut forged_projection) =
+            canonical.projection()?
+        else {
+            unreachable!();
+        };
+        forged_projection.mind.objective = Some("invented aggregate objective".into());
+        let forged = EpiphanyReasoningBasis::new(
+            &canonical.pass_id,
+            &canonical.organ_id,
+            &canonical.projection_policy_id,
+            canonical.source_documents.clone(),
+            EpiphanyReasoningProjection::RolePass(forged_projection),
+        )?;
+        let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(put_reasoning_basis(&store, &forged).is_err());
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before
+        );
+        Ok(())
+    }
+
+    #[test]
     fn disjoint_mind_mutations_merge_and_same_identity_conflicts() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("mind.cc");
@@ -1078,7 +1375,11 @@ mod tests {
                 created_at: "2026-08-14T00:00:00Z".into(),
             },
         )?;
-        let basis = put_reasoning_basis(&store, &basis()?)?;
+        let launch = role_launch()?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(&launch.job_id, &launch)?;
+        let basis = worker_reasoning_basis(&store, &launch)?;
+        let basis = put_reasoning_basis(&store, &basis)?;
         let (native, provider) = requests(&basis);
         crate::open_runtime_model_execution(
             &store,

@@ -943,7 +943,7 @@ async fn run_worker_launch_with_tool_continuation(
         &launch_request,
         &options.provider,
         &options.model,
-        &basis.basis_id,
+        &basis,
     )?;
     let requested_public_source_intents =
         if launch_request.repo_frontier_research_request_id.is_some() {

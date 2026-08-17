@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use cultcache_rs::{CultCache, DatabaseEntry};
+use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -108,7 +108,7 @@ impl EpiphanyBodyModelingDecisionReceipt {
             .any(str::is_empty)
             || !matches!(
                 self.disposition.as_str(),
-                "checkpoint-ready" | "regather-needed"
+                "modeled" | "checkpoint-ready" | "regather-needed"
             )
             || chrono::DateTime::parse_from_rfc3339(&self.decided_at).is_err()
         {
@@ -123,6 +123,65 @@ impl EpiphanyBodyModelingDecisionReceipt {
 pub(crate) fn register_current_work_types(cache: &mut CultCache) -> Result<()> {
     cache.register_entry_type::<EpiphanyBodyModelingDecisionReceipt>()?;
     Ok(())
+}
+
+pub(crate) fn body_modeling_decision_envelope(
+    store_path: &Path,
+    result: &crate::EpiphanyRuntimeRoleWorkerResult,
+    disposition: &str,
+    decided_at: &str,
+) -> Result<CultCacheEnvelope> {
+    let body_basis = result
+        .repository_body_observation_basis
+        .clone()
+        .ok_or_else(|| anyhow!("Body Modeling result has no Body observation basis"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let context = cache
+        .get::<crate::EpiphanyDecisionContext>(&result.decision_context_id)?
+        .ok_or_else(|| anyhow!("Body Modeling result has no decision context"))?;
+    let reasoning_basis = cache
+        .get::<crate::EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("Body Modeling decision context lost its reasoning basis"))?;
+    context.validate(&reasoning_basis)?;
+    let crate::EpiphanyReasoningProjection::RolePass(role_projection) =
+        reasoning_basis.projection()?
+    else {
+        return Err(anyhow!(
+            "Body Modeling decision has no sealed role projection"
+        ));
+    };
+    if role_projection.authority.role_id.to_ascii_lowercase() != "modeling"
+        || role_projection
+            .authority
+            .repository_body_observation_basis
+            .as_ref()
+            != Some(&body_basis)
+    {
+        return Err(anyhow!(
+            "Body Modeling decision does not bind its projected organ and Body basis"
+        ));
+    }
+    let work = EpiphanyBodyModelingWorkProjection::derive(
+        body_basis.runtime_id.clone(),
+        body_basis.clone(),
+        crate::reasoning_repo_model_basis(&reasoning_basis)?,
+    )?;
+    let receipt = EpiphanyBodyModelingDecisionReceipt {
+        schema_version: BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION.to_string(),
+        work_id: work.work_id.clone(),
+        runtime_id: work.runtime_id.clone(),
+        body_basis,
+        repo_model_projection_digest: work.repo_model_basis.projection_digest.clone(),
+        repo_model_source_documents: work.repo_model_basis.source_documents.clone(),
+        decision_context_id: result.decision_context_id.clone(),
+        result_id: result.result_id.clone(),
+        job_id: result.job_id.clone(),
+        disposition: disposition.to_string(),
+        decided_at: decided_at.to_string(),
+    };
+    receipt.validate(&work)?;
+    Ok(cache.prepare_entry(&receipt.work_id, &receipt)?.0)
 }
 
 pub fn current_body_modeling_work(
@@ -175,6 +234,10 @@ fn resolve_body_modeling_work(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_state_model::{
+        EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
+        EpiphanyMemoryProfile,
+    };
 
     fn basis(observation_id: &str, generation: u64) -> RepositoryBodyObservationBasis {
         RepositoryBodyObservationBasis {
@@ -265,6 +328,187 @@ mod tests {
             changed_model,
         )?;
         assert!(resolve_body_modeling_work(current_work, Some(receipt))?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn body_decision_is_derived_from_the_sealed_role_projection() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("body-decision.cc");
+        crate::initialize_runtime_spine(
+            &store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "runtime".into(),
+                display_name: "Body decision".into(),
+                created_at: "2026-08-17T00:00:00Z".into(),
+            },
+        )?;
+        crate::runtime_spine::tests::bind_test_runtime_swarm(&store, "swarm")?;
+        crate::runtime_spine::tests::bind_test_repository_body(&store, "workspace")?;
+        let body = crate::observe_runtime_repository_body_basis(&store)?;
+        let domain = EpiphanyMemoryDomain {
+            id: "body-domain".into(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            title: "Body".into(),
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        let node = EpiphanyMemoryNode {
+            id: "body-node".into(),
+            domain_id: domain.id.clone(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::Module,
+            title: "Body node".into(),
+            claim: "The Body is typed".into(),
+            question: "What does the Body contain?".into(),
+            action_implication: "Model it".into(),
+            source_hashes: vec!["anchor:missing".into()],
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        crate::initialize_keyed_repo_model(
+            &store,
+            &crate::EpiphanyRepoModelSeed::new(
+                "body-seed",
+                "body-graph",
+                "swarm",
+                "workspace",
+                body.body_binding_sha256.clone(),
+                crate::EpiphanyRepoModelSeedDocuments {
+                    domains: vec![domain],
+                    nodes: vec![node],
+                    edges: Vec::new(),
+                    summaries: Vec::new(),
+                    frontier: Vec::new(),
+                    lifecycle_receipts: Vec::new(),
+                },
+            )?,
+            "2026-08-17T00:00:01Z",
+        )?;
+        let document =
+            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: "creation-thread".into(),
+                role_id: "modeling".into(),
+                state_revision: 99,
+                objective: Some("obsolete aggregate objective".into()),
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: Some(body.clone()),
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_research_context: None,
+                frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            });
+        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
+            job_id: "body-job".into(),
+            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            authority_scope: "epiphany.role.modeling".into(),
+            instruction: "Model the Body".into(),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
+            metadata: Default::default(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "epiphany.role.modeling",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verdict_modeling_authority_msgpack: None,
+        };
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(&launch.job_id, &launch)?;
+        let reasoning_basis = crate::worker_reasoning_basis(&store, &launch)?;
+        crate::put_reasoning_basis(&store, &reasoning_basis)?;
+        let mut native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "body-request",
+            "body-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        native.reasoning_basis_id = Some(reasoning_basis.basis_id.clone());
+        native.source_worker_job_id = Some(launch.job_id.clone());
+        let provider = epiphany_openai_adapter::request_from_native(&native);
+        let context =
+            crate::EpiphanyDecisionContext::new(&reasoning_basis, native, provider, Vec::new())?;
+        cache.put(&context.context_id, &context)?;
+        let result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "body-result".into(),
+            job_id: launch.job_id.clone(),
+            role_id: "modeling".into(),
+            verdict: "checkpoint-ready".into(),
+            summary: "modeled".into(),
+            next_safe_move: "admit".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: Some(body.clone()),
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: context.context_id,
+        };
+        let envelope = body_modeling_decision_envelope(
+            &store,
+            &result,
+            "checkpoint-ready",
+            "2026-08-17T00:00:02Z",
+        )?;
+        crate::mind_documents::validate_mind_write_envelope(&envelope)?;
+        let receipt: EpiphanyBodyModelingDecisionReceipt =
+            rmp_serde::from_slice(&envelope.payload)?;
+        assert_eq!(receipt.body_basis, body);
+        assert_eq!(
+            receipt.repo_model_projection_digest,
+            crate::assemble_repo_model_view(&store)?.projection_digest
+        );
         Ok(())
     }
 }
