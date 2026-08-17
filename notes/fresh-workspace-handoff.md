@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`d1b031cb` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`d367e525` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -22,8 +22,8 @@ or repair path can restore their authority.
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
 unmigrated launch/acceptance/status readers remain live production authorities.
-Baseline Body and Proposal Modeling are no longer among them: keyed Mind owns
-their work projections, operator and Resident launch, exact job-bound
+Baseline Body, Proposal, and frontier-verdict Modeling are no longer among them:
+keyed Mind owns their work projections, operator and Resident launch, exact job-bound
 continuation, review, and semantic admission. Fresh Gate
 preflight proved the consequence: both keyed semantic partitions reached ready,
 but status still called the organism missing because no thread aggregate
@@ -53,9 +53,13 @@ canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `076d212` provide the canonical Atlas provider advertisement and one
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
-Verification is green at the latest ownership cut: Epiphany core 563/563,
-OpenAI runtime 23/23, and the OpenAI runtime all-target check. Earlier coordinator
-18/18 and workspace checks remain accepted; Odin Node 1/1 and Rust 15/15; Eve Atlas
+Verification is green at the latest ownership cut: Epiphany core library
+561/561, OpenAI runtime 43/43, Self policy 26/26, and coordinator runtime 18/18.
+An unfiltered core package run also exposed two pre-existing
+`epiphany-hands-action` fixture failures: those fixtures omit the exact
+`RepoFrontierHandsAuthority` already required by production. The gate was not
+weakened; fixture repair remains separate test-harness debt. Earlier workspace
+checks remain accepted; Odin Node 1/1 and Rust 15/15; Eve Atlas
 conformance 4/4 and Eve contracts 6/6. The workspace-wide all-features check
 still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
@@ -369,10 +373,22 @@ exposed two-snapshot attempt derivation; Body and Proposal launchers now
 revalidate launchability and ordinal from the exact cache snapshot used by the
 CAS. Proposal convergence passes 20/20 stress iterations.
 
-Migrate the live frontier-verdict Modeling chain next onto exact
-Soul/route/request authority and the shared continuation vocabulary. Delete its
-accepted-at ordering, aggregate prompt construction, and role-lane review path.
-Continue with Research, Verification,
+Exact `d367e525` migrates frontier-verdict Modeling onto one atomic typed chain.
+Verification acceptance commits the exact Soul verdict and its deterministic
+Modeling request together. `EpiphanyCurrentWorkProjection`, operator/status,
+Resident pressure, deterministic attempt identity, sealed role projection, and
+`accept_frontier_verdict_modeling_result` carry that request through
+Launch/Wait/Review and `Modeling.frontier_verdict` admission. The request seals
+the exact routed frontier version. A disjoint keyed node commit after basis
+sealing merges; a changed frontier refuses with the store byte-identical, so
+model output is never silently rebased. Accepted Eyes state is display/audit
+input only and cannot manufacture Modeling work. The aggregate telemetry prompt,
+accepted-at Research boundary, latest Verification selector, parallel authority
+MessagePack, and generic role-lane review path are gone for this family.
+
+Map and migrate Research acceptance next onto its exact request/launch,
+EyesEvidencePacket, decision context, and family-owned Mind commit. Continue
+with Verification,
 planning, and reorientation; then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and

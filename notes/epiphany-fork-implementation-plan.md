@@ -18,9 +18,9 @@ earned OpenAI-compatible authentication or model-transport capability.
   heartbeat physiology, Persona, and CultMesh integration. Its coordinator and
   status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
   that aggregate is an obsolete live authority and currently blocks fresh keyed
-  stores from coordinating. Body and Proposal Modeling have been removed from
-  that authority; repair, verdict, Research, Verification, planning,
-  reorientation, and generic coordinator presence remain.
+  stores from coordinating. Body, Proposal, and frontier-verdict Modeling have
+  been removed from that authority; Research acceptance, Verification,
+  planning, reorientation, and generic coordinator presence remain.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -232,11 +232,17 @@ Cut in this order:
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, exact launch binding, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry.
 5. **Continuation vocabulary landed at `e404c105`:** Body and Proposal share one pure `EpiphanyModelingContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.
 6. **Dormant claim-repair authority deleted at `20dd66c8`:** no request/binding/context schema, runtime carrier, coordinator branch, result cargo, export, or model lowering survives. The independent Eyes challenge fact remains. The same pass fixed two-snapshot Body/Proposal launch derivation and stress-proved single Proposal launch 20/20.
-7. Migrate frontier-verdict, Research, Verification, planning, and
-   reorientation acceptance from aggregate state patches and generic role lanes
-   to family-owned current-work projections, exact job identities,
-   `MindMutation` plans, and exact commit receipts. Reuse pure invariant
-   primitives, not a generic mutable registry.
+7. **Frontier-verdict Modeling landed at `d367e525`:** one exact Soul verdict
+   atomically creates its deterministic request; the sealed role projection,
+   deterministic attempt, shared Launch/Wait/Review state, and
+   `Modeling.frontier_verdict` commit own the complete lifecycle. Admission
+   accepts disjoint keyed changes but refuses a changed strong frontier without
+   mutation. Accepted Eyes timestamps, latest-result slots, aggregate prompt
+   construction, and generic role lanes cannot create or suppress this work.
+   Migrate Research, Verification, planning, and reorientation next from
+   aggregate state patches and generic role lanes to family-owned current-work
+   projections, exact job identities, `MindMutation` plans, and exact commit
+   receipts. Reuse pure invariant primitives, not a generic mutable registry.
 8. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.

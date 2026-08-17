@@ -5011,3 +5011,39 @@ ordinal, and launch a second live worker. The owner now derives launchability
 and ordinal from the same pulled cache snapshot used to construct its exact CAS.
 Concurrent Proposal launch convergence passes 20/20 stress iterations; a live
 attempt cannot be converted into retry authority by a convenience preflight.
+
+Exact `d367e525` completes the third Modeling lifecycle: incorporation of a
+typed Soul verdict into one routed RepoModel frontier. Verification acceptance
+atomically persists `SoulVerdictReceipt` and the deterministic
+`RepoFrontierModelingRequest`; neither an accepted Research timestamp nor a
+latest-result slot can manufacture the request. The exact request, Soul verdict,
+route, Verification request/result, and current frontier document are sealed in
+`RepoFrontierVerdictModelingLaunchAuthority` inside the role reasoning
+projection. The runtime launch no longer carries a parallel authority blob or
+aggregate telemetry prompt.
+
+Owner: `project_current_work` derives this family's Launch/Wait/Review state;
+`launch_current_frontier_verdict_modeling_work` atomically publishes one
+deterministic attempt; `accept_frontier_verdict_modeling_result` alone admits its
+bounded frontier mutation under `Modeling.frontier_verdict`. Inputs: one exact
+Soul verdict chain, current routed frontier document, admitted Body, sealed Mind
+projection, exact terminal result, and decision context. Outputs: one typed
+worker lifecycle and one exact Mind commit receipt. Derived state: role boards,
+events, timestamps, status JSON, and `modelingResultAcceptedAfterResearch` are
+display/audit projections only. Forbidden writers: Eyes acceptance, aggregate
+thread revision, accepted-at ordering, latest Verification selection, dynamic
+prompt appenders, and generic Modeling role terminality cannot create, suppress,
+review, or admit this work. Shared paths: operator and Resident consume the same
+current-work projection and acceptance owner. Deletion line: the aggregate
+frontier-verdict context constructor, telemetry appender, latest-result selectors,
+parallel MessagePack authority field, and direct Soul-verdict writer are gone.
+
+The exact frontier `EpiphanyMindDocumentVersion` is both sealed audit input and
+the family's strong dependency. Admission verifies the mutation planner read
+that same version. A later disjoint keyed node commit therefore merges, while a
+same-frontier change before planning refuses and a change after planning loses
+the batch CAS. The model's terminal output is never reinterpreted against newer
+strong state. The focused lifecycle proves deterministic two-launch convergence,
+sealed context, terminal result, review, admission, disjoint merge, and
+byte-identical stale refusal. Core library 561/561, OpenAI runtime 43/43, Self
+policy 26/26, and coordinator runtime 18/18 pass.
