@@ -4991,12 +4991,23 @@ validity, mutation shape, or admission; those remain with the concrete Body and
 Proposal families. The shared vocabulary is therefore DRY without becoming a
 generic work registry.
 
-The next source audit found that claim-repair is not a live request family.
+The next source audit found that claim-repair was not a live request family.
 `commit_repo_model_claim_challenge` and
 `commit_repo_model_claim_repair_request` have no production caller, no source
 constructs a `RepoModelClaimChallenge`, and no acceptance test proves the chain.
-Its aggregate-thread launch branch is dormant scaffolding. The deletion line is
-the repair request/binding/context/export and their carrier fields; a future
-Eyes contradiction must earn a new typed external-evidence obligation through a
-real producer, current-work projection, terminal context, and Mind admission
-proof rather than inheriting this unowned anatomy.
+Its aggregate-thread launch branch was dormant scaffolding. Exact `20dd66c8`
+deletes the repair request/binding/context contracts, runtime registration and
+carriers, coordinator validation/binding writer, reasoning projection, result
+cargo, exports, and OpenAI lowering. A source guard over Rust/TOML paths finds no
+surviving family symbol. The Eyes claim-challenge document remains because its
+exact claim hash independently suppresses unsafe planning. A future Eyes
+contradiction must earn a typed external-evidence obligation through a real
+producer, current-work projection, terminal context, and Mind admission proof.
+
+That deletion pass also falsified the initial launch-CAS proof. Body and
+Proposal launchers first projected work, then opened a second cache snapshot;
+the latter could observe a just-committed binding, increment the attempt
+ordinal, and launch a second live worker. The owner now derives launchability
+and ordinal from the same pulled cache snapshot used to construct its exact CAS.
+Concurrent Proposal launch convergence passes 20/20 stress iterations; a live
+attempt cannot be converted into retry authority by a convenience preflight.

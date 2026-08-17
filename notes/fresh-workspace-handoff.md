@@ -360,12 +360,19 @@ Exact `e404c105` removes the duplicate Body/Proposal continuation enums. One
 `EpiphanyModelingContinuationAction` now names Launch, Wait, and Review; each
 family retains its own request, projection, validity rules, and admission owner.
 
-Source inspection then falsified the assumption that claim-repair is a live
-family: its exported request/launch surface has no production challenge
-producer, request caller, or acceptance proof. Delete that dormant aggregate-
-thread scaffold rather than migrating it. Then migrate the live frontier-
-verdict Modeling chain onto exact Soul/route/request authority and the shared
-continuation vocabulary. Continue with Research, Verification,
+Exact `20dd66c8` deletes claim-repair's request/binding/context schemas, runtime
+carriers, coordinator launch branch, reasoning projection, result cargo,
+exports, and OpenAI lowering. The Eyes claim-challenge fact remains because it
+still blocks unsafe planning. No Rust/TOML production symbol for the dormant
+family survives. During verification, the concurrent Proposal launch test
+exposed two-snapshot attempt derivation; Body and Proposal launchers now
+revalidate launchability and ordinal from the exact cache snapshot used by the
+CAS. Proposal convergence passes 20/20 stress iterations.
+
+Migrate the live frontier-verdict Modeling chain next onto exact
+Soul/route/request authority and the shared continuation vocabulary. Delete its
+accepted-at ordering, aggregate prompt construction, and role-lane review path.
+Continue with Research, Verification,
 planning, and reorientation; then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
