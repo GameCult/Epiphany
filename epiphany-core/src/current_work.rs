@@ -4,10 +4,24 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-use crate::{EpiphanyMindDocumentVersion, EpiphanyRepoModelBasis, RepositoryBodyObservationBasis};
+use crate::{
+    EpiphanyMindDocumentVersion, EpiphanyRepoModelBasis, RepoFrontierPlanningLifecycleStage,
+    RepoFrontierProposalModelingRequest, RepoFrontierResearchContinuationAction,
+    RepositoryBodyObservationBasis,
+};
 
 pub const BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.body_modeling_decision.v1";
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyCurrentWorkProjection {
+    pub mind_projection_digest: String,
+    pub body_modeling: Option<EpiphanyBodyModelingWorkProjection>,
+    pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
+    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
+    pub proposal_modeling_request: Option<RepoFrontierProposalModelingRequest>,
+    pub hands_frontier_ready: bool,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyBodyModelingWorkProjection {
@@ -208,6 +222,47 @@ pub fn unresolved_body_modeling_work(
     resolve_body_modeling_work(work, decision)
 }
 
+pub fn project_current_work(
+    store_path: impl AsRef<Path>,
+) -> Result<EpiphanyCurrentWorkProjection> {
+    let store_path = store_path.as_ref();
+    let mind = crate::assemble_mind_view(store_path)?;
+    let body_modeling = match (
+        mind.repository_body_observation.clone(),
+        mind.repo_model.as_ref(),
+    ) {
+        (Some(body), Some(repo_model)) => {
+            let work = EpiphanyBodyModelingWorkProjection::derive(
+                mind.runtime_id.clone(),
+                body,
+                repo_model.reasoning_basis(),
+            )?;
+            let mut cache = crate::runtime_spine_cache(store_path)?;
+            cache.pull_all_backing_stores()?;
+            resolve_body_modeling_work(
+                work.clone(),
+                cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
+            )?
+        }
+        (None, None) | (Some(_), None) => None,
+        (None, Some(_)) => {
+            return Err(anyhow!(
+                "current work has a RepoModel but no admitted repository Body observation"
+            ));
+        }
+    };
+    Ok(EpiphanyCurrentWorkProjection {
+        mind_projection_digest: mind.projection_digest,
+        body_modeling,
+        research_continuation_action: crate::runtime_repo_frontier_research_lifecycle(store_path)?
+            .continuation_action(),
+        frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
+        proposal_modeling_request:
+            crate::runtime_pending_repo_frontier_proposal_modeling_request(store_path)?,
+        hands_frontier_ready: crate::runtime_has_actionable_hands_frontier(store_path)?,
+    })
+}
+
 fn resolve_body_modeling_work(
     work: EpiphanyBodyModelingWorkProjection,
     receipt: Option<EpiphanyBodyModelingDecisionReceipt>,
@@ -390,6 +445,13 @@ mod tests {
         let projected_work = current_body_modeling_work(&store)?;
         assert_eq!(projected_work.body_basis, body);
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
+        let current_work = project_current_work(&store)?;
+        assert_eq!(current_work.body_modeling, Some(projected_work.clone()));
+        assert_eq!(
+            current_work.mind_projection_digest,
+            crate::assemble_mind_view(&store)?.projection_digest
+        );
+        assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let document =
             crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: "creation-thread".into(),
@@ -514,6 +576,10 @@ mod tests {
             receipt.repo_model_projection_digest,
             crate::assemble_repo_model_view(&store)?.projection_digest
         );
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(&receipt.work_id, &receipt)?;
+        assert!(project_current_work(&store)?.body_modeling.is_none());
+        assert_eq!(crate::repository_body_read_counters(), (0, 0));
         Ok(())
     }
 }

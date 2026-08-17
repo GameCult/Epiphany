@@ -7840,7 +7840,8 @@ pub enum RepoFrontierResearchLifecycleStage {
     ResultReady,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RepoFrontierResearchContinuationAction {
     LaunchResearch,
     ReviewResearchResult,

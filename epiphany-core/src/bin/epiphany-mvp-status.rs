@@ -38,9 +38,7 @@ use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
-use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
-use epiphany_core::runtime_repo_frontier_research_lifecycle;
 use epiphany_self_policy::crrc_scene_action_to_coordinator_scene_action;
 use epiphany_self_policy::derive_coordinator_finding_signals;
 use epiphany_self_policy::derive_coordinator_status;
@@ -296,6 +294,8 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         .unwrap_or_else(|| "native-local".to_string());
     let state_ref = state.as_ref();
     let loaded = state_ref.is_some();
+    let current_work = epiphany_core::project_current_work(&runtime_store_path)
+        .context("failed to derive current work from keyed Mind and runtime receipts")?;
 
     let scene = derive_scene(EpiphanySceneInput {
         state: state_ref,
@@ -481,11 +481,8 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         }
         None => false,
     };
-    let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
-        .context("failed to derive actionable Hands frontier from runtime-spine state")?;
-    let research_lifecycle = runtime_repo_frontier_research_lifecycle(&runtime_store_path)
-        .context("failed to derive exact Eyes frontier lifecycle from runtime-spine state")?;
-    let research_continuation_action = research_lifecycle.continuation_action();
+    let hands_frontier_ready = current_work.hands_frontier_ready;
+    let research_continuation_action = current_work.research_continuation_action;
     let frontier_planning_eligibility = epiphany_core::runtime_repo_frontier_planning_eligibility(
         &runtime_store_path,
     )
@@ -498,6 +495,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let frontier_planning =
         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store_path)
             .context("failed to derive frontier planning lifecycle from runtime-spine state")?;
+    if frontier_planning.stage != current_work.frontier_planning_stage {
+        return Err(anyhow!("current-work frontier planning projection diverged"));
+    }
     let frontier_relinquishment =
         epiphany_core::runtime_latest_repo_frontier_relinquishment(&runtime_store_path)
             .context("failed to derive latest frontier relinquishment from runtime-spine state")?;
@@ -506,9 +506,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         &runtime_store_path,
         frontier_relinquishment.as_ref(),
     )?;
-    let pending_proposal =
-        epiphany_core::runtime_pending_repo_frontier_proposal_modeling_request(&runtime_store_path)
-            .context("failed to derive pending proposal Modeling authority")?;
+    let pending_proposal = current_work.proposal_modeling_request.as_ref();
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: durable_checkpoint_present,
@@ -620,6 +618,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "roles": roles,
         },
         "planning": planning,
+        "currentWork": &current_work,
         "frontierPlanning": {
             "lifecycle": frontier_planning,
             "eligibility": frontier_planning_eligibility,
@@ -642,7 +641,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "modelingResultProposalBound": modeling_result_proposal_bound,
             "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "imaginationFrontierReady": imagination_frontier_ready,
-            "pendingProposalModelingRequestId": pending_proposal.as_ref().map(|request| request.request_id.as_str()),
+            "pendingProposalModelingRequestId": pending_proposal.map(|request| request.request_id.as_str()),
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },
