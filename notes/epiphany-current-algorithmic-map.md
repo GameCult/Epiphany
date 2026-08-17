@@ -358,8 +358,9 @@ scheduler, route, notification, or interface contract.
 | keyed Mind documents and `mind_transaction.rs` | exact semantic documents, strong reads, and invariant-owned mutations | disjoint atomic Mind commits plus exact receipts | Decision authority lives in typed document identities; unrelated writes do not share a revision head. |
 | `current_work.rs` | sealed Mind view plus exact family requests, jobs, results, and decisions | pure family-specific scheduling/continuation projections | Events, timestamps, role lanes, and thread revisions cannot create or suppress work. |
 | Body Modeling launch/acceptance owners | exact Body obligation, runtime attempt, sealed decision context, and semantic mutation | one job-bound lifecycle and keyed Mind/RepoModel commit | Baseline Body Modeling never reads or writes `EpiphanyThreadStateEntry`; Eyes is not its gate. |
+| Proposal Modeling launch/acceptance owners | immutable proposal request, exact launch binding and attempt, sealed decision context, and frontier mutation | one deterministic Launch/Wait/Review lifecycle and `Modeling.proposal_frontier` commit | Thread is creation provenance only; the aggregate launcher refuses proposal cargo. |
 | `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and unmigrated family companions | obsolete aggregate commits for residual families only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body Modeling. |
-| `coordinator_acceptance.rs` | reviewed family result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | Baseline Body delegates to `accept_body_modeling_result`; no duplicate semantic owner survives there. |
+| `coordinator_acceptance.rs` | reviewed family result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | Body and Proposal delegate to their concrete acceptance owners; no duplicate semantic owner survives there. |
 | `thread_state_store.rs` | typed state entry | low-level CultCache codec/read access | Substrate, not policy; it exposes no production writer. |
 | `coordinator_service.rs` | state/runtime store paths and typed commands | state update, launch, accept, interrupt results | Facade routes typed work; it contains no policy or protocol mapping. |
 | `surfaces/*` | native state, runtime snapshots, pressure/freshness inputs | scene, jobs, roles, planning, context, graph, CRRC, coordinator recommendations | Read surfaces derive; they do not mutate. |
@@ -1298,14 +1299,13 @@ older CRRC regather display state, Imagination completed, and Self committed the
 dedicated Mind request without adopting the candidate or granting Hands
 authority. Mind launch, judgment, and decision commit remain next.
 
-Selected user proposals are also native Self input. The runtime projection
-`runtime_pending_repo_frontier_proposal_modeling_request` returns the single
-validated selection with no launch binding. Coordinator status routes that
-authority before generic regather. The MVP no longer rewrites an
-`awaitFrontierProposal` action from a CLI flag; an optional request ID is only
-an equality assertion over Self's derived request. This cuts the split owner
-exposed when exact `881b2b1a` saw the live v23 proposal but remained in manual
-regather.
+Selected user proposals are also native Self input. `project_current_work`
+derives the oldest unresolved proposal request and its exact Launch, Wait, or
+Review state from family-owned request, binding, runtime attempt/result, and
+Mind commit documents. Coordinator status routes that authority before generic
+regather. An optional request ID is only an equality assertion over Self's
+derived work; it cannot create or reroute a proposal. Exact `d1b031cb` deletes
+the former pending-request projection and aggregate launch path.
 
 Proposal Modeling receives the canonical RepoModel shape, including current
 domain, claim, and frontier identity. `existingFrontier` is the operation
@@ -1433,14 +1433,12 @@ identity. Only plain operator objectives use the resident runtime thread.
 An Imagination direction result may contain several option drafts. Autonomous
 promotion gives every option its own proposal, provenance binding, and explicit
 proposal-Modeling request. These are selected work items, not candidates still
-awaiting preference. `runtime_pending_repo_frontier_proposal_modeling_request`
-therefore schedules the oldest unclaimed request by `selected_at`, then stable
-request ID. A launch binding removes only its exact request from the pending
-queue, exposing the next. Resident ingestion queries that same head and emits
+awaiting preference. The shared current-work projection schedules the oldest
+unresolved request by `selected_at`, then stable request ID. Its exact binding
+and attempt derive Wait, retry Launch, or Review, exposing the next request only
+after keyed admission. Resident ingestion consumes that same head and emits
 pressure for only that request. It does not mirror every selected request into
-a second independently ordered pressure queue. Self owns queue order; it does
-not silently discard or rank Imagination's already-selected options, and
-heartbeat owns opportunity without acquiring a second scheduling opinion.
+a second independently ordered pressure queue.
 
 Resident terminal success is also pressure-specific. For a
 `repo-frontier-proposal-modeling` grant, a zero-exit coordinator receipt proves
@@ -4320,7 +4318,7 @@ Soul binding, and split-admission replay.
   Exact a07f6541 c008b authenticated live attempt 2 across launch promotion,
   preserved the canonical objective, and settled it once at revision 320.
 
-### Admitted causal thread owns autonomous promotion and proposal Modeling launch
+### Historical admitted-thread repair (superseded for proposal launch)
 
 - Owner: the runtime-spine promotion transaction owns publication of the exact
   proposal, autonomous binding, and proposal-Modeling selection companion
@@ -4338,10 +4336,10 @@ Soul binding, and split-admission replay.
 - Forbidden writers: Heartbeat, resident recovery, retry launch, retention, and
   the current singleton thread projection cannot rewrite causal request,
   proposal, binding, or selection identity.
-- Shared paths: initial promotion and replay use the same exact-family equality
-  and CAS primitive. Initial proposal Modeling launch and an exact retry after
-  process terminality both restore the admitted cognitive thread through the
-  ordinary coordinator transaction.
+- Shared paths: initial promotion and replay still use the same exact-family
+  equality and CAS primitive. Proposal launch no longer restores any thread or
+  enters the ordinary coordinator transaction; exact `d1b031cb` supersedes that
+  historical repair with keyed current-work ownership.
 - Cut line: derive promotion companions and proposal Modeling launch provenance
   from the admitted request thread. Delete the mutable-singleton equality veto;
   retain exact equality across request/proposal/runtime/repository/workspace,
@@ -4358,6 +4356,12 @@ Soul binding, and split-admission replay.
   request once, accepted its review, completed native admitted-direction
   Imagination, and completed two resulting proposal Modeling families. The
   brake is engaged at revision 364 with no active lease.
+
+The live rule is now narrower: autonomous promotion owns immutable proposal,
+binding, and selection publication; Proposal Modeling launch identity is
+derived from that request plus its attempt ordinal. The request's `thread_id`
+is retained only as immutable pass provenance. Mutable thread state cannot
+admit, suppress, restore, or retry the work.
 
 ## Manual regather authority boundary (2026-08-11)
 
@@ -4929,7 +4933,8 @@ Exact `587c56d2` routes the operator half. The shared Self policy now treats
 unresolved Body Modeling work as a first-class `launchModeling` reason without
 requiring persisted thread presence. The coordinator dispatches that specific
 baseline case through `launch_current_body_modeling_work`; proposal, repair,
-verdict, Research, and Verification launches retain their family paths. Thus a
+verdict, Research, and Verification launches then retained their family paths.
+Exact `d1b031cb` subsequently migrates proposal launch. Thus a
 fresh keyed Mind can begin Modeling directly, while Eyes remains an independent
 external-evidence obligation rather than a gate on Body understanding.
 
@@ -4954,3 +4959,27 @@ current-work projection and admission primitive. Verification exercises Body
 work through pressure, launch, wait, terminal result, review, keyed acceptance,
 and cleared continuation with zero external Body reads; focused current-work,
 Resident, Self-policy, coordinator/status, and full core-library checks pass.
+
+Exact `d1b031cb` completes the parallel Proposal Modeling lifecycle without
+copying Body policy into a generic registry. `EpiphanyCurrentWorkProjection`
+derives the oldest unresolved proposal's Launch, Wait, or Review state from its
+immutable request, exact family launch binding, runtime job/result, and
+`Modeling.proposal_frontier` commit. Failed or cancelled exact attempts expose a
+new deterministic ordinal; unrelated Mind writes are outside the launch CAS.
+
+Owner: `launch_current_proposal_modeling_work` owns atomic publication of one
+runtime attempt, one exact proposal launch binding, and one scoped read grant;
+`accept_proposal_modeling_result` owns semantic admission. Inputs: immutable
+proposal/request envelopes, admitted Body and keyed RepoModel projection, exact
+runtime result, and sealed decision context. Outputs: job-bound lifecycle and
+keyed RepoModel mutation receipt. Derived state: coordinator action, status,
+Resident pressure, role display, timestamps, and thread provenance. Forbidden
+writers: `EpiphanyThreadStateEntry`, generic Modeling lanes, aggregate
+acceptance receipts, and CLI hints cannot create, suppress, review, or admit
+proposal work. Shared path: operator and Resident use the same projection and
+acceptance owner; Body and Proposal share only the exact-envelope launch CAS.
+Deletion line: the old pending selector, aggregate proposal validator/context
+builder, proposal launch binding writer, and generic Modeling proposal hint are
+gone. Verification proves concurrent launch convergence, exact Wait/Review,
+keyed admission, no thread-state envelope, core 564/564, Self policy 26/26, and
+the coordinator-runtime feature build.

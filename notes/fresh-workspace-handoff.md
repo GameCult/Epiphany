@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`478fb923` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`d1b031cb` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -22,9 +22,9 @@ or repair path can restore their authority.
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
 unmigrated launch/acceptance/status readers remain live production authorities.
-Baseline Body Modeling is no longer among them: keyed Mind owns its work
-projection, operator and Resident launch, exact job-bound continuation, review,
-and semantic admission. Fresh Gate
+Baseline Body and Proposal Modeling are no longer among them: keyed Mind owns
+their work projections, operator and Resident launch, exact job-bound
+continuation, review, and semantic admission. Fresh Gate
 preflight proved the consequence: both keyed semantic partitions reached ready,
 but status still called the organism missing because no thread aggregate
 existed. Model Atlas Gate 1 is therefore paused behind that deletion, not merely
@@ -344,9 +344,21 @@ share one `accept_body_modeling_result` MindMutation owner. The legacy aggregate
 acceptance branch delegates this exact family to that owner rather than retaining
 a second semantic opinion.
 
-Inventory the remaining aggregate behavioral readers and writers, then migrate
-the other Modeling request families onto the same doctrine without turning the
-reference shape into a generic registry. Continue with Research, Verification,
+Exact `d1b031cb` applies the same doctrine to Proposal Modeling without making a
+generic registry. The immutable proposal request, exact family launch binding,
+runtime attempt/result, and `Modeling.proposal_frontier` commit derive Launch,
+Wait, Review, and completion. Proposal intake no longer requires a current
+thread; thread ID is pass provenance only. Operator, status, and Resident use
+that projection, while `accept_proposal_modeling_result` alone owns semantic
+admission. The aggregate coordinator launcher now refuses proposal cargo; its
+proposal selector, validator, context builder, and generic-launch hint are
+deleted. A shared exact-envelope launch CAS remains because it protects the
+same atomic publication invariant for Body and Proposal, not because it owns
+family policy.
+
+Migrate claim-repair and frontier-verdict Modeling next, deleting their
+aggregate launch/context/acceptance anatomy while preserving their distinct
+typed requests and invariant owners. Continue with Research, Verification,
 planning, and reorientation; then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and

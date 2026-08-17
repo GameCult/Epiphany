@@ -18,7 +18,9 @@ earned OpenAI-compatible authentication or model-transport capability.
   heartbeat physiology, Persona, and CultMesh integration. Its coordinator and
   status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
   that aggregate is an obsolete live authority and currently blocks fresh keyed
-  stores from coordinating.
+  stores from coordinating. Body and Proposal Modeling have been removed from
+  that authority; repair, verdict, Research, Verification, planning,
+  reorientation, and generic coordinator presence remain.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -227,15 +229,16 @@ Cut in this order:
    admission are landed. Current-work no longer reads the external Body store;
    status consumes the shared projection.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
-4. Migrate proposal, repair, verdict, Research, Verification, planning, and
+4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, exact launch binding, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry.
+5. Migrate repair, verdict, Research, Verification, planning, and
    reorientation acceptance from aggregate state patches and generic role lanes
    to family-owned current-work projections, exact job identities,
    `MindMutation` plans, and exact commit receipts. Reuse pure invariant
    primitives, not a generic mutable registry.
-5. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+6. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-6. Replay fresh-store concurrency and decision-context acceptance. Only then
+7. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
