@@ -56,9 +56,9 @@ pub const REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT: &str =
 pub const REPO_FRONTIER_MODELING_REQUEST_TYPE: &str =
     "epiphany.modeling.repo_frontier_verdict_request";
 pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.modeling.repo_frontier_verdict_request.v0";
+    "epiphany.modeling.repo_frontier_verdict_request.v1";
 pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_verdict_modeling_request.v0";
+    "epiphany.repo_frontier_verdict_modeling_request.v1";
 pub const REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION: &str =
     "epiphany.repo_frontier_work_proposal.v0";
 pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
@@ -799,12 +799,10 @@ pub struct RepoFrontierModelingRequest {
     #[cultcache(key = 10)]
     pub verification_job_id: String,
     #[cultcache(key = 11)]
-    pub verification_acceptance_receipt_id: String,
-    #[cultcache(key = 12)]
     pub allowed_disposition: RepoFrontierVerdictDisposition,
-    #[cultcache(key = 13)]
+    #[cultcache(key = 12)]
     pub requested_at: String,
-    #[cultcache(key = 14)]
+    #[cultcache(key = 13)]
     pub contract: String,
 }
 

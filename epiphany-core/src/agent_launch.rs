@@ -1111,6 +1111,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         dynamic_prompt_context: None,
         repository_body_observation_basis: None,
         proposal_modeling_context: None,
+        frontier_verdict_modeling_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
         frontier_plan_mind_context: None,
@@ -1164,7 +1165,6 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
-        repo_frontier_verdict_modeling_authority: None,
     })
 }
 
@@ -1213,6 +1213,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         dynamic_prompt_context,
         repository_body_observation_basis: None,
         proposal_modeling_context: None,
+        frontier_verdict_modeling_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
         frontier_plan_mind_context: None,
@@ -1265,7 +1266,6 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
-        repo_frontier_verdict_modeling_authority: None,
     })
 }
 
@@ -1430,7 +1430,6 @@ pub fn build_epiphany_job_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
-        repo_frontier_verdict_modeling_authority: None,
     }
 }
 
@@ -1772,7 +1771,6 @@ mod tests {
                 soul_verdict_receipt_id: "soul-exact".into(),
                 verification_result_id: "verification-result".into(),
                 verification_job_id: "verification-job".into(),
-                verification_acceptance_receipt_id: "verification-acceptance".into(),
                 allowed_disposition: crate::RepoFrontierVerdictDisposition::Resolved,
                 requested_at: "2026-08-08T00:00:00Z".into(),
                 contract: crate::REPO_FRONTIER_MODELING_REQUEST_CONTRACT.into(),
@@ -1797,6 +1795,20 @@ mod tests {
                 updated_at: Some("2026-08-07T00:00:00Z".into()),
                 retired_at: None,
                 superseded_by: None,
+            },
+            soul_verdict: crate::SoulVerdictReceipt {
+                schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
+                receipt_id: "soul-exact".into(),
+                source_result_id: "verification-result".into(),
+                source_job_id: "verification-job".into(),
+                verdict: "pass".into(),
+                summary: "verified".into(),
+                evidence_ids: Vec::new(),
+                risks: Vec::new(),
+                emitted_at: "2026-08-08T00:00:00Z".into(),
+                contract: "test".into(),
+                verification_request_id: "verification-exact".into(),
+                frontier_route_id: "route-exact".into(),
             },
         };
         let schema = epiphany_frontier_verdict_modeling_output_schema(&authority);

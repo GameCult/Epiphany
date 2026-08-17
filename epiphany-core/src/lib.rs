@@ -228,9 +228,7 @@ pub use coordinator_launch::EpiphanyCoordinatorJobLaunchPlan;
 pub use coordinator_launch::commit_coordinator_job_launch;
 pub use coordinator_launch::plan_coordinator_job_launch;
 pub use coordinator_launch_context::EPIPHANY_LOCAL_VERSE_RUNTIME_ID;
-pub use coordinator_launch_context::ModelingWorkLoopLaunchContext;
 pub use coordinator_launch_context::append_modeling_repo_model_shape_context;
-pub use coordinator_launch_context::append_modeling_work_loop_telemetry_context;
 pub use coordinator_launch_context::append_verification_hands_receipt_context;
 pub use coordinator_launch_context::has_complete_hands_consequence_after_latest_accepted_boundary;
 pub use coordinator_launch_context::local_verse_store_path;
@@ -1109,8 +1107,6 @@ pub use runtime_spine::put_runtime_requested_public_source_intents;
 pub use runtime_spine::put_runtime_role_worker_result;
 pub use runtime_spine::put_runtime_tool_execution_intent;
 pub use runtime_spine::put_runtime_tool_execution_receipt;
-#[cfg(test)]
-pub(crate) use runtime_spine::put_soul_verdict_receipt;
 pub use runtime_spine::put_substrate_gate_repo_access_grant_receipt;
 pub use runtime_spine::relinquish_repo_frontier_hands_route;
 pub use runtime_spine::repair_legacy_terminal_coordinator_sessions;

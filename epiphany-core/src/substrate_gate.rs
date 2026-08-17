@@ -297,6 +297,7 @@ mod tests {
                     dynamic_prompt_context: None,
                     repository_body_observation_basis: None,
                     proposal_modeling_context: None,
+                    frontier_verdict_modeling_context: None,
                     frontier_planning_context: None,
                     frontier_research_context: None,
                     frontier_plan_mind_context: None,
@@ -331,7 +332,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority: None,
         };
         let grant = substrate_gate_repo_access_grant_for_launch(
             "grant-1".to_string(),

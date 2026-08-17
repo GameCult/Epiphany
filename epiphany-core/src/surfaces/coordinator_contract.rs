@@ -168,6 +168,8 @@ pub struct EpiphanyCoordinatorInput {
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     /// Exact current action for the oldest unresolved proposal Modeling request.
     pub proposal_modeling_action: Option<EpiphanyModelingContinuationAction>,
+    /// Exact current action for one Soul-verdict-bound Modeling request.
+    pub frontier_verdict_modeling_action: Option<EpiphanyModelingContinuationAction>,
     pub body_modeling_work_ready: bool,
     pub body_modeling_review_ready: bool,
 }
@@ -221,6 +223,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling_action: Option<EpiphanyModelingContinuationAction>,
+    pub frontier_verdict_modeling_action: Option<EpiphanyModelingContinuationAction>,
     pub body_modeling_work_ready: bool,
     pub body_modeling_review_ready: bool,
 }

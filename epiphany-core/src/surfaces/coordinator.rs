@@ -96,6 +96,7 @@ pub fn derive_coordinator_status(
         research_continuation_action: input.research_continuation_action,
         frontier_planning_stage: input.frontier_planning_stage,
         proposal_modeling_action: input.proposal_modeling_action,
+        frontier_verdict_modeling_action: input.frontier_verdict_modeling_action,
         body_modeling_work_ready: input.body_modeling_work_ready,
         body_modeling_review_ready: input.body_modeling_review_ready,
     });
@@ -748,6 +749,35 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if let Some(action) = input.frontier_verdict_modeling_action {
+        return match action {
+            EpiphanyModelingContinuationAction::Launch => build(
+                EpiphanyCoordinatorAction::LaunchModeling,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "An exact Soul verdict has unresolved keyed frontier Modeling work.",
+            ),
+            EpiphanyModelingContinuationAction::Wait => build(
+                EpiphanyCoordinatorAction::WaitForModelingResult,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                false,
+                false,
+                "The exact frontier verdict Modeling attempt is still running.",
+            ),
+            EpiphanyModelingContinuationAction::Review => build(
+                EpiphanyCoordinatorAction::ReviewModelingResult,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The exact frontier verdict Modeling result awaits keyed Mind admission.",
+            ),
+        };
+    }
+
     if let Some(action) = input.research_continuation_action {
         return match action {
             RepoFrontierResearchContinuationAction::LaunchResearch => build(
@@ -1095,16 +1125,6 @@ pub fn recommend_coordinator_action(
                 "Mind has admitted a current Hands frontier after source regather; execute that exact route before launching unrelated Modeling.",
             );
         }
-        if input.research_result_accepted && !input.modeling_result_accepted_after_research {
-            return build(
-                EpiphanyCoordinatorAction::LaunchModeling,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "Accepted Eyes evidence is newer than the current Modeling boundary; route Modeling once to reconcile the RepoModel before further regather or implementation.",
-            );
-        }
         if !input.research_result_accepted
             && matches!(
                 input.signals.research_result_status,
@@ -1409,6 +1429,7 @@ mod tests {
             research_continuation_action: None,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
             proposal_modeling_action: None,
+            frontier_verdict_modeling_action: None,
             body_modeling_work_ready: false,
             body_modeling_review_ready: false,
         }
@@ -1890,7 +1911,7 @@ mod tests {
     }
 
     #[test]
-    fn accepted_eyes_routes_one_causal_modeling_pass_before_manual_regather() {
+    fn accepted_eyes_alone_cannot_manufacture_modeling_work() {
         let base = EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             roles: vec![role(
@@ -1907,13 +1928,24 @@ mod tests {
             reorient_finding_accepted: true,
             ..input()
         };
-        let launch = recommend_coordinator_action(base.clone());
-        assert_eq!(launch.action, EpiphanyCoordinatorAction::LaunchModeling);
+        let without_obligation = recommend_coordinator_action(base.clone());
         assert_eq!(
-            launch.target_role,
+            without_obligation.action,
+            EpiphanyCoordinatorAction::RegatherManually
+        );
+
+        let exact_modeling_work = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            frontier_verdict_modeling_action: Some(EpiphanyModelingContinuationAction::Launch),
+            ..base.clone()
+        });
+        assert_eq!(
+            exact_modeling_work.action,
+            EpiphanyCoordinatorAction::LaunchModeling
+        );
+        assert_eq!(
+            exact_modeling_work.target_role,
             Some(EpiphanyCoordinatorRoleId::Modeling)
         );
-        assert!(launch.reason.contains("Eyes evidence is newer"));
 
         let current_hands_route = recommend_coordinator_action(EpiphanyCoordinatorInput {
             hands_frontier_ready: true,
@@ -1923,12 +1955,6 @@ mod tests {
             current_hands_route.action,
             EpiphanyCoordinatorAction::ContinueImplementation
         );
-
-        let consumed = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            modeling_result_accepted_after_research: true,
-            ..base
-        });
-        assert_eq!(consumed.action, EpiphanyCoordinatorAction::RegatherManually);
     }
 
     #[test]

@@ -30,6 +30,8 @@ pub struct EpiphanyRolePassAuthorityProjection {
     pub dynamic_prompt_context: Option<String>,
     pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
     pub proposal_modeling_context: Option<crate::RepoFrontierProposalModelingContextProjection>,
+    pub frontier_verdict_modeling_context:
+        Option<crate::RepoFrontierVerdictModelingLaunchAuthority>,
     pub frontier_planning_context: Option<crate::RepoFrontierPlanningContextProjection>,
     pub frontier_research_context: Option<crate::RepoFrontierResearchContextProjection>,
     pub frontier_plan_mind_context: Option<crate::RepoFrontierPlanMindContextProjection>,
@@ -46,6 +48,7 @@ impl From<EpiphanyRoleWorkerLaunchDocument> for EpiphanyRolePassAuthorityProject
             dynamic_prompt_context: value.dynamic_prompt_context,
             repository_body_observation_basis: value.repository_body_observation_basis,
             proposal_modeling_context: value.proposal_modeling_context,
+            frontier_verdict_modeling_context: value.frontier_verdict_modeling_context,
             frontier_planning_context: value.frontier_planning_context,
             frontier_research_context: value.frontier_research_context,
             frontier_plan_mind_context: value.frontier_plan_mind_context,
@@ -1211,6 +1214,7 @@ mod tests {
             dynamic_prompt_context: Some("typed projection".into()),
             repository_body_observation_basis: None,
             proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
             frontier_plan_mind_context: None,
@@ -1257,7 +1261,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         })
     }
 

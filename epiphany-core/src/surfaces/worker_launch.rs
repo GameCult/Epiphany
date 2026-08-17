@@ -105,6 +105,9 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontier_verdict_modeling_context:
+        Option<crate::RepoFrontierVerdictModelingLaunchAuthority>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_research_context: Option<RepoFrontierResearchContextProjection>,
@@ -422,7 +425,6 @@ pub fn build_reorient_job_launch_request(
         admitted_model_direction_consideration_request_id: None,
         repo_frontier_modeling_request_id: None,
         repo_frontier_research_request_id: None,
-        repo_frontier_verdict_modeling_authority: None,
     }
 }
 

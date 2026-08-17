@@ -747,8 +747,6 @@ pub fn complete_worker_job_from_assistant_text(
     if let Some(parsed) = parsed.as_ref() {
         match (&launch_document, parsed) {
             (EpiphanyWorkerLaunchDocument::Role(document), WorkerResultIngress::Role(parsed)) => {
-                let repo_frontier_verdict_modeling_authority =
-                    launch_request.repo_frontier_verdict_modeling_authority()?;
                 let typed_result = role_worker_result_from_ingress(
                     launch_request,
                     &document.role_id,
@@ -760,7 +758,7 @@ pub fn complete_worker_job_from_assistant_text(
                     document
                         .admitted_model_direction_consideration_context
                         .as_ref(),
-                    repo_frontier_verdict_modeling_authority.as_ref(),
+                    document.frontier_verdict_modeling_context.as_ref(),
                     &completed_at,
                     &result_id,
                     &decision_context.context_id,
@@ -1535,8 +1533,9 @@ fn worker_output_schema_json(
                     .repo_frontier_modeling_request_id
                     .as_deref()
                     .expect("checked verdict-bound Modeling request identity");
-                let authority = launch_request
-                    .repo_frontier_verdict_modeling_authority()?
+                let authority = document
+                    .frontier_verdict_modeling_context
+                    .as_ref()
                     .ok_or_else(|| {
                         anyhow!(
                             "verdict-bound Modeling launch {request_id:?} omitted its typed authority body"
@@ -1549,7 +1548,7 @@ fn worker_output_schema_json(
                         authority.request.request_id
                     ));
                 }
-                epiphany_core::epiphany_frontier_verdict_modeling_output_schema(&authority)
+                epiphany_core::epiphany_frontier_verdict_modeling_output_schema(authority)
             } else {
                 epiphany_core::epiphany_role_launch_output_schema(role_id)
             }
@@ -2734,7 +2733,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let basis = epiphany_core::RepositoryBodyObservationBasis {
             schema_version: "epiphany.repository_body.v2".into(),
@@ -2882,7 +2880,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let atlas = RoleWorkerResultIngress {
             role_id: Some("modeling".into()),
@@ -3002,6 +2999,7 @@ mod tests {
                 dynamic_prompt_context: None,
                 repository_body_observation_basis: None,
                 proposal_modeling_context: Some(context),
+                frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
                 frontier_plan_mind_context: None,
@@ -3044,7 +3042,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
 
         let request = build_worker_model_request(
@@ -3103,7 +3100,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -3179,7 +3175,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let planning_context = epiphany_core::RepoFrontierPlanningContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
@@ -3349,7 +3344,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -3415,6 +3409,7 @@ mod tests {
                 dynamic_prompt_context: None,
                 repository_body_observation_basis: None,
                 proposal_modeling_context: None,
+                frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
                 frontier_plan_mind_context: None,
@@ -3457,7 +3452,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
             .expect("typed planning failure");
@@ -3499,7 +3493,6 @@ mod tests {
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
         };
         let context = epiphany_core::RepoFrontierPlanMindContextProjection {
             schema_version: epiphany_core::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION.into(),
@@ -3751,6 +3744,139 @@ mod tests {
             scan_started_at: "2026-07-13T00:00:00Z".to_string(),
             scan_finished_at: "2026-07-13T00:00:01Z".to_string(),
         };
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".into(),
+                display_name: "Epiphany Test".into(),
+                created_at: "2026-08-08T00:00:00Z".into(),
+            },
+        )?;
+        let frontier_item = epiphany_core::RepoFrontierItem {
+            id: "frontier-1".to_string(),
+            migration_body: "runtime".to_string(),
+            question: "Did the verified consequence hold?".to_string(),
+            gap: "Awaiting verdict incorporation.".to_string(),
+            target_claim_ids: vec!["claim-1".to_string()],
+            source_scope: vec!["epiphany-core".to_string()],
+            recommended_next_organ: "Hands".to_string(),
+            adopted_plan: None,
+            dependency_item_ids: Vec::new(),
+            status: epiphany_core::RepoFrontierStatus::Active,
+            evidence_refs: vec!["prior-evidence".to_string()],
+            public_source_refs: Vec::new(),
+            created_at: Some("2026-08-07T00:00:00Z".to_string()),
+            updated_at: Some("2026-08-07T00:00:00Z".to_string()),
+            retired_at: None,
+            superseded_by: None,
+        };
+        let frontier_item_hash = format!(
+            "{:x}",
+            sha2::Sha256::digest(rmp_serde::to_vec_named(&frontier_item)?)
+        );
+        let mut authority_cache = runtime_spine_cache(&store)?;
+        authority_cache.put(
+            &frontier_item.id,
+            &epiphany_core::EpiphanyRepoModelFrontierDocument::new(&frontier_item)?,
+        )?;
+        let frontier_version = epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-mind",
+            &authority_cache
+                .get_envelope::<epiphany_core::EpiphanyRepoModelFrontierDocument>(
+                    &frontier_item.id,
+                )?
+                .expect("persisted frontier envelope"),
+        )?;
+        let route = epiphany_core::RepoFrontierRoute {
+            schema_version: epiphany_core::REPO_FRONTIER_ROUTE_SCHEMA_VERSION.into(),
+            route_id: "route-1".into(),
+            next_organ: epiphany_core::RepoFrontierNextOrgan::Hands,
+            model_projection_digest: "model-projection".into(),
+            model_source_documents: vec![frontier_version],
+            frontier_item_id: frontier_item.id.clone(),
+            frontier_item_hash,
+            migration_body: frontier_item.migration_body.clone(),
+            question: frontier_item.question.clone(),
+            gap: frontier_item.gap.clone(),
+            target_claim_ids: frontier_item.target_claim_ids.clone(),
+            source_scope: frontier_item.source_scope.clone(),
+            adopted_plan: frontier_item.adopted_plan.clone(),
+            selected_at: "2026-08-08T00:00:00Z".into(),
+            contract: epiphany_core::REPO_FRONTIER_ROUTE_CONTRACT.into(),
+        };
+        let verification_request = epiphany_core::RepoFrontierVerificationRequest {
+            schema_version: epiphany_core::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "verification-request-1".into(),
+            route_id: route.route_id.clone(),
+            model_projection_digest: route.model_projection_digest.clone(),
+            model_source_documents: route.model_source_documents.clone(),
+            frontier_item_id: route.frontier_item_id.clone(),
+            frontier_item_hash: route.frontier_item_hash.clone(),
+            hands_intent_id: "hands-intent-1".into(),
+            hands_review_id: "hands-review-1".into(),
+            hands_patch_receipt_id: "hands-patch-1".into(),
+            hands_command_receipt_id: "hands-command-1".into(),
+            hands_commit_receipt_id: "hands-commit-1".into(),
+            requested_at: "2026-08-08T00:00:00Z".into(),
+            contract: epiphany_core::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
+        };
+        let verification_result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "verification-result-1".into(),
+            job_id: "verification-job-1".into(),
+            role_id: "verification".into(),
+            verdict: "pass".into(),
+            summary: "verified".into(),
+            next_safe_move: "incorporate".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec![frontier_item.id.clone()],
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: Some(verification_request.request_id.clone()),
+            frontier_route_id: Some(route.route_id.clone()),
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "verification-context-1".into(),
+        };
+        let soul_verdict = epiphany_core::SoulVerdictReceipt {
+            schema_version: epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "soul-verdict-1".into(),
+            source_result_id: verification_result.result_id.clone(),
+            source_job_id: verification_result.job_id.clone(),
+            verdict: verification_result.verdict.clone(),
+            summary: verification_result.summary.clone(),
+            evidence_ids: verification_result.evidence_ids.clone(),
+            risks: verification_result.risks.clone(),
+            emitted_at: "2026-08-08T00:00:00Z".into(),
+            contract: "test Soul verdict".into(),
+            verification_request_id: verification_request.request_id.clone(),
+            frontier_route_id: route.route_id.clone(),
+        };
+        authority_cache.put(&route.route_id, &route)?;
+        authority_cache.put(&verification_request.request_id, &verification_request)?;
+        authority_cache.put(&verification_result.job_id, &verification_result)?;
+        authority_cache.put(&soul_verdict.receipt_id, &soul_verdict)?;
+        let frontier_request =
+            epiphany_core::commit_repo_frontier_modeling_request(&store, &soul_verdict)?;
         open_runtime_spine_heartbeat_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
@@ -3770,15 +3896,19 @@ mod tests {
                         role_id: "modeling".to_string(),
                         state_revision: 1,
                         objective: Some("Map the machine.".to_string()),
-                        dynamic_prompt_context: Some(
-                            "<epiphany_dynamic_context>\nlocal Verse: bounded\n</epiphany_dynamic_context>"
-                                .to_string(),
-                        ),
+                        dynamic_prompt_context: None,
                         repository_body_observation_basis: Some(body_basis.clone()),
                         proposal_modeling_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
+                        frontier_verdict_modeling_context: Some(
+                            epiphany_core::RepoFrontierVerdictModelingLaunchAuthority {
+                                request: frontier_request.clone(),
+                                frontier_item: frontier_item.clone(),
+                                soul_verdict: soul_verdict.clone(),
+                            },
+                        ),
+                        frontier_planning_context: None,
+                        frontier_research_context: None,
+                        frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
@@ -3803,56 +3933,12 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-                repo_frontier_modeling_request_id: Some(
-                    "frontier-modeling-request-1".to_string(),
-                ),
+                frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
+                admitted_model_direction_consideration_request_id: None,
+                repo_frontier_modeling_request_id: Some(frontier_request.request_id.clone()),
                 repo_frontier_research_request_id: None,
-                repo_frontier_verdict_modeling_authority: Some(
-                    epiphany_core::RepoFrontierVerdictModelingLaunchAuthority {
-                        request: epiphany_core::RepoFrontierModelingRequest {
-                            schema_version: epiphany_core::REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
-                            request_id: "frontier-modeling-request-1".to_string(),
-                            model_projection_digest: "model-projection".to_string(),
-                            model_source_documents: Vec::new(),
-                            route_id: "route-1".to_string(),
-                            frontier_item_id: "frontier-1".to_string(),
-                            frontier_item_hash: "frontier-hash".to_string(),
-                            verification_request_id: "verification-request-1".to_string(),
-                            soul_verdict_receipt_id: "soul-verdict-1".to_string(),
-                            verification_result_id: "verification-result-1".to_string(),
-                            verification_job_id: "verification-job-1".to_string(),
-                            verification_acceptance_receipt_id: "verification-acceptance-1".to_string(),
-                            allowed_disposition: epiphany_core::RepoFrontierVerdictDisposition::Resolved,
-                            requested_at: "2026-08-08T00:00:00Z".to_string(),
-                            contract: epiphany_core::REPO_FRONTIER_MODELING_REQUEST_CONTRACT.to_string(),
-                        },
-                        frontier_item: epiphany_core::RepoFrontierItem {
-                            id: "frontier-1".to_string(),
-                            migration_body: "runtime".to_string(),
-                            question: "Did the verified consequence hold?".to_string(),
-                            gap: "Awaiting verdict incorporation.".to_string(),
-                            target_claim_ids: vec!["claim-1".to_string()],
-                            source_scope: vec!["epiphany-core".to_string()],
-                            recommended_next_organ: "Hands".to_string(),
-                            adopted_plan: Some(epiphany_core::RepoFrontierAdoptedPlan {
-                                command: "cargo test".to_string(),
-                                ..Default::default()
-                            }),
-                            dependency_item_ids: Vec::new(),
-                            status: epiphany_core::RepoFrontierStatus::Active,
-                            evidence_refs: vec!["prior-evidence".to_string()],
-                            public_source_refs: Vec::new(),
-                            created_at: Some("2026-08-07T00:00:00Z".to_string()),
-                            updated_at: Some("2026-08-07T00:00:00Z".to_string()),
-                            retired_at: None,
-                            superseded_by: None,
-                        },
-                    },
-                ),
                 created_at: now(),
             },
         )?;
@@ -3953,7 +4039,7 @@ mod tests {
                 .get("repoModelOperations")
                 .is_none()
         );
-        assert!(!output_schema.contains("frontier-modeling-request-1"));
+        assert!(!output_schema.contains(&frontier_request.request_id));
         assert!(!output_schema.contains("incorporate_frontier_verdict"));
         assert!(!model_request.instructions.contains("Output schema JSON"));
         assert!(model_request.instructions.contains("frontierVerdictGap"));
@@ -3965,11 +4051,24 @@ mod tests {
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         assert!(
-            model_request
+            !model_request
                 .instructions
                 .contains("<epiphany_dynamic_context>")
         );
-        assert!(model_request.instructions.contains("local Verse: bounded"));
+        let epiphany_core::EpiphanyReasoningProjection::RolePass(sealed_projection) =
+            reasoning_basis.projection()?
+        else {
+            panic!("frontier verdict Modeling must seal a role projection")
+        };
+        assert_eq!(
+            sealed_projection
+                .authority
+                .frontier_verdict_modeling_context
+                .as_ref()
+                .expect("sealed frontier verdict authority")
+                .frontier_item,
+            frontier_item
+        );
         assert!(
             model_request
                 .tools
@@ -4091,6 +4190,7 @@ mod tests {
                         ),
                         repository_body_observation_basis: None,
                         proposal_modeling_context: None,
+                        frontier_verdict_modeling_context: None,
                 frontier_planning_context: None,
                 frontier_research_context: None,
                 frontier_plan_mind_context: None,
@@ -4124,7 +4224,6 @@ mod tests {
                 admitted_model_direction_consideration_request_id: None,
                 repo_frontier_modeling_request_id: None,
                 repo_frontier_research_request_id: None,
-                repo_frontier_verdict_modeling_authority: None,
                 created_at: now(),
             },
         )?;

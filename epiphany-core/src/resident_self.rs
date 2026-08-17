@@ -67,6 +67,7 @@ impl ResidentSelfPressure {
                     | "imagination-consideration"
                     | "imagination-proposal"
                     | "repo-frontier-proposal-modeling"
+                    | "repo-frontier-verdict-modeling"
                     | RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND
                     | RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND
                     | RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND
@@ -1198,6 +1199,28 @@ pub fn ingest_resident_self_domain_pressure(
             created_at_millis: now_millis, status: "pending".into(), consumed_by_grant_id: None, private_state_exposed: false,
         })?);
     }
+    if let Some(work) = crate::project_current_work(runtime_store)?
+        .frontier_verdict_modeling
+        .filter(|work| work.action == crate::EpiphanyModelingContinuationAction::Launch)
+    {
+        inserted += usize::from(enqueue_resident_self_pressure_idempotent(
+            resident_store,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: format!("repo-frontier-verdict-modeling-{}", work.request.request_id),
+                kind: "repo-frontier-verdict-modeling".into(),
+                provenance_ref: format!(
+                    "cultcache://repo-frontier-verdict-modeling/{}",
+                    work.request.request_id
+                ),
+                objective: "Launch the exact Soul-verdict-bound Modeling obligation; no unrelated Mind mutation or external consequence.".into(),
+                created_at_millis: now_millis,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?);
+    }
     crate::promote_autonomous_direction_options_for_modeling(
         runtime_store,
         repository,
@@ -1380,6 +1403,19 @@ pub(crate) fn resident_self_safe_continuation_action(
                     }
                 });
             }
+            if let Some(action) =
+                crate::frontier_verdict_modeling_continuation_action_for_job(runtime_store, job_id)?
+            {
+                return Ok(match action {
+                    crate::EpiphanyModelingContinuationAction::Launch => {
+                        Some("launchModeling".to_string())
+                    }
+                    crate::EpiphanyModelingContinuationAction::Wait => None,
+                    crate::EpiphanyModelingContinuationAction::Review => {
+                        Some("reviewModelingResult".to_string())
+                    }
+                });
+            }
         }
     }
     let direct = matches!(
@@ -1488,11 +1524,16 @@ fn resident_self_failed_receipt_typed_continuation_action(
     {
         return Ok(None);
     }
-    let Some(crate::RuntimeTypedRequestRef::ProposalModeling(request_id)) =
-        resident_self_typed_request_ref(&grant)?
-    else {
+    let Some(request) = resident_self_typed_request_ref(&grant)? else {
         return Ok(None);
     };
+    if !matches!(
+        request,
+        crate::RuntimeTypedRequestRef::ProposalModeling(_)
+            | crate::RuntimeTypedRequestRef::FrontierVerdictModeling(_)
+    ) {
+        return Ok(None);
+    }
     let acknowledgements = resident
         .get_all::<ResidentSelfTerminalAck>()?
         .into_iter()
@@ -1511,25 +1552,30 @@ fn resident_self_failed_receipt_typed_continuation_action(
             "failed coordinator receipt typed continuation lost its exact resident binding"
         ));
     }
-    let Some(evidence) = crate::runtime_typed_request_fulfillment(
-        runtime_store,
-        crate::RuntimeTypedRequestRef::ProposalModeling(request_id),
-    )?
-    else {
+    let Some(evidence) = crate::runtime_typed_request_fulfillment(runtime_store, request)? else {
         return Ok(None);
     };
-    Ok(
-        match crate::proposal_modeling_continuation_action_for_job(runtime_store, &evidence.job_id)?
-        {
-            Some(crate::EpiphanyModelingContinuationAction::Review) => {
-                Some("reviewModelingResult".to_string())
-            }
-            Some(crate::EpiphanyModelingContinuationAction::Launch) => {
-                Some("launchModeling".to_string())
-            }
-            Some(crate::EpiphanyModelingContinuationAction::Wait) | None => None,
-        },
-    )
+    let action = match request {
+        crate::RuntimeTypedRequestRef::ProposalModeling(_) => {
+            crate::proposal_modeling_continuation_action_for_job(runtime_store, &evidence.job_id)?
+        }
+        crate::RuntimeTypedRequestRef::FrontierVerdictModeling(_) => {
+            crate::frontier_verdict_modeling_continuation_action_for_job(
+                runtime_store,
+                &evidence.job_id,
+            )?
+        }
+        _ => None,
+    };
+    Ok(match action {
+        Some(crate::EpiphanyModelingContinuationAction::Review) => {
+            Some("reviewModelingResult".to_string())
+        }
+        Some(crate::EpiphanyModelingContinuationAction::Launch) => {
+            Some("launchModeling".to_string())
+        }
+        Some(crate::EpiphanyModelingContinuationAction::Wait) | None => None,
+    })
 }
 
 pub fn ingest_resident_self_coordinator_continuation_pressure(
@@ -1833,6 +1879,18 @@ fn resident_self_typed_request_ref<'a>(
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| anyhow!("proposal Modeling grant lost exact request provenance"))?;
             Some(crate::RuntimeTypedRequestRef::ProposalModeling(request_id))
+        }
+        "repo-frontier-verdict-modeling" => {
+            let request_id = grant
+                .provenance_ref
+                .strip_prefix("cultcache://repo-frontier-verdict-modeling/")
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| {
+                    anyhow!("frontier verdict Modeling grant lost exact request provenance")
+                })?;
+            Some(crate::RuntimeTypedRequestRef::FrontierVerdictModeling(
+                request_id,
+            ))
         }
         "admitted-model-direction-consideration" => {
             let request_id = grant

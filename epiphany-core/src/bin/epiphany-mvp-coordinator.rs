@@ -873,6 +873,47 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         steps.push(step);
                         continue;
                     }
+                    if role_id == "modeling"
+                        && let Some(job_id) =
+                            epiphany_core::current_frontier_verdict_modeling_review_job_id(
+                                &runtime_store,
+                            )?
+                    {
+                        let result =
+                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
+                                .ok_or_else(|| {
+                                    anyhow!(
+                                        "frontier verdict Modeling review lost its typed result"
+                                    )
+                                })?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierVerdictModelingResult", "roleId": role_id, "result": result}),
+                        );
+                        if !args.auto_review {
+                            final_action = json!({
+                                "action": "reviewModelingResult",
+                                "reason": "The exact frontier verdict Modeling result awaits keyed Mind admission.",
+                                "runtimeJobId": job_id,
+                            });
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            break;
+                        }
+                        let accepted = epiphany_core::accept_frontier_verdict_modeling_result(
+                            &runtime_store,
+                            &job_id,
+                            &now(),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierVerdictModelingAccept", "roleId": role_id, "commit": accepted}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     let result = read_role_result(&runtime_store, &thread_id, role_id)?;
                     push_event(
                         &mut step,
@@ -1047,7 +1088,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     };
                     let thread_free_modeling = role_id == "modeling"
                         && (proposal_modeling_request_id.is_some()
-                            || status["currentWork"]["bodyModeling"].is_object());
+                            || status["currentWork"]["bodyModeling"].is_object()
+                            || status["currentWork"]["frontierVerdictModeling"].is_object());
                     let launch = if role_id == "modeling"
                         && let Some(request_id) = proposal_modeling_request_id
                     {
@@ -1088,6 +1130,17 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
                             "backendJobId": binding.job_id,
                             "bodyModelingLaunchBinding": binding,
+                        })
+                    } else if role_id == "modeling"
+                        && status["currentWork"]["frontierVerdictModeling"].is_object()
+                    {
+                        let job_id = epiphany_core::launch_current_frontier_verdict_modeling_work(
+                            &runtime_store,
+                            &now(),
+                        )?;
+                        json!({
+                            "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
+                            "backendJobId": job_id,
                         })
                     } else {
                         launch_role(
@@ -1674,7 +1727,6 @@ fn launch_role(
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
     let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
-    let mut repo_frontier_modeling_request_id = None;
     let repo_frontier_research_request = if role
         == epiphany_core::EpiphanyRoleResultRoleId::Research
         && epiphany_core::runtime_has_actionable_eyes_frontier(runtime_store)?
@@ -1685,7 +1737,6 @@ fn launch_role(
     } else {
         None
     };
-    let mut repo_frontier_verdict_modeling_authority = None;
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
@@ -1713,18 +1764,6 @@ fn launch_role(
             &state,
         )
         .map_err(anyhow::Error::msg)?;
-    } else if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
-        let modeling_launch_context = epiphany_core::append_modeling_work_loop_telemetry_context(
-            context,
-            runtime_store,
-            &state,
-        )
-        .map_err(anyhow::Error::msg)?;
-        context = modeling_launch_context.context;
-        repo_frontier_modeling_request_id =
-            modeling_launch_context.repo_frontier_modeling_request_id;
-        repo_frontier_verdict_modeling_authority =
-            modeling_launch_context.repo_frontier_verdict_modeling_authority;
     }
     let role_context_augmented_ms = started.elapsed().as_millis();
     let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
@@ -1736,7 +1775,6 @@ fn launch_role(
         Some(context),
     )
     .map_err(anyhow::Error::msg)?;
-    request.repo_frontier_modeling_request_id = repo_frontier_modeling_request_id;
     request.repo_frontier_research_request_id = repo_frontier_research_request
         .as_ref()
         .map(|selected| selected.request_id.clone());
@@ -1746,7 +1784,6 @@ fn launch_role(
     ) {
         document.frontier_research_context = Some(selected.into());
     }
-    request.repo_frontier_verdict_modeling_authority = repo_frontier_verdict_modeling_authority;
     let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(
         thread_id,
@@ -2820,7 +2857,6 @@ mod tests {
             "render_launch_dynamic_prompt_context",
             "render_modeling_launch_dynamic_prompt_context",
             "append_verification_hands_receipt_context",
-            "append_modeling_work_loop_telemetry_context",
             ".launch_job(",
             ".accept_role(",
         ] {
@@ -2828,6 +2864,12 @@ mod tests {
                 native_roles.contains(required),
                 "missing native role seam {required:?}"
             );
+        }
+        for forbidden in [
+            concat!("append_modeling_work_loop_telemetry_", "context"),
+            concat!("accepted_research_is_newest_", "unmodeled_boundary"),
+        ] {
+            assert!(!source.contains(forbidden));
         }
         assert!(!native_roles.contains("append_modeling_repo_model_shape_context("));
         assert!(!native_roles.contains("AppServerClient"));

@@ -276,12 +276,21 @@ pub fn accept_coordinator_role_finding(
             ));
         }
         let verdict = soul_verdict_receipt_from_verification_finding(
-            format!("soul-verdict-{}", update.accepted_receipt_id),
+            format!(
+                "soul-verdict-{}",
+                finding.runtime_result_id.as_deref().unwrap_or_default()
+            ),
             &finding,
             accepted_at.clone(),
         );
+        let cache = coordinator_acceptance_cache(store)?;
+        let modeling_request =
+            crate::runtime_spine::derive_repo_frontier_modeling_request(&cache, &verdict)?;
         available.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
-        prerequisites.push(EpiphanyAcceptancePrerequisite::Soul(verdict));
+        prerequisites.push(EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
+            verdict,
+            modeling_request,
+        });
     }
     enforce_acceptance_receipt_proofs(
         &contract,
@@ -326,44 +335,12 @@ pub fn accept_coordinator_role_finding(
                 update,
             });
         } else {
-            let repository_body_observation_basis = result
-                .repository_body_observation_basis
-                .clone()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Modeling result has no Repository Body observation basis")
-                })?;
-            validate_repository_body_observation_basis(store, &repository_body_observation_basis)?;
-            let proposal = result.repo_model_mutation_proposal()?;
-            if proposal.is_none() {
-                return Err(anyhow::anyhow!(
-                    "Modeling result requiring RepoModel change has no semantic mutation proposal"
-                ));
-            }
-            let proposal = proposal.expect("checked above");
-            if proposal.proposal_id != format!("repo-model-mutation-proposal-{job_id}") {
-                return Err(anyhow::anyhow!(
-                    "Modeling RepoModel mutation proposal identity is not runtime-owned"
-                ));
-            }
-            let plan = plan_repo_model_mutation(store, &proposal)?;
-            let invariant_owner = "Modeling.frontier_verdict";
-            match commit_mind_mutation(
-                store,
-                &result.decision_context_id,
-                invariant_owner,
-                plan.strong_reads,
-                plan.writes,
-                &accepted_at,
-            )? {
-                EpiphanyMindCommitOutcome::Committed(_) => {}
-                EpiphanyMindCommitOutcome::Conflict {
-                    document_identities,
-                } => {
-                    return Err(anyhow::anyhow!(
-                        "RepoModel mutation lost its exact keyed reads: {document_identities:?}"
-                    ));
-                }
-            }
+            crate::accept_frontier_verdict_modeling_result(store, job_id, &accepted_at)?;
+            return Ok(EpiphanyNativeRoleAcceptance {
+                state: state.clone(),
+                finding,
+                update,
+            });
         }
     }
     let commit = mind_state_commit_receipt(
@@ -640,7 +617,10 @@ pub enum EpiphanyAcceptancePrerequisite {
     Eyes(EyesEvidencePacket),
     EyesSourceLookup(EyesSourceLookupReceipt),
     SubstrateGate(SubstrateGateRepoAccessGrantReceipt),
-    Soul(SoulVerdictReceipt),
+    SoulFrontierVerdict {
+        verdict: SoulVerdictReceipt,
+        modeling_request: crate::RepoFrontierModelingRequest,
+    },
     Continuity(ContinuityRecoveryReceipt),
 }
 
@@ -672,6 +652,19 @@ fn commit_state_with_mind_witness(
         expected_state,
     )?;
     let mut eyes_packet_jobs = BTreeSet::new();
+    for prerequisite in prerequisites {
+        if let EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
+            verdict,
+            modeling_request,
+        } = prerequisite
+            && crate::runtime_spine::derive_repo_frontier_modeling_request(&cache, verdict)?
+                != *modeling_request
+        {
+            return Err(anyhow::anyhow!(
+                "Soul verdict and frontier Modeling request lost exact typed causality"
+            ));
+        }
+    }
     for prerequisite in prerequisites {
         if let EpiphanyAcceptancePrerequisite::Eyes(packet) = prerequisite {
             if packet.source_role_id != "research"
@@ -741,7 +734,7 @@ fn commit_state_with_mind_witness(
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
     let mut batch = vec![review_envelope, commit_envelope];
     for prerequisite in prerequisites {
-        batch.push(match prerequisite {
+        let envelope = match prerequisite {
             EpiphanyAcceptancePrerequisite::Eyes(document) => {
                 cache.prepare_entry(&document.packet_id, document)?.0
             }
@@ -751,13 +744,22 @@ fn commit_state_with_mind_witness(
             EpiphanyAcceptancePrerequisite::SubstrateGate(document) => {
                 cache.prepare_entry(&document.receipt_id, document)?.0
             }
-            EpiphanyAcceptancePrerequisite::Soul(document) => {
-                cache.prepare_entry(&document.receipt_id, document)?.0
+            EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
+                verdict,
+                modeling_request,
+            } => {
+                batch.push(
+                    cache
+                        .prepare_entry(&modeling_request.request_id, modeling_request)?
+                        .0,
+                );
+                cache.prepare_entry(&verdict.receipt_id, verdict)?.0
             }
             EpiphanyAcceptancePrerequisite::Continuity(document) => {
                 cache.prepare_entry(&document.receipt_id, document)?.0
             }
-        });
+        };
+        batch.push(envelope);
     }
     coordinator_state_transaction::commit_coordinator_state_transaction(
         &mut cache,
@@ -1201,63 +1203,6 @@ mod tests {
                 .is_some()
         );
         assert!(cache.get::<MindStateCommitReceipt>("commit-9")?.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn accepted_soul_verdict_preserves_exact_frontier_binding() -> anyhow::Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("acceptance-soul.cc");
-        let state = EpiphanyThreadState {
-            revision: 11,
-            ..Default::default()
-        };
-        let review = MindGatewayReview {
-            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
-            gateway_id: "review-11".to_string(),
-            source_kind: "role".to_string(),
-            source_role_id: "verification".to_string(),
-            decision: MindGatewayDecision::Accept,
-            allowed_effects: Vec::new(),
-            refused_effects: Vec::new(),
-            reasons: Vec::new(),
-            contract: "test".to_string(),
-        };
-        let commit = mind_state_commit_receipt(
-            "commit-11".to_string(),
-            &review,
-            11,
-            Vec::new(),
-            "2026-07-13T00:00:00Z".to_string(),
-        );
-        let soul = SoulVerdictReceipt {
-            schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "soul-11".to_string(),
-            source_result_id: "result-11".to_string(),
-            source_job_id: "job-11".to_string(),
-            verdict: "pass".to_string(),
-            summary: "exact chain verified".to_string(),
-            evidence_ids: Vec::new(),
-            risks: Vec::new(),
-            emitted_at: "2026-07-13T00:00:00Z".to_string(),
-            contract: "test".to_string(),
-            verification_request_id: "verification-request-11".to_string(),
-            frontier_route_id: "frontier-route-11".to_string(),
-        };
-        commit_state_with_mind_witness(
-            &store,
-            "thread-11",
-            &state,
-            &state,
-            &review,
-            &commit,
-            &[EpiphanyAcceptancePrerequisite::Soul(soul.clone())],
-        )?;
-        let cache = coordinator_acceptance_cache(&store)?;
-        let stored = cache.get_required::<SoulVerdictReceipt>("soul-11")?;
-        assert_eq!(stored, soul);
-        assert_eq!(stored.verification_request_id, "verification-request-11");
-        assert_eq!(stored.frontier_route_id, "frontier-route-11");
         Ok(())
     }
 }

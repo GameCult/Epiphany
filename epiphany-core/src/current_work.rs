@@ -23,6 +23,7 @@ pub struct EpiphanyCurrentWorkProjection {
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
+    pub frontier_verdict_modeling: Option<EpiphanyFrontierVerdictModelingWorkProjection>,
     pub hands_frontier_ready: bool,
 }
 
@@ -37,6 +38,13 @@ pub enum EpiphanyModelingContinuationAction {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyProposalModelingWorkProjection {
     pub request: RepoFrontierProposalModelingRequest,
+    pub action: EpiphanyModelingContinuationAction,
+    pub job_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyFrontierVerdictModelingWorkProjection {
+    pub request: crate::RepoFrontierModelingRequest,
     pub action: EpiphanyModelingContinuationAction,
     pub job_id: Option<String>,
 }
@@ -321,8 +329,94 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
             .continuation_action(),
         frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
         proposal_modeling: current_proposal_modeling_work(&cache)?,
+        frontier_verdict_modeling: current_frontier_verdict_modeling_work(&cache)?,
         hands_frontier_ready: crate::runtime_has_actionable_hands_frontier(store_path)?,
     })
+}
+
+fn frontier_verdict_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("frontier-verdict-modeling-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("frontier verdict Modeling job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("frontier verdict Modeling attempt ordinal is invalid"))
+}
+
+fn current_frontier_verdict_modeling_work(
+    cache: &CultCache,
+) -> Result<Option<EpiphanyFrontierVerdictModelingWorkProjection>> {
+    let mut requests = cache.get_all::<crate::RepoFrontierModelingRequest>()?;
+    requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
+    let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    for request in requests {
+        let mut request_launches = launches
+            .iter()
+            .filter(|launch| {
+                launch.repo_frontier_modeling_request_id.as_deref()
+                    == Some(request.request_id.as_str())
+            })
+            .map(|launch| {
+                Ok((
+                    frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                    launch,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        request_launches.sort_by_key(|(ordinal, _)| *ordinal);
+        if let Some((_, launch)) = request_launches.last()
+            && let Some(result) =
+                cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?
+            && receipts.iter().any(|receipt| {
+                receipt.invariant_owner == "Modeling.frontier_verdict"
+                    && matches!(
+                        &receipt.authority,
+                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                            decision_context_id
+                        } if decision_context_id == &result.decision_context_id
+                    )
+            })
+        {
+            continue;
+        }
+        crate::runtime_spine::validate_repo_frontier_modeling_request(cache, &request)?;
+        let Some((_, launch)) = request_launches.last() else {
+            return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
+                request,
+                action: EpiphanyModelingContinuationAction::Launch,
+                job_id: None,
+            }));
+        };
+        let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
+        if let Some(result) = result.as_ref()
+            && result.repo_frontier_modeling_request_id.as_deref()
+                != Some(request.request_id.as_str())
+        {
+            return Err(anyhow!(
+                "frontier verdict Modeling result crossed request authority"
+            ));
+        }
+        let job = cache
+            .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
+            .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its runtime job"))?;
+        let action = match job.status {
+            crate::EpiphanyRuntimeJobStatus::Failed
+            | crate::EpiphanyRuntimeJobStatus::Cancelled => {
+                EpiphanyModelingContinuationAction::Launch
+            }
+            crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
+                EpiphanyModelingContinuationAction::Review
+            }
+            _ => EpiphanyModelingContinuationAction::Wait,
+        };
+        return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
+            request,
+            action,
+            job_id: Some(launch.job_id.clone()),
+        }));
+    }
+    Ok(None)
 }
 
 fn body_modeling_continuation_action(
@@ -502,6 +596,25 @@ pub fn current_proposal_modeling_review_job_id(
         .and_then(|work| work.job_id))
 }
 
+pub fn frontier_verdict_modeling_continuation_action_for_job(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyModelingContinuationAction>> {
+    Ok(project_current_work(store_path)?
+        .frontier_verdict_modeling
+        .filter(|work| work.job_id.as_deref() == Some(job_id))
+        .map(|work| work.action))
+}
+
+pub fn current_frontier_verdict_modeling_review_job_id(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<String>> {
+    Ok(project_current_work(store_path)?
+        .frontier_verdict_modeling
+        .filter(|work| work.action == EpiphanyModelingContinuationAction::Review)
+        .and_then(|work| work.job_id))
+}
+
 pub fn accept_body_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
@@ -636,6 +749,86 @@ pub fn accept_proposal_modeling_result(
     }
 }
 
+pub fn accept_frontier_verdict_modeling_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    accepted_at: &str,
+) -> Result<crate::EpiphanyMindCommitReceipt> {
+    let store_path = store_path.as_ref();
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let current = current_frontier_verdict_modeling_work(&cache)?
+        .filter(|work| {
+            work.action == EpiphanyModelingContinuationAction::Review
+                && work.job_id.as_deref() == Some(job_id)
+        })
+        .ok_or_else(|| anyhow!("frontier verdict Modeling result is not current review work"))?;
+    let result = cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling acceptance lost its typed result"))?;
+    if !result.role_id.eq_ignore_ascii_case("modeling")
+        || result.repo_frontier_modeling_request_id.as_deref()
+            != Some(current.request.request_id.as_str())
+        || result.proposal_modeling_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "frontier verdict Modeling result crossed family authority"
+        ));
+    }
+    let proposal = result
+        .repo_model_mutation_proposal()?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling result has no mutation proposal"))?;
+    if proposal.proposal_id != format!("repo-model-mutation-proposal-{job_id}") {
+        return Err(anyhow!(
+            "frontier verdict Modeling mutation proposal identity is not runtime-owned"
+        ));
+    }
+    let plan = crate::plan_repo_model_mutation(store_path, &proposal)?;
+    let expected_frontier_version = current
+        .request
+        .model_source_documents
+        .iter()
+        .find(|source| {
+            source.document_type == crate::EpiphanyRepoModelFrontierDocument::TYPE
+                && source.document_key == current.request.frontier_item_id
+        })
+        .ok_or_else(|| {
+            anyhow!("frontier verdict Modeling request lost its exact frontier version")
+        })?;
+    let planned_frontier = plan
+        .strong_reads
+        .iter()
+        .find(|envelope| {
+            envelope.r#type == crate::EpiphanyRepoModelFrontierDocument::TYPE
+                && envelope.key == current.request.frontier_item_id
+        })
+        .ok_or_else(|| {
+            anyhow!("frontier verdict Modeling mutation omitted its strong frontier read")
+        })?;
+    if crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", planned_frontier)?
+        != *expected_frontier_version
+    {
+        return Err(anyhow!(
+            "frontier verdict Modeling output cannot be rebased onto a changed frontier"
+        ));
+    }
+    match crate::commit_mind_mutation(
+        store_path,
+        &result.decision_context_id,
+        "Modeling.frontier_verdict",
+        plan.strong_reads,
+        plan.writes,
+        accepted_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => Err(anyhow!(
+            "frontier verdict Modeling admission lost exact keyed reads: {document_identities:?}"
+        )),
+    }
+}
+
 fn commit_current_work_launch(
     store_path: &Path,
     cache: &CultCache,
@@ -735,6 +928,7 @@ pub fn launch_current_body_modeling_work(
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(work.body_basis.clone()),
             proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
             frontier_plan_mind_context: None,
@@ -785,7 +979,6 @@ pub fn launch_current_body_modeling_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority: None,
             created_at: options.created_at.clone(),
         },
     )?;
@@ -904,6 +1097,7 @@ pub fn launch_current_proposal_modeling_work(
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(body_basis),
             proposal_modeling_context: Some(proposal_context),
+            frontier_verdict_modeling_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
             frontier_plan_mind_context: None,
@@ -957,7 +1151,6 @@ pub fn launch_current_proposal_modeling_work(
             admitted_model_direction_consideration_request_id: None,
             repo_frontier_modeling_request_id: None,
             repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority: None,
             created_at: options.created_at.clone(),
         },
     )?;
@@ -1015,6 +1208,156 @@ pub fn launch_current_proposal_modeling_work(
         "proposal Modeling",
     )?;
     Ok(binding)
+}
+
+pub fn launch_current_frontier_verdict_modeling_work(
+    store_path: impl AsRef<Path>,
+    created_at: &str,
+) -> Result<String> {
+    let store_path = store_path.as_ref();
+    if chrono::DateTime::parse_from_rfc3339(created_at).is_err() {
+        return Err(anyhow!("frontier verdict Modeling launch time is invalid"));
+    }
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let work = current_frontier_verdict_modeling_work(&cache)?
+        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
+        .ok_or_else(|| anyhow!("Mind has no launchable frontier verdict Modeling work"))?;
+    let request = work.request;
+    let verdict = cache
+        .get::<crate::SoulVerdictReceipt>(&request.soul_verdict_receipt_id)?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its Soul verdict"))?;
+    let frontier_document = cache
+        .get::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its frontier document"))?;
+    let frontier_item = frontier_document.value()?;
+    let mind = crate::assemble_mind_view(store_path)?;
+    let body_basis = mind
+        .repository_body_observation
+        .clone()
+        .ok_or_else(|| anyhow!("frontier verdict Modeling launch requires admitted Body state"))?;
+    let identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier verdict Modeling launch requires runtime identity"))?;
+    let attempt_ordinal = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| {
+            launch.repo_frontier_modeling_request_id.as_deref() == Some(request.request_id.as_str())
+        })
+        .map(|launch| frontier_verdict_attempt_ordinal(&request.request_id, &launch.job_id))
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .max()
+        .map_or(0, |ordinal| ordinal + 1);
+    let job_id = format!(
+        "frontier-verdict-modeling-{}-attempt-{attempt_ordinal}",
+        request.request_id
+    );
+    let authority = crate::RepoFrontierVerdictModelingLaunchAuthority {
+        request: request.clone(),
+        frontier_item,
+        soul_verdict: verdict.clone(),
+    };
+    let launch_document =
+        crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+            thread_id: job_id.clone(),
+            role_id: "modeling".into(),
+            state_revision: 0,
+            objective: None,
+            dynamic_prompt_context: None,
+            repository_body_observation_basis: Some(body_basis),
+            proposal_modeling_context: None,
+            frontier_verdict_modeling_context: Some(authority),
+            frontier_planning_context: None,
+            frontier_research_context: None,
+            frontier_plan_mind_context: None,
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        });
+    let authority_scope = "epiphany.role.modeling".to_string();
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let prepared = crate::prepare_runtime_spine_heartbeat_job(
+        &cache,
+        crate::RuntimeSpineHeartbeatJobOptions {
+            runtime_id: identity.runtime_id,
+            display_name: "Epiphany Local".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Incorporate one exact Soul verdict into its routed frontier".into(),
+            coordinator_note:
+                "Frontier verdict current-work launch transaction opened this session.".into(),
+            job_id: job_id.clone(),
+            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.clone(),
+            instruction: "Act as Epiphany Modeling. Incorporate the exact typed Soul verdict into only its routed frontier item and return the frontier-verdict result contract.".into(),
+            launch_document,
+            output_contract_id: output_contract_id.clone(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                &authority_scope,
+                "role",
+                &output_contract_id,
+            ),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: Some(request.request_id.clone()),
+            repo_frontier_research_request_id: None,
+            created_at: created_at.to_string(),
+        },
+    )?;
+    let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
+        format!("substrate-grant-{job_id}"),
+        job_id.clone(),
+        crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
+        crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
+        authority_scope,
+        false,
+        created_at.to_string(),
+    );
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (
+            crate::RepoFrontierModelingRequest::TYPE,
+            request.request_id.as_str(),
+        ),
+        (crate::SoulVerdictReceipt::TYPE, verdict.receipt_id.as_str()),
+        (
+            crate::EpiphanyRepoModelFrontierDocument::TYPE,
+            request.frontier_item_id.as_str(),
+        ),
+    ] {
+        let envelope = snapshot
+            .iter()
+            .find(|value| value.r#type == document_type && value.key == document_key)
+            .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost a strong source"))?;
+        expected.push(envelope.clone());
+    }
+    commit_current_work_launch(
+        store_path,
+        &cache,
+        expected,
+        prepared.envelopes,
+        vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
+        "frontier verdict Modeling",
+    )?;
+    Ok(job_id)
 }
 
 fn build_proposal_modeling_context_projection(
@@ -1665,6 +2008,405 @@ mod tests {
             accepted_cache
                 .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
                 .is_none()
+        );
+
+        let model = crate::assemble_repo_model_view(&store)?;
+        let frontier_item = model
+            .frontier
+            .iter()
+            .find(|item| item.id == "proposal-frontier")
+            .cloned()
+            .expect("proposal admission created its frontier");
+        let frontier_hash = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&frontier_item)?)
+        );
+        let route = crate::RepoFrontierRoute {
+            schema_version: crate::REPO_FRONTIER_ROUTE_SCHEMA_VERSION.into(),
+            route_id: "route-proposal-frontier".into(),
+            next_organ: crate::RepoFrontierNextOrgan::Hands,
+            model_projection_digest: model.projection_digest.clone(),
+            model_source_documents: model.source_documents.clone(),
+            frontier_item_id: frontier_item.id.clone(),
+            frontier_item_hash: frontier_hash.clone(),
+            migration_body: frontier_item.migration_body.clone(),
+            question: frontier_item.question.clone(),
+            gap: frontier_item.gap.clone(),
+            target_claim_ids: frontier_item.target_claim_ids.clone(),
+            source_scope: frontier_item.source_scope.clone(),
+            adopted_plan: frontier_item.adopted_plan.clone(),
+            selected_at: "2026-08-17T00:00:14Z".into(),
+            contract: crate::REPO_FRONTIER_ROUTE_CONTRACT.into(),
+        };
+        let verification_request = crate::RepoFrontierVerificationRequest {
+            schema_version: crate::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "verification-proposal-frontier".into(),
+            route_id: route.route_id.clone(),
+            model_projection_digest: route.model_projection_digest.clone(),
+            model_source_documents: route.model_source_documents.clone(),
+            frontier_item_id: route.frontier_item_id.clone(),
+            frontier_item_hash: route.frontier_item_hash.clone(),
+            hands_intent_id: "hands-intent".into(),
+            hands_review_id: "hands-review".into(),
+            hands_patch_receipt_id: "hands-patch".into(),
+            hands_command_receipt_id: "hands-command".into(),
+            hands_commit_receipt_id: "hands-commit".into(),
+            requested_at: "2026-08-17T00:00:15Z".into(),
+            contract: crate::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
+        };
+        let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "verification-result".into(),
+            job_id: "verification-job".into(),
+            role_id: "verification".into(),
+            verdict: "pass".into(),
+            summary: "verified exact consequence".into(),
+            next_safe_move: "incorporate verdict".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec!["body-node".into()],
+            evidence_ids: vec!["hands-commit".into()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: Some(verification_request.request_id.clone()),
+            frontier_route_id: Some(route.route_id.clone()),
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: "verification-context".into(),
+        };
+        let verdict = crate::SoulVerdictReceipt {
+            schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "soul-verdict-verification-result".into(),
+            source_result_id: verification_result.result_id.clone(),
+            source_job_id: verification_result.job_id.clone(),
+            verdict: verification_result.verdict.clone(),
+            summary: verification_result.summary.clone(),
+            evidence_ids: verification_result.evidence_ids.clone(),
+            risks: verification_result.risks.clone(),
+            emitted_at: "2026-08-17T00:00:16Z".into(),
+            contract: "test Soul verdict".into(),
+            verification_request_id: verification_request.request_id.clone(),
+            frontier_route_id: route.route_id.clone(),
+        };
+        accepted_cache.put(&route.route_id, &route)?;
+        accepted_cache.put(&verification_request.request_id, &verification_request)?;
+        accepted_cache.put(&verification_result.job_id, &verification_result)?;
+        accepted_cache.put(&verdict.receipt_id, &verdict)?;
+        let verdict_request = crate::commit_repo_frontier_modeling_request(&store, &verdict)?;
+        assert_eq!(
+            project_current_work(&store)?
+                .frontier_verdict_modeling
+                .expect("Soul verdict creates frontier Modeling work")
+                .action,
+            EpiphanyModelingContinuationAction::Launch
+        );
+        let verdict_racers = (0..2)
+            .map(|_| {
+                let store = store.clone();
+                std::thread::spawn(move || {
+                    launch_current_frontier_verdict_modeling_work(&store, "2026-08-17T00:00:17Z")
+                })
+            })
+            .collect::<Vec<_>>();
+        let verdict_launches = verdict_racers
+            .into_iter()
+            .map(|racer| racer.join().expect("verdict launch racer panicked"))
+            .collect::<Vec<_>>();
+        let verdict_job_id = verdict_launches
+            .iter()
+            .find_map(|result| result.as_ref().ok())
+            .cloned()
+            .expect("one frontier verdict launch racer must commit");
+        assert!(
+            verdict_launches
+                .iter()
+                .filter(|result| result.is_ok())
+                .count()
+                == 1
+        );
+        assert_eq!(
+            verdict_job_id,
+            format!(
+                "frontier-verdict-modeling-{}-attempt-0",
+                verdict_request.request_id
+            )
+        );
+        let mut verdict_cache = crate::runtime_spine_cache(&store)?;
+        verdict_cache.pull_all_backing_stores()?;
+        let verdict_launch = verdict_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&verdict_job_id)?
+            .expect("frontier verdict runtime launch");
+        let crate::EpiphanyWorkerLaunchDocument::Role(verdict_document) =
+            verdict_launch.launch_document()?
+        else {
+            panic!("frontier verdict Modeling must be a role pass")
+        };
+        assert!(verdict_document.dynamic_prompt_context.is_none());
+        assert_eq!(
+            verdict_document
+                .frontier_verdict_modeling_context
+                .as_ref()
+                .expect("sealed typed verdict context")
+                .soul_verdict,
+            verdict
+        );
+        let verdict_basis = crate::worker_reasoning_basis(&store, &verdict_launch)?;
+        crate::put_reasoning_basis(&store, &verdict_basis)?;
+        let mut verdict_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "frontier-verdict-request",
+            "frontier-verdict-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        verdict_native.reasoning_basis_id = Some(verdict_basis.basis_id.clone());
+        verdict_native.source_worker_job_id = Some(verdict_job_id.clone());
+        let verdict_provider = epiphany_openai_adapter::request_from_native(&verdict_native);
+        let verdict_context = crate::EpiphanyDecisionContext::new(
+            &verdict_basis,
+            verdict_native,
+            verdict_provider,
+            Vec::new(),
+        )?;
+        verdict_cache.put(&verdict_context.context_id, &verdict_context)?;
+
+        // A separate typed mutation may extend another semantic identity after
+        // this pass seals its basis. That is concurrency, not staleness: the
+        // verdict result owns only the routed frontier and its exact
+        // dependencies.
+        let mut unrelated_node = model
+            .nodes
+            .iter()
+            .find(|node| node.id == "body-node")
+            .cloned()
+            .expect("seeded Body node");
+        unrelated_node.id = "concurrent-unrelated-node".into();
+        unrelated_node.title = "Concurrent unrelated node".into();
+        unrelated_node.claim = "Disjoint keyed Mind writes merge".into();
+        unrelated_node.updated_at = Some("2026-08-17T00:00:17.500Z".into());
+        let unrelated_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-concurrent-unrelated",
+            "concurrent-unrelated-request",
+            "concurrent-unrelated-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutNode {
+                node: unrelated_node,
+            }],
+        )?;
+        let unrelated_plan = crate::plan_repo_model_mutation(&store, &unrelated_proposal)?;
+        let verdict_provenance = verdict_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("typed Soul provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                verdict_provenance,
+                "Modeling.concurrent_unrelated_fixture",
+                unrelated_plan.strong_reads,
+                unrelated_plan.writes,
+                "2026-08-17T00:00:17.500Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+
+        let mut resolved_item = frontier_item.clone();
+        resolved_item.status = RepoFrontierStatus::Resolved;
+        resolved_item.gap = "The exact consequence passed Soul verification.".into();
+        resolved_item.updated_at = Some("2026-08-17T00:00:18Z".into());
+        resolved_item
+            .evidence_refs
+            .push(verification_request.request_id.clone());
+        resolved_item.evidence_refs.push(verdict.receipt_id.clone());
+        resolved_item.evidence_refs.sort();
+        resolved_item.evidence_refs.dedup();
+        let verdict_result_id = "frontier-verdict-result";
+        let verdict_mutation = crate::EpiphanyRepoModelMutationProposal::new(
+            format!("repo-model-mutation-proposal-{verdict_job_id}"),
+            verdict_request.request_id.clone(),
+            verdict_result_id,
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: resolved_item,
+            }],
+        )?;
+        let verdict_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: verdict_result_id.into(),
+            job_id: verdict_job_id.clone(),
+            role_id: "modeling".into(),
+            verdict: "checkpoint-update-needed".into(),
+            summary: "Soul verdict incorporated".into(),
+            next_safe_move: "admit".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec!["body-node".into()],
+            evidence_ids: vec![verdict.receipt_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: Some(rmp_serde::to_vec_named(&verdict_mutation)?),
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: Some(verdict_request.request_id.clone()),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: Some(body.clone()),
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: verdict_context.context_id.clone(),
+        };
+        let verdict_process = crate::ProcessInstanceIdentity {
+            process_id: 43,
+            creation_token: 8,
+            created_at_rfc3339: Some("2026-08-17T00:00:18Z".into()),
+            executable_path: "verdict-worker".into(),
+        };
+        let verdict_activation = "verdict-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &verdict_job_id,
+            &verdict_process,
+            &format!("{:x}", Sha256::digest(verdict_activation.as_bytes())),
+            "2026-08-17T00:00:18Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &verdict_job_id,
+            &verdict_process,
+            verdict_activation,
+            "2026-08-17T00:00:19Z",
+        )?;
+        crate::put_runtime_role_worker_result(&store, &verdict_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{verdict_job_id}"),
+                job_id: verdict_job_id.clone(),
+                completed_at: "2026-08-17T00:00:20Z".into(),
+                verdict: verdict_result.verdict.clone(),
+                summary: verdict_result.summary.clone(),
+                next_safe_move: verdict_result.next_safe_move.clone(),
+                evidence_refs: verdict_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(verdict_context.context_id.clone()),
+            },
+        )?;
+        assert_eq!(
+            project_current_work(&store)?
+                .frontier_verdict_modeling
+                .expect("terminal verdict work awaits admission")
+                .action,
+            EpiphanyModelingContinuationAction::Review
+        );
+
+        // The same fixture, copied before admission, proves the other half of
+        // the merge law. If another valid mutation changes this exact frontier,
+        // the sealed verdict output is stale and must not be silently rebased.
+        let conflict_store = temp.path().join("frontier-conflict.cc");
+        std::fs::copy(&store, &conflict_store)?;
+        let mut competing_item = frontier_item.clone();
+        competing_item.gap = "A competing decision changed this exact frontier.".into();
+        competing_item.updated_at = Some("2026-08-17T00:00:20.500Z".into());
+        let competing_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-competing-frontier",
+            "competing-frontier-request",
+            "competing-frontier-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: competing_item,
+            }],
+        )?;
+        let competing_plan = crate::plan_repo_model_mutation(&conflict_store, &competing_proposal)?;
+        let mut conflict_cache = crate::runtime_spine_cache(&conflict_store)?;
+        conflict_cache.pull_all_backing_stores()?;
+        let conflict_provenance = conflict_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("copied Soul provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &conflict_store,
+                "Soul",
+                conflict_provenance,
+                "Soul.competing_frontier_fixture",
+                competing_plan.strong_reads,
+                competing_plan.writes,
+                "2026-08-17T00:00:20.500Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let mut conflict_before = crate::runtime_spine_cache(&conflict_store)?;
+        conflict_before.pull_all_backing_stores()?;
+        let conflict_before = conflict_before.snapshot_envelopes();
+        assert!(
+            accept_frontier_verdict_modeling_result(
+                &conflict_store,
+                &verdict_job_id,
+                "2026-08-17T00:00:21Z",
+            )
+            .is_err()
+        );
+        let mut conflict_after = crate::runtime_spine_cache(&conflict_store)?;
+        conflict_after.pull_all_backing_stores()?;
+        assert_eq!(conflict_after.snapshot_envelopes(), conflict_before);
+
+        let verdict_commit = accept_frontier_verdict_modeling_result(
+            &store,
+            &verdict_job_id,
+            "2026-08-17T00:00:21Z",
+        )?;
+        assert_eq!(verdict_commit.invariant_owner, "Modeling.frontier_verdict");
+        assert!(
+            project_current_work(&store)?
+                .frontier_verdict_modeling
+                .is_none()
+        );
+        let final_model = crate::assemble_repo_model_view(&store)?;
+        assert_eq!(
+            final_model
+                .frontier
+                .iter()
+                .find(|item| item.id == frontier_item.id)
+                .expect("frontier persists")
+                .status,
+            RepoFrontierStatus::Resolved
+        );
+        assert!(
+            final_model
+                .nodes
+                .iter()
+                .any(|node| node.id == "concurrent-unrelated-node")
         );
         Ok(())
     }

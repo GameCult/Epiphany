@@ -550,6 +550,10 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         research_continuation_action,
         frontier_planning_stage: frontier_planning.stage,
         proposal_modeling_action: proposal_modeling_work.map(|work| work.action),
+        frontier_verdict_modeling_action: current_work
+            .frontier_verdict_modeling
+            .as_ref()
+            .map(|work| work.action),
         body_modeling_work_ready: current_work.body_modeling.is_some(),
         body_modeling_review_ready: current_work.body_modeling_action
             == Some(epiphany_core::EpiphanyModelingContinuationAction::Review),

@@ -59,6 +59,23 @@ pub fn frontier_plan_mind_request_id(
     )
 }
 
+pub fn frontier_verdict_modeling_request_id(
+    runtime_id: &str,
+    soul_verdict_receipt_id: &str,
+    verification_result_id: &str,
+    frontier_route_id: &str,
+) -> String {
+    digest_id(
+        "repo-frontier-verdict-modeling",
+        &[
+            runtime_id,
+            soul_verdict_receipt_id,
+            verification_result_id,
+            frontier_route_id,
+        ],
+    )
+}
+
 pub fn admitted_model_direction_request_id(
     runtime_id: &str,
     model_projection_digest: &str,
