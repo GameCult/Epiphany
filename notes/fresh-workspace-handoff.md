@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`c7412998` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`fc5d1a4a` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -22,7 +22,8 @@ or repair path can restore their authority.
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
 unmigrated launch/acceptance/status readers remain live production authorities.
-Baseline Body, Proposal, frontier-verdict Modeling, and frontier Research are no longer among them:
+Baseline Body, Proposal, frontier-verdict Modeling, frontier Research, and
+frontier Verification are no longer among them:
 keyed Mind owns their work projections, operator and Resident launch, exact job-bound
 continuation, review, and semantic admission. Research is driven only by an explicit
 external-evidence obligation; accepted Eyes state, timestamps, generic regather, and
@@ -56,7 +57,8 @@ canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
 Verification is green at the latest ownership cut: Epiphany core library
-561/561, OpenAI runtime 43/43, Self policy 26/26, and coordinator runtime 18/18.
+559/559, OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI
+all-target checks pass.
 An unfiltered core package run also exposed two pre-existing
 `epiphany-hands-action` fixture failures: those fixtures omit the exact
 `RepoFrontierHandsAuthority` already required by production. The gate was not
@@ -67,7 +69,8 @@ still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
 
 These are implementation and isolated proof claims. They are not sustained
-Starfire dogfood. Gate 1 is the next rite: use separate real stores and
+Starfire dogfood. Planning, reorientation, and final aggregate deletion are the
+next source rites; only then may Gate 1 use separate real stores and
 identities; keep impact ingress absent while ordinary Modeling seeds facts and
 publishers/projector establish signed sight; then engage all three Atlas brakes
 and prove later organ cycles are held while the last Eve projection remains
@@ -362,8 +365,9 @@ deleted. A shared exact-envelope launch CAS remains because it protects the
 same atomic publication invariant for Body and Proposal, not because it owns
 family policy.
 
-Exact `e404c105` removes the duplicate Body/Proposal continuation enums. One
-`EpiphanyModelingContinuationAction` now names Launch, Wait, and Review; each
+Exact `e404c105` removed the duplicate Body/Proposal continuation enums; exact
+`fc5d1a4a` names the shared vocabulary `EpiphanyAgentPassContinuationAction`.
+It names Launch, Wait, and Review; each
 family retains its own request, projection, validity rules, and admission owner.
 
 Exact `20dd66c8` deletes claim-repair's request/binding/context schemas, runtime
@@ -404,11 +408,20 @@ omitted middle optionals. CultCache exact `ba6a487` adds named nested preparatio
 Mind envelopes retain their typed numeric slots while nested document fields remain named.
 Objective, Body, and Research Mind writers now share that boundary.
 
-Map and migrate Verification next onto its exact Hands consequence, request/launch,
-terminal decision context, typed audit, Soul verdict, and family-owned Mind commit. Delete
-generic role launch/acceptance, latest-result, accepted-at, and thread-state authority for
-that family. Continue with planning and reorientation, then delete the aggregate
-schema/transaction. Run the source
+Exact `fc5d1a4a` completes that Verification cut. The exact Hands commit and
+derived `RepoFrontierVerificationRequest` publish atomically; current-work owns
+Launch/Wait/Review; the sealed role projection carries the exact route,
+frontier, Hands authority and receipts; and `Soul.verification` admission writes
+the keyed audit, Soul verdict, deterministic frontier-Modeling request, and
+Mind commit receipt in one transaction. A disjoint keyed node commit merges,
+an exact-frontier change refuses byte-identically, and replay returns the
+original receipt. Generic Verification launch/acceptance, accepted-at/latest
+selection, dynamic telemetry prompt mutation, and model-authored causal IDs are
+gone.
+
+Map and migrate frontier Planning and PlanMind next onto their exact frontier,
+candidate, decision-context, and keyed Mind authorities. Continue with
+reorientation, then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational

@@ -4984,8 +4984,9 @@ gone. Verification proves concurrent launch convergence, exact Wait/Review,
 keyed admission, no thread-state envelope, core 564/564, Self policy 26/26, and
 the coordinator-runtime feature build.
 
-Exact `e404c105` collapses the duplicated Body and Proposal Launch/Wait/Review
-enums into `EpiphanyModelingContinuationAction`. This type owns only the common
+Exact `e404c105` collapsed the duplicated Body and Proposal Launch/Wait/Review
+enums; exact `fc5d1a4a` names the now-shared vocabulary truthfully as
+`EpiphanyAgentPassContinuationAction`. This type owns only the common
 attempt-continuation vocabulary. It does not own request selection, result
 validity, mutation shape, or admission; those remain with the concrete Body and
 Proposal families. The shared vocabulary is therefore DRY without becoming a
@@ -5097,3 +5098,42 @@ omitted: later fields can occupy the wrong schema positions. CultCache exact
 named maps. `prepare_mind_document` is the single Mind boundary, and objective,
 Body, and Research writers use it. This is an encoding owner, not a second state
 format or compatibility path.
+
+## Keyed frontier Verification lifecycle (2026-08-18)
+
+Exact `fc5d1a4a` removes Verification from aggregate coordinator behavior. A
+successful exact Hands commit publishes its `HandsCommitReceipt` and derived
+`RepoFrontierVerificationRequest` in one CAS transaction. The request seals the
+route, exact frontier document, Hands authority, intent, review, patch receipt,
+command receipt, and commit receipt. The full RepoModel projection remains
+audit cargo and cannot turn unrelated graph work into a conflict.
+
+- Owner: `project_current_work` derives Verification Launch/Wait/Review;
+  `launch_current_frontier_verification_work` publishes the deterministic
+  attempt; `accept_frontier_verification_result` alone admits the decision under
+  `Soul.verification`.
+- Inputs: one exact routed frontier, one complete authorized Hands consequence,
+  immutable Verification request and launch, terminal runtime result, sealed
+  reasoning basis, and exact decision context.
+- Outputs: one keyed `EpiphanyMindVerificationAuditDocument`, one typed
+  `SoulVerdictReceipt`, one deterministic `RepoFrontierModelingRequest`, and one
+  atomic `EpiphanyMindCommitReceipt`.
+- Derived state: role boards, events, accepted-at timestamps, latest result
+  slots, generic Verification status, and coordinator thread are display or
+  transport projections only.
+- Forbidden writers: generic role launch/acceptance, aggregate thread updates,
+  accepted-at comparisons, dynamic Hands telemetry prompt appenders, and the
+  model cannot create, suppress, review, or admit Verification. The runtime,
+  not model JSON, supplies request and route identity from the sealed launch.
+- Shared paths: operator, status, and Resident consume the same current-work
+  projection and the same admission owner. Runtime fulfillment and archival use
+  the same typed `FrontierVerification` request reference.
+- Cut line: the aggregate Soul-verdict acceptance prerequisite, latest Hands
+  consequence selector, prompt-time request writer, and generic Verification
+  launch/acceptance fallback are deleted. `EpiphanyAgentPassContinuationAction`
+  shares only Launch/Wait/Review vocabulary across concrete pass families.
+- Verification: exact replay returns the original commit receipt; an unrelated
+  keyed node commit between inference and admission merges; an exact-frontier
+  change refuses admission with the copied store byte-identical. Core 559/559,
+  OpenAI runtime 23/23, coordinator runtime 18/18, and both all-target checks
+  pass.
