@@ -145,20 +145,40 @@ pub fn substrate_gate_repo_access_grant_for_launch(
     request: &EpiphanyJobLaunchRequest,
     granted_at: String,
 ) -> SubstrateGateRepoAccessGrantReceipt {
+    substrate_gate_repo_access_grant_for_worker(
+        receipt_id,
+        runtime_job_id,
+        request.binding_id.clone(),
+        request.owner_role.clone(),
+        request.authority_scope.clone(),
+        request.binding_id == crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+        granted_at,
+    )
+}
+
+pub fn substrate_gate_repo_access_grant_for_worker(
+    receipt_id: String,
+    runtime_job_id: String,
+    binding_id: String,
+    role: String,
+    authority_scope: String,
+    allow_public_source_read: bool,
+    granted_at: String,
+) -> SubstrateGateRepoAccessGrantReceipt {
     let mut granted_operations = vec![
         SUBSTRATE_GATE_SOURCE_READ_OPERATION.to_string(),
         "snapshot".to_string(),
     ];
-    if request.binding_id == crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
+    if allow_public_source_read {
         granted_operations.push(SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION.to_string());
     }
     SubstrateGateRepoAccessGrantReceipt {
         schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
         runtime_job_id,
-        binding_id: request.binding_id.clone(),
-        role: request.owner_role.clone(),
-        authority_scope: request.authority_scope.clone(),
+        binding_id,
+        role,
+        authority_scope,
         granted_operations,
         granted_paths: vec![".".to_string()],
         granted_at,
