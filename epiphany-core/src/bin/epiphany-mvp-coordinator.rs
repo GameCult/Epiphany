@@ -799,6 +799,43 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
+                    if role_id == "research"
+                        && let Some(job_id) =
+                            epiphany_core::current_frontier_research_review_job_id(&runtime_store)?
+                    {
+                        let result =
+                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
+                                .ok_or_else(|| {
+                                    anyhow!("frontier Research review lost its typed result")
+                                })?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierResearchResult", "roleId": role_id, "result": result}),
+                        );
+                        if !args.auto_review {
+                            final_action = json!({
+                                "action": "reviewResearchResult",
+                                "reason": "The exact frontier Research result awaits keyed Mind admission.",
+                                "runtimeJobId": job_id,
+                            });
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            break;
+                        }
+                        let accepted = epiphany_core::accept_frontier_research_result(
+                            &runtime_store,
+                            &job_id,
+                            &now(),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "frontierResearchAccept", "roleId": role_id, "commit": accepted}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     if role_id == "modeling"
                         && let Some(job_id) =
                             epiphany_core::current_proposal_modeling_review_job_id(&runtime_store)?
@@ -1086,11 +1123,21 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     } else {
                         None
                     };
-                    let thread_free_modeling = role_id == "modeling"
-                        && (proposal_modeling_request_id.is_some()
-                            || status["currentWork"]["bodyModeling"].is_object()
-                            || status["currentWork"]["frontierVerdictModeling"].is_object());
-                    let launch = if role_id == "modeling"
+                    let thread_free_role = role_id == "research"
+                        || (role_id == "modeling"
+                            && (proposal_modeling_request_id.is_some()
+                                || status["currentWork"]["bodyModeling"].is_object()
+                                || status["currentWork"]["frontierVerdictModeling"].is_object()));
+                    let launch = if role_id == "research" {
+                        let job_id = epiphany_core::launch_current_frontier_research_work(
+                            &runtime_store,
+                            &now(),
+                        )?;
+                        json!({
+                            "bindingId": epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+                            "backendJobId": job_id,
+                        })
+                    } else if role_id == "modeling"
                         && let Some(request_id) = proposal_modeling_request_id
                     {
                         let current = epiphany_core::project_current_work(&runtime_store)?
@@ -1177,7 +1224,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &mut step,
                         json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
                     );
-                    let result = if thread_free_modeling {
+                    let result = if thread_free_role {
                         match epiphany_core::runtime_role_worker_result(
                             &runtime_store,
                             &worker_job_id,
@@ -1188,7 +1235,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             }),
                             None => json!({
                                 "status": "running",
-                                "note": "The exact keyed Modeling attempt has not produced a terminal result.",
+                                "note": "The exact keyed role attempt has not produced a terminal result.",
                             }),
                         }
                     } else {
@@ -1727,16 +1774,11 @@ fn launch_role(
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
     let state_loaded_ms = started.elapsed().as_millis();
     let role = parse_role_id(role_id)?;
-    let repo_frontier_research_request = if role
-        == epiphany_core::EpiphanyRoleResultRoleId::Research
-        && epiphany_core::runtime_has_actionable_eyes_frontier(runtime_store)?
-    {
-        Some(
-            epiphany_core::select_and_commit_repo_frontier_research_request(runtime_store, &now())?,
-        )
-    } else {
-        None
-    };
+    if role == epiphany_core::EpiphanyRoleResultRoleId::Research {
+        return Err(anyhow!(
+            "Research launch must use the keyed frontier Research current-work owner"
+        ));
+    }
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let focus =
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
@@ -1766,7 +1808,7 @@ fn launch_role(
         .map_err(anyhow::Error::msg)?;
     }
     let role_context_augmented_ms = started.elapsed().as_millis();
-    let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
+    let request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
         role,
         expected_revision,
@@ -1775,15 +1817,6 @@ fn launch_role(
         Some(context),
     )
     .map_err(anyhow::Error::msg)?;
-    request.repo_frontier_research_request_id = repo_frontier_research_request
-        .as_ref()
-        .map(|selected| selected.request_id.clone());
-    if let (Some(selected), epiphany_core::EpiphanyWorkerLaunchDocument::Role(document)) = (
-        repo_frontier_research_request.as_ref(),
-        &mut request.launch_document,
-    ) {
-        document.frontier_research_context = Some(selected.into());
-    }
     let request_built_ms = started.elapsed().as_millis();
     let launched = service.launch_job(
         thread_id,

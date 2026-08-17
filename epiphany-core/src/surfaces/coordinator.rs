@@ -799,72 +799,29 @@ pub fn recommend_coordinator_action(
         };
     }
 
-    if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && !input.research_result_accepted
+    if input.implementation_evidence_after_verification
+        && matches!(
+            input.signals.verification_result_status,
+            EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                | EpiphanyCoordinatorRoleResultStatus::Failed
+        )
     {
-        if !input.research_result_reviewable && input.research_result_failure_reviewed {
-            return build(
-                EpiphanyCoordinatorAction::LaunchResearch,
-                Some(EpiphanyCoordinatorRoleId::Research),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The unreviewable Eyes result has a supersession receipt; relaunch Research against the current source contract.",
-            );
-        }
         return build(
-            EpiphanyCoordinatorAction::ReviewResearchResult,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            input.research_result_reviewable,
+            EpiphanyCoordinatorAction::LaunchVerification,
+            Some(EpiphanyCoordinatorRoleId::Verification),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
             false,
-            "An Eyes/source-gathering finding is complete and must be reviewed before modeling or implementation can cite it.",
-        );
-    }
-
-    if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
-        && !input.research_result_accepted
-    {
-        if input.research_result_failure_reviewed {
-            return build(
-                EpiphanyCoordinatorAction::LaunchResearch,
-                Some(EpiphanyCoordinatorRoleId::Research),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The failed Eyes result has a supersession receipt; relaunch Research against the current source contract.",
-            );
-        }
-        return build(
-            EpiphanyCoordinatorAction::ReviewResearchResult,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "The Eyes/source-gathering worker failed; inspect the failed result before routing another lane from stale evidence.",
-        );
-    }
-
-    if matches!(
-        input.signals.research_result_status,
-        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
-    ) {
-        return build(
-            EpiphanyCoordinatorAction::ReviewResearchResult,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "An Eyes/source-gathering specialist is already running; wait for its evidence packet before relaunching modeling.",
+            true,
+            "A complete Hands consequence chain awaits Soul independently of any Eyes lifecycle.",
         );
     }
 
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.modeling_result_accepted
         && !(input.modeling_result_failure_reviewed && input.hands_frontier_ready)
-        && !(input.modeling_result_failure_reviewed
-            && input.research_result_accepted
-            && input.implementation_evidence_after_verification)
     {
         if input.modeling_result_failure_reviewed {
             if input.modeling_result_proposal_bound && !input.hands_frontier_ready {
@@ -889,26 +846,6 @@ pub fn recommend_coordinator_action(
             }
         }
         if !input.modeling_result_reviewable {
-            if input.modeling_result_requests_regather
-                && !input.research_result_accepted
-                && matches!(
-                    input.signals.research_result_status,
-                    EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                        | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                        | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                        | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                        | EpiphanyCoordinatorRoleResultStatus::Failed
-                )
-            {
-                return build(
-                    EpiphanyCoordinatorAction::LaunchResearch,
-                    Some(EpiphanyCoordinatorRoleId::Research),
-                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                    false,
-                    true,
-                    "The modeling/checkpoint lane requested source regather and returned no acceptable modeling patch; launch Eyes to gather citable source evidence instead of relaunching the blind modeler.",
-                );
-            }
             return build(
                 EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
@@ -1091,59 +1028,21 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.hands_frontier_ready {
+        return build(
+            EpiphanyCoordinatorAction::ContinueImplementation,
+            Some(EpiphanyCoordinatorRoleId::Implementation),
+            None,
+            false,
+            false,
+            "Mind has admitted the current RepoModel and Self has an actionable Hands frontier route.",
+        );
+    }
+
     if input.recommendation.action == EpiphanyCrrcAction::RegatherManually
         && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
             == Some(EpiphanyCoordinatorRoleStatus::Blocked)
     {
-        if input.research_result_accepted
-            && input.implementation_evidence_after_verification
-            && matches!(
-                input.signals.verification_result_status,
-                EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                    | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                    | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                    | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                    | EpiphanyCoordinatorRoleResultStatus::Failed
-            )
-        {
-            return build(
-                EpiphanyCoordinatorAction::LaunchVerification,
-                Some(EpiphanyCoordinatorRoleId::Verification),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "Eyes refreshed source after CRRC regather and a complete Hands consequence still awaits Soul; verify that exact consequence before Modeling evolves its active route.",
-            );
-        }
-        if input.research_result_accepted && input.hands_frontier_ready {
-            return build(
-                EpiphanyCoordinatorAction::ContinueImplementation,
-                Some(EpiphanyCoordinatorRoleId::Implementation),
-                None,
-                false,
-                false,
-                "Mind has admitted a current Hands frontier after source regather; execute that exact route before launching unrelated Modeling.",
-            );
-        }
-        if !input.research_result_accepted
-            && matches!(
-                input.signals.research_result_status,
-                EpiphanyCoordinatorRoleResultStatus::MissingBinding
-                    | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-                    | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-                    | EpiphanyCoordinatorRoleResultStatus::Cancelled
-                    | EpiphanyCoordinatorRoleResultStatus::Failed
-            )
-        {
-            return build(
-                EpiphanyCoordinatorAction::LaunchResearch,
-                Some(EpiphanyCoordinatorRoleId::Research),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "CRRC says regather is required; launch Eyes to rebuild citable source evidence before another coding turn.",
-            );
-        }
         return build(
             EpiphanyCoordinatorAction::RegatherManually,
             Some(EpiphanyCoordinatorRoleId::Research),
@@ -1207,23 +1106,12 @@ pub fn recommend_coordinator_action(
 
     if input.recommendation.action == EpiphanyCrrcAction::RegatherManually {
         return build(
-            EpiphanyCoordinatorAction::LaunchResearch,
+            EpiphanyCoordinatorAction::RegatherManually,
             Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
             true,
-            "CRRC requires regather; Eyes is the fixed specialist lane that can advance source gathering.",
-        );
-    }
-
-    if input.hands_frontier_ready {
-        return build(
-            EpiphanyCoordinatorAction::ContinueImplementation,
-            Some(EpiphanyCoordinatorRoleId::Implementation),
-            None,
             false,
-            false,
-            "Mind has admitted the current RepoModel and Self has an actionable Hands frontier route.",
+            "CRRC requires explicit operator regather; only an exact external-evidence obligation may launch Eyes.",
         );
     }
 
@@ -1718,7 +1606,7 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_failed_research_relaunches_eyes() {
+    fn legacy_failed_research_cannot_relaunch_eyes() {
         let mut state = EpiphanyThreadState::default();
         state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
             id: "failure-review-research".to_string(),
@@ -1747,7 +1635,7 @@ mod tests {
             research_result_failure_reviewed: true,
             ..base
         });
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchResearch);
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
     }
 
     #[test]
@@ -1854,7 +1742,7 @@ mod tests {
     }
 
     #[test]
-    fn uses_fixed_lanes_before_manual_regather() {
+    fn exact_work_preempts_but_cannot_be_invented_by_manual_regather() {
         let launch_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             signals: EpiphanyCoordinatorSignals {
@@ -1906,7 +1794,7 @@ mod tests {
         });
         assert_eq!(
             blocked_regather.action,
-            EpiphanyCoordinatorAction::LaunchResearch
+            EpiphanyCoordinatorAction::RegatherManually
         );
     }
 
@@ -1958,7 +1846,7 @@ mod tests {
     }
 
     #[test]
-    fn accepted_eyes_routes_complete_hands_consequence_to_soul_before_model_evolution() {
+    fn hands_consequence_routes_to_soul_without_eyes_authority() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             roles: vec![role(
@@ -1966,11 +1854,10 @@ mod tests {
                 EpiphanyCoordinatorRoleStatus::Blocked,
             )],
             signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
-            research_result_accepted: true,
             modeling_result_failure_reviewed: true,
             implementation_evidence_after_verification: true,
             reorient_finding_accepted: true,
@@ -1989,7 +1876,7 @@ mod tests {
     }
 
     #[test]
-    fn routes_regather_needed_modeling_to_eyes() {
+    fn modeling_regather_hint_cannot_create_eyes_work() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
                 research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
@@ -2001,12 +1888,15 @@ mod tests {
             ..input()
         });
 
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchResearch);
+        assert_eq!(
+            decision.action,
+            EpiphanyCoordinatorAction::ReviewModelingResult
+        );
         assert_eq!(
             decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Research)
+            Some(EpiphanyCoordinatorRoleId::Modeling)
         );
-        assert!(decision.reason.contains("source regather"));
+        assert!(decision.reason.contains("no acceptable RepoModel proposal"));
     }
 
     #[test]

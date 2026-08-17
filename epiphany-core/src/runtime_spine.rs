@@ -620,6 +620,8 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub repo_frontier_modeling_request_id: Option<String>,
     #[cultcache(key = 24, default)]
     pub proposal_modeling_request_id: Option<String>,
+    #[cultcache(key = 25, default)]
+    pub repo_frontier_research_request_id: Option<String>,
     #[cultcache(key = 26, default)]
     pub frontier_planning_request_id: Option<String>,
     #[cultcache(key = 27, default)]
@@ -3851,7 +3853,7 @@ pub fn runtime_requested_public_source_refs_for_worker(
         .unwrap_or_default())
 }
 
-fn frontier_research_request_for_launch(
+pub(crate) fn frontier_research_request_for_launch(
     cache: &CultCache,
     launch: &EpiphanyRuntimeWorkerLaunchRequest,
 ) -> Result<Option<RepoFrontierResearchRequest>> {
@@ -3870,38 +3872,8 @@ fn frontier_research_request_for_launch(
         .get::<RepoFrontierResearchRequest>(request_id)?
         .ok_or_else(|| anyhow!("frontier Research launch lost its typed request"))?;
     let runtime = require_identity(cache)?;
-    let expected_request_id = crate::frontier_research_request_id(
-        &request.runtime_id,
-        &request.frontier_item_id,
-        &request.frontier_item_hash,
-    );
-    if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
-        || request.request_id != request_id
-        || request.request_id != expected_request_id
-        || request.runtime_id != runtime.runtime_id
-        || (crate::EpiphanyRepoModelBasis {
-            projection_digest: request.model_projection_digest.clone(),
-            source_documents: request.model_source_documents.clone(),
-        })
-        .validate_against_cache(cache)
-        .is_err()
-        || request.frontier_item_id.is_empty()
-        || request.frontier_item_hash.is_empty()
-        || request.thread_id.is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
-        || request.source_scope.is_empty()
-        || !safe_sorted_unique_paths(&request.source_scope)
-        || !request
-            .public_source_refs
-            .windows(2)
-            .all(|pair| pair[0] < pair[1])
-        || !request.public_source_refs.iter().all(|source_ref| {
-            crate::ImmutableGithubSource::parse(source_ref)
-                .map(|source| source.to_string() == *source_ref)
-                .unwrap_or(false)
-        })
-    {
+    validate_repo_frontier_research_request(&request)?;
+    if request.request_id != request_id || request.runtime_id != runtime.runtime_id {
         return Err(anyhow!(
             "frontier Research launch names an invalid typed request"
         ));
@@ -4605,6 +4577,29 @@ pub fn put_runtime_role_worker_result(
         return Err(anyhow!(
             "Modeling result must exactly preserve its runtime-owned request authority"
         ));
+    }
+    let is_frontier_research = worker_launch.repo_frontier_research_request_id.is_some();
+    if is_frontier_research
+        != result
+            .repo_frontier_research_request_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        || result.repo_frontier_research_request_id
+            != worker_launch.repo_frontier_research_request_id
+        || (is_frontier_research && !result.role_id.eq_ignore_ascii_case("research"))
+        || (!is_frontier_research && result.repo_frontier_research_request_id.is_some())
+    {
+        return Err(anyhow!(
+            "Research result must exactly preserve its runtime-owned frontier request"
+        ));
+    }
+    if is_frontier_research {
+        let request = frontier_research_request_for_launch(&cache, &worker_launch)?
+            .ok_or_else(|| anyhow!("Research result lost its typed request"))?;
+        if result.repo_frontier_research_request_id.as_deref() != Some(request.request_id.as_str())
+        {
+            return Err(anyhow!("Research result substituted its typed request"));
+        }
     }
     if is_modeling
         && (result.verification_request_id.is_some() || result.frontier_route_id.is_some())
@@ -5435,6 +5430,7 @@ pub fn runtime_typed_request_fulfillment(
             validate_proposal_modeling_worker_fulfillment(&cache, result)?;
         }
         RuntimeTypedRequestRef::FrontierVerdictModeling(_) => {}
+        RuntimeTypedRequestRef::FrontierResearch(_) => {}
         RuntimeTypedRequestRef::ImaginationConsideration(_) => {
             let candidate = result
                 .imagination_consideration_candidate()?
@@ -7468,6 +7464,184 @@ pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> 
     runtime_has_actionable_frontier_for_organ(runtime_store, "Eyes")
 }
 
+fn research_frontier_authority_documents(
+    cache: &CultCache,
+    item: &crate::RepoFrontierItem,
+) -> Result<Vec<crate::EpiphanyMindDocumentVersion>> {
+    let mut ids = vec![item.id.as_str()];
+    ids.extend(item.dependency_item_ids.iter().map(String::as_str));
+    ids.sort_unstable();
+    ids.dedup();
+    let mut documents = ids
+        .into_iter()
+        .map(|id| {
+            let envelope = cache
+                .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(id)?
+                .ok_or_else(|| anyhow!("Research frontier authority document {id:?} is absent"))?;
+            crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    documents.sort_by(|left, right| {
+        left.document_type
+            .cmp(&right.document_type)
+            .then(left.document_key.cmp(&right.document_key))
+    });
+    Ok(documents)
+}
+
+fn research_authority_envelopes(
+    cache: &CultCache,
+    documents: &[crate::EpiphanyMindDocumentVersion],
+) -> Result<Vec<CultCacheEnvelope>> {
+    let snapshot = cache.snapshot_envelopes();
+    documents
+        .iter()
+        .map(|document| {
+            if document.store_id != "epiphany-mind"
+                || document.document_type != crate::EpiphanyRepoModelFrontierDocument::TYPE
+            {
+                return Err(anyhow!(
+                    "Research authority contains a non-frontier Mind document"
+                ));
+            }
+            let envelope = snapshot
+                .iter()
+                .find(|envelope| {
+                    envelope.r#type == document.document_type
+                        && envelope.key == document.document_key
+                })
+                .ok_or_else(|| anyhow!("Research frontier authority document is absent"))?;
+            if crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)?
+                != *document
+            {
+                return Err(anyhow!("Research frontier authority document changed"));
+            }
+            Ok(envelope.clone())
+        })
+        .collect()
+}
+
+fn validate_repo_frontier_research_request(
+    request: &RepoFrontierResearchRequest,
+) -> Result<crate::RepoFrontierItem> {
+    if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
+        || request.runtime_id.is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+        || request.frontier_item_id.is_empty()
+        || request.frontier_item_hash.is_empty()
+        || request.source_scope.is_empty()
+        || !safe_sorted_unique_paths(&request.source_scope)
+        || request.frontier_authority_documents.is_empty()
+    {
+        return Err(anyhow!("invalid frontier Research request"));
+    }
+    let basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
+    };
+    basis.validate()?;
+    if request.frontier_authority_documents.iter().any(|document| {
+        document.validate().is_err()
+            || document.store_id != "epiphany-mind"
+            || document.document_type != crate::EpiphanyRepoModelFrontierDocument::TYPE
+            || !request.model_source_documents.contains(document)
+    }) || !request.frontier_authority_documents.windows(2).all(|pair| {
+        (
+            pair[0].document_type.as_str(),
+            pair[0].document_key.as_str(),
+        ) < (
+            pair[1].document_type.as_str(),
+            pair[1].document_key.as_str(),
+        )
+    }) {
+        return Err(anyhow!(
+            "Research frontier authority is not one canonical subset of its sealed model projection"
+        ));
+    }
+    let frontier_source = request
+        .frontier_authority_documents
+        .iter()
+        .find(|document| document.document_key == request.frontier_item_id)
+        .ok_or_else(|| anyhow!("Research request lost its owning frontier document"))?;
+    let frontier = rmp_serde::from_slice::<crate::EpiphanyRepoModelFrontierDocument>(
+        &frontier_source.payload_msgpack,
+    )?
+    .value()?;
+    let mut expected_authority_ids = vec![frontier.id.as_str()];
+    expected_authority_ids.extend(frontier.dependency_item_ids.iter().map(String::as_str));
+    expected_authority_ids.sort_unstable();
+    expected_authority_ids.dedup();
+    if request
+        .frontier_authority_documents
+        .iter()
+        .map(|document| document.document_key.as_str())
+        .collect::<Vec<_>>()
+        != expected_authority_ids
+        || request.frontier_item_id != frontier.id
+        || request.frontier_item_hash != repo_frontier_item_hash(&frontier)?
+        || request.source_scope != frontier.source_scope
+        || request.public_source_refs
+            != crate::ImmutableGithubSource::canonicalize_set(
+                frontier.public_source_refs.iter().map(String::as_str),
+            )?
+        || request.public_source_refs != frontier.public_source_refs
+        || request.request_id
+            != crate::frontier_research_request_id(
+                &request.runtime_id,
+                &request.frontier_item_id,
+                &request.frontier_item_hash,
+            )
+    {
+        return Err(anyhow!(
+            "frontier Research request diverges from its sealed frontier authority"
+        ));
+    }
+    Ok(frontier)
+}
+
+fn current_repo_frontier_research_request(
+    cache: &CultCache,
+    request: &RepoFrontierResearchRequest,
+) -> Result<Option<crate::RepoFrontierItem>> {
+    let sealed_frontier = validate_repo_frontier_research_request(request)?;
+    let identity = require_identity(cache)?;
+    if request.runtime_id != identity.runtime_id {
+        return Ok(None);
+    }
+    if research_authority_envelopes(cache, &request.frontier_authority_documents).is_err() {
+        return Ok(None);
+    }
+    let frontier = cache
+        .get::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
+        .ok_or_else(|| anyhow!("Research request frontier document is absent"))?
+        .value()?;
+    let expected_authority = research_frontier_authority_documents(cache, &frontier)?;
+    if expected_authority != request.frontier_authority_documents {
+        return Ok(None);
+    }
+    let dependencies_ready = frontier.dependency_item_ids.iter().all(|dependency_id| {
+        cache
+            .get::<crate::EpiphanyRepoModelFrontierDocument>(dependency_id)
+            .ok()
+            .flatten()
+            .and_then(|document| document.value().ok())
+            .is_some_and(|dependency| {
+                matches!(
+                    dependency.status,
+                    crate::RepoFrontierStatus::Resolved
+                        | crate::RepoFrontierStatus::Retired
+                        | crate::RepoFrontierStatus::Superseded
+                )
+            })
+    });
+    Ok((frontier == sealed_frontier
+        && frontier.status == crate::RepoFrontierStatus::Active
+        && frontier.recommended_next_organ == "Eyes"
+        && dependencies_ready)
+        .then_some(frontier))
+}
+
 pub fn select_and_commit_repo_frontier_research_request(
     runtime_store: impl AsRef<Path>,
     at: &str,
@@ -7480,28 +7654,22 @@ pub fn select_and_commit_repo_frontier_research_request(
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     let identity = require_identity(&cache)?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("frontier Research requires authoritative thread state"))?;
-    thread.state()?;
     let (view, basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
-    let challenges = current_repo_model_claim_challenges(&cache, &model, &basis)?;
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let packets = cache.get_all::<EyesEvidencePacket>()?;
-    let item =
-        match next_repo_frontier_research_work(&cache, &model, &challenges, &launches, &packets)? {
-            Some(NextRepoFrontierResearchWork::Existing(request)) => return Ok(request),
-            Some(NextRepoFrontierResearchWork::Unrequested(item)) => item,
-            None => {
-                return Err(anyhow!(
-                    "current model has no uncovered actionable Eyes frontier"
-                ));
-            }
-        };
+    let item = match next_repo_frontier_research_work(&cache, &model, &[], &launches, &packets)? {
+        Some(NextRepoFrontierResearchWork::Existing(request)) => return Ok(request),
+        Some(NextRepoFrontierResearchWork::Unrequested(item)) => item,
+        None => {
+            return Err(anyhow!(
+                "current model has no uncovered actionable Eyes frontier"
+            ));
+        }
+    };
     let request = repo_frontier_research_request_for_admitted_item(
         &identity.runtime_id,
-        &thread.thread_id,
+        &cache,
         &model,
         &basis,
         &item,
@@ -7511,10 +7679,6 @@ pub fn select_and_commit_repo_frontier_research_request(
     if let Some(existing) = cache.get::<RepoFrontierResearchRequest>(&request_id)? {
         let mut replay = request.clone();
         replay.requested_at = existing.requested_at.clone();
-        // The frontier owns this request. The thread records where it was
-        // created, but later coordinator incarnations must not fork or
-        // invalidate the same frontier request.
-        replay.thread_id = existing.thread_id.clone();
         return if existing == replay {
             Ok(existing)
         } else {
@@ -7522,11 +7686,13 @@ pub fn select_and_commit_repo_frontier_research_request(
         };
     }
     let (request_envelope, _) = cache.prepare_entry(&request_id, &request)?;
-    let expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    let expected = research_authority_envelopes(&cache, &request.frontier_authority_documents)?;
     let mut writes = expected.clone();
     writes.push(request_envelope);
     if !backing.compare_and_swap_batch(&expected, writes)? {
-        return Err(anyhow!("frontier Research request lost current-model CAS"));
+        return Err(anyhow!(
+            "frontier Research request lost exact frontier authority CAS"
+        ));
     }
     Ok(request)
 }
@@ -7540,14 +7706,13 @@ fn repo_frontier_item_hash(item: &crate::RepoFrontierItem) -> Result<String> {
 
 fn repo_frontier_research_request_for_admitted_item(
     runtime_id: &str,
-    thread_id: &str,
+    cache: &CultCache,
     model: &crate::EpiphanyMemoryGraphSnapshot,
     basis: &crate::EpiphanyRepoModelBasis,
     item: &crate::RepoFrontierItem,
     requested_at: &str,
 ) -> Result<RepoFrontierResearchRequest> {
     if runtime_id.is_empty()
-        || thread_id.is_empty()
         || basis.validate().is_err()
         || model
             .frontier
@@ -7560,6 +7725,7 @@ fn repo_frontier_research_request_for_admitted_item(
         ));
     }
     let item_hash = repo_frontier_item_hash(item)?;
+    let frontier_authority_documents = research_frontier_authority_documents(cache, item)?;
     let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
         item.public_source_refs.iter().map(String::as_str),
     )?;
@@ -7573,12 +7739,12 @@ fn repo_frontier_research_request_for_admitted_item(
         request_id: crate::frontier_research_request_id(runtime_id, &item.id, &item_hash),
         model_projection_digest: basis.projection_digest.clone(),
         model_source_documents: basis.source_documents.clone(),
+        frontier_authority_documents,
         frontier_item_id: item.id.clone(),
         frontier_item_hash: item_hash,
         source_scope: item.source_scope.clone(),
         requested_at: requested_at.to_string(),
         runtime_id: runtime_id.to_string(),
-        thread_id: thread_id.to_string(),
         contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
         public_source_refs,
     })
@@ -7661,15 +7827,10 @@ pub fn runtime_repo_frontier_research_lifecycle(
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
     let role_results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
-    let state = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .map(|entry| entry.state())
-        .transpose()?;
-    let (view, basis) = current_keyed_repo_model(&cache)?;
+    let (view, _basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
-    let challenges = current_repo_model_claim_challenges(&cache, &model, &basis)?;
 
-    let work = next_repo_frontier_research_work(&cache, &model, &challenges, &launches, &packets)?;
+    let work = next_repo_frontier_research_work(&cache, &model, &[], &launches, &packets)?;
     let request = match work {
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => {
             return Ok(RepoFrontierResearchLifecycle {
@@ -7728,66 +7889,36 @@ pub fn runtime_repo_frontier_research_lifecycle(
         | EpiphanyRuntimeJobStatus::WaitingForReview => {
             RepoFrontierResearchLifecycleStage::WorkerRunning
         }
-        EpiphanyRuntimeJobStatus::Completed
-        | EpiphanyRuntimeJobStatus::Failed
-        | EpiphanyRuntimeJobStatus::Cancelled => {
-            let result_id = role_results
+        EpiphanyRuntimeJobStatus::Completed => {
+            let result = role_results
                 .iter()
                 .find(|result| result.job_id == job.job_id)
-                .map(|result| result.result_id.as_str())
-                .or_else(|| {
-                    job_results
-                        .iter()
-                        .filter(|result| result.job_id == job.job_id)
-                        .max_by(|left, right| {
-                            left.completed_at
-                                .cmp(&right.completed_at)
-                                .then_with(|| left.result_id.cmp(&right.result_id))
-                        })
-                        .map(|result| result.result_id.as_str())
-                })
-                .ok_or_else(|| {
-                    anyhow!("terminal frontier Research job lost its reviewable result")
-                })?;
-            let matching_receipts = state
-                .as_ref()
-                .map(|state| {
-                    state
-                        .acceptance_receipts
-                        .iter()
-                        .filter(|receipt| {
-                            receipt.result_id == result_id
-                                && receipt.job_id == job.job_id
-                                && receipt.role_id == "research"
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            if matching_receipts.len() > 1 {
+                .ok_or_else(|| anyhow!("completed frontier Research job lost its typed result"))?;
+            if result.repo_frontier_research_request_id.as_deref()
+                != Some(request.request_id.as_str())
+                || !result.role_id.eq_ignore_ascii_case("research")
+            {
                 return Err(anyhow!(
-                    "frontier Research result has multiple review authorities"
+                    "frontier Research result crossed request-family authority"
                 ));
             }
-            match matching_receipts.first() {
-                Some(receipt)
-                    if receipt.surface == "roleFailureReview" && receipt.status == "superseded" =>
-                {
-                    RepoFrontierResearchLifecycleStage::LaunchReady
-                }
-                Some(receipt)
-                    if receipt.surface == "roleAccept" && receipt.status == "accepted" =>
-                {
-                    return Err(anyhow!(
-                        "accepted frontier Research result lost its Eyes evidence packet"
-                    ));
-                }
-                Some(_) => {
-                    return Err(anyhow!(
-                        "frontier Research result has conflicting review authority"
-                    ));
-                }
-                None => RepoFrontierResearchLifecycleStage::ResultReady,
+            if result.item_error.is_some() {
+                RepoFrontierResearchLifecycleStage::LaunchReady
+            } else {
+                RepoFrontierResearchLifecycleStage::ResultReady
             }
+        }
+        EpiphanyRuntimeJobStatus::Failed | EpiphanyRuntimeJobStatus::Cancelled => {
+            let terminal = job_results
+                .iter()
+                .filter(|result| result.job_id == job.job_id)
+                .count();
+            if terminal != 1 {
+                return Err(anyhow!(
+                    "failed frontier Research attempt lost its exact terminal result"
+                ));
+            }
+            RepoFrontierResearchLifecycleStage::LaunchReady
         }
     };
     Ok(RepoFrontierResearchLifecycle {
@@ -7865,9 +7996,31 @@ fn repo_frontier_research_request_is_covered(
         }
         matching_jobs.insert(launch.job_id.as_str());
     }
-    Ok(packets
+    for packet in packets
         .iter()
-        .any(|packet| matching_jobs.contains(packet.source_job_id.as_str())))
+        .filter(|packet| packet.research_request_id == request.request_id)
+    {
+        let result = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&packet.source_job_id)?;
+        let archived = cache.get::<EpiphanyArchivedRuntimeWorkerAttempt>(&packet.source_job_id)?;
+        let exact_live = result.as_ref().is_some_and(|result| {
+            matching_jobs.contains(result.job_id.as_str())
+                && result.result_id == packet.source_result_id
+                && result.decision_context_id == packet.decision_context_id
+                && result.repo_frontier_research_request_id.as_deref()
+                    == Some(request.request_id.as_str())
+        });
+        let exact_archived = archived.as_ref().is_some_and(|attempt| {
+            attempt.request_kind == "frontier-research"
+                && attempt.request_id == request.request_id
+                && attempt.result_id.as_deref() == Some(packet.source_result_id.as_str())
+                && attempt.decision_context_id.as_deref()
+                    == Some(packet.decision_context_id.as_str())
+        });
+        if exact_live || exact_archived {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn actionable_repo_frontier_research_requests(
@@ -7897,47 +8050,7 @@ fn repo_frontier_research_request_is_actionable(
     {
         return Err(anyhow!("invalid frontier Research request"));
     }
-    let identity = require_identity(cache)?;
-    let view = match require_keyed_repo_model_basis(
-        cache,
-        &request.model_projection_digest,
-        &request.model_source_documents,
-    ) {
-        Ok(view) => view,
-        Err(_) => return Ok(false),
-    };
-    let model = view.memory_context_projection();
-    let basis = view.reasoning_basis();
-    if request.runtime_id != identity.runtime_id || request.thread_id.is_empty() {
-        return Ok(false);
-    }
-    let challenges = current_repo_model_claim_challenges(cache, &model, &basis)?;
-    let Some(item) = model
-        .frontier
-        .iter()
-        .find(|item| item.id == request.frontier_item_id)
-    else {
-        return Ok(false);
-    };
-    if !frontier_item_is_actionable_for_organ(&model, &challenges, item, "Eyes", false) {
-        return Ok(false);
-    }
-    let item_hash = repo_frontier_item_hash(item)?;
-    let expected_public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
-        item.public_source_refs.iter().map(String::as_str),
-    )?;
-    if expected_public_source_refs != item.public_source_refs {
-        return Err(anyhow!(
-            "frontier Research public source authority is not canonical"
-        ));
-    }
-    let expected_request_id =
-        crate::frontier_research_request_id(&identity.runtime_id, &item.id, &item_hash);
-    Ok(request.request_id == expected_request_id
-        && request.frontier_item_id == item.id
-        && request.frontier_item_hash == item_hash
-        && request.source_scope == item.source_scope
-        && request.public_source_refs == expected_public_source_refs)
+    Ok(current_repo_frontier_research_request(cache, request)?.is_some())
 }
 
 /// Read-only Self signal for proposal planning. It uses the same eligibility
@@ -8304,7 +8417,11 @@ fn runtime_has_actionable_frontier_for_organ(
         return Ok(false);
     };
     let model = view.memory_context_projection();
-    let challenges = current_repo_model_claim_challenges(&cache, &model, &basis)?;
+    let challenges = if organ == "Hands" {
+        current_repo_model_claim_challenges(&cache, &model, &basis)?
+    } else {
+        Vec::new()
+    };
     Ok(actionable_frontier_item_for_organ(&model, &challenges, organ, organ == "Hands").is_some())
 }
 
@@ -8968,11 +9085,24 @@ fn worker_result_has_keyed_mind_commit(
                 crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
                     ref decision_context_id
                 } if decision_context_id == &result.decision_context_id
-            ) && receipt.invariant_owner.starts_with("Modeling.")
-                && receipt
-                    .writes
-                    .iter()
-                    .any(|write| write.document_type.starts_with("epiphany.mind.repo_model."))
+            ) && if result.role_id.eq_ignore_ascii_case("modeling") {
+                receipt.invariant_owner.starts_with("Modeling.")
+                    && receipt
+                        .writes
+                        .iter()
+                        .any(|write| write.document_type.starts_with("epiphany.mind.repo_model."))
+            } else if result.role_id.eq_ignore_ascii_case("research") {
+                receipt.invariant_owner == "Eyes.frontier_research"
+                    && receipt.writes.iter().any(|write| {
+                        matches!(
+                            write.document_type.as_str(),
+                            crate::EpiphanyMindEvidenceDocument::TYPE
+                                | crate::EpiphanyMindObservationDocument::TYPE
+                        )
+                    })
+            } else {
+                false
+            }
         }))
 }
 
@@ -10411,6 +10541,7 @@ where
             "frontier-verdict-modeling" => {
                 RuntimeTypedRequestRef::FrontierVerdictModeling(request_id)
             }
+            "frontier-research" => RuntimeTypedRequestRef::FrontierResearch(request_id),
             "imagination-consideration" => {
                 RuntimeTypedRequestRef::ImaginationConsideration(request_id)
             }
@@ -10432,7 +10563,7 @@ where
         }
         if matches!(
             request_kind,
-            "proposal-modeling" | "frontier-verdict-modeling"
+            "proposal-modeling" | "frontier-verdict-modeling" | "frontier-research"
         ) && !worker_result_has_keyed_mind_commit(
             &cache,
             role_result

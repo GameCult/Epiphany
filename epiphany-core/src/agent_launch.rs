@@ -342,20 +342,6 @@ fn evidence_output_schema() -> serde_json::Value {
     })
 }
 
-fn scratch_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": ["summary"],
-        "properties": {
-            "summary": {"type": "string", "minLength": 1},
-            "hypothesis": {"type": "string"},
-            "next_probe": {"type": "string"},
-            "notes": {"type": "array", "items": {"type": "string"}}
-        },
-        "additionalProperties": false
-    })
-}
-
 fn investigation_checkpoint_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -623,7 +609,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable statePatch for Mind admission from research/Eyes. Use only observations, evidence, scratch, and optional investigationCheckpoint. The patch must include at least one evidence record and one observation that cites it.",
+                    "description": "Required reviewable statePatch for Mind admission from Research/Eyes. Use only keyed observations, keyed evidence, and an optional investigationCheckpoint. Scratch is pass-local and is not durable Mind state. The patch must include at least one evidence record and one observation that cites it.",
                     "required": ["observations", "evidence"],
                     "properties": {
                         "observations": {
@@ -636,13 +622,8 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                             "minItems": 1,
                             "items": evidence_output_schema()
                         },
-                        "scratch": scratch_output_schema(),
                         "investigationCheckpoint": investigation_checkpoint_output_schema()
                     },
-                    "anyOf": [
-                        {"required": ["scratch"]},
-                        {"required": ["investigationCheckpoint"]}
-                    ],
                     "additionalProperties": false
                 }),
             );
@@ -2009,12 +1990,14 @@ mod tests {
         let imagination = epiphany_proposal_modeling_output_schema(
             crate::RepoFrontierProposalSourceKind::Imagination,
         );
-        assert!(!imagination["properties"]["proposalFrontierDraft"]["properties"]
-            ["recommendedNextOrgan"]["enum"]
-            .as_array()
-            .expect("organ enum")
-            .iter()
-            .any(|organ| organ == "Hands"));
+        assert!(
+            !imagination["properties"]["proposalFrontierDraft"]["properties"]
+                ["recommendedNextOrgan"]["enum"]
+                .as_array()
+                .expect("organ enum")
+                .iter()
+                .any(|organ| organ == "Hands")
+        );
     }
 
     #[test]

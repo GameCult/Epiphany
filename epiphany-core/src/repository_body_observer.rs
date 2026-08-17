@@ -424,7 +424,8 @@ pub fn admit_repository_body_observation(
         }
         return Ok(existing);
     }
-    let write = cache.prepare_entry(&basis.observation_id, &document)?.0;
+    let write =
+        crate::mind_documents::prepare_mind_document(&cache, &basis.observation_id, &document)?;
     match crate::commit_external_typed_observation_mind_mutation(
         runtime_store,
         "Body",

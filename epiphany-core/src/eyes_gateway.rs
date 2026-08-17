@@ -13,7 +13,7 @@ pub const EYES_EVIDENCE_REQUEST_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_r
 pub const EYES_EVIDENCE_REVIEW_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_review.v0";
 pub const EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.source_lookup_receipt.v0";
-pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v0";
+pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v1";
 pub const EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.evidence_refusal_receipt.v0";
 
@@ -84,6 +84,10 @@ pub struct EyesEvidencePacket {
     pub contract: String,
     #[cultcache(key = 12, default)]
     pub source_lookup_receipt_ids: Vec<String>,
+    #[cultcache(key = 13)]
+    pub research_request_id: String,
+    #[cultcache(key = 14)]
+    pub decision_context_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,6 +173,8 @@ pub fn default_eyes_cultnet_contracts() -> Vec<EyesCultNetContract> {
 
 pub fn eyes_evidence_packet_from_research_finding(
     packet_id: String,
+    research_request_id: String,
+    decision_context_id: String,
     finding: &EpiphanyRoleFindingInterpretation,
     patch: &EpiphanyRoleStatePatchDocument,
     source_lookups: &[EyesSourceLookupReceipt],
@@ -235,6 +241,8 @@ pub fn eyes_evidence_packet_from_research_finding(
             .iter()
             .map(|lookup| lookup.receipt_id.clone())
             .collect(),
+        research_request_id,
+        decision_context_id,
     }
 }
 
@@ -332,12 +340,16 @@ mod tests {
 
         let packet = eyes_evidence_packet_from_research_finding(
             "eyes-packet-1".to_string(),
+            "research-request-1".to_string(),
+            "decision-context-1".to_string(),
             &finding,
             &patch,
             &[],
             "2026-05-30T00:00:00Z".to_string(),
         );
         assert_eq!(packet.source_role_id, "research");
+        assert_eq!(packet.research_request_id, "research-request-1");
+        assert_eq!(packet.decision_context_id, "decision-context-1");
         assert!(packet.evidence_ids.contains(&"ev-source".to_string()));
         assert!(packet.observation_ids.contains(&"obs-source".to_string()));
         assert!(

@@ -615,6 +615,382 @@ pub fn current_frontier_verdict_modeling_review_job_id(
         .and_then(|work| work.job_id))
 }
 
+pub fn current_frontier_research_review_job_id(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<String>> {
+    let lifecycle = crate::runtime_repo_frontier_research_lifecycle(store_path)?;
+    Ok(
+        (lifecycle.stage == crate::RepoFrontierResearchLifecycleStage::ResultReady)
+            .then_some(lifecycle.worker_job_id)
+            .flatten(),
+    )
+}
+
+pub fn launch_current_frontier_research_work(
+    store_path: impl AsRef<Path>,
+    created_at: &str,
+) -> Result<String> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("frontier Research launch time is invalid"))?;
+    if crate::runtime_repo_frontier_research_lifecycle(store_path)?.stage
+        != crate::RepoFrontierResearchLifecycleStage::LaunchReady
+    {
+        return Err(anyhow!("Mind has no launchable frontier Research work"));
+    }
+    let request = crate::select_and_commit_repo_frontier_research_request(store_path, created_at)?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let request_envelope = cache
+        .get_envelope::<crate::RepoFrontierResearchRequest>(&request.request_id)?
+        .ok_or_else(|| anyhow!("frontier Research launch lost its request"))?;
+    let identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier Research launch requires runtime identity"))?;
+    let attempt_ordinal = cache
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
+        .into_iter()
+        .filter(|launch| {
+            launch.repo_frontier_research_request_id.as_deref() == Some(request.request_id.as_str())
+        })
+        .count()
+        + cache
+            .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
+            .into_iter()
+            .filter(|attempt| {
+                attempt.request_kind == "frontier-research"
+                    && attempt.request_id == request.request_id
+            })
+            .count();
+    let job_id = format!(
+        "frontier-research-{}-attempt-{attempt_ordinal}",
+        request.request_id
+    );
+    let launch_document =
+        crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+            thread_id: job_id.clone(),
+            role_id: "research".into(),
+            state_revision: 0,
+            objective: None,
+            dynamic_prompt_context: None,
+            repository_body_observation_basis: None,
+            proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
+            frontier_planning_context: None,
+            frontier_research_context: Some((&request).into()),
+            frontier_plan_mind_context: None,
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        });
+    let authority_scope = "epiphany.role.research".to_string();
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let prepared = crate::prepare_runtime_spine_heartbeat_job(
+        &cache,
+        crate::RuntimeSpineHeartbeatJobOptions {
+            runtime_id: identity.runtime_id,
+            display_name: "Epiphany Local".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Gather evidence for one exact external-evidence obligation".into(),
+            coordinator_note: "Research current-work launch transaction opened this session."
+                .into(),
+            job_id: job_id.clone(),
+            role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+            binding_id: crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.clone(),
+            instruction: "Act as Epiphany Research. Gather only the evidence required by the exact frontier request and return keyed evidence and observations for Mind review.".into(),
+            launch_document,
+            output_contract_id: output_contract_id.clone(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                &authority_scope,
+                "role",
+                &output_contract_id,
+            ),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: Some(request.request_id.clone()),
+            created_at: created_at.to_string(),
+        },
+    )?;
+    let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
+        format!("substrate-grant-{job_id}"),
+        job_id.clone(),
+        crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+        crate::EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+        authority_scope,
+        true,
+        created_at.to_string(),
+    );
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = vec![request_envelope];
+    for source in &request.frontier_authority_documents {
+        let envelope = snapshot
+            .iter()
+            .find(|value| value.r#type == source.document_type && value.key == source.document_key)
+            .ok_or_else(|| anyhow!("frontier Research launch lost a strong source"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!("frontier Research launch strong source changed"));
+        }
+        expected.push(envelope.clone());
+    }
+    commit_current_work_launch(
+        store_path,
+        &cache,
+        expected,
+        prepared.envelopes,
+        vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
+        "frontier Research",
+    )?;
+    Ok(job_id)
+}
+
+pub fn accept_frontier_research_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    accepted_at: &str,
+) -> Result<crate::EpiphanyMindCommitReceipt> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(accepted_at)
+        .map_err(|_| anyhow!("frontier Research acceptance time is invalid"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if let Some(result) = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)? {
+        let mut receipts = cache
+            .get_all::<crate::EpiphanyMindCommitReceipt>()?
+            .into_iter()
+            .filter(|receipt| {
+                receipt.invariant_owner == "Eyes.frontier_research"
+                    && matches!(
+                        &receipt.authority,
+                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                            decision_context_id
+                        } if decision_context_id == &result.decision_context_id
+                    )
+            })
+            .collect::<Vec<_>>();
+        if receipts.len() > 1 {
+            return Err(anyhow!(
+                "frontier Research result has multiple Mind commit authorities"
+            ));
+        }
+        if let Some(receipt) = receipts.pop() {
+            let request_id = result
+                .repo_frontier_research_request_id
+                .as_deref()
+                .ok_or_else(|| anyhow!("frontier Research replay lost its request identity"))?;
+            let packet_id = format!("eyes-packet-{request_id}");
+            let packet = cache
+                .get::<crate::EyesEvidencePacket>(&packet_id)?
+                .ok_or_else(|| anyhow!("frontier Research replay lost its evidence packet"))?;
+            if packet.research_request_id != request_id
+                || packet.decision_context_id != result.decision_context_id
+                || !receipt
+                    .writes
+                    .iter()
+                    .any(|write| write.document_type == crate::EpiphanyMindEvidenceDocument::TYPE)
+            {
+                return Err(anyhow!(
+                    "frontier Research replay does not preserve its exact accepted decision"
+                ));
+            }
+            return Ok(receipt);
+        }
+    }
+    if current_frontier_research_review_job_id(store_path)?.as_deref() != Some(job_id) {
+        return Err(anyhow!(
+            "frontier Research result is not current review work"
+        ));
+    }
+    let job = cache
+        .get::<crate::EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Research acceptance lost its runtime job"))?;
+    if job.status != crate::EpiphanyRuntimeJobStatus::Completed {
+        return Err(anyhow!("frontier Research runtime job is not completed"));
+    }
+    let launch = cache
+        .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Research acceptance lost its launch"))?;
+    let request = crate::runtime_spine::frontier_research_request_for_launch(&cache, &launch)?
+        .ok_or_else(|| anyhow!("frontier Research acceptance lost its exact request"))?;
+    let fulfillment = crate::runtime_typed_request_fulfillment(
+        store_path,
+        crate::RuntimeTypedRequestRef::FrontierResearch(&request.request_id),
+    )?
+    .ok_or_else(|| anyhow!("frontier Research result is not exact typed fulfillment"))?;
+    if fulfillment.job_id != job_id {
+        return Err(anyhow!(
+            "frontier Research fulfillment belongs to another attempt"
+        ));
+    }
+    let result = cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .ok_or_else(|| anyhow!("frontier Research acceptance lost its typed result"))?;
+    if !result.role_id.eq_ignore_ascii_case("research")
+        || result.repo_frontier_research_request_id.as_deref() != Some(request.request_id.as_str())
+        || result.item_error.is_some()
+    {
+        return Err(anyhow!("frontier Research result crossed family authority"));
+    }
+    let patch = result
+        .state_patch()?
+        .ok_or_else(|| anyhow!("frontier Research result has no keyed state proposal"))?;
+    let policy_errors = crate::research_role_state_patch_policy_errors(&patch);
+    if !policy_errors.is_empty() {
+        return Err(anyhow!(
+            "frontier Research state proposal is invalid: {}",
+            policy_errors.join("; ")
+        ));
+    }
+    let evidence_ids = patch
+        .evidence
+        .iter()
+        .map(|evidence| evidence.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    if evidence_ids.len() != patch.evidence.len()
+        || patch.observations.iter().any(|observation| {
+            observation.evidence_ids.is_empty()
+                || observation
+                    .evidence_ids
+                    .iter()
+                    .any(|id| !evidence_ids.contains(id.as_str()))
+        })
+    {
+        return Err(anyhow!(
+            "frontier Research observations do not cite the exact proposed evidence set"
+        ));
+    }
+    let lookups =
+        crate::runtime_authenticated_public_source_lookups_for_worker(store_path, job_id)?;
+    for lookup in &lookups {
+        if !result.evidence_ids.contains(&lookup.receipt_id)
+            || !result.files_inspected.contains(&lookup.source_ref)
+        {
+            return Err(anyhow!(
+                "frontier Research result omitted authenticated public-source provenance"
+            ));
+        }
+    }
+    if patch
+        .evidence
+        .iter()
+        .any(|evidence| !result.evidence_ids.contains(&evidence.id))
+    {
+        return Err(anyhow!(
+            "frontier Research result did not expose every proposed evidence identity"
+        ));
+    }
+    let finding = crate::interpret_runtime_role_worker_result(
+        crate::EpiphanyRoleResultRoleId::Research,
+        &result,
+    );
+    let packet_id = format!("eyes-packet-{}", request.request_id);
+    let packet = crate::eyes_evidence_packet_from_research_finding(
+        packet_id.clone(),
+        request.request_id.clone(),
+        result.decision_context_id.clone(),
+        &finding,
+        &patch,
+        &lookups,
+        accepted_at.to_string(),
+    );
+    let mut writes = Vec::new();
+    for evidence in &patch.evidence {
+        writes.push(crate::mind_documents::prepare_mind_document(
+            &cache,
+            &evidence.id,
+            &crate::EpiphanyMindEvidenceDocument {
+                value: evidence.clone(),
+            },
+        )?);
+    }
+    for observation in &patch.observations {
+        writes.push(crate::mind_documents::prepare_mind_document(
+            &cache,
+            &observation.id,
+            &crate::EpiphanyMindObservationDocument {
+                value: observation.clone(),
+            },
+        )?);
+    }
+    if let Some(checkpoint) = patch.investigation_checkpoint.as_ref() {
+        writes.push(crate::mind_documents::prepare_mind_document(
+            &cache,
+            &checkpoint.checkpoint_id,
+            &crate::EpiphanyMindInvestigationCheckpointDocument {
+                value: checkpoint.clone(),
+            },
+        )?);
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let mut strong_reads = Vec::new();
+    for (document_type, document_key) in [
+        (
+            crate::RepoFrontierResearchRequest::TYPE,
+            request.request_id.as_str(),
+        ),
+        (crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
+        (crate::EpiphanyRuntimeJob::TYPE, job_id),
+        (crate::EpiphanyRuntimeRoleWorkerResult::TYPE, job_id),
+        (
+            crate::EpiphanyDecisionContext::TYPE,
+            result.decision_context_id.as_str(),
+        ),
+    ] {
+        strong_reads.push(
+            snapshot
+                .iter()
+                .find(|value| value.r#type == document_type && value.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("frontier Research admission lost a strong source"))?,
+        );
+    }
+    for source in &request.frontier_authority_documents {
+        let envelope = snapshot
+            .iter()
+            .find(|value| value.r#type == source.document_type && value.key == source.document_key)
+            .ok_or_else(|| anyhow!("frontier Research admission lost frontier authority"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!(
+                "frontier Research output cannot be rebased onto changed frontier authority"
+            ));
+        }
+        strong_reads.push(envelope.clone());
+    }
+    let packet_envelope = cache.prepare_entry(&packet_id, &packet)?.0;
+    match crate::reasoning_context::commit_mind_mutation_with_derived_companions(
+        store_path,
+        &result.decision_context_id,
+        "Eyes.frontier_research",
+        strong_reads,
+        writes,
+        vec![packet_envelope],
+        accepted_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => Err(anyhow!(
+            "frontier Research admission lost exact keyed reads: {document_identities:?}"
+        )),
+    }
+}
+
 pub fn accept_body_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
@@ -1516,7 +1892,7 @@ mod tests {
     }
 
     #[test]
-    fn keyed_modeling_lifecycles_ignore_thread_state() -> Result<()> {
+    fn keyed_modeling_and_research_lifecycles_ignore_thread_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("body-decision.cc");
         crate::initialize_runtime_spine(
@@ -1686,6 +2062,7 @@ mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
@@ -1938,6 +2315,7 @@ mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: Some(request.request_id.clone()),
+            repo_frontier_research_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
@@ -2080,6 +2458,7 @@ mod tests {
             frontier_route_id: Some(route.route_id.clone()),
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
@@ -2275,6 +2654,7 @@ mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: Some(verdict_request.request_id.clone()),
             proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
@@ -2408,6 +2788,367 @@ mod tests {
                 .iter()
                 .any(|node| node.id == "concurrent-unrelated-node")
         );
+
+        // Eyes is its own exact current-work family. It launches from an
+        // explicit external-evidence obligation, survives unrelated keyed
+        // Mind commits, and conflicts if that exact frontier changes.
+        let eyes_frontier = RepoFrontierItem {
+            id: "eyes-frontier".into(),
+            migration_body: "epiphany".into(),
+            question: "What external evidence resolves this claim?".into(),
+            gap: "The current Body cannot answer this external question.".into(),
+            target_claim_ids: vec!["body-node".into()],
+            source_scope: vec!["epiphany-core/src".into()],
+            recommended_next_organ: "Eyes".into(),
+            status: RepoFrontierStatus::Active,
+            evidence_refs: vec![verdict.receipt_id.clone()],
+            ..Default::default()
+        };
+        let eyes_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-eyes-frontier",
+            "eyes-frontier-fixture-request",
+            "eyes-frontier-fixture-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: eyes_frontier.clone(),
+            }],
+        )?;
+        let eyes_plan = crate::plan_repo_model_mutation(&store, &eyes_proposal)?;
+        let mut eyes_cache = crate::runtime_spine_cache(&store)?;
+        eyes_cache.pull_all_backing_stores()?;
+        let eyes_provenance = eyes_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("typed provenance for Eyes obligation");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                eyes_provenance,
+                "Modeling.external_evidence_obligation_fixture",
+                eyes_plan.strong_reads,
+                eyes_plan.writes,
+                "2026-08-17T00:00:22Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        assert_eq!(
+            project_current_work(&store)?.research_continuation_action,
+            Some(RepoFrontierResearchContinuationAction::LaunchResearch)
+        );
+        let research_job = launch_current_frontier_research_work(&store, "2026-08-17T00:00:23Z")?;
+        let mut research_cache = crate::runtime_spine_cache(&store)?;
+        research_cache.pull_all_backing_stores()?;
+        assert!(
+            research_cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .is_none()
+        );
+        let research_launch = research_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&research_job)?
+            .expect("exact Research launch");
+        let research_request_id = research_launch
+            .repo_frontier_research_request_id
+            .clone()
+            .expect("exact Research request identity");
+        let research_request = research_cache
+            .get::<crate::RepoFrontierResearchRequest>(&research_request_id)?
+            .expect("exact Research request");
+        assert_eq!(research_request.frontier_item_id, eyes_frontier.id);
+        assert!(
+            research_request.frontier_authority_documents.len()
+                < research_request.model_source_documents.len()
+        );
+        assert_eq!(
+            project_current_work(&store)?.research_continuation_action,
+            None
+        );
+        let research_basis = crate::worker_reasoning_basis(&store, &research_launch)?;
+        crate::put_reasoning_basis(&store, &research_basis)?;
+        let mut research_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "research-request",
+            "research-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        research_native.reasoning_basis_id = Some(research_basis.basis_id.clone());
+        research_native.source_worker_job_id = Some(research_job.clone());
+        let research_provider = epiphany_openai_adapter::request_from_native(&research_native);
+        let research_context = crate::EpiphanyDecisionContext::new(
+            &research_basis,
+            research_native,
+            research_provider,
+            Vec::new(),
+        )?;
+        research_cache.put(&research_context.context_id, &research_context)?;
+        let stale_research_store = temp.path().join("stale-research-output.cc");
+        std::fs::copy(&store, &stale_research_store)?;
+        let evidence = epiphany_state_model::EpiphanyEvidenceRecord {
+            id: "research-evidence-1".into(),
+            kind: "external-source".into(),
+            status: "ok".into(),
+            summary: "The bounded external claim is supported.".into(),
+            code_refs: vec![epiphany_state_model::EpiphanyCodeRef {
+                path: "epiphany-core/src/current_work.rs".into(),
+                start_line: Some(1),
+                end_line: None,
+                symbol: Some("accept_frontier_research_result".into()),
+                note: None,
+            }],
+        };
+        let observation = epiphany_state_model::EpiphanyObservation {
+            id: "research-observation-1".into(),
+            summary: "External evidence answers the exact frontier question.".into(),
+            source_kind: "research".into(),
+            status: "ok".into(),
+            code_refs: Vec::new(),
+            evidence_ids: vec![evidence.id.clone()],
+        };
+        let research_patch = crate::EpiphanyRoleStatePatchDocument {
+            evidence: vec![evidence.clone()],
+            observations: vec![observation.clone()],
+            ..Default::default()
+        };
+        let research_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "research-result".into(),
+            job_id: research_job.clone(),
+            role_id: "research".into(),
+            verdict: "evidence-ready".into(),
+            summary: "gathered exact external evidence".into(),
+            next_safe_move: "admit evidence".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: vec!["epiphany-core/src/current_work.rs".into()],
+            frontier_node_ids: vec!["body-node".into()],
+            evidence_ids: vec![evidence.id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: Some(rmp_serde::to_vec_named(&research_patch)?),
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: Some(research_request_id.clone()),
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: research_context.context_id.clone(),
+        };
+        let research_process = crate::ProcessInstanceIdentity {
+            process_id: 44,
+            creation_token: 9,
+            created_at_rfc3339: Some("2026-08-17T00:00:24Z".into()),
+            executable_path: "research-worker".into(),
+        };
+        let research_activation = "research-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &research_job,
+            &research_process,
+            &format!("{:x}", Sha256::digest(research_activation.as_bytes())),
+            "2026-08-17T00:00:24Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &research_job,
+            &research_process,
+            research_activation,
+            "2026-08-17T00:00:25Z",
+        )?;
+        crate::put_runtime_role_worker_result(&store, &research_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{research_job}"),
+                job_id: research_job.clone(),
+                completed_at: "2026-08-17T00:00:26Z".into(),
+                verdict: research_result.verdict.clone(),
+                summary: research_result.summary.clone(),
+                next_safe_move: research_result.next_safe_move.clone(),
+                evidence_refs: research_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(research_context.context_id.clone()),
+            },
+        )?;
+        assert_eq!(
+            project_current_work(&store)?.research_continuation_action,
+            Some(RepoFrontierResearchContinuationAction::ReviewResearchResult)
+        );
+
+        let mut unrelated_research_node = final_model
+            .nodes
+            .iter()
+            .find(|node| node.id == "body-node")
+            .cloned()
+            .expect("seeded Body node");
+        unrelated_research_node.id = "research-concurrent-node".into();
+        unrelated_research_node.title = "Research concurrent node".into();
+        unrelated_research_node.claim = "Unrelated Mind work does not stale Eyes".into();
+        let disjoint_research_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-research-concurrent",
+            "research-concurrent-request",
+            "research-concurrent-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutNode {
+                node: unrelated_research_node,
+            }],
+        )?;
+        let disjoint_research_plan =
+            crate::plan_repo_model_mutation(&store, &disjoint_research_proposal)?;
+        let mut disjoint_cache = crate::runtime_spine_cache(&store)?;
+        disjoint_cache.pull_all_backing_stores()?;
+        let disjoint_provenance = disjoint_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("typed provenance for disjoint Research mutation");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                disjoint_provenance,
+                "Modeling.concurrent_with_research_fixture",
+                disjoint_research_plan.strong_reads,
+                disjoint_research_plan.writes,
+                "2026-08-17T00:00:26.500Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+
+        let mut competing_eyes_frontier = eyes_frontier.clone();
+        competing_eyes_frontier.gap = "The exact external question changed.".into();
+        competing_eyes_frontier.updated_at = Some("2026-08-17T00:00:27Z".into());
+        let competing_eyes_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-competing-eyes-frontier",
+            "competing-eyes-frontier-request",
+            "competing-eyes-frontier-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: competing_eyes_frontier,
+            }],
+        )?;
+        let competing_eyes_plan =
+            crate::plan_repo_model_mutation(&stale_research_store, &competing_eyes_proposal)?;
+        let mut stale_research_cache = crate::runtime_spine_cache(&stale_research_store)?;
+        stale_research_cache.pull_all_backing_stores()?;
+        let competing_eyes_provenance = stale_research_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("copied typed provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &stale_research_store,
+                "Modeling",
+                competing_eyes_provenance,
+                "Modeling.competing_eyes_frontier_fixture",
+                competing_eyes_plan.strong_reads,
+                competing_eyes_plan.writes,
+                "2026-08-17T00:00:27Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let stale_process = crate::ProcessInstanceIdentity {
+            process_id: 45,
+            creation_token: 10,
+            created_at_rfc3339: Some("2026-08-17T00:00:27Z".into()),
+            executable_path: "stale-research-worker".into(),
+        };
+        let stale_activation = "stale-research-activation";
+        crate::claim_runtime_worker_process(
+            &stale_research_store,
+            &research_job,
+            &stale_process,
+            &format!("{:x}", Sha256::digest(stale_activation.as_bytes())),
+            "2026-08-17T00:00:27Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &stale_research_store,
+            &research_job,
+            &stale_process,
+            stale_activation,
+            "2026-08-17T00:00:27.100Z",
+        )?;
+        crate::put_runtime_role_worker_result(&stale_research_store, &research_result)?;
+        crate::complete_runtime_job(
+            &stale_research_store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{research_job}"),
+                job_id: research_job.clone(),
+                completed_at: "2026-08-17T00:00:27.200Z".into(),
+                verdict: research_result.verdict.clone(),
+                summary: research_result.summary.clone(),
+                next_safe_move: research_result.next_safe_move.clone(),
+                evidence_refs: research_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(research_context.context_id.clone()),
+            },
+        )?;
+        assert_eq!(
+            crate::runtime_role_worker_result(&stale_research_store, &research_job)?
+                .expect("stale output remains a durable decision")
+                .decision_context_id,
+            research_context.context_id
+        );
+        let mut research_conflict_before = crate::runtime_spine_cache(&stale_research_store)?;
+        research_conflict_before.pull_all_backing_stores()?;
+        let research_conflict_before = research_conflict_before.snapshot_envelopes();
+        assert!(
+            accept_frontier_research_result(
+                &stale_research_store,
+                &research_job,
+                "2026-08-17T00:00:28Z",
+            )
+            .is_err()
+        );
+        let mut research_conflict_after = crate::runtime_spine_cache(&stale_research_store)?;
+        research_conflict_after.pull_all_backing_stores()?;
+        assert_eq!(
+            research_conflict_after.snapshot_envelopes(),
+            research_conflict_before
+        );
+
+        let research_commit =
+            accept_frontier_research_result(&store, &research_job, "2026-08-17T00:00:28Z")?;
+        assert_eq!(research_commit.invariant_owner, "Eyes.frontier_research");
+        assert_eq!(
+            accept_frontier_research_result(&store, &research_job, "2026-08-17T00:00:29Z")?,
+            research_commit
+        );
+        let mut admitted_research_cache = crate::runtime_spine_cache(&store)?;
+        admitted_research_cache.pull_all_backing_stores()?;
+        assert!(
+            admitted_research_cache
+                .get::<crate::EpiphanyMindEvidenceDocument>(&evidence.id)?
+                .is_some()
+        );
+        assert!(
+            admitted_research_cache
+                .get::<crate::EpiphanyMindObservationDocument>(&observation.id)?
+                .is_some()
+        );
+        let packet = admitted_research_cache
+            .get::<crate::EyesEvidencePacket>(&format!("eyes-packet-{research_request_id}"))?
+            .expect("request-bound Eyes packet");
+        assert_eq!(packet.research_request_id, research_request_id);
+        assert_eq!(packet.decision_context_id, research_context.context_id);
+        let after_research = project_current_work(&store)?;
+        assert!(after_research.research_continuation_action.is_none());
+        assert!(after_research.body_modeling_action.is_none());
+        assert!(after_research.proposal_modeling.is_none());
+        assert!(after_research.frontier_verdict_modeling.is_none());
         Ok(())
     }
 }

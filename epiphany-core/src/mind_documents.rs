@@ -234,6 +234,20 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     Ok(())
 }
 
+pub(crate) fn prepare_mind_document<T: DatabaseEntry>(
+    cache: &CultCache,
+    key: impl Into<String>,
+    value: &T,
+) -> Result<CultCacheEnvelope> {
+    if !T::TYPE.starts_with("epiphany.mind.") {
+        return Err(anyhow!(
+            "Mind document preparation refuses non-Mind type {:?}",
+            T::TYPE
+        ));
+    }
+    Ok(cache.prepare_entry_named(key, value)?.0)
+}
+
 pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Result<()> {
     if let Some(expected_key) = crate::repo_model_documents::repo_model_write_key(envelope)? {
         if envelope.key != expected_key {

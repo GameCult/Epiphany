@@ -27,6 +27,13 @@ pub fn commit_coordinator_job_launch(
             "proposal Modeling launch is owned by keyed current work, not the aggregate coordinator transaction"
         ));
     }
+    if request.owner_role == EPIPHANY_RESEARCH_OWNER_ROLE
+        || request.repo_frontier_research_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "frontier Research launch is owned by keyed current work, not the aggregate coordinator transaction"
+        ));
+    }
     let body_basis = if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         Some(observe_runtime_repository_body_basis(store)?)
     } else {

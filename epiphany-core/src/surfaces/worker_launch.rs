@@ -35,9 +35,9 @@ pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_planning_context.v1";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_research_context.v2";
+    "epiphany.worker.repo_frontier_research_context.v3";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_research_context.v2";
+    "epiphany.repo_frontier_research_context.v3";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
@@ -153,6 +153,7 @@ pub struct RepoFrontierResearchContextProjection {
     pub request_id: String,
     pub model_projection_digest: String,
     pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
+    pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     pub frontier_item_id: String,
     pub frontier_item_hash: String,
     pub source_scope: Vec<String>,
@@ -168,6 +169,7 @@ impl From<&crate::RepoFrontierResearchRequest> for RepoFrontierResearchContextPr
             request_id: request.request_id.clone(),
             model_projection_digest: request.model_projection_digest.clone(),
             model_source_documents: request.model_source_documents.clone(),
+            frontier_authority_documents: request.frontier_authority_documents.clone(),
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
             source_scope: request.source_scope.clone(),

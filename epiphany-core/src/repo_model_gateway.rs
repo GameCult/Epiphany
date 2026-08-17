@@ -72,9 +72,9 @@ pub const LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLAN_DECISION_CONTRACT: &str = "epiphany.repo_frontier_plan_decision.v0";
 pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v2";
 pub const REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_research_request.v2";
+    "epiphany.self.repo_frontier_research_request.v3";
 pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
-    "epiphany.repo_frontier_research_request.v2";
+    "epiphany.repo_frontier_research_request.v3";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v0";
 pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION: &str =
@@ -493,8 +493,6 @@ pub struct RepoFrontierResearchRequest {
     pub requested_at: String,
     #[cultcache(key = 8)]
     pub runtime_id: String,
-    #[cultcache(key = 9)]
-    pub thread_id: String,
     #[cultcache(key = 10)]
     pub contract: String,
     /// Immutable public source identities already owned by the admitted
@@ -502,6 +500,11 @@ pub struct RepoFrontierResearchRequest {
     /// evidence or a search hint.
     #[cultcache(key = 11, default)]
     pub public_source_refs: Vec<String>,
+    /// Exact current documents that own whether this work remains actionable.
+    /// The complete model sources above are immutable audit cargo; unrelated
+    /// keyed Mind changes must not stale this request.
+    #[cultcache(key = 12)]
+    pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

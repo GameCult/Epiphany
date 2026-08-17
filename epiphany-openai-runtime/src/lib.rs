@@ -2227,6 +2227,7 @@ fn role_worker_result_from_ingress(
         frontier_route_id: clean_optional_string(result.frontier_route_id.as_deref()),
         repo_frontier_modeling_request_id: launch_request.repo_frontier_modeling_request_id.clone(),
         proposal_modeling_request_id: launch_request.proposal_modeling_request_id.clone(),
+        repo_frontier_research_request_id: launch_request.repo_frontier_research_request_id.clone(),
         frontier_planning_request_id: launch_request.frontier_planning_request_id.clone(),
         frontier_plan_candidate_msgpack,
         frontier_plan_mind_request_id: frontier_plan_mind_context
@@ -2290,6 +2291,7 @@ pub fn failed_frontier_planning_role_result(
         frontier_route_id: None,
         repo_frontier_modeling_request_id: None,
         proposal_modeling_request_id: None,
+        repo_frontier_research_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_candidate_msgpack: None,
         frontier_plan_mind_request_id: None,
@@ -2681,17 +2683,9 @@ mod tests {
         assert_eq!(state_patch["additionalProperties"], false);
         assert_eq!(
             state_patch["required"],
-            serde_json::json!([
-                "evidence",
-                "investigationCheckpoint",
-                "observations",
-                "scratch"
-            ])
+            serde_json::json!(["evidence", "investigationCheckpoint", "observations"])
         );
-        assert_eq!(
-            state_patch["properties"]["scratch"]["anyOf"][0]["additionalProperties"],
-            false
-        );
+        assert!(state_patch["properties"].get("scratch").is_none());
         assert_eq!(
             state_patch["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
             false
@@ -3846,6 +3840,7 @@ mod tests {
             frontier_route_id: Some(route.route_id.clone()),
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,

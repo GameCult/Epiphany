@@ -58,6 +58,7 @@ impl WorkerProcessStatus {
 pub enum RuntimeTypedRequestRef<'a> {
     ProposalModeling(&'a str),
     FrontierVerdictModeling(&'a str),
+    FrontierResearch(&'a str),
     ImaginationConsideration(&'a str),
     AdmittedModelDirection(&'a str),
 }
@@ -67,6 +68,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         match self {
             Self::ProposalModeling(id)
             | Self::FrontierVerdictModeling(id)
+            | Self::FrontierResearch(id)
             | Self::ImaginationConsideration(id)
             | Self::AdmittedModelDirection(id) => id,
         }
@@ -76,6 +78,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         match self {
             Self::ProposalModeling(_) => "proposal-modeling",
             Self::FrontierVerdictModeling(_) => "frontier-verdict-modeling",
+            Self::FrontierResearch(_) => "frontier-research",
             Self::ImaginationConsideration(_) => "imagination-consideration",
             Self::AdmittedModelDirection(_) => "admitted-model-direction",
         }
@@ -88,6 +91,9 @@ impl<'a> RuntimeTypedRequestRef<'a> {
             }
             Self::FrontierVerdictModeling(id) => {
                 launch.repo_frontier_modeling_request_id.as_deref() == Some(id)
+            }
+            Self::FrontierResearch(id) => {
+                launch.repo_frontier_research_request_id.as_deref() == Some(id)
             }
             Self::ImaginationConsideration(id) => {
                 launch.imagination_consideration_request_id.as_deref() == Some(id)
@@ -108,6 +114,9 @@ impl<'a> RuntimeTypedRequestRef<'a> {
             }
             Self::FrontierVerdictModeling(id) => {
                 result.repo_frontier_modeling_request_id.as_deref() == Some(id)
+            }
+            Self::FrontierResearch(id) => {
+                result.repo_frontier_research_request_id.as_deref() == Some(id)
             }
             Self::ImaginationConsideration(id) => {
                 result.imagination_consideration_request_id.as_deref() == Some(id)
@@ -131,6 +140,9 @@ impl crate::EpiphanyRuntimeWorkerLaunchRequest {
             self.repo_frontier_modeling_request_id
                 .as_deref()
                 .map(RuntimeTypedRequestRef::FrontierVerdictModeling),
+            self.repo_frontier_research_request_id
+                .as_deref()
+                .map(RuntimeTypedRequestRef::FrontierResearch),
             self.imagination_consideration_request_id
                 .as_deref()
                 .map(RuntimeTypedRequestRef::ImaginationConsideration),

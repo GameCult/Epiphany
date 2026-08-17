@@ -549,11 +549,16 @@ pub fn put_reasoning_basis(
             return Err(anyhow!("role reasoning basis cites a non-role launch"));
         };
         let current_mind = crate::assemble_mind_view(store_path)?;
+        let modeling_body_mismatch = projection
+            .authority
+            .role_id
+            .eq_ignore_ascii_case("modeling")
+            && projection.authority.repository_body_observation_basis
+                != current_mind.repository_body_observation;
         if projection.authority != document.into()
             || projection.mind != current_mind.clone().into()
             || basis.source_documents != current_mind.source_documents
-            || projection.authority.repository_body_observation_basis
-                != current_mind.repository_body_observation
+            || modeling_body_mismatch
         {
             return Err(anyhow!(
                 "role reasoning projection diverges from its exact launch or keyed Mind sources"
@@ -793,6 +798,38 @@ pub fn commit_mind_mutation(
         strong_reads,
         writes,
         Vec::new(),
+        committed_at,
+    )
+}
+
+pub(crate) fn commit_mind_mutation_with_derived_companions(
+    store_path: &Path,
+    decision_context_id: &str,
+    invariant_owner: &str,
+    strong_reads: Vec<CultCacheEnvelope>,
+    writes: Vec<CultCacheEnvelope>,
+    derived_companions: Vec<CultCacheEnvelope>,
+    committed_at: &str,
+) -> Result<EpiphanyMindCommitOutcome> {
+    require_non_empty(decision_context_id, "Mind mutation decision context id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let context = cache
+        .get::<EpiphanyDecisionContext>(decision_context_id)?
+        .ok_or_else(|| anyhow!("Mind mutation decision context does not exist"))?;
+    let basis = cache
+        .get::<EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("Mind mutation decision context lost its basis"))?;
+    context.validate(&basis)?;
+    commit_authorized_mind_mutation(
+        store_path,
+        EpiphanyMindCommitAuthority::ModelDecisionContext {
+            decision_context_id: decision_context_id.to_string(),
+        },
+        invariant_owner,
+        strong_reads,
+        writes,
+        derived_companions,
         committed_at,
     )
 }

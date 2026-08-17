@@ -3,7 +3,6 @@ use crate::coordinator_state::changed_fields;
 use crate::*;
 use anyhow::Context;
 use epiphany_state_model::EpiphanyThreadState;
-use std::collections::BTreeSet;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,6 +177,11 @@ pub fn accept_coordinator_role_finding(
     accepted_at: String,
     nonce: &str,
 ) -> anyhow::Result<EpiphanyNativeRoleAcceptance> {
+    if role_id == EpiphanyRoleResultRoleId::Research {
+        return Err(anyhow::anyhow!(
+            "generic role acceptance cannot admit Research; the exact frontier Research current-work owner must commit it"
+        ));
+    }
     let snapshot = read_role_result_snapshot(Some(state), Some(store), role_id, binding_id);
     if snapshot.status != EpiphanyCoordinatorRoleResultStatus::Completed {
         return Err(anyhow::anyhow!(
@@ -203,57 +207,7 @@ pub fn accept_coordinator_role_finding(
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let mut available = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
     let mut prerequisites = Vec::new();
-    if role_id == EpiphanyRoleResultRoleId::Research {
-        let public_source_lookups = runtime_authenticated_public_source_lookups_for_worker(
-            store,
-            finding.runtime_job_id.as_deref().unwrap_or_default(),
-        )?;
-        for lookup in &public_source_lookups {
-            if !finding
-                .evidence_ids
-                .iter()
-                .any(|evidence_id| evidence_id == &lookup.receipt_id)
-                || !finding
-                    .files_inspected
-                    .iter()
-                    .any(|source_ref| source_ref == &lookup.source_ref)
-            {
-                return Err(anyhow::anyhow!(
-                    "Research finding did not cite its authenticated public source receipt and source ref"
-                ));
-            }
-        }
-        if finding
-            .evidence_ids
-            .iter()
-            .any(|evidence_id| evidence_id.starts_with("eyes-source-"))
-            && public_source_lookups.is_empty()
-        {
-            return Err(anyhow::anyhow!(
-                "Research finding cited public source evidence without an authenticated lookup"
-            ));
-        }
-        let packet = eyes_evidence_packet_from_research_finding(
-            format!("eyes-packet-{}", update.accepted_receipt_id),
-            &finding,
-            &update.applied_patch,
-            &public_source_lookups,
-            accepted_at.clone(),
-        );
-        available.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
-        prerequisites.push(EpiphanyAcceptancePrerequisite::Eyes(packet));
-        for lookup in public_source_lookups {
-            available.push(EYES_SOURCE_LOOKUP_RECEIPT_TYPE.to_string());
-            prerequisites.push(EpiphanyAcceptancePrerequisite::EyesSourceLookup(lookup));
-        }
-        let grant_id = format!(
-            "substrate-grant-{}",
-            finding.runtime_job_id.as_deref().unwrap_or_default()
-        );
-        if runtime_substrate_gate_repo_access_grant_receipt(store, &grant_id)?.is_some() {
-            available.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
-        }
-    } else if role_id == EpiphanyRoleResultRoleId::Verification {
+    if role_id == EpiphanyRoleResultRoleId::Verification {
         let request_id = finding
             .verification_request_id
             .as_deref()
@@ -614,9 +568,6 @@ pub fn read_accepted_coordinator_state(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EpiphanyAcceptancePrerequisite {
-    Eyes(EyesEvidencePacket),
-    EyesSourceLookup(EyesSourceLookupReceipt),
-    SubstrateGate(SubstrateGateRepoAccessGrantReceipt),
     SoulFrontierVerdict {
         verdict: SoulVerdictReceipt,
         modeling_request: crate::RepoFrontierModelingRequest,
@@ -651,7 +602,6 @@ fn commit_state_with_mind_witness(
         store_path,
         expected_state,
     )?;
-    let mut eyes_packet_jobs = BTreeSet::new();
     for prerequisite in prerequisites {
         if let EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
             verdict,
@@ -665,85 +615,11 @@ fn commit_state_with_mind_witness(
             ));
         }
     }
-    for prerequisite in prerequisites {
-        if let EpiphanyAcceptancePrerequisite::Eyes(packet) = prerequisite {
-            if packet.source_role_id != "research"
-                || !eyes_packet_jobs.insert(packet.source_job_id.clone())
-            {
-                return Err(anyhow::anyhow!(
-                    "Mind commit requires one exact Research packet per source job"
-                ));
-            }
-            let authenticated =
-                crate::runtime_spine::authenticated_requested_public_source_lookups_for_worker(
-                    &cache,
-                    &packet.source_job_id,
-                )?;
-            let authenticated_ids = authenticated
-                .iter()
-                .map(|lookup| lookup.receipt_id.as_str())
-                .collect::<BTreeSet<_>>();
-            let packet_ids = packet
-                .source_lookup_receipt_ids
-                .iter()
-                .map(String::as_str)
-                .collect::<BTreeSet<_>>();
-            let published = prerequisites
-                .iter()
-                .filter_map(|candidate| match candidate {
-                    EpiphanyAcceptancePrerequisite::EyesSourceLookup(lookup)
-                        if lookup.source_job_id == packet.source_job_id =>
-                    {
-                        Some(lookup)
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            let published_ids = published
-                .iter()
-                .map(|lookup| lookup.receipt_id.as_str())
-                .collect::<BTreeSet<_>>();
-            if packet.source_lookup_receipt_ids.len() != packet_ids.len()
-                || published.len() != published_ids.len()
-                || packet_ids != authenticated_ids
-                || published_ids != authenticated_ids
-                || authenticated.iter().any(|lookup| {
-                    !packet
-                        .source_refs
-                        .iter()
-                        .any(|source_ref| source_ref == &lookup.source_ref)
-                        || !published.iter().any(|candidate| *candidate == lookup)
-                })
-            {
-                return Err(anyhow::anyhow!(
-                    "Eyes packet lost exact frontier public-source coverage before Mind commit"
-                ));
-            }
-        }
-    }
-    for prerequisite in prerequisites {
-        if let EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) = prerequisite
-            && !eyes_packet_jobs.contains(&document.source_job_id)
-        {
-            return Err(anyhow::anyhow!(
-                "Eyes source lookup has no owning Research packet"
-            ));
-        }
-    }
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
     let mut batch = vec![review_envelope, commit_envelope];
     for prerequisite in prerequisites {
         let envelope = match prerequisite {
-            EpiphanyAcceptancePrerequisite::Eyes(document) => {
-                cache.prepare_entry(&document.packet_id, document)?.0
-            }
-            EpiphanyAcceptancePrerequisite::EyesSourceLookup(document) => {
-                cache.prepare_entry(&document.receipt_id, document)?.0
-            }
-            EpiphanyAcceptancePrerequisite::SubstrateGate(document) => {
-                cache.prepare_entry(&document.receipt_id, document)?.0
-            }
             EpiphanyAcceptancePrerequisite::SoulFrontierVerdict {
                 verdict,
                 modeling_request,

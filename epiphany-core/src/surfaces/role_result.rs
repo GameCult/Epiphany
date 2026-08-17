@@ -798,10 +798,9 @@ pub fn research_role_state_patch_policy_errors(
             ));
         }
     }
-    if patch.scratch.is_none() && patch.investigation_checkpoint.is_none() {
-        errors.push(
-            "research statePatch must include scratch or an investigationCheckpoint to bank the source-gathering seam".to_string(),
-        );
+    if patch.scratch.is_some() {
+        errors
+            .push("research scratch is pass-local and cannot enter durable Mind state".to_string());
     }
     errors
 }

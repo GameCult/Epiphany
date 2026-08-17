@@ -139,14 +139,13 @@ pub fn intake_user_objective(
         contract: USER_OBJECTIVE_INTAKE_CONTRACT.into(),
     };
     let provenance = cache.prepare_entry(&intake_id, &intake)?.0;
-    let objective_write = cache
-        .prepare_entry(
-            MIND_OBJECTIVE_KEY,
-            &EpiphanyMindObjectiveDocument {
-                objective: objective.to_string(),
-            },
-        )?
-        .0;
+    let objective_write = crate::mind_documents::prepare_mind_document(
+        &cache,
+        MIND_OBJECTIVE_KEY,
+        &EpiphanyMindObjectiveDocument {
+            objective: objective.to_string(),
+        },
+    )?;
     let commit_receipt = match commit_operator_mind_mutation(
         store,
         provenance,
