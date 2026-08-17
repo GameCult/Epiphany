@@ -4910,3 +4910,22 @@ recommend `launchModeling`, because the surviving coordinator launch still
 writes `EpiphanyThreadStateEntry`. Verification: Body work appears before its
 exact decision receipt, clears after that receipt, and performs zero external
 Body reads; the coordinator-runtime status binary builds.
+
+Exact `9f7b164f` adds the first thread-free actuation transaction. Baseline Body
+Modeling consumes the unresolved work projection, derives a family attempt,
+and atomically publishes runtime identity/session, queued job, audit event,
+worker launch request, `EpiphanyBodyModelingLaunchBinding`, and the read-only
+Substrate Gate grant. No `EpiphanyThreadStateEntry`, global revision, aggregate
+job binding, or runtime-link projection participates.
+
+Owner: the Body Modeling launch transaction owns creation of one exact worker
+attempt for one admitted Body obligation. Strong input: only the immutable Mind
+Body-observation document that owns the obligation. Observational input: the
+current RepoModel projection digest recorded on the launch binding; inference
+will seal its complete current Mind projection immediately before transport.
+Output: one atomic runtime worker family and scoped read grant. Derived state:
+status, role boards, and eventual runtime links. Forbidden writers: unrelated
+Persona, Hands, evidence, or graph documents cannot conflict with this launch;
+thread state cannot create or repair it. Duplicate live launch refuses, while a
+failed/cancelled attempt makes the work eligible for a distinct ordinal. The
+remaining cut is to route operator and Resident Self callers through this owner.

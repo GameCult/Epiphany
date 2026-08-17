@@ -227,8 +227,7 @@ Cut in this order:
    admission are landed. Current-work no longer reads the external Body store;
    status consumes the shared projection, but actuation remains intentionally
    withheld from the aggregate coordinator launch path.
-3. Build one atomic baseline Modeling launch transaction from unresolved Body
-   work, then move operator and Resident Self launch/review consumers to it and
+3. **Baseline transaction landed at `9f7b164f`:** move operator and Resident Self launch/review consumers to it and
    exact request/result identities. Thread ID remains immutable pass provenance
    only.
 4. Move role/reorient acceptance from aggregate state patches to family-owned
