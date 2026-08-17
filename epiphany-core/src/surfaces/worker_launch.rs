@@ -30,10 +30,6 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_proposal_modeling_context.v1";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_context.v1";
-pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_model_claim_repair_context.v1";
-pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_model_claim_repair_context.v1";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_planning_context.v1";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
@@ -108,8 +104,6 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claim_repair_context: Option<RepoModelClaimRepairContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -274,56 +268,6 @@ pub struct RepoFrontierProposalModelingContextProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RepoModelClaimRepairContextProjection {
-    pub schema_version: String,
-    pub contract: String,
-    pub request_id: String,
-    pub challenge_id: String,
-    pub challenge_sha256: String,
-    pub eyes_evidence_packet_id: String,
-    pub eyes_evidence_packet_sha256: String,
-    pub source_result_id: String,
-    pub source_job_id: String,
-    pub original_model_projection_digest: String,
-    pub original_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    pub current_model_projection_digest: String,
-    pub current_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    pub target_claim_id: String,
-    pub target_claim_sha256: String,
-    pub runtime_id: String,
-    pub thread_id: String,
-    pub affected_frontier: Vec<crate::RepoModelClaimRepairFrontierRef>,
-    pub requested_at: String,
-}
-
-impl RepoModelClaimRepairContextProjection {
-    pub(crate) fn from_request(request: &crate::RepoModelClaimRepairRequest) -> Self {
-        Self {
-            schema_version: REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION.into(),
-            contract: REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT.into(),
-            request_id: request.request_id.clone(),
-            challenge_id: request.challenge_id.clone(),
-            challenge_sha256: request.challenge_sha256.clone(),
-            eyes_evidence_packet_id: request.eyes_evidence_packet_id.clone(),
-            eyes_evidence_packet_sha256: request.eyes_evidence_packet_sha256.clone(),
-            source_result_id: request.source_result_id.clone(),
-            source_job_id: request.source_job_id.clone(),
-            original_model_projection_digest: request.original_model_projection_digest.clone(),
-            original_model_source_documents: request.original_model_source_documents.clone(),
-            current_model_projection_digest: request.current_model_projection_digest.clone(),
-            current_model_source_documents: request.current_model_source_documents.clone(),
-            target_claim_id: request.target_claim_id.clone(),
-            target_claim_sha256: request.target_claim_sha256.clone(),
-            runtime_id: request.runtime_id.clone(),
-            thread_id: request.thread_id.clone(),
-            affected_frontier: request.affected_frontier.clone(),
-            requested_at: request.requested_at.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RepoFrontierPlanningContextProjection {
     pub schema_version: String,
     pub contract: String,
@@ -472,7 +416,6 @@ pub fn build_reorient_job_launch_request(
         organ_launch_contract,
         max_runtime_seconds: input.max_runtime_seconds,
         proposal_modeling_request_id: None,
-        claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,

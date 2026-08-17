@@ -521,7 +521,6 @@ pub fn accept_body_modeling_result(
         .ok_or_else(|| anyhow!("Body Modeling acceptance lost its typed result"))?;
     if result.role_id != "modeling"
         || result.proposal_modeling_request_id.is_some()
-        || result.claim_repair_request_id.is_some()
         || result.repo_frontier_modeling_request_id.is_some()
     {
         return Err(anyhow!("result is not baseline Body Modeling authority"));
@@ -599,7 +598,6 @@ pub fn accept_proposal_modeling_result(
         .as_deref()
         .ok_or_else(|| anyhow!("result is not proposal Modeling authority"))?;
     if !result.role_id.eq_ignore_ascii_case("modeling")
-        || result.claim_repair_request_id.is_some()
         || result.repo_frontier_modeling_request_id.is_some()
     {
         return Err(anyhow!("proposal Modeling result crossed family authority"));
@@ -682,13 +680,32 @@ pub fn launch_current_body_modeling_work(
     {
         return Err(anyhow!("Body Modeling launch options are invalid"));
     }
-    let current_work = project_current_work(store_path)?;
-    let work = current_work
-        .body_modeling
-        .ok_or_else(|| anyhow!("Mind has no unresolved Body Modeling work"))?;
+    let mind = crate::assemble_mind_view(store_path)?;
+    let body_basis = mind
+        .repository_body_observation
+        .clone()
+        .ok_or_else(|| anyhow!("Mind has no admitted repository Body observation"))?;
+    let repo_model = mind
+        .repo_model
+        .as_ref()
+        .ok_or_else(|| anyhow!("Mind has no keyed RepoModel state"))?;
+    let work = EpiphanyBodyModelingWorkProjection::derive(
+        mind.runtime_id.clone(),
+        body_basis,
+        repo_model.reasoning_basis(),
+    )?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let mind = crate::assemble_mind_view(store_path)?;
+    if resolve_body_modeling_work(
+        work.clone(),
+        cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
+    )?
+    .is_none()
+        || body_modeling_continuation_action(&cache, &work.work_id)?
+            != EpiphanyModelingContinuationAction::Launch
+    {
+        return Err(anyhow!("Mind has no launchable Body Modeling work"));
+    }
     let body_source = mind
         .source_documents
         .iter()
@@ -718,7 +735,6 @@ pub fn launch_current_body_modeling_work(
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(work.body_basis.clone()),
             proposal_modeling_context: None,
-            claim_repair_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
             frontier_plan_mind_context: None,
@@ -763,7 +779,6 @@ pub fn launch_current_body_modeling_work(
                 &output_contract_id,
             ),
             proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
@@ -829,12 +844,11 @@ pub fn launch_current_proposal_modeling_work(
     if chrono::DateTime::parse_from_rfc3339(&options.created_at).is_err() {
         return Err(anyhow!("proposal Modeling launch options are invalid"));
     }
-    let work = project_current_work(store_path)?
-        .proposal_modeling
-        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
-        .ok_or_else(|| anyhow!("Mind has no launchable proposal Modeling work"))?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let work = current_proposal_modeling_work(&cache)?
+        .filter(|work| work.action == EpiphanyModelingContinuationAction::Launch)
+        .ok_or_else(|| anyhow!("Mind has no launchable proposal Modeling work"))?;
     let request = work.request;
     let proposal = cache
         .get::<crate::RepoFrontierWorkProposal>(&request.proposal_id)?
@@ -890,7 +904,6 @@ pub fn launch_current_proposal_modeling_work(
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(body_basis),
             proposal_modeling_context: Some(proposal_context),
-            claim_repair_context: None,
             frontier_planning_context: None,
             frontier_research_context: None,
             frontier_plan_mind_context: None,
@@ -938,7 +951,6 @@ pub fn launch_current_proposal_modeling_work(
                 &output_contract_id,
             ),
             proposal_modeling_request_id: Some(request.request_id.clone()),
-            claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
@@ -1331,7 +1343,6 @@ mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
@@ -1584,7 +1595,6 @@ mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: Some(request.request_id.clone()),
-            claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,

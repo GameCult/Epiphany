@@ -1111,7 +1111,6 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         dynamic_prompt_context: None,
         repository_body_observation_basis: None,
         proposal_modeling_context: None,
-        claim_repair_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
         frontier_plan_mind_context: None,
@@ -1159,7 +1158,6 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         organ_launch_contract,
         max_runtime_seconds,
         proposal_modeling_request_id: None,
-        claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: Some(mind_request_id),
         imagination_consideration_request_id: None,
@@ -1215,7 +1213,6 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         dynamic_prompt_context,
         repository_body_observation_basis: None,
         proposal_modeling_context: None,
-        claim_repair_context: None,
         frontier_planning_context: None,
         frontier_research_context: None,
         frontier_plan_mind_context: None,
@@ -1262,7 +1259,6 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         organ_launch_contract,
         max_runtime_seconds,
         proposal_modeling_request_id: None,
-        claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,
@@ -1428,7 +1424,6 @@ pub fn build_epiphany_job_launch_request(
         organ_launch_contract,
         max_runtime_seconds,
         proposal_modeling_request_id: None,
-        claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
         imagination_consideration_request_id: None,
@@ -1688,7 +1683,6 @@ mod tests {
             "repositoryBodyObservationBasis",
             "repoFrontierModelingRequestId",
             "proposalModelingRequestId",
-            "claimRepairRequestId",
         ] {
             assert!(schema["properties"].get(runtime_owned).is_none());
         }

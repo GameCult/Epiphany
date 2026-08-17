@@ -34,8 +34,8 @@ use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
-use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::fail_model_backed_worker_job;
+use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::failed_frontier_planning_role_result;
 use epiphany_openai_runtime::load_worker_launch_request;
 use epiphany_openai_runtime::record_openai_events;
@@ -166,14 +166,12 @@ async fn main() -> Result<()> {
                 )
                 .await
                 {
-                    Ok(result) => {
-                        seal_worker_runtime_result(
-                            &timeout_store,
-                            &timeout_job_id,
-                            result,
-                            &pass_progress,
-                        )?
-                    }
+                    Ok(result) => seal_worker_runtime_result(
+                        &timeout_store,
+                        &timeout_job_id,
+                        result,
+                        &pass_progress,
+                    )?,
                     Err(_) => {
                         let summary = format!("Worker runtime timed out after {seconds} seconds.");
                         let result = fail_worker_and_openai_jobs(
@@ -782,8 +780,10 @@ struct WorkerPassProgress(Arc<Mutex<Option<String>>>);
 
 impl WorkerPassProgress {
     fn note_model_request(&self, request_id: &str) {
-        *self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
-            Some(request_id.to_string());
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(request_id.to_string());
     }
 
     fn terminal_request_id(&self) -> Option<String> {
@@ -856,9 +856,7 @@ fn fail_worker_and_openai_jobs(
 fn persisted_model_request_exists(store_path: &Path, request_id: &str) -> Result<bool> {
     let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    Ok(cache
-        .get::<EpiphanyModelRequest>(request_id)?
-        .is_some())
+    Ok(cache.get::<EpiphanyModelRequest>(request_id)?.is_some())
 }
 
 fn fail_worker_for_runtime_error(
@@ -939,12 +937,8 @@ async fn run_worker_launch_with_tool_continuation(
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
     let basis = epiphany_core::worker_reasoning_basis(&options.store_path, &launch_request)?;
     epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
-    let mut initial_request = build_worker_model_request(
-        &launch_request,
-        &options.provider,
-        &options.model,
-        &basis,
-    )?;
+    let mut initial_request =
+        build_worker_model_request(&launch_request, &options.provider, &options.model, &basis)?;
     let requested_public_source_intents =
         if launch_request.repo_frontier_research_request_id.is_some() {
             epiphany_core::put_runtime_requested_public_source_intents(
@@ -1559,7 +1553,6 @@ mod tests {
             organ_launch_contract: launch.organ_launch_contract.clone(),
             max_runtime_seconds: None,
             proposal_modeling_request_id: launch.proposal_modeling_request_id.clone(),
-            claim_repair_request_id: launch.claim_repair_request_id.clone(),
             frontier_planning_request_id: launch.frontier_planning_request_id.clone(),
             frontier_plan_mind_request_id: launch.frontier_plan_mind_request_id.clone(),
             imagination_consideration_request_id: launch
@@ -1608,7 +1601,6 @@ mod tests {
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,
                         proposal_modeling_context: None,
-                        claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
                         frontier_plan_mind_context: None,
@@ -1636,7 +1628,6 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
-                claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
@@ -1721,7 +1712,6 @@ mod tests {
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,
                         proposal_modeling_context: None,
-                        claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
                         frontier_plan_mind_context: None,
@@ -1749,7 +1739,6 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
-                claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
@@ -1761,11 +1750,9 @@ mod tests {
             },
         )?;
 
-        let launch = epiphany_core::runtime_worker_launch_request(
-            &store,
-            "worker-job-runtime-error",
-        )?
-        .expect("worker launch");
+        let launch =
+            epiphany_core::runtime_worker_launch_request(&store, "worker-job-runtime-error")?
+                .expect("worker launch");
         let basis = epiphany_core::worker_reasoning_basis(&store, &launch)?;
         epiphany_core::put_reasoning_basis(&store, &basis)?;
         let mut request = EpiphanyModelRequest::new(
@@ -1860,7 +1847,6 @@ mod tests {
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,
                         proposal_modeling_context: None,
-                        claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_research_context: None,
                         frontier_plan_mind_context: None,
@@ -1888,7 +1874,6 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
-                claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,

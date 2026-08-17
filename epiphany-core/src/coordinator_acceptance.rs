@@ -310,7 +310,6 @@ pub fn accept_coordinator_role_finding(
             return Err(anyhow::anyhow!("Modeling finding/result identity mismatch"));
         }
         let is_body_modeling = result.proposal_modeling_request_id.is_none()
-            && result.claim_repair_request_id.is_none()
             && result.repo_frontier_modeling_request_id.is_none();
         if is_body_modeling {
             crate::accept_body_modeling_result(store, job_id, &accepted_at)?;
@@ -347,11 +346,7 @@ pub fn accept_coordinator_role_finding(
                 ));
             }
             let plan = plan_repo_model_mutation(store, &proposal)?;
-            let invariant_owner = if result.claim_repair_request_id.is_some() {
-                "Modeling.claim_repair"
-            } else {
-                "Modeling.frontier_verdict"
-            };
+            let invariant_owner = "Modeling.frontier_verdict";
             match commit_mind_mutation(
                 store,
                 &result.decision_context_id,

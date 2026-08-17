@@ -107,33 +107,6 @@ fn commit_coordinator_job_launch_in_cache(
             }
         }
     }
-    let claim_repair_launch = if let Some(request_id) = request.claim_repair_request_id.as_deref() {
-        let (repair, challenge, identity) =
-            validate_claim_repair_launch(cache, current_state, request, request_id)?;
-        let projection = RepoModelClaimRepairContextProjection::from_request(&repair);
-        match &mut effective_launch_document {
-            EpiphanyWorkerLaunchDocument::Role(document) => {
-                if document.proposal_modeling_context.is_some() {
-                    return Err(anyhow!(
-                        "claim repair and proposal contexts are mutually exclusive"
-                    ));
-                }
-                document.claim_repair_context = Some(projection);
-            }
-            EpiphanyWorkerLaunchDocument::Reorient(_) => {
-                return Err(anyhow!("reorient launch cannot carry claim repair context"));
-            }
-        }
-        let bytes = rmp_serde::to_vec_named(&effective_launch_document)?;
-        Some((
-            repair,
-            challenge,
-            identity,
-            format!("{:x}", Sha256::digest(bytes)),
-        ))
-    } else {
-        None
-    };
     let frontier_planning_launch =
         if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
             let (planning, identity, attempt_ordinal, superseded_failure_result_id) =
@@ -141,9 +114,7 @@ fn commit_coordinator_job_launch_in_cache(
             let projection = RepoFrontierPlanningContextProjection::from_request(&planning);
             match &mut effective_launch_document {
                 EpiphanyWorkerLaunchDocument::Role(document) => {
-                    if document.proposal_modeling_context.is_some()
-                        || document.claim_repair_context.is_some()
-                    {
+                    if document.proposal_modeling_context.is_some() {
                         return Err(anyhow!(
                             "frontier planning context is exclusive of Modeling authority contexts"
                         ));
@@ -182,7 +153,6 @@ fn commit_coordinator_job_launch_in_cache(
         match &mut effective_launch_document {
             EpiphanyWorkerLaunchDocument::Role(document) => {
                 if document.proposal_modeling_context.is_some()
-                    || document.claim_repair_context.is_some()
                     || document.frontier_planning_context.is_some()
                     || document.frontier_plan_mind_context.is_some()
                 {
@@ -256,7 +226,6 @@ fn commit_coordinator_job_launch_in_cache(
             match &mut effective_launch_document {
                 EpiphanyWorkerLaunchDocument::Role(document) => {
                     if document.proposal_modeling_context.is_some()
-                        || document.claim_repair_context.is_some()
                         || document.frontier_planning_context.is_some()
                         || document.frontier_plan_mind_context.is_some()
                     {
@@ -315,7 +284,6 @@ fn commit_coordinator_job_launch_in_cache(
             output_contract_id: request.output_contract_id.clone(),
             organ_launch_contract: request.organ_launch_contract.clone(),
             proposal_modeling_request_id: request.proposal_modeling_request_id.clone(),
-            claim_repair_request_id: request.claim_repair_request_id.clone(),
             frontier_planning_request_id: request.frontier_planning_request_id.clone(),
             frontier_plan_mind_request_id: request.frontier_plan_mind_request_id.clone(),
             imagination_consideration_request_id: request
@@ -341,36 +309,6 @@ fn commit_coordinator_job_launch_in_cache(
         })
         .ok_or_else(|| anyhow!("prepared launch omitted its runtime identity replacement"))?;
     let runtime_identity_replacement = batch.remove(runtime_identity_position);
-    if let Some((repair, challenge, identity, worker_launch_document_sha256)) = claim_repair_launch
-    {
-        let launch_binding = RepoModelClaimRepairLaunchBinding {
-            schema_version: REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id: format!("repo-model-claim-repair-launch-{}", repair.request_id),
-            repair_request_id: repair.request_id,
-            challenge_id: challenge.challenge_id,
-            challenge_sha256: repair.challenge_sha256,
-            job_id: plan.backend_job_id.clone(),
-            binding_id: request.binding_id.clone(),
-            runtime_id: identity.runtime_id,
-            thread_id: repair.thread_id,
-            launched_at: created_at.clone(),
-            worker_launch_document_sha256,
-            contract: REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_CONTRACT.into(),
-        };
-        if cache
-            .get::<RepoModelClaimRepairLaunchBinding>(&launch_binding.binding_record_id)?
-            .is_some()
-        {
-            return Err(anyhow!(
-                "claim repair launch binding already exists for backend job"
-            ));
-        }
-        batch.push(
-            cache
-                .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
-                .0,
-        );
-    }
     if let Some((
         planning,
         identity,
@@ -532,19 +470,17 @@ pub fn plan_coordinator_job_launch(
     }
     let (
         caller_proposal_projection,
-        caller_repair_projection,
         caller_planning_projection,
         caller_mind_projection,
         caller_body_basis,
     ) = match &request.launch_document {
         EpiphanyWorkerLaunchDocument::Role(document) => (
             document.proposal_modeling_context.as_ref(),
-            document.claim_repair_context.as_ref(),
             document.frontier_planning_context.as_ref(),
             document.frontier_plan_mind_context.as_ref(),
             document.repository_body_observation_basis.as_ref(),
         ),
-        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None, None, None, None),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None, None, None),
     };
     if caller_body_basis.is_some() {
         return Err(anyhow!(
@@ -554,11 +490,6 @@ pub fn plan_coordinator_job_launch(
     if caller_proposal_projection.is_some() {
         return Err(anyhow!(
             "caller-prepopulated proposal Modeling context is forbidden; coordinator commit owns projection"
-        ));
-    }
-    if caller_repair_projection.is_some() {
-        return Err(anyhow!(
-            "caller-prepopulated claim repair context is forbidden; coordinator commit owns projection"
         ));
     }
     if caller_planning_projection.is_some() {
@@ -573,7 +504,6 @@ pub fn plan_coordinator_job_launch(
     }
     if [
         request.proposal_modeling_request_id.is_some(),
-        request.claim_repair_request_id.is_some(),
         request.frontier_planning_request_id.is_some(),
         request.frontier_plan_mind_request_id.is_some(),
     ]
@@ -594,11 +524,7 @@ pub fn plan_coordinator_job_launch(
             state.revision
         ));
     }
-    if let Some(request_id) = request.claim_repair_request_id.as_deref() {
-        let mut cache = runtime_spine_cache(runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        validate_claim_repair_launch(&cache, state, request, request_id)?;
-    } else if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
+    if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
         let mut cache = runtime_spine_cache(runtime_store)?;
         cache.pull_all_backing_stores()?;
         validate_frontier_planning_launch(&cache, state, request, request_id)?;
@@ -958,7 +884,6 @@ fn validate_admitted_model_direction_consideration_launch(
         || launch.imagination_consideration_request_id.is_some()
         || launch.frontier_planning_request_id.is_some()
         || launch.frontier_plan_mind_request_id.is_some()
-        || launch.claim_repair_request_id.is_some()
         || launch.proposal_modeling_request_id.is_some()
     {
         return Err(anyhow!(
@@ -999,55 +924,6 @@ fn validate_admitted_model_direction_consideration_launch(
         }
     }
     Ok(request)
-}
-
-fn validate_claim_repair_launch(
-    cache: &CultCache,
-    state: &EpiphanyThreadState,
-    launch: &EpiphanyJobLaunchRequest,
-    request_id: &str,
-) -> Result<(
-    RepoModelClaimRepairRequest,
-    RepoModelClaimChallenge,
-    EpiphanyRuntimeIdentity,
-)> {
-    if launch.owner_role != EPIPHANY_MODELING_OWNER_ROLE
-        || launch.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID
-    {
-        return Err(anyhow!(
-            "claim repair may only be carried by the Modeling role launch"
-        ));
-    }
-    let repair = cache
-        .get::<RepoModelClaimRepairRequest>(request_id)?
-        .ok_or_else(|| anyhow!("claim repair request {request_id:?} does not exist"))?;
-    let challenge = cache
-        .get::<RepoModelClaimChallenge>(&repair.challenge_id)?
-        .ok_or_else(|| anyhow!("claim repair launch references a missing challenge"))?;
-    let identity = cache
-        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("claim repair launch requires runtime identity"))?;
-    let persisted_state = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("claim repair launch requires authoritative thread state"))?;
-    let persisted_state_value = persisted_state.state()?;
-    crate::runtime_spine::validate_current_repo_model_claim_repair_request(cache, &repair)?;
-    if repair.request_id != request_id
-        || repair.runtime_id != identity.runtime_id
-        || repair.thread_id != persisted_state.thread_id
-        || persisted_state_value != *state
-        || launch.launch_document.thread_id() != repair.thread_id
-    {
-        return Err(anyhow!("claim repair launch provenance binding mismatch"));
-    }
-    if cache
-        .get_all::<RepoModelClaimRepairLaunchBinding>()?
-        .iter()
-        .any(|binding| binding.repair_request_id == request_id)
-    {
-        return Err(anyhow!("claim repair request is already bound to a launch"));
-    }
-    Ok((repair, challenge, identity))
 }
 
 fn worker_attempt_is_retryable_terminal_failure(cache: &CultCache, job_id: &str) -> Result<bool> {
