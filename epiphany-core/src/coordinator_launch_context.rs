@@ -843,15 +843,7 @@ pub fn append_modeling_work_loop_telemetry_context(
     mut context: String,
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
-    proposal_modeling_request_id: Option<&str>,
 ) -> Result<ModelingWorkLoopLaunchContext, String> {
-    if proposal_modeling_request_id.is_some() {
-        return Ok(ModelingWorkLoopLaunchContext {
-            context,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_verdict_modeling_authority: None,
-        });
-    }
     if accepted_research_is_newest_unmodeled_boundary(state) {
         context.push_str("\n\n<accepted_eyes_modeling_handoff>\n");
         context.push_str("The current Modeling turn is caused by accepted Eyes evidence newer than the last accepted Modeling boundary. Use the accepted Research finding already present in coordinator context to update the body model. This is not a historical Soul-verdict incorporation turn; do not substitute an older frontier verification route.\n");
@@ -1844,7 +1836,6 @@ mod tests {
                 "ordinary".to_string(),
                 missing_store,
                 &ordinary,
-                None,
             )
             .expect("ordinary Modeling does not touch verdict authority"),
             "ordinary"
@@ -1872,21 +1863,9 @@ mod tests {
             "ambiguous".to_string(),
             missing_store,
             &ambiguous,
-            None,
         )
         .expect_err("equal-time accepted results must not be selected by adjacency");
         assert!(error.contains("temporally ambiguous"));
-
-        assert_eq!(
-            append_modeling_work_loop_telemetry_context(
-                "proposal".to_string(),
-                missing_store,
-                &ambiguous,
-                Some("repo-frontier-proposal-modeling-request"),
-            )
-            .expect("explicit proposal authority excludes historical verdict incorporation"),
-            "proposal"
-        );
 
         let accepted = |role_id: &str, accepted_at: &str| EpiphanyAcceptanceReceipt {
             id: format!("accept-{role_id}"),
@@ -1914,7 +1893,6 @@ mod tests {
             "eyes".to_string(),
             missing_store,
             &eyes_handoff,
-            None,
         )
         .expect("accepted Eyes handoff must not bind an older Soul route");
         assert!(context.contains("accepted_eyes_modeling_handoff"));
@@ -2249,7 +2227,6 @@ mod tests {
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
             &runtime_store,
             &state,
-            None,
         )
         .map_err(anyhow::Error::msg)?;
         assert!(modeling_context.contains("<modeling_work_loop_telemetry>"));

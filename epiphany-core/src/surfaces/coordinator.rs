@@ -1,6 +1,7 @@
 use epiphany_core::EpiphanyCrrcAction;
 use epiphany_core::EpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyProposalModelingContinuationAction;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
@@ -94,7 +95,7 @@ pub fn derive_coordinator_status(
         hands_frontier_ready: input.hands_frontier_ready,
         research_continuation_action: input.research_continuation_action,
         frontier_planning_stage: input.frontier_planning_stage,
-        proposal_modeling_request_ready: input.proposal_modeling_request_ready,
+        proposal_modeling_action: input.proposal_modeling_action,
         body_modeling_work_ready: input.body_modeling_work_ready,
         body_modeling_review_ready: input.body_modeling_review_ready,
     });
@@ -696,15 +697,33 @@ pub fn recommend_coordinator_action(
         | RepoFrontierPlanningLifecycleStage::Terminal => {}
     }
 
-    if input.proposal_modeling_request_ready {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "An explicitly selected typed user proposal is waiting for its single Modeling launch; route that authority before generic regather or stale lane repair.",
-        );
+    if let Some(action) = input.proposal_modeling_action {
+        return match action {
+            EpiphanyProposalModelingContinuationAction::Launch => build(
+                EpiphanyCoordinatorAction::LaunchModeling,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The oldest unresolved proposal request is ready for its exact Modeling attempt.",
+            ),
+            EpiphanyProposalModelingContinuationAction::Wait => build(
+                EpiphanyCoordinatorAction::WaitForModelingResult,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                false,
+                false,
+                "The exact proposal Modeling attempt is still running.",
+            ),
+            EpiphanyProposalModelingContinuationAction::Review => build(
+                EpiphanyCoordinatorAction::ReviewModelingResult,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The exact proposal Modeling result awaits keyed Mind admission.",
+            ),
+        };
     }
 
     if input.body_modeling_review_ready {
@@ -1248,6 +1267,7 @@ pub fn coordinator_automation_action(
         | EpiphanyCoordinatorAction::LaunchResearch
         | EpiphanyCoordinatorAction::ReviewResearchResult
         | EpiphanyCoordinatorAction::LaunchModeling
+        | EpiphanyCoordinatorAction::WaitForModelingResult
         | EpiphanyCoordinatorAction::ReviewModelingResult
         | EpiphanyCoordinatorAction::LaunchVerification
         | EpiphanyCoordinatorAction::ReviewVerificationResult
@@ -1388,7 +1408,7 @@ mod tests {
             hands_frontier_ready: false,
             research_continuation_action: None,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
-            proposal_modeling_request_ready: false,
+            proposal_modeling_action: None,
             body_modeling_work_ready: false,
             body_modeling_review_ready: false,
         }
@@ -1469,7 +1489,7 @@ mod tests {
     fn selected_user_proposal_preempts_generic_regather() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            proposal_modeling_request_ready: true,
+            proposal_modeling_action: Some(EpiphanyProposalModelingContinuationAction::Launch),
             ..input()
         });
         assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);

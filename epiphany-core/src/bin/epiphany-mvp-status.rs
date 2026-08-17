@@ -508,7 +508,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         &runtime_store_path,
         frontier_relinquishment.as_ref(),
     )?;
-    let pending_proposal = current_work.proposal_modeling_request.as_ref();
+    let proposal_modeling_work = current_work.proposal_modeling.as_ref();
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: durable_checkpoint_present,
@@ -549,7 +549,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         hands_frontier_ready,
         research_continuation_action,
         frontier_planning_stage: frontier_planning.stage,
-        proposal_modeling_request_ready: pending_proposal.is_some(),
+        proposal_modeling_action: proposal_modeling_work.map(|work| work.action),
         body_modeling_work_ready: current_work.body_modeling.is_some(),
         body_modeling_review_ready: current_work.body_modeling_action
             == Some(epiphany_core::EpiphanyBodyModelingContinuationAction::Review),
@@ -646,7 +646,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "modelingResultProposalBound": modeling_result_proposal_bound,
             "nativeHandsConsequenceAfterBoundary": native_hands_consequence_after_boundary,
             "imaginationFrontierReady": imagination_frontier_ready,
-            "pendingProposalModelingRequestId": pending_proposal.map(|request| request.request_id.as_str()),
+            "pendingProposalModelingRequestId": proposal_modeling_work
+                .filter(|work| work.action == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch)
+                .map(|work| work.request.request_id.as_str()),
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },

@@ -22,6 +22,11 @@ pub fn commit_coordinator_job_launch(
     plan: &EpiphanyCoordinatorJobLaunchPlan,
     created_at: String,
 ) -> Result<EpiphanyJobLaunchResult> {
+    if request.proposal_modeling_request_id.is_some() {
+        return Err(anyhow!(
+            "proposal Modeling launch is owned by keyed current work, not the aggregate coordinator transaction"
+        ));
+    }
     let body_basis = if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         Some(observe_runtime_repository_body_basis(store)?)
     } else {
@@ -102,32 +107,6 @@ fn commit_coordinator_job_launch_in_cache(
             }
         }
     }
-    let proposal_launch = if let Some(request_id) = request.proposal_modeling_request_id.as_deref()
-    {
-        let (selection, proposal, identity) =
-            validate_proposal_modeling_launch(cache, current_state, request, request_id)?;
-        let model = crate::repo_model_documents::assemble_repo_model_view_from_cache(cache)?;
-        let projection = build_proposal_modeling_context_projection(&selection, &proposal, &model)?;
-        match &mut effective_launch_document {
-            EpiphanyWorkerLaunchDocument::Role(document) => {
-                document.proposal_modeling_context = Some(projection);
-            }
-            EpiphanyWorkerLaunchDocument::Reorient(_) => {
-                return Err(anyhow!(
-                    "reorient launch cannot carry proposal Modeling context"
-                ));
-            }
-        }
-        let bytes = rmp_serde::to_vec_named(&effective_launch_document)?;
-        Some((
-            selection,
-            proposal,
-            identity,
-            format!("{:x}", Sha256::digest(bytes)),
-        ))
-    } else {
-        None
-    };
     let claim_repair_launch = if let Some(request_id) = request.claim_repair_request_id.as_deref() {
         let (repair, challenge, identity) =
             validate_claim_repair_launch(cache, current_state, request, request_id)?;
@@ -362,38 +341,6 @@ fn commit_coordinator_job_launch_in_cache(
         })
         .ok_or_else(|| anyhow!("prepared launch omitted its runtime identity replacement"))?;
     let runtime_identity_replacement = batch.remove(runtime_identity_position);
-    if let Some((selection, proposal, identity, worker_launch_document_sha256)) = proposal_launch {
-        let launch_binding = RepoFrontierProposalModelingLaunchBinding {
-            schema_version: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id: format!(
-                "repo-frontier-proposal-modeling-launch-{}",
-                plan.backend_job_id
-            ),
-            proposal_modeling_request_id: selection.request_id,
-            proposal_id: proposal.proposal_id,
-            proposal_payload_sha256: proposal.payload_sha256,
-            job_id: plan.backend_job_id.clone(),
-            binding_id: request.binding_id.clone(),
-            runtime_id: identity.runtime_id,
-            thread_id: selection.thread_id.clone(),
-            launched_at: created_at.clone(),
-            worker_launch_document_sha256,
-            contract: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
-        };
-        if cache
-            .get::<RepoFrontierProposalModelingLaunchBinding>(&launch_binding.binding_record_id)?
-            .is_some()
-        {
-            return Err(anyhow!(
-                "proposal Modeling launch binding already exists for backend job"
-            ));
-        }
-        batch.push(
-            cache
-                .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
-                .0,
-        );
-    }
     if let Some((repair, challenge, identity, worker_launch_document_sha256)) = claim_repair_launch
     {
         let launch_binding = RepoModelClaimRepairLaunchBinding {
@@ -578,6 +525,11 @@ pub fn plan_coordinator_job_launch(
     launcher_job_id: String,
     backend_job_id: String,
 ) -> Result<EpiphanyCoordinatorJobLaunchPlan> {
+    if request.proposal_modeling_request_id.is_some() {
+        return Err(anyhow!(
+            "proposal Modeling launch is owned by keyed current work, not the aggregate coordinator transaction"
+        ));
+    }
     let (
         caller_proposal_projection,
         caller_repair_projection,
@@ -642,11 +594,7 @@ pub fn plan_coordinator_job_launch(
             state.revision
         ));
     }
-    if let Some(request_id) = request.proposal_modeling_request_id.as_deref() {
-        let mut cache = runtime_spine_cache(runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        validate_proposal_modeling_launch(&cache, state, request, request_id)?;
-    } else if let Some(request_id) = request.claim_repair_request_id.as_deref() {
+    if let Some(request_id) = request.claim_repair_request_id.as_deref() {
         let mut cache = runtime_spine_cache(runtime_store)?;
         cache.pull_all_backing_stores()?;
         validate_claim_repair_launch(&cache, state, request, request_id)?;
@@ -1100,130 +1048,6 @@ fn validate_claim_repair_launch(
         return Err(anyhow!("claim repair request is already bound to a launch"));
     }
     Ok((repair, challenge, identity))
-}
-
-fn build_proposal_modeling_context_projection(
-    request: &RepoFrontierProposalModelingRequest,
-    proposal: &RepoFrontierWorkProposal,
-    model: &crate::EpiphanyRepoModelView,
-) -> Result<RepoFrontierProposalModelingContextProjection> {
-    Ok(RepoFrontierProposalModelingContextProjection {
-        schema_version: REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
-        contract: REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT.into(),
-        request_id: request.request_id.clone(),
-        proposal_id: proposal.proposal_id.clone(),
-        proposal_payload_sha256: proposal.payload_sha256.clone(),
-        runtime_id: request.runtime_id.clone(),
-        thread_id: request.thread_id.clone(),
-        repository: request.repository.clone(),
-        workspace: request.workspace.clone(),
-        source_kind: proposal.source_kind,
-        source_actor: proposal.source_actor.clone(),
-        source_ref: proposal.source_ref.clone(),
-        title: proposal.title.clone(),
-        body: proposal.body.clone(),
-        desired_outcome: proposal.desired_outcome.clone(),
-        constraints: proposal.constraints.clone(),
-        scope_hints: proposal.scope_hints.clone(),
-        evidence_refs: proposal.evidence_refs.clone(),
-        public_source_refs: proposal.public_source_refs.clone(),
-        private_state_included: proposal.private_state_included,
-        model_projection_digest: model.projection_digest.clone(),
-        model_source_documents: model.source_documents.clone(),
-    })
-}
-
-fn validate_proposal_modeling_launch(
-    cache: &CultCache,
-    state: &EpiphanyThreadState,
-    launch: &EpiphanyJobLaunchRequest,
-    request_id: &str,
-) -> Result<(
-    RepoFrontierProposalModelingRequest,
-    RepoFrontierWorkProposal,
-    EpiphanyRuntimeIdentity,
-)> {
-    if match &launch.launch_document {
-        EpiphanyWorkerLaunchDocument::Role(document) => {
-            document.proposal_modeling_context.is_some()
-        }
-        EpiphanyWorkerLaunchDocument::Reorient(_) => false,
-    } {
-        return Err(anyhow!("caller cannot author proposal Modeling context"));
-    }
-    if launch.owner_role != EPIPHANY_MODELING_OWNER_ROLE
-        || launch.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID
-    {
-        return Err(anyhow!(
-            "proposal selection may only be carried by the Modeling role launch"
-        ));
-    }
-    let selection = cache
-        .get::<RepoFrontierProposalModelingRequest>(request_id)?
-        .ok_or_else(|| {
-            anyhow!("proposal Modeling selection request {request_id:?} does not exist")
-        })?;
-    crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&selection)?;
-    let proposal = cache
-        .get::<RepoFrontierWorkProposal>(&selection.proposal_id)?
-        .ok_or_else(|| anyhow!("proposal Modeling selection references a missing proposal"))?;
-    crate::runtime_spine::validate_repo_frontier_work_proposal(&proposal)?;
-    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        crate::runtime_spine::validate_autonomous_proposal_binding(cache, &proposal)?;
-    }
-    let prior_bindings = cache
-        .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
-        .iter()
-        .filter(|binding| binding.proposal_modeling_request_id == request_id)
-        .cloned()
-        .collect::<Vec<_>>();
-    for binding in prior_bindings {
-        if !proposal_modeling_launch_was_superseded(cache, &binding)? {
-            return Err(anyhow!(
-                "proposal Modeling selection request already has an unsuperseded launch"
-            ));
-        }
-    }
-    let identity = cache
-        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("proposal Modeling launch requires runtime identity"))?;
-    let persisted_state = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("proposal Modeling launch requires authoritative thread state"))?;
-    let persisted_state_value = persisted_state.state()?;
-    let proposal_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
-        &proposal.title,
-        &proposal.body,
-        &proposal.desired_outcome,
-        &proposal.constraints,
-        &proposal.scope_hints,
-        &proposal.evidence_refs,
-        &proposal.public_source_refs,
-    )?;
-    if selection.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION
-        || selection.contract != REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT
-        || selection.request_id != request_id
-        || selection.proposal_payload_sha256 != proposal.payload_sha256
-        || proposal.payload_sha256 != proposal_payload_sha256
-        || selection.runtime_id != identity.runtime_id
-        || selection.runtime_id != proposal.runtime_id
-        || selection.thread_id != proposal.thread_id
-        || persisted_state_value != *state
-        || selection.repository != proposal.repository
-        || selection.workspace != proposal.workspace
-    {
-        return Err(anyhow!(
-            "proposal Modeling launch provenance binding mismatch"
-        ));
-    }
-    Ok((selection, proposal, identity))
-}
-
-fn proposal_modeling_launch_was_superseded(
-    cache: &CultCache,
-    binding: &RepoFrontierProposalModelingLaunchBinding,
-) -> Result<bool> {
-    worker_attempt_is_retryable_terminal_failure(cache, &binding.job_id)
 }
 
 fn worker_attempt_is_retryable_terminal_failure(cache: &CultCache, job_id: &str) -> Result<bool> {

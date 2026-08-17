@@ -350,6 +350,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "eventId": runtime_event.event_id,
     }));
     let run_result = (|| -> Result<Value> {
+        let mut startup_proposal_modeling_job_id = None;
         if let Some(objective) = args.objective.as_deref() {
             if let (Some(store), Some(preparation_id), Some(claim)) = (
                 args.resident_state_store.as_deref(),
@@ -509,19 +510,23 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "typed proposal Modeling requires exclusive objective-free intake"
                 ));
             }
-            let state = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store)
-                .state()?
-                .ok_or_else(|| anyhow!("proposal Modeling launch requires coordinator state"))?;
-            let launched = launch_role(
+            let current = epiphany_core::project_current_work(&runtime_store)?
+                .proposal_modeling
+                .filter(|work| {
+                    work.action == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch
+                })
+                .ok_or_else(|| anyhow!("proposal Modeling request is not launchable"))?;
+            if current.request.request_id != request_id {
+                return Err(anyhow!(
+                    "explicit proposal Modeling request does not match current keyed work"
+                ));
+            }
+            let binding = epiphany_core::launch_current_proposal_modeling_work(
                 &runtime_store,
-                &local_verse_store,
-                &thread_id,
-                "modeling",
-                Some(state.revision as i64),
-                args.max_runtime_seconds,
-                Some(request_id),
+                epiphany_core::EpiphanyProposalModelingLaunchOptions { created_at: now() },
             )?;
-            let worker_job_id = worker_job_id_from_launch(&launched)?;
+            let worker_job_id = binding.job_id.clone();
+            startup_proposal_modeling_job_id = Some(worker_job_id.clone());
             let worker_run = launch_worker_runtime_detached(
                 &model_runtime_bin,
                 &tool_adapter_bin,
@@ -542,7 +547,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "type": "proposalModelingLaunch",
                 "requestId": request_id,
                 "runtimeJobId": worker_job_id,
-                "launch": status_cli::sanitize_for_operator(launched),
+                "launch": binding,
                 "worker": worker_run,
                 "authority": "proposal-modeling-only"
             }));
@@ -555,6 +560,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 .get("coordinator")
                 .cloned()
                 .unwrap_or_else(|| json!({"action": "regatherManually"}));
+            if matches!(
+                coordinator["action"].as_str(),
+                Some("waitForModelingResult" | "reviewModelingResult")
+            ) && let Some(job_id) = startup_proposal_modeling_job_id.as_deref()
+            {
+                coordinator["runtimeJobId"] = Value::String(job_id.to_string());
+            }
             let mut action = coordinator["action"]
                 .as_str()
                 .unwrap_or("regatherManually")
@@ -605,7 +617,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             if action == "awaitFrontierProposal"
                 || matches!(
                     action.as_str(),
-                    "waitForImaginationResult" | "waitForMindPlanResult"
+                    "waitForModelingResult" | "waitForImaginationResult" | "waitForMindPlanResult"
                 )
                 || (action == "reviewFrontierPlanningFailure" && !args.supersede_failed_results)
                 || (is_stop_action(&action)
@@ -787,6 +799,43 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
+                    if role_id == "modeling"
+                        && let Some(job_id) =
+                            epiphany_core::current_proposal_modeling_review_job_id(&runtime_store)?
+                    {
+                        let result =
+                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
+                                .ok_or_else(|| {
+                                    anyhow!("proposal Modeling review lost its typed result")
+                                })?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "proposalModelingResult", "roleId": role_id, "result": result}),
+                        );
+                        if !args.auto_review {
+                            final_action = json!({
+                                "action": "reviewModelingResult",
+                                "reason": "The exact proposal Modeling result awaits keyed Mind admission.",
+                                "runtimeJobId": job_id,
+                            });
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            break;
+                        }
+                        let accepted = epiphany_core::accept_proposal_modeling_result(
+                            &runtime_store,
+                            &job_id,
+                            &now(),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "proposalModelingAccept", "roleId": role_id, "commit": accepted}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     if role_id == "modeling"
                         && let Some(job_id) =
                             epiphany_core::current_body_modeling_review_job_id(&runtime_store)?
@@ -996,8 +1045,36 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     } else {
                         None
                     };
+                    let thread_free_modeling = role_id == "modeling"
+                        && (proposal_modeling_request_id.is_some()
+                            || status["currentWork"]["bodyModeling"].is_object());
                     let launch = if role_id == "modeling"
-                        && proposal_modeling_request_id.is_none()
+                        && let Some(request_id) = proposal_modeling_request_id
+                    {
+                        let current = epiphany_core::project_current_work(&runtime_store)?
+                            .proposal_modeling
+                            .filter(|work| {
+                                work.action
+                                    == epiphany_core::EpiphanyProposalModelingContinuationAction::Launch
+                            })
+                            .ok_or_else(|| anyhow!("proposal Modeling work is not launchable"))?;
+                        if current.request.request_id != request_id {
+                            return Err(anyhow!(
+                                "Self-derived proposal Modeling request changed before launch"
+                            ));
+                        }
+                        let binding = epiphany_core::launch_current_proposal_modeling_work(
+                            &runtime_store,
+                            epiphany_core::EpiphanyProposalModelingLaunchOptions {
+                                created_at: now(),
+                            },
+                        )?;
+                        json!({
+                            "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
+                            "backendJobId": binding.job_id,
+                            "proposalModelingLaunchBinding": binding,
+                        })
+                    } else if role_id == "modeling"
                         && status["currentWork"]["bodyModeling"].is_object()
                     {
                         let binding = epiphany_core::launch_current_body_modeling_work(
@@ -1020,11 +1097,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             role_id,
                             revision,
                             args.max_runtime_seconds,
-                            if role_id == "modeling" {
-                                proposal_modeling_request_id
-                            } else {
-                                None
-                            },
                         )?
                     };
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
@@ -1052,7 +1124,23 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &mut step,
                         json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
                     );
-                    let result = read_role_result(&runtime_store, &thread_id, role_id)?;
+                    let result = if thread_free_modeling {
+                        match epiphany_core::runtime_role_worker_result(
+                            &runtime_store,
+                            &worker_job_id,
+                        )? {
+                            Some(result) => json!({
+                                "status": "completed",
+                                "note": result.summary,
+                            }),
+                            None => json!({
+                                "status": "running",
+                                "note": "The exact keyed Modeling attempt has not produced a terminal result.",
+                            }),
+                        }
+                    } else {
+                        read_role_result(&runtime_store, &thread_id, role_id)?
+                    };
                     push_event(
                         &mut step,
                         json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
@@ -1578,7 +1666,6 @@ fn launch_role(
     role_id: &str,
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
-    proposal_modeling_request_id: Option<&str>,
 ) -> Result<Value> {
     let started = Instant::now();
     let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
@@ -1631,7 +1718,6 @@ fn launch_role(
             context,
             runtime_store,
             &state,
-            proposal_modeling_request_id,
         )
         .map_err(anyhow::Error::msg)?;
         context = modeling_launch_context.context;
@@ -1650,7 +1736,6 @@ fn launch_role(
         Some(context),
     )
     .map_err(anyhow::Error::msg)?;
-    request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
     request.repo_frontier_modeling_request_id = repo_frontier_modeling_request_id;
     request.repo_frontier_research_request_id = repo_frontier_research_request
         .as_ref()

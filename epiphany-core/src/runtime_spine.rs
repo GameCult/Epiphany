@@ -5151,7 +5151,7 @@ pub struct RuntimeTypedFulfillmentEvidence {
     pub request_id: String,
 }
 
-fn validate_proposal_modeling_worker_fulfillment(
+pub(crate) fn validate_proposal_modeling_worker_fulfillment(
     cache: &CultCache,
     result: &EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<()> {
@@ -5774,12 +5774,9 @@ pub fn put_repo_frontier_work_proposal(
     if identity.runtime_id != proposal.runtime_id {
         return Err(anyhow!("proposal runtime identity mismatch"));
     }
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("proposal intake requires authoritative thread state"))?;
-    if thread.thread_id != proposal.thread_id {
-        return Err(anyhow!("proposal thread identity mismatch"));
-    }
+    // The proposal's thread is immutable creation provenance. Runtime identity
+    // owns intake; no mutable coordinator incarnation may admit or reject the
+    // same semantic proposal.
     put_immutable_planning_entry(store_path.as_ref(), &proposal.proposal_id, proposal)
 }
 
@@ -8277,42 +8274,6 @@ pub fn runtime_repo_frontier_planning_eligibility(
         current_model_count: model_count,
         candidates,
     })
-}
-
-/// Returns the oldest selected proposal that has not yet been claimed by a
-/// Modeling launch. Selection is already explicit Self authority; several
-/// Imagination options may therefore form a queue without asking this
-/// projection to prefer one proposal over another. Stable request order owns
-/// scheduling only and prevents the CLI from becoming a second routing owner.
-pub fn runtime_pending_repo_frontier_proposal_modeling_request(
-    runtime_store: impl AsRef<Path>,
-) -> Result<Option<RepoFrontierProposalModelingRequest>> {
-    let runtime_store = runtime_store.as_ref();
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let launches = cache.get_all::<RepoFrontierProposalModelingLaunchBinding>()?;
-    let mut pending = cache
-        .get_all::<RepoFrontierProposalModelingRequest>()?
-        .into_iter()
-        .filter_map(|request| {
-            if validate_repo_frontier_proposal_modeling_request(&request).is_err()
-                || launches
-                    .iter()
-                    .any(|launch| launch.proposal_modeling_request_id == request.request_id)
-            {
-                None
-            } else {
-                Some(request)
-            }
-        })
-        .collect::<Vec<_>>();
-    pending.sort_by(|a, b| {
-        a.selected_at
-            .cmp(&b.selected_at)
-            .then_with(|| a.request_id.cmp(&b.request_id))
-    });
-    Ok(pending.into_iter().next())
 }
 
 /// Read-only Self projection over the existing typed frontier-planning chain.

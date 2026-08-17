@@ -314,6 +314,18 @@ pub fn accept_coordinator_role_finding(
             && result.repo_frontier_modeling_request_id.is_none();
         if is_body_modeling {
             crate::accept_body_modeling_result(store, job_id, &accepted_at)?;
+            return Ok(EpiphanyNativeRoleAcceptance {
+                state: state.clone(),
+                finding,
+                update,
+            });
+        } else if result.proposal_modeling_request_id.is_some() {
+            crate::accept_proposal_modeling_result(store, job_id, &accepted_at)?;
+            return Ok(EpiphanyNativeRoleAcceptance {
+                state: state.clone(),
+                finding,
+                update,
+            });
         } else {
             let repository_body_observation_basis = result
                 .repository_body_observation_basis
@@ -335,9 +347,7 @@ pub fn accept_coordinator_role_finding(
                 ));
             }
             let plan = plan_repo_model_mutation(store, &proposal)?;
-            let invariant_owner = if result.proposal_modeling_request_id.is_some() {
-                "Modeling.proposal_frontier"
-            } else if result.claim_repair_request_id.is_some() {
+            let invariant_owner = if result.claim_repair_request_id.is_some() {
                 "Modeling.claim_repair"
             } else {
                 "Modeling.frontier_verdict"

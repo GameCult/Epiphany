@@ -1208,8 +1208,10 @@ pub fn ingest_resident_self_domain_pressure(
     // Runtime request order is the single scheduler: expose pressure only for
     // its current head, then let that request's exact launch binding reveal
     // the next one on a later ingestion cycle.
-    if let Some(selection) =
-        crate::runtime_pending_repo_frontier_proposal_modeling_request(runtime_store)?
+    if let Some(selection) = crate::project_current_work(runtime_store)?
+        .proposal_modeling
+        .filter(|work| work.action == crate::EpiphanyProposalModelingContinuationAction::Launch)
+        .map(|work| work.request)
     {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
@@ -1365,6 +1367,19 @@ pub(crate) fn resident_self_safe_continuation_action(
                     }
                 });
             }
+            if let Some(action) =
+                crate::proposal_modeling_continuation_action_for_job(runtime_store, job_id)?
+            {
+                return Ok(match action {
+                    crate::EpiphanyProposalModelingContinuationAction::Launch => {
+                        Some("launchModeling".to_string())
+                    }
+                    crate::EpiphanyProposalModelingContinuationAction::Wait => None,
+                    crate::EpiphanyProposalModelingContinuationAction::Review => {
+                        Some("reviewModelingResult".to_string())
+                    }
+                });
+            }
         }
     }
     let direct = matches!(
@@ -1503,48 +1518,18 @@ fn resident_self_failed_receipt_typed_continuation_action(
     else {
         return Ok(None);
     };
-    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
-    runtime.pull_all_backing_stores()?;
-    let thread = runtime
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("typed continuation requires authoritative thread state"))?;
-    let state = thread.state()?;
-    if thread.thread_id != receipt.thread_id {
-        return Err(anyhow!(
-            "failed coordinator receipt typed continuation crossed thread authority"
-        ));
-    }
-    let links = state
-        .runtime_links
-        .iter()
-        .filter(|link| {
-            link.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
-                && link.runtime_job_id == evidence.job_id
-        })
-        .count();
-    if links != 1 {
-        return Err(anyhow!(
-            "typed proposal fulfillment does not own exactly one current Modeling job link"
-        ));
-    }
-    let acceptances = state
-        .acceptance_receipts
-        .iter()
-        .filter(|accepted| {
-            accepted.result_id == evidence.result_id
-                && accepted.job_id == evidence.job_id
-                && accepted.binding_id == crate::EPIPHANY_MODELING_ROLE_BINDING_ID
-                && accepted.surface == "roleAccept"
-                && accepted.role_id == "modeling"
-                && accepted.status == "accepted"
-        })
-        .count();
-    if acceptances > 1 {
-        return Err(anyhow!(
-            "typed proposal fulfillment has multiple Modeling acceptance authorities"
-        ));
-    }
-    Ok((acceptances == 0).then(|| "reviewModelingResult".to_string()))
+    Ok(
+        match crate::proposal_modeling_continuation_action_for_job(runtime_store, &evidence.job_id)?
+        {
+            Some(crate::EpiphanyProposalModelingContinuationAction::Review) => {
+                Some("reviewModelingResult".to_string())
+            }
+            Some(crate::EpiphanyProposalModelingContinuationAction::Launch) => {
+                Some("launchModeling".to_string())
+            }
+            Some(crate::EpiphanyProposalModelingContinuationAction::Wait) | None => None,
+        },
+    )
 }
 
 pub fn ingest_resident_self_coordinator_continuation_pressure(
