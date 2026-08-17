@@ -225,13 +225,13 @@ Cut in this order:
    from explicit external-evidence obligations. Body-generation Modeling
    identity, typed Body-to-Mind admission, sealed reasoning, and atomic decision
    admission are landed. Current-work no longer reads the external Body store;
-   status consumes the shared projection, but actuation remains intentionally
-   withheld from the aggregate coordinator launch path.
-3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`:** move Resident Self launch/review consumers to it and
-   exact request/result identities. Thread ID remains immutable pass provenance
-   only.
-4. Move role/reorient acceptance from aggregate state patches to family-owned
-   `MindMutation` plans and exact commit receipts.
+   status consumes the shared projection.
+3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
+4. Migrate proposal, repair, verdict, Research, Verification, planning, and
+   reorientation acceptance from aggregate state patches and generic role lanes
+   to family-owned current-work projections, exact job identities,
+   `MindMutation` plans, and exact commit receipts. Reuse pure invariant
+   primitives, not a generic mutable registry.
 5. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.

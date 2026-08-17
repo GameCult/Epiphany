@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`587c56d2` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`478fb923` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -21,7 +21,10 @@ or repair path can restore their authority.
 
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
-launch/acceptance/status readers remain live production authorities. Fresh Gate
+unmigrated launch/acceptance/status readers remain live production authorities.
+Baseline Body Modeling is no longer among them: keyed Mind owns its work
+projection, operator and Resident launch, exact job-bound continuation, review,
+and semantic admission. Fresh Gate
 preflight proved the consequence: both keyed semantic partitions reached ready,
 but status still called the organism missing because no thread aggregate
 existed. Model Atlas Gate 1 is therefore paused behind that deletion, not merely
@@ -333,9 +336,18 @@ work is visible there. Exact `9f7b164f` adds its atomic thread-free launch owner
 one exact Body strong read commits the runtime job/request/event, family launch
 binding, and read-only Substrate Gate grant without a thread-state write. Exact
 `587c56d2` routes status and operator baseline Modeling through that owner while
-preserving distinct proposal/repair/verdict families. Route Resident Self launch
-through it, migrate review and remaining family
-acceptance paths, and delete the aggregate schema/transaction. Run the source
+preserving distinct proposal/repair/verdict families. Exact `478fb923` completes
+the reference lifecycle: Resident Self derives exact Body pressure from the same
+current-work projection, coordinator receipts retain the exact runtime job,
+Launch/Wait/Review never consult a role lane, and operator/Resident acceptance
+share one `accept_body_modeling_result` MindMutation owner. The legacy aggregate
+acceptance branch delegates this exact family to that owner rather than retaining
+a second semantic opinion.
+
+Inventory the remaining aggregate behavioral readers and writers, then migrate
+the other Modeling request families onto the same doctrine without turning the
+reference shape into a generic registry. Continue with Research, Verification,
+planning, and reorientation; then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational

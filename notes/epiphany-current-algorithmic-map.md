@@ -355,11 +355,11 @@ scheduler, route, notification, or interface contract.
 
 | Owner | Inputs | Outputs | Invariant |
 |---|---|---|---|
-| `epiphany-state-model` | typed state fields | `EpiphanyThreadState` and prompt projection | State is typed; rendering is not authority. |
-| `coordinator_state_transaction.rs` | expected state, next state, typed companion envelopes | one atomic canonical-state transaction | Sole production writer of `THREAD_STATE_KEY`; companions cannot impersonate state. |
-| `coordinator_state.rs` | current state plus validated ordinary update | proposed next state and transaction request | Owns update meaning, not persistence. |
-| `coordinator_launch.rs` | validated launch plan, state, runtime envelopes | state-plus-launch transaction request | Launch constructs runtime companions; the transaction owner commits them. |
-| `coordinator_acceptance.rs` | reviewed finding, Mind review, commit receipt | state-plus-Mind-witness transaction request | Acceptance owns admission meaning; the transaction owner commits its witnesses. |
+| keyed Mind documents and `mind_transaction.rs` | exact semantic documents, strong reads, and invariant-owned mutations | disjoint atomic Mind commits plus exact receipts | Decision authority lives in typed document identities; unrelated writes do not share a revision head. |
+| `current_work.rs` | sealed Mind view plus exact family requests, jobs, results, and decisions | pure family-specific scheduling/continuation projections | Events, timestamps, role lanes, and thread revisions cannot create or suppress work. |
+| Body Modeling launch/acceptance owners | exact Body obligation, runtime attempt, sealed decision context, and semantic mutation | one job-bound lifecycle and keyed Mind/RepoModel commit | Baseline Body Modeling never reads or writes `EpiphanyThreadStateEntry`; Eyes is not its gate. |
+| `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and unmigrated family companions | obsolete aggregate commits for residual families only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body Modeling. |
+| `coordinator_acceptance.rs` | reviewed family result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | Baseline Body delegates to `accept_body_modeling_result`; no duplicate semantic owner survives there. |
 | `thread_state_store.rs` | typed state entry | low-level CultCache codec/read access | Substrate, not policy; it exposes no production writer. |
 | `coordinator_service.rs` | state/runtime store paths and typed commands | state update, launch, accept, interrupt results | Facade routes typed work; it contains no policy or protocol mapping. |
 | `surfaces/*` | native state, runtime snapshots, pressure/freshness inputs | scene, jobs, roles, planning, context, graph, CRRC, coordinator recommendations | Read surfaces derive; they do not mutate. |
@@ -379,25 +379,22 @@ scheduler, route, notification, or interface contract.
 
 ```mermaid
 flowchart LR
-    I["Typed intent or worker finding"] --> G["Mind gateway review"]
-    G -->|reject| R["Typed rejection receipt"]
-    G -->|admit| V["State validation"]
-    V --> C["Single coordinator commit path"]
-    C --> S["Native thread-state CultCache"]
-    S --> P["Derived native surfaces"]
+    I["Typed observation or worker decision"] --> G["Concrete invariant owner"]
+    G -->|reject or conflict| R["Typed refusal or fresh work obligation"]
+    G -->|admit| V["Exact strong-read validation"]
+    V --> C["MindMutation batch CAS"]
+    C --> S["Keyed Mind CultCache documents"]
+    S --> P["Deterministic current-work and interface projections"]
     P --> O["Coordinator / operator / Eve projections"]
 ```
 
-`coordinator_state_transaction::{open_coordinator_state_transaction,
-commit_coordinator_state_transaction}` is the single persistence owner.
-Ordinary updates, launch transactions, and accepted findings construct their
-domain-specific next state or companion documents, then submit them to that
-owner. It rejects stale expected state, refuses companion envelopes that target
-the canonical key, and commits state plus companions in one prepared batch.
-`thread_state_store.rs` retains typed codec/read access only; its production raw
-writers and their public exports are deleted. A source guard rejects any second
-production `THREAD_STATE_KEY` writer. `EpiphanyCoordinatorService` is the narrow
-caller-facing facade.
+`mind_transaction::commit_mind_mutation` is the canonical keyed Mind commit
+primitive. Concrete invariant owners derive exact strong reads and complete
+write sets; disjoint document identities merge under one CultCache batch CAS,
+while same-identity or changed strong-read conflicts refuse without partial
+mutation. `coordinator_state_transaction` remains only because unmigrated
+families still depend on the obsolete aggregate. It is explicitly not a second
+canonical Mind and must be deleted when those families move.
 
 Forbidden writers:
 
@@ -4904,10 +4901,9 @@ Outputs: one typed scheduling/display projection with the Mind projection
 digest. Derived state: status JSON and coordinator recommendations. Forbidden
 writers: events, latest-result lanes, accepted-at ordering, and thread revisions
 cannot manufacture or suppress current work. Shared path: status is migrated;
-operator and Resident Self actuation must consume the same projection after the
-launch transaction is cut. Cut line: Body Modeling is observable but cannot yet
-recommend `launchModeling`, because the surviving coordinator launch still
-writes `EpiphanyThreadStateEntry`. Verification: Body work appears before its
+operator and Resident Self actuation consume the same projection. Cut line:
+Body Modeling recommends `launchModeling`, follows exact Launch/Wait/Review
+state, and never writes `EpiphanyThreadStateEntry`. Verification: Body work appears before its
 exact decision receipt, clears after that receipt, and performs zero external
 Body reads; the coordinator-runtime status binary builds.
 
@@ -4927,8 +4923,7 @@ Output: one atomic runtime worker family and scoped read grant. Derived state:
 status, role boards, and eventual runtime links. Forbidden writers: unrelated
 Persona, Hands, evidence, or graph documents cannot conflict with this launch;
 thread state cannot create or repair it. Duplicate live launch refuses, while a
-failed/cancelled attempt makes the work eligible for a distinct ordinal. The
-remaining cut is to route operator and Resident Self callers through this owner.
+failed/cancelled attempt makes the work eligible for a distinct ordinal.
 
 Exact `587c56d2` routes the operator half. The shared Self policy now treats
 unresolved Body Modeling work as a first-class `launchModeling` reason without
@@ -4936,5 +4931,26 @@ requiring persisted thread presence. The coordinator dispatches that specific
 baseline case through `launch_current_body_modeling_work`; proposal, repair,
 verdict, Research, and Verification launches retain their family paths. Thus a
 fresh keyed Mind can begin Modeling directly, while Eyes remains an independent
-external-evidence obligation rather than a gate on Body understanding. Resident
-Self remains the next caller to migrate.
+external-evidence obligation rather than a gate on Body understanding.
+
+Exact `478fb923` completes that lifecycle through Resident Self and Mind
+admission. `EpiphanyCurrentWorkProjection.body_modeling_action` derives typed
+Launch, Wait, or Review from the exact Body work, family launch binding, runtime
+job/result, and Body decision receipt. Resident Self emits one semantically keyed
+`body-modeling` pressure only for Launch. The coordinator receipt records the
+exact runtime job ID, so continuation revalidates that family lifecycle instead
+of consulting a generic Modeling lane.
+
+Owner: `accept_body_modeling_result` owns baseline Body semantic admission.
+Inputs: the exact completed job, exact baseline Modeling result, sealed decision
+context, and current keyed Mind/RepoModel strong reads. Output: one atomic
+RepoModel mutation, Body decision document, and `EpiphanyMindCommitReceipt`.
+Derived state: role boards, events, status, and legacy aggregate projections.
+Forbidden writers: proposal, repair, or verdict results cannot satisfy Body
+work; role-lane terminality and thread state cannot manufacture review or
+acceptance; the aggregate coordinator acceptance branch delegates this family
+to the same owner. Shared paths: operator and Resident review use the same
+current-work projection and admission primitive. Verification exercises Body
+work through pressure, launch, wait, terminal result, review, keyed acceptance,
+and cleared continuation with zero external Body reads; focused current-work,
+Resident, Self-policy, coordinator/status, and full core-library checks pass.
