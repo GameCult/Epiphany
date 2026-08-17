@@ -5047,3 +5047,53 @@ strong state. The focused lifecycle proves deterministic two-launch convergence,
 sealed context, terminal result, review, admission, disjoint merge, and
 byte-identical stale refusal. Core library 561/561, OpenAI runtime 43/43, Self
 policy 26/26, and coordinator runtime 18/18 pass.
+
+## Keyed frontier Research lifecycle (2026-08-18)
+
+Exact `c7412998` removes Research from the aggregate coordinator state machine.
+The immutable v3 `RepoFrontierResearchRequest` seals the exact current frontier
+document and its dependency closure. The complete keyed RepoModel view remains
+inside the reasoning projection as audit cargo, but it is not a global strong
+read and unrelated graph changes cannot stale the pass.
+
+- Owner: `project_current_work` derives the exact Research continuation;
+  `launch_current_frontier_research_work` publishes its deterministic attempt;
+  `accept_frontier_research_result` alone admits its decision under
+  `Eyes.frontier_research`.
+- Inputs: one explicit external-evidence frontier, its exact dependency document
+  versions, immutable request and launch, terminal runtime result, sealed
+  reasoning basis and decision context, and exact governed public-source
+  receipts actually supplied to the model.
+- Outputs: separate keyed evidence, observation, and optional investigation
+  checkpoint documents; one request/context-bound `EyesEvidencePacket`; and one
+  atomic `EpiphanyMindCommitReceipt`.
+- Derived state: accepted-at timestamps, role boards, latest-result slots,
+  events, generic Research status, and coordinator thread are display or
+  transport projections only.
+- Forbidden writers: generic `roleAccept`, aggregate thread-state mutation,
+  CRRC regather, Modeling regather hints, accepted Eyes state, and a stale role
+  lane cannot create, suppress, review, retry, or admit Research. Eyes acceptance
+  cannot create or gate Modeling work.
+- Shared paths: operator and Resident consume the same exact current-work
+  lifecycle. Runtime fulfillment and archival use the same typed Research
+  request reference as live review.
+- Cut line: Research has no aggregate launch or acceptance fallback. The old
+  accepted/failure/timestamp routing branches are deleted; a missing explicit
+  external-evidence obligation cannot be repaired into Eyes work.
+- Verification: the complete decision remains durable if its strong frontier
+  changes after inference, but admission refuses byte-identically and never
+  reinterprets the output. A disjoint keyed RepoModel change merges; an exact
+  frontier change conflicts. Exact replay returns the original commit, archived
+  fulfillment requires that commit, and accepted Eyes produces no Modeling
+  obligation. CultCache 42/42 active tests, core library 561/561, Self policy
+  26/26, OpenAI runtime 43/43, coordinator runtime 18/18, and all-target core
+  compilation pass.
+
+The proof exposed a substrate-level encoding invariant. Compact positional
+MessagePack is unsafe for nested structs whose middle optional fields are
+omitted: later fields can occupy the wrong schema positions. CultCache exact
+`ba6a487` adds `prepare_entry_named`, which retains the typed numeric-slot
+`DatabaseEntry` envelope while encoding ordinary nested document fields as
+named maps. `prepare_mind_document` is the single Mind boundary, and objective,
+Body, and Research writers use it. This is an encoding owner, not a second state
+format or compatibility path.

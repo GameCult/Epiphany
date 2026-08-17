@@ -239,14 +239,23 @@ Cut in this order:
    accepts disjoint keyed changes but refuses a changed strong frontier without
    mutation. Accepted Eyes timestamps, latest-result slots, aggregate prompt
    construction, and generic role lanes cannot create or suppress this work.
-   Migrate Research, Verification, planning, and reorientation next from
+8. **Frontier Research landed at `c7412998`:** the v3 request seals the exact
+   frontier/dependency document closure, while the full RepoModel projection is
+   audit cargo only. One deterministic attempt, terminal decision context,
+   request-bound Eyes packet, and `Eyes.frontier_research` Mind mutation own
+   Launch/Wait/Review/admission. Stale terminal decisions remain durable, exact
+   strong-state changes refuse admission byte-identically, and disjoint keyed
+   writes merge. Accepted Eyes, role lanes, timestamps, generic regather, and
+   Modeling hints cannot launch Eyes or gate Modeling. CultCache `ba6a487`
+   supplies the shared named nested-document encoding boundary used by Mind.
+   Migrate Verification, planning, and reorientation next from
    aggregate state patches and generic role lanes to family-owned current-work
    projections, exact job identities, `MindMutation` plans, and exact commit
    receipts. Reuse pure invariant primitives, not a generic mutable registry.
-8. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+9. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-9. Replay fresh-store concurrency and decision-context acceptance. Only then
+10. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap

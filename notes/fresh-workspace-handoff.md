@@ -1,6 +1,6 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-17
+Updated: 2026-08-18
 
 ## Current state
 
@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`d367e525` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`c7412998` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -22,9 +22,11 @@ or repair path can restore their authority.
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
 unmigrated launch/acceptance/status readers remain live production authorities.
-Baseline Body, Proposal, and frontier-verdict Modeling are no longer among them:
+Baseline Body, Proposal, frontier-verdict Modeling, and frontier Research are no longer among them:
 keyed Mind owns their work projections, operator and Resident launch, exact job-bound
-continuation, review, and semantic admission. Fresh Gate
+continuation, review, and semantic admission. Research is driven only by an explicit
+external-evidence obligation; accepted Eyes state, timestamps, generic regather, and
+role lanes cannot launch Eyes or gate Modeling. Fresh Gate
 preflight proved the consequence: both keyed semantic partitions reached ready,
 but status still called the organism missing because no thread aggregate
 existed. Model Atlas Gate 1 is therefore paused behind that deletion, not merely
@@ -386,10 +388,27 @@ input only and cannot manufacture Modeling work. The aggregate telemetry prompt,
 accepted-at Research boundary, latest Verification selector, parallel authority
 MessagePack, and generic role-lane review path are gone for this family.
 
-Map and migrate Research acceptance next onto its exact request/launch,
-EyesEvidencePacket, decision context, and family-owned Mind commit. Continue
-with Verification,
-planning, and reorientation; then delete the aggregate schema/transaction. Run the source
+Exact `c7412998` migrates frontier Research onto its v3 request, exact
+frontier/dependency document closure, deterministic attempt, sealed reasoning basis and
+decision context, request-bound `EyesEvidencePacket`, and
+`Eyes.frontier_research` Mind commit. The complete RepoModel projection is immutable
+audit cargo, not one global conflict head. A result may terminalize after its strong
+frontier changes so the decision remains auditable; admission then refuses byte-identically
+instead of rebasing the output. Disjoint keyed writes still merge. Research evidence,
+observations, and optional checkpoints are separate Mind documents, and accepted Eyes
+does not implicitly create Modeling work. The generic coordinator launch/acceptance and
+Self lane/timestamp paths now refuse or ignore Research authority.
+
+The same pass exposed compact positional MessagePack as unsafe for nested structs with
+omitted middle optionals. CultCache exact `ba6a487` adds named nested preparation;
+Mind envelopes retain their typed numeric slots while nested document fields remain named.
+Objective, Body, and Research Mind writers now share that boundary.
+
+Map and migrate Verification next onto its exact Hands consequence, request/launch,
+terminal decision context, typed audit, Soul verdict, and family-owned Mind commit. Delete
+generic role launch/acceptance, latest-result, accepted-at, and thread-state authority for
+that family. Continue with planning and reorientation, then delete the aggregate
+schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational
