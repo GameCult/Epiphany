@@ -4983,3 +4983,20 @@ builder, proposal launch binding writer, and generic Modeling proposal hint are
 gone. Verification proves concurrent launch convergence, exact Wait/Review,
 keyed admission, no thread-state envelope, core 564/564, Self policy 26/26, and
 the coordinator-runtime feature build.
+
+Exact `e404c105` collapses the duplicated Body and Proposal Launch/Wait/Review
+enums into `EpiphanyModelingContinuationAction`. This type owns only the common
+attempt-continuation vocabulary. It does not own request selection, result
+validity, mutation shape, or admission; those remain with the concrete Body and
+Proposal families. The shared vocabulary is therefore DRY without becoming a
+generic work registry.
+
+The next source audit found that claim-repair is not a live request family.
+`commit_repo_model_claim_challenge` and
+`commit_repo_model_claim_repair_request` have no production caller, no source
+constructs a `RepoModelClaimChallenge`, and no acceptance test proves the chain.
+Its aggregate-thread launch branch is dormant scaffolding. The deletion line is
+the repair request/binding/context/export and their carrier fields; a future
+Eyes contradiction must earn a new typed external-evidence obligation through a
+real producer, current-work projection, terminal context, and Mind admission
+proof rather than inheriting this unowned anatomy.

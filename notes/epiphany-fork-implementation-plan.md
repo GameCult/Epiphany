@@ -230,15 +230,17 @@ Cut in this order:
    status consumes the shared projection.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, exact launch binding, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry.
-5. Migrate repair, verdict, Research, Verification, planning, and
+5. **Continuation vocabulary landed at `e404c105`:** Body and Proposal share one pure `EpiphanyModelingContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.
+6. Delete the dormant claim-repair request/launch scaffold. It has no production challenge producer, request caller, or acceptance proof, so migrating it would manufacture authority. Reintroduce repair only from a real typed external-evidence obligation.
+7. Migrate frontier-verdict, Research, Verification, planning, and
    reorientation acceptance from aggregate state patches and generic role lanes
    to family-owned current-work projections, exact job identities,
    `MindMutation` plans, and exact commit receipts. Reuse pure invariant
    primitives, not a generic mutable registry.
-6. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+8. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-7. Replay fresh-store concurrency and decision-context acceptance. Only then
+9. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap

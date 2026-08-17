@@ -356,9 +356,16 @@ deleted. A shared exact-envelope launch CAS remains because it protects the
 same atomic publication invariant for Body and Proposal, not because it owns
 family policy.
 
-Migrate claim-repair and frontier-verdict Modeling next, deleting their
-aggregate launch/context/acceptance anatomy while preserving their distinct
-typed requests and invariant owners. Continue with Research, Verification,
+Exact `e404c105` removes the duplicate Body/Proposal continuation enums. One
+`EpiphanyModelingContinuationAction` now names Launch, Wait, and Review; each
+family retains its own request, projection, validity rules, and admission owner.
+
+Source inspection then falsified the assumption that claim-repair is a live
+family: its exported request/launch surface has no production challenge
+producer, request caller, or acceptance proof. Delete that dormant aggregate-
+thread scaffold rather than migrating it. Then migrate the live frontier-
+verdict Modeling chain onto exact Soul/route/request authority and the shared
+continuation vocabulary. Continue with Research, Verification,
 planning, and reorientation; then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
