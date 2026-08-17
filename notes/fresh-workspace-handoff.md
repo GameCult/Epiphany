@@ -1,6 +1,6 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-16
+Updated: 2026-08-17
 
 ## Current state
 
@@ -11,8 +11,8 @@ cognition; Persona receives one lived stream only. Epiphany still owns typed
 effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
-The five-day shakedown remains paused. The active source is exact `2ba6b9dc` on
-`codex/epiphany-shakedown-live`: the keyed Mind hard cut, federated Model Atlas
+The five-day shakedown remains paused. The active source is exact `79346523` on
+`codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -309,12 +309,13 @@ unchanged; the lifecycle authorities above remain separate.
 ## Immediate next action
 
 Complete the persisted thread-state hard deletion described in the campaign
-plan. The Body-generation Modeling work identity now exists at exact
-`59292e2f`, but do not admit its decision receipt yet: first replace the
-aggregate-shaped role prompt with one sealed typed projection assembled from
-the exact keyed Mind versions it cites. Then finish current-work routing,
-migrate status/coordinator consumers and family acceptance, and delete the
-aggregate schema/transaction. Run the source
+plan. Exact `79346523` replaces the aggregate role prompt with a sealed v2 role
+projection assembled from the exact keyed Mind and RepoModel documents it
+names; the final native/provider request renders that projection, and baseline
+Modeling admission writes its Body-work decision receipt in the same Mind CAS
+as any graph mutation. Finish current-work routing, migrate status/coordinator
+consumers and the remaining family acceptance paths, and delete the aggregate
+schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational

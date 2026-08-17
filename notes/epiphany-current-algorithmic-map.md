@@ -4848,3 +4848,18 @@ must not cite keyed Mind versions while the final model request still renders
 the aggregate `EpiphanyRoleWorkerLaunchDocument`. The sealed typed role
 projection and its prompt rendering therefore precede decision-receipt
 admission and routing migration.
+
+Exact `79346523` lands that boundary. `worker_reasoning_basis` now creates a v2
+`RolePass` from immutable launch authority plus a typed keyed-Mind projection;
+the provider-facing native request renders that sealed projection rather than
+`EpiphanyRoleWorkerLaunchDocument`. Store-backed sealing reassembles the exact
+Mind and refuses projection substitution byte-identically. Mind source
+selection is explicit rather than an `epiphany.mind.*` prefix: only documents
+actually assembled into the view are selected, while the RepoModel contributes
+its own exact source family including Atlas documents. Baseline Modeling
+admission derives a decision receipt from the sealed Body and RepoModel basis
+and commits it atomically with any semantic mutation. Proposal, repair, and
+verdict Modeling remain distinct request families and cannot satisfy baseline
+Body work. Core 561/561 and OpenAI runtime 23/23 pass; an explicit negative
+proves the obsolete aggregate objective and `stateRevision` never reach model
+input.

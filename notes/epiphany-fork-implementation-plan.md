@@ -216,13 +216,15 @@ declares the organism missing because it reads persisted
 
 Cut in this order:
 
-1. Replace the aggregate-shaped role reasoning input with one sealed typed
+1. **Landed at `79346523`:** replace the aggregate-shaped role reasoning input with one sealed typed
    projection assembled from exact keyed Mind document versions. The final
    model request must render that projection; citing keyed sources while
    rendering the old thread snapshot is explicitly forbidden.
 2. Complete the pure typed current-work projection over keyed Mind/runtime receipts.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
-   from explicit external-evidence obligations.
+   from explicit external-evidence obligations. Body-generation Modeling
+   identity and atomic decision admission are landed; scheduling consumers are
+   not yet migrated.
 3. Move status and coordinator launch/review consumers to that projection and
    exact request/result identities. Thread ID remains immutable pass provenance
    only.
