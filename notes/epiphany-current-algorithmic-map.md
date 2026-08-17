@@ -4929,3 +4929,12 @@ Persona, Hands, evidence, or graph documents cannot conflict with this launch;
 thread state cannot create or repair it. Duplicate live launch refuses, while a
 failed/cancelled attempt makes the work eligible for a distinct ordinal. The
 remaining cut is to route operator and Resident Self callers through this owner.
+
+Exact `587c56d2` routes the operator half. The shared Self policy now treats
+unresolved Body Modeling work as a first-class `launchModeling` reason without
+requiring persisted thread presence. The coordinator dispatches that specific
+baseline case through `launch_current_body_modeling_work`; proposal, repair,
+verdict, Research, and Verification launches retain their family paths. Thus a
+fresh keyed Mind can begin Modeling directly, while Eyes remains an independent
+external-evidence obligation rather than a gate on Body understanding. Resident
+Self remains the next caller to migrate.

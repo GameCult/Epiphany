@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`9f7b164f` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`587c56d2` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -331,8 +331,10 @@ before they can steer that projection. Exact `e42788c9` lands the shared pure
 Eyes continuation, proposal Modeling, and planning stage onto it. Baseline Body
 work is visible there. Exact `9f7b164f` adds its atomic thread-free launch owner:
 one exact Body strong read commits the runtime job/request/event, family launch
-binding, and read-only Substrate Gate grant without a thread-state write. Route
-operator and Resident Self launch through it, migrate review and remaining family
+binding, and read-only Substrate Gate grant without a thread-state write. Exact
+`587c56d2` routes status and operator baseline Modeling through that owner while
+preserving distinct proposal/repair/verdict families. Route Resident Self launch
+through it, migrate review and remaining family
 acceptance paths, and delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
