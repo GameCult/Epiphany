@@ -16,6 +16,8 @@ pub const RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND: &str =
     "coordinator-internal-continuation";
 pub const RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND: &str = "atlas-impact-modeling";
 pub const RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND: &str = "atlas-impact-soul";
+pub const RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND: &str = "body-modeling";
+pub const RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX: &str = "cultcache://body-modeling-work/";
 pub const RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX: &str = "cultcache://atlas-impact-proposal/";
 pub const RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE: &str =
     "This wake grants no Hands authority.";
@@ -65,6 +67,7 @@ impl ResidentSelfPressure {
                     | "imagination-consideration"
                     | "imagination-proposal"
                     | "repo-frontier-proposal-modeling"
+                    | RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND
                     | RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND
                     | RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND
                     | RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND
@@ -100,6 +103,18 @@ impl ResidentSelfPressure {
             {
                 return Err(anyhow!(
                     "Atlas pressure may coordinate only its exact named lane and grants no Hands authority"
+                ));
+            }
+        }
+        if self.kind == RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND {
+            let work_id = self
+                .provenance_ref
+                .strip_prefix(RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| anyhow!("Body Modeling pressure lost its exact work identity"))?;
+            if self.pressure_id != format!("body-modeling-{work_id}") {
+                return Err(anyhow!(
+                    "Body Modeling pressure identity does not match its work"
                 ));
             }
         }
@@ -687,7 +702,9 @@ pub fn resident_cognitive_runtime_id(runtime_store: &Path) -> Result<String> {
 
 fn resident_self_atlas_required_action(pressure_kind: &str) -> Option<&'static str> {
     match pressure_kind {
-        RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND => Some("launchModeling"),
+        RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND | RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND => {
+            Some("launchModeling")
+        }
         RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND => Some("launchVerification"),
         _ => None,
     }
@@ -1163,6 +1180,12 @@ pub fn ingest_resident_self_domain_pressure(
     let requested_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
         .ok_or_else(|| anyhow!("resident consideration timestamp is out of range"))?
         .to_rfc3339();
+    if let Some(pressure) = resident_self_body_modeling_pressure(runtime_store, now_millis)? {
+        inserted += usize::from(enqueue_resident_self_pressure_idempotent(
+            resident_store,
+            &pressure,
+        )?);
+    }
     if let Some(request) =
         crate::commit_admitted_model_direction_consideration_request(runtime_store, &requested_at)?
     {
@@ -1239,6 +1262,28 @@ pub fn ingest_resident_self_domain_pressure(
     Ok(inserted)
 }
 
+pub fn resident_self_body_modeling_pressure(
+    runtime_store: &Path,
+    now_millis: u64,
+) -> Result<Option<ResidentSelfPressure>> {
+    Ok(crate::project_current_work(runtime_store)?
+        .body_modeling
+        .map(|work| ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: format!("body-modeling-{}", work.work_id),
+            kind: RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND.into(),
+            provenance_ref: format!(
+                "{RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX}{}",
+                work.work_id
+            ),
+            objective: "Launch the exact unresolved repository Body Modeling obligation; no Hands, Persona, deployment, or external consequence.".into(),
+            created_at_millis: now_millis,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        }))
+}
+
 fn role_projection_is_terminal_for_continuation(
     runtime_store: &Path,
     thread_id: &str,
@@ -1301,6 +1346,26 @@ pub(crate) fn resident_self_safe_continuation_action(
                 .continuation_action()
                 .map(|action| action.as_str().to_string()),
         );
+    }
+    if matches!(
+        receipt.final_action.as_str(),
+        "launchModeling" | "waitForModelingResult" | "reviewModelingResult"
+    ) {
+        if let Some(job_id) = receipt.final_runtime_job_id.as_deref() {
+            if let Some(action) =
+                crate::body_modeling_continuation_action_for_job(runtime_store, job_id)?
+            {
+                return Ok(match action {
+                    crate::EpiphanyBodyModelingContinuationAction::Launch => {
+                        Some("launchModeling".to_string())
+                    }
+                    crate::EpiphanyBodyModelingContinuationAction::Wait => None,
+                    crate::EpiphanyBodyModelingContinuationAction::Review => {
+                        Some("reviewModelingResult".to_string())
+                    }
+                });
+            }
+        }
     }
     let direct = matches!(
         receipt.final_action.as_str(),
@@ -3415,6 +3480,26 @@ mod atlas_pressure_tests {
             entry.r#type == <crate::RepoFrontierHandsAuthority as DatabaseEntry>::TYPE
         }));
         std::fs::remove_file(store)?;
+        Ok(())
+    }
+
+    #[test]
+    fn body_modeling_pressure_is_keyed_by_exact_work() -> Result<()> {
+        let pressure = ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "body-modeling-body-work-1".into(),
+            kind: RESIDENT_SELF_BODY_MODELING_PRESSURE_KIND.into(),
+            provenance_ref: format!("{RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX}body-work-1"),
+            objective: "Launch exact Body work".into(),
+            created_at_millis: 1,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        };
+        pressure.validate()?;
+        let mut hostile = pressure;
+        hostile.pressure_id = "body-modeling-body-work-2".into();
+        assert!(hostile.validate().is_err());
         Ok(())
     }
 

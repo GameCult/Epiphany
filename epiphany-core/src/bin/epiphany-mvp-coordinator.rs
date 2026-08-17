@@ -787,6 +787,43 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
+                    if role_id == "modeling"
+                        && let Some(job_id) =
+                            epiphany_core::current_body_modeling_review_job_id(&runtime_store)?
+                    {
+                        let result =
+                            epiphany_core::runtime_role_worker_result(&runtime_store, &job_id)?
+                                .ok_or_else(|| {
+                                    anyhow!("Body Modeling review lost its typed result")
+                                })?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "bodyModelingResult", "roleId": role_id, "result": result}),
+                        );
+                        if !args.auto_review {
+                            final_action = json!({
+                                "action": "reviewModelingResult",
+                                "reason": "The exact Body Modeling result awaits keyed Mind admission.",
+                                "runtimeJobId": job_id,
+                            });
+                            append_operator_step_jsonl(&steps_path, &step)?;
+                            steps.push(step);
+                            break;
+                        }
+                        let accepted = epiphany_core::accept_body_modeling_result(
+                            &runtime_store,
+                            &job_id,
+                            &now(),
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "bodyModelingAccept", "roleId": role_id, "commit": accepted}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
                     let result = read_role_result(&runtime_store, &thread_id, role_id)?;
                     push_event(
                         &mut step,
@@ -1028,6 +1065,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         final_action = json!({
                             "action": wait_action_for_role(role_id),
                             "reason": result["note"],
+                            "runtimeJobId": worker_job_id,
                         });
                         append_operator_step_jsonl(&steps_path, &step)?;
                         steps.push(step);
@@ -1037,6 +1075,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         final_action = json!({
                             "action": review_action_for_role(role_id),
                             "reason": result["note"],
+                            "runtimeJobId": worker_job_id,
                         });
                         append_operator_step_jsonl(&steps_path, &step)?;
                         steps.push(step);
@@ -1174,6 +1213,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 .get("release-manifest-digest")
                 .cloned(),
             resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
+            final_runtime_job_id: final_action["runtimeJobId"].as_str().map(str::to_string),
         };
         finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
         let runtime_status = runtime_spine_status(&runtime_store)?;
@@ -1300,6 +1340,7 @@ fn failed_coordinator_run_receipt(
             .get("release-manifest-digest")
             .cloned(),
         resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
+        final_runtime_job_id: None,
     }
 }
 

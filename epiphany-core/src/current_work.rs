@@ -19,10 +19,19 @@ pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
     pub body_modeling: Option<EpiphanyBodyModelingWorkProjection>,
+    pub body_modeling_action: Option<EpiphanyBodyModelingContinuationAction>,
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling_request: Option<RepoFrontierProposalModelingRequest>,
     pub hands_frontier_ready: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EpiphanyBodyModelingContinuationAction {
+    Launch,
+    Wait,
+    Review,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,7 +267,7 @@ pub fn unresolved_body_modeling_work(
 pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurrentWorkProjection> {
     let store_path = store_path.as_ref();
     let mind = crate::assemble_mind_view(store_path)?;
-    let body_modeling = match (
+    let (body_modeling, body_modeling_action) = match (
         mind.repository_body_observation.clone(),
         mind.repo_model.as_ref(),
     ) {
@@ -275,11 +284,17 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
                 cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
             )?;
             match unresolved {
-                Some(work) if !body_modeling_work_is_covered(&cache, &work.work_id)? => Some(work),
-                _ => None,
+                Some(work) => {
+                    let action = body_modeling_continuation_action(&cache, &work.work_id)?;
+                    (
+                        (action == EpiphanyBodyModelingContinuationAction::Launch).then_some(work),
+                        Some(action),
+                    )
+                }
+                None => (None, None),
             }
         }
-        (None, None) | (Some(_), None) => None,
+        (None, None) | (Some(_), None) => (None, None),
         (None, Some(_)) => {
             return Err(anyhow!(
                 "current work has a RepoModel but no admitted repository Body observation"
@@ -289,6 +304,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     Ok(EpiphanyCurrentWorkProjection {
         mind_projection_digest: mind.projection_digest,
         body_modeling,
+        body_modeling_action,
         research_continuation_action: crate::runtime_repo_frontier_research_lifecycle(store_path)?
             .continuation_action(),
         frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
@@ -299,22 +315,163 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     })
 }
 
-fn body_modeling_work_is_covered(cache: &CultCache, work_id: &str) -> Result<bool> {
-    for binding in cache.get_all::<EpiphanyBodyModelingLaunchBinding>()? {
-        if binding.work_id != work_id {
-            continue;
+fn body_modeling_continuation_action(
+    cache: &CultCache,
+    work_id: &str,
+) -> Result<EpiphanyBodyModelingContinuationAction> {
+    let mut bindings = cache
+        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.work_id == work_id)
+        .collect::<Vec<_>>();
+    bindings.sort_by_key(|binding| binding.attempt_ordinal);
+    let Some(binding) = bindings.last() else {
+        return Ok(EpiphanyBodyModelingContinuationAction::Launch);
+    };
+    let job = cache
+        .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
+    Ok(match job.status {
+        crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
+            EpiphanyBodyModelingContinuationAction::Launch
         }
-        let job = cache
-            .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
-            .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
-        if !matches!(
-            job.status,
-            crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled
-        ) {
-            return Ok(true);
+        crate::EpiphanyRuntimeJobStatus::Completed => {
+            if cache
+                .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
+                .is_some()
+            {
+                EpiphanyBodyModelingContinuationAction::Review
+            } else {
+                EpiphanyBodyModelingContinuationAction::Wait
+            }
         }
+        _ => EpiphanyBodyModelingContinuationAction::Wait,
+    })
+}
+
+pub fn body_modeling_continuation_action_for_job(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyBodyModelingContinuationAction>> {
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let bindings = cache
+        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.job_id == job_id)
+        .collect::<Vec<_>>();
+    let [binding] = bindings.as_slice() else {
+        if bindings.is_empty() {
+            return Ok(None);
+        }
+        return Err(anyhow!(
+            "runtime job has multiple Body Modeling launch bindings"
+        ));
+    };
+    if cache
+        .get::<EpiphanyBodyModelingDecisionReceipt>(&binding.work_id)?
+        .is_some()
+    {
+        return Ok(None);
     }
-    Ok(false)
+    Ok(Some(body_modeling_continuation_action(
+        &cache,
+        &binding.work_id,
+    )?))
+}
+
+pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
+    let store_path = store_path.as_ref();
+    if crate::project_current_work(store_path)?.body_modeling_action
+        != Some(EpiphanyBodyModelingContinuationAction::Review)
+    {
+        return Ok(None);
+    }
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let work = current_body_modeling_work(store_path)?;
+    let mut bindings = cache
+        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.work_id == work.work_id)
+        .collect::<Vec<_>>();
+    bindings.sort_by_key(|binding| binding.attempt_ordinal);
+    Ok(bindings.last().map(|binding| binding.job_id.clone()))
+}
+
+pub fn accept_body_modeling_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    accepted_at: &str,
+) -> Result<crate::EpiphanyMindCommitReceipt> {
+    let store_path = store_path.as_ref();
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let job = cache
+        .get::<crate::EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling acceptance lost its runtime job"))?;
+    if job.status != crate::EpiphanyRuntimeJobStatus::Completed {
+        return Err(anyhow!("Body Modeling runtime job is not completed"));
+    }
+    let result = cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .ok_or_else(|| anyhow!("Body Modeling acceptance lost its typed result"))?;
+    if result.role_id != "modeling"
+        || result.proposal_modeling_request_id.is_some()
+        || result.claim_repair_request_id.is_some()
+        || result.repo_frontier_modeling_request_id.is_some()
+    {
+        return Err(anyhow!("result is not baseline Body Modeling authority"));
+    }
+    let proposal = result.repo_model_mutation_proposal()?;
+    if proposal.is_none()
+        && !matches!(
+            result.verdict.as_str(),
+            "checkpoint-ready" | "regather-needed"
+        )
+    {
+        return Err(anyhow!(
+            "Body Modeling result requiring RepoModel change has no mutation proposal"
+        ));
+    }
+    let mut strong_reads = Vec::new();
+    let mut writes = Vec::new();
+    if let Some(proposal) = proposal.as_ref() {
+        if proposal.proposal_id != format!("repo-model-mutation-proposal-{job_id}") {
+            return Err(anyhow!(
+                "Body Modeling mutation proposal identity is not runtime-owned"
+            ));
+        }
+        let plan = crate::plan_repo_model_mutation(store_path, proposal)?;
+        strong_reads = plan.strong_reads;
+        writes = plan.writes;
+    }
+    let disposition = if proposal.is_some() {
+        "modeled"
+    } else {
+        result.verdict.as_str()
+    };
+    writes.push(body_modeling_decision_envelope(
+        store_path,
+        &result,
+        disposition,
+        accepted_at,
+    )?);
+    match crate::commit_mind_mutation(
+        store_path,
+        &result.decision_context_id,
+        "Modeling.body_projection",
+        strong_reads,
+        writes,
+        accepted_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => Err(anyhow!(
+            "Body Modeling admission lost exact keyed reads: {document_identities:?}"
+        )),
+    }
 }
 
 pub fn launch_current_body_modeling_work(
@@ -667,10 +824,24 @@ mod tests {
         let current_work = project_current_work(&store)?;
         assert_eq!(current_work.body_modeling, Some(projected_work.clone()));
         assert_eq!(
+            current_work.body_modeling_action,
+            Some(EpiphanyBodyModelingContinuationAction::Launch)
+        );
+        assert_eq!(
             current_work.mind_projection_digest,
             crate::assemble_mind_view(&store)?.projection_digest
         );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
+        let resident_pressure = crate::resident_self_body_modeling_pressure(&store, 1)?
+            .expect("unresolved Body work must create Resident Self pressure");
+        assert_eq!(
+            resident_pressure.provenance_ref,
+            format!(
+                "{}{}",
+                crate::RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX,
+                projected_work.work_id
+            )
+        );
         let scheduled = launch_current_body_modeling_work(
             &store,
             EpiphanyBodyModelingLaunchOptions {
@@ -680,7 +851,13 @@ mod tests {
         )?;
         assert_eq!(scheduled.work_id, projected_work.work_id);
         assert_eq!(scheduled.attempt_ordinal, 0);
-        assert!(project_current_work(&store)?.body_modeling.is_none());
+        let scheduled_work = project_current_work(&store)?;
+        assert!(scheduled_work.body_modeling.is_none());
+        assert_eq!(
+            scheduled_work.body_modeling_action,
+            Some(EpiphanyBodyModelingContinuationAction::Wait)
+        );
+        assert!(crate::resident_self_body_modeling_pressure(&store, 2)?.is_none());
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
         scheduled_cache.pull_all_backing_stores()?;
         assert!(
@@ -711,63 +888,11 @@ mod tests {
             .is_err()
         );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
-        let document =
-            crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
-                thread_id: "creation-thread".into(),
-                role_id: "modeling".into(),
-                state_revision: 99,
-                objective: Some("obsolete aggregate objective".into()),
-                dynamic_prompt_context: None,
-                repository_body_observation_basis: Some(body.clone()),
-                proposal_modeling_context: None,
-                claim_repair_context: None,
-                frontier_planning_context: None,
-                frontier_research_context: None,
-                frontier_plan_mind_context: None,
-                imagination_consideration_context: None,
-                admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
-            });
-        let launch = crate::EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
-            job_id: "body-job".into(),
-            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
-            role: crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
-            authority_scope: "epiphany.role.modeling".into(),
-            instruction: "Model the Body".into(),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
-            document_kind: "role".into(),
-            launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
-            metadata: Default::default(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "epiphany.role.modeling",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: None,
-            claim_repair_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verdict_modeling_authority_msgpack: None,
-        };
         let mut cache = crate::runtime_spine_cache(&store)?;
-        cache.put(&launch.job_id, &launch)?;
+        cache.pull_all_backing_stores()?;
+        let launch = cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
+            .unwrap();
         let reasoning_basis = crate::worker_reasoning_basis(&store, &launch)?;
         crate::put_reasoning_basis(&store, &reasoning_basis)?;
         let mut native = epiphany_model_adapter::EpiphanyModelRequest::new(
@@ -821,23 +946,61 @@ mod tests {
             admitted_model_direction_consideration_result_msgpack: None,
             decision_context_id: context.context_id,
         };
-        let envelope = body_modeling_decision_envelope(
-            &store,
-            &result,
-            "checkpoint-ready",
-            "2026-08-17T00:00:02Z",
-        )?;
-        crate::mind_documents::validate_mind_write_envelope(&envelope)?;
-        let receipt: EpiphanyBodyModelingDecisionReceipt =
-            rmp_serde::from_slice(&envelope.payload)?;
-        assert_eq!(receipt.body_basis, body);
+        cache.put(&result.job_id, &result)?;
+        let mut job = cache
+            .get::<crate::EpiphanyRuntimeJob>(&result.job_id)?
+            .unwrap();
+        job.status = crate::EpiphanyRuntimeJobStatus::Completed;
+        job.updated_at = "2026-08-17T00:00:04Z".into();
+        cache.put(&job.job_id, &job)?;
         assert_eq!(
-            receipt.repo_model_projection_digest,
-            crate::assemble_repo_model_view(&store)?.projection_digest
+            project_current_work(&store)?.body_modeling_action,
+            Some(EpiphanyBodyModelingContinuationAction::Review)
         );
-        let mut cache = crate::runtime_spine_cache(&store)?;
-        cache.put(&receipt.work_id, &receipt)?;
-        assert!(project_current_work(&store)?.body_modeling.is_none());
+        let continuation = crate::EpiphanyCoordinatorRunReceipt {
+            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "body-continuation".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            thread_id: "transport-thread".into(),
+            mode: "execute".into(),
+            status: "planned".into(),
+            final_action: "waitForModelingResult".into(),
+            final_reason: None,
+            step_count: 1,
+            created_at: "2026-08-17T00:00:04Z".into(),
+            model_provider: None,
+            runtime_store: store.display().to_string(),
+            artifact_refs: Vec::new(),
+            sealed_artifact_refs: Vec::new(),
+            metadata: Default::default(),
+            resident_grant_id: None,
+            resident_launch_digest: None,
+            resident_policy_digest: None,
+            resident_argv_digest: None,
+            resident_objective_digest: None,
+            resident_release_commit: None,
+            resident_release_manifest_digest: None,
+            resident_executable_digest: None,
+            final_runtime_job_id: Some(result.job_id.clone()),
+        };
+        assert_eq!(
+            crate::resident_self::resident_self_safe_continuation_action(&store, &continuation)?,
+            Some("reviewModelingResult".into())
+        );
+        let receipt = accept_body_modeling_result(&store, &result.job_id, "2026-08-17T00:00:05Z")?;
+        assert_eq!(
+            receipt.authority,
+            crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                decision_context_id: result.decision_context_id.clone(),
+            }
+        );
+        let completed_work = project_current_work(&store)?;
+        assert!(completed_work.body_modeling.is_none());
+        assert!(completed_work.body_modeling_action.is_none());
+        assert!(
+            crate::resident_self::resident_self_safe_continuation_action(&store, &continuation)?
+                .is_none()
+        );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         Ok(())
     }

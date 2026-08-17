@@ -96,6 +96,7 @@ pub fn derive_coordinator_status(
         frontier_planning_stage: input.frontier_planning_stage,
         proposal_modeling_request_ready: input.proposal_modeling_request_ready,
         body_modeling_work_ready: input.body_modeling_work_ready,
+        body_modeling_review_ready: input.body_modeling_review_ready,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -703,6 +704,17 @@ pub fn recommend_coordinator_action(
             false,
             true,
             "An explicitly selected typed user proposal is waiting for its single Modeling launch; route that authority before generic regather or stale lane repair.",
+        );
+    }
+
+    if input.body_modeling_review_ready {
+        return build(
+            EpiphanyCoordinatorAction::ReviewModelingResult,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            true,
+            false,
+            "The exact Body Modeling attempt has a terminal typed result awaiting keyed Mind admission.",
         );
     }
 
@@ -1378,6 +1390,7 @@ mod tests {
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
             proposal_modeling_request_ready: false,
             body_modeling_work_ready: false,
+            body_modeling_review_ready: false,
         }
     }
 
@@ -1479,6 +1492,24 @@ mod tests {
             Some(EpiphanyCoordinatorRoleId::Modeling)
         );
         assert!(decision.can_auto_run);
+    }
+
+    #[test]
+    fn terminal_body_work_routes_keyed_mind_review() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            body_modeling_review_ready: true,
+            ..input()
+        });
+        assert_eq!(
+            decision.action,
+            EpiphanyCoordinatorAction::ReviewModelingResult
+        );
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(decision.requires_review);
+        assert!(!decision.can_auto_run);
     }
 
     fn finding(

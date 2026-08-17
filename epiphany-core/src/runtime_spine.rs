@@ -863,6 +863,8 @@ pub struct EpiphanyCoordinatorRunReceipt {
     pub resident_release_manifest_digest: Option<String>,
     #[cultcache(key = 22, default)]
     pub resident_executable_digest: Option<String>,
+    #[cultcache(key = 23, default)]
+    pub final_runtime_job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
