@@ -3860,7 +3860,89 @@ mod tests {
             "Committed the exact bounded consequence.".into(),
             "2026-08-17T00:00:14.600Z".into(),
         );
-        crate::put_hands_commit_receipt(&store, &hands_commit)?;
+        let persona_cultmesh = temp.path().join("persona-concurrency-cultmesh.cc");
+        crate::write_epiphany_cultmesh_swarm_brake(
+            &persona_cultmesh,
+            "runtime",
+            crate::default_epiphany_cultmesh_swarm_brake("2026-08-17T00:00:14.550Z"),
+        )?;
+        let persona_request = crate::PersonaTurnRequest {
+            request_id: "persona-concurrent-with-hands".into(),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            ..Default::default()
+        };
+        let persona_basis = crate::EpiphanyReasoningBasis::new(
+            "persona:concurrent-with-hands:interpreter",
+            "Persona.interpreter",
+            "epiphany.reasoning_projection.persona.interpreter.v1",
+            Vec::new(),
+            crate::EpiphanyReasoningProjection::PersonaInterpreter(
+                crate::PersonaInterpreterInput::default(),
+            ),
+        )?;
+        accepted_cache.put(&persona_basis.basis_id, &persona_basis)?;
+        let mut persona_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "persona:concurrent-with-hands:interpreter",
+            "persona-turn-concurrent-with-hands",
+            "openai-codex",
+            "gpt-test",
+            "interpret",
+        );
+        persona_native.reasoning_basis_id = Some(persona_basis.basis_id.clone());
+        let persona_provider = epiphany_openai_adapter::request_from_native(&persona_native);
+        let persona_context = crate::EpiphanyDecisionContext::new(
+            &persona_basis,
+            persona_native,
+            persona_provider,
+            Vec::new(),
+        )?;
+        accepted_cache.put(&persona_context.context_id, &persona_context)?;
+        let persona_effect = crate::PersonaInterpreterEffectDocument {
+            schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
+            document_id: "persona-effects:concurrent-with-hands".into(),
+            turn_id: persona_request.request_id.clone(),
+            identity_id: persona_request.agent_id.clone(),
+            interpreter_request_id: "persona:concurrent-with-hands:interpreter".into(),
+            created_at: "2026-08-17T00:00:14.600Z".into(),
+            effects: vec![crate::PersonaInterpreterEffect::StateNote {
+                memory_kind: "social_read".into(),
+                subject_id: Some("operator".into()),
+                summary: "Persona and Hands own disjoint consequences.".into(),
+                confidence: Some(0.9),
+            }],
+            private_state_exposed: false,
+            decision_context_id: persona_context.context_id,
+        };
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let (hands_outcome, persona_outcome) = std::thread::scope(|scope| {
+            let hands_barrier = barrier.clone();
+            let hands_store = store.clone();
+            let hands_commit = hands_commit.clone();
+            let hands = scope.spawn(move || {
+                hands_barrier.wait();
+                crate::put_hands_commit_receipt(&hands_store, &hands_commit)
+            });
+            let persona_barrier = barrier.clone();
+            let persona_store = store.clone();
+            let persona_cultmesh = persona_cultmesh.clone();
+            let persona = scope.spawn(move || {
+                persona_barrier.wait();
+                crate::persona_conversation::admit_persona_state_notes(
+                    &persona_store,
+                    &persona_cultmesh,
+                    "runtime",
+                    &persona_request,
+                    &persona_effect,
+                )
+            });
+            (
+                hands.join().expect("concurrent Hands consequence"),
+                persona.join().expect("concurrent Persona Mind admission"),
+            )
+        });
+        hands_outcome?;
+        assert_eq!(persona_outcome?, ("admitted".into(), Vec::new()));
 
         accepted_cache.pull_all_backing_stores()?;
         let mut verification_requests = accepted_cache

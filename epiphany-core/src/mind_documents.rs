@@ -138,6 +138,56 @@ pub struct EpiphanyMindEvidenceDocument {
     pub value: EpiphanyEvidenceRecord,
 }
 
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.persona_memory.v1",
+    schema = "EpiphanyMindPersonaMemoryDocument"
+)]
+pub struct EpiphanyMindPersonaMemoryDocument {
+    #[cultcache(key = 0)]
+    pub memory_id: String,
+    #[cultcache(key = 1)]
+    pub agent_id: String,
+    #[cultcache(key = 2)]
+    pub memory_kind: String,
+    #[cultcache(key = 3)]
+    pub summary: String,
+    #[cultcache(key = 4)]
+    pub salience: f64,
+    #[cultcache(key = 5)]
+    pub confidence: f64,
+    #[cultcache(key = 6)]
+    pub linked_event_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub linked_relationship_id: Option<String>,
+    #[cultcache(key = 8)]
+    pub effect_document_id: String,
+    #[cultcache(key = 9)]
+    pub decision_context_id: String,
+}
+
+impl EpiphanyMindPersonaMemoryDocument {
+    pub fn validate(&self) -> Result<()> {
+        if [
+            self.memory_id.as_str(),
+            self.agent_id.as_str(),
+            self.memory_kind.as_str(),
+            self.summary.as_str(),
+            self.effect_document_id.as_str(),
+            self.decision_context_id.as_str(),
+        ]
+        .into_iter()
+        .any(str::is_empty)
+            || !matches!(self.memory_kind.as_str(), "memory" | "social_read" | "bond")
+            || !(0.0..=1.0).contains(&self.salience)
+            || !(0.0..=1.0).contains(&self.confidence)
+        {
+            return Err(anyhow!("Mind Persona memory document is invalid"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.mind.verification_audit.v1",
@@ -281,6 +331,7 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindInvariantDocument>()?;
     cache.register_entry_type::<EpiphanyMindObservationDocument>()?;
     cache.register_entry_type::<EpiphanyMindEvidenceDocument>()?;
+    cache.register_entry_type::<EpiphanyMindPersonaMemoryDocument>()?;
     cache.register_entry_type::<EpiphanyMindVerificationAuditDocument>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
@@ -397,6 +448,10 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         rmp_serde::from_slice::<EpiphanyMindEvidenceDocument>(&envelope.payload)?
             .value
             .id
+    } else if envelope.r#type == EpiphanyMindPersonaMemoryDocument::TYPE {
+        let value: EpiphanyMindPersonaMemoryDocument = rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.memory_id
     } else if envelope.r#type == EpiphanyMindVerificationAuditDocument::TYPE {
         let value: EpiphanyMindVerificationAuditDocument =
             rmp_serde::from_slice(&envelope.payload)?;
@@ -616,6 +671,7 @@ fn canonical_mind_versions(
                     | EpiphanyMindInvariantDocument::TYPE
                     | EpiphanyMindObservationDocument::TYPE
                     | EpiphanyMindEvidenceDocument::TYPE
+                    | EpiphanyMindPersonaMemoryDocument::TYPE
                     | EpiphanyMindVerificationAuditDocument::TYPE
                     | crate::EpiphanyMindReorientationDecisionDocument::TYPE
                     | crate::EpiphanyMindReorientationPassFailureDocument::TYPE

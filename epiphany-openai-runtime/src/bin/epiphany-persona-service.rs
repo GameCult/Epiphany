@@ -186,7 +186,6 @@ async fn poll_once(options: &Options) -> Result<bool> {
     let mut result = poll_persona_discord_crossing(
         &options.runtime_store,
         &options.heartbeat_store,
-        &options.agent_store,
         &options.cultmesh_store,
         &options.runtime_id,
         &options.mouth_request_store,
@@ -215,7 +214,6 @@ async fn poll_once(options: &Options) -> Result<bool> {
                 result = poll_persona_discord_crossing(
                     &options.runtime_store,
                     &options.heartbeat_store,
-                    &options.agent_store,
                     &options.cultmesh_store,
                     &options.runtime_id,
                     &options.mouth_request_store,

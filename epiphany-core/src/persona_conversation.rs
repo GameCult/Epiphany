@@ -8,7 +8,6 @@ use cultcache_rs::{
 use cultnet_rs::{GameCultServiceTrustAnchorRecord, ServiceIdentitySigner};
 use sha2::{Digest, Sha256};
 
-use crate::agent_memory::SelfPatchMemory;
 use crate::heartbeat_state::{
     PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION,
     PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION, PersonaConversationRetentionEnvelope,
@@ -17,10 +16,9 @@ use crate::heartbeat_state::{
     load_heartbeat_state_transaction,
 };
 use crate::{
-    AgentSelfPatch, EpiphanyDecisionContext, EpiphanyPersonaDeliveryRequestIdentity,
-    EpiphanyReasoningBasis, PersonaInterpreterEffect, PersonaInterpreterEffectDocument,
-    PersonaModelStageReceipt, PersonaModelTerminalReceipt, PersonaTurnRequest,
-    PersonaTurnTerminalOptions, apply_agent_self_patch_document,
+    EpiphanyDecisionContext, EpiphanyPersonaDeliveryRequestIdentity, EpiphanyReasoningBasis,
+    PersonaInterpreterEffect, PersonaInterpreterEffectDocument, PersonaModelStageReceipt,
+    PersonaModelTerminalReceipt, PersonaTurnRequest, PersonaTurnTerminalOptions,
     complete_persona_turn_request_store, insert_persona_discord_delivery_request,
     load_persona_discord_delivery_receipt, runtime_spine_cache,
     sign_persona_discord_delivery_request, verify_persona_discord_delivery_receipt,
@@ -129,7 +127,6 @@ pub struct PersonaConversationExecutionReceipt {
 pub fn poll_persona_discord_crossing(
     runtime_store: &Path,
     heartbeat_store: &Path,
-    agent_store: &Path,
     cultmesh_store: &Path,
     runtime_id: &str,
     request_store: &Path,
@@ -170,9 +167,8 @@ pub fn poll_persona_discord_crossing(
         });
     let Some((index, channel_id, reply_to_message_id, content)) = say else {
         // Non-speech turns retain the existing typed state-admission path.
-        let (state_status, reasons) = match admit_state_notes(
+        let (state_status, reasons) = match admit_persona_state_notes(
             runtime_store,
-            agent_store,
             cultmesh_store,
             runtime_id,
             &request,
@@ -232,9 +228,8 @@ pub fn poll_persona_discord_crossing(
     {
         existing
     } else {
-        if let Err(error) = admit_state_notes(
+        if let Err(error) = admit_persona_state_notes(
             runtime_store,
-            agent_store,
             cultmesh_store,
             runtime_id,
             &request,
@@ -1001,18 +996,16 @@ fn digest_value<T: serde::Serialize>(value: &T) -> Result<String> {
     ))
 }
 
-fn admit_state_notes(
+pub(crate) fn admit_persona_state_notes(
     runtime_store: &Path,
-    agent_store: &Path,
     cultmesh_store: &Path,
     runtime_id: &str,
     request: &PersonaTurnRequest,
     document: &PersonaInterpreterEffectDocument,
 ) -> Result<(String, Vec<String>)> {
-    let mut semantic = Vec::new();
-    let mut relationships = Vec::new();
-    let mut pending = Vec::new();
-    let mut journals = Vec::new();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let mut writes = Vec::new();
     for (index, effect) in document.effects.iter().enumerate() {
         let PersonaInterpreterEffect::StateNote {
             memory_kind,
@@ -1023,73 +1016,45 @@ fn admit_state_notes(
         else {
             continue;
         };
-        let journal = begin_effect(runtime_store, request, document, index, "state_note")?;
-        if journal.status == "completed" {
-            continue;
-        }
-        journals.push(journal);
-        let memory = SelfPatchMemory {
+        let memory = crate::EpiphanyMindPersonaMemoryDocument {
             memory_id: stable_memory_id(&document.document_id, index),
+            agent_id: request.agent_id.clone(),
+            memory_kind: memory_kind.clone(),
             summary: summary.clone(),
             salience: 0.7,
             confidence: confidence.unwrap_or(0.7),
-            linked_event_ids: Some(vec![document.document_id.clone()]),
+            linked_event_ids: vec![document.document_id.clone()],
             linked_relationship_id: None,
+            effect_document_id: document.document_id.clone(),
+            decision_context_id: document.decision_context_id.clone(),
         };
-        match memory_kind.as_str() {
-            "memory" => semantic.push(memory),
-            "social_read" | "bond" => relationships.push(memory),
-            other => pending.push(format!(
-                "state_note kind {other:?} awaits a coherent typed Persona-state mapping"
-            )),
-        }
+        memory.validate()?;
+        writes.push(crate::mind_documents::prepare_mind_document(
+            &cache,
+            &memory.memory_id,
+            &memory,
+        )?);
     }
-    if semantic.is_empty() && relationships.is_empty() {
-        for journal in &mut journals {
-            finish_effect(runtime_store, journal)?;
-        }
-        return Ok((
-            if pending.is_empty() {
-                "none"
-            } else {
-                "pending"
-            }
-            .into(),
-            pending,
-        ));
+    if writes.is_empty() {
+        return Ok(("none".into(), Vec::new()));
     }
-    let patch = AgentSelfPatch {
-        agent_id: Some(request.agent_id.clone()),
-        reason: Some(
-            "Persona Interpreter proposed bounded memory effects after a completed natural turn."
-                .into(),
-        ),
-        evidence_ids: Some(vec![document.document_id.clone()]),
-        semantic_memories: (!semantic.is_empty()).then_some(semantic),
-        relationship_memories: (!relationships.is_empty()).then_some(relationships),
-        ..Default::default()
-    };
     require_persona_effects_unbraked(cultmesh_store, runtime_id)?;
-    let review = apply_agent_self_patch_document(&request.role_id, patch, agent_store)?;
-    if review.status == "accepted" && review.applied == Some(true) {
-        for journal in &mut journals {
-            finish_effect(runtime_store, journal)?;
+    match crate::commit_mind_mutation(
+        runtime_store,
+        &document.decision_context_id,
+        "Persona.state_note",
+        Vec::new(),
+        writes,
+        &document.created_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(_) => {
+            Ok(("admitted".into(), Vec::new()))
         }
-        Ok((
-            if pending.is_empty() {
-                "admitted"
-            } else {
-                "partially_admitted"
-            }
-            .into(),
-            pending,
-        ))
-    } else {
-        pending.extend(review.reasons);
-        for journal in &mut journals {
-            finish_effect(runtime_store, journal)?;
-        }
-        Ok(("pending".into(), pending))
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => Err(anyhow!(
+            "Persona state-note admission conflicted with exact memory identities: {document_identities:?}"
+        )),
     }
 }
 
@@ -1501,6 +1466,113 @@ mod tests {
         )?
         .unwrap();
         assert_eq!(quarantined.status, "quarantined_ambiguous_local_effect");
+        Ok(())
+    }
+
+    #[test]
+    fn persona_state_notes_commit_as_keyed_mind_documents_and_replay_exactly() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime = temp.path().join("runtime.cc");
+        let cultmesh = temp.path().join("cultmesh.cc");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "persona-mind-test".into(),
+                display_name: "Persona Mind test".into(),
+                created_at: "2026-08-18T01:00:00Z".into(),
+            },
+        )?;
+        crate::write_epiphany_cultmesh_swarm_brake(
+            &cultmesh,
+            "persona-mind-test",
+            crate::default_epiphany_cultmesh_swarm_brake("2026-08-18T01:00:00Z"),
+        )?;
+        let request = PersonaTurnRequest {
+            request_id: "turn-mind-notes".into(),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            ..Default::default()
+        };
+        let mut document = PersonaInterpreterEffectDocument {
+            schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
+            document_id: "persona-effects:turn-mind-notes".into(),
+            turn_id: request.request_id.clone(),
+            identity_id: request.agent_id.clone(),
+            interpreter_request_id: "persona:turn-mind-notes:interpreter".into(),
+            created_at: "2026-08-18T01:00:01Z".into(),
+            effects: vec![
+                PersonaInterpreterEffect::StateNote {
+                    memory_kind: "memory".into(),
+                    summary: "A durable decision belongs in keyed Mind state.".into(),
+                    confidence: Some(0.9),
+                    subject_id: None,
+                },
+                PersonaInterpreterEffect::StateNote {
+                    memory_kind: "social_read".into(),
+                    summary: "Persona state must not serialize Hands.".into(),
+                    confidence: Some(0.8),
+                    subject_id: Some("person-1".into()),
+                },
+            ],
+            private_state_exposed: false,
+            decision_context_id: String::new(),
+        };
+        let basis = crate::EpiphanyReasoningBasis::new(
+            &document.interpreter_request_id,
+            "Persona.interpreter",
+            "epiphany.reasoning_projection.persona.interpreter.v1",
+            Vec::new(),
+            crate::EpiphanyReasoningProjection::PersonaInterpreter(
+                crate::PersonaInterpreterInput::default(),
+            ),
+        )?;
+        put_runtime_document(&runtime, &basis.basis_id, &basis)?;
+        let mut native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            &document.interpreter_request_id,
+            "persona-turn-turn-mind-notes",
+            "openai-codex",
+            "test",
+            "fixture",
+        );
+        native.reasoning_basis_id = Some(basis.basis_id.clone());
+        let provider = epiphany_openai_adapter::request_from_native(&native);
+        let context = crate::EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?;
+        put_runtime_document(&runtime, &context.context_id, &context)?;
+        document.decision_context_id = context.context_id;
+
+        assert_eq!(
+            admit_persona_state_notes(
+                &runtime,
+                &cultmesh,
+                "persona-mind-test",
+                &request,
+                &document,
+            )?,
+            ("admitted".into(), Vec::new())
+        );
+        let mut cache = crate::runtime_spine_cache(&runtime)?;
+        cache.pull_all_backing_stores()?;
+        let first = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+        assert_eq!(first.len(), 1);
+        let memories = cache.get_all::<crate::EpiphanyMindPersonaMemoryDocument>()?;
+        assert_eq!(memories.len(), 2);
+        assert!(memories.iter().all(|memory| {
+            memory.agent_id == request.agent_id
+                && memory.decision_context_id == document.decision_context_id
+        }));
+
+        assert_eq!(
+            admit_persona_state_notes(
+                &runtime,
+                &cultmesh,
+                "persona-mind-test",
+                &request,
+                &document,
+            )?,
+            ("admitted".into(), Vec::new())
+        );
+        cache.pull_all_backing_stores()?;
+        assert_eq!(cache.get_all::<crate::EpiphanyMindCommitReceipt>()?, first);
         Ok(())
     }
 
