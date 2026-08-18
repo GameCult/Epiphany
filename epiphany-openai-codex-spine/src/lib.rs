@@ -500,6 +500,21 @@ fn infer_responses_literal_type(map: &mut serde_json::Map<String, serde_json::Va
     }
 }
 
+fn lower_responses_known_format(map: &mut serde_json::Map<String, serde_json::Value>) {
+    if map.get("format").and_then(serde_json::Value::as_str) == Some("uuid") {
+        // JSON Schema `format` may be annotation-only. Responses supports
+        // `pattern` for standard models, so give generation the same lexical
+        // boundary that native UUID decoding will later enforce.
+        map.remove("format");
+        map.entry("pattern".to_string()).or_insert_with(|| {
+            serde_json::Value::String(
+                "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                    .to_string(),
+            )
+        });
+    }
+}
+
 fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value {
     if property
         .get("anyOf")
@@ -561,6 +576,7 @@ fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
         return;
     };
     infer_responses_literal_type(map);
+    lower_responses_known_format(map);
     // Responses structured output accepts only a JSON-Schema subset.
     // Canonical assertion authority remains enforced by Epiphany ingress
     // and Mind admission; this projection owns provider formatting only.
@@ -1410,7 +1426,7 @@ mod tests {
         request.output_schema_json = Some(
             serde_json::json!({
                 "type": "object",
-                "required": ["schemaVersion", "effects", "source_refs", "format", "node"],
+                "required": ["schemaVersion", "effects", "source_refs", "format", "claim_id", "node"],
                 "properties": {
                     "schemaVersion": {"const": "epiphany.test.v0"},
                     "effects": {
@@ -1441,6 +1457,10 @@ mod tests {
                     "format": {
                         "type": "string",
                         "format": "uri"
+                    },
+                    "claim_id": {
+                        "type": "string",
+                        "format": "uuid"
                     },
                     "node": {
                         "type": "object",
@@ -1480,6 +1500,11 @@ mod tests {
         assert_eq!(source_refs["items"]["pattern"], "^source:");
         assert_eq!(schema["properties"]["format"]["type"], "string");
         assert_eq!(schema["properties"]["format"]["format"], "uri");
+        assert!(schema["properties"]["claim_id"].get("format").is_none());
+        assert_eq!(
+            schema["properties"]["claim_id"]["pattern"],
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        );
         assert!(schema["properties"]["node"].get("anyOf").is_none());
     }
 
