@@ -23,6 +23,7 @@ pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_recei
 pub const REASONING_BASIS_TYPE: &str = "epiphany.reasoning_basis.v1";
 pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v1";
 pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
+pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
     "epiphany.reasoning_projection.worker_launch.v2";
 
@@ -506,6 +507,276 @@ pub enum EpiphanyMindCommitOutcome {
     Conflict {
         document_identities: Vec<(String, String)>,
     },
+}
+
+/// Read-only reconstruction of the durable records that make one model
+/// decision auditable. This is an operator projection, never a stored owner.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyDecisionAuditProjection {
+    pub schema_version: String,
+    pub context_id: String,
+    pub reasoning_basis: EpiphanyReasoningBasis,
+    pub decision_context: EpiphanyDecisionContext,
+    pub reasoning_projection: EpiphanyReasoningProjection,
+    pub terminal_native_request: EpiphanyModelRequest,
+    pub terminal_provider_request: EpiphanyOpenAiModelRequest,
+    pub tool_observations: Vec<EpiphanyDecisionToolObservation>,
+    pub terminal_records: EpiphanyDecisionTerminalRecords,
+    pub mind_commit_receipts: Vec<EpiphanyMindCommitReceipt>,
+    pub transcript_required: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyDecisionTerminalRecords {
+    pub role_worker_results: Vec<crate::EpiphanyRuntimeRoleWorkerResult>,
+    pub reorient_worker_results: Vec<crate::EpiphanyRuntimeReorientWorkerResult>,
+    pub runtime_job_results: Vec<crate::EpiphanyRuntimeJobResult>,
+    pub archived_worker_attempts: Vec<crate::EpiphanyArchivedRuntimeWorkerAttempt>,
+    pub persona_stage_receipts: Vec<crate::PersonaModelStageReceipt>,
+    pub persona_effect_documents: Vec<crate::PersonaInterpreterEffectDocument>,
+    pub persona_terminal_receipts: Vec<crate::PersonaModelTerminalReceipt>,
+    pub persona_conversation_receipts: Vec<crate::PersonaConversationExecutionReceipt>,
+    pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
+    pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
+}
+
+impl EpiphanyDecisionTerminalRecords {
+    fn len(&self) -> usize {
+        self.role_worker_results.len()
+            + self.reorient_worker_results.len()
+            + self.runtime_job_results.len()
+            + self.archived_worker_attempts.len()
+            + self.persona_stage_receipts.len()
+            + self.persona_effect_documents.len()
+            + self.persona_terminal_receipts.len()
+            + self.persona_conversation_receipts.len()
+            + self.reorientation_decisions.len()
+            + self.reorientation_failures.len()
+    }
+
+    fn canonicalize(&mut self) {
+        self.role_worker_results
+            .sort_by(|left, right| left.result_id.cmp(&right.result_id));
+        self.reorient_worker_results
+            .sort_by(|left, right| left.result_id.cmp(&right.result_id));
+        self.runtime_job_results
+            .sort_by(|left, right| left.result_id.cmp(&right.result_id));
+        self.archived_worker_attempts
+            .sort_by(|left, right| left.archive_id.cmp(&right.archive_id));
+        self.persona_stage_receipts
+            .sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
+        self.persona_effect_documents
+            .sort_by(|left, right| left.document_id.cmp(&right.document_id));
+        self.persona_terminal_receipts
+            .sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
+        self.persona_conversation_receipts
+            .sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
+        self.reorientation_decisions
+            .sort_by(|left, right| left.decision_id.cmp(&right.decision_id));
+        self.reorientation_failures
+            .sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
+    }
+}
+
+/// Reconstruct one decision solely from durable typed state. Current Mind
+/// contents, model stream events, assistant deltas, and runtime event order are
+/// deliberately outside this query.
+pub fn audit_decision_context(
+    store_path: impl AsRef<Path>,
+    context_id: &str,
+) -> Result<EpiphanyDecisionAuditProjection> {
+    require_non_empty(context_id, "decision audit context id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let context = cache
+        .get::<EpiphanyDecisionContext>(context_id)?
+        .ok_or_else(|| anyhow!("decision audit context is absent"))?;
+    let basis = cache
+        .get::<EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("decision audit context lost its reasoning basis"))?;
+    context.validate(&basis)?;
+
+    let mut terminal_records = EpiphanyDecisionTerminalRecords {
+        role_worker_results: cache
+            .get_all::<crate::EpiphanyRuntimeRoleWorkerResult>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+        reorient_worker_results: cache
+            .get_all::<crate::EpiphanyRuntimeReorientWorkerResult>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+        runtime_job_results: cache
+            .get_all::<crate::EpiphanyRuntimeJobResult>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id.as_deref() == Some(context_id))
+            .collect(),
+        archived_worker_attempts: cache
+            .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id() == Some(context_id))
+            .collect(),
+        persona_stage_receipts: cache
+            .get_all::<crate::PersonaModelStageReceipt>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+        persona_effect_documents: cache
+            .get_all::<crate::PersonaInterpreterEffectDocument>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+        persona_terminal_receipts: cache
+            .get_all::<crate::PersonaModelTerminalReceipt>()?
+            .into_iter()
+            .filter(|record| {
+                record
+                    .decision_context_ids
+                    .iter()
+                    .any(|candidate| candidate == context_id)
+            })
+            .collect(),
+        persona_conversation_receipts: cache
+            .get_all::<crate::PersonaConversationExecutionReceipt>()?
+            .into_iter()
+            .filter(|record| record.interpreter_decision_context_id.as_deref() == Some(context_id))
+            .collect(),
+        reorientation_decisions: cache
+            .get_all::<crate::EpiphanyMindReorientationDecisionDocument>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+        reorientation_failures: cache
+            .get_all::<crate::EpiphanyMindReorientationPassFailureDocument>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
+    };
+    terminal_records.canonicalize();
+    if terminal_records.len() == 0 {
+        return Err(anyhow!(
+            "decision audit context has no durable terminal decision record"
+        ));
+    }
+    validate_decision_terminal_records(&basis, context_id, &terminal_records)?;
+
+    let mut mind_commit_receipts = cache
+        .get_all::<EpiphanyMindCommitReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            matches!(
+                &receipt.authority,
+                EpiphanyMindCommitAuthority::ModelDecisionContext {
+                    decision_context_id
+                } if decision_context_id == context_id
+            )
+        })
+        .collect::<Vec<_>>();
+    for receipt in &mind_commit_receipts {
+        receipt.validate()?;
+    }
+    mind_commit_receipts.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
+
+    Ok(EpiphanyDecisionAuditProjection {
+        schema_version: DECISION_AUDIT_PROJECTION_SCHEMA_VERSION.to_string(),
+        context_id: context.context_id.clone(),
+        decision_context: context.clone(),
+        reasoning_projection: basis.projection()?,
+        terminal_native_request: context.native_request()?,
+        terminal_provider_request: context.provider_request()?,
+        tool_observations: context.tool_observations()?,
+        reasoning_basis: basis,
+        terminal_records,
+        mind_commit_receipts,
+        transcript_required: false,
+    })
+}
+
+fn validate_decision_terminal_records(
+    basis: &EpiphanyReasoningBasis,
+    context_id: &str,
+    records: &EpiphanyDecisionTerminalRecords,
+) -> Result<()> {
+    if records
+        .role_worker_results
+        .iter()
+        .any(|record| record.job_id != basis.pass_id || record.role_id != basis.organ_id)
+        || records
+            .reorient_worker_results
+            .iter()
+            .any(|record| record.job_id != basis.pass_id)
+        || records
+            .runtime_job_results
+            .iter()
+            .any(|record| record.job_id != basis.pass_id)
+        || records
+            .archived_worker_attempts
+            .iter()
+            .any(|record| record.job_id != basis.pass_id)
+        || records
+            .reorientation_decisions
+            .iter()
+            .any(|record| record.job_id != basis.pass_id)
+        || records
+            .reorientation_failures
+            .iter()
+            .any(|record| record.job_id != basis.pass_id)
+    {
+        return Err(anyhow!(
+            "decision audit terminal worker record does not belong to its reasoning pass"
+        ));
+    }
+    for record in &records.archived_worker_attempts {
+        let fulfilled = crate::WorkerProcessStatus::parse(&record.terminal_process_status)?
+            .is_fulfilled_terminal();
+        record.validate_decision_record(fulfilled)?;
+    }
+    if records.persona_stage_receipts.iter().any(|record| {
+        record.request_id != basis.pass_id || record.reasoning_basis_id != basis.basis_id
+    }) || records
+        .persona_effect_documents
+        .iter()
+        .any(|record| record.interpreter_request_id != basis.pass_id)
+    {
+        return Err(anyhow!(
+            "decision audit Persona record does not belong to its reasoning pass"
+        ));
+    }
+    for terminal in &records.persona_terminal_receipts {
+        let index = terminal
+            .decision_context_ids
+            .iter()
+            .position(|candidate| candidate == context_id)
+            .ok_or_else(|| anyhow!("decision audit Persona terminal lost its context"))?;
+        let receipt_id = terminal
+            .stage_receipt_ids
+            .get(index)
+            .ok_or_else(|| anyhow!("decision audit Persona terminal lost its stage receipt"))?;
+        if !records
+            .persona_stage_receipts
+            .iter()
+            .any(|record| &record.receipt_id == receipt_id)
+        {
+            return Err(anyhow!(
+                "decision audit Persona terminal does not bind the exact stage receipt"
+            ));
+        }
+    }
+    for conversation in &records.persona_conversation_receipts {
+        if !records
+            .persona_effect_documents
+            .iter()
+            .any(|effect| effect.document_id == conversation.effect_document_id)
+        {
+            return Err(anyhow!(
+                "decision audit Persona conversation lost its exact effect document"
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn worker_reasoning_basis(
@@ -1880,6 +2151,74 @@ mod tests {
             )?,
             EpiphanyMindCommitOutcome::Committed(_)
         ));
+        let before_unterminal_audit = backing.pull_all()?;
+        assert!(audit_decision_context(&store, &context.context_id).is_err());
+        assert_eq!(backing.pull_all()?, before_unterminal_audit);
+        let terminal_result = crate::EpiphanyRuntimeJobResult {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+            result_id: "worker-result-1".into(),
+            job_id: "pass-1".into(),
+            session_id: "session-1".into(),
+            role: "Modeling".into(),
+            verdict: "completed".into(),
+            summary: "Structured Modeling decision".into(),
+            completed_at: "2026-08-14T00:00:03Z".into(),
+            next_safe_move: "Inspect the durable decision context".into(),
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            metadata: Default::default(),
+            decision_context_id: Some(context.context_id.clone()),
+        };
+        runtime_spine_cache(&store)?.put(&terminal_result.result_id, &terminal_result)?;
+        let before_audit = backing.pull_all()?;
+        let audit = audit_decision_context(&store, &context.context_id)?;
+        assert_eq!(audit.context_id, context.context_id);
+        assert_eq!(audit.reasoning_basis, basis);
+        assert_eq!(audit.terminal_native_request.request_id, "request-1");
+        assert_eq!(audit.terminal_provider_request.request_id, "request-1");
+        assert_eq!(
+            audit.terminal_records.runtime_job_results,
+            vec![terminal_result.clone()]
+        );
+        assert_eq!(audit.mind_commit_receipts.len(), 2);
+        assert!(!audit.transcript_required);
+        assert_eq!(backing.pull_all()?, before_audit);
+        let mut archive_cache = runtime_spine_cache(&store)?;
+        archive_cache.pull_all_backing_stores()?;
+        assert!(
+            archive_cache.delete::<crate::EpiphanyRuntimeJobResult>(&terminal_result.result_id)?
+        );
+        let archived = crate::EpiphanyArchivedRuntimeWorkerAttempt {
+            schema_version: crate::ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION.into(),
+            archive_id: "pass-1".into(),
+            job_id: "pass-1".into(),
+            request_kind: "proposal-modeling".into(),
+            request_id: "proposal-request-1".into(),
+            terminal_process_status: "terminal-failure".into(),
+            archived_at: "2026-08-14T00:00:04Z".into(),
+            retired_type_counts: Default::default(),
+            retired_envelope_count: 1,
+            retired_chain_digest: "sha256:historical-family".into(),
+            decision: Some(crate::EpiphanyArchivedRuntimeWorkerDecision {
+                decision_context_id: context.context_id.clone(),
+                role_result: None,
+                job_results: vec![terminal_result],
+            }),
+        };
+        archive_cache.put(&archived.archive_id, &archived)?;
+        let before_archived_audit = backing.pull_all()?;
+        let archived_audit = audit_decision_context(&store, &context.context_id)?;
+        assert!(
+            archived_audit
+                .terminal_records
+                .runtime_job_results
+                .is_empty()
+        );
+        assert_eq!(
+            archived_audit.terminal_records.archived_worker_attempts,
+            vec![archived]
+        );
+        assert_eq!(backing.pull_all()?, before_archived_audit);
         let current = backing
             .pull_all()?
             .into_iter()

@@ -905,6 +905,7 @@ pub use runtime_spine::COORDINATOR_RUN_RECEIPT_TYPE;
 pub use runtime_spine::EPIPHANY_RUNTIME_ROOT_SESSION_ID;
 pub use runtime_spine::EpiphanyArchivedRuntimeSession;
 pub use runtime_spine::EpiphanyArchivedRuntimeWorkerAttempt;
+pub use runtime_spine::EpiphanyArchivedRuntimeWorkerDecision;
 pub use runtime_spine::EpiphanyCoordinatorDeathRecovery;
 pub use runtime_spine::EpiphanyCoordinatorRunReceipt;
 pub use runtime_spine::EpiphanyCoordinatorRunReceiptRetentionHead;

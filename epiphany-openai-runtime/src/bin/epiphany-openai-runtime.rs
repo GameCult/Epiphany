@@ -118,6 +118,54 @@ async fn main() -> Result<()> {
                 "privateStateExposed": false
             }))?;
         }
+        "audit-decision" => {
+            let mut store = PathBuf::from(DEFAULT_STORE);
+            let mut context_id = None;
+            let mut output = None;
+            let mut args = args.peekable();
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--store" => {
+                        store = PathBuf::from(
+                            args.next()
+                                .context("audit-decision missing --store value")?,
+                        )
+                    }
+                    "--context-id" => {
+                        context_id = Some(
+                            args.next()
+                                .context("audit-decision missing --context-id value")?,
+                        )
+                    }
+                    "--output" => {
+                        output = Some(PathBuf::from(
+                            args.next()
+                                .context("audit-decision missing --output value")?,
+                        ))
+                    }
+                    other => return Err(anyhow!("unknown audit-decision argument: {other}")),
+                }
+            }
+            let context_id = context_id.context("audit-decision requires --context-id")?;
+            let audit = epiphany_core::audit_decision_context(&store, &context_id)?;
+            if let Some(path) = output {
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("failed to create {}", parent.display()))?;
+                }
+                fs::write(&path, serde_json::to_vec_pretty(&audit)?)
+                    .with_context(|| format!("failed to write {}", path.display()))?;
+                print_json(&json!({
+                    "schemaVersion": "epiphany.decision_audit_written.v1",
+                    "contextId": audit.context_id,
+                    "output": path,
+                    "transcriptRequired": false,
+                    "privateStateExposed": false,
+                }))?;
+            } else {
+                print_json(&audit)?;
+            }
+        }
         "model-turn" => {
             let options = parse_model_turn_options(args.collect())?;
             require_supported_provider(&options.provider)?;
@@ -2088,5 +2136,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }

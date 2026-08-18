@@ -150,7 +150,7 @@ pub const ARCHIVED_RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.archived_sessi
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_TYPE: &str = "epiphany.runtime.worker_process_claim.v0";
 pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE: &str =
-    "epiphany.runtime.archived_worker_attempt.v0";
+    "epiphany.runtime.archived_worker_attempt.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
@@ -173,7 +173,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v1";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v2";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -185,7 +185,7 @@ pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
 pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_process_claim.v0";
 pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.archived_worker_attempt.v0";
+    "epiphany.runtime.archived_worker_attempt.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.role_worker_result.v4";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
@@ -480,9 +480,9 @@ pub struct EpiphanyRuntimeWorkerProcessClaim {
     pub terminal_authority_id: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.runtime.archived_worker_attempt.v0",
+    type = "epiphany.runtime.archived_worker_attempt.v1",
     schema = "EpiphanyArchivedRuntimeWorkerAttempt"
 )]
 pub struct EpiphanyArchivedRuntimeWorkerAttempt {
@@ -498,18 +498,77 @@ pub struct EpiphanyArchivedRuntimeWorkerAttempt {
     pub request_id: String,
     #[cultcache(key = 5)]
     pub terminal_process_status: String,
-    #[cultcache(key = 6, default)]
-    pub result_id: Option<String>,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub archived_at: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub retired_type_counts: BTreeMap<String, u64>,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 8)]
     pub retired_envelope_count: u64,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 9)]
     pub retired_chain_digest: String,
-    #[cultcache(key = 11, default)]
-    pub decision_context_id: Option<String>,
+    #[cultcache(key = 10)]
+    pub decision: Option<EpiphanyArchivedRuntimeWorkerDecision>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EpiphanyArchivedRuntimeWorkerDecision {
+    pub decision_context_id: String,
+    pub role_result: Option<EpiphanyRuntimeRoleWorkerResult>,
+    pub job_results: Vec<EpiphanyRuntimeJobResult>,
+}
+
+impl EpiphanyArchivedRuntimeWorkerAttempt {
+    pub fn decision_context_id(&self) -> Option<&str> {
+        self.decision
+            .as_ref()
+            .map(|decision| decision.decision_context_id.as_str())
+    }
+
+    pub fn fulfilled_result_id(&self) -> Option<&str> {
+        self.decision
+            .as_ref()
+            .and_then(|decision| decision.role_result.as_ref())
+            .map(|result| result.result_id.as_str())
+    }
+
+    pub(crate) fn validate_decision_record(&self, fulfilled: bool) -> Result<()> {
+        let Some(decision) = &self.decision else {
+            if fulfilled {
+                return Err(anyhow!(
+                    "fulfilled worker archive lost its structured decision"
+                ));
+            }
+            return Ok(());
+        };
+        validate_non_empty(
+            &decision.decision_context_id,
+            "archived worker decision context id",
+        )?;
+        if decision.job_results.is_empty()
+            || decision.job_results.iter().any(|result| {
+                result.job_id != self.job_id
+                    || result.decision_context_id.as_deref()
+                        != Some(decision.decision_context_id.as_str())
+            })
+        {
+            return Err(anyhow!(
+                "archived worker decision lost its exact generic result family"
+            ));
+        }
+        match &decision.role_result {
+            Some(result)
+                if fulfilled
+                    && result.job_id == self.job_id
+                    && result.decision_context_id == decision.decision_context_id =>
+            {
+                Ok(())
+            }
+            None if !fulfilled => Ok(()),
+            _ => Err(anyhow!(
+                "archived worker decision terminal result shape is invalid"
+            )),
+        }
+    }
 }
 
 fn worker_process_claim_id(job_id: &str) -> String {
@@ -5456,7 +5515,9 @@ pub fn runtime_typed_request_fulfillment(
     let archived_matches = cache
         .get_all::<EpiphanyArchivedRuntimeWorkerAttempt>()?
         .into_iter()
-        .filter(|attempt| attempt.request_id == request_id && attempt.result_id.is_some())
+        .filter(|attempt| {
+            attempt.request_id == request_id && attempt.fulfilled_result_id().is_some()
+        })
         .collect::<Vec<_>>();
     if archived_matches.len() > 1 {
         return Err(anyhow!(
@@ -5472,6 +5533,17 @@ pub fn runtime_typed_request_fulfillment(
             || !attempt.retired_chain_digest.starts_with("sha256:")
         {
             return Err(anyhow!("archived typed fulfillment tombstone is invalid"));
+        }
+        attempt.validate_decision_record(true)?;
+        let archived_role_result = attempt
+            .decision
+            .as_ref()
+            .and_then(|decision| decision.role_result.as_ref())
+            .ok_or_else(|| anyhow!("archived typed fulfillment lost its structured result"))?;
+        if !request.matches_result(archived_role_result) {
+            return Err(anyhow!(
+                "archived typed fulfillment substituted its structured result"
+            ));
         }
         if cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(&attempt.job_id)?
@@ -5492,8 +5564,8 @@ pub fn runtime_typed_request_fulfillment(
         return Ok(Some(RuntimeTypedFulfillmentEvidence {
             job_id: attempt.job_id.clone(),
             result_id: attempt
-                .result_id
-                .clone()
+                .fulfilled_result_id()
+                .map(str::to_string)
                 .expect("validated archived result"),
             request_id: request_id.to_string(),
         }));
@@ -8327,9 +8399,14 @@ fn repo_frontier_research_request_is_covered(
         let exact_archived = archived.as_ref().is_some_and(|attempt| {
             attempt.request_kind == "frontier-research"
                 && attempt.request_id == request.request_id
-                && attempt.result_id.as_deref() == Some(packet.source_result_id.as_str())
-                && attempt.decision_context_id.as_deref()
-                    == Some(packet.decision_context_id.as_str())
+                && attempt.fulfilled_result_id() == Some(packet.source_result_id.as_str())
+                && attempt.decision_context_id() == Some(packet.decision_context_id.as_str())
+                && attempt.decision.as_ref().is_some_and(|decision| {
+                    decision.role_result.as_ref().is_some_and(|result| {
+                        result.repo_frontier_research_request_id.as_deref()
+                            == Some(request.request_id.as_str())
+                    })
+                })
         });
         if exact_live || exact_archived {
             return Ok(true);
@@ -11152,11 +11229,11 @@ where
         if existing.schema_version != ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION
             || existing.archive_id != job_id
             || existing.job_id != job_id
-            || existing.result_id.is_some() != fulfilled
             || !existing.retired_chain_digest.starts_with("sha256:")
         {
             return Err(anyhow!("archived worker attempt tombstone is invalid"));
         }
+        existing.validate_decision_record(fulfilled)?;
         if cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
             .is_some()
@@ -11224,7 +11301,7 @@ where
             "worker attempt archive requires matching terminal runtime job"
         ));
     }
-    let archived_result_id = if fulfilled {
+    if fulfilled {
         let request_ref = match request_kind {
             "proposal-modeling" => RuntimeTypedRequestRef::ProposalModeling(request_id),
             "frontier-verdict-modeling" => {
@@ -11267,10 +11344,7 @@ where
                 "proposal Modeling attempt remains live until Mind admission owns its result"
             ));
         }
-        Some(evidence.result_id)
-    } else {
-        None
-    };
+    }
     let snapshot = cache.snapshot_envelopes();
     let proposal_bindings = cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
@@ -11293,9 +11367,9 @@ where
         .iter()
         .map(|item| item.result_id.clone())
         .collect::<BTreeSet<_>>();
-    let role_decision_context_id = cache
-        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
-        .map(|result| result.decision_context_id);
+    let role_decision_context_id = role_result
+        .as_ref()
+        .map(|result| result.decision_context_id.clone());
     let mut decision_context_ids = worker_job_results
         .iter()
         .filter_map(|result| result.decision_context_id.clone())
@@ -11315,6 +11389,13 @@ where
     if let Some(context_id) = decision_context_id.as_deref() {
         require_worker_decision_context(&cache, context_id, job_id)?;
     }
+    let mut archived_job_results = worker_job_results.clone();
+    archived_job_results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
+    let decision = decision_context_id.map(|context_id| EpiphanyArchivedRuntimeWorkerDecision {
+        decision_context_id: context_id,
+        role_result: role_result.clone(),
+        job_results: archived_job_results,
+    });
     let events = cache
         .get_all::<EpiphanyRuntimeEvent>()?
         .into_iter()
@@ -11375,13 +11456,13 @@ where
         request_kind: request_kind.into(),
         request_id: request_id.into(),
         terminal_process_status: claim.status,
-        result_id: archived_result_id,
         archived_at: archived_at.into(),
         retired_type_counts: counts,
         retired_envelope_count: deletions.len() as u64,
         retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
-        decision_context_id,
+        decision,
     };
+    tombstone.validate_decision_record(fulfilled)?;
     let replacement = cache.prepare_entry(job_id, &tombstone)?.0;
     before_commit()?;
     if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
@@ -13881,6 +13962,38 @@ pub(crate) mod tests {
             .is_err()
         );
         assert_eq!(runtime_spine_backing_store(&store)?.pull_all()?, before);
+
+        let archive_v0_store = temp.path().join("archive-v0-runtime.cc");
+        let mut archive_v0 = CultCache::new();
+        archive_v0.register_entry_type::<crate::EpiphanyMindIdentity>()?;
+        archive_v0.register_entry_type::<EpiphanyRuntimeIdentity>()?;
+        archive_v0.add_generic_backing_store(runtime_spine_backing_store(&archive_v0_store)?);
+        archive_v0.put(
+            crate::MIND_SCHEMA_EPOCH,
+            &crate::EpiphanyMindIdentity {
+                schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+                runtime_id: "archive-v0-runtime".into(),
+            },
+        )?;
+        archive_v0.put(
+            RUNTIME_IDENTITY_KEY,
+            &EpiphanyRuntimeIdentity {
+                schema_version: "epiphany.runtime_spine.v1".into(),
+                runtime_id: "archive-v0-runtime".into(),
+                display_name: "Archive v0 runtime".into(),
+                runtime_kind: "epiphany.native".into(),
+                created_at: "2026-08-18T00:00:00Z".into(),
+                updated_at: "2026-08-18T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        let archive_v0_before = runtime_spine_backing_store(&archive_v0_store)?.pull_all()?;
+        assert!(runtime_spine_cache(&archive_v0_store).is_err());
+        assert_eq!(
+            runtime_spine_backing_store(&archive_v0_store)?.pull_all()?,
+            archive_v0_before
+        );
         Ok(())
     }
 }
