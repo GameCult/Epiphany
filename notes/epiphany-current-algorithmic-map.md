@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-18
-Latest implementation cut: `79c0e373` on `codex/epiphany-shakedown-live`
+Latest implementation cut: `d3300bba` on `codex/epiphany-shakedown-live`
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -25,7 +25,7 @@ interface authority.
 | Owner | Inputs | Outputs | Invariant |
 |---|---|---|---|
 | keyed Mind documents | typed semantic documents keyed by logical identity | deterministic `EpiphanyMindView` | There is no persisted aggregate Mind head or global revision. |
-| `mind_transaction.rs` | invariant-owned strong reads and complete typed writes | atomic batch CAS plus `EpiphanyMindCommitReceipt` | Disjoint identities merge; same-identity or changed-strong-read conflicts refuse without partial mutation. |
+| `reasoning_context.rs` Mind commit owner | invariant-owned strong reads and complete typed writes | atomic batch CAS plus `EpiphanyMindCommitReceipt` | Disjoint identities merge; same-identity or changed-strong-read conflicts refuse without partial mutation. |
 | concrete family admission owners | sealed decision context, exact family request/result chain, affected semantic documents | one family-specific `MindMutation` | The model cannot choose which stale state is safe to ignore. |
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | current-work projections, Resident pressure, and exact runtime receipts | one prioritized recommendation and read-only operator views | Coordinator presence is derived; no mutable coordinator head exists. |
@@ -225,23 +225,28 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted through `79c0e373`:
+Accepted through `d3300bba`:
 
 - every Epiphany core target compiles;
 - core library `493/493`;
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
+- Persona service `1/1`.
 - all core targets compile; generic role-patch source guards pass.
+- authenticated Persona re-entry refuses naked typed input, performs no
+  external observation or model call, and preserves the exact three-stage
+  decision chain;
+- reopened current-work projection is identical and byte-for-byte read-only at
+  Launch, Wait, completed, and post-Research boundaries.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. prove fresh restart reproduces identical decisions and obligations without
-   Persona input reformulation or authority resurrection. Sealed Persona
-   ingress, concrete Persona+Hands concurrency, concurrent disjoint graph
-   writes, simultaneous Verification+Modeling, same-identity conflict, exact
-   replay, transcript deletion, and old-epoch refusal are accepted;
-2. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
+1. run the fresh exact-package capstone over a new store, including concurrent
+   Persona/repository work, complete decision inspection without transcripts,
+   and process restart/re-entry. The equivalent source-level ownership,
+   concurrency, refusal, and re-entry matrix is accepted;
+2. only then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a
@@ -251,7 +256,6 @@ autonomous scheduling remain forbidden until the capstone passes.
 ## Primary source anchors
 
 - `epiphany-core/src/mind_documents.rs`
-- `epiphany-core/src/mind_transaction.rs`
 - `epiphany-core/src/reasoning_context.rs`
 - `epiphany-core/src/current_work.rs`
 - `epiphany-core/src/repo_model_documents.rs`

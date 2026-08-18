@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `79c0e373`
+Latest implementation cut: `d3300bba`
 
 ## Orientation
 
@@ -75,6 +75,13 @@ The global thread-state authority is gone.
   Mind version. Substitution refuses byte-identically, replay reuses the
   original input, and direct Git inspection is gone. Persona-only input and
   memory documents are excluded from generic role projections.
+- `d3300bba` makes re-entry consume only an authenticated admitted Persona
+  pass-input. The loader requires one exact `Persona.pass_input` Mind commit
+  receipt, validates its content-addressed identity, and refuses a naked typed
+  document. A restarted execution plan performs no heartbeat, agent-memory,
+  Body, repository, or model read when that input and terminal decision already
+  exist. Current-work reconstruction is identical and byte-for-byte read-only
+  at Launch, Wait, completed, and post-Research boundaries.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -87,7 +94,7 @@ Verification at this boundary:
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
-- Persona service target compiles.
+- Persona service `1/1`.
 
 ## Canonical machine now
 
@@ -95,7 +102,8 @@ The runtime Mind `.cc` is the sole decision-bearing store. Keyed Mind and
 RepoModel documents assemble deterministic views; their projection digests are
 audit/display identities, not mutable authority revisions.
 
-`mind_transaction::commit_mind_mutation` is the canonical commit primitive.
+`reasoning_context::commit_mind_mutation` is the crate-private canonical commit
+primitive.
 Concrete invariant owners supply exact strong reads and complete typed writes.
 Disjoint identities merge, same-identity divergence conflicts, changed strong
 reads refuse without mutation, and exact replay returns the original receipt.
@@ -138,9 +146,9 @@ frontier-verdict Modeling, Research, Verification, Planning/PlanMind, and
 Reorientation admissions use keyed mutations. Research is driven only by
 explicit external-evidence obligations; Eyes does not gate Body Modeling.
 
-## Remaining wound
+## Accepted migration boundary
 
-The broader Decision-Auditable Concurrent Mind migration is incomplete.
+The source-level Decision-Auditable Concurrent Mind migration is accepted.
 
 Context validation is now exact and DRY: execution and sealing share the same
 model/tool binding owners, native/provider lowering is exact, final ToolCall/
@@ -151,14 +159,21 @@ Retention must preserve direct reachability: worker attempt or Persona terminal
 to decision context to reasoning basis. No raw stream event, request family, or
 transcript may be required for that query after archival.
 
+Fresh source tests prove the retained chain, concurrent keyed commits,
+old-epoch refusal, deterministic current-work re-entry, and Persona replay
+without input reformulation or inference. This is source acceptance, not yet a
+package/live claim.
+
 ## Immediate next action
 
-1. Complete fresh restart/re-entry with identical decisions and obligations,
-   no Persona pass-input reformulation, no authority resurrection, and no
-   legacy writable path. The source-level ownership and concurrency matrix is
-   accepted.
-2. Only then package a fresh body and resume Model Atlas Gate 1 from a new
-   external root.
+1. Build one exact clean-source package without adding a shipped proof-only
+   binary.
+2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against that
+   package: concurrent Persona/repository work, Body -> Modeling -> Mind,
+   explicit Eyes evidence where required, Hands -> Verification -> Mind,
+   transcript-independent decision inspection, and process restart/re-entry
+   with identical obligations and no resurrection.
+3. Only then resume Model Atlas Gate 1 from a new external root.
 
 ## Operational state that matters
 

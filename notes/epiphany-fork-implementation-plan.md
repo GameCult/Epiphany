@@ -208,13 +208,14 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Keep the five-day shakedown and Model Atlas operational Gate 1 paused. Complete
-the remaining Decision-Auditable Concurrent Mind hard cut before another live
-coordinator run. Fresh Gate preflight exposed the aggregate ownership defect;
-the aggregate has now been structurally removed. Decision-context admission,
-retention, writable-epoch refusal, keyed graph/Verification concurrency, and
-concrete Persona+Hands concurrency, and sealed Persona projector ingress are
-accepted. The remaining gate is fresh restart/re-entry proof.
+Keep the five-day shakedown and Model Atlas operational Gate 1 paused. The
+source-level Decision-Auditable Concurrent Mind hard cut is accepted. Fresh
+Gate preflight exposed the aggregate ownership defect; the aggregate has now
+been structurally removed. Decision-context admission, retention,
+writable-epoch refusal, keyed graph/Verification concurrency, concrete
+Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
+restart/re-entry are accepted. The remaining gate is the fresh exact-package
+capstone.
 
 Cut in this order:
 
@@ -319,8 +320,15 @@ Cut in this order:
    document seals the exact assembled projector input and observed source
    versions before inference; every Persona stage cites it, replay reuses it,
    substitution refuses, and generic role projections exclude Persona-private
-   documents. Complete restart/re-entry. Only then restart Model Atlas Gate 1
-   from a new external root.
+   documents.
+20. **Restart/re-entry landed at `d3300bba`:** one exact validated Mind commit
+   receipt authenticates the admitted Persona input. Plan construction is
+   sealed behind that loader; naked typed input refuses; terminal replay makes
+   no external observation or model call. Current-work projection reopens
+   identically and without mutation across Launch, Wait, completed, and
+   post-Research boundaries. Build the exact clean-source package and run the
+   fresh-store capstone. Only then restart Model Atlas Gate 1 from a new
+   external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
