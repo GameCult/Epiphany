@@ -211,10 +211,6 @@ pub fn commit_request(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("consideration requires runtime identity"))?;
-    let Some(thread) = cache.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-    else {
-        return Ok(None);
-    };
     let model_basis = crate::assemble_repo_model_view(runtime_store)?.reasoning_basis();
     let feedback = crate::admitted_persona_feedback(persona_feedback_store, &identity.runtime_id)?
         .into_iter()
@@ -242,7 +238,7 @@ pub fn commit_request(
         data_classification: feedback.data_classification.clone(),
         source_provider_identity_id: feedback.bifrost_provider_identity_id,
         runtime_id: identity.runtime_id,
-        thread_id: thread.thread_id,
+        thread_id: request_id.clone(),
         repository: repository.into(),
         persona_id: persona_id.into(),
         model_projection_digest: model_basis.projection_digest,
@@ -460,39 +456,73 @@ pub fn request_candidate_modeling_review(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
-    fn cold_runtime_without_thread_defers_feedback_consideration() -> Result<()> {
+    fn keyed_feedback_and_repo_model_without_thread_create_consideration() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let runtime = temp.path().join("runtime.cc");
         let feedback = temp.path().join("feedback.cc");
-        let mut cache = crate::runtime_spine_cache(&runtime)?;
-        cache.put(
-            crate::RUNTIME_IDENTITY_KEY,
-            &crate::EpiphanyRuntimeIdentity {
-                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
                 runtime_id: "runtime-cold".into(),
                 display_name: "Cold runtime".into(),
-                runtime_kind: "resident".into(),
                 created_at: "2026-07-18T00:00:00Z".into(),
-                updated_at: "2026-07-18T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
             },
         )?;
-        assert!(
-            commit_request(
-                &runtime,
-                &feedback,
-                "feedback-1",
-                "GameCult/Epiphany",
-                "epiphany",
-                "resident-feedback-consideration-v0",
-                "2026-07-18T00:01:00Z",
-            )?
-            .is_none()
-        );
+        let mut cache = crate::runtime_spine_cache(&runtime)?;
+        cache.put(
+            crate::REPO_MODEL_IDENTITY_KEY,
+            &crate::EpiphanyRepoModelIdentityDocument {
+                schema_epoch: crate::REPO_MODEL_SCHEMA_EPOCH.into(),
+                graph_id: "graph-cold".into(),
+                runtime_id: "runtime-cold".into(),
+                swarm_id: "swarm-cold".into(),
+                workspace_id: "workspace-cold".into(),
+                body_binding_sha256: "sha256:body-cold".into(),
+            },
+        )?;
+        let admitted = crate::LocalAdmittedPersonaFeedback {
+            schema_version: crate::LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION.into(),
+            feedback_id: "feedback-1".into(),
+            admission_id: "admission-1".into(),
+            source_actor_id: "actor-1".into(),
+            source_provider: "bifrost".into(),
+            target_runtime_id: "runtime-cold".into(),
+            target_repository: "GameCult/Epiphany".into(),
+            target_persona_id: "epiphany".into(),
+            source_room_id: "discord://room-1".into(),
+            feedback_text: "Inspect the keyed Mind.".into(),
+            source_discussion_refs: vec!["discord://message-1".into()],
+            bifrost_provider_identity_id: "bifrost-1".into(),
+            authority: "resident-pressure-only".into(),
+            private_state_exposed: false,
+            source_visibility: "organization".into(),
+            data_classification: "organization_feedback".into(),
+            packet_sha256: "sha256-feedback".into(),
+            source_observer_id: "bifrost-discord".into(),
+            source_observer_runtime_id: "bifrost-runtime".into(),
+            source_event_id: "event-1".into(),
+            discord_guild_id: "guild-1".into(),
+            discord_channel_id: "channel-1".into(),
+            discord_message_id: "message-1".into(),
+        };
+        let mut feedback_cache = cultcache_rs::CultCache::new();
+        feedback_cache.register_entry_type::<crate::LocalAdmittedPersonaFeedback>()?;
+        let (entry, _) = feedback_cache.prepare_entry(&admitted.feedback_id, &admitted)?;
+        assert!(SingleFileMessagePackBackingStore::new(&feedback).insert_entry_if_absent(entry)?);
+
+        let request = commit_request(
+            &runtime,
+            &feedback,
+            "feedback-1",
+            "GameCult/Epiphany",
+            "epiphany",
+            "resident-feedback-consideration-v0",
+            "2026-07-18T00:01:00Z",
+        )?
+        .ok_or_else(|| anyhow!("admitted feedback should create consideration work"))?;
+        assert_eq!(request.thread_id, request.request_id);
         Ok(())
     }
 

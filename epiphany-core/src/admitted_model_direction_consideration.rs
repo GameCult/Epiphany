@@ -98,10 +98,6 @@ pub fn commit_request(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("model direction consideration requires runtime identity"))?;
-    let Some(thread) = cache.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-    else {
-        return Ok(None);
-    };
     let model = crate::assemble_repo_model_view(runtime_store)?;
     let model_basis = model.reasoning_basis();
     let mut terminal = cache
@@ -126,7 +122,7 @@ pub fn commit_request(
         schema_version: REQUEST_SCHEMA.into(),
         request_id: request_id.clone(),
         runtime_id: identity.runtime_id,
-        thread_id: thread.thread_id,
+        thread_id: request_id.clone(),
         model_projection_digest: model_basis.projection_digest,
         model_source_documents: model_basis.source_documents,
         previous_terminal_result_id,
@@ -241,7 +237,6 @@ pub fn render_prompt(request: &AdmittedModelDirectionConsiderationRequest) -> St
 mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
-    use std::collections::BTreeMap;
 
     fn model_basis() -> crate::EpiphanyRepoModelBasis {
         let source_documents = vec![crate::EpiphanyMindDocumentVersion {
@@ -346,32 +341,33 @@ mod tests {
     }
 
     #[test]
-    fn cold_runtime_without_thread_has_no_direction_request_yet() -> Result<()> {
+    fn keyed_repo_model_without_thread_creates_direction_request() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime.cc");
-        let mut cache = crate::runtime_spine_cache(&store)?;
-        cache.put(
-            crate::RUNTIME_IDENTITY_KEY,
-            &crate::EpiphanyRuntimeIdentity {
-                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+        crate::initialize_runtime_spine(
+            &store,
+            crate::RuntimeSpineInitOptions {
                 runtime_id: "runtime-cold".into(),
                 display_name: "Cold runtime".into(),
-                runtime_kind: "resident".into(),
                 created_at: "2026-07-18T00:00:00Z".into(),
-                updated_at: "2026-07-18T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
+            },
+        )?;
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(
+            crate::REPO_MODEL_IDENTITY_KEY,
+            &crate::EpiphanyRepoModelIdentityDocument {
+                schema_epoch: crate::REPO_MODEL_SCHEMA_EPOCH.into(),
+                graph_id: "graph-cold".into(),
+                runtime_id: "runtime-cold".into(),
+                swarm_id: "swarm-cold".into(),
+                workspace_id: "workspace-cold".into(),
+                body_binding_sha256: "sha256:body-cold".into(),
             },
         )?;
 
-        assert!(commit_request(&store, "2026-07-18T00:01:00Z")?.is_none());
-        let mut reloaded = crate::runtime_spine_cache(&store)?;
-        reloaded.pull_all_backing_stores()?;
-        assert!(
-            reloaded
-                .get_all::<AdmittedModelDirectionConsiderationRequest>()?
-                .is_empty()
-        );
+        let request = commit_request(&store, "2026-07-18T00:01:00Z")?
+            .ok_or_else(|| anyhow!("keyed RepoModel should create direction work"))?;
+        assert_eq!(request.thread_id, request.request_id);
         Ok(())
     }
 }

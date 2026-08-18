@@ -860,7 +860,10 @@ mod tests {
             (agent_launch, "build_epiphany_reorient_launch_request"),
             (worker_launch, "EpiphanyReorientLaunchRequestInput"),
         ] {
-            assert!(!source.contains(forbidden), "obsolete reorientation authority {forbidden:?} survived");
+            assert!(
+                !source.contains(forbidden),
+                "obsolete reorientation authority {forbidden:?} survived"
+            );
         }
     }
 

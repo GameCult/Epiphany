@@ -6022,12 +6022,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
     opening.pull_all_backing_stores()?;
     let identity = require_identity(&opening)?;
     if opening
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .is_none()
-    {
-        return Ok(Vec::new());
-    }
-    if opening
         .get::<crate::EpiphanyRepoModelIdentityDocument>(crate::REPO_MODEL_IDENTITY_KEY)?
         .is_none()
     {
@@ -6265,9 +6259,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 current
                     .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
                     .ok_or_else(|| anyhow!("runtime identity envelope disappeared"))?,
-                current
-                    .get_envelope::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                    .ok_or_else(|| anyhow!("thread envelope disappeared"))?,
                 current
                     .get_envelope::<crate::RuntimeRepositoryBodyStoreBinding>(
                         crate::RUNTIME_BODY_STORE_BINDING_KEY,
