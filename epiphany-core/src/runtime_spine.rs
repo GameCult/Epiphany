@@ -105,8 +105,6 @@ use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::substrate_gate::SubstrateGateRepoAccessGrantReceipt;
-use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
-use crate::thread_state_store::THREAD_STATE_TYPE;
 use crate::{RuntimeTypedRequestRef, WorkerProcessStatus};
 use anyhow::Context;
 use anyhow::Result;
@@ -1106,7 +1104,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
     crate::mind_documents::register_mind_document_types(&mut cache)?;
-    cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<crate::RuntimeStoreMigrationReceipt>()?;
@@ -13731,17 +13728,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "The ledger is inspected as durable memory; writes are mediated by role-specific state flows.",
-            ],
-        ),
-        mutation_contract(
-            THREAD_STATE_TYPE,
-            THREAD_STATE_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "The mirrored thread state is the typed repo/control-plane state source; Codex rollout is a compatibility source, not the network contract.",
             ],
         ),
         mutation_contract(

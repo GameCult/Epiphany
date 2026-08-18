@@ -848,15 +848,12 @@ mod tests {
     fn reorientation_has_no_aggregate_or_freshness_authority_path() {
         let coordinator = include_str!("bin/epiphany-mvp-coordinator.rs");
         let status = include_str!("bin/epiphany-mvp-status.rs");
-        let acceptance = include_str!("coordinator_acceptance.rs");
         let agent_launch = include_str!("agent_launch.rs");
         let worker_launch = include_str!("surfaces/worker_launch.rs");
         for (source, forbidden) in [
             (coordinator, "build_epiphany_reorient_launch_request"),
             (status, "recommend_reorientation"),
             (status, "crrc_regather_current_after_relinquishment"),
-            (acceptance, "accept_coordinator_reorient_finding"),
-            (acceptance, "build_native_reorient_acceptance_update"),
             (agent_launch, "build_epiphany_reorient_launch_request"),
             (worker_launch, "EpiphanyReorientLaunchRequestInput"),
         ] {
@@ -913,7 +910,7 @@ mod tests {
             request
                 .source_documents
                 .iter()
-                .all(|source| { source.document_type != crate::EpiphanyThreadStateEntry::TYPE })
+                .all(|source| source.document_type != "epiphany.thread_state")
         );
         assert_eq!(
             crate::project_current_work(&store)?
@@ -1170,8 +1167,9 @@ mod tests {
         );
         assert!(
             accepted
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
 
         let mut stale = crate::runtime_spine_cache(&stale_store)?;

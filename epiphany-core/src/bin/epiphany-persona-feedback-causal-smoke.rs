@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use epiphany_core::*;
 use epiphany_state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
-    EpiphanyMemoryProfile, EpiphanyThreadState,
+    EpiphanyMemoryProfile,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -76,41 +76,16 @@ fn main() -> Result<()> {
         {
             bail!("consideration lost classified source provenance");
         }
-        let mut runtime = runtime_spine_cache(&runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let state = runtime
-            .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
-            .context("fixture runtime lost its current thread state")?
-            .state()?;
-        let launch = build_epiphany_imagination_consideration_launch_request(
-            "fixture-thread",
-            Some(state.revision),
-            Some(30),
-            &state,
-            request.request_id.clone(),
-        )
-        .map_err(anyhow::Error::msg)?;
-        let job = format!("fixture-imagination-{}", feedback.feedback_id);
-        let plan = plan_coordinator_job_launch(
-            &state,
-            &launch,
+        let job_id = launch_current_imagination_consideration_work(
             &runtime_store,
-            format!("launcher-{job}"),
-            job.clone(),
-        )?;
-        let committed = commit_coordinator_job_launch(
-            &runtime_store,
-            "fixture-thread",
-            &state,
-            &launch,
-            &plan,
-            AT.into(),
+            &request.request_id,
+            AT,
         )?;
         let candidate = ImaginationConsiderationCandidate {
             schema_version: IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
             candidate_id: imagination_consideration_candidate_id_for_launch(
                 &request.request_id,
-                &committed.backend_job_id,
+                &job_id,
             ),
             request_id: request.request_id.clone(),
             feedback_id: request.feedback_id.clone(),
@@ -135,21 +110,6 @@ fn main() -> Result<()> {
             contract: IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT.into(),
         };
         validate_imagination_consideration_candidate(&request, &candidate)?;
-        let mut runtime = runtime_spine_cache(&runtime_store)?;
-        runtime.pull_all_backing_stores()?;
-        let current = runtime
-            .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
-            .context("fixture runtime lost launched thread state")?
-            .state()?;
-        EpiphanyCoordinatorService::new(&runtime_store).interrupt_job(
-            "fixture-thread",
-            &current,
-            EpiphanyJobInterruptRequest {
-                expected_revision: Some(current.revision),
-                binding_id: committed.binding_id,
-                reason: Some("fixture advances to the next classified feedback".into()),
-            },
-        )?;
     }
     for (path, original) in before {
         if bytes(&path)? != original {
@@ -171,13 +131,6 @@ fn seed_fixture_runtime(store: &Path) -> Result<()> {
             created_at: AT.into(),
         },
     )?;
-    let state = EpiphanyThreadState::default();
-    let mut cache = runtime_spine_cache(store)?;
-    cache.put(
-        THREAD_STATE_KEY,
-        &EpiphanyThreadStateEntry::from_state("fixture-thread", &state)?,
-    )?;
-    drop(cache);
     let seed = EpiphanyRepoModelSeed::new(
         "fixture-model-seed",
         "fixture-model",

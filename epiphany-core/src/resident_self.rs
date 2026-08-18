@@ -1309,49 +1309,6 @@ pub fn resident_self_body_modeling_pressure(
         }))
 }
 
-fn role_projection_is_terminal_for_continuation(
-    runtime_store: &Path,
-    thread_id: &str,
-    role: crate::EpiphanyRoleResultRoleId,
-    binding_id: &str,
-) -> Result<bool> {
-    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
-    runtime.pull_all_backing_stores()?;
-    let entry = runtime.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?;
-    let state = entry
-        .as_ref()
-        .filter(|entry| entry.thread_id == thread_id)
-        .map(crate::EpiphanyThreadStateEntry::state)
-        .transpose()?;
-    let snapshot =
-        crate::read_role_result_snapshot(state.as_ref(), Some(runtime_store), role, binding_id);
-    Ok(matches!(
-        snapshot.status,
-        crate::EpiphanyCoordinatorRoleResultStatus::Completed
-            | crate::EpiphanyCoordinatorRoleResultStatus::Failed
-            | crate::EpiphanyCoordinatorRoleResultStatus::Cancelled
-    ))
-}
-
-fn resident_continuation_launch_was_overtaken(
-    runtime_store: &Path,
-    action: &str,
-    thread_id: &str,
-) -> Result<bool> {
-    match action {
-        // These legacy checkpoint lanes do not yet expose an exact current
-        // request projection. Keep their existing role-slot behavior explicit
-        // rather than pretending it is the same authority as Research.
-        "launchModeling" => role_projection_is_terminal_for_continuation(
-            runtime_store,
-            thread_id,
-            crate::EpiphanyRoleResultRoleId::Modeling,
-            crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
-        ),
-        _ => Ok(false),
-    }
-}
-
 pub(crate) fn resident_self_safe_continuation_action(
     runtime_store: &Path,
     receipt: &crate::EpiphanyCoordinatorRunReceipt,
@@ -1432,44 +1389,16 @@ pub(crate) fn resident_self_safe_continuation_action(
     }
     let direct = matches!(
         receipt.final_action.as_str(),
-        "launchModeling"
-            | "startFrontierPlanning"
+        "startFrontierPlanning"
             | "launchImagination"
             | "requestMindPlanReview"
             | "launchMindPlanReview"
             | "commitFrontierPlanDecision"
     );
     if direct {
-        if resident_continuation_launch_was_overtaken(
-            runtime_store,
-            &receipt.final_action,
-            &receipt.thread_id,
-        )? {
-            return Ok(None);
-        }
         return Ok(Some(receipt.final_action.clone()));
     }
     let action = match receipt.final_action.as_str() {
-        "reviewModelingResult"
-            if role_projection_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Modeling,
-                crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
-            )? =>
-        {
-            Some("reviewModelingResult")
-        }
-        "waitForModelingResult"
-            if role_projection_is_terminal_for_continuation(
-                runtime_store,
-                &receipt.thread_id,
-                crate::EpiphanyRoleResultRoleId::Modeling,
-                crate::EPIPHANY_MODELING_ROLE_BINDING_ID,
-            )? =>
-        {
-            Some("reviewModelingResult")
-        }
         "waitForImaginationResult" => {
             match crate::runtime_repo_frontier_planning_lifecycle(runtime_store)?.stage {
                 crate::RepoFrontierPlanningLifecycleStage::ImaginationResultReady => {

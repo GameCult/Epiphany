@@ -78,29 +78,78 @@ fn prepare_authority_family(store: &Path) -> Result<EpiphanyToolInvocationIntent
             created_at: "2026-08-13T00:00:00Z".into(),
         },
     )?;
-    let state = EpiphanyThreadState::default();
-    let launch = build_epiphany_role_launch_request(
-        "public-source-no-grant-thread",
-        EpiphanyRoleResultRoleId::Research,
-        Some(state.revision),
-        Some(60),
-        &state,
-    )
-    .map_err(anyhow::Error::msg)?;
-    let plan = plan_coordinator_job_launch(
-        &state,
-        &launch,
+    let launch_document = EpiphanyWorkerLaunchDocument::Role(EpiphanyRoleWorkerLaunchDocument {
+        thread_id: "public-source-no-grant-thread".into(),
+        role_id: "research".into(),
+        state_revision: 0,
+        objective: Some("Prove the exact public-source grant boundary.".into()),
+        dynamic_prompt_context: None,
+        repository_body_observation_basis: None,
+        proposal_modeling_context: None,
+        frontier_verdict_modeling_context: None,
+        frontier_planning_context: None,
+        frontier_research_context: None,
+        frontier_verification_context: None,
+        frontier_plan_mind_context: None,
+        imagination_consideration_context: None,
+        admitted_model_direction_consideration_context: None,
+        active_subgoal_id: None,
+        active_subgoals: Vec::new(),
+        active_graph_node_ids: Vec::new(),
+        investigation_checkpoint: None,
+        scratch: None,
+        invariants: Vec::new(),
+        graphs: None,
+        recent_evidence: Vec::new(),
+        recent_observations: Vec::new(),
+        graph_frontier: None,
+        graph_checkpoint: None,
+        planning: None,
+        churn: None,
+    });
+    let authority_scope = "epiphany.eyes.public_source_gate_probe";
+    open_runtime_spine_heartbeat_job(
         store,
-        "public-source-no-grant-launcher".into(),
-        WORKER_JOB_ID.into(),
+        RuntimeSpineHeartbeatJobOptions {
+            runtime_id: "public-source-no-grant-probe".into(),
+            display_name: "Public source no-grant probe".into(),
+            session_id: EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Prove the exact public-source grant boundary.".into(),
+            coordinator_note: "isolated gate probe".into(),
+            job_id: WORKER_JOB_ID.into(),
+            role: EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+            binding_id: EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.into(),
+            instruction: "Attempt one immutable public source lookup.".into(),
+            output_contract_id: ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            organ_launch_contract: default_launch_organ_contract(
+                authority_scope,
+                "role",
+                ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            launch_document,
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
+            created_at: "2026-08-13T00:00:01Z".into(),
+        },
     )?;
-    commit_coordinator_job_launch(
-        store,
-        "public-source-no-grant-thread",
-        &state,
-        &launch,
-        &plan,
-        "2026-08-13T00:00:01Z".into(),
+    runtime_spine_cache(store)?.put(
+        &format!("substrate-grant-{WORKER_JOB_ID}"),
+        &substrate_gate_repo_access_grant_for_worker(
+            format!("substrate-grant-{WORKER_JOB_ID}"),
+            WORKER_JOB_ID.into(),
+            EPIPHANY_RESEARCH_ROLE_BINDING_ID.into(),
+            EPIPHANY_RESEARCH_OWNER_ROLE.into(),
+            authority_scope.into(),
+            true,
+            "2026-08-13T00:00:01Z".into(),
+        ),
     )?;
 
     let mut model_request = EpiphanyModelRequest::new(

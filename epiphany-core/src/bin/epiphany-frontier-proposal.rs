@@ -1,12 +1,14 @@
 use anyhow::{Context, Result, anyhow, bail};
-use epiphany_core::{EpiphanyCoordinatorService, RepoFrontierUserProposalInput};
+use epiphany_core::{
+    RepoFrontierUserProposalInput, intake_user_repo_frontier_proposal,
+    select_repo_frontier_work_proposal_for_modeling,
+};
 use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf};
 
 fn main() -> Result<()> {
     let args = Args::parse(std::env::args().skip(1))?;
-    let service = EpiphanyCoordinatorService::new(&args.store);
-    let proposal = service.intake_user_repo_frontier_proposal(RepoFrontierUserProposalInput {
+    let proposal = intake_user_repo_frontier_proposal(&args.store, RepoFrontierUserProposalInput {
         proposal_id: args.required("--proposal-id")?,
         source_actor: args.required("--source-actor")?,
         source_ref: args.required("--source-ref")?,
@@ -24,7 +26,8 @@ fn main() -> Result<()> {
         proposed_at: args.required("--proposed-at")?,
         private_state_included: false,
     })?;
-    let selection = service.select_repo_frontier_proposal_for_modeling(
+    let selection = select_repo_frontier_work_proposal_for_modeling(
+        &args.store,
         &proposal.proposal_id,
         &args.required("--selected-at")?,
     )?;

@@ -170,7 +170,7 @@ pub fn intake_user_objective(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EpiphanyThreadStateEntry, RuntimeSpineInitOptions, initialize_runtime_spine};
+    use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
 
     fn input(objective: &str) -> UserObjectiveIntakeInput {
         UserObjectiveIntakeInput {
@@ -203,7 +203,12 @@ mod tests {
         );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        assert!(cache.get_all::<EpiphanyThreadStateEntry>()?.is_empty());
+        assert!(
+            cache
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
+        );
 
         let repeated = intake_user_objective(&store, input(" Map the machine "))?;
         assert!(!repeated.changed);

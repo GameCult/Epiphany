@@ -3376,8 +3376,9 @@ mod tests {
         scheduled_cache.pull_all_backing_stores()?;
         assert!(
             scheduled_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
         assert!(
             scheduled_cache
@@ -3615,8 +3616,9 @@ mod tests {
         );
         assert!(
             final_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
         let proposal_runtime_launch = final_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_launch.job_id)?
@@ -3770,8 +3772,9 @@ mod tests {
         accepted_cache.pull_all_backing_stores()?;
         assert!(
             accepted_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
 
         let model = crate::assemble_repo_model_view(&store)?;
@@ -4533,8 +4536,9 @@ mod tests {
         );
         assert!(
             planning_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
 
         let challenged_plan_store = temp.path().join("challenged-plan.cc");
@@ -4976,8 +4980,9 @@ mod tests {
         );
         assert!(
             planning_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
 
         // Eyes is its own exact current-work family. It launches from an
@@ -5032,8 +5037,9 @@ mod tests {
         research_cache.pull_all_backing_stores()?;
         assert!(
             research_cache
-                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-                .is_none()
+                .snapshot_envelopes()
+                .iter()
+                .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
         let research_launch = research_cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&research_job)?
