@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `26b6a5bf`
+Latest implementation cut: `7c2ebd81`
 
 ## Orientation
 
@@ -64,6 +64,11 @@ The global thread-state authority is gone.
   receipt. A real Verification admission also commits simultaneously with an
   unrelated Modeling-node write. Raw mutation primitives are crate-private,
   so external callers cannot manufacture generic Mind CAS plans.
+- `7c2ebd81` removes the live Persona consequence path from the legacy
+  agent-memory aggregate. Interpreter `state_note` decisions now become keyed
+  `EpiphanyMindPersonaMemoryDocument` writes under the exact Interpreter
+  decision context. Exact replay returns the original Mind commit. A concrete
+  Hands commit and Persona admission run simultaneously and both commit.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -72,7 +77,7 @@ provenance; they do not own identity, currentness, or conflict.
 Verification at this boundary:
 
 - every Epiphany core target compiles;
-- core library `491/491`;
+- core library `492/492`;
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
@@ -142,12 +147,14 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Complete the remaining fresh acceptance: concurrent Persona+Hands through
-   their concrete owners, then restart/re-entry with identical decisions and
-   obligations. Distinct graph writes, same-identity conflict, stale
-   strong-read refusal, simultaneous Verification+Modeling, transcript
-   deletion, writable-epoch refusal, and aggregate/global-revision source
-   guards are already accepted.
+1. Seal the Persona projector's external inputs into an exact typed Mind
+   observation before inference; its current direct agent-memory and repository
+   reads may formulate ingress but may not flow straight into a prompt. Then
+   complete restart/re-entry with identical decisions and obligations.
+   Concrete Persona+Hands concurrency, distinct graph writes, same-identity
+   conflict, stale strong-read refusal, simultaneous Verification+Modeling,
+   transcript deletion, writable-epoch refusal, and aggregate/global-revision
+   source guards are accepted.
 2. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
