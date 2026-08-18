@@ -1,12 +1,5 @@
-use super::freshness::graph_freshness;
-use epiphany_state_model::EpiphanyJobBinding;
 use epiphany_state_model::EpiphanyJobKind;
-use epiphany_state_model::EpiphanyRetrievalState;
-use epiphany_state_model::EpiphanyRetrievalStatus;
-use epiphany_state_model::EpiphanyRuntimeLink;
-use epiphany_state_model::EpiphanyThreadState;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,310 +47,157 @@ pub struct EpiphanyJobView {
 
 #[derive(Debug, Clone, Copy)]
 pub struct EpiphanyJobsInput<'a> {
-    pub state: Option<&'a EpiphanyThreadState>,
-    pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
+    pub mind: Option<&'a crate::EpiphanyMindView>,
 }
 
 pub fn derive_jobs(input: EpiphanyJobsInput<'_>) -> Vec<EpiphanyJobView> {
-    let mut jobs = vec![
-        index_job(input.state, input.retrieval_override),
-        remap_job(input.state),
-        verification_job(input.state),
-    ];
-
-    let Some(state) = input.state else {
-        return jobs;
-    };
-
-    for binding in &state.job_bindings {
-        let runtime_link = latest_runtime_link_for_binding(state, binding.id.as_str());
-        let replacement = if let Some(existing) = jobs.iter().find(|job| job.id == binding.id) {
-            overlay_job_binding(existing.clone(), binding, runtime_link)
-        } else {
-            bound_job(binding, runtime_link)
-        };
-
-        if let Some(existing) = jobs.iter_mut().find(|job| job.id == binding.id) {
-            *existing = replacement;
-        } else {
-            jobs.push(replacement);
-        }
-    }
-
-    jobs
+    vec![
+        body_observation_job(input.mind),
+        repo_model_job(input.mind),
+        verification_job(input.mind),
+    ]
 }
 
-fn bound_job(
-    binding: &EpiphanyJobBinding,
-    runtime_link: Option<&EpiphanyRuntimeLink>,
-) -> EpiphanyJobView {
-    overlay_job_binding(
-        EpiphanyJobView {
-            id: binding.id.clone(),
-            kind: binding.kind,
-            scope: binding.scope.clone(),
-            owner_role: binding.owner_role.clone(),
-            authority_scope: binding.authority_scope.clone(),
-            runtime_job_id: runtime_link.map(|link| link.runtime_job_id.clone()),
-            status: if binding.blocking_reason.is_some() {
-                EpiphanyJobStatus::Blocked
-            } else {
-                EpiphanyJobStatus::Idle
-            },
-            items_processed: None,
-            items_total: None,
-            progress_note: None,
-            last_checkpoint_at_unix_seconds: None,
-            blocking_reason: None,
-            active_thread_ids: Vec::new(),
-            linked_subgoal_ids: binding.linked_subgoal_ids.clone(),
-            linked_graph_node_ids: binding.linked_graph_node_ids.clone(),
-        },
-        binding,
-        runtime_link,
-    )
-}
-
-fn overlay_job_binding(
-    mut job: EpiphanyJobView,
-    binding: &EpiphanyJobBinding,
-    runtime_link: Option<&EpiphanyRuntimeLink>,
-) -> EpiphanyJobView {
-    job.kind = binding.kind;
-    job.scope = binding.scope.clone();
-    job.owner_role = binding.owner_role.clone();
-    job.authority_scope = binding.authority_scope.clone();
-    job.runtime_job_id = runtime_link.map(|link| link.runtime_job_id.clone());
-    if !binding.linked_subgoal_ids.is_empty() {
-        job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
-    }
-    if !binding.linked_graph_node_ids.is_empty() {
-        job.linked_graph_node_ids = binding.linked_graph_node_ids.clone();
-    }
-    if let Some(blocking_reason) = binding.blocking_reason.clone() {
-        job.blocking_reason = Some(blocking_reason);
-    }
-    if binding.blocking_reason.is_some() {
-        job.status = EpiphanyJobStatus::Blocked;
-        return job;
-    }
-
-    if runtime_link.is_some_and(|link| link.runtime_result_id.is_none()) {
-        job.status = EpiphanyJobStatus::Pending;
-        job.blocking_reason = None;
-        job.progress_note =
-            Some("Queued for Epiphany heartbeat activation through runtime_links.".to_string());
-        return job;
-    }
-
-    if runtime_link.is_some() {
-        job.status = EpiphanyJobStatus::Completed;
-        job.blocking_reason = None;
-        job.progress_note =
-            Some("Epiphany heartbeat runtime result is ready for review.".to_string());
-        return job;
-    }
-
-    job
-}
-
-fn index_job(
-    state: Option<&EpiphanyThreadState>,
-    retrieval_override: Option<&EpiphanyRetrievalState>,
-) -> EpiphanyJobView {
-    let retrieval = state
-        .and_then(|state| state.retrieval.as_ref())
-        .or(retrieval_override);
-    let linked_subgoal_ids = active_subgoal_ids(state);
-    let linked_graph_node_ids = active_graph_node_ids(state);
-
-    let Some(retrieval) = retrieval else {
-        return EpiphanyJobView {
-            id: "retrieval-index".to_string(),
-            kind: EpiphanyJobKind::Indexing,
-            scope: "workspace".to_string(),
-            owner_role: "epiphany-core".to_string(),
-            authority_scope: None,
-            runtime_job_id: None,
-            status: EpiphanyJobStatus::Unavailable,
-            items_processed: None,
-            items_total: None,
-            progress_note: None,
-            last_checkpoint_at_unix_seconds: None,
-            blocking_reason: Some("Retrieval state is unavailable for this thread.".to_string()),
-            active_thread_ids: Vec::new(),
-            linked_subgoal_ids,
-            linked_graph_node_ids,
-        };
-    };
-
-    let dirty_path_count = retrieval.dirty_paths.len();
-    let progress_note = match retrieval.status {
-        EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
-            "Retrieval catalog is ready.".to_string()
-        }
-        EpiphanyRetrievalStatus::Ready => {
-            format!("Retrieval catalog is ready with {dirty_path_count} dirty path(s) noted.")
-        }
-        EpiphanyRetrievalStatus::Stale => {
-            format!("Retrieval catalog is stale; {dirty_path_count} dirty path(s) need refresh.")
-        }
-        EpiphanyRetrievalStatus::Indexing => "Retrieval catalog is indexing.".to_string(),
-        EpiphanyRetrievalStatus::Unavailable => "Retrieval catalog is unavailable.".to_string(),
-    };
-
-    EpiphanyJobView {
-        id: "retrieval-index".to_string(),
-        kind: EpiphanyJobKind::Indexing,
-        scope: retrieval.workspace_root.display().to_string(),
-        owner_role: "unowned-legacy-projection".to_string(),
-        authority_scope: None,
-        runtime_job_id: None,
-        status: job_status_from_retrieval_status(retrieval.status),
-        items_processed: retrieval.indexed_file_count,
-        items_total: None,
-        progress_note: Some(progress_note),
-        last_checkpoint_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
-        blocking_reason: matches!(
-            retrieval.status,
-            EpiphanyRetrievalStatus::Ready | EpiphanyRetrievalStatus::Unavailable
-        )
-        .then(|| {
-            "No Body-bound workspace coverage owner is installed; legacy retrieval state cannot authorize readiness.".to_string()
-        }),
-        active_thread_ids: Vec::new(),
-        linked_subgoal_ids,
-        linked_graph_node_ids,
-    }
-}
-
-fn job_status_from_retrieval_status(status: EpiphanyRetrievalStatus) -> EpiphanyJobStatus {
-    match status {
-        EpiphanyRetrievalStatus::Ready => EpiphanyJobStatus::Unavailable,
-        EpiphanyRetrievalStatus::Stale => EpiphanyJobStatus::Needed,
-        EpiphanyRetrievalStatus::Indexing => EpiphanyJobStatus::Running,
-        EpiphanyRetrievalStatus::Unavailable => EpiphanyJobStatus::Unavailable,
-    }
-}
-
-fn remap_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
-    let Some(state) = state else {
-        return blocked_state_job(
-            "graph-remap",
-            EpiphanyJobKind::Remap,
-            "architecture/dataflow graphs",
-            "Epiphany state is missing, so there is no graph to remap.",
-        );
-    };
-
-    let freshness = graph_freshness(Some(state));
-    // The legacy thread projection has no Body-generation witness and therefore
-    // cannot authorize a completed remap. Canonical readiness belongs to the
-    // future joined RepoModel/Body/retrieval authority.
-    EpiphanyJobView {
-        id: "graph-remap".to_string(),
-        kind: EpiphanyJobKind::Remap,
-        scope: "architecture/dataflow graphs".to_string(),
-        owner_role: "epiphany-core".to_string(),
-        authority_scope: None,
-        runtime_job_id: None,
-        status: EpiphanyJobStatus::Needed,
-        items_processed: None,
-        items_total: None,
-        progress_note: Some(freshness.note),
-        last_checkpoint_at_unix_seconds: None,
-        blocking_reason: None,
-        active_thread_ids: Vec::new(),
-        linked_subgoal_ids: active_subgoal_ids(Some(state)),
-        linked_graph_node_ids: active_graph_node_ids(Some(state)),
-    }
-}
-
-fn verification_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
-    let Some(state) = state else {
-        return blocked_state_job(
-            "verification",
-            EpiphanyJobKind::Verification,
-            "invariants/evidence",
-            "Epiphany state is missing, so there are no invariants to verify.",
-        );
-    };
-
-    let total = state.invariants.len() as u32;
-    let verified = state
-        .invariants
-        .iter()
-        .filter(|invariant| invariant_status_is_accepting(&invariant.status))
-        .count() as u32;
-    let status = if total > 0 && verified < total {
-        EpiphanyJobStatus::Needed
-    } else {
-        EpiphanyJobStatus::Idle
-    };
-    let progress_note = if total == 0 {
-        "No invariants are recorded yet.".to_string()
-    } else if verified == total {
-        format!("All {total} invariant(s) are currently accepting.")
-    } else {
-        format!("{verified} of {total} invariant(s) are currently accepting.")
-    };
-
-    EpiphanyJobView {
-        id: "verification".to_string(),
-        kind: EpiphanyJobKind::Verification,
-        scope: "invariants/evidence".to_string(),
-        owner_role: "epiphany-harness".to_string(),
-        authority_scope: None,
-        runtime_job_id: None,
-        status,
-        items_processed: Some(verified),
-        items_total: Some(total),
-        progress_note: Some(progress_note),
-        last_checkpoint_at_unix_seconds: None,
-        blocking_reason: None,
-        active_thread_ids: Vec::new(),
-        linked_subgoal_ids: active_subgoal_ids(Some(state)),
-        linked_graph_node_ids: active_graph_node_ids(Some(state)),
-    }
-}
-
-fn blocked_state_job(
+fn base_job(
     id: &str,
     kind: EpiphanyJobKind,
     scope: &str,
-    blocking_reason: &str,
+    owner_role: &str,
+    status: EpiphanyJobStatus,
 ) -> EpiphanyJobView {
     EpiphanyJobView {
-        id: id.to_string(),
+        id: id.into(),
         kind,
-        scope: scope.to_string(),
-        owner_role: "epiphany-harness".to_string(),
+        scope: scope.into(),
+        owner_role: owner_role.into(),
         authority_scope: None,
         runtime_job_id: None,
-        status: EpiphanyJobStatus::Blocked,
+        status,
         items_processed: None,
         items_total: None,
         progress_note: None,
         last_checkpoint_at_unix_seconds: None,
-        blocking_reason: Some(blocking_reason.to_string()),
+        blocking_reason: None,
         active_thread_ids: Vec::new(),
         linked_subgoal_ids: Vec::new(),
         linked_graph_node_ids: Vec::new(),
     }
 }
 
-fn active_subgoal_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
-    state
-        .and_then(|state| state.active_subgoal_id.clone())
+fn body_observation_job(mind: Option<&crate::EpiphanyMindView>) -> EpiphanyJobView {
+    let body = mind.and_then(|mind| mind.repository_body_observation.as_ref());
+    let mut job = base_job(
+        "repository-body-observation",
+        EpiphanyJobKind::Indexing,
+        "repository Body",
+        "epiphany-body-observer",
+        if body.is_some() {
+            EpiphanyJobStatus::Completed
+        } else {
+            EpiphanyJobStatus::Needed
+        },
+    );
+    job.linked_subgoal_ids = active_subgoal_ids(mind);
+    job.progress_note = Some(match body {
+        Some(body) => format!(
+            "Mind contains exact Body observation {} at generation {}.",
+            body.observation_id, body.generation
+        ),
+        None => "Mind has no admitted repository Body observation.".into(),
+    });
+    job
+}
+
+fn repo_model_job(mind: Option<&crate::EpiphanyMindView>) -> EpiphanyJobView {
+    let model = mind.and_then(|mind| mind.repo_model.as_ref());
+    let mut job = base_job(
+        "repo-model",
+        EpiphanyJobKind::Remap,
+        "keyed RepoModel",
+        "epiphany-modeling",
+        if model.is_some() {
+            EpiphanyJobStatus::Idle
+        } else {
+            EpiphanyJobStatus::Blocked
+        },
+    );
+    job.linked_subgoal_ids = active_subgoal_ids(mind);
+    job.linked_graph_node_ids = active_graph_node_ids(mind);
+    job.progress_note = model.map(|model| {
+        format!(
+            "Keyed RepoModel projects {} node(s), {} edge(s), and {} frontier item(s).",
+            model.nodes.len(),
+            model.edges.len(),
+            model.frontier.len()
+        )
+    });
+    if model.is_none() {
+        job.blocking_reason = Some("Mind has no keyed RepoModel identity.".into());
+    }
+    job
+}
+
+fn verification_job(mind: Option<&crate::EpiphanyMindView>) -> EpiphanyJobView {
+    let Some(mind) = mind else {
+        let mut job = base_job(
+            "verification",
+            EpiphanyJobKind::Verification,
+            "invariants/evidence",
+            "epiphany-soul",
+            EpiphanyJobStatus::Blocked,
+        );
+        job.blocking_reason = Some("Mind is missing.".into());
+        return job;
+    };
+    let total = mind.invariants.len() as u32;
+    let verified = mind
+        .invariants
+        .iter()
+        .filter(|invariant| invariant_status_is_accepting(&invariant.status))
+        .count() as u32;
+    let mut job = base_job(
+        "verification",
+        EpiphanyJobKind::Verification,
+        "invariants/evidence",
+        "epiphany-soul",
+        if total > verified {
+            EpiphanyJobStatus::Needed
+        } else {
+            EpiphanyJobStatus::Idle
+        },
+    );
+    job.items_processed = Some(verified);
+    job.items_total = Some(total);
+    job.linked_subgoal_ids = active_subgoal_ids(Some(mind));
+    job.linked_graph_node_ids = active_graph_node_ids(Some(mind));
+    job.progress_note = Some(format!("{verified} of {total} invariant(s) are accepting."));
+    job
+}
+
+fn active_subgoal_ids(mind: Option<&crate::EpiphanyMindView>) -> Vec<String> {
+    mind.and_then(|mind| mind.active_subgoal_id.clone())
         .map(|id| vec![id])
         .unwrap_or_default()
 }
 
-fn active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
-    state
-        .and_then(|state| state.graph_frontier.as_ref())
-        .map(|frontier| frontier.active_node_ids.clone())
-        .unwrap_or_default()
+fn active_graph_node_ids(mind: Option<&crate::EpiphanyMindView>) -> Vec<String> {
+    let mut ids = mind
+        .and_then(|mind| mind.repo_model.as_ref())
+        .into_iter()
+        .flat_map(|model| model.frontier.iter())
+        .filter(|item| {
+            matches!(
+                item.status,
+                epiphany_state_model::RepoFrontierStatus::Proposed
+                    | epiphany_state_model::RepoFrontierStatus::Active
+                    | epiphany_state_model::RepoFrontierStatus::Blocked
+            )
+        })
+        .flat_map(|item| item.target_claim_ids.iter().cloned())
+        .collect::<Vec<_>>();
+    ids.sort();
+    ids.dedup();
+    ids
 }
 
 fn invariant_status_is_accepting(status: &str) -> bool {
@@ -367,222 +207,32 @@ fn invariant_status_is_accepting(status: &str) -> bool {
     )
 }
 
-fn latest_runtime_link_for_binding<'a>(
-    state: &'a EpiphanyThreadState,
-    binding_id: &str,
-) -> Option<&'a EpiphanyRuntimeLink> {
-    state
-        .runtime_links
-        .iter()
-        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyChurnState;
-    use epiphany_state_model::EpiphanyGraphCheckpoint;
-    use epiphany_state_model::EpiphanyGraphFrontier;
-    use epiphany_state_model::EpiphanyInvariant;
-    use std::path::PathBuf;
 
     #[test]
-    fn derives_builtin_jobs_without_state() {
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: None,
-            retrieval_override: None,
-        });
-
+    fn missing_mind_has_only_derived_blocked_or_needed_jobs() {
+        let jobs = derive_jobs(EpiphanyJobsInput { mind: None });
         assert_eq!(jobs.len(), 3);
-        assert_eq!(jobs[0].id, "retrieval-index");
-        assert_eq!(jobs[0].status, EpiphanyJobStatus::Unavailable);
+        assert_eq!(jobs[0].status, EpiphanyJobStatus::Needed);
         assert_eq!(jobs[1].status, EpiphanyJobStatus::Blocked);
         assert_eq!(jobs[2].status, EpiphanyJobStatus::Blocked);
+        assert!(jobs.iter().all(|job| job.runtime_job_id.is_none()));
     }
 
     #[test]
-    fn reflects_retrieval_and_graph_pressure() {
-        let state = EpiphanyThreadState {
-            active_subgoal_id: Some("subgoal-1".to_string()),
-            retrieval: Some(EpiphanyRetrievalState {
-                workspace_root: PathBuf::from("E:/repo"),
-                status: EpiphanyRetrievalStatus::Stale,
-                dirty_paths: vec![PathBuf::from("src/lib.rs")],
-                indexed_file_count: Some(7),
-                ..Default::default()
-            }),
-            graph_frontier: Some(EpiphanyGraphFrontier {
-                active_node_ids: vec!["node-1".to_string()],
-                dirty_paths: vec![PathBuf::from("src/lib.rs")],
-                open_question_ids: vec!["q-1".to_string()],
-                ..Default::default()
-            }),
-            invariants: vec![
-                EpiphanyInvariant {
-                    id: "inv-1".to_string(),
-                    description: "verified".to_string(),
-                    status: "verified".to_string(),
-                    rationale: None,
-                },
-                EpiphanyInvariant {
-                    id: "inv-2".to_string(),
-                    description: "pending".to_string(),
-                    status: "pending".to_string(),
-                    rationale: None,
-                },
-            ],
-            ..Default::default()
-        };
-
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&state),
-            retrieval_override: None,
-        });
-
-        let retrieval = jobs.iter().find(|job| job.id == "retrieval-index").unwrap();
-        assert_eq!(retrieval.status, EpiphanyJobStatus::Needed);
-        assert_eq!(retrieval.items_processed, Some(7));
-        assert_eq!(retrieval.linked_subgoal_ids, vec!["subgoal-1".to_string()]);
-
-        let remap = jobs.iter().find(|job| job.id == "graph-remap").unwrap();
-        assert_eq!(remap.status, EpiphanyJobStatus::Needed);
-        assert_eq!(remap.linked_graph_node_ids, vec!["node-1".to_string()]);
-
-        let verification = jobs.iter().find(|job| job.id == "verification").unwrap();
-        assert_eq!(verification.status, EpiphanyJobStatus::Needed);
-        assert_eq!(verification.items_processed, Some(1));
-        assert_eq!(verification.items_total, Some(2));
-    }
-
-    #[test]
-    fn remap_job_refuses_legacy_graph_readiness_authority() {
-        let incomplete = EpiphanyThreadState::default();
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&incomplete),
-            retrieval_override: None,
-        });
-        assert_eq!(
-            jobs.iter()
-                .find(|job| job.id == "graph-remap")
-                .unwrap()
-                .status,
-            EpiphanyJobStatus::Needed
-        );
-
-        let forged_legacy_ready = EpiphanyThreadState {
-            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
-                checkpoint_id: "graph-1".to_string(),
-                ..Default::default()
-            }),
-            churn: Some(EpiphanyChurnState {
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&forged_legacy_ready),
-            retrieval_override: None,
-        });
-        assert_eq!(
-            jobs.iter()
-                .find(|job| job.id == "graph-remap")
-                .unwrap()
-                .status,
-            EpiphanyJobStatus::Needed
-        );
-    }
-
-    #[test]
-    fn overlays_binding_with_runtime_link() {
-        let state = EpiphanyThreadState {
-            job_bindings: vec![EpiphanyJobBinding {
-                id: "binding-1".to_string(),
-                kind: EpiphanyJobKind::Specialist,
-                scope: "modeling".to_string(),
-                owner_role: "body".to_string(),
-                authority_scope: Some("epiphany.role.modeling".to_string()),
-                linked_subgoal_ids: vec!["subgoal-1".to_string()],
-                linked_graph_node_ids: vec!["node-1".to_string()],
-                blocking_reason: None,
-            }],
-            runtime_links: vec![EpiphanyRuntimeLink {
-                id: "link-1".to_string(),
-                binding_id: "binding-1".to_string(),
-                surface: "role".to_string(),
-                role_id: "modeling".to_string(),
-                authority_scope: "epiphany.role.modeling".to_string(),
-                runtime_job_id: "runtime-job-1".to_string(),
-                runtime_result_id: None,
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-            }],
-            ..Default::default()
-        };
-
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&state),
-            retrieval_override: None,
-        });
-
-        let binding = jobs.iter().find(|job| job.id == "binding-1").unwrap();
-        assert_eq!(binding.status, EpiphanyJobStatus::Pending);
-        assert_eq!(binding.runtime_job_id.as_deref(), Some("runtime-job-1"));
-        assert_eq!(
-            binding.progress_note.as_deref(),
-            Some("Queued for Epiphany heartbeat activation through runtime_links.")
-        );
-    }
-
-    #[test]
-    fn terminal_runtime_link_owns_binding_over_stale_active_history() {
-        let state = EpiphanyThreadState {
-            job_bindings: vec![EpiphanyJobBinding {
-                id: "binding-1".to_string(),
-                kind: EpiphanyJobKind::Specialist,
-                scope: "modeling".to_string(),
-                owner_role: "body".to_string(),
-                authority_scope: Some("epiphany.role.modeling".to_string()),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-                blocking_reason: None,
-            }],
-            runtime_links: vec![
-                EpiphanyRuntimeLink {
-                    id: "link-terminal".to_string(),
-                    binding_id: "binding-1".to_string(),
-                    surface: "runtimeResult".to_string(),
-                    role_id: "modeling".to_string(),
-                    authority_scope: "epiphany.role.modeling".to_string(),
-                    runtime_job_id: "runtime-job-1".to_string(),
-                    runtime_result_id: Some("result-1".to_string()),
-                    linked_subgoal_ids: Vec::new(),
-                    linked_graph_node_ids: Vec::new(),
-                },
-                EpiphanyRuntimeLink {
-                    id: "link-stale-active".to_string(),
-                    binding_id: "binding-1".to_string(),
-                    surface: "jobLaunch".to_string(),
-                    role_id: "modeling".to_string(),
-                    authority_scope: "epiphany.role.modeling".to_string(),
-                    runtime_job_id: "runtime-job-1".to_string(),
-                    runtime_result_id: None,
-                    linked_subgoal_ids: Vec::new(),
-                    linked_graph_node_ids: Vec::new(),
-                },
-            ],
-            ..Default::default()
-        };
-
-        let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&state),
-            retrieval_override: None,
-        });
-
-        let binding = jobs.iter().find(|job| job.id == "binding-1").unwrap();
-        assert_eq!(binding.status, EpiphanyJobStatus::Completed);
-        assert_eq!(
-            binding.progress_note.as_deref(),
-            Some("Epiphany heartbeat runtime result is ready for review.")
-        );
+    fn source_contains_no_aggregate_job_or_runtime_link_owner() {
+        let source = include_str!("jobs.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        for forbidden in [
+            "EpiphanyThreadState",
+            "EpiphanyJobBinding",
+            "EpiphanyRuntimeLink",
+            "latest_runtime_link",
+            "state_revision",
+        ] {
+            assert!(!production.contains(forbidden));
+        }
     }
 }

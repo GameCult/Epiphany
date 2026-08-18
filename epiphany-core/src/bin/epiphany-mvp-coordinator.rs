@@ -39,7 +39,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
-use std::time::Instant;
 use uuid::Uuid;
 
 #[cfg(windows)]
@@ -78,7 +77,6 @@ struct Args {
     codex_home: PathBuf,
     mcp_config: PathBuf,
     artifact_dir: PathBuf,
-    agent_memory_dir: PathBuf,
     runtime_store: PathBuf,
     local_verse_store: PathBuf,
     mode: String,
@@ -117,7 +115,6 @@ impl Args {
                 .unwrap_or_else(|| home_dir().join(".codex")),
             mcp_config: root.join(".epiphany").join("mcp.toml"),
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
-            agent_memory_dir: root.join("state").join("agents.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
             local_verse_store: root
                 .join(".epiphany-run")
@@ -203,9 +200,6 @@ impl Args {
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--mcp-config" => parsed.mcp_config = take_path(&mut args, "--mcp-config")?,
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
-                "--agent-memory-dir" => {
-                    parsed.agent_memory_dir = take_path(&mut args, "--agent-memory-dir")?;
-                }
                 "--runtime-store" => {
                     parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
@@ -291,7 +285,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
     let mcp_config = status_cli::absolute_path(&args.mcp_config)?;
     let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
-    let agent_memory_dir = status_cli::absolute_path(&args.agent_memory_dir)?;
     let runtime_store = status_cli::absolute_path(&args.runtime_store)?;
     reset_artifact_dir(&artifact_dir)?;
     fs::create_dir_all(&codex_home)?;
@@ -387,32 +380,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "typed consideration cannot share operator objective intake"
                 ));
             }
-            let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
-            let state = service
-                .state()?
-                .ok_or_else(|| anyhow!("consideration launch requires coordinator state"))?;
-            let request = epiphany_core::build_epiphany_imagination_consideration_launch_request(
-                &thread_id,
-                Some(state.revision),
-                Some(args.max_runtime_seconds),
-                &state,
-                request_id.to_string(),
-            )
-            .map_err(anyhow::Error::msg)?;
-            let launched = service.launch_job(
-                &thread_id,
-                &state,
-                &request,
-                format!("epiphany-resident-consideration-launch-{}", Uuid::new_v4()),
-                Uuid::new_v4().to_string(),
-                now(),
+            let worker_job_id = epiphany_core::launch_current_imagination_consideration_work(
+                &runtime_store,
+                request_id,
+                &now(),
             )?;
-            let worker_job_id = launched.backend_job_id.clone();
             let operator_launch = json!({
-                "bindingId": launched.binding_id,
-                "launcherJobId": launched.launcher_job_id,
-                "backendJobId": launched.backend_job_id,
-                "stateRevision": launched.epiphany_state.revision,
+                "bindingId": epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
+                "backendJobId": worker_job_id.clone(),
             });
             let worker_run = launch_worker_runtime_detached(
                 &model_runtime_bin,
@@ -449,31 +424,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "typed model direction consideration requires exclusive objective-free intake"
                 ));
             }
-            let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
-            let state = service
-                .state()?
-                .ok_or_else(|| anyhow!("model direction launch requires coordinator state"))?;
-            let request =
-            epiphany_core::build_epiphany_admitted_model_direction_consideration_launch_request(
-                &thread_id,
-                Some(state.revision),
-                Some(args.max_runtime_seconds),
-                &state,
-                request_id.to_string(),
-            )
-            .map_err(anyhow::Error::msg)?;
-            let launched = service.launch_job(
-                &thread_id,
-                &state,
-                &request,
-                format!(
-                    "epiphany-resident-model-direction-launch-{}",
-                    Uuid::new_v4()
-                ),
-                Uuid::new_v4().to_string(),
-                now(),
-            )?;
-            let worker_job_id = launched.backend_job_id.clone();
+            let worker_job_id =
+                epiphany_core::launch_current_admitted_model_direction_consideration_work(
+                    &runtime_store,
+                    request_id,
+                    &now(),
+                )?;
             let worker_run = launch_worker_runtime_detached(
                 &model_runtime_bin,
                 &tool_adapter_bin,
@@ -586,7 +542,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "index": index,
                 "action": action,
                 "coordinator": coordinator,
-                "stateRevision": state_revision(&status),
                 "events": [],
             });
             final_status = status.clone();
@@ -617,7 +572,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             if action == "awaitFrontierProposal"
                 || matches!(
                     action.as_str(),
-                    "waitForModelingResult" | "waitForImaginationResult" | "waitForMindPlanResult"
+                    "waitForModelingResult"
+                        | "waitForImaginationResult"
+                        | "waitForMindPlanResult"
+                        | "waitForImaginationConsideration"
+                        | "waitForAdmittedModelDirectionConsideration"
                 )
                 || (action == "reviewFrontierPlanningFailure" && !args.supersede_failed_results)
                 || (is_stop_action(&action)
@@ -629,7 +588,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 break;
             }
 
-            let revision = state_revision(&status);
             match action.as_str() {
                 "reviewFrontierPlanningFailure" => {
                     let lifecycle =
@@ -958,103 +916,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         steps.push(step);
                         continue;
                     }
-                    let result = read_role_result(&runtime_store, &thread_id, role_id)?;
-                    push_event(
-                        &mut step,
-                        json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
-                    );
-                    if !matches!(
-                        result["status"].as_str(),
-                        Some("completed" | "failed" | "cancelled")
-                    ) {
-                        final_action = json!({
-                            "action": wait_action_for_role(role_id),
-                            "reason": result["note"],
-                        });
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        break;
-                    }
-                    if args.supersede_failed_results
-                        && role_result_needs_supersession(role_id, &result)
-                    {
-                        let superseded = supersede_role_result(
-                            &runtime_store,
-                            &thread_id,
-                            role_id,
-                            revision,
-                            &result,
-                        )?;
-                        push_event(
-                            &mut step,
-                            json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
-                        );
-                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                        refresh_final_action_from_status(&final_status, &mut final_action);
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        continue;
-                    }
-                    let can_accept = args.auto_review
-                        && role_result_auto_acceptable(role_id, &result)
-                        && revision.is_some();
-                    if !can_accept {
-                        final_action = json!({
-                            "action": review_action_for_role(role_id),
-                            "reason": result["note"]
-                        });
-                        append_operator_step_jsonl(&steps_path, &step)?;
-                        steps.push(step);
-                        break;
-                    }
-                    let accepted = match accept_role(
-                        &runtime_store,
-                        &thread_id,
-                        role_id,
-                        revision.and_then(|value| u64::try_from(value).ok()),
-                    ) {
-                        Ok(accepted) => accepted,
-                        Err(error) if args.supersede_failed_results => {
-                            let superseded = supersede_role_result(
-                                &runtime_store,
-                                &thread_id,
-                                role_id,
-                                revision,
-                                &result,
-                            )?;
-                            push_event(
-                                &mut step,
-                                json!({
-                                    "type": "roleAdmissionRejected",
-                                    "roleId": role_id,
-                                    "error": format!("{error:#}"),
-                                    "superseded": status_cli::sanitize_for_operator(superseded),
-                                }),
-                            );
-                            final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                            refresh_final_action_from_status(&final_status, &mut final_action);
-                            append_operator_step_jsonl(&steps_path, &step)?;
-                            steps.push(step);
-                            continue;
-                        }
-                        Err(error) => return Err(error),
-                    };
-                    if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)?
-                    {
-                        let mut accepted_with_memory = accepted.clone();
-                        accepted_with_memory["selfMemoryApply"] = memory;
-                        push_event(
-                            &mut step,
-                            json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted_with_memory)}),
-                        );
-                    } else {
-                        push_event(
-                            &mut step,
-                            json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted)}),
-                        );
-                    }
-                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
-                    refresh_final_action_from_status(&final_status, &mut final_action);
+                    return Err(anyhow!(
+                        "{role_id} review has no keyed current-work owner; generic role-lane review is retired"
+                    ));
                 }
                 "reviewReorientResult" => {
                     let result = read_reorient_result(&runtime_store, &thread_id)?;
@@ -1119,28 +983,110 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
+                "launchImaginationConsideration" => {
+                    let work = epiphany_core::project_current_work(&runtime_store)?
+                        .imagination_considerations
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| {
+                            anyhow!("no current Persona-feedback Imagination consideration exists")
+                        })?;
+                    let worker_job_id =
+                        epiphany_core::launch_current_imagination_consideration_work(
+                            &runtime_store,
+                            &work.request.request_id,
+                            &now(),
+                        )?;
+                    push_event(
+                        &mut step,
+                        json!({
+                            "type": "imaginationConsiderationLaunch",
+                            "requestId": work.request.request_id,
+                            "runtimeJobId": worker_job_id,
+                        }),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        "imagination",
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": "imagination", "run": worker_run}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
+                "launchAdmittedModelDirectionConsideration" => {
+                    let work = epiphany_core::project_current_work(&runtime_store)?
+                        .admitted_model_direction_consideration
+                        .ok_or_else(|| {
+                            anyhow!("no current admitted-model direction consideration exists")
+                        })?;
+                    let worker_job_id =
+                        epiphany_core::launch_current_admitted_model_direction_consideration_work(
+                            &runtime_store,
+                            &work.request.request_id,
+                            &now(),
+                        )?;
+                    push_event(
+                        &mut step,
+                        json!({
+                            "type": "admittedModelDirectionConsiderationLaunch",
+                            "requestId": work.request.request_id,
+                            "runtimeJobId": worker_job_id,
+                        }),
+                    );
+                    let worker_run = launch_worker_runtime_detached(
+                        &model_runtime_bin,
+                        &tool_adapter_bin,
+                        &args.model_provider,
+                        &runtime_store,
+                        &codex_home,
+                        &mcp_config,
+                        &cwd,
+                        args.resident_state_store.as_deref(),
+                        &worker_job_id,
+                        "imagination",
+                        index,
+                        &artifact_dir,
+                        args.max_runtime_seconds,
+                        args.auto_tools,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "workerRuntime", "roleId": "imagination", "run": worker_run}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                }
                 "launchResearch" | "launchModeling" | "launchVerification" => {
                     let role_id = role_id_for_coordinator_action(&action)
                         .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
                     let pending_proposal_request_id = if role_id == "modeling" {
-                        status["findingSignals"]["pendingProposalModelingRequestId"].as_str()
+                        epiphany_core::project_current_work(&runtime_store)?
+                            .proposal_modeling
+                            .map(|work| work.request.request_id)
                     } else {
                         None
                     };
                     let proposal_modeling_request_id = if role_id == "modeling" {
                         resolve_proposal_modeling_request_hint(
                             args.proposal_modeling_request_id.as_deref(),
-                            pending_proposal_request_id,
+                            pending_proposal_request_id.as_deref(),
                         )?
                     } else {
                         None
                     };
-                    let thread_free_role = role_id == "research"
-                        || role_id == "verification"
-                        || (role_id == "modeling"
-                            && (proposal_modeling_request_id.is_some()
-                                || status["currentWork"]["bodyModeling"].is_object()
-                                || status["currentWork"]["frontierVerdictModeling"].is_object()));
                     let launch = if role_id == "research" {
                         let job_id = epiphany_core::launch_current_frontier_research_work(
                             &runtime_store,
@@ -1212,14 +1158,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             "backendJobId": job_id,
                         })
                     } else {
-                        launch_role(
-                            &runtime_store,
-                            &local_verse_store,
-                            &thread_id,
-                            role_id,
-                            revision,
-                            args.max_runtime_seconds,
-                        )?
+                        return Err(anyhow!(
+                            "{role_id} launch has no keyed current-work owner; generic role-lane launch is retired"
+                        ));
                     };
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
@@ -1246,22 +1187,18 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &mut step,
                         json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
                     );
-                    let result = if thread_free_role {
-                        match epiphany_core::runtime_role_worker_result(
-                            &runtime_store,
-                            &worker_job_id,
-                        )? {
-                            Some(result) => json!({
-                                "status": "completed",
-                                "note": result.summary,
-                            }),
-                            None => json!({
-                                "status": "running",
-                                "note": "The exact keyed role attempt has not produced a terminal result.",
-                            }),
-                        }
-                    } else {
-                        read_role_result(&runtime_store, &thread_id, role_id)?
+                    let result = match epiphany_core::runtime_role_worker_result(
+                        &runtime_store,
+                        &worker_job_id,
+                    )? {
+                        Some(result) => json!({
+                            "status": "completed",
+                            "note": result.summary,
+                        }),
+                        None => json!({
+                            "status": "running",
+                            "note": "The exact keyed role attempt has not produced a terminal result.",
+                        }),
                     };
                     push_event(
                         &mut step,
@@ -1293,13 +1230,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     }
                 }
                 "launchReorientWorker" => {
-                    let launch = launch_reorient(
-                        &runtime_store,
-                        &local_verse_store,
-                        &thread_id,
-                        revision,
-                        args.max_runtime_seconds,
-                    )?;
+                    let launch = launch_reorient(&runtime_store)?;
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,
@@ -1559,8 +1490,7 @@ fn intake_operator_objective(
     thread_id: &str,
     objective: &str,
 ) -> Result<epiphany_core::UserObjectiveIntakeApplied> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    service.intake_user_objective(epiphany_core::UserObjectiveIntakeInput {
+    epiphany_core::intake_user_objective(runtime_store, epiphany_core::UserObjectiveIntakeInput {
         thread_id: thread_id.to_string(),
         objective: objective.to_string(),
         source_actor: "operator".to_string(),
@@ -1781,126 +1711,6 @@ fn hands_record_pass_command(
     })
 }
 
-fn launch_role(
-    runtime_store: &Path,
-    local_verse_store: &Path,
-    thread_id: &str,
-    role_id: &str,
-    expected_revision: Option<i64>,
-    max_runtime_seconds: u64,
-) -> Result<Value> {
-    let started = Instant::now();
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
-    let state_loaded_ms = started.elapsed().as_millis();
-    let role = parse_role_id(role_id)?;
-    if role == epiphany_core::EpiphanyRoleResultRoleId::Research {
-        return Err(anyhow!(
-            "Research launch must use the keyed frontier Research current-work owner"
-        ));
-    }
-    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
-        return Err(anyhow!(
-            "Verification launch must use the keyed frontier Verification current-work owner"
-        ));
-    }
-    let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
-    let focus =
-        epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role));
-    let context = if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
-        epiphany_core::render_modeling_launch_dynamic_prompt_context(
-            runtime_store,
-            local_verse_store,
-            &state,
-            focus,
-        )
-    } else {
-        epiphany_core::render_launch_dynamic_prompt_context(
-            runtime_store,
-            local_verse_store,
-            &state,
-            focus,
-        )
-    }
-    .map_err(anyhow::Error::msg)?;
-    let dynamic_context_rendered_ms = started.elapsed().as_millis();
-    let role_context_augmented_ms = started.elapsed().as_millis();
-    let request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
-        thread_id,
-        role,
-        expected_revision,
-        Some(max_runtime_seconds),
-        &state,
-        Some(context),
-    )
-    .map_err(anyhow::Error::msg)?;
-    let request_built_ms = started.elapsed().as_millis();
-    let launched = service.launch_job(
-        thread_id,
-        &state,
-        &request,
-        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
-        Uuid::new_v4().to_string(),
-        now(),
-    )?;
-    let job_committed_ms = started.elapsed().as_millis();
-    Ok(json!({
-        "bindingId": launched.binding_id,
-        "launcherJobId": launched.launcher_job_id,
-        "backendJobId": launched.backend_job_id,
-        "revision": launched.epiphany_state.revision,
-        "state": launched.epiphany_state,
-        "timingsMs": {
-            "stateLoad": state_loaded_ms,
-            "dynamicContextRender": dynamic_context_rendered_ms.saturating_sub(state_loaded_ms),
-            "roleContextAugment": role_context_augmented_ms.saturating_sub(dynamic_context_rendered_ms),
-            "requestBuild": request_built_ms.saturating_sub(role_context_augmented_ms),
-            "jobCommit": job_committed_ms.saturating_sub(request_built_ms),
-            "total": job_committed_ms,
-        },
-    }))
-}
-
-fn accept_role(
-    runtime_store: &Path,
-    thread_id: &str,
-    role_id: &str,
-    expected_revision: Option<u64>,
-) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot accept role without native coordinator state"))?;
-    let role = parse_role_id(role_id)?;
-    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
-        return Err(anyhow!(
-            "Verification acceptance must use the keyed frontier Verification current-work owner"
-        ));
-    }
-    let accepted = service.accept_role(
-        thread_id,
-        &state,
-        role,
-        &default_binding_id_for_role(role_id),
-        expected_revision,
-        None,
-        now(),
-        &Uuid::new_v4().to_string(),
-    )?;
-    Ok(json!({
-        "roleId": role,
-        "revision": accepted.state.revision,
-        "state": accepted.state,
-        "acceptedReceiptId": accepted.update.accepted_receipt_id,
-        "acceptedObservationId": accepted.update.accepted_observation_id,
-        "acceptedEvidenceId": accepted.update.accepted_evidence_id,
-        "appliedPatch": accepted.update.applied_patch,
-        "finding": accepted.finding,
-    }))
-}
-
 fn accept_reorient(runtime_store: &Path) -> Result<Value> {
     let work = epiphany_core::project_current_work(runtime_store)?
         .reorientation
@@ -1926,16 +1736,6 @@ fn accept_reorient(runtime_store: &Path) -> Result<Value> {
         "mindCommitReceipt": accepted,
         "changed": true,
     }))
-}
-
-fn parse_role_id(role_id: &str) -> Result<epiphany_core::EpiphanyRoleResultRoleId> {
-    match role_id {
-        "imagination" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Imagination),
-        "research" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Research),
-        "modeling" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Modeling),
-        "verification" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Verification),
-        _ => Err(anyhow!("unsupported coordinator role {role_id:?}")),
-    }
 }
 
 fn role_id_for_coordinator_action(action: &str) -> Option<&'static str> {
@@ -1965,37 +1765,6 @@ fn review_action_for_role(role_id: &str) -> &'static str {
     }
 }
 
-fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
-    if result["status"].as_str() != Some("completed") {
-        return false;
-    }
-    let finding = &result["finding"];
-    if finding["jobError"].is_string() || finding["itemError"].is_string() {
-        return false;
-    }
-    let has_runtime_identity = finding["runtimeResultId"]
-        .as_str()
-        .is_some_and(|id| !id.trim().is_empty())
-        && finding["runtimeJobId"]
-            .as_str()
-            .is_some_and(|id| !id.trim().is_empty());
-    if !has_runtime_identity {
-        return false;
-    }
-    match role_id {
-        "verification" => true,
-        "research" | "imagination" => finding["statePatch"].is_object(),
-        "modeling" => {
-            finding["repoModelMutationProposal"].is_object()
-                || (matches!(
-                    finding["verdict"].as_str(),
-                    Some("checkpoint-ready" | "regather-needed")
-                ) && finding["repoModelMutationProposal"].is_null())
-        }
-        _ => false,
-    }
-}
-
 fn reorient_result_auto_acceptable(result: &Value) -> bool {
     if result["status"].as_str() != Some("completed") {
         return false;
@@ -2015,106 +1784,8 @@ fn reorient_result_auto_acceptable(result: &Value) -> bool {
         && !finding["itemError"].is_string()
 }
 
-fn role_result_needs_supersession(role_id: &str, result: &Value) -> bool {
-    match result["status"].as_str() {
-        Some("failed") => true,
-        Some("completed") if matches!(role_id, "research" | "modeling" | "imagination") => {
-            !role_result_auto_acceptable(role_id, result)
-        }
-        _ => false,
-    }
-}
-
-fn supersede_role_result(
-    runtime_store: &Path,
-    thread_id: &str,
-    role_id: &str,
-    expected_revision: Option<i64>,
-    result: &Value,
-) -> Result<Value> {
-    let result_id = first_string_at(result, &[&["finding", "runtimeResultId"]])
-        .context("failed role result did not include finding.runtimeResultId")?;
-    let job_id = first_string_at(result, &[&["finding", "runtimeJobId"]])
-        .context("failed role result did not include finding.runtimeJobId")?;
-    let binding_id = first_string_at(result, &[&["bindingId"]])
-        .unwrap_or_else(|| default_binding_id_for_role(role_id));
-    let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
-        .unwrap_or_else(|| "Role result reviewed and superseded.".to_string());
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    if let Some(state) = service.state()?
-        && let Some(existing) = state
-            .acceptance_receipts
-            .iter()
-            .find(|receipt| receipt.result_id == result_id)
-    {
-        if existing.job_id == job_id
-            && existing.binding_id == binding_id
-            && existing.surface == "roleFailureReview"
-            && existing.role_id == role_id
-            && existing.status == "superseded"
-        {
-            return Ok(json!({
-                "revision": state.revision,
-                "changedFields": [],
-                "state": state,
-                "receipt": existing,
-                "changed": false,
-            }));
-        }
-        return Err(anyhow!(
-            "runtime result already has conflicting acceptance authority: surface={:?} role={:?} status={:?} binding={:?}",
-            existing.surface,
-            existing.role_id,
-            existing.status,
-            existing.binding_id
-        ));
-    }
-    let receipt = epiphany_state_model::EpiphanyAcceptanceReceipt {
-        id: format!("role-failure-review-{}", Uuid::new_v4()),
-        result_id,
-        job_id,
-        binding_id,
-        surface: "roleFailureReview".to_string(),
-        role_id: role_id.to_string(),
-        status: "superseded".to_string(),
-        accepted_at: now(),
-        accepted_observation_id: None,
-        accepted_evidence_id: None,
-        summary: Some(summary),
-    };
-    let applied = service.apply_state_update(
-        thread_id,
-        epiphany_core::EpiphanyStateUpdate {
-            expected_revision: expected_revision.and_then(|value| u64::try_from(value).ok()),
-            acceptance_receipts: vec![receipt.clone()],
-            ..Default::default()
-        },
-        None,
-    )?;
-    Ok(json!({
-        "revision": applied.revision,
-        "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
-        "state": applied.state,
-        "receipt": receipt,
-    }))
-}
-
-fn default_binding_id_for_role(role_id: &str) -> String {
-    match role_id {
-        "imagination" => epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
-        "research" => epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string(),
-        "modeling" => epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
-        "verification" => epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
-        _ => role_id.to_string(),
-    }
-}
-
 fn launch_reorient(
     runtime_store: &Path,
-    _local_verse_store: &Path,
-    _thread_id: &str,
-    _expected_revision: Option<i64>,
-    _max_runtime_seconds: u64,
 ) -> Result<Value> {
     let requested_at = now();
     let request = epiphany_core::request_current_reorientation(runtime_store, &requested_at)?;
@@ -2254,10 +1925,6 @@ fn launch_worker_runtime_detached(
     }))
 }
 
-fn read_role_result(runtime_store: &Path, thread_id: &str, role_id: &str) -> Result<Value> {
-    Ok(collect_coordinator_status(runtime_store, thread_id)?["roleResults"][role_id].clone())
-}
-
 fn read_reorient_result(runtime_store: &Path, _thread_id: &str) -> Result<Value> {
     let Some(work) = epiphany_core::project_current_work(runtime_store)?.reorientation else {
         return Ok(json!({
@@ -2287,43 +1954,6 @@ fn read_reorient_result(runtime_store: &Path, _thread_id: &str) -> Result<Value>
         value["finding"] = json!(finding);
     }
     Ok(value)
-}
-
-fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Result<Option<Value>> {
-    let finding = &accepted["finding"];
-    let self_patch = &finding["selfPatch"];
-    let review = &finding["selfPersistence"];
-    if !self_patch.is_object() || !review.is_object() {
-        return Ok(None);
-    }
-    if review["status"].as_str() != Some("accepted") {
-        return Ok(Some(json!({
-            "status": "rejected",
-            "targetAgentId": review["targetAgentId"],
-            "targetPath": review["targetPath"],
-            "reasons": review["reasons"],
-            "applied": false,
-        })));
-    }
-    let role_id = accepted["roleId"]
-        .as_str()
-        .ok_or_else(|| anyhow!("roleAccept response did not include roleId"))?;
-    let patch = serde_json::to_string(self_patch)?;
-    let output = status_cli::native_json(
-        "epiphany-agent-memory-store",
-        &[
-            "apply-patch",
-            "--store",
-            &agent_memory_dir.to_string_lossy(),
-            "--role-id",
-            role_id,
-            "--patch",
-            &patch,
-        ],
-    )?;
-    let mut output = output;
-    output["appliedFromRoleAccept"] = json!(true);
-    Ok(Some(output))
 }
 
 fn first_string_at(value: &Value, paths: &[&[&str]]) -> Option<String> {
@@ -2468,21 +2098,6 @@ fn reset_artifact_dir(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn state_revision(status: &Value) -> Option<i64> {
-    status
-        .pointer("/scene/scene/revision")
-        .and_then(Value::as_i64)
-}
-
-fn refresh_final_action_from_status(status: &Value, final_action: &mut Value) {
-    if let Some(coordinator) = status
-        .get("coordinator")
-        .filter(|value| value.get("action").and_then(Value::as_str).is_some())
-    {
-        *final_action = coordinator.clone();
-    }
-}
-
 fn push_event(step: &mut Value, event: Value) {
     step["events"].as_array_mut().unwrap().push(event);
 }
@@ -2554,22 +2169,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn role_review_receipt_uses_the_post_transaction_coordinator_action() {
-        let mut final_action = json!({"action": "reviewModelingResult"});
-        let status = json!({
-            "coordinator": {
-                "action": "awaitFrontierProposal",
-                "reason": "The proposal-bound result was terminally reviewed."
-            }
-        });
-        refresh_final_action_from_status(&status, &mut final_action);
-        assert_eq!(final_action["action"], "awaitFrontierProposal");
-
-        refresh_final_action_from_status(&json!({"coordinator": {}}), &mut final_action);
-        assert_eq!(final_action["action"], "awaitFrontierProposal");
-    }
-
-    #[test]
     fn resident_required_action_refusal_precedes_the_action_match() {
         let source = include_str!("epiphany-mvp-coordinator.rs");
         let refusal = source
@@ -2630,7 +2229,6 @@ mod tests {
             codex_home: temp.path().join("codex-home"),
             mcp_config: cwd.join(".epiphany/mcp.toml"),
             artifact_dir: cwd.join(".epiphany-smoke/error-terminalization"),
-            agent_memory_dir: temp.path().join("mind.cc"),
             runtime_store: runtime_store.clone(),
             local_verse_store: temp.path().join("local-verse.cc"),
             mode: "plan".to_string(),
@@ -2707,53 +2305,30 @@ mod tests {
     }
 
     #[test]
-    fn coordinator_status_and_result_reads_are_native() {
+    fn coordinator_uses_keyed_family_owners_without_generic_role_routing() {
         let source = include_str!("epiphany-mvp-coordinator.rs");
-        let status_start = source.find("fn collect_coordinator_status").unwrap();
-        let status_end = source.find("fn resolve_model_runtime_bin").unwrap();
-        let status = &source[status_start..status_end];
-        assert!(status.contains("native_coordinator_json"));
-        assert!(!status.contains("native_json("));
-        assert!(!status.contains("Command::new"));
-        assert!(!status.contains("--native"));
-        assert!(!status.contains("AppServerClient"));
-        assert!(!status.contains("thread/epiphany/"));
-
-        let reads_start = source.find("fn read_role_result").unwrap();
-        let reads_end = source.find("fn maybe_apply_role_self_patch").unwrap();
-        let reads = &source[reads_start..reads_end];
-        assert!(reads.contains("collect_coordinator_status"));
-        assert!(!reads.contains("AppServerClient"));
-        assert!(!reads.contains("thread/epiphany/"));
-    }
-
-    #[test]
-    fn coordinator_role_launch_and_acceptance_are_native() {
-        let source = include_str!("epiphany-mvp-coordinator.rs");
-        let start = source.find("fn launch_role").unwrap();
-        let end = source.find("fn role_id_for_coordinator_action").unwrap();
-        let native_roles = &source[start..end];
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         for required in [
-            "render_launch_dynamic_prompt_context",
-            "render_modeling_launch_dynamic_prompt_context",
-            ".launch_job(",
-            ".accept_role(",
+            "launch_current_imagination_consideration_work",
+            "launch_current_admitted_model_direction_consideration_work",
+            "launch_current_frontier_research_work",
+            "launch_current_frontier_verification_work",
         ] {
-            assert!(
-                native_roles.contains(required),
-                "missing native role seam {required:?}"
-            );
+            assert!(production.contains(required), "missing keyed owner {required:?}");
         }
         for forbidden in [
-            concat!("append_modeling_work_loop_telemetry_", "context"),
-            concat!("accepted_research_is_newest_", "unmodeled_boundary"),
-            concat!("append_verification_hands_receipt_", "context"),
+            "fn launch_role(",
+            "fn accept_role(",
+            "fn supersede_role_result(",
+            ".apply_state_update(",
+            ".accept_role(",
+            "stateRevision",
         ] {
-            assert!(!source.contains(forbidden));
+            assert!(
+                !production.contains(forbidden),
+                "generic aggregate role authority survived: {forbidden:?}"
+            );
         }
-        assert!(!native_roles.contains("append_modeling_repo_model_shape_context("));
-        assert!(!native_roles.contains("AppServerClient"));
-        assert!(!native_roles.contains("thread/epiphany/"));
     }
 
     #[test]
@@ -2790,111 +2365,6 @@ mod tests {
             .expect_err("objective replacement must require a typed adoption flow");
         assert!(error.to_string().contains("refusing to replace"));
         Ok(())
-    }
-
-    #[test]
-    fn auto_review_accepts_receipt_only_verification_findings() {
-        let result = json!({
-            "status": "completed",
-            "finding": {
-                "verdict": "needs-evidence",
-                "summary": "Soul needs a source-backed receipt path.",
-                "runtimeResultId": "result-verification-1",
-                "runtimeJobId": "job-verification-1"
-            }
-        });
-
-        assert!(role_result_auto_acceptable("verification", &result));
-        assert!(!role_result_auto_acceptable("modeling", &result));
-    }
-
-    #[test]
-    fn auto_review_refuses_identityless_or_errored_findings() {
-        let missing_identity = json!({
-            "status": "completed",
-            "finding": {
-                "statePatch": {"scratch": {"summary": "mapped"}},
-                "runtimeResultId": "",
-                "runtimeJobId": "job-modeling-1"
-            }
-        });
-        let errored = json!({
-            "status": "completed",
-            "finding": {
-                "statePatch": {"scratch": {"summary": "mapped"}},
-                "runtimeResultId": "result-modeling-1",
-                "runtimeJobId": "job-modeling-1",
-                "itemError": "missing required field"
-            }
-        });
-
-        assert!(!role_result_auto_acceptable("modeling", &missing_identity));
-        assert!(!role_result_auto_acceptable("modeling", &errored));
-    }
-
-    #[test]
-    fn auto_review_accepts_runtime_authored_modeling_proposal_without_generic_state_patch() {
-        let result = json!({
-            "status": "completed",
-            "finding": {
-                "verdict": "checkpoint-update-needed",
-                "runtimeResultId": "result-modeling-typed",
-                "runtimeJobId": "job-modeling-typed",
-                "repoModelMutationProposal": {
-                    "proposal_id": "runtime-owned-proposal",
-                    "source_result_id": "result-modeling-typed"
-                },
-                "statePatch": null
-            }
-        });
-
-        assert!(role_result_auto_acceptable("modeling", &result));
-        assert!(!role_result_needs_supersession("modeling", &result));
-    }
-
-    #[test]
-    fn supersession_includes_unreviewable_modeling_results() {
-        let unreviewable = json!({
-            "status": "completed",
-            "finding": {
-                "verdict": "checkpoint-update-needed",
-                "summary": "Mapped in prose only.",
-                "runtimeResultId": "result-modeling-1",
-                "runtimeJobId": "job-modeling-1",
-                "itemError": "modeling result is not reviewable: missing required statePatch"
-            }
-        });
-        let reviewable = json!({
-            "status": "completed",
-            "finding": {
-                "verdict": "checkpoint-update-needed",
-                "summary": "Mapped with state.",
-                "runtimeResultId": "result-modeling-2",
-                "runtimeJobId": "job-modeling-2",
-                "repoModelMutationProposal": {
-                    "proposal_id": "runtime-owned-proposal-2",
-                    "source_result_id": "result-modeling-2"
-                },
-                "statePatch": {"scratch": {"summary": "mapped"}}
-            }
-        });
-        let null_patch = json!({
-            "status": "completed",
-            "finding": {
-                "summary": "Explicit null is still no state patch.",
-                "runtimeResultId": "result-modeling-null",
-                "runtimeJobId": "job-modeling-null",
-                "statePatch": null
-            }
-        });
-
-        assert!(role_result_needs_supersession("modeling", &unreviewable));
-        assert!(role_result_needs_supersession("modeling", &null_patch));
-        assert!(!role_result_needs_supersession("modeling", &reviewable));
-        assert!(!role_result_needs_supersession(
-            "verification",
-            &unreviewable
-        ));
     }
 
     #[test]

@@ -1,104 +1,50 @@
-use epiphany_core::EpiphanyAgentPassContinuationAction;
-use epiphany_core::EpiphanyCrrcAction;
-use epiphany_core::EpiphanyCrrcSceneAction;
-use epiphany_core::EpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyReorientFindingInterpretation;
-use epiphany_core::EpiphanyRoleBoardLane;
-use epiphany_core::EpiphanyRoleFindingInterpretation;
-use epiphany_core::RepoFrontierPlanningLifecycleStage;
-use epiphany_core::RepoFrontierResearchContinuationAction;
-use epiphany_core::modeling_role_state_patch_policy_errors;
-use epiphany_core::research_role_state_patch_policy_errors;
-use epiphany_state_model::EpiphanyThreadState;
-use std::collections::HashSet;
+use epiphany_core::{
+    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorAction,
+    EpiphanyCoordinatorAutomationAction, EpiphanyCoordinatorCrrcRecommendation,
+    EpiphanyCoordinatorDecision, EpiphanyCoordinatorInput, EpiphanyCoordinatorRoleId,
+    EpiphanyCoordinatorSceneAction, EpiphanyCoordinatorSourceSignals,
+    EpiphanyCoordinatorStatus, EpiphanyCoordinatorStatusInput, EpiphanyCrrcAction,
+    EpiphanyCrrcSceneAction, RepoFrontierPlanningLifecycleStage,
+    RepoFrontierResearchContinuationAction,
+};
 
-use epiphany_core::EpiphanyCoordinatorAction;
-use epiphany_core::EpiphanyCoordinatorAutomationAction;
-use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
-use epiphany_core::EpiphanyCoordinatorDecision;
-use epiphany_core::EpiphanyCoordinatorFindingSignals;
-use epiphany_core::EpiphanyCoordinatorInput;
-use epiphany_core::EpiphanyCoordinatorRoleId;
-use epiphany_core::EpiphanyCoordinatorRoleLane;
-use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
-use epiphany_core::EpiphanyCoordinatorRoleStatus;
-use epiphany_core::EpiphanyCoordinatorSceneAction;
-use epiphany_core::EpiphanyCoordinatorSignals;
-use epiphany_core::EpiphanyCoordinatorSourceSignals;
-use epiphany_core::EpiphanyCoordinatorStatus;
-use epiphany_core::EpiphanyCoordinatorStatusInput;
 pub fn crrc_scene_action_to_coordinator_scene_action(
     action: EpiphanyCrrcSceneAction,
 ) -> EpiphanyCoordinatorSceneAction {
     match action {
         EpiphanyCrrcSceneAction::Update => EpiphanyCoordinatorSceneAction::Update,
         EpiphanyCrrcSceneAction::Reorient => EpiphanyCoordinatorSceneAction::Reorient,
-        EpiphanyCrrcSceneAction::ReorientLaunch => EpiphanyCoordinatorSceneAction::ReorientLaunch,
-        EpiphanyCrrcSceneAction::ReorientResult => EpiphanyCoordinatorSceneAction::ReorientResult,
-        EpiphanyCrrcSceneAction::ReorientAccept => EpiphanyCoordinatorSceneAction::ReorientAccept,
+        EpiphanyCrrcSceneAction::ReorientLaunch => {
+            EpiphanyCoordinatorSceneAction::ReorientLaunch
+        }
+        EpiphanyCrrcSceneAction::ReorientResult => {
+            EpiphanyCoordinatorSceneAction::ReorientResult
+        }
+        EpiphanyCrrcSceneAction::ReorientAccept => {
+            EpiphanyCoordinatorSceneAction::ReorientAccept
+        }
     }
 }
 
-pub fn derive_coordinator_status(
-    input: EpiphanyCoordinatorStatusInput,
-) -> EpiphanyCoordinatorStatus {
+pub fn derive_coordinator_status(input: EpiphanyCoordinatorStatusInput) -> EpiphanyCoordinatorStatus {
     let source_signals = EpiphanyCoordinatorSourceSignals {
         pressure_level: input.pressure.level,
         should_prepare_compaction: input.pressure.should_prepare_compaction,
         reorient_action: input.reorient_action,
         crrc_action: input.recommendation.action,
-        research_result_status: input.research_result_status,
-        modeling_result_status: input.modeling_result_status,
-        verification_result_status: input.verification_result_status,
         reorient_result_status: input.reorient_result_status,
     };
-    let coordinator_roles = input
-        .roles
-        .iter()
-        .map(coordinator_role_lane_from_role_board)
-        .collect();
-    let routing_recommendation = routing_crrc_recommendation(&input.recommendation);
     let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-        state_status: input.state_status,
-        checkpoint_present: input.checkpoint_present,
+        mind_present: input.mind_present,
         should_prepare_compaction: input.pressure.should_prepare_compaction,
-        recommendation: routing_recommendation,
-        roles: coordinator_roles,
-        signals: EpiphanyCoordinatorSignals {
-            research_result_status: input.research_result_status,
-            modeling_result_status: input.modeling_result_status,
-            verification_result_status: input.verification_result_status,
+        recommendation: EpiphanyCoordinatorCrrcRecommendation {
+            action: input.recommendation.action,
+            recommended_scene_action: input
+                .recommendation
+                .recommended_scene_action
+                .map(crrc_scene_action_to_coordinator_scene_action),
         },
-        research_result_accepted: input.research_result_accepted,
-        research_result_reviewable: input.research_result_reviewable,
-        research_result_failure_reviewed: input.research_result_failure_reviewed,
-        modeling_result_accepted_after_research: input.modeling_result_accepted_after_research,
-        modeling_result_requests_regather: input.modeling_result_requests_regather,
-        modeling_result_accepted: input.modeling_result_accepted,
-        modeling_result_reviewable: input.modeling_result_reviewable,
-        modeling_result_failure_reviewed: input.modeling_result_failure_reviewed,
-        modeling_result_proposal_bound: input.modeling_result_proposal_bound,
-        modeling_result_accepted_after_verification: input
-            .modeling_result_accepted_after_verification,
-        implementation_evidence_after_verification: input
-            .implementation_evidence_after_verification,
-        verification_result_cites_implementation_evidence: input
-            .verification_result_cites_implementation_evidence,
-        verification_result_covers_current_modeling: input
-            .verification_result_covers_current_modeling,
-        verification_result_accepted: input.verification_result_accepted,
-        verification_result_failure_reviewed: input.verification_result_failure_reviewed,
-        verification_result_allows_implementation: input.verification_result_allows_implementation,
-        verification_result_needs_evidence: input.verification_result_needs_evidence,
-        reorient_finding_accepted: input.reorient_finding_accepted,
-        hands_frontier_ready: input.hands_frontier_ready,
-        research_continuation_action: input.research_continuation_action,
-        frontier_planning_stage: input.frontier_planning_stage,
-        proposal_modeling_action: input.proposal_modeling_action,
-        frontier_verdict_modeling_action: input.frontier_verdict_modeling_action,
-        verification_action: input.verification_action,
-        body_modeling_work_ready: input.body_modeling_work_ready,
-        body_modeling_review_ready: input.body_modeling_review_ready,
+        current_work: input.current_work,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -107,881 +53,289 @@ pub fn derive_coordinator_status(
     }
 }
 
-fn routing_crrc_recommendation(
-    recommendation: &epiphany_core::EpiphanyCrrcRecommendation,
-) -> EpiphanyCoordinatorCrrcRecommendation {
-    EpiphanyCoordinatorCrrcRecommendation {
-        action: recommendation.action,
-        recommended_scene_action: recommendation
-            .recommended_scene_action
-            .map(crrc_scene_action_to_coordinator_scene_action),
+pub fn recommend_coordinator_action(input: EpiphanyCoordinatorInput) -> EpiphanyCoordinatorDecision {
+    if !input.mind_present {
+        return decision(
+            EpiphanyCoordinatorAction::PrepareCheckpoint,
+            None,
+            Some(EpiphanyCoordinatorSceneAction::Update),
+            false,
+            false,
+            "Canonical keyed Mind is missing; admit an explicit operator objective before coordination continues.",
+        );
     }
-}
 
-pub fn derive_coordinator_finding_signals(
-    state: Option<&EpiphanyThreadState>,
-    research_finding: Option<&EpiphanyRoleFindingInterpretation>,
-    modeling_finding: Option<&EpiphanyRoleFindingInterpretation>,
-    verification_finding: Option<&EpiphanyRoleFindingInterpretation>,
-    reorient_finding: Option<&EpiphanyReorientFindingInterpretation>,
-) -> EpiphanyCoordinatorFindingSignals {
-    let research_result_accepted = research_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Research, finding)
-        })
-    });
-    let research_result_reviewable =
-        research_finding.is_some_and(research_finding_has_reviewable_state_patch);
-    let research_result_failure_reviewed = research_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            role_finding_failure_reviewed(state, EpiphanyCoordinatorRoleId::Research, finding)
-        })
-    });
-    let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Modeling, finding)
-        })
-    });
-    let modeling_result_reviewable =
-        modeling_finding.is_some_and(modeling_finding_has_reviewable_repo_model_mutation);
-    let modeling_result_requests_regather =
-        modeling_finding.is_some_and(modeling_finding_requests_regather);
-    let modeling_result_failure_reviewed = modeling_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            role_finding_failure_reviewed(state, EpiphanyCoordinatorRoleId::Modeling, finding)
-        })
-    });
-    let modeling_result_proposal_bound =
-        modeling_finding.is_some_and(|finding| finding.proposal_modeling_request_id.is_some());
-    let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
-        })
-    });
-    let verification_result_failure_reviewed =
-        verification_finding.as_ref().is_some_and(|finding| {
-            state.is_some_and(|state| {
-                role_finding_failure_reviewed(
-                    state,
-                    EpiphanyCoordinatorRoleId::Verification,
-                    finding,
-                )
-            })
-        });
-    let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
-        role_finding_cites_implementation_evidence(state, verification_finding)
-    });
-    let verification_result_covers_current_modeling = state.is_none_or(|state| {
-        verification_finding_covers_current_modeling(
-            state,
-            modeling_result_accepted,
-            modeling_finding,
-            verification_finding,
-        ) || verification_result_cites_implementation_evidence
-    });
-    let modeling_result_accepted_after_verification = state.is_some_and(|state| {
-        role_finding_accepted_after(
-            state,
-            EpiphanyCoordinatorRoleId::Modeling,
-            modeling_finding,
+    if let Some(work) = input.current_work.reorientation.as_ref() {
+        return continuation_decision(
+            work.action,
+            EpiphanyCoordinatorAction::LaunchReorientWorker,
+            EpiphanyCoordinatorAction::WaitForReorientWorker,
+            EpiphanyCoordinatorAction::ReviewReorientResult,
+            EpiphanyCoordinatorRoleId::Reorientation,
+            "continuity",
+        );
+    }
+
+    if input.should_prepare_compaction {
+        return decision(
+            EpiphanyCoordinatorAction::CompactRehydrateReorient,
+            Some(EpiphanyCoordinatorRoleId::Reorientation),
+            Some(EpiphanyCoordinatorSceneAction::Reorient),
+            false,
+            true,
+            "Context pressure requires a new continuity obligation over the current keyed Mind.",
+        );
+    }
+
+    if input.recommendation.action == EpiphanyCrrcAction::RegatherManually {
+        return decision(
+            EpiphanyCoordinatorAction::RegatherManually,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::Reorient),
+            true,
+            false,
+            "The accepted continuity decision requires explicit operator regather.",
+        );
+    }
+
+    if let Some(result) = planning_decision(input.current_work.frontier_planning_stage) {
+        return result;
+    }
+
+    if let Some(work) = input.current_work.proposal_modeling.as_ref() {
+        return modeling_decision(work.action, "proposal Modeling");
+    }
+    if let Some(action) = input.current_work.body_modeling_action {
+        return modeling_decision(action, "Body Modeling");
+    }
+    if let Some(work) = input.current_work.frontier_verdict_modeling.as_ref() {
+        return modeling_decision(work.action, "frontier-verdict Modeling");
+    }
+    if let Some(work) = input.current_work.verification.as_ref() {
+        return continuation_decision(
+            work.action,
+            EpiphanyCoordinatorAction::LaunchVerification,
+            EpiphanyCoordinatorAction::ReviewVerificationResult,
+            EpiphanyCoordinatorAction::ReviewVerificationResult,
             EpiphanyCoordinatorRoleId::Verification,
-            verification_finding,
-        )
-    });
-    let modeling_result_accepted_after_research = state.is_some_and(|state| {
-        role_finding_accepted_after(
-            state,
-            EpiphanyCoordinatorRoleId::Modeling,
-            modeling_finding,
-            EpiphanyCoordinatorRoleId::Research,
-            research_finding,
-        )
-    });
-    let implementation_evidence_after_verification = state.is_some_and(|state| {
-        implementation_evidence_after_role_finding(
-            state,
-            EpiphanyCoordinatorRoleId::Verification,
-            verification_finding,
-        )
-    });
-    let verification_result_allows_implementation = verification_result_accepted
-        && verification_finding.is_some_and(verification_finding_allows_implementation);
-    let verification_result_needs_evidence = verification_result_accepted
-        && verification_finding.is_some_and(verification_finding_needs_evidence);
-    let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| reorient_finding_already_accepted(state, finding))
-    });
-
-    EpiphanyCoordinatorFindingSignals {
-        research_result_accepted,
-        research_result_reviewable,
-        research_result_failure_reviewed,
-        modeling_result_accepted_after_research,
-        modeling_result_requests_regather,
-        modeling_result_accepted,
-        modeling_result_reviewable,
-        modeling_result_failure_reviewed,
-        modeling_result_proposal_bound,
-        modeling_result_accepted_after_verification,
-        implementation_evidence_after_verification,
-        verification_result_cites_implementation_evidence,
-        verification_result_covers_current_modeling,
-        verification_result_accepted,
-        verification_result_failure_reviewed,
-        verification_result_allows_implementation,
-        verification_result_needs_evidence,
-        reorient_finding_accepted,
+            "Verification",
+        );
     }
-}
-
-pub fn reorient_finding_already_accepted(
-    state: &EpiphanyThreadState,
-    finding: &EpiphanyReorientFindingInterpretation,
-) -> bool {
-    if let Some(result_id) = finding.runtime_result_id.clone()
-        && state.acceptance_receipts.iter().any(|receipt| {
-            receipt.result_id == result_id
-                && receipt.status == "accepted"
-                && receipt.surface == "reorientAccept"
-        })
-    {
-        return true;
+    if let Some(action) = input.current_work.research_continuation_action {
+        return match action {
+            RepoFrontierResearchContinuationAction::LaunchResearch => decision(
+                EpiphanyCoordinatorAction::LaunchResearch,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The exact external-evidence obligation requires an Eyes attempt.",
+            ),
+            RepoFrontierResearchContinuationAction::ReviewResearchResult => decision(
+                EpiphanyCoordinatorAction::ReviewResearchResult,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
+                true,
+                false,
+                "The exact Eyes result awaits Mind admission.",
+            ),
+        };
     }
 
-    false
-}
-
-fn modeling_finding_has_reviewable_repo_model_mutation(
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> bool {
-    finding.item_error.is_none()
-        && finding.job_error.is_none()
-        && (finding.repo_model_mutation_proposal.is_some()
-            || finding.verdict.as_deref().is_some_and(|verdict| {
-                verdict.eq_ignore_ascii_case("checkpoint-ready")
-                    || verdict.eq_ignore_ascii_case("regather-needed")
-            }))
-        && finding
-            .state_patch
-            .as_ref()
-            .is_none_or(|patch| modeling_role_state_patch_policy_errors(patch).is_empty())
-}
-
-fn research_finding_has_reviewable_state_patch(
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> bool {
-    finding
-        .state_patch
+    if let Some(work) = input.current_work.imagination_considerations.first() {
+        return continuation_decision(
+            work.action,
+            EpiphanyCoordinatorAction::LaunchImaginationConsideration,
+            EpiphanyCoordinatorAction::WaitForImaginationConsideration,
+            EpiphanyCoordinatorAction::WaitForImaginationConsideration,
+            EpiphanyCoordinatorRoleId::Imagination,
+            "Persona-feedback Imagination consideration",
+        );
+    }
+    if let Some(work) = input
+        .current_work
+        .admitted_model_direction_consideration
         .as_ref()
-        .is_some_and(|patch| research_role_state_patch_policy_errors(patch).is_empty())
-}
-
-fn modeling_finding_requests_regather(finding: &EpiphanyRoleFindingInterpretation) -> bool {
-    finding
-        .verdict
-        .as_deref()
-        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("regather-needed"))
-}
-
-fn role_finding_already_accepted(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> bool {
-    role_finding_accepted_index(state, role_id, finding).is_some()
-}
-
-fn role_finding_failure_reviewed(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> bool {
-    let Some(result_id) = finding.runtime_result_id.as_deref() else {
-        return false;
-    };
-    state.acceptance_receipts.iter().any(|receipt| {
-        receipt.result_id == result_id
-            && receipt.status == "superseded"
-            && receipt.surface == "roleFailureReview"
-            && receipt.role_id == coordinator_role_label(role_id)
-    })
-}
-
-fn role_finding_accepted_evidence_id(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> Option<String> {
-    role_finding_acceptance_receipt(state, role_id, finding)
-        .and_then(|receipt| receipt.accepted_evidence_id.clone())
-}
-
-fn verification_finding_covers_current_modeling(
-    state: &EpiphanyThreadState,
-    modeling_result_accepted: bool,
-    modeling_finding: Option<&EpiphanyRoleFindingInterpretation>,
-    verification_finding: Option<&EpiphanyRoleFindingInterpretation>,
-) -> bool {
-    if !modeling_result_accepted {
-        return true;
+    {
+        return continuation_decision(
+            work.action,
+            EpiphanyCoordinatorAction::LaunchAdmittedModelDirectionConsideration,
+            EpiphanyCoordinatorAction::WaitForAdmittedModelDirectionConsideration,
+            EpiphanyCoordinatorAction::WaitForAdmittedModelDirectionConsideration,
+            EpiphanyCoordinatorRoleId::Imagination,
+            "admitted-model direction consideration",
+        );
     }
-    let Some(modeling_finding) = modeling_finding else {
-        return true;
-    };
-    let Some(verification_finding) = verification_finding else {
-        return false;
-    };
 
-    let mut modeling_evidence_ids: HashSet<String> =
-        modeling_finding.evidence_ids.iter().cloned().collect();
-    if let Some(accepted_id) = role_finding_accepted_evidence_id(
-        state,
-        EpiphanyCoordinatorRoleId::Modeling,
-        modeling_finding,
-    ) {
-        modeling_evidence_ids.insert(accepted_id);
+    if input.current_work.hands_frontier_ready {
+        return decision(
+            EpiphanyCoordinatorAction::ContinueImplementation,
+            Some(EpiphanyCoordinatorRoleId::Implementation),
+            None,
+            false,
+            false,
+            "Mind has an exact actionable Hands frontier route.",
+        );
     }
-    if modeling_evidence_ids.is_empty() {
-        return true;
-    }
-    verification_finding
-        .evidence_ids
-        .iter()
-        .any(|id| modeling_evidence_ids.contains(id))
+
+    decision(
+        EpiphanyCoordinatorAction::AwaitFrontierProposal,
+        Some(EpiphanyCoordinatorRoleId::Imagination),
+        None,
+        false,
+        false,
+        "No unresolved typed work obligation exists; await a new Body, evidence, proposal, or continuity mutation.",
+    )
 }
 
-fn role_finding_accepted_after(
-    state: &EpiphanyThreadState,
-    later_role_id: EpiphanyCoordinatorRoleId,
-    later: Option<&EpiphanyRoleFindingInterpretation>,
-    earlier_role_id: EpiphanyCoordinatorRoleId,
-    earlier: Option<&EpiphanyRoleFindingInterpretation>,
-) -> bool {
-    let Some(later) = later else {
-        return false;
-    };
-    let Some(later_index) = role_finding_accepted_order_index(state, later_role_id, later) else {
-        return false;
-    };
-    let Some(earlier) = earlier else {
-        return true;
-    };
-    let Some(earlier_index) = role_finding_accepted_order_index(state, earlier_role_id, earlier)
-    else {
-        return true;
-    };
-    later_index < earlier_index
-}
-
-fn implementation_evidence_after_role_finding(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    earlier: Option<&EpiphanyRoleFindingInterpretation>,
-) -> bool {
-    let earlier_index =
-        earlier.and_then(|finding| role_finding_accepted_index(state, role_id, finding));
-    state
-        .recent_evidence
-        .iter()
-        .enumerate()
-        .find(|(index, evidence)| {
-            evidence.kind == "implementation-audit"
-                && earlier_index.is_none_or(|earlier_index| *index < earlier_index)
-        })
-        .is_some_and(|(_, evidence)| evidence.status == "ok")
-}
-
-fn role_finding_cites_implementation_evidence(
-    state: &EpiphanyThreadState,
-    finding: Option<&EpiphanyRoleFindingInterpretation>,
-) -> bool {
-    let Some(finding) = finding else {
-        return false;
-    };
-    if role_finding_cites_complete_hands_receipt_chain(finding) {
-        return true;
-    }
-    finding.evidence_ids.iter().any(|id| {
-        state.recent_evidence.iter().any(|evidence| {
-            evidence.id == *id && evidence.kind == "implementation-audit" && evidence.status == "ok"
-        })
-    })
-}
-
-fn role_finding_cites_complete_hands_receipt_chain(
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> bool {
-    let has_patch = finding
-        .evidence_ids
-        .iter()
-        .any(|id| id.starts_with("hands-patch-"));
-    let has_command = finding
-        .evidence_ids
-        .iter()
-        .any(|id| id.starts_with("hands-command-"));
-    let has_commit = finding
-        .evidence_ids
-        .iter()
-        .any(|id| id.starts_with("hands-commit-"));
-    has_patch && has_command && has_commit
-}
-
-fn role_finding_accepted_index(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> Option<usize> {
-    if let Some(receipt) = role_finding_acceptance_receipt(state, role_id, finding) {
-        return receipt
-            .accepted_evidence_id
-            .as_ref()
-            .and_then(|id| {
-                state
-                    .recent_evidence
-                    .iter()
-                    .position(|evidence| evidence.id == *id)
-            })
-            .or(Some(0));
-    }
-    None
-}
-
-fn role_finding_accepted_order_index(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> Option<usize> {
-    role_finding_acceptance_receipt_index(state, role_id, finding)
-}
-
-fn role_finding_acceptance_receipt<'a>(
-    state: &'a EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> Option<&'a epiphany_state_model::EpiphanyAcceptanceReceipt> {
-    let result_id = finding.runtime_result_id.clone()?;
-    state.acceptance_receipts.iter().find(|receipt| {
-        receipt.result_id == result_id
-            && receipt.status == "accepted"
-            && receipt.surface == "roleAccept"
-            && receipt.role_id == coordinator_role_label(role_id)
-    })
-}
-
-fn role_finding_acceptance_receipt_index(
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyCoordinatorRoleId,
-    finding: &EpiphanyRoleFindingInterpretation,
-) -> Option<usize> {
-    let result_id = finding.runtime_result_id.clone()?;
-    state.acceptance_receipts.iter().position(|receipt| {
-        receipt.result_id == result_id
-            && receipt.status == "accepted"
-            && receipt.surface == "roleAccept"
-            && receipt.role_id == coordinator_role_label(role_id)
-    })
-}
-
-fn coordinator_role_label(role_id: EpiphanyCoordinatorRoleId) -> &'static str {
-    match role_id {
-        EpiphanyCoordinatorRoleId::Implementation => "implementation",
-        EpiphanyCoordinatorRoleId::Imagination => "imagination",
-        EpiphanyCoordinatorRoleId::Research => "research",
-        EpiphanyCoordinatorRoleId::Modeling => "modeling",
-        EpiphanyCoordinatorRoleId::Verification => "verification",
-        EpiphanyCoordinatorRoleId::Reorientation => "reorientation",
-    }
-}
-
-fn verification_finding_allows_implementation(finding: &EpiphanyRoleFindingInterpretation) -> bool {
-    finding
-        .verdict
-        .as_deref()
-        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
-}
-
-fn verification_finding_needs_evidence(finding: &EpiphanyRoleFindingInterpretation) -> bool {
-    finding
-        .verdict
-        .as_deref()
-        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("needs-evidence"))
-}
-
-fn coordinator_role_lane_from_role_board(
-    lane: &EpiphanyRoleBoardLane,
-) -> EpiphanyCoordinatorRoleLane {
-    EpiphanyCoordinatorRoleLane {
-        id: lane.id,
-        status: lane.status,
-    }
-}
-
-pub fn recommend_coordinator_action(
-    input: EpiphanyCoordinatorInput,
+fn decision(
+    action: EpiphanyCoordinatorAction,
+    target_role: Option<EpiphanyCoordinatorRoleId>,
+    recommended_scene_action: Option<EpiphanyCoordinatorSceneAction>,
+    requires_review: bool,
+    can_auto_run: bool,
+    reason: &str,
 ) -> EpiphanyCoordinatorDecision {
-    let build = |action,
-                 target_role,
-                 recommended_scene_action,
-                 requires_review,
-                 can_auto_run,
-                 reason: &str| EpiphanyCoordinatorDecision {
+    EpiphanyCoordinatorDecision {
         action,
         target_role,
         recommended_scene_action,
         requires_review,
         can_auto_run,
         reason: reason.to_string(),
-    };
-
-    if input.state_status == EpiphanyCrrcStateStatus::Missing {
-        return build(
-            EpiphanyCoordinatorAction::PrepareCheckpoint,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::Update),
-            false,
-            false,
-            "Authoritative state is missing; accept an explicit operator objective before coordination can continue.",
-        );
     }
+}
 
-    match input.recommendation.action {
-        EpiphanyCrrcAction::WaitForReorientWorker => {
-            return build(
-                EpiphanyCoordinatorAction::WaitForReorientWorker,
-                Some(EpiphanyCoordinatorRoleId::Reorientation),
-                Some(EpiphanyCoordinatorSceneAction::ReorientResult),
-                false,
-                false,
-                "A CRRC reorient worker is already in flight; wait for the bounded result.",
-            );
-        }
-        EpiphanyCrrcAction::AcceptReorientResult | EpiphanyCrrcAction::ReviewReorientResult => {
-            return build(
-                EpiphanyCoordinatorAction::ReviewReorientResult,
-                Some(EpiphanyCoordinatorRoleId::Reorientation),
-                input.recommendation.recommended_scene_action,
-                true,
-                false,
-                "A CRRC reorientation finding needs human review before continuation.",
-            );
-        }
-        EpiphanyCrrcAction::PrepareCheckpoint
-        | EpiphanyCrrcAction::LaunchReorientWorker
-        | EpiphanyCrrcAction::RegatherManually
-        | EpiphanyCrrcAction::Continue => {}
-    }
+fn modeling_decision(
+    action: EpiphanyAgentPassContinuationAction,
+    label: &str,
+) -> EpiphanyCoordinatorDecision {
+    continuation_decision(
+        action,
+        EpiphanyCoordinatorAction::LaunchModeling,
+        EpiphanyCoordinatorAction::WaitForModelingResult,
+        EpiphanyCoordinatorAction::ReviewModelingResult,
+        EpiphanyCoordinatorRoleId::Modeling,
+        label,
+    )
+}
 
-    if input.should_prepare_compaction
-        && !(input.reorient_finding_accepted
-            && input.recommendation.action == EpiphanyCrrcAction::Continue)
-    {
-        return build(
-            EpiphanyCoordinatorAction::CompactRehydrateReorient,
-            Some(EpiphanyCoordinatorRoleId::Reorientation),
-            Some(EpiphanyCoordinatorSceneAction::Reorient),
-            false,
-            true,
-            "Context pressure crossed the preparation threshold; compact, rehydrate, and reorient before more implementation work.",
-        );
-    }
-
-    if input.recommendation.action == EpiphanyCrrcAction::LaunchReorientWorker {
-        return build(
-            EpiphanyCoordinatorAction::LaunchReorientWorker,
-            Some(EpiphanyCoordinatorRoleId::Reorientation),
-            Some(EpiphanyCoordinatorSceneAction::ReorientLaunch),
-            false,
-            true,
-            "CRRC says continuity needs a bounded reorient worker before safe continuation.",
-        );
-    }
-
-    match input.frontier_planning_stage {
-        RepoFrontierPlanningLifecycleStage::Ready => {
-            return build(
-                EpiphanyCoordinatorAction::StartFrontierPlanning,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                None,
-                false,
-                true,
-                "Mind has admitted one actionable Imagination frontier; commit its typed planning request before launching a worker.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady => {
-            return build(
-                EpiphanyCoordinatorAction::LaunchImagination,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "A current frontier planning request is committed; launch Imagination against that exact authority.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::ImaginationRunning => {
-            return build(
-                EpiphanyCoordinatorAction::WaitForImaginationResult,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "The frontier-bound Imagination worker is running; wait for its typed result.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::ImaginationFailed => {
-            return build(
-                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The frontier-bound Imagination worker terminated without a valid typed candidate; review the immutable failure before creating new authority.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::ImaginationResultReady => {
-            return build(
-                EpiphanyCoordinatorAction::RequestMindPlanReview,
-                None,
-                None,
-                false,
-                true,
-                "Imagination produced a typed frontier plan; commit the dedicated Mind review request without adopting it.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::MindLaunchReady => {
-            return build(
-                EpiphanyCoordinatorAction::LaunchMindPlanReview,
-                None,
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The typed Mind review request is committed; launch the dedicated admission reviewer.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::MindRunning => {
-            return build(
-                EpiphanyCoordinatorAction::WaitForMindPlanResult,
-                None,
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "Mind is reviewing the proposed frontier plan; wait for its typed decision result.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::MindFailed => {
-            return build(
-                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
-                None,
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The dedicated Mind reviewer terminated without a valid typed judgment; review the immutable failure before any plan decision.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::MindResultReady => {
-            return build(
-                EpiphanyCoordinatorAction::CommitFrontierPlanDecision,
-                None,
-                None,
-                false,
-                true,
-                "Mind returned a typed frontier-plan judgment; atomically commit that decision as the sole adoption authority.",
-            );
-        }
-        RepoFrontierPlanningLifecycleStage::Unavailable
-        | RepoFrontierPlanningLifecycleStage::Terminal => {}
-    }
-
-    if let Some(action) = input.proposal_modeling_action {
-        return match action {
-            EpiphanyAgentPassContinuationAction::Launch => build(
-                EpiphanyCoordinatorAction::LaunchModeling,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The oldest unresolved proposal request is ready for its exact Modeling attempt.",
-            ),
-            EpiphanyAgentPassContinuationAction::Wait => build(
-                EpiphanyCoordinatorAction::WaitForModelingResult,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "The exact proposal Modeling attempt is still running.",
-            ),
-            EpiphanyAgentPassContinuationAction::Review => build(
-                EpiphanyCoordinatorAction::ReviewModelingResult,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The exact proposal Modeling result awaits keyed Mind admission.",
-            ),
-        };
-    }
-
-    if input.body_modeling_review_ready {
-        return build(
-            EpiphanyCoordinatorAction::ReviewModelingResult,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            true,
-            false,
-            "The exact Body Modeling attempt has a terminal typed result awaiting keyed Mind admission.",
-        );
-    }
-
-    if input.body_modeling_work_ready {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
+fn continuation_decision(
+    action: EpiphanyAgentPassContinuationAction,
+    launch: EpiphanyCoordinatorAction,
+    wait: EpiphanyCoordinatorAction,
+    review: EpiphanyCoordinatorAction,
+    role: EpiphanyCoordinatorRoleId,
+    label: &str,
+) -> EpiphanyCoordinatorDecision {
+    match action {
+        EpiphanyAgentPassContinuationAction::Launch => decision(
+            launch,
+            Some(role),
             Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
             false,
             true,
-            "The admitted repository Body has unresolved Modeling work; launch it from the keyed Mind obligation.",
-        );
-    }
-
-    if let Some(action) = input.frontier_verdict_modeling_action {
-        return match action {
-            EpiphanyAgentPassContinuationAction::Launch => build(
-                EpiphanyCoordinatorAction::LaunchModeling,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "An exact Soul verdict has unresolved keyed frontier Modeling work.",
-            ),
-            EpiphanyAgentPassContinuationAction::Wait => build(
-                EpiphanyCoordinatorAction::WaitForModelingResult,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "The exact frontier verdict Modeling attempt is still running.",
-            ),
-            EpiphanyAgentPassContinuationAction::Review => build(
-                EpiphanyCoordinatorAction::ReviewModelingResult,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The exact frontier verdict Modeling result awaits keyed Mind admission.",
-            ),
-        };
-    }
-
-    if let Some(action) = input.verification_action {
-        return match action {
-            EpiphanyAgentPassContinuationAction::Launch => build(
-                EpiphanyCoordinatorAction::LaunchVerification,
-                Some(EpiphanyCoordinatorRoleId::Verification),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "An exact Hands consequence has unresolved keyed Verification work.",
-            ),
-            EpiphanyAgentPassContinuationAction::Wait => build(
-                EpiphanyCoordinatorAction::ReviewVerificationResult,
-                Some(EpiphanyCoordinatorRoleId::Verification),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "The exact frontier Verification attempt is still running.",
-            ),
-            EpiphanyAgentPassContinuationAction::Review => build(
-                EpiphanyCoordinatorAction::ReviewVerificationResult,
-                Some(EpiphanyCoordinatorRoleId::Verification),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The exact frontier Verification result awaits Soul admission.",
-            ),
-        };
-    }
-
-    if let Some(action) = input.research_continuation_action {
-        return match action {
-            RepoFrontierResearchContinuationAction::LaunchResearch => build(
-                EpiphanyCoordinatorAction::LaunchResearch,
-                Some(EpiphanyCoordinatorRoleId::Research),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The exact frontier Research lifecycle requires another bounded attempt.",
-            ),
-            RepoFrontierResearchContinuationAction::ReviewResearchResult => build(
-                EpiphanyCoordinatorAction::ReviewResearchResult,
-                Some(EpiphanyCoordinatorRoleId::Research),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                true,
-                false,
-                "The exact frontier Research lifecycle has one terminal result awaiting review.",
-            ),
-        };
-    }
-
-    if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
-        && !input.modeling_result_accepted
-        && !(input.modeling_result_failure_reviewed && input.hands_frontier_ready)
-    {
-        if input.modeling_result_failure_reviewed {
-            if input.modeling_result_proposal_bound && !input.hands_frontier_ready {
-                return build(
-                    EpiphanyCoordinatorAction::AwaitFrontierProposal,
-                    Some(EpiphanyCoordinatorRoleId::Imagination),
-                    None,
-                    true,
-                    false,
-                    "The proposal-bound Modeling result was rejected and its immutable selection request is consumed; await a fresh typed proposal instead of replaying old authority.",
-                );
-            }
-            if !input.modeling_result_proposal_bound {
-                return build(
-                    EpiphanyCoordinatorAction::LaunchModeling,
-                    Some(EpiphanyCoordinatorRoleId::Modeling),
-                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                    false,
-                    true,
-                    "The completed Modeling result was rejected by admission and superseded; relaunch Modeling against current typed authority.",
-                );
-            }
-        }
-        if !input.modeling_result_reviewable {
-            return build(
-                EpiphanyCoordinatorAction::ReviewModelingResult,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleResult),
-                false,
-                false,
-                "The completed Modeling finding has no acceptable RepoModel proposal; inspect the finding instead of relaunching the same lane.",
-            );
-        }
-        return build(
-            EpiphanyCoordinatorAction::ReviewModelingResult,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
+            &format!("The exact {label} obligation has no live attempt."),
+        ),
+        EpiphanyAgentPassContinuationAction::Wait => decision(
+            wait,
+            Some(role),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            &format!("The exact {label} attempt is still live."),
+        ),
+        EpiphanyAgentPassContinuationAction::Review => decision(
+            review,
+            Some(role),
             Some(EpiphanyCoordinatorSceneAction::RoleResult),
             true,
             false,
-            "A modeling/checkpoint finding is complete and must be reviewed before verification or implementation continues.",
-        );
+            &format!("The exact {label} result awaits its family admission owner."),
+        ),
     }
+}
 
-    if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
-        && !input.modeling_result_accepted
-    {
-        if input.modeling_result_failure_reviewed {
-            return build(
-                EpiphanyCoordinatorAction::LaunchModeling,
-                Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                false,
-                true,
-                "The failed modeling/checkpoint result was reviewed and superseded; relaunch Modeling before verification or implementation continues.",
-            );
-        }
-        return build(
-            EpiphanyCoordinatorAction::ReviewModelingResult,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "The modeling/checkpoint worker failed; inspect the failed result before verification or implementation continues.",
-        );
-    }
-
-    if matches!(
-        input.signals.modeling_result_status,
-        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
-    ) {
-        return build(
-            EpiphanyCoordinatorAction::ReviewModelingResult,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            false,
-            false,
-            "A modeling/checkpoint specialist is already running; wait for its result before reviewing stale verification output.",
-        );
-    }
-
-    if input.hands_frontier_ready {
-        return build(
-            EpiphanyCoordinatorAction::ContinueImplementation,
-            Some(EpiphanyCoordinatorRoleId::Implementation),
-            None,
-            false,
-            false,
-            "Mind has admitted the current RepoModel and Self has an actionable Hands frontier route.",
-        );
-    }
-
-    if input.recommendation.action == EpiphanyCrrcAction::RegatherManually
-        && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
-            == Some(EpiphanyCoordinatorRoleStatus::Blocked)
-    {
-        return build(
-            EpiphanyCoordinatorAction::RegatherManually,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            true,
-            false,
-            "CRRC says regather is required and the implementation lane is blocked; review or repair Eyes evidence before another coding turn.",
-        );
-    }
-
-    if role_status(&input.roles, EpiphanyCoordinatorRoleId::Modeling).is_some_and(|status| {
-        matches!(
-            status,
-            EpiphanyCoordinatorRoleStatus::Ready | EpiphanyCoordinatorRoleStatus::Needed
-        )
-    }) && matches!(
-        input.signals.modeling_result_status,
-        EpiphanyCoordinatorRoleResultStatus::MissingBinding
-            | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
-            | EpiphanyCoordinatorRoleResultStatus::BackendMissing
-            | EpiphanyCoordinatorRoleResultStatus::Cancelled
-            | EpiphanyCoordinatorRoleResultStatus::Failed
-    ) {
-        return build(
-            EpiphanyCoordinatorAction::LaunchModeling,
-            Some(EpiphanyCoordinatorRoleId::Modeling),
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-            false,
-            true,
-            "The modeling/checkpoint lane is ready and no current modeling finding is available.",
-        );
-    }
-
-    if input.recommendation.action == EpiphanyCrrcAction::RegatherManually {
-        return build(
-            EpiphanyCoordinatorAction::RegatherManually,
-            Some(EpiphanyCoordinatorRoleId::Research),
-            Some(EpiphanyCoordinatorSceneAction::RoleResult),
-            true,
-            false,
-            "CRRC requires explicit operator regather; only an exact external-evidence obligation may launch Eyes.",
-        );
-    }
-
-    if input.modeling_result_accepted && !input.hands_frontier_ready {
-        return build(
-            EpiphanyCoordinatorAction::AwaitFrontierProposal,
+fn planning_decision(
+    stage: RepoFrontierPlanningLifecycleStage,
+) -> Option<EpiphanyCoordinatorDecision> {
+    let value = match stage {
+        RepoFrontierPlanningLifecycleStage::Ready => decision(
+            EpiphanyCoordinatorAction::StartFrontierPlanning,
             Some(EpiphanyCoordinatorRoleId::Imagination),
             None,
+            false,
+            true,
+            "An exact frontier planning obligation is ready to become a typed request.",
+        ),
+        RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady => decision(
+            EpiphanyCoordinatorAction::LaunchImagination,
+            Some(EpiphanyCoordinatorRoleId::Imagination),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "The exact frontier planning request awaits Imagination.",
+        ),
+        RepoFrontierPlanningLifecycleStage::ImaginationRunning => decision(
+            EpiphanyCoordinatorAction::WaitForImaginationResult,
+            Some(EpiphanyCoordinatorRoleId::Imagination),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "The exact frontier Imagination attempt is still live.",
+        ),
+        RepoFrontierPlanningLifecycleStage::ImaginationFailed => decision(
+            EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+            Some(EpiphanyCoordinatorRoleId::Imagination),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
             true,
             false,
-            "Mind accepted the current model, but no actionable Hands frontier exists; await a typed user or Imagination proposal selection instead of relaunching Modeling without mutation authority.",
-        );
-    }
-
-    build(
-        EpiphanyCoordinatorAction::LaunchModeling,
-        Some(EpiphanyCoordinatorRoleId::Modeling),
-        Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-        false,
-        true,
-        "No admitted current RepoModel frontier item is actionable by Hands; route Modeling to establish or reconcile the machine map.",
-    )
+            "The exact frontier Imagination attempt failed.",
+        ),
+        RepoFrontierPlanningLifecycleStage::ImaginationResultReady => decision(
+            EpiphanyCoordinatorAction::RequestMindPlanReview,
+            None,
+            None,
+            false,
+            true,
+            "The exact Imagination candidate awaits a typed Mind request.",
+        ),
+        RepoFrontierPlanningLifecycleStage::MindLaunchReady => decision(
+            EpiphanyCoordinatorAction::LaunchMindPlanReview,
+            None,
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "The exact Mind plan request has no live attempt.",
+        ),
+        RepoFrontierPlanningLifecycleStage::MindRunning => decision(
+            EpiphanyCoordinatorAction::WaitForMindPlanResult,
+            None,
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "The exact Mind plan attempt is still live.",
+        ),
+        RepoFrontierPlanningLifecycleStage::MindFailed => decision(
+            EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
+            None,
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            true,
+            false,
+            "The exact Mind plan attempt failed.",
+        ),
+        RepoFrontierPlanningLifecycleStage::MindResultReady => decision(
+            EpiphanyCoordinatorAction::CommitFrontierPlanDecision,
+            None,
+            None,
+            false,
+            true,
+            "The exact Mind judgment awaits atomic plan admission.",
+        ),
+        RepoFrontierPlanningLifecycleStage::Unavailable
+        | RepoFrontierPlanningLifecycleStage::Terminal => return None,
+    };
+    Some(value)
 }
 
 pub fn coordinator_automation_action(
@@ -997,1220 +351,85 @@ pub fn coordinator_automation_action(
         EpiphanyCoordinatorAction::LaunchReorientWorker => {
             EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
         }
-        EpiphanyCoordinatorAction::PrepareCheckpoint
-        | EpiphanyCoordinatorAction::WaitForReorientWorker
-        | EpiphanyCoordinatorAction::ReviewReorientResult
-        | EpiphanyCoordinatorAction::RegatherManually
-        | EpiphanyCoordinatorAction::LaunchResearch
-        | EpiphanyCoordinatorAction::ReviewResearchResult
-        | EpiphanyCoordinatorAction::LaunchModeling
-        | EpiphanyCoordinatorAction::WaitForModelingResult
-        | EpiphanyCoordinatorAction::ReviewModelingResult
-        | EpiphanyCoordinatorAction::LaunchVerification
-        | EpiphanyCoordinatorAction::ReviewVerificationResult
-        | EpiphanyCoordinatorAction::ContinueImplementation
-        | EpiphanyCoordinatorAction::AwaitFrontierProposal
-        | EpiphanyCoordinatorAction::StartFrontierPlanning
-        | EpiphanyCoordinatorAction::LaunchImagination
-        | EpiphanyCoordinatorAction::WaitForImaginationResult
-        | EpiphanyCoordinatorAction::RequestMindPlanReview
-        | EpiphanyCoordinatorAction::LaunchMindPlanReview
-        | EpiphanyCoordinatorAction::WaitForMindPlanResult
-        | EpiphanyCoordinatorAction::CommitFrontierPlanDecision
-        | EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure => {
-            EpiphanyCoordinatorAutomationAction::None
-        }
+        _ => EpiphanyCoordinatorAutomationAction::None,
     }
-}
-
-pub fn select_coordinator_automation_action(
-    decision: &EpiphanyCoordinatorDecision,
-    force_checkpoint_compaction: bool,
-) -> EpiphanyCoordinatorAutomationAction {
-    if force_checkpoint_compaction {
-        return EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient;
-    }
-    coordinator_automation_action(decision)
-}
-
-fn role_status(
-    roles: &[EpiphanyCoordinatorRoleLane],
-    role_id: EpiphanyCoordinatorRoleId,
-) -> Option<EpiphanyCoordinatorRoleStatus> {
-    roles
-        .iter()
-        .find(|role| role.id == role_id)
-        .map(|role| role.status)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyAcceptanceReceipt;
-    use epiphany_state_model::EpiphanyEvidenceRecord;
 
-    fn base_roles() -> Vec<EpiphanyCoordinatorRoleLane> {
-        vec![
-            role(
-                EpiphanyCoordinatorRoleId::Implementation,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-            role(
-                EpiphanyCoordinatorRoleId::Imagination,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-            role(
-                EpiphanyCoordinatorRoleId::Research,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-            role(
-                EpiphanyCoordinatorRoleId::Modeling,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-            role(
-                EpiphanyCoordinatorRoleId::Verification,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-            role(
-                EpiphanyCoordinatorRoleId::Reorientation,
-                EpiphanyCoordinatorRoleStatus::Ready,
-            ),
-        ]
-    }
-
-    fn role(
-        id: EpiphanyCoordinatorRoleId,
-        status: EpiphanyCoordinatorRoleStatus,
-    ) -> EpiphanyCoordinatorRoleLane {
-        EpiphanyCoordinatorRoleLane { id, status }
-    }
-
-    fn recommendation(action: EpiphanyCrrcAction) -> EpiphanyCoordinatorCrrcRecommendation {
-        EpiphanyCoordinatorCrrcRecommendation {
-            action,
-            recommended_scene_action: Some(EpiphanyCoordinatorSceneAction::Reorient),
+    fn current_work() -> epiphany_core::EpiphanyCurrentWorkProjection {
+        epiphany_core::EpiphanyCurrentWorkProjection {
+            mind_projection_digest: "sha256:mind".into(),
+            body_modeling: None,
+            body_modeling_action: None,
+            research_continuation_action: None,
+            frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Terminal,
+            proposal_modeling: None,
+            frontier_verdict_modeling: None,
+            verification: None,
+            reorientation: None,
+            imagination_considerations: Vec::new(),
+            admitted_model_direction_consideration: None,
+            hands_frontier_ready: false,
         }
     }
 
     fn input() -> EpiphanyCoordinatorInput {
         EpiphanyCoordinatorInput {
-            state_status: EpiphanyCrrcStateStatus::Ready,
-            checkpoint_present: true,
+            mind_present: true,
             should_prepare_compaction: false,
-            recommendation: recommendation(EpiphanyCrrcAction::Continue),
-            roles: base_roles(),
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            research_result_accepted: false,
-            research_result_reviewable: false,
-            research_result_failure_reviewed: false,
-            modeling_result_accepted_after_research: false,
-            modeling_result_requests_regather: false,
-            modeling_result_accepted: false,
-            modeling_result_reviewable: false,
-            modeling_result_failure_reviewed: false,
-            modeling_result_proposal_bound: false,
-            modeling_result_accepted_after_verification: false,
-            implementation_evidence_after_verification: false,
-            verification_result_cites_implementation_evidence: false,
-            verification_result_covers_current_modeling: true,
-            verification_result_accepted: false,
-            verification_result_failure_reviewed: false,
-            verification_result_allows_implementation: false,
-            verification_result_needs_evidence: false,
-            reorient_finding_accepted: false,
-            hands_frontier_ready: false,
-            research_continuation_action: None,
-            frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
-            proposal_modeling_action: None,
-            frontier_verdict_modeling_action: None,
-            verification_action: None,
-            body_modeling_work_ready: false,
-            body_modeling_review_ready: false,
-        }
-    }
-
-    #[test]
-    fn typed_frontier_planning_lifecycle_preempts_generic_regather() {
-        let cases = [
-            (
-                RepoFrontierPlanningLifecycleStage::Ready,
-                EpiphanyCoordinatorAction::StartFrontierPlanning,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                true,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady,
-                EpiphanyCoordinatorAction::LaunchImagination,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                true,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::ImaginationRunning,
-                EpiphanyCoordinatorAction::WaitForImaginationResult,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                false,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::ImaginationFailed,
-                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
-                Some(EpiphanyCoordinatorRoleId::Imagination),
-                false,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::ImaginationResultReady,
-                EpiphanyCoordinatorAction::RequestMindPlanReview,
-                None,
-                true,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::MindLaunchReady,
-                EpiphanyCoordinatorAction::LaunchMindPlanReview,
-                None,
-                true,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::MindRunning,
-                EpiphanyCoordinatorAction::WaitForMindPlanResult,
-                None,
-                false,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::MindFailed,
-                EpiphanyCoordinatorAction::ReviewFrontierPlanningFailure,
-                None,
-                false,
-            ),
-            (
-                RepoFrontierPlanningLifecycleStage::MindResultReady,
-                EpiphanyCoordinatorAction::CommitFrontierPlanDecision,
-                None,
-                true,
-            ),
-        ];
-
-        for (stage, expected_action, expected_role, can_auto_run) in cases {
-            let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-                recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-                frontier_planning_stage: stage,
-                ..input()
-            });
-            assert_eq!(decision.action, expected_action);
-            assert_eq!(decision.target_role, expected_role);
-            assert_eq!(decision.can_auto_run, can_auto_run);
-        }
-    }
-
-    #[test]
-    fn selected_user_proposal_preempts_generic_regather() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            proposal_modeling_action: Some(EpiphanyAgentPassContinuationAction::Launch),
-            ..input()
-        });
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.can_auto_run);
-    }
-
-    #[test]
-    fn unresolved_body_work_routes_modeling_without_research_or_thread_state() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            body_modeling_work_ready: true,
-            ..input()
-        });
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.can_auto_run);
-    }
-
-    #[test]
-    fn terminal_body_work_routes_keyed_mind_review() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            body_modeling_review_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.requires_review);
-        assert!(!decision.can_auto_run);
-    }
-
-    fn finding(
-        runtime_result_id: &str,
-        runtime_job_id: &str,
-        evidence_ids: Vec<String>,
-    ) -> EpiphanyRoleFindingInterpretation {
-        EpiphanyRoleFindingInterpretation {
-            verdict: Some("needs-evidence".to_string()),
-            summary: Some("test finding".to_string()),
-            next_safe_move: Some("continue".to_string()),
-            checkpoint_summary: None,
-            scratch_summary: None,
-            files_inspected: Vec::new(),
-            frontier_node_ids: Vec::new(),
-            evidence_ids,
-            artifact_refs: Vec::new(),
-            runtime_result_id: Some(runtime_result_id.to_string()),
-            runtime_job_id: Some(runtime_job_id.to_string()),
-            open_questions: Vec::new(),
-            evidence_gaps: Vec::new(),
-            risks: Vec::new(),
-            state_patch: None,
-            repo_model_mutation_proposal: None,
-            self_patch: None,
-            self_persistence: None,
-            job_error: None,
-            item_error: None,
-            verification_request_id: None,
-            frontier_route_id: None,
-            proposal_modeling_request_id: None,
-        }
-    }
-
-    #[test]
-    fn finding_signals_preserve_proposal_modeling_authority() {
-        let mut modeling = finding("result-modeling", "job-modeling", Vec::new());
-        modeling.proposal_modeling_request_id = Some("proposal-request-1".to_string());
-
-        let signals = derive_coordinator_finding_signals(
-            Some(&EpiphanyThreadState::default()),
-            None,
-            Some(&modeling),
-            None,
-            None,
-        );
-
-        assert!(signals.modeling_result_proposal_bound);
-    }
-
-    #[test]
-    fn implementation_evidence_lets_verification_cover_post_modeling_work() {
-        let mut state = EpiphanyThreadState::default();
-        state.recent_evidence.push(EpiphanyEvidenceRecord {
-            id: "ev-implementation".to_string(),
-            kind: "implementation-audit".to_string(),
-            status: "ok".to_string(),
-            summary: "Hands pass evidence.".to_string(),
-            code_refs: Vec::new(),
-        });
-        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
-            id: "accept-modeling".to_string(),
-            result_id: "result-modeling".to_string(),
-            job_id: "job-modeling".to_string(),
-            binding_id: "modeling-checkpoint-worker".to_string(),
-            surface: "roleAccept".to_string(),
-            role_id: "modeling".to_string(),
-            status: "accepted".to_string(),
-            accepted_at: "2026-06-13T00:00:00Z".to_string(),
-            accepted_observation_id: None,
-            accepted_evidence_id: Some("ev-modeling".to_string()),
-            summary: None,
-        });
-        let modeling = finding(
-            "result-modeling",
-            "job-modeling",
-            vec!["ev-modeling".to_string()],
-        );
-        let verification = finding(
-            "result-verification",
-            "job-verification",
-            vec!["ev-implementation".to_string()],
-        );
-
-        let signals = derive_coordinator_finding_signals(
-            Some(&state),
-            None,
-            Some(&modeling),
-            Some(&verification),
-            None,
-        );
-
-        assert!(signals.modeling_result_accepted);
-        assert!(signals.verification_result_cites_implementation_evidence);
-        assert!(signals.verification_result_covers_current_modeling);
-    }
-
-    #[test]
-    fn complete_hands_receipt_chain_lets_verification_cover_current_modeling() {
-        let mut state = EpiphanyThreadState::default();
-        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
-            id: "accept-modeling".to_string(),
-            result_id: "result-modeling".to_string(),
-            job_id: "job-modeling".to_string(),
-            binding_id: "modeling-checkpoint-worker".to_string(),
-            surface: "roleAccept".to_string(),
-            role_id: "modeling".to_string(),
-            status: "accepted".to_string(),
-            accepted_at: "2026-06-13T00:00:00Z".to_string(),
-            accepted_observation_id: None,
-            accepted_evidence_id: Some("ev-modeling".to_string()),
-            summary: None,
-        });
-        let modeling = finding(
-            "result-modeling",
-            "job-modeling",
-            vec!["ev-modeling".to_string()],
-        );
-        let verification = finding(
-            "result-verification",
-            "job-verification",
-            vec![
-                "hands-patch-1".to_string(),
-                "hands-command-1".to_string(),
-                "hands-commit-1".to_string(),
-            ],
-        );
-
-        let signals = derive_coordinator_finding_signals(
-            Some(&state),
-            None,
-            Some(&modeling),
-            Some(&verification),
-            None,
-        );
-
-        assert!(signals.modeling_result_accepted);
-        assert!(signals.verification_result_cites_implementation_evidence);
-        assert!(signals.verification_result_covers_current_modeling);
-    }
-
-    #[test]
-    fn derives_reviewed_failed_verification_from_supersession_receipt() {
-        let mut state = EpiphanyThreadState::default();
-        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
-            id: "failure-review".to_string(),
-            result_id: "result-verification".to_string(),
-            job_id: "job-verification".to_string(),
-            binding_id: "verification-review-worker".to_string(),
-            surface: "roleFailureReview".to_string(),
-            role_id: "verification".to_string(),
-            status: "superseded".to_string(),
-            accepted_at: "2026-06-13T00:00:00Z".to_string(),
-            accepted_observation_id: None,
-            accepted_evidence_id: None,
-            summary: Some("Old failed Soul result reviewed before relaunch.".to_string()),
-        });
-        let verification = finding("result-verification", "job-verification", Vec::new());
-
-        let signals =
-            derive_coordinator_finding_signals(Some(&state), None, None, Some(&verification), None);
-
-        assert!(signals.verification_result_failure_reviewed);
-        assert!(!signals.verification_result_accepted);
-    }
-
-    #[test]
-    fn legacy_failed_research_cannot_relaunch_eyes() {
-        let mut state = EpiphanyThreadState::default();
-        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
-            id: "failure-review-research".to_string(),
-            result_id: "result-research".to_string(),
-            job_id: "job-research".to_string(),
-            binding_id: "research-source-gather-worker".to_string(),
-            surface: "roleFailureReview".to_string(),
-            role_id: "research".to_string(),
-            status: "superseded".to_string(),
-            accepted_at: "2026-07-16T00:00:00Z".to_string(),
-            accepted_observation_id: None,
-            accepted_evidence_id: None,
-            summary: Some("Malformed Eyes result reviewed.".to_string()),
-        });
-        let research = finding("result-research", "job-research", Vec::new());
-        let signals =
-            derive_coordinator_finding_signals(Some(&state), Some(&research), None, None, None);
-        assert!(signals.research_result_failure_reviewed);
-
-        let base = input();
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
-                ..base.signals
-            },
-            research_result_failure_reviewed: true,
-            ..base
-        });
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-    }
-
-    #[test]
-    fn routes_missing_checkpoint_to_modeling_owner() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            checkpoint_present: false,
-            recommendation: recommendation(EpiphanyCrrcAction::PrepareCheckpoint),
-            ..input()
-        });
-
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.can_auto_run);
-    }
-
-    #[test]
-    fn missing_state_still_requires_explicit_intake() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            state_status: EpiphanyCrrcStateStatus::Missing,
-            checkpoint_present: false,
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::PrepareCheckpoint
-        );
-        assert!(!decision.can_auto_run);
-    }
-
-    #[test]
-    fn compacts_at_pressure_threshold() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            should_prepare_compaction: true,
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::CompactRehydrateReorient
-        );
-        assert_eq!(
-            coordinator_automation_action(&decision),
-            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
-        );
-    }
-
-    #[test]
-    fn does_not_recompact_after_accepted_resume_reorient() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            should_prepare_compaction: true,
-            roles: Vec::new(),
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-            },
-            reorient_finding_accepted: true,
-            ..input()
-        });
-
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-    }
-
-    #[test]
-    fn launches_reorient_worker_from_crrc() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::LaunchReorientWorker),
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::LaunchReorientWorker
-        );
-        assert_eq!(
-            coordinator_automation_action(&decision),
-            EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
-        );
-    }
-
-    #[test]
-    fn reviews_reorient_result() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: EpiphanyCoordinatorCrrcRecommendation {
-                action: EpiphanyCrrcAction::AcceptReorientResult,
-                recommended_scene_action: Some(EpiphanyCoordinatorSceneAction::ReorientAccept),
+                action: EpiphanyCrrcAction::Continue,
+                recommended_scene_action: None,
             },
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::ReviewReorientResult
-        );
-        assert!(decision.requires_review);
-        assert_eq!(
-            coordinator_automation_action(&decision),
-            EpiphanyCoordinatorAutomationAction::None
-        );
+            current_work: current_work(),
+        }
     }
 
     #[test]
-    fn exact_work_preempts_but_cannot_be_invented_by_manual_regather() {
-        let launch_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            reorient_finding_accepted: true,
-            ..input()
-        });
+    fn absent_work_waits_instead_of_manufacturing_modeling() {
         assert_eq!(
-            launch_modeling.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-
-        let review_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_reviewable: true,
-            reorient_finding_accepted: true,
-            ..input()
-        });
-        assert_eq!(
-            review_modeling.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-
-        let blocked_regather = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            roles: vec![role(
-                EpiphanyCoordinatorRoleId::Implementation,
-                EpiphanyCoordinatorRoleStatus::Blocked,
-            )],
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-            },
-            modeling_result_accepted: true,
-            modeling_result_accepted_after_verification: true,
-            verification_result_accepted: true,
-            verification_result_needs_evidence: true,
-            reorient_finding_accepted: true,
-            ..input()
-        });
-        assert_eq!(
-            blocked_regather.action,
-            EpiphanyCoordinatorAction::RegatherManually
-        );
-    }
-
-    #[test]
-    fn accepted_eyes_alone_cannot_manufacture_modeling_work() {
-        let base = EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            roles: vec![role(
-                EpiphanyCoordinatorRoleId::Implementation,
-                EpiphanyCoordinatorRoleStatus::Blocked,
-            )],
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            research_result_accepted: true,
-            modeling_result_accepted: true,
-            reorient_finding_accepted: true,
-            ..input()
-        };
-        let without_obligation = recommend_coordinator_action(base.clone());
-        assert_eq!(
-            without_obligation.action,
-            EpiphanyCoordinatorAction::RegatherManually
-        );
-
-        let exact_modeling_work = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            frontier_verdict_modeling_action: Some(EpiphanyAgentPassContinuationAction::Launch),
-            verification_action: None,
-            ..base.clone()
-        });
-        assert_eq!(
-            exact_modeling_work.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-        assert_eq!(
-            exact_modeling_work.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-
-        let current_hands_route = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            hands_frontier_ready: true,
-            ..base.clone()
-        });
-        assert_eq!(
-            current_hands_route.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
-    }
-
-    #[test]
-    fn hands_consequence_routes_to_soul_without_eyes_authority() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            roles: vec![role(
-                EpiphanyCoordinatorRoleId::Implementation,
-                EpiphanyCoordinatorRoleStatus::Blocked,
-            )],
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_failure_reviewed: true,
-            implementation_evidence_after_verification: true,
-            reorient_finding_accepted: true,
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::LaunchVerification
-        );
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Verification)
-        );
-        assert!(decision.reason.contains("Hands consequence"));
-    }
-
-    #[test]
-    fn modeling_regather_hint_cannot_create_eyes_work() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_requests_regather: true,
-            modeling_result_reviewable: false,
-            ..input()
-        });
-
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.reason.contains("no acceptable RepoModel proposal"));
-    }
-
-    #[test]
-    fn routes_hands_to_soul_to_modeling_before_next_hands_turn() {
-        let launch_modeling = recommend_coordinator_action(input());
-        assert_eq!(
-            launch_modeling.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-        assert_eq!(
-            coordinator_automation_action(&launch_modeling),
-            EpiphanyCoordinatorAutomationAction::None
-        );
-
-        let review_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_reviewable: true,
-            ..input()
-        });
-        assert_eq!(
-            review_modeling.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert!(review_modeling.requires_review);
-
-        let wait_for_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Running,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-            },
-            ..input()
-        });
-        assert_eq!(
-            wait_for_modeling.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert!(wait_for_modeling.reason.contains("stale verification"));
-
-        let review_failed_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            ..input()
-        });
-        assert_eq!(
-            review_failed_modeling.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert!(!review_failed_modeling.can_auto_run);
-
-        let review_unreviewable_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            ..input()
-        });
-        assert_eq!(
-            review_unreviewable_modeling.action,
-            EpiphanyCoordinatorAction::ReviewModelingResult
-        );
-        assert!(!review_unreviewable_modeling.can_auto_run);
-
-        let relaunch_superseded_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            },
-            modeling_result_failure_reviewed: true,
-            modeling_result_reviewable: true,
-            ..input()
-        });
-        assert_eq!(
-            relaunch_superseded_modeling.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-        assert!(relaunch_superseded_modeling.can_auto_run);
-        assert!(
-            relaunch_superseded_modeling
-                .reason
-                .contains("rejected by admission")
-        );
-
-        let await_fresh_proposal_after_rejected_selection =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: EpiphanyCoordinatorSignals {
-                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                },
-                modeling_result_failure_reviewed: true,
-                modeling_result_reviewable: true,
-                modeling_result_proposal_bound: true,
-                ..input()
-            });
-        assert_eq!(
-            await_fresh_proposal_after_rejected_selection.action,
+            recommend_coordinator_action(input()).action,
             EpiphanyCoordinatorAction::AwaitFrontierProposal
         );
-        assert!(!await_fresh_proposal_after_rejected_selection.can_auto_run);
-        assert!(
-            await_fresh_proposal_after_rejected_selection
-                .reason
-                .contains("selection request is consumed")
-        );
+    }
 
-        let current_hands_route_survives_rejected_stale_proposal =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: EpiphanyCoordinatorSignals {
-                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                },
-                modeling_result_failure_reviewed: true,
-                modeling_result_reviewable: true,
-                modeling_result_proposal_bound: true,
-                hands_frontier_ready: true,
-                ..input()
-            });
+    #[test]
+    fn exact_body_obligation_routes_modeling() {
+        let mut input = input();
+        input.current_work.body_modeling_action =
+            Some(EpiphanyAgentPassContinuationAction::Launch);
         assert_eq!(
-            current_hands_route_survives_rejected_stale_proposal.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
-
-        let await_proposal_without_hands_frontier =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: EpiphanyCoordinatorSignals {
-                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                },
-                modeling_result_accepted: true,
-                modeling_result_reviewable: true,
-                ..input()
-            });
-        assert_eq!(
-            await_proposal_without_hands_frontier.action,
-            EpiphanyCoordinatorAction::AwaitFrontierProposal
-        );
-
-        let review_failed_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
-            },
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            ..input()
-        });
-        assert_eq!(
-            review_failed_verification.action,
-            EpiphanyCoordinatorAction::ReviewVerificationResult
-        );
-        assert!(!review_failed_verification.can_auto_run);
-
-        let superseded_failed_verification =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: EpiphanyCoordinatorSignals {
-                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
-                },
-                modeling_result_accepted: true,
-                modeling_result_reviewable: true,
-                verification_result_failure_reviewed: true,
-                ..input()
-            });
-        assert_eq!(
-            superseded_failed_verification.action,
-            EpiphanyCoordinatorAction::LaunchVerification
-        );
-        assert!(superseded_failed_verification.can_auto_run);
-
-        let verification_done = EpiphanyCoordinatorSignals {
-            research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-            modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-            verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-        };
-
-        let stale_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            verification_result_covers_current_modeling: false,
-            ..input()
-        });
-        assert_eq!(
-            stale_verification.action,
-            EpiphanyCoordinatorAction::LaunchVerification
-        );
-
-        let implementation_covered_verification =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: verification_done,
-                modeling_result_accepted: true,
-                modeling_result_reviewable: true,
-                verification_result_covers_current_modeling: true,
-                verification_result_cites_implementation_evidence: true,
-                ..input()
-            });
-        assert_eq!(
-            implementation_covered_verification.action,
-            EpiphanyCoordinatorAction::ReviewVerificationResult
-        );
-
-        let review_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            ..input()
-        });
-        assert_eq!(
-            review_verification.action,
-            EpiphanyCoordinatorAction::ReviewVerificationResult
-        );
-
-        let accepted_non_pass = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            verification_result_accepted: true,
-            ..input()
-        });
-        assert_eq!(
-            accepted_non_pass.action,
+            recommend_coordinator_action(input).action,
             EpiphanyCoordinatorAction::LaunchModeling
         );
-
-        let needs_evidence = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            verification_result_accepted: true,
-            verification_result_needs_evidence: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            needs_evidence.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
-
-        let rejected_current_model = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            verification_result_accepted: true,
-            verification_result_cites_implementation_evidence: true,
-            verification_result_covers_current_modeling: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            rejected_current_model.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-
-        let implementation_after_verification =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: verification_done,
-                modeling_result_accepted: true,
-                modeling_result_reviewable: true,
-                implementation_evidence_after_verification: true,
-                verification_result_accepted: true,
-                verification_result_needs_evidence: true,
-                ..input()
-            });
-        assert_eq!(
-            implementation_after_verification.action,
-            EpiphanyCoordinatorAction::LaunchVerification
-        );
-
-        let accepted_pass = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            verification_result_accepted: true,
-            verification_result_allows_implementation: true,
-            ..input()
-        });
-        assert_eq!(
-            accepted_pass.action,
-            EpiphanyCoordinatorAction::LaunchModeling
-        );
-
-        let modeled_after_pass = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: verification_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            modeling_result_accepted_after_verification: true,
-            verification_result_accepted: true,
-            verification_result_allows_implementation: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            modeled_after_pass.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
     }
 
     #[test]
-    fn clear_crrc_refuses_hands_without_an_actionable_frontier() {
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            roles: Vec::new(),
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-            },
-            ..input()
-        });
-
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-        assert_ne!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Implementation)
-        );
-        assert!(decision.reason.contains("admitted current RepoModel"));
-    }
-
-    #[test]
-    fn pending_soul_preempts_regather_hands_frontier() {
-        let mut roles = base_roles();
-        roles
-            .iter_mut()
-            .find(|role| role.id == EpiphanyCoordinatorRoleId::Implementation)
-            .expect("implementation lane")
-            .status = EpiphanyCoordinatorRoleStatus::Blocked;
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            roles,
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Pending,
-            },
-            research_result_accepted: true,
-            modeling_result_reviewable: true,
-            modeling_result_failure_reviewed: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-
+    fn exact_eyes_obligation_routes_research() {
+        let mut input = input();
+        input.current_work.research_continuation_action =
+            Some(RepoFrontierResearchContinuationAction::LaunchResearch);
         assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::ReviewVerificationResult
-        );
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Verification)
-        );
-        assert!(!decision.can_auto_run);
-    }
-
-    #[test]
-    fn accepted_soul_preempts_regather_hands_frontier() {
-        let mut roles = base_roles();
-        roles
-            .iter_mut()
-            .find(|role| role.id == EpiphanyCoordinatorRoleId::Implementation)
-            .expect("implementation lane")
-            .status = EpiphanyCoordinatorRoleStatus::Blocked;
-        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
-            roles,
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-            },
-            research_result_accepted: true,
-            modeling_result_reviewable: true,
-            modeling_result_failure_reviewed: true,
-            verification_result_accepted: true,
-            verification_result_allows_implementation: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-
-        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
-        assert_eq!(
-            decision.target_role,
-            Some(EpiphanyCoordinatorRoleId::Modeling)
-        );
-        assert!(decision.can_auto_run);
-    }
-
-    #[test]
-    fn accepted_model_routes_to_hands_before_post_consequence_soul() {
-        let modeling_done = EpiphanyCoordinatorSignals {
-            research_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-            modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-            verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-        };
-        let ready = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: modeling_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            ready.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
-
-        let stale_rejected_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: modeling_done,
-            modeling_result_accepted: false,
-            modeling_result_reviewable: true,
-            modeling_result_failure_reviewed: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            stale_rejected_modeling.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
-
-        let no_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: modeling_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            hands_frontier_ready: false,
-            ..input()
-        });
-        assert_eq!(
-            no_frontier.action,
-            EpiphanyCoordinatorAction::AwaitFrontierProposal
-        );
-        assert!(!no_frontier.can_auto_run);
-        assert!(no_frontier.reason.contains("proposal selection"));
-
-        let eyes_frontier = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: EpiphanyCoordinatorSignals {
-                research_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                ..modeling_done
-            },
-            research_result_accepted: false,
-            research_result_reviewable: true,
-            research_result_failure_reviewed: true,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            hands_frontier_ready: false,
-            research_continuation_action: Some(
-                RepoFrontierResearchContinuationAction::LaunchResearch,
-            ),
-            ..input()
-        });
-        assert_eq!(
-            eyes_frontier.action,
+            recommend_coordinator_action(input).action,
             EpiphanyCoordinatorAction::LaunchResearch
         );
-        assert_eq!(
-            eyes_frontier.target_role,
-            Some(EpiphanyCoordinatorRoleId::Research)
-        );
-        assert!(eyes_frontier.can_auto_run);
-        assert!(eyes_frontier.reason.contains("Research lifecycle"));
-
-        let consequences_exist = recommend_coordinator_action(EpiphanyCoordinatorInput {
-            signals: modeling_done,
-            modeling_result_accepted: true,
-            modeling_result_reviewable: true,
-            implementation_evidence_after_verification: true,
-            hands_frontier_ready: true,
-            ..input()
-        });
-        assert_eq!(
-            consequences_exist.action,
-            EpiphanyCoordinatorAction::LaunchVerification
-        );
     }
 
     #[test]
-    fn forced_checkpoint_compaction_overrides_decision() {
-        let decision = EpiphanyCoordinatorDecision {
-            action: EpiphanyCoordinatorAction::ContinueImplementation,
-            target_role: Some(EpiphanyCoordinatorRoleId::Implementation),
-            recommended_scene_action: None,
-            requires_review: false,
-            can_auto_run: false,
-            reason: "ordinary coordinator would continue".to_string(),
-        };
-
-        assert_eq!(
-            coordinator_automation_action(&decision),
-            EpiphanyCoordinatorAutomationAction::None
-        );
-        assert_eq!(
-            select_coordinator_automation_action(&decision, true),
-            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
-        );
+    fn source_has_no_aggregate_or_latest_lane_routing() {
+        let source = include_str!("coordinator.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        for forbidden in [
+            "EpiphanyThreadState",
+            "accepted_after",
+            "latest_result",
+            "finding_signals",
+            "state_revision",
+        ] {
+            assert!(!production.contains(forbidden));
+        }
     }
 }

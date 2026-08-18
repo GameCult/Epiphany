@@ -4982,10 +4982,12 @@ pub fn put_runtime_role_worker_result(
         let bindings = cache
             .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
             .into_iter()
-            .filter(|binding| binding.request_id == request_id)
+            .filter(|binding| binding.request_id == request_id && binding.job_id == result.job_id)
             .collect::<Vec<_>>();
         if bindings.len() != 1 {
-            return Err(anyhow!("consideration result requires one launch binding"));
+            return Err(anyhow!(
+                "consideration result requires one exact attempt binding"
+            ));
         }
         let binding = &bindings[0];
         let worker = cache

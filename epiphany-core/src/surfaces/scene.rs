@@ -1,6 +1,6 @@
 use epiphany_state_model::EpiphanyInvestigationDisposition;
 use epiphany_state_model::EpiphanyRetrievalStatus;
-use epiphany_state_model::EpiphanyThreadState;
+use epiphany_state_model::{EpiphanyMemoryProfile, RepoFrontierStatus};
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -34,11 +34,6 @@ pub enum EpiphanySceneAction {
     Jobs,
     Roles,
     Coordinator,
-    RoleLaunch,
-    RoleResult,
-    RoleAccept,
-    JobLaunch,
-    JobInterrupt,
     Freshness,
     Pressure,
     Reorient,
@@ -46,9 +41,6 @@ pub enum EpiphanySceneAction {
     ReorientLaunch,
     ReorientResult,
     ReorientAccept,
-    Propose,
-    Promote,
-    Update,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,7 +136,7 @@ pub struct EpiphanySceneChurn {
 pub struct EpiphanyScene {
     pub state_status: EpiphanySceneStateStatus,
     pub source: EpiphanySceneSource,
-    pub revision: Option<u64>,
+    pub projection_digest: Option<String>,
     pub objective: Option<String>,
     pub active_subgoal: Option<EpiphanySceneSubgoal>,
     pub subgoals: Vec<EpiphanySceneSubgoal>,
@@ -160,9 +152,9 @@ pub struct EpiphanyScene {
 
 #[derive(Debug, Clone, Copy)]
 pub struct EpiphanySceneInput<'a> {
-    pub state: Option<&'a EpiphanyThreadState>,
+    pub mind: Option<&'a crate::EpiphanyMindView>,
     pub loaded: bool,
-    pub reorient_binding_id: &'a str,
+    pub reorientation_work_present: bool,
 }
 
 pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
@@ -171,25 +163,19 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
     } else {
         EpiphanySceneSource::Stored
     };
-    let state = input.state;
+    let mind = input.mind;
     let available_actions = scene_available_actions(
         input.loaded,
-        state.is_some(),
-        state
-            .and_then(|state| state.investigation_checkpoint.as_ref())
+        mind.is_some(),
+        mind.and_then(|mind| mind.investigation_checkpoint.as_ref())
             .is_some(),
-        state.is_some_and(|state| {
-            state
-                .job_bindings
-                .iter()
-                .any(|binding| binding.id == input.reorient_binding_id)
-        }),
+        input.reorientation_work_present,
     );
-    let Some(state) = state else {
+    let Some(mind) = mind else {
         return EpiphanyScene {
             state_status: EpiphanySceneStateStatus::Missing,
             source,
-            revision: None,
+            projection_digest: None,
             objective: None,
             active_subgoal: None,
             subgoals: Vec::new(),
@@ -204,34 +190,22 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
         };
     };
 
-    let subgoals = scene_subgoals(state);
+    let subgoals = scene_subgoals(mind);
     let active_subgoal = subgoals.iter().find(|subgoal| subgoal.active).cloned();
 
     EpiphanyScene {
         state_status: EpiphanySceneStateStatus::Ready,
         source,
-        revision: Some(state.revision),
-        objective: state.objective.clone(),
+        projection_digest: Some(mind.projection_digest.clone()),
+        objective: mind.objective.clone(),
         active_subgoal,
         subgoals,
         invariant_status_counts: status_counts(
-            state.invariants.iter().map(|item| item.status.as_str()),
+            mind.invariants.iter().map(|item| item.status.as_str()),
         ),
-        graph: scene_graph(state),
-        retrieval: state
-            .retrieval
-            .as_ref()
-            .map(|retrieval| EpiphanySceneRetrieval {
-                workspace_root: retrieval.workspace_root.clone(),
-                status: retrieval.status,
-                semantic_available: retrieval.semantic_available,
-                index_revision: retrieval.index_revision.clone(),
-                indexed_file_count: retrieval.indexed_file_count,
-                indexed_chunk_count: retrieval.indexed_chunk_count,
-                shard_count: retrieval.shards.len() as u32,
-                dirty_path_count: retrieval.dirty_paths.len() as u32,
-            }),
-        investigation_checkpoint: state.investigation_checkpoint.as_ref().map(|checkpoint| {
+        graph: scene_graph(mind),
+        retrieval: None,
+        investigation_checkpoint: mind.investigation_checkpoint.as_ref().map(|checkpoint| {
             EpiphanySceneInvestigationCheckpoint {
                 checkpoint_id: checkpoint.checkpoint_id.clone(),
                 kind: checkpoint.kind.clone(),
@@ -246,8 +220,8 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
             }
         }),
         observations: EpiphanySceneRecords {
-            total_count: state.observations.len() as u32,
-            latest: state
+            total_count: mind.observations.len() as u32,
+            latest: mind
                 .observations
                 .iter()
                 .take(EPIPHANY_SCENE_RECORD_LIMIT)
@@ -261,9 +235,9 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
                 .collect(),
         },
         evidence: EpiphanySceneRecords {
-            total_count: state.recent_evidence.len() as u32,
-            latest: state
-                .recent_evidence
+            total_count: mind.evidence.len() as u32,
+            latest: mind
+                .evidence
                 .iter()
                 .take(EPIPHANY_SCENE_RECORD_LIMIT)
                 .map(|evidence| EpiphanySceneRecord {
@@ -275,12 +249,7 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
                 })
                 .collect(),
         },
-        churn: state.churn.as_ref().map(|churn| EpiphanySceneChurn {
-            understanding_status: churn.understanding_status.clone(),
-            diff_pressure: churn.diff_pressure.clone(),
-            warning: churn.warning.clone(),
-            unexplained_writes: churn.unexplained_writes,
-        }),
+        churn: None,
         available_actions,
     }
 }
@@ -305,10 +274,6 @@ fn scene_available_actions(
         EpiphanySceneAction::Jobs,
         EpiphanySceneAction::Roles,
         EpiphanySceneAction::Coordinator,
-        EpiphanySceneAction::RoleLaunch,
-        EpiphanySceneAction::RoleResult,
-        EpiphanySceneAction::RoleAccept,
-        EpiphanySceneAction::JobLaunch,
         EpiphanySceneAction::Freshness,
         EpiphanySceneAction::Pressure,
         EpiphanySceneAction::Reorient,
@@ -321,19 +286,13 @@ fn scene_available_actions(
         actions.push(EpiphanySceneAction::ReorientResult);
         actions.push(EpiphanySceneAction::ReorientAccept);
     }
-    actions.push(EpiphanySceneAction::Update);
-    if state_present {
-        actions.push(EpiphanySceneAction::JobInterrupt);
-        actions.push(EpiphanySceneAction::Propose);
-        actions.push(EpiphanySceneAction::Promote);
-    }
+    let _ = state_present;
     actions
 }
 
-fn scene_subgoals(state: &EpiphanyThreadState) -> Vec<EpiphanySceneSubgoal> {
-    let active_id = state.active_subgoal_id.as_deref();
-    state
-        .subgoals
+fn scene_subgoals(mind: &crate::EpiphanyMindView) -> Vec<EpiphanySceneSubgoal> {
+    let active_id = mind.active_subgoal_id.as_deref();
+    mind.subgoals
         .iter()
         .map(|subgoal| EpiphanySceneSubgoal {
             id: subgoal.id.clone(),
@@ -345,32 +304,63 @@ fn scene_subgoals(state: &EpiphanyThreadState) -> Vec<EpiphanySceneSubgoal> {
         .collect()
 }
 
-fn scene_graph(state: &EpiphanyThreadState) -> EpiphanySceneGraph {
-    let frontier = state.graph_frontier.as_ref();
-    let checkpoint = state.graph_checkpoint.as_ref();
+fn scene_graph(mind: &crate::EpiphanyMindView) -> EpiphanySceneGraph {
+    let Some(model) = mind.repo_model.as_ref() else {
+        return EpiphanySceneGraph::default();
+    };
+    let active = model
+        .frontier
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.status,
+                RepoFrontierStatus::Proposed
+                    | RepoFrontierStatus::Active
+                    | RepoFrontierStatus::Blocked
+            )
+        })
+        .collect::<Vec<_>>();
     EpiphanySceneGraph {
-        architecture_node_count: state.graphs.architecture.nodes.len() as u32,
-        architecture_edge_count: state.graphs.architecture.edges.len() as u32,
-        dataflow_node_count: state.graphs.dataflow.nodes.len() as u32,
-        dataflow_edge_count: state.graphs.dataflow.edges.len() as u32,
-        link_count: state.graphs.links.len() as u32,
-        active_node_ids: frontier
-            .map(|frontier| frontier.active_node_ids.clone())
-            .unwrap_or_default(),
-        active_edge_ids: frontier
-            .map(|frontier| frontier.active_edge_ids.clone())
-            .unwrap_or_default(),
-        open_question_count: frontier
-            .map(|frontier| frontier.open_question_ids.len() as u32)
-            .unwrap_or_default(),
-        open_gap_count: frontier
-            .map(|frontier| frontier.open_gap_ids.len() as u32)
-            .unwrap_or_default(),
-        dirty_paths: frontier
-            .map(|frontier| frontier.dirty_paths.clone())
-            .unwrap_or_default(),
-        checkpoint_id: checkpoint.map(|checkpoint| checkpoint.checkpoint_id.clone()),
-        checkpoint_summary: checkpoint.and_then(|checkpoint| checkpoint.summary.clone()),
+        architecture_node_count: model
+            .nodes
+            .iter()
+            .filter(|node| node.profile == EpiphanyMemoryProfile::RepoArchitecture)
+            .count() as u32,
+        architecture_edge_count: model
+            .edges
+            .iter()
+            .filter(|edge| edge.profile == EpiphanyMemoryProfile::RepoArchitecture)
+            .count() as u32,
+        dataflow_node_count: model
+            .nodes
+            .iter()
+            .filter(|node| node.profile == EpiphanyMemoryProfile::RepoDataflow)
+            .count() as u32,
+        dataflow_edge_count: model
+            .edges
+            .iter()
+            .filter(|edge| edge.profile == EpiphanyMemoryProfile::RepoDataflow)
+            .count() as u32,
+        link_count: model.edges.len() as u32,
+        active_node_ids: active
+            .iter()
+            .flat_map(|item| item.target_claim_ids.iter().cloned())
+            .collect(),
+        active_edge_ids: Vec::new(),
+        open_question_count: active.len() as u32,
+        open_gap_count: active
+            .iter()
+            .filter(|item| item.status == RepoFrontierStatus::Blocked)
+            .count() as u32,
+        dirty_paths: Vec::new(),
+        checkpoint_id: mind
+            .investigation_checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.checkpoint_id.clone()),
+        checkpoint_summary: mind
+            .investigation_checkpoint
+            .as_ref()
+            .and_then(|checkpoint| checkpoint.summary.clone()),
     }
 }
 
@@ -389,16 +379,15 @@ fn status_counts<'a>(statuses: impl Iterator<Item = &'a str>) -> Vec<EpiphanySce
 mod tests {
     use super::*;
     use epiphany_state_model::EpiphanyInvariant;
-    use epiphany_state_model::EpiphanyJobBinding;
-    use epiphany_state_model::EpiphanyJobKind;
+    use epiphany_state_model::EpiphanyPlanningState;
     use epiphany_state_model::EpiphanySubgoal;
 
     #[test]
     fn missing_stored_scene_has_no_actions() {
         let scene = derive_scene(EpiphanySceneInput {
-            state: None,
+            mind: None,
             loaded: false,
-            reorient_binding_id: "reorient-worker",
+            reorientation_work_present: false,
         });
 
         assert_eq!(scene.state_status, EpiphanySceneStateStatus::Missing);
@@ -408,8 +397,11 @@ mod tests {
 
     #[test]
     fn live_scene_projects_state_and_actions() {
-        let state = EpiphanyThreadState {
-            revision: 4,
+        let mind = crate::EpiphanyMindView {
+            schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+            runtime_id: "runtime-1".into(),
+            projection_digest: "sha256:mind-4".into(),
+            source_documents: Vec::new(),
             objective: Some("purify".to_string()),
             active_subgoal_id: Some("subgoal-1".to_string()),
             subgoals: vec![EpiphanySubgoal {
@@ -432,27 +424,26 @@ mod tests {
                     rationale: None,
                 },
             ],
-            job_bindings: vec![EpiphanyJobBinding {
-                id: "reorient-worker".to_string(),
-                kind: EpiphanyJobKind::Specialist,
-                scope: "reorient".to_string(),
-                owner_role: "life".to_string(),
-                authority_scope: None,
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-                blocking_reason: None,
-            }],
-            ..Default::default()
+            observations: Vec::new(),
+            evidence: Vec::new(),
+            verification_audits: Vec::new(),
+            reorientation_decisions: Vec::new(),
+            reorientation_failures: Vec::new(),
+            investigation_checkpoint: None,
+            mode: None,
+            planning: EpiphanyPlanningState::default(),
+            repository_body_observation: None,
+            repo_model: None,
         };
 
         let scene = derive_scene(EpiphanySceneInput {
-            state: Some(&state),
+            mind: Some(&mind),
             loaded: true,
-            reorient_binding_id: "reorient-worker",
+            reorientation_work_present: true,
         });
 
         assert_eq!(scene.state_status, EpiphanySceneStateStatus::Ready);
-        assert_eq!(scene.revision, Some(4));
+        assert_eq!(scene.projection_digest.as_deref(), Some("sha256:mind-4"));
         assert_eq!(
             scene.active_subgoal.as_ref().map(|item| item.active),
             Some(true)
@@ -462,11 +453,6 @@ mod tests {
             scene
                 .available_actions
                 .contains(&EpiphanySceneAction::ReorientResult)
-        );
-        assert!(
-            scene
-                .available_actions
-                .contains(&EpiphanySceneAction::Promote)
         );
     }
 }

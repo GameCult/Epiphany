@@ -1,5 +1,4 @@
 use epiphany_state_model::EpiphanyPlanningState;
-use epiphany_state_model::EpiphanyThreadState;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -29,16 +28,16 @@ pub struct EpiphanyPlanningSummary {
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyPlanningView {
     pub state_status: EpiphanyPlanningStateStatus,
-    pub state_revision: Option<u64>,
+    pub projection_digest: Option<String>,
     pub planning: EpiphanyPlanningState,
     pub summary: EpiphanyPlanningSummary,
 }
 
-pub fn derive_planning_view(state: Option<&EpiphanyThreadState>) -> EpiphanyPlanningView {
-    let Some(state) = state else {
+pub fn derive_planning_view(mind: Option<&crate::EpiphanyMindView>) -> EpiphanyPlanningView {
+    let Some(mind) = mind else {
         return EpiphanyPlanningView {
             state_status: EpiphanyPlanningStateStatus::Missing,
-            state_revision: None,
+            projection_digest: None,
             planning: EpiphanyPlanningState::default(),
             summary: EpiphanyPlanningSummary {
                 capture_count: 0,
@@ -55,7 +54,7 @@ pub fn derive_planning_view(state: Option<&EpiphanyThreadState>) -> EpiphanyPlan
         };
     };
 
-    let planning = state.planning.clone();
+    let planning = mind.planning.clone();
     let pending_capture_count = planning
         .captures
         .iter()
@@ -85,7 +84,7 @@ pub fn derive_planning_view(state: Option<&EpiphanyThreadState>) -> EpiphanyPlan
 
     EpiphanyPlanningView {
         state_status: EpiphanyPlanningStateStatus::Ready,
-        state_revision: Some(state.revision),
+        projection_digest: Some(mind.projection_digest.clone()),
         planning: planning.clone(),
         summary: EpiphanyPlanningSummary {
             capture_count: planning.captures.len() as u32,
@@ -96,7 +95,7 @@ pub fn derive_planning_view(state: Option<&EpiphanyThreadState>) -> EpiphanyPlan
             roadmap_stream_count: planning.roadmap_streams.len() as u32,
             objective_draft_count: planning.objective_drafts.len() as u32,
             draft_objective_count,
-            active_objective: state.objective.clone(),
+            active_objective: mind.objective.clone(),
             note,
         },
     }
@@ -113,16 +112,29 @@ mod tests {
         let view = derive_planning_view(None);
 
         assert_eq!(view.state_status, EpiphanyPlanningStateStatus::Missing);
-        assert_eq!(view.state_revision, None);
+        assert_eq!(view.projection_digest, None);
         assert_eq!(view.summary.capture_count, 0);
         assert!(view.planning.is_empty());
     }
 
     #[test]
     fn summarizes_planning_counts_without_adopting_objective() {
-        let state = EpiphanyThreadState {
-            revision: 3,
+        let mind = crate::EpiphanyMindView {
+            schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+            runtime_id: "runtime-1".into(),
+            projection_digest: "sha256:mind-3".into(),
+            source_documents: Vec::new(),
             objective: Some("active objective".to_string()),
+            active_subgoal_id: None,
+            subgoals: Vec::new(),
+            invariants: Vec::new(),
+            observations: Vec::new(),
+            evidence: Vec::new(),
+            verification_audits: Vec::new(),
+            reorientation_decisions: Vec::new(),
+            reorientation_failures: Vec::new(),
+            investigation_checkpoint: None,
+            mode: None,
             planning: EpiphanyPlanningState {
                 captures: vec![
                     EpiphanyPlanningCapture {
@@ -151,13 +163,14 @@ mod tests {
                 ],
                 ..Default::default()
             },
-            ..Default::default()
+            repository_body_observation: None,
+            repo_model: None,
         };
 
-        let view = derive_planning_view(Some(&state));
+        let view = derive_planning_view(Some(&mind));
 
         assert_eq!(view.state_status, EpiphanyPlanningStateStatus::Ready);
-        assert_eq!(view.state_revision, Some(3));
+        assert_eq!(view.projection_digest.as_deref(), Some("sha256:mind-3"));
         assert_eq!(view.summary.capture_count, 2);
         assert_eq!(view.summary.pending_capture_count, 1);
         assert_eq!(view.summary.github_issue_capture_count, 1);
