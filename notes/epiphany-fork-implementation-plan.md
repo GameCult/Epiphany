@@ -285,11 +285,14 @@ Cut in this order:
    adoption CultNet mouths, and stale launch receipt profiles are gone.
    CultMesh and runtime schema catalogues expose only reasoning basis, decision
    context, and exact Mind commit receipt as read-only audit projections.
-14. Replace the residual aggregate-shaped `EpiphanyRoleStatePatchDocument`
-   with narrow Research evidence/observation and Imagination planning payloads,
-   then delete its generic parser/policy surface. Seal one exact context before
-   model-backed typed failure and generic job terminalization, and complete the
-   store-backed governed-tool substitution matrix.
+14. **Model-backed Planning failure repaired at `1c9aafd8`:** the runtime seals
+   one exact terminal decision context before writing a typed frontier-Planning
+   failure, and the typed failure plus generic job result cite that same
+   context. Transport-only failure remains physiological. Next, replace the
+   residual aggregate-shaped `EpiphanyRoleStatePatchDocument` with narrow
+   Research evidence/observation and Imagination planning payloads, delete its
+   generic parser/policy surface, and complete the store-backed governed-tool
+   substitution matrix.
 15. Refuse old writable-store epochs and replay fresh-store disjoint
    concurrency, same-identity conflict, transcript deletion, restart, and
    re-entry. Only then restart Model Atlas Gate 1 from a new external root.

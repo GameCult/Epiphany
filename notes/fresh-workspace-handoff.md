@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `f7948795`
+Latest implementation cut: `1c9aafd8`
 
 ## Orientation
 
@@ -34,6 +34,10 @@ The global thread-state authority is gone.
   and launch proof profiles that required phantom gateway receipts. CultMesh
   now projects only the sealed reasoning basis, decision context, and exact
   `EpiphanyMindCommitReceipt`, all read-only.
+- `1c9aafd8` seals the exact terminal decision context before a model-backed
+  frontier-Planning failure is written. The typed faculty failure and generic
+  runtime job now cite the same context; transport-only failure remains
+  physiological and cannot impersonate a Mind decision.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -107,13 +111,6 @@ Imagination lane uses it to carry planning drafts, even though concrete current
 work families otherwise use typed result cargo. These live payloads need narrow
 family contracts before the generic patch can be deleted.
 
-One model-backed failure seam is also live: frontier Planning constructs a
-typed failure with an empty decision-context ID before the terminal request is
-sealed, so runtime admission correctly refuses it. Failure must seal one exact
-context first and bind the typed failure and generic job result to that same
-context. Unbacked transport/process failure may remain physiological and
-non-Mind-admissible.
-
 Context validation must become exact and DRY:
 
 - provider request must equal internal lowering of the native request;
@@ -134,17 +131,15 @@ transcript may be required for that query after archival.
 1. Replace the two live uses of `EpiphanyRoleStatePatchDocument` with narrow
    Research evidence/observation and Imagination planning-decision payloads;
    then delete the generic patch schema, parser, and policy tribunal.
-2. Seal one exact decision context before a model-backed failure terminalizes;
-   bind the typed family failure and generic job result to that same context.
-3. Expand the store-backed request/tool substitution matrix and prove context
+2. Expand the store-backed request/tool substitution matrix and prove context
    audit survives deletion of streams, assistant deltas, and scaffolding.
-4. Bump the writable schema epoch and refuse old stores. Historical releases
+3. Bump the writable schema epoch and refuse old stores. Historical releases
    remain readers for historical proof stores; no migrator or dual path.
-5. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
+4. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
    unrelated Modeling-node writes; distinct graph writes; same-identity
    conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
    and source guards for deleted aggregate/global revision paths.
-6. Only then package a fresh body and resume Model Atlas Gate 1 from a new
+5. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
 ## Operational state that matters

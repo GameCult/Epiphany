@@ -105,9 +105,10 @@ deletes `MindGatewayReview`, `MindStateCommitReceipt` v0, the generic Mind
 interpreter prompt, and their false CultNet mutation mouths. The remaining
 aggregate-shaped output is `EpiphanyRoleStatePatchDocument`, used by Research
 for evidence/observations and the old generic Imagination lane for planning
-drafts. Model-backed frontier-Planning failure also needs to seal and share its
-exact decision context before typed terminalization. Governed tool-observation
-coverage still needs the full store-backed refusal matrix.
+drafts. Exact `1c9aafd8` seals one decision context before model-backed
+frontier-Planning failure terminalization and binds both the typed faculty
+failure and generic job result to it. Governed tool-observation coverage still
+needs the full store-backed refusal matrix.
 
 ## Concurrent Mind mutation
 
@@ -223,7 +224,7 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted through `f7948795`:
+Accepted through `1c9aafd8`:
 
 - every Epiphany core target compiles;
 - core library `486/486`;
@@ -235,15 +236,13 @@ Open before Model Atlas Gate 1 resumes:
 
 1. replace live Research and Imagination uses of the generic state patch with
    narrow family payloads, then delete it;
-2. bind model-backed typed failures and their generic job result to one sealed
-   decision context;
-3. prove exact request/tool/receipt coverage with byte-identical refusals and
+2. prove exact request/tool/receipt coverage with byte-identical refusals and
    transcript deletion;
-4. bump/refuse old writable-store epoch with no migrator;
-5. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
+3. bump/refuse old writable-store epoch with no migrator;
+4. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
    refuse, transcripts can be deleted, restart reproduces obligations, and no
    legacy authority resurrects;
-6. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
+5. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a
