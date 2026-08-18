@@ -296,6 +296,10 @@ fn responses_text_format(
 fn responses_schema_is_strict(schema: &serde_json::Value) -> bool {
     match schema {
         serde_json::Value::Object(map) => {
+            if (map.contains_key("const") || map.contains_key("enum")) && !map.contains_key("type")
+            {
+                return false;
+            }
             if schema_map_describes_object(map) {
                 if map.get("additionalProperties") != Some(&serde_json::Value::Bool(false)) {
                     return false;
@@ -425,7 +429,7 @@ fn schema_map_describes_object(map: &serde_json::Map<String, serde_json::Value>)
         .any(|keyword| map.contains_key(*keyword))
 }
 
-fn presence_only_object_alternatives(value: &serde_json::Value) -> bool {
+fn parent_relative_object_alternatives(value: &serde_json::Value) -> bool {
     let Some(alternatives) = value.as_array() else {
         return false;
     };
@@ -434,14 +438,66 @@ fn presence_only_object_alternatives(value: &serde_json::Value) -> bool {
             let Some(map) = alternative.as_object() else {
                 return false;
             };
-            map.get("required").is_some_and(serde_json::Value::is_array)
+            !map.contains_key("type")
+                && !map.contains_key("$ref")
+                && map
+                    .keys()
+                    .any(|key| matches!(key.as_str(), "properties" | "required"))
                 && map.keys().all(|key| {
                     matches!(
                         key.as_str(),
-                        "required" | "title" | "description" | "$comment"
+                        "properties" | "required" | "title" | "description" | "$comment"
                     )
                 })
         })
+}
+
+fn inferred_json_type(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(number) if number.is_i64() || number.is_u64() => "integer",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
+
+fn infer_responses_literal_type(map: &mut serde_json::Map<String, serde_json::Value>) {
+    if map.contains_key("type") {
+        return;
+    }
+    let mut types = std::collections::BTreeSet::new();
+    if let Some(value) = map.get("const") {
+        types.insert(inferred_json_type(value));
+    } else if let Some(values) = map.get("enum").and_then(serde_json::Value::as_array) {
+        for value in values {
+            types.insert(inferred_json_type(value));
+        }
+    }
+    match types.len() {
+        0 => {}
+        1 => {
+            map.insert(
+                "type".to_string(),
+                serde_json::Value::String(
+                    types.into_iter().next().expect("one literal type").into(),
+                ),
+            );
+        }
+        _ => {
+            map.insert(
+                "type".to_string(),
+                serde_json::Value::Array(
+                    types
+                        .into_iter()
+                        .map(|value| serde_json::Value::String(value.into()))
+                        .collect(),
+                ),
+            );
+        }
+    }
 }
 
 fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value {
@@ -464,6 +520,7 @@ fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value
 fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
     match schema {
         serde_json::Value::Object(map) => {
+            infer_responses_literal_type(map);
             // Responses structured output accepts only a JSON-Schema subset.
             // Canonical conditional authority remains enforced by Epiphany ingress
             // and Mind admission; this projection owns formatting only.
@@ -491,7 +548,7 @@ fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
             // Runtime ingress remains the owner of the conditional invariant.
             if map
                 .get("anyOf")
-                .is_some_and(presence_only_object_alternatives)
+                .is_some_and(parent_relative_object_alternatives)
             {
                 map.remove("anyOf");
             }
@@ -1298,9 +1355,77 @@ mod tests {
     }
 
     #[test]
+    fn provider_schema_projection_types_literals_and_drops_parent_property_refinements() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-literal-types",
+            "conversation-literal-types",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id = Some("epiphany.worker".to_string());
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "required": ["schemaVersion", "effects", "node"],
+                "properties": {
+                    "schemaVersion": {"const": "epiphany.test.v0"},
+                    "effects": {
+                        "type": "array",
+                        "items": {
+                            "oneOf": [{
+                                "type": "object",
+                                "required": ["kind", "memory_kind"],
+                                "properties": {
+                                    "kind": {"const": "state_note"},
+                                    "memory_kind": {"enum": ["memory", "social_read", "bond"]}
+                                },
+                                "additionalProperties": false
+                            }]
+                        }
+                    },
+                    "node": {
+                        "type": "object",
+                        "required": ["question", "tension"],
+                        "properties": {
+                            "question": {"type": "string"},
+                            "tension": {"type": "string"}
+                        },
+                        "anyOf": [
+                            {"properties": {"question": {"minLength": 1}}},
+                            {"properties": {"tension": {"minLength": 1}}}
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            })
+            .to_string(),
+        );
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+        let schema = &responses["text"]["format"]["schema"];
+        assert_eq!(schema["properties"]["schemaVersion"]["type"], "string");
+        assert_eq!(
+            schema["properties"]["effects"]["items"]["anyOf"][0]["properties"]["kind"]["type"],
+            "string"
+        );
+        assert_eq!(
+            schema["properties"]["effects"]["items"]["anyOf"][0]["properties"]["memory_kind"]["type"],
+            "string"
+        );
+        assert!(schema["properties"]["node"].get("anyOf").is_none());
+    }
+
+    #[test]
     fn strict_schema_check_recognizes_required_only_object_fragments() {
         assert!(!responses_schema_is_strict(&serde_json::json!({
             "anyOf": [{"required": ["scratch"]}, {"required": ["checkpoint"]}]
+        })));
+        assert!(!responses_schema_is_strict(&serde_json::json!({
+            "const": "state_note"
+        })));
+        assert!(!responses_schema_is_strict(&serde_json::json!({
+            "enum": ["memory", "social_read", "bond"]
         })));
     }
 
