@@ -20,6 +20,9 @@ use std::path::Path;
 pub const REASONING_BASIS_SCHEMA_VERSION: &str = "epiphany.reasoning_basis.v1";
 pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v1";
 pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_receipt.v1";
+pub const REASONING_BASIS_TYPE: &str = "epiphany.reasoning_basis.v1";
+pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v1";
+pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
     "epiphany.reasoning_projection.worker_launch.v2";
 

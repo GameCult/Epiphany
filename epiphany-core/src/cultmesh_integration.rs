@@ -10911,7 +10911,10 @@ mod tests {
             context
                 .contract_summaries
                 .iter()
-                .any(|contract| contract.authority == "mind")
+                .any(|contract| {
+                    contract.authority == "readOnly"
+                        && contract.document_type == crate::DECISION_CONTEXT_TYPE
+                })
         );
         assert!(
             context
@@ -10995,30 +10998,32 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-mind-contracts.ccmp");
         let written = write_epiphany_cultmesh_mind_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 4);
+        assert_eq!(written.len(), 3);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let state_review = node.get_required::<EpiphanyCultMeshMindContractEntry>(
-            "epiphany.mind.state_effect.review",
+        let decision_context = node.get_required::<EpiphanyCultMeshMindContractEntry>(
+            "epiphany.mind.decision_context.snapshot",
         )?;
-        let public_adoption = node.get_required::<EpiphanyCultMeshMindContractEntry>(
-            "epiphany.mind.public_adoption.review",
+        let commit_receipt = node.get_required::<EpiphanyCultMeshMindContractEntry>(
+            "epiphany.mind.commit_receipt.snapshot",
         )?;
 
-        assert_eq!(state_review.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(state_review.authority, "mind");
-        assert!(
-            state_review
-                .notes
-                .iter()
-                .any(|note| note.contains("persistent state guardian"))
+        assert_eq!(
+            decision_context.verse_id,
+            EPIPHANY_CULTMESH_INTERNAL_VERSE_ID
         );
-        assert_eq!(public_adoption.verse_id, EPIPHANY_CULTMESH_GLOBAL_VERSE_ID);
+        assert_eq!(decision_context.authority, "readOnly");
         assert!(
-            public_adoption
+            decision_context
                 .notes
                 .iter()
-                .any(|note| note.contains("thought weather"))
+                .any(|note| note.contains("terminal native request"))
+        );
+        assert!(
+            commit_receipt
+                .notes
+                .iter()
+                .any(|note| note.contains("concrete invariant owner"))
         );
         Ok(())
     }

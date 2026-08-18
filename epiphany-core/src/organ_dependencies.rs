@@ -9,9 +9,6 @@ use crate::hands_gateway::{
     HANDS_ACTION_INTENT_TYPE, HANDS_ACTION_REFUSAL_RECEIPT_TYPE, HANDS_ACTION_REVIEW_TYPE,
     HANDS_COMMIT_RECEIPT_TYPE, HANDS_PATCH_RECEIPT_TYPE, HANDS_ROLLBACK_RECEIPT_TYPE,
 };
-use crate::mind_gateway::{
-    MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_COMMIT_RECEIPT_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE,
-};
 use crate::soul_gateway::{
     SOUL_REGRESSION_RECEIPT_TYPE, SOUL_REVIEW_RECEIPT_TYPE, SOUL_VERDICT_RECEIPT_TYPE,
     SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
@@ -20,6 +17,7 @@ use crate::substrate_gate::{
     SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE, SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
     SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE, SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
 };
+use crate::{DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_TYPE, REASONING_BASIS_TYPE};
 
 pub const EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION: &str = "epiphany.organ_dependency.v0";
 pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch_organ_contract.v0";
@@ -123,7 +121,7 @@ pub fn default_launch_organ_contract(
         dependencies: default_organ_dependency_matrix(),
         receipt_proof_profiles: default_receipt_proof_profiles(),
         required_receipt_document_types: default_launch_required_receipts(),
-        contract: "A worker launch is not naked task cargo: it carries the sub-agent dependency matrix, a receipt document catalogue, and effect-specific proof profiles. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Modeling models the Body, Hands records action, Soul verifies, and Continuity protocols preserve recovery across rupture.".to_string(),
+        contract: "A worker launch is not naked task cargo: it carries the sub-agent dependency matrix, a receipt document catalogue, and effect-specific proof profiles. Sealed reasoning bases and decision contexts bind model-authored decisions; concrete invariant owners commit Mind mutations; Substrate Gate gates repo access; Eyes supplies evidence; Modeling models the Body; Hands records action; Soul verifies; and Continuity preserves recovery across rupture.".to_string(),
     }
 }
 
@@ -132,12 +130,12 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
         EpiphanyReceiptProofProfile {
             effect_kind: EpiphanyReceiptEffectKind::StateAdmission,
             owner_organ: "mind".to_string(),
-            required_before_promotion_document_types: vec![MIND_GATEWAY_REVIEW_TYPE.to_string()],
-            terminal_receipt_document_types: vec![
-                MIND_STATE_COMMIT_RECEIPT_TYPE.to_string(),
-                MIND_STATE_REJECTION_RECEIPT_TYPE.to_string(),
+            required_before_promotion_document_types: vec![
+                REASONING_BASIS_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
             ],
-            contract: "Durable state admission requires Mind review before promotion and a Mind commit or rejection receipt after the decision resolves.".to_string(),
+            terminal_receipt_document_types: vec![MIND_COMMIT_RECEIPT_TYPE.to_string()],
+            contract: "A model-authored durable decision requires its sealed reasoning basis and decision context before a concrete invariant owner may commit it; the exact Mind commit receipt is terminal proof.".to_string(),
         },
         EpiphanyReceiptProofProfile {
             effect_kind: EpiphanyReceiptEffectKind::EvidencePromotion,
@@ -145,11 +143,10 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
             required_before_promotion_document_types: vec![
                 SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string(),
                 EYES_EVIDENCE_PACKET_TYPE.to_string(),
-                MIND_GATEWAY_REVIEW_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
             ],
             terminal_receipt_document_types: vec![
-                MIND_STATE_COMMIT_RECEIPT_TYPE.to_string(),
-                MIND_STATE_REJECTION_RECEIPT_TYPE.to_string(),
+                MIND_COMMIT_RECEIPT_TYPE.to_string(),
                 EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE.to_string(),
             ],
             contract: "A source-dependent truth claim needs scoped substrate access, an Eyes evidence packet, and Mind admission before it becomes durable state.".to_string(),
@@ -163,7 +160,7 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
                 HANDS_ACTION_REVIEW_TYPE.to_string(),
                 HANDS_PATCH_RECEIPT_TYPE.to_string(),
                 SOUL_VERDICT_RECEIPT_TYPE.to_string(),
-                MIND_GATEWAY_REVIEW_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
             ],
             terminal_receipt_document_types: vec![
                 SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE.to_string(),
@@ -172,8 +169,7 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
                 HANDS_ACTION_REFUSAL_RECEIPT_TYPE.to_string(),
                 SOUL_REGRESSION_RECEIPT_TYPE.to_string(),
                 SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE.to_string(),
-                MIND_STATE_COMMIT_RECEIPT_TYPE.to_string(),
-                MIND_STATE_REJECTION_RECEIPT_TYPE.to_string(),
+                MIND_COMMIT_RECEIPT_TYPE.to_string(),
             ],
             contract: "A repository mutation needs substrate grant, Hands action proof, Soul verification, and Mind state admission before it can be called true.".to_string(),
         },
@@ -182,14 +178,13 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
             owner_organ: "soul".to_string(),
             required_before_promotion_document_types: vec![
                 SOUL_VERDICT_RECEIPT_TYPE.to_string(),
-                MIND_GATEWAY_REVIEW_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
             ],
             terminal_receipt_document_types: vec![
                 SOUL_REVIEW_RECEIPT_TYPE.to_string(),
                 SOUL_REGRESSION_RECEIPT_TYPE.to_string(),
                 SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE.to_string(),
-                MIND_STATE_COMMIT_RECEIPT_TYPE.to_string(),
-                MIND_STATE_REJECTION_RECEIPT_TYPE.to_string(),
+                MIND_COMMIT_RECEIPT_TYPE.to_string(),
             ],
             contract: "Verification claims require Soul verdict proof before Mind admits the claim into durable state.".to_string(),
         },
@@ -198,11 +193,10 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
             owner_organ: "continuity".to_string(),
             required_before_promotion_document_types: vec![
                 CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
-                MIND_GATEWAY_REVIEW_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
             ],
             terminal_receipt_document_types: vec![
-                MIND_STATE_COMMIT_RECEIPT_TYPE.to_string(),
-                MIND_STATE_REJECTION_RECEIPT_TYPE.to_string(),
+                MIND_COMMIT_RECEIPT_TYPE.to_string(),
                 CONTINUITY_REFUSAL_RECEIPT_TYPE.to_string(),
             ],
             contract: "Recovery and rupture-crossing claims require Continuity proof plus Mind admission; transcript residue is not durable memory.".to_string(),
@@ -212,9 +206,9 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
 
 pub fn default_launch_required_receipts() -> Vec<String> {
     unique_strings(vec![
-        MIND_GATEWAY_REVIEW_TYPE,
-        MIND_STATE_COMMIT_RECEIPT_TYPE,
-        MIND_STATE_REJECTION_RECEIPT_TYPE,
+        REASONING_BASIS_TYPE,
+        DECISION_CONTEXT_TYPE,
+        MIND_COMMIT_RECEIPT_TYPE,
         SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
         SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
         SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
@@ -381,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn launch_contract_carries_all_organs_and_gateway_receipts() {
+    fn launch_contract_carries_all_organs_and_decision_audit_receipts() {
         let contract = default_launch_organ_contract(
             "epiphany.role.verification",
             "role",
@@ -392,7 +386,12 @@ mod tests {
         assert!(
             contract
                 .required_receipt_document_types
-                .contains(&MIND_GATEWAY_REVIEW_TYPE.to_string())
+                .contains(&REASONING_BASIS_TYPE.to_string())
+        );
+        assert!(
+            contract
+                .required_receipt_document_types
+                .contains(&DECISION_CONTEXT_TYPE.to_string())
         );
         assert!(
             contract
@@ -418,10 +417,10 @@ mod tests {
             profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
                 && profile
                     .required_before_promotion_document_types
-                    .contains(&MIND_GATEWAY_REVIEW_TYPE.to_string())
+                    .contains(&DECISION_CONTEXT_TYPE.to_string())
                 && profile
                     .terminal_receipt_document_types
-                    .contains(&MIND_STATE_COMMIT_RECEIPT_TYPE.to_string())
+                    .contains(&MIND_COMMIT_RECEIPT_TYPE.to_string())
         }));
         assert!(contract.receipt_proof_profiles.iter().any(|profile| {
             profile.effect_kind == EpiphanyReceiptEffectKind::RepoAction
@@ -454,8 +453,14 @@ mod tests {
                 EpiphanyReceiptEffectKind::StateAdmission,
                 EpiphanyReceiptEffectKind::EvidencePromotion,
             ],
-            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
-            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+            &[
+                REASONING_BASIS_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
+            ],
+            &[
+                REASONING_BASIS_TYPE.to_string(),
+                DECISION_CONTEXT_TYPE.to_string(),
+            ],
         );
         assert!(receipt_proof_evaluation_errors(&evaluations).is_empty());
         let evidence = evaluations
@@ -479,7 +484,7 @@ mod tests {
             &contract,
             &[EpiphanyReceiptEffectKind::StateAdmission],
             &[],
-            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+            &[DECISION_CONTEXT_TYPE.to_string()],
         );
         assert_eq!(receipt_proof_evaluation_errors(&missing_mind).len(), 1);
     }

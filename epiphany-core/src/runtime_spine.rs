@@ -32,20 +32,10 @@ use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
-use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_GATEWAY_REVIEW_TYPE;
-use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_TYPE;
-use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_TYPE;
-use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_TYPE;
-use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_THOUGHT_TYPE;
-use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
-use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
-use crate::mind_gateway::MindGatewayReview;
-use crate::mind_gateway::MindStateCommitReceipt;
+use crate::{
+    DECISION_CONTEXT_SCHEMA_VERSION, DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
+    MIND_COMMIT_RECEIPT_TYPE, REASONING_BASIS_SCHEMA_VERSION, REASONING_BASIS_TYPE,
+};
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
@@ -1095,8 +1085,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<EpiphanyCoordinatorDeathRecovery>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceiptRetentionHead>()?;
-    cache.register_entry_type::<MindGatewayReview>()?;
-    cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<EyesSourceLookupReceipt>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
@@ -8779,26 +8767,6 @@ pub fn runtime_reorient_worker_result(
     cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
 }
 
-pub fn runtime_mind_gateway_review(
-    store_path: impl AsRef<Path>,
-    gateway_id: &str,
-) -> Result<Option<MindGatewayReview>> {
-    validate_non_empty(gateway_id, "Mind gateway review id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<MindGatewayReview>(gateway_id)
-}
-
-pub fn runtime_mind_state_commit_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<MindStateCommitReceipt>> {
-    validate_non_empty(receipt_id, "Mind state commit receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<MindStateCommitReceipt>(receipt_id)
-}
-
 // Eyes packets are accepted-research prerequisites and publish atomically with
 // the coordinator state transition. Direct insertion is fixture-only.
 #[cfg(test)]
@@ -12824,44 +12792,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            MIND_THOUGHT_TYPE,
-            MIND_THOUGHT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![MIND_THOUGHT_TYPE],
-            vec![MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE],
-            vec![
-                "Sub-agent output enters Epiphany as thought, not durable state authority.",
-                "The Mind contract is the gateway between worker output and persistent state.",
-            ],
-        ),
-        mutation_contract(
-            MIND_STATE_EFFECT_PROPOSAL_TYPE,
-            MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![MIND_STATE_EFFECT_PROPOSAL_TYPE],
-            vec![
-                MIND_GATEWAY_REVIEW_TYPE,
-                MIND_STATE_COMMIT_RECEIPT_TYPE,
-                MIND_STATE_REJECTION_RECEIPT_TYPE,
-            ],
-            vec![
-                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Persona Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
-                "Workers and public Verse ingress propose effects; Mind accepts, refuses, or holds them before any durable state mutation.",
-            ],
-        ),
-        mutation_contract(
-            MIND_GATEWAY_REVIEW_TYPE,
-            MIND_GATEWAY_REVIEW_SCHEMA_VERSION,
+            REASONING_BASIS_TYPE,
+            REASONING_BASIS_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -12870,12 +12802,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "Mind reviews are durable receipts explaining accepted, refused, or held state effects.",
+                "A sealed reasoning basis preserves the exact typed Mind documents and closed projection supplied to one model pass.",
+                "It is immutable decision evidence, not a generic state mutation intent.",
             ],
         ),
         mutation_contract(
-            MIND_STATE_COMMIT_RECEIPT_TYPE,
-            MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION,
+            DECISION_CONTEXT_TYPE,
+            DECISION_CONTEXT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -12884,12 +12817,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "A commit receipt is proof that Mind, not the worker, admitted a proposed effect into durable state.",
+                "A sealed decision context binds the reasoning basis to the exact terminal native request, internally derived provider request, and governed tool observations supplied.",
+                "It is audit evidence; concrete invariant owners decide which exact documents a structured outcome may mutate.",
             ],
         ),
         mutation_contract(
-            MIND_STATE_REJECTION_RECEIPT_TYPE,
-            MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION,
+            MIND_COMMIT_RECEIPT_TYPE,
+            MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -12898,22 +12832,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "A rejection receipt preserves why a thought or state effect was refused without mutating the Mind.",
-            ],
-        ),
-        mutation_contract(
-            MIND_VERSE_ADOPTION_RECEIPT_TYPE,
-            MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Foreign or public Verse material is thought weather until local Mind emits an adoption receipt.",
-                "The global Verse never receives private state authority by being interesting.",
+                "A Mind commit receipt proves that one named invariant owner atomically checked exact strong reads and wrote exact typed documents.",
+                "CultNet exposes the receipt read-only and cannot impersonate the commit owner.",
             ],
         ),
         mutation_contract(
