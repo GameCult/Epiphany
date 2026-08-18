@@ -634,39 +634,26 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "reviewFrontierPlanningFailure" => {
                     let lifecycle =
                         epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                    let (result_id, job_id, role_id, binding_id) = match lifecycle.stage {
-                        epiphany_core::RepoFrontierPlanningLifecycleStage::ImaginationFailed => (
-                            lifecycle.imagination_result_id.as_deref(),
-                            lifecycle.imagination_job_id.as_deref(),
-                            "imagination",
-                            epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
-                        ),
-                        epiphany_core::RepoFrontierPlanningLifecycleStage::MindFailed => (
-                            lifecycle.mind_result_id.as_deref(),
-                            lifecycle.mind_job_id.as_deref(),
-                            "mindAdmissionReview",
-                            epiphany_core::EPIPHANY_MIND_ROLE_BINDING_ID,
-                        ),
+                    let job_id = match lifecycle.stage {
+                        epiphany_core::RepoFrontierPlanningLifecycleStage::ImaginationFailed => {
+                            lifecycle.imagination_job_id.as_deref()
+                        }
+                        epiphany_core::RepoFrontierPlanningLifecycleStage::MindFailed => {
+                            lifecycle.mind_job_id.as_deref()
+                        }
                         _ => return Err(anyhow!("frontier planning failure review stage changed")),
                     };
-                    let result_id = result_id.ok_or_else(|| {
-                        anyhow!("frontier planning failure review requires a typed result")
-                    })?;
                     let job_id = job_id.ok_or_else(|| {
                         anyhow!("frontier planning failure review requires a launch job")
                     })?;
-                    let reviewed = supersede_frontier_planning_failure(
+                    let reviewed = epiphany_core::review_repo_frontier_planning_failure(
                         &runtime_store,
-                        &thread_id,
-                        revision,
-                        result_id,
                         job_id,
-                        role_id,
-                        binding_id,
+                        &now(),
                     )?;
                     push_event(
                         &mut step,
-                        json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(reviewed)}),
+                        json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(serde_json::to_value(reviewed)?)}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 }
@@ -682,23 +669,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 }
                 "launchImagination" => {
-                    let lifecycle =
-                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                    let request_id = lifecycle.planning_request_id.as_deref().ok_or_else(|| {
-                        anyhow!("launchImagination requires a current planning request")
-                    })?;
-                    let launch = launch_frontier_imagination(
+                    let worker_job_id = epiphany_core::launch_current_frontier_planning_work(
                         &runtime_store,
-                        &local_verse_store,
-                        &thread_id,
-                        revision,
-                        args.max_runtime_seconds,
-                        request_id,
+                        &now(),
                     )?;
-                    let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,
-                        json!({"type": "frontierImaginationLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
+                        json!({"type": "frontierImaginationLaunch", "runtimeJobId": worker_job_id}),
                     );
                     let worker_run = launch_worker_runtime_detached(
                         &model_runtime_bin,
@@ -741,22 +718,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 }
                 "launchMindPlanReview" => {
-                    let lifecycle =
-                        epiphany_core::runtime_repo_frontier_planning_lifecycle(&runtime_store)?;
-                    let request_id = lifecycle.mind_request_id.as_deref().ok_or_else(|| {
-                        anyhow!("launchMindPlanReview requires a current Mind request")
-                    })?;
-                    let launch = launch_frontier_mind(
+                    let worker_job_id = epiphany_core::launch_current_frontier_plan_mind_work(
                         &runtime_store,
-                        &thread_id,
-                        revision,
-                        args.max_runtime_seconds,
-                        request_id,
+                        &now(),
                     )?;
-                    let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,
-                        json!({"type": "frontierMindLaunch", "launch": status_cli::sanitize_for_operator(launch), "runtimeJobId": worker_job_id}),
+                        json!({"type": "frontierMindLaunch", "runtimeJobId": worker_job_id}),
                     );
                     let worker_run = launch_worker_runtime_detached(
                         &model_runtime_bin,
@@ -1890,61 +1858,6 @@ fn launch_role(
     }))
 }
 
-fn launch_frontier_imagination(
-    runtime_store: &Path,
-    local_verse_store: &Path,
-    thread_id: &str,
-    expected_revision: Option<i64>,
-    max_runtime_seconds: u64,
-    planning_request_id: &str,
-) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot launch Imagination without native coordinator state"))?;
-    let role = epiphany_core::EpiphanyRoleResultRoleId::Imagination;
-    let context = epiphany_core::render_launch_dynamic_prompt_context(
-        runtime_store,
-        local_verse_store,
-        &state,
-        epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role)),
-    )
-    .map_err(anyhow::Error::msg)?;
-    let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
-        thread_id,
-        role,
-        expected_revision.and_then(|value| u64::try_from(value).ok()),
-        Some(max_runtime_seconds),
-        &state,
-        Some(context),
-    )
-    .map_err(anyhow::Error::msg)?;
-    request.frontier_planning_request_id = Some(planning_request_id.to_string());
-    launch_job_value(&service, thread_id, &state, &request)
-}
-
-fn launch_frontier_mind(
-    runtime_store: &Path,
-    thread_id: &str,
-    expected_revision: Option<i64>,
-    max_runtime_seconds: u64,
-    mind_request_id: &str,
-) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot launch Mind without native coordinator state"))?;
-    let request = epiphany_core::build_epiphany_frontier_plan_mind_launch_request(
-        thread_id,
-        expected_revision.and_then(|value| u64::try_from(value).ok()),
-        Some(max_runtime_seconds),
-        &state,
-        mind_request_id.to_string(),
-    )
-    .map_err(anyhow::Error::msg)?;
-    launch_job_value(&service, thread_id, &state, &request)
-}
-
 fn launch_job_value(
     service: &epiphany_core::EpiphanyCoordinatorService,
     thread_id: &str,
@@ -2224,64 +2137,6 @@ fn supersede_role_result(
         "state": applied.state,
         "receipt": receipt,
     }))
-}
-
-fn supersede_frontier_planning_failure(
-    runtime_store: &Path,
-    thread_id: &str,
-    expected_revision: Option<i64>,
-    result_id: &str,
-    job_id: &str,
-    role_id: &str,
-    binding_id: &str,
-) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("planning failure review requires coordinator state"))?;
-    if let Some(existing) = state
-        .acceptance_receipts
-        .iter()
-        .find(|receipt| receipt.result_id == result_id)
-    {
-        if existing.job_id == job_id
-            && existing.binding_id == binding_id
-            && existing.surface == "roleFailureReview"
-            && existing.role_id == role_id
-            && existing.status == "superseded"
-        {
-            return Ok(json!({"revision": state.revision, "receipt": existing, "changed": false}));
-        }
-        return Err(anyhow!(
-            "planning failure already has conflicting review authority"
-        ));
-    }
-    let receipt = epiphany_state_model::EpiphanyAcceptanceReceipt {
-        id: format!("frontier-planning-failure-review-{}", Uuid::new_v4()),
-        result_id: result_id.to_string(),
-        job_id: job_id.to_string(),
-        binding_id: binding_id.to_string(),
-        surface: "roleFailureReview".to_string(),
-        role_id: role_id.to_string(),
-        status: "superseded".to_string(),
-        accepted_at: now(),
-        accepted_observation_id: None,
-        accepted_evidence_id: None,
-        summary: Some(
-            "Reviewed non-executable frontier Imagination failure; Self may schedule one next immutable attempt."
-                .to_string(),
-        ),
-    };
-    let applied = service.apply_state_update(
-        thread_id,
-        epiphany_core::EpiphanyStateUpdate {
-            expected_revision: expected_revision.and_then(|value| u64::try_from(value).ok()),
-            acceptance_receipts: vec![receipt.clone()],
-            ..Default::default()
-        },
-        None,
-    )?;
-    Ok(json!({"revision": applied.revision, "receipt": receipt, "changed": true}))
 }
 
 fn default_binding_id_for_role(role_id: &str) -> String {

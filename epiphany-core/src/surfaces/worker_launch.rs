@@ -31,9 +31,9 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_context.v1";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_planning_context.v1";
+    "epiphany.worker.repo_frontier_planning_context.v2";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_planning_context.v1";
+    "epiphany.repo_frontier_planning_context.v2";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_research_context.v3";
 pub const REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT: &str =
@@ -292,7 +292,8 @@ pub struct RepoFrontierPlanningContextProjection {
     pub source_scope: Vec<String>,
     pub requested_at: String,
     pub runtime_id: String,
-    pub thread_id: String,
+    pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
+    pub claim_obligation_documents: Vec<crate::EpiphanyMindDocumentVersion>,
 }
 
 impl RepoFrontierPlanningContextProjection {
@@ -309,7 +310,8 @@ impl RepoFrontierPlanningContextProjection {
             source_scope: request.source_scope.clone(),
             requested_at: request.requested_at.clone(),
             runtime_id: request.runtime_id.clone(),
-            thread_id: request.thread_id.clone(),
+            frontier_authority_documents: request.frontier_authority_documents.clone(),
+            claim_obligation_documents: request.claim_obligation_documents.clone(),
         }
     }
 }

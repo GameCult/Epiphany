@@ -59,7 +59,8 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT,
     REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT, REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT,
+    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION,
+    REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT,
     REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT,
@@ -77,8 +78,8 @@ use crate::repo_model_gateway::{
     RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
     RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
     RepoFrontierPlanningCandidateEligibility, RepoFrontierPlanningEligibility,
-    RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningLifecycle,
-    RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
+    RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
+    RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRelinquishmentReceipt, RepoFrontierResearchRequest, RepoFrontierRoute,
     RepoFrontierVerdictDisposition, RepoFrontierWorkProposal, RepoModelClaimChallenge,
@@ -1151,6 +1152,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
     cache.register_entry_type::<RepoFrontierResearchRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanningLaunchBinding>()?;
+    cache.register_entry_type::<RepoFrontierPlanningFailureReview>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationRequest>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationLaunchBinding>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationCandidate>()?;
@@ -4836,7 +4838,7 @@ pub fn put_runtime_role_worker_result(
             || binding.job_id != result.job_id
             || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || binding.runtime_id != request.runtime_id
-            || binding.thread_id != request.thread_id
+            || binding.thread_id != launch_document.thread_id()
             || binding.worker_launch_document_sha256 != launch_hash
             || worker_launch.job_id != result.job_id
             || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
@@ -4847,7 +4849,7 @@ pub fn put_runtime_role_worker_result(
             || projection != Some(&expected_projection)
         {
             return Err(anyhow!(
-                "frontier planning result does not exactly bind request, launch, runtime, thread, and candidate"
+                "frontier planning result does not exactly bind request, launch, runtime, launch provenance, and candidate"
             ));
         }
     }
@@ -5086,7 +5088,7 @@ pub fn put_runtime_role_worker_result(
             || binding.job_id != result.job_id
             || binding.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
             || binding.runtime_id != request.runtime_id
-            || binding.thread_id != request.thread_id
+            || binding.thread_id != document.thread_id()
             || binding.worker_launch_document_sha256 != hash
             || launch.role != EPIPHANY_MIND_OWNER_ROLE
             || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
@@ -5094,7 +5096,7 @@ pub fn put_runtime_role_worker_result(
             || projection != Some(&expected)
         {
             return Err(anyhow!(
-                "Mind result does not exactly bind request, launch, runtime, thread, and candidate"
+                "Mind result does not exactly bind request, launch, runtime, launch provenance, and candidate"
             ));
         }
     }
@@ -6575,10 +6577,6 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     let identity = require_identity(&cache)?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("planning request requires authoritative thread state"))?;
-    thread.state()?;
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
     let (view, basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
@@ -6586,6 +6584,8 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let item = actionable_imagination_frontier_item(&model, &challenges)
         .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
     let item_hash = repo_frontier_item_hash(item)?;
+    let frontier_authority_documents = frontier_authority_documents(&cache, item)?;
+    let claim_obligation_documents = planning_claim_obligation_documents(&cache, item)?;
     let request_id =
         crate::frontier_planning_request_id(&identity.runtime_id, &item.id, &item_hash);
     if cache
@@ -6613,10 +6613,15 @@ pub fn select_and_commit_repo_frontier_planning_request(
         requested_at: at.into(),
         contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
         runtime_id: identity.runtime_id,
-        thread_id: thread.thread_id,
+        frontier_authority_documents,
+        claim_obligation_documents,
     };
     let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
-    let expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    let mut expected = frontier_authority_envelopes(&cache, &request.frontier_authority_documents)?;
+    expected.extend(planning_claim_obligation_envelopes(
+        &cache,
+        &request.claim_obligation_documents,
+    )?);
     let mut writes = expected.clone();
     writes.push(envelope);
     if !backing.compare_and_swap_batch(&expected, writes)? {
@@ -6631,56 +6636,141 @@ pub fn select_and_commit_repo_frontier_planning_request(
                 Err(anyhow!("planning request CAS collision"))
             };
         }
-        return Err(anyhow!("planning request lost exact keyed-model CAS"));
+        return Err(anyhow!("planning request lost exact frontier CAS"));
     }
     Ok(request)
+}
+
+fn validate_repo_frontier_planning_request(
+    request: &RepoFrontierPlanningRequest,
+) -> Result<crate::RepoFrontierItem> {
+    chrono::DateTime::parse_from_rfc3339(&request.requested_at)
+        .map_err(|_| anyhow!("planning request timestamp must be RFC3339"))?;
+    let basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
+    };
+    basis.validate()?;
+    if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || request.runtime_id.trim().is_empty()
+        || request.frontier_item_id.trim().is_empty()
+        || request.frontier_item_hash.trim().is_empty()
+        || request.selected_organ != "Imagination"
+        || request.source_scope.is_empty()
+        || !safe_sorted_unique_paths(&request.source_scope)
+        || request.frontier_authority_documents.is_empty()
+        || request.frontier_authority_documents.iter().any(|document| {
+            document.validate().is_err()
+                || document.store_id != "epiphany-mind"
+                || document.document_type != crate::EpiphanyRepoModelFrontierDocument::TYPE
+                || !request.model_source_documents.contains(document)
+        })
+        || !request.frontier_authority_documents.windows(2).all(|pair| {
+            (
+                pair[0].document_type.as_str(),
+                pair[0].document_key.as_str(),
+            ) < (
+                pair[1].document_type.as_str(),
+                pair[1].document_key.as_str(),
+            )
+        })
+        || request.claim_obligation_documents.iter().any(|document| {
+            document.validate().is_err()
+                || document.store_id != "epiphany-mind"
+                || document.document_type != crate::EpiphanyRepoModelClaimObligationsDocument::TYPE
+                || !request.model_source_documents.contains(document)
+        })
+        || !request.claim_obligation_documents.windows(2).all(|pair| {
+            (
+                pair[0].document_type.as_str(),
+                pair[0].document_key.as_str(),
+            ) < (
+                pair[1].document_type.as_str(),
+                pair[1].document_key.as_str(),
+            )
+        })
+    {
+        return Err(anyhow!("invalid frontier planning request"));
+    }
+    let frontier_source = request
+        .frontier_authority_documents
+        .iter()
+        .find(|document| document.document_key == request.frontier_item_id)
+        .ok_or_else(|| anyhow!("planning request lost its owning frontier document"))?;
+    let item = rmp_serde::from_slice::<crate::EpiphanyRepoModelFrontierDocument>(
+        &frontier_source.payload_msgpack,
+    )?
+    .value()?;
+    let mut expected_authority_ids = vec![item.id.as_str()];
+    expected_authority_ids.extend(item.dependency_item_ids.iter().map(String::as_str));
+    expected_authority_ids.sort_unstable();
+    expected_authority_ids.dedup();
+    let expected_request_id = crate::frontier_planning_request_id(
+        &request.runtime_id,
+        &item.id,
+        &repo_frontier_item_hash(&item)?,
+    );
+    let mut expected_claim_ids = item
+        .target_claim_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    expected_claim_ids.sort_unstable();
+    expected_claim_ids.dedup();
+    if request
+        .frontier_authority_documents
+        .iter()
+        .map(|document| document.document_key.as_str())
+        .collect::<Vec<_>>()
+        != expected_authority_ids
+        || request
+            .claim_obligation_documents
+            .iter()
+            .map(|document| document.document_key.as_str())
+            .collect::<Vec<_>>()
+            != expected_claim_ids
+        || request.request_id != expected_request_id
+        || request.frontier_item_id != item.id
+        || request.frontier_item_hash != repo_frontier_item_hash(&item)?
+        || request.source_scope != item.source_scope
+    {
+        return Err(anyhow!(
+            "frontier planning request diverges from its sealed frontier authority"
+        ));
+    }
+    Ok(item)
 }
 
 pub(crate) fn validate_actionable_repo_frontier_planning_request(
     cache: &CultCache,
     request: &RepoFrontierPlanningRequest,
 ) -> Result<()> {
-    chrono::DateTime::parse_from_rfc3339(&request.requested_at)
-        .map_err(|_| anyhow!("planning request timestamp must be RFC3339"))?;
+    let sealed_item = validate_repo_frontier_planning_request(request)?;
     let identity = require_identity(cache)?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("planning request requires authoritative thread state"))?;
-    thread.state()?;
-    let view = require_keyed_repo_model_basis(
-        cache,
-        &request.model_projection_digest,
-        &request.model_source_documents,
-    )?;
+    if request.runtime_id != identity.runtime_id {
+        return Err(anyhow!("planning request belongs to another runtime"));
+    }
+    frontier_authority_envelopes(cache, &request.frontier_authority_documents)?;
+    planning_claim_obligation_envelopes(cache, &request.claim_obligation_documents)?;
+    let current_item = cache
+        .get::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
+        .ok_or_else(|| anyhow!("planning request frontier disappeared"))?
+        .value()?;
+    if current_item != sealed_item
+        || frontier_authority_documents(cache, &current_item)?
+            != request.frontier_authority_documents
+        || planning_claim_obligation_documents(cache, &current_item)?
+            != request.claim_obligation_documents
+    {
+        return Err(anyhow!("planning request frontier authority changed"));
+    }
+    let view = crate::repo_model_documents::assemble_repo_model_view_from_cache(cache)?;
     let model = view.memory_context_projection();
     let basis = view.reasoning_basis();
     let challenges = current_repo_model_claim_challenges(cache, &model, &basis)?;
-    let item = model
-        .frontier
-        .iter()
-        .find(|item| item.id == request.frontier_item_id)
-        .ok_or_else(|| anyhow!("planning request frontier disappeared"))?;
-    if !imagination_frontier_item_is_actionable(&model, &challenges, item) {
+    if !imagination_frontier_item_is_actionable(&model, &challenges, &current_item) {
         return Err(anyhow!("planning request frontier is no longer actionable"));
-    }
-    let item_hash = repo_frontier_item_hash(item)?;
-    let expected_request_id =
-        crate::frontier_planning_request_id(&identity.runtime_id, &item.id, &item_hash);
-    if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
-        || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
-        || request.request_id != expected_request_id
-        || request.model_projection_digest != basis.projection_digest
-        || request.model_source_documents != basis.source_documents
-        || request.frontier_item_id != item.id
-        || request.frontier_item_hash != item_hash
-        || request.selected_organ != "Imagination"
-        || request.source_scope != item.source_scope
-        || request.runtime_id != identity.runtime_id
-        || request.thread_id.is_empty()
-    {
-        return Err(anyhow!(
-            "planning request does not exactly bind its actionable frontier and runtime"
-        ));
     }
     Ok(())
 }
@@ -6729,13 +6819,12 @@ pub fn commit_repo_frontier_plan_mind_request(
     let request = RepoFrontierPlanMindRequest {
         schema_version: REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION.into(),
         request_id: request_id.clone(),
-        planning_request_id: planning.request_id,
+        planning_request_id: planning.request_id.clone(),
         imagination_result_id: result.result_id.clone(),
         imagination_job_id: result.job_id.clone(),
         candidate_id: candidate.candidate_id,
         candidate_sha256,
-        runtime_id: planning.runtime_id,
-        thread_id: planning.thread_id,
+        runtime_id: planning.runtime_id.clone(),
         requested_at: requested_at.into(),
         contract: REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT.into(),
     };
@@ -6750,11 +6839,22 @@ pub fn commit_repo_frontier_plan_mind_request(
     }
     let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: planning.model_projection_digest.clone(),
-        source_documents: planning.model_source_documents.clone(),
-    };
-    let expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    let mut expected =
+        frontier_authority_envelopes(&cache, &planning.frontier_authority_documents)?;
+    expected.extend(planning_claim_obligation_envelopes(
+        &cache,
+        &planning.claim_obligation_documents,
+    )?);
+    expected.push(
+        cache
+            .get_envelope::<RepoFrontierPlanningRequest>(&planning.request_id)?
+            .ok_or_else(|| anyhow!("Mind request lost its Planning request envelope"))?,
+    );
+    expected.push(
+        cache
+            .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+            .ok_or_else(|| anyhow!("Mind request lost its Imagination result envelope"))?,
+    );
     let mut writes = expected.clone();
     writes.push(envelope);
     if !backing.compare_and_swap_batch(&expected, writes)? {
@@ -6803,7 +6903,6 @@ fn validate_repo_frontier_plan_mind_request_identity(
         || candidate.candidate_id != request.candidate_id
         || hash != request.candidate_sha256
         || request.runtime_id != planning.runtime_id
-        || request.thread_id != planning.thread_id
     {
         return Err(anyhow!(
             "Mind request substituted immutable Imagination causal identity"
@@ -6888,7 +6987,7 @@ fn current_repo_model_claim_challenges(
 fn validate_repo_model_claim_challenge_chain(
     cache: &CultCache,
     model: &crate::EpiphanyMemoryGraphSnapshot,
-    basis: &crate::EpiphanyRepoModelBasis,
+    _current_basis: &crate::EpiphanyRepoModelBasis,
     challenge: &RepoModelClaimChallenge,
     require_current_model: bool,
 ) -> Result<()> {
@@ -6918,14 +7017,11 @@ fn validate_repo_model_claim_challenge_chain(
     {
         return Err(anyhow!("claim challenge substituted Eyes evidence"));
     }
-    if challenge.model_projection_digest != basis.projection_digest
-        || challenge.model_source_documents != basis.source_documents
-    {
-        return Err(anyhow!("claim challenge keyed model basis mismatch"));
-    }
-    if require_current_model {
-        basis.validate_against_cache(cache)?;
-    }
+    let audit_basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: challenge.model_projection_digest.clone(),
+        source_documents: challenge.model_source_documents.clone(),
+    };
+    audit_basis.validate()?;
     let claim = model
         .nodes
         .iter()
@@ -6935,6 +7031,24 @@ fn validate_repo_model_claim_challenge_chain(
         != challenge.target_claim_sha256
     {
         return Err(anyhow!("claim challenge target claim identity mismatch"));
+    }
+    let claim_envelope = cache
+        .get_envelope::<crate::EpiphanyRepoModelNodeDocument>(&claim.id)?
+        .ok_or_else(|| anyhow!("claim challenge target claim envelope is missing"))?;
+    let claim_version =
+        crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &claim_envelope)?;
+    if !audit_basis.source_documents.contains(&claim_version) {
+        return Err(anyhow!(
+            "claim challenge audit basis omitted its exact target claim"
+        ));
+    }
+    if require_current_model {
+        let obligation = cache
+            .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&claim.id)?
+            .ok_or_else(|| anyhow!("claim challenge target lost its obligation owner"))?;
+        if obligation.node_id != claim.id {
+            return Err(anyhow!("claim challenge obligation owner is corrupt"));
+        }
     }
     Ok(())
 }
@@ -6963,10 +7077,19 @@ pub fn commit_repo_model_claim_challenge(
     let model = view.memory_context_projection();
     validate_repo_model_claim_challenge_chain(&cache, &model, &basis, challenge, true)?;
     if let Some(existing) = cache.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
-        return if existing == *challenge {
+        if existing != *challenge {
+            return Err(anyhow!("claim challenge ids are immutable"));
+        }
+        let obligation = cache
+            .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&challenge.target_claim_id)?
+            .ok_or_else(|| anyhow!("replayed claim challenge lost its obligation"))?;
+        return if obligation
+            .active_challenge_ids
+            .contains(&challenge.challenge_id)
+        {
             Ok(())
         } else {
-            Err(anyhow!("claim challenge ids are immutable"))
+            Err(anyhow!("replayed claim challenge lost active authority"))
         };
     }
     let packet_envelope = envelopes
@@ -6978,17 +7101,55 @@ pub fn commit_repo_model_claim_challenge(
         .cloned()
         .ok_or_else(|| anyhow!("claim challenge packet envelope is missing"))?;
     let (challenge_envelope, _) = cache.prepare_entry(&challenge.challenge_id, challenge)?;
-    let mut expected = keyed_repo_model_basis_envelopes(&cache, &basis)?;
-    expected.push(packet_envelope);
-    let mut writes = expected.clone();
+    let claim_envelope = cache
+        .get_envelope::<crate::EpiphanyRepoModelNodeDocument>(&challenge.target_claim_id)?
+        .ok_or_else(|| anyhow!("claim challenge target envelope is missing"))?;
+    let mut obligation = cache
+        .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&challenge.target_claim_id)?
+        .ok_or_else(|| anyhow!("claim challenge target obligation is missing"))?;
+    let obligation_envelope = cache
+        .get_envelope::<crate::EpiphanyRepoModelClaimObligationsDocument>(
+            &challenge.target_claim_id,
+        )?
+        .ok_or_else(|| anyhow!("claim challenge target obligation envelope is missing"))?;
+    obligation
+        .active_challenge_ids
+        .push(challenge.challenge_id.clone());
+    obligation.active_challenge_ids.sort();
+    obligation.active_challenge_ids.dedup();
+    let expected = vec![claim_envelope, obligation_envelope.clone(), packet_envelope];
+    let mut writes = expected
+        .iter()
+        .filter(|envelope| {
+            envelope.r#type != obligation_envelope.r#type || envelope.key != obligation_envelope.key
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     writes.push(challenge_envelope);
+    writes.push(
+        cache
+            .prepare_entry(&challenge.target_claim_id, &obligation)?
+            .0,
+    );
     if !backing.compare_and_swap_batch(&expected, writes)? {
         let mut reloaded = runtime_spine_cache(store_path)?;
         reloaded.pull_all_backing_stores()?;
-        return match reloaded.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
-            Some(existing) if existing == *challenge => Ok(()),
-            Some(_) => Err(anyhow!("claim challenge immutable collision")),
-            None => Err(anyhow!("claim challenge lost exact model/packet CAS")),
+        return match (
+            reloaded.get::<RepoModelClaimChallenge>(&challenge.challenge_id)?,
+            reloaded.get::<crate::EpiphanyRepoModelClaimObligationsDocument>(
+                &challenge.target_claim_id,
+            )?,
+        ) {
+            (Some(existing), Some(obligation))
+                if existing == *challenge
+                    && obligation
+                        .active_challenge_ids
+                        .contains(&challenge.challenge_id) =>
+            {
+                Ok(())
+            }
+            (Some(_), _) => Err(anyhow!("claim challenge immutable collision")),
+            _ => Err(anyhow!("claim challenge lost exact claim/packet CAS")),
         };
     }
     Ok(())
@@ -7016,18 +7177,9 @@ fn validate_repo_frontier_plan_candidate_against_request(
     if candidate.candidate_id != expected_candidate_id {
         return Err(anyhow!("frontier planning candidate id is not canonical"));
     }
-    let model = require_keyed_repo_model_basis(
-        cache,
-        &request.model_projection_digest,
-        &request.model_source_documents,
-    )?
-    .memory_context_projection();
-    let item = model
-        .frontier
-        .iter()
-        .find(|item| item.id == request.frontier_item_id)
-        .ok_or_else(|| anyhow!("frontier planning candidate frontier disappeared"))?;
-    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?)) != request.frontier_item_hash
+    let item = validate_repo_frontier_planning_request(request)?;
+    frontier_authority_envelopes(cache, &request.frontier_authority_documents)?;
+    if repo_frontier_item_hash(&item)? != request.frontier_item_hash
         || item.source_scope != request.source_scope
         || !candidate.safe_paths.iter().all(|path| {
             request.source_scope.iter().any(|scope| {
@@ -7281,7 +7433,8 @@ fn commit_repo_frontier_plan_decision_inner(
     let mind_request = cache
         .get::<RepoFrontierPlanMindRequest>(&mind_request_id)?
         .ok_or_else(|| anyhow!("frontier plan decision requires its typed Mind request"))?;
-    let (planning, candidate) = validate_repo_frontier_plan_mind_request(&cache, &mind_request)?;
+    let (planning, candidate) =
+        validate_repo_frontier_plan_mind_request_identity(&cache, &mind_request)?;
     if let FrontierPlanDecisionSource::Operator(review) = source {
         if review.candidate_id != candidate.candidate_id
             || review.candidate_sha256 != mind_request.candidate_sha256
@@ -7314,42 +7467,64 @@ fn commit_repo_frontier_plan_decision_inner(
         rationale,
         decided_at: decided_at.clone(),
         contract: REPO_FRONTIER_PLAN_DECISION_CONTRACT.into(),
-        decision_source: Some(decision_source),
+        decision_source: Some(decision_source.clone()),
     };
     if let Some(existing) = cache.get::<RepoFrontierPlanDecisionReceipt>(&decision_id)? {
-        return if existing == receipt {
-            Ok(existing)
-        } else {
-            Err(anyhow!("frontier plan decision identity collision"))
-        };
+        if existing != receipt {
+            return Err(anyhow!("frontier plan decision identity collision"));
+        }
+        if existing.decision == RepoFrontierPlanDecision::Adopt {
+            let item = cache
+                .get::<crate::EpiphanyRepoModelFrontierDocument>(&planning.frontier_item_id)?
+                .ok_or_else(|| anyhow!("replayed plan decision lost its frontier"))?
+                .value()?;
+            let adopted = item
+                .adopted_plan
+                .as_ref()
+                .ok_or_else(|| anyhow!("replayed plan decision lost its adoption"))?;
+            if adopted.planning_request_id != planning.request_id
+                || adopted.result_id != mind_request.imagination_result_id
+                || adopted.candidate_id != candidate.candidate_id
+                || adopted.candidate_sha256 != mind_request.candidate_sha256
+            {
+                return Err(anyhow!("replayed plan decision adoption was substituted"));
+            }
+        }
+        return Ok(existing);
     }
 
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: planning.model_projection_digest.clone(),
-        source_documents: planning.model_source_documents.clone(),
-    };
-    let mut strong_reads = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+    validate_actionable_repo_frontier_planning_request(&cache, &planning)?;
+    validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &planning)?;
+
+    let mut strong_reads =
+        frontier_authority_envelopes(&cache, &planning.frontier_authority_documents)?;
+    strong_reads.extend(planning_claim_obligation_envelopes(
+        &cache,
+        &planning.claim_obligation_documents,
+    )?);
     for envelope in [
         cache.get_envelope::<RepoFrontierPlanningRequest>(&planning.request_id)?,
         cache.get_envelope::<RepoFrontierPlanMindRequest>(&mind_request.request_id)?,
+        cache.get_envelope::<EpiphanyRuntimeRoleWorkerResult>(&mind_request.imagination_job_id)?,
     ]
     .into_iter()
     .flatten()
     {
         strong_reads.push(envelope);
     }
+    if let crate::RepoFrontierPlanDecisionSource::MindWorker { job_id, .. } = &decision_source {
+        strong_reads.push(
+            cache
+                .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+                .ok_or_else(|| anyhow!("frontier plan decision lost its Mind result envelope"))?,
+        );
+    }
     let mut writes = Vec::new();
     if decision == RepoFrontierPlanDecision::Adopt {
-        let view = require_keyed_repo_model_basis(
-            &cache,
-            &planning.model_projection_digest,
-            &planning.model_source_documents,
-        )?;
-        let mut item = view
-            .frontier
-            .into_iter()
-            .find(|item| item.id == planning.frontier_item_id)
+        let item = cache
+            .get::<crate::EpiphanyRepoModelFrontierDocument>(&planning.frontier_item_id)?
             .ok_or_else(|| anyhow!("frontier plan decision target disappeared"))?;
+        let mut item = item.value()?;
         if repo_frontier_item_hash(&item)? != planning.frontier_item_hash {
             return Err(anyhow!("frontier plan decision target changed"));
         }
@@ -7359,29 +7534,23 @@ fn commit_repo_frontier_plan_decision_inner(
             job_id: mind_request.imagination_job_id.clone(),
             candidate_id: candidate.candidate_id.clone(),
             candidate_sha256: mind_request.candidate_sha256.clone(),
-            safe_paths: candidate.safe_paths,
-            action: candidate.action,
-            command: candidate.command,
-            checks: candidate.checks,
-            stop_conditions: candidate.stop_conditions,
-            rollback_steps: candidate.rollback_steps,
-            commit_message: candidate.commit_message,
+            safe_paths: candidate.safe_paths.clone(),
+            action: candidate.action.clone(),
+            command: candidate.command.clone(),
+            checks: candidate.checks.clone(),
+            stop_conditions: candidate.stop_conditions.clone(),
+            rollback_steps: candidate.rollback_steps.clone(),
+            commit_message: candidate.commit_message.clone(),
             execution_amendment: None,
         });
-        let proposal = crate::EpiphanyRepoModelMutationProposal::new(
-            format!("repo-frontier-plan-adoption-{decision_id}"),
-            mind_request.request_id.clone(),
-            decision_id.clone(),
-            vec![
-                candidate.candidate_id.clone(),
-                mind_request.imagination_result_id.clone(),
-            ],
-            crate::load_current_runtime_repository_body_basis(runtime_store)?,
-            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
-        )?;
-        let plan = crate::plan_repo_model_mutation(runtime_store, &proposal)?;
-        strong_reads.extend(plan.strong_reads);
-        writes.extend(plan.writes);
+        writes.push(
+            cache
+                .prepare_entry(
+                    &planning.frontier_item_id,
+                    &crate::EpiphanyRepoModelFrontierDocument::new(&item)?,
+                )?
+                .0,
+        );
     }
     writes.push(cache.prepare_entry(&receipt.decision_id, &receipt)?.0);
     strong_reads.sort_by(|left, right| {
@@ -7583,7 +7752,7 @@ pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> 
     runtime_has_actionable_frontier_for_organ(runtime_store, "Eyes")
 }
 
-fn research_frontier_authority_documents(
+fn frontier_authority_documents(
     cache: &CultCache,
     item: &crate::RepoFrontierItem,
 ) -> Result<Vec<crate::EpiphanyMindDocumentVersion>> {
@@ -7596,7 +7765,7 @@ fn research_frontier_authority_documents(
         .map(|id| {
             let envelope = cache
                 .get_envelope::<crate::EpiphanyRepoModelFrontierDocument>(id)?
-                .ok_or_else(|| anyhow!("Research frontier authority document {id:?} is absent"))?;
+                .ok_or_else(|| anyhow!("frontier authority document {id:?} is absent"))?;
             crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -7608,7 +7777,7 @@ fn research_frontier_authority_documents(
     Ok(documents)
 }
 
-fn research_authority_envelopes(
+fn frontier_authority_envelopes(
     cache: &CultCache,
     documents: &[crate::EpiphanyMindDocumentVersion],
 ) -> Result<Vec<CultCacheEnvelope>> {
@@ -7620,7 +7789,7 @@ fn research_authority_envelopes(
                 || document.document_type != crate::EpiphanyRepoModelFrontierDocument::TYPE
             {
                 return Err(anyhow!(
-                    "Research authority contains a non-frontier Mind document"
+                    "frontier authority contains a non-frontier Mind document"
                 ));
             }
             let envelope = snapshot
@@ -7629,11 +7798,72 @@ fn research_authority_envelopes(
                     envelope.r#type == document.document_type
                         && envelope.key == document.document_key
                 })
-                .ok_or_else(|| anyhow!("Research frontier authority document is absent"))?;
+                .ok_or_else(|| anyhow!("frontier authority document is absent"))?;
             if crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)?
                 != *document
             {
-                return Err(anyhow!("Research frontier authority document changed"));
+                return Err(anyhow!("frontier authority document changed"));
+            }
+            Ok(envelope.clone())
+        })
+        .collect()
+}
+
+fn planning_claim_obligation_documents(
+    cache: &CultCache,
+    item: &crate::RepoFrontierItem,
+) -> Result<Vec<crate::EpiphanyMindDocumentVersion>> {
+    let mut claim_ids = item.target_claim_ids.clone();
+    claim_ids.sort();
+    claim_ids.dedup();
+    let mut documents = claim_ids
+        .into_iter()
+        .map(|claim_id| {
+            let envelope = cache
+                .get_envelope::<crate::EpiphanyRepoModelClaimObligationsDocument>(&claim_id)?
+                .ok_or_else(|| anyhow!("planning claim obligation {claim_id:?} is absent"))?;
+            crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    documents.sort_by(|left, right| {
+        left.document_type
+            .cmp(&right.document_type)
+            .then(left.document_key.cmp(&right.document_key))
+    });
+    Ok(documents)
+}
+
+fn planning_claim_obligation_envelopes(
+    cache: &CultCache,
+    documents: &[crate::EpiphanyMindDocumentVersion],
+) -> Result<Vec<CultCacheEnvelope>> {
+    let snapshot = cache.snapshot_envelopes();
+    documents
+        .iter()
+        .map(|document| {
+            if document.store_id != "epiphany-mind"
+                || document.document_type != crate::EpiphanyRepoModelClaimObligationsDocument::TYPE
+            {
+                return Err(anyhow!(
+                    "planning claim authority contains a non-obligation Mind document"
+                ));
+            }
+            let envelope = snapshot
+                .iter()
+                .find(|envelope| {
+                    envelope.r#type == document.document_type
+                        && envelope.key == document.document_key
+                })
+                .ok_or_else(|| anyhow!("planning claim obligation is absent"))?;
+            if crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)?
+                != *document
+            {
+                return Err(anyhow!("planning claim obligation changed"));
+            }
+            let obligation: crate::EpiphanyRepoModelClaimObligationsDocument =
+                rmp_serde::from_slice(&envelope.payload)?;
+            if !obligation.active_challenge_ids.is_empty() {
+                return Err(anyhow!("planning claim is challenged"));
             }
             Ok(envelope.clone())
         })
@@ -7728,14 +7958,14 @@ fn current_repo_frontier_research_request(
     if request.runtime_id != identity.runtime_id {
         return Ok(None);
     }
-    if research_authority_envelopes(cache, &request.frontier_authority_documents).is_err() {
+    if frontier_authority_envelopes(cache, &request.frontier_authority_documents).is_err() {
         return Ok(None);
     }
     let frontier = cache
         .get::<crate::EpiphanyRepoModelFrontierDocument>(&request.frontier_item_id)?
         .ok_or_else(|| anyhow!("Research request frontier document is absent"))?
         .value()?;
-    let expected_authority = research_frontier_authority_documents(cache, &frontier)?;
+    let expected_authority = frontier_authority_documents(cache, &frontier)?;
     if expected_authority != request.frontier_authority_documents {
         return Ok(None);
     }
@@ -7805,7 +8035,7 @@ pub fn select_and_commit_repo_frontier_research_request(
         };
     }
     let (request_envelope, _) = cache.prepare_entry(&request_id, &request)?;
-    let expected = research_authority_envelopes(&cache, &request.frontier_authority_documents)?;
+    let expected = frontier_authority_envelopes(&cache, &request.frontier_authority_documents)?;
     let mut writes = expected.clone();
     writes.push(request_envelope);
     if !backing.compare_and_swap_batch(&expected, writes)? {
@@ -7844,7 +8074,7 @@ fn repo_frontier_research_request_for_admitted_item(
         ));
     }
     let item_hash = repo_frontier_item_hash(item)?;
-    let frontier_authority_documents = research_frontier_authority_documents(cache, item)?;
+    let frontier_authority_documents = frontier_authority_documents(cache, item)?;
     let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
         item.public_source_refs.iter().map(String::as_str),
     )?;
@@ -8274,6 +8504,126 @@ pub fn runtime_repo_frontier_planning_eligibility(
     })
 }
 
+fn repo_frontier_planning_failure_review_id(result_id: &str) -> String {
+    format!("repo-frontier-planning-failure-review-{result_id}")
+}
+
+pub(crate) fn repo_frontier_planning_failure_review(
+    cache: &CultCache,
+    planning_request_id: &str,
+    pass_kind: &str,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<Option<RepoFrontierPlanningFailureReview>> {
+    let review_id = repo_frontier_planning_failure_review_id(&result.result_id);
+    let Some(review) = cache.get::<RepoFrontierPlanningFailureReview>(&review_id)? else {
+        return Ok(None);
+    };
+    if review.schema_version != REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION
+        || review.review_id != review_id
+        || review.planning_request_id != planning_request_id
+        || review.pass_kind != pass_kind
+        || review.job_id != result.job_id
+        || review.result_id != result.result_id
+        || review.disposition != "superseded"
+        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
+    {
+        return Err(anyhow!("frontier planning failure review is corrupt"));
+    }
+    Ok(Some(review))
+}
+
+pub fn review_repo_frontier_planning_failure(
+    runtime_store: impl AsRef<Path>,
+    job_id: &str,
+    reviewed_at: &str,
+) -> Result<RepoFrontierPlanningFailureReview> {
+    chrono::DateTime::parse_from_rfc3339(reviewed_at)
+        .map_err(|_| anyhow!("planning failure review time must be RFC3339"))?;
+    let runtime_store = runtime_store.as_ref();
+    let lifecycle = runtime_repo_frontier_planning_lifecycle(runtime_store)?;
+    let (pass_kind, expected_job_id) = match lifecycle.stage {
+        RepoFrontierPlanningLifecycleStage::ImaginationFailed => {
+            ("imagination", lifecycle.imagination_job_id.as_deref())
+        }
+        RepoFrontierPlanningLifecycleStage::MindFailed => {
+            ("mind", lifecycle.mind_job_id.as_deref())
+        }
+        _ => return Err(anyhow!("frontier planning has no reviewable failed pass")),
+    };
+    if expected_job_id != Some(job_id) {
+        return Err(anyhow!("planning failure review job is not current"));
+    }
+    let planning_request_id = lifecycle
+        .planning_request_id
+        .ok_or_else(|| anyhow!("planning failure review lost its request"))?;
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let result = cache
+        .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+        .ok_or_else(|| anyhow!("planning failure review lost its typed result"))?;
+    let review = RepoFrontierPlanningFailureReview {
+        schema_version: REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION.into(),
+        review_id: repo_frontier_planning_failure_review_id(&result.result_id),
+        planning_request_id: planning_request_id.clone(),
+        pass_kind: pass_kind.into(),
+        job_id: job_id.into(),
+        result_id: result.result_id.clone(),
+        disposition: "superseded".into(),
+        reviewed_at: reviewed_at.into(),
+    };
+    if let Some(existing) =
+        repo_frontier_planning_failure_review(&cache, &planning_request_id, pass_kind, &result)?
+    {
+        return if existing == review {
+            Ok(existing)
+        } else {
+            Err(anyhow!("planning failure review identity collision"))
+        };
+    }
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (
+            RepoFrontierPlanningRequest::TYPE,
+            planning_request_id.as_str(),
+        ),
+        (EpiphanyRuntimeWorkerLaunchRequest::TYPE, job_id),
+        (EpiphanyRuntimeJob::TYPE, job_id),
+        (EpiphanyRuntimeRoleWorkerResult::TYPE, job_id),
+    ] {
+        expected.push(
+            snapshot
+                .iter()
+                .find(|envelope| envelope.r#type == document_type && envelope.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("planning failure review lost a strong source"))?,
+        );
+    }
+    if pass_kind == "mind" {
+        let mind_request_id = lifecycle
+            .mind_request_id
+            .ok_or_else(|| anyhow!("Mind failure review lost its request"))?;
+        expected.push(
+            cache
+                .get_envelope::<RepoFrontierPlanMindRequest>(&mind_request_id)?
+                .ok_or_else(|| anyhow!("Mind failure review request envelope is missing"))?,
+        );
+    }
+    let envelope = cache.prepare_entry(&review.review_id, &review)?.0;
+    let mut writes = expected.clone();
+    writes.push(envelope);
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    if backing.compare_and_swap_batch(&expected, writes)? {
+        return Ok(review);
+    }
+    let mut reloaded = runtime_spine_cache(runtime_store)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<RepoFrontierPlanningFailureReview>(&review.review_id)? {
+        Some(existing) if existing == review => Ok(existing),
+        _ => Err(anyhow!("planning failure review lost exact-envelope CAS")),
+    }
+}
+
 /// Read-only Self projection over the existing typed frontier-planning chain.
 /// It never creates a request or decision; each mutating stage remains owned by
 /// its established commit primitive.
@@ -8410,29 +8760,16 @@ pub fn runtime_repo_frontier_planning_lifecycle(
                 "Self found malformed typed frontier planning failure"
             ));
         }
-        let reviewed = cache
-            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-            .ok_or_else(|| anyhow!("planning failure review requires thread state"))?
-            .state()?
-            .acceptance_receipts
-            .into_iter()
-            .filter(|receipt| {
-                receipt.result_id == imagination_result.result_id
-                    && receipt.job_id == imagination_result.job_id
-                    && receipt.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-                    && receipt.surface == "roleFailureReview"
-                    && receipt.role_id == "imagination"
-                    && receipt.status == "superseded"
-            })
-            .count();
-        lifecycle.stage = if reviewed == 1 {
+        let reviewed = repo_frontier_planning_failure_review(
+            &cache,
+            &request.request_id,
+            "imagination",
+            imagination_result,
+        )?;
+        lifecycle.stage = if reviewed.is_some() {
             RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady
-        } else if reviewed == 0 {
-            RepoFrontierPlanningLifecycleStage::ImaginationFailed
         } else {
-            return Err(anyhow!(
-                "Self found conflicting frontier planning failure reviews"
-            ));
+            RepoFrontierPlanningLifecycleStage::ImaginationFailed
         };
         return Ok(lifecycle);
     }
@@ -8496,27 +8833,16 @@ pub fn runtime_repo_frontier_planning_lifecycle(
         {
             return Err(anyhow!("Self found malformed typed Mind failure"));
         }
-        let reviewed = cache
-            .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-            .ok_or_else(|| anyhow!("Mind failure review requires thread state"))?
-            .state()?
-            .acceptance_receipts
-            .into_iter()
-            .filter(|receipt| {
-                receipt.result_id == mind_result.result_id
-                    && receipt.job_id == mind_result.job_id
-                    && receipt.binding_id == EPIPHANY_MIND_ROLE_BINDING_ID
-                    && receipt.surface == "roleFailureReview"
-                    && receipt.role_id == "mindAdmissionReview"
-                    && receipt.status == "superseded"
-            })
-            .count();
-        lifecycle.stage = if reviewed == 1 {
+        let reviewed = repo_frontier_planning_failure_review(
+            &cache,
+            &request.request_id,
+            "mind",
+            mind_result,
+        )?;
+        lifecycle.stage = if reviewed.is_some() {
             RepoFrontierPlanningLifecycleStage::MindLaunchReady
-        } else if reviewed == 0 {
-            RepoFrontierPlanningLifecycleStage::MindFailed
         } else {
-            return Err(anyhow!("Self found conflicting Mind failure reviews"));
+            RepoFrontierPlanningLifecycleStage::MindFailed
         };
         return Ok(lifecycle);
     }

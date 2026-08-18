@@ -114,37 +114,6 @@ fn commit_coordinator_job_launch_in_cache(
             }
         }
     }
-    let frontier_planning_launch =
-        if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
-            let (planning, identity, attempt_ordinal, superseded_failure_result_id) =
-                validate_frontier_planning_launch(cache, current_state, request, request_id)?;
-            let projection = RepoFrontierPlanningContextProjection::from_request(&planning);
-            match &mut effective_launch_document {
-                EpiphanyWorkerLaunchDocument::Role(document) => {
-                    if document.proposal_modeling_context.is_some() {
-                        return Err(anyhow!(
-                            "frontier planning context is exclusive of Modeling authority contexts"
-                        ));
-                    }
-                    document.frontier_planning_context = Some(projection);
-                }
-                EpiphanyWorkerLaunchDocument::Reorient(_) => {
-                    return Err(anyhow!(
-                        "reorient launch cannot carry frontier planning context"
-                    ));
-                }
-            }
-            let bytes = rmp_serde::to_vec_named(&effective_launch_document)?;
-            Some((
-                planning,
-                identity,
-                format!("{:x}", Sha256::digest(bytes)),
-                attempt_ordinal,
-                superseded_failure_result_id,
-            ))
-        } else {
-            None
-        };
     let imagination_consideration_launch = if let Some(request_id) =
         request.imagination_consideration_request_id.as_deref()
     {
@@ -218,48 +187,6 @@ fn commit_coordinator_job_launch_in_cache(
     } else {
         None
     };
-    let frontier_plan_mind_launch =
-        if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
-            let (
-                mind_request,
-                planning,
-                candidate,
-                identity,
-                attempt_ordinal,
-                superseded_failure_result_id,
-            ) = validate_frontier_plan_mind_launch(cache, current_state, request, request_id)?;
-            let projection =
-                RepoFrontierPlanMindContextProjection::new(&mind_request, &planning, &candidate);
-            match &mut effective_launch_document {
-                EpiphanyWorkerLaunchDocument::Role(document) => {
-                    if document.proposal_modeling_context.is_some()
-                        || document.frontier_planning_context.is_some()
-                        || document.frontier_plan_mind_context.is_some()
-                    {
-                        return Err(anyhow!("Mind frontier decision context is exclusive"));
-                    }
-                    document.frontier_plan_mind_context = Some(projection);
-                }
-                EpiphanyWorkerLaunchDocument::Reorient(_) => {
-                    return Err(anyhow!(
-                        "reorient launch cannot carry Mind decision context"
-                    ));
-                }
-            }
-            let hash = format!(
-                "{:x}",
-                Sha256::digest(rmp_serde::to_vec_named(&effective_launch_document)?)
-            );
-            Some((
-                mind_request,
-                identity,
-                hash,
-                attempt_ordinal,
-                superseded_failure_result_id,
-            ))
-        } else {
-            None
-        };
     let prepared = prepare_runtime_spine_heartbeat_job(
         &cache,
         RuntimeSpineHeartbeatJobOptions {
@@ -316,50 +243,6 @@ fn commit_coordinator_job_launch_in_cache(
         })
         .ok_or_else(|| anyhow!("prepared launch omitted its runtime identity replacement"))?;
     let runtime_identity_replacement = batch.remove(runtime_identity_position);
-    if let Some((
-        planning,
-        identity,
-        worker_launch_document_sha256,
-        attempt_ordinal,
-        superseded_failure_result_id,
-    )) = frontier_planning_launch
-    {
-        let binding_record_id = if attempt_ordinal == 0 {
-            format!("repo-frontier-planning-launch-{}", planning.request_id)
-        } else {
-            format!(
-                "repo-frontier-planning-launch-{}-attempt-{attempt_ordinal}",
-                planning.request_id
-            )
-        };
-        let launch_binding = RepoFrontierPlanningLaunchBinding {
-            schema_version: REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id,
-            planning_request_id: planning.request_id,
-            job_id: plan.backend_job_id.clone(),
-            binding_id: request.binding_id.clone(),
-            runtime_id: identity.runtime_id,
-            thread_id: planning.thread_id,
-            launched_at: created_at.clone(),
-            worker_launch_document_sha256,
-            contract: REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT.into(),
-            attempt_ordinal,
-            superseded_failure_result_id,
-        };
-        if cache
-            .get::<RepoFrontierPlanningLaunchBinding>(&launch_binding.binding_record_id)?
-            .is_some()
-        {
-            return Err(anyhow!(
-                "frontier planning request is already bound to a launch"
-            ));
-        }
-        batch.push(
-            cache
-                .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
-                .0,
-        );
-    }
     if let Some((consideration, identity, worker_launch_document_sha256, attempt_ordinal)) =
         imagination_consideration_launch
     {
@@ -392,44 +275,6 @@ fn commit_coordinator_job_launch_in_cache(
             return Err(anyhow!(
                 "consideration request is already bound to a launch"
             ));
-        }
-        batch.push(cache.prepare_entry(&binding.binding_record_id, &binding)?.0);
-    }
-    if let Some((
-        mind_request,
-        identity,
-        worker_launch_document_sha256,
-        attempt_ordinal,
-        superseded_failure_result_id,
-    )) = frontier_plan_mind_launch
-    {
-        let binding_record_id = if attempt_ordinal == 0 {
-            format!("repo-frontier-plan-mind-launch-{}", mind_request.request_id)
-        } else {
-            format!(
-                "repo-frontier-plan-mind-launch-{}-attempt-{attempt_ordinal}",
-                mind_request.request_id
-            )
-        };
-        let binding = RepoFrontierPlanMindLaunchBinding {
-            schema_version: REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-            binding_record_id,
-            mind_request_id: mind_request.request_id,
-            job_id: plan.backend_job_id.clone(),
-            binding_id: request.binding_id.clone(),
-            runtime_id: identity.runtime_id,
-            thread_id: mind_request.thread_id,
-            launched_at: created_at.clone(),
-            worker_launch_document_sha256,
-            contract: REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT.into(),
-            attempt_ordinal,
-            superseded_failure_result_id,
-        };
-        if cache
-            .get::<RepoFrontierPlanMindLaunchBinding>(&binding.binding_record_id)?
-            .is_some()
-        {
-            return Err(anyhow!("Mind request is already bound to a launch"));
         }
         batch.push(cache.prepare_entry(&binding.binding_record_id, &binding)?.0);
     }
@@ -531,14 +376,12 @@ pub fn plan_coordinator_job_launch(
             state.revision
         ));
     }
-    if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
-        let mut cache = runtime_spine_cache(runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        validate_frontier_planning_launch(&cache, state, request, request_id)?;
-    } else if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
-        let mut cache = runtime_spine_cache(runtime_store)?;
-        cache.pull_all_backing_stores()?;
-        validate_frontier_plan_mind_launch(&cache, state, request, request_id)?;
+    if request.frontier_planning_request_id.is_some()
+        || request.frontier_plan_mind_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "frontier Planning and plan Mind launches are owned by keyed current work"
+        ));
     } else if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         // Ordinary Modeling launches remain valid, but carry no proposal authority.
     }
@@ -594,217 +437,6 @@ pub fn plan_coordinator_job_launch(
         heartbeat_plan,
         state_update,
     })
-}
-
-fn validate_frontier_plan_mind_launch(
-    cache: &CultCache,
-    state: &EpiphanyThreadState,
-    launch: &EpiphanyJobLaunchRequest,
-    request_id: &str,
-) -> Result<(
-    RepoFrontierPlanMindRequest,
-    RepoFrontierPlanningRequest,
-    RepoFrontierPlanCandidate,
-    EpiphanyRuntimeIdentity,
-    u64,
-    Option<String>,
-)> {
-    if launch.owner_role != EPIPHANY_MIND_OWNER_ROLE
-        || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
-    {
-        return Err(anyhow!(
-            "frontier plan decision may only be carried by the Mind role launch"
-        ));
-    }
-    let request = cache
-        .get::<RepoFrontierPlanMindRequest>(request_id)?
-        .ok_or_else(|| anyhow!("Mind request does not exist"))?;
-    let (planning, candidate) =
-        crate::runtime_spine::validate_repo_frontier_plan_mind_request(cache, &request)?;
-    let identity = cache
-        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("Mind launch requires runtime identity"))?;
-    let persisted = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("Mind launch requires thread state"))?;
-    if persisted.state()? != *state
-        || request.runtime_id != identity.runtime_id
-        || request.thread_id.is_empty()
-        || launch.launch_document.thread_id() != persisted.thread_id
-    {
-        return Err(anyhow!("Mind launch provenance mismatch"));
-    }
-    let persisted_state = persisted.state()?;
-    let mut launches = cache
-        .get_all::<RepoFrontierPlanMindLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.mind_request_id == request_id)
-        .collect::<Vec<_>>();
-    launches.sort_by_key(|binding| binding.attempt_ordinal);
-    for (expected, binding) in launches.iter().enumerate() {
-        if binding.attempt_ordinal != expected as u64 {
-            return Err(anyhow!("Mind planning attempts must be contiguous"));
-        }
-    }
-    let superseded_failure_result_id = if let Some(latest) = launches.last() {
-        let results = cache
-            .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
-            .into_iter()
-            .filter(|result| result.job_id == latest.job_id)
-            .collect::<Vec<_>>();
-        if results.len() != 1 {
-            return Err(anyhow!("Mind retry requires one typed prior result"));
-        }
-        let failure = &results[0];
-        if !failure.role_id.eq_ignore_ascii_case("mindAdmissionReview")
-            || failure.frontier_plan_mind_request_id.is_some()
-            || failure.frontier_plan_mind_decision_msgpack.is_some()
-            || failure.item_error.as_deref().is_none_or(str::is_empty)
-        {
-            return Err(anyhow!(
-                "Mind retry requires a non-executable typed failure"
-            ));
-        }
-        let reviewed = persisted_state
-            .acceptance_receipts
-            .iter()
-            .filter(|receipt| {
-                receipt.result_id == failure.result_id
-                    && receipt.job_id == failure.job_id
-                    && receipt.binding_id == EPIPHANY_MIND_ROLE_BINDING_ID
-                    && receipt.surface == "roleFailureReview"
-                    && receipt.role_id == "mindAdmissionReview"
-                    && receipt.status == "superseded"
-            })
-            .count();
-        if reviewed != 1 {
-            return Err(anyhow!("Mind retry requires one explicit failure review"));
-        }
-        Some(failure.result_id.clone())
-    } else {
-        None
-    };
-    let attempt_ordinal = u64::try_from(launches.len())
-        .map_err(|_| anyhow!("Mind planning attempt ordinal overflow"))?;
-    Ok((
-        request,
-        planning,
-        candidate,
-        identity,
-        attempt_ordinal,
-        superseded_failure_result_id,
-    ))
-}
-
-fn validate_frontier_planning_launch(
-    cache: &CultCache,
-    state: &EpiphanyThreadState,
-    launch: &EpiphanyJobLaunchRequest,
-    request_id: &str,
-) -> Result<(
-    RepoFrontierPlanningRequest,
-    EpiphanyRuntimeIdentity,
-    u64,
-    Option<String>,
-)> {
-    if match &launch.launch_document {
-        EpiphanyWorkerLaunchDocument::Role(document) => {
-            document.frontier_planning_context.is_some()
-        }
-        EpiphanyWorkerLaunchDocument::Reorient(_) => false,
-    } {
-        return Err(anyhow!("caller cannot author frontier planning context"));
-    }
-    if launch.owner_role != EPIPHANY_IMAGINATION_OWNER_ROLE
-        || launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-    {
-        return Err(anyhow!(
-            "frontier planning may only be carried by the Imagination role launch"
-        ));
-    }
-    let planning = cache
-        .get::<RepoFrontierPlanningRequest>(request_id)?
-        .ok_or_else(|| anyhow!("frontier planning request {request_id:?} does not exist"))?;
-    crate::runtime_spine::validate_actionable_repo_frontier_planning_request(cache, &planning)?;
-    let identity = cache
-        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("frontier planning launch requires runtime identity"))?;
-    let persisted_state = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("frontier planning launch requires authoritative thread state"))?;
-    let persisted_state_value = persisted_state.state()?;
-    if planning.request_id != request_id
-        || planning.runtime_id != identity.runtime_id
-        || persisted_state_value != *state
-        || launch.launch_document.thread_id() != persisted_state.thread_id
-    {
-        return Err(anyhow!(
-            "frontier planning launch provenance binding mismatch"
-        ));
-    }
-    let mut launches = cache
-        .get_all::<RepoFrontierPlanningLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.planning_request_id == request_id)
-        .collect::<Vec<_>>();
-    launches.sort_by_key(|binding| binding.attempt_ordinal);
-    for (expected, binding) in launches.iter().enumerate() {
-        if binding.attempt_ordinal != expected as u64 {
-            return Err(anyhow!(
-                "frontier planning attempts must be contiguous and monotonic"
-            ));
-        }
-    }
-    let superseded_failure_result_id = if let Some(latest) = launches.last() {
-        let results = cache
-            .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
-            .into_iter()
-            .filter(|result| result.job_id == latest.job_id)
-            .collect::<Vec<_>>();
-        if results.len() != 1 {
-            return Err(anyhow!(
-                "frontier planning retry requires exactly one typed prior attempt result"
-            ));
-        }
-        let failure = &results[0];
-        if !failure.role_id.eq_ignore_ascii_case("imagination")
-            || failure.frontier_planning_request_id.is_some()
-            || failure.frontier_plan_candidate_msgpack.is_some()
-            || failure.item_error.as_deref().is_none_or(str::is_empty)
-        {
-            return Err(anyhow!(
-                "frontier planning retry requires a non-executable typed prior failure"
-            ));
-        }
-        let reviewed = persisted_state_value
-            .acceptance_receipts
-            .iter()
-            .filter(|receipt| {
-                receipt.result_id == failure.result_id
-                    && receipt.job_id == failure.job_id
-                    && receipt.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-                    && receipt.surface == "roleFailureReview"
-                    && receipt.role_id == "imagination"
-                    && receipt.status == "superseded"
-            })
-            .collect::<Vec<_>>();
-        if reviewed.len() != 1 {
-            return Err(anyhow!(
-                "frontier planning retry requires exactly one explicit failure review"
-            ));
-        }
-        Some(failure.result_id.clone())
-    } else {
-        None
-    };
-    let attempt_ordinal = u64::try_from(launches.len())
-        .map_err(|_| anyhow!("frontier planning attempt ordinal overflow"))?;
-    Ok((
-        planning,
-        identity,
-        attempt_ordinal,
-        superseded_failure_result_id,
-    ))
 }
 
 fn validate_imagination_consideration_launch(

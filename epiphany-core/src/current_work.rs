@@ -734,6 +734,401 @@ pub fn current_frontier_verification_review_job_id(
         .and_then(|work| work.job_id))
 }
 
+pub fn launch_current_frontier_planning_work(
+    store_path: impl AsRef<Path>,
+    created_at: &str,
+) -> Result<String> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("frontier Planning launch time is invalid"))?;
+    let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(store_path)?;
+    if lifecycle.stage != RepoFrontierPlanningLifecycleStage::ImaginationLaunchReady {
+        return Err(anyhow!("Mind has no launchable frontier Planning work"));
+    }
+    let request_id = lifecycle
+        .planning_request_id
+        .ok_or_else(|| anyhow!("frontier Planning work lost its request"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let request = cache
+        .get::<crate::RepoFrontierPlanningRequest>(&request_id)?
+        .ok_or_else(|| anyhow!("frontier Planning request disappeared"))?;
+    crate::runtime_spine::validate_actionable_repo_frontier_planning_request(&cache, &request)?;
+    let identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier Planning launch requires runtime identity"))?;
+    let mut prior = cache
+        .get_all::<crate::RepoFrontierPlanningLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.planning_request_id == request.request_id)
+        .collect::<Vec<_>>();
+    prior.sort_by_key(|binding| binding.attempt_ordinal);
+    let attempt_ordinal = prior.len() as u64;
+    let superseded_failure_result_id = if let Some(latest) = prior.last() {
+        let result = cache
+            .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?
+            .ok_or_else(|| anyhow!("frontier Planning retry lost its failure result"))?;
+        crate::runtime_spine::repo_frontier_planning_failure_review(
+            &cache,
+            &request.request_id,
+            "imagination",
+            &result,
+        )?
+        .map(|review| review.result_id)
+        .ok_or_else(|| anyhow!("frontier Planning retry is not reviewed"))?
+        .into()
+    } else {
+        None
+    };
+    let job_id = format!(
+        "frontier-planning-{}-attempt-{attempt_ordinal}",
+        request.request_id
+    );
+    let launch_document =
+        crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+            thread_id: job_id.clone(),
+            role_id: "imagination".into(),
+            state_revision: 0,
+            objective: None,
+            dynamic_prompt_context: None,
+            repository_body_observation_basis: None,
+            proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
+            frontier_planning_context: Some(
+                crate::RepoFrontierPlanningContextProjection::from_request(&request),
+            ),
+            frontier_research_context: None,
+            frontier_verification_context: None,
+            frontier_plan_mind_context: None,
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        });
+    let authority_scope = "epiphany.role.imagination".to_string();
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let prepared = crate::prepare_runtime_spine_heartbeat_job(
+        &cache,
+        crate::RuntimeSpineHeartbeatJobOptions {
+            runtime_id: identity.runtime_id.clone(),
+            display_name: "Epiphany Local".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Propose one bounded plan for the exact frontier authority".into(),
+            coordinator_note: "Planning current-work launch transaction opened this session."
+                .into(),
+            job_id: job_id.clone(),
+            role: crate::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.clone(),
+            instruction: "Act as Epiphany Imagination. Propose one bounded candidate for only the exact typed frontier and return the dedicated planning candidate contract.".into(),
+            launch_document,
+            output_contract_id: output_contract_id.clone(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                &authority_scope,
+                "role",
+                &output_contract_id,
+            ),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: Some(request.request_id.clone()),
+            frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
+            created_at: created_at.into(),
+        },
+    )?;
+    let launch = prepared
+        .envelopes
+        .iter()
+        .find(|envelope| {
+            envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
+                && envelope.key == job_id
+        })
+        .ok_or_else(|| anyhow!("frontier Planning launch preparation lost its worker"))?;
+    let worker_launch: crate::EpiphanyRuntimeWorkerLaunchRequest =
+        rmp_serde::from_slice(&launch.payload)?;
+    let binding_record_id = if attempt_ordinal == 0 {
+        format!("repo-frontier-planning-launch-{}", request.request_id)
+    } else {
+        format!(
+            "repo-frontier-planning-launch-{}-attempt-{attempt_ordinal}",
+            request.request_id
+        )
+    };
+    let binding = crate::RepoFrontierPlanningLaunchBinding {
+        schema_version: crate::REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+        binding_record_id,
+        planning_request_id: request.request_id.clone(),
+        job_id: job_id.clone(),
+        binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+        runtime_id: identity.runtime_id,
+        thread_id: job_id.clone(),
+        launched_at: created_at.into(),
+        worker_launch_document_sha256: format!(
+            "{:x}",
+            Sha256::digest(&worker_launch.launch_document_msgpack)
+        ),
+        contract: crate::REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT.into(),
+        attempt_ordinal,
+        superseded_failure_result_id,
+    };
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = vec![
+        cache
+            .get_envelope::<crate::RepoFrontierPlanningRequest>(&request.request_id)?
+            .ok_or_else(|| anyhow!("frontier Planning launch lost its request envelope"))?,
+    ];
+    for source in request
+        .frontier_authority_documents
+        .iter()
+        .chain(request.claim_obligation_documents.iter())
+    {
+        let envelope = snapshot
+            .iter()
+            .find(|envelope| {
+                envelope.r#type == source.document_type && envelope.key == source.document_key
+            })
+            .ok_or_else(|| anyhow!("frontier Planning launch lost exact authority"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!("frontier Planning launch authority changed"));
+        }
+        expected.push(envelope.clone());
+    }
+    commit_current_work_launch(
+        store_path,
+        &cache,
+        expected,
+        prepared.envelopes,
+        vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
+        "frontier Planning",
+    )?;
+    Ok(job_id)
+}
+
+pub fn launch_current_frontier_plan_mind_work(
+    store_path: impl AsRef<Path>,
+    created_at: &str,
+) -> Result<String> {
+    let store_path = store_path.as_ref();
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("frontier plan Mind launch time is invalid"))?;
+    let lifecycle = crate::runtime_repo_frontier_planning_lifecycle(store_path)?;
+    if lifecycle.stage != RepoFrontierPlanningLifecycleStage::MindLaunchReady {
+        return Err(anyhow!("Mind has no launchable frontier plan review"));
+    }
+    let planning_request_id = lifecycle
+        .planning_request_id
+        .ok_or_else(|| anyhow!("frontier plan Mind launch lost its Planning request"))?;
+    let request_id = lifecycle
+        .mind_request_id
+        .ok_or_else(|| anyhow!("frontier plan Mind launch lost its request"))?;
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let request = cache
+        .get::<crate::RepoFrontierPlanMindRequest>(&request_id)?
+        .ok_or_else(|| anyhow!("frontier plan Mind request disappeared"))?;
+    let (planning, candidate) =
+        crate::runtime_spine::validate_repo_frontier_plan_mind_request(&cache, &request)?;
+    if planning.request_id != planning_request_id {
+        return Err(anyhow!(
+            "frontier plan Mind request crossed Planning authority"
+        ));
+    }
+    let identity = cache
+        .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier plan Mind launch requires runtime identity"))?;
+    let mut prior = cache
+        .get_all::<crate::RepoFrontierPlanMindLaunchBinding>()?
+        .into_iter()
+        .filter(|binding| binding.mind_request_id == request.request_id)
+        .collect::<Vec<_>>();
+    prior.sort_by_key(|binding| binding.attempt_ordinal);
+    let attempt_ordinal = prior.len() as u64;
+    let superseded_failure_result_id = if let Some(latest) = prior.last() {
+        let result = cache
+            .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?
+            .ok_or_else(|| anyhow!("frontier plan Mind retry lost its failure result"))?;
+        crate::runtime_spine::repo_frontier_planning_failure_review(
+            &cache,
+            &planning.request_id,
+            "mind",
+            &result,
+        )?
+        .map(|review| review.result_id)
+        .ok_or_else(|| anyhow!("frontier plan Mind retry is not reviewed"))?
+        .into()
+    } else {
+        None
+    };
+    let job_id = format!(
+        "frontier-plan-mind-{}-attempt-{attempt_ordinal}",
+        request.request_id
+    );
+    let launch_document =
+        crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+            thread_id: job_id.clone(),
+            role_id: "mindAdmissionReview".into(),
+            state_revision: 0,
+            objective: None,
+            dynamic_prompt_context: None,
+            repository_body_observation_basis: None,
+            proposal_modeling_context: None,
+            frontier_verdict_modeling_context: None,
+            frontier_planning_context: None,
+            frontier_research_context: None,
+            frontier_verification_context: None,
+            frontier_plan_mind_context: Some(crate::RepoFrontierPlanMindContextProjection::new(
+                &request, &planning, &candidate,
+            )),
+            imagination_consideration_context: None,
+            admitted_model_direction_consideration_context: None,
+            active_subgoal_id: None,
+            active_subgoals: Vec::new(),
+            active_graph_node_ids: Vec::new(),
+            investigation_checkpoint: None,
+            scratch: None,
+            invariants: Vec::new(),
+            graphs: None,
+            recent_evidence: Vec::new(),
+            recent_observations: Vec::new(),
+            graph_frontier: None,
+            graph_checkpoint: None,
+            planning: None,
+            churn: None,
+        });
+    let authority_scope = "epiphany.role.mind".to_string();
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let prepared = crate::prepare_runtime_spine_heartbeat_job(
+        &cache,
+        crate::RuntimeSpineHeartbeatJobOptions {
+            runtime_id: identity.runtime_id.clone(),
+            display_name: "Epiphany Local".into(),
+            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
+            objective: "Adjudicate one exact Imagination plan candidate".into(),
+            coordinator_note: "Plan Mind current-work launch transaction opened this session."
+                .into(),
+            job_id: job_id.clone(),
+            role: crate::EPIPHANY_MIND_OWNER_ROLE.into(),
+            binding_id: crate::EPIPHANY_MIND_ROLE_BINDING_ID.into(),
+            authority_scope: authority_scope.clone(),
+            instruction: "Act as Epiphany Mind. Adopt, refuse, or hold only the exact typed candidate and return the dedicated plan decision contract.".into(),
+            launch_document,
+            output_contract_id: output_contract_id.clone(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                &authority_scope,
+                "role",
+                &output_contract_id,
+            ),
+            proposal_modeling_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: Some(request.request_id.clone()),
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
+            repo_frontier_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            repo_frontier_verification_request_id: None,
+            created_at: created_at.into(),
+        },
+    )?;
+    let worker_envelope = prepared
+        .envelopes
+        .iter()
+        .find(|envelope| {
+            envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
+                && envelope.key == job_id
+        })
+        .ok_or_else(|| anyhow!("frontier plan Mind preparation lost its worker"))?;
+    let worker_launch: crate::EpiphanyRuntimeWorkerLaunchRequest =
+        rmp_serde::from_slice(&worker_envelope.payload)?;
+    let binding_record_id = if attempt_ordinal == 0 {
+        format!("repo-frontier-plan-mind-launch-{}", request.request_id)
+    } else {
+        format!(
+            "repo-frontier-plan-mind-launch-{}-attempt-{attempt_ordinal}",
+            request.request_id
+        )
+    };
+    let binding = crate::RepoFrontierPlanMindLaunchBinding {
+        schema_version: crate::REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+        binding_record_id,
+        mind_request_id: request.request_id.clone(),
+        job_id: job_id.clone(),
+        binding_id: crate::EPIPHANY_MIND_ROLE_BINDING_ID.into(),
+        runtime_id: identity.runtime_id,
+        thread_id: job_id.clone(),
+        launched_at: created_at.into(),
+        worker_launch_document_sha256: format!(
+            "{:x}",
+            Sha256::digest(&worker_launch.launch_document_msgpack)
+        ),
+        contract: crate::REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT.into(),
+        attempt_ordinal,
+        superseded_failure_result_id,
+    };
+    let snapshot = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    for (document_type, document_key) in [
+        (
+            crate::RepoFrontierPlanMindRequest::TYPE,
+            request.request_id.as_str(),
+        ),
+        (
+            crate::RepoFrontierPlanningRequest::TYPE,
+            planning.request_id.as_str(),
+        ),
+        (
+            crate::EpiphanyRuntimeRoleWorkerResult::TYPE,
+            request.imagination_job_id.as_str(),
+        ),
+    ] {
+        expected.push(
+            snapshot
+                .iter()
+                .find(|envelope| envelope.r#type == document_type && envelope.key == document_key)
+                .cloned()
+                .ok_or_else(|| anyhow!("frontier plan Mind launch lost a strong source"))?,
+        );
+    }
+    for source in planning
+        .frontier_authority_documents
+        .iter()
+        .chain(planning.claim_obligation_documents.iter())
+    {
+        let envelope = snapshot
+            .iter()
+            .find(|envelope| {
+                envelope.r#type == source.document_type && envelope.key == source.document_key
+            })
+            .ok_or_else(|| anyhow!("frontier plan Mind launch lost exact authority"))?;
+        if EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", envelope)? != *source {
+            return Err(anyhow!("frontier plan Mind authority changed"));
+        }
+        expected.push(envelope.clone());
+    }
+    commit_current_work_launch(
+        store_path,
+        &cache,
+        expected,
+        prepared.envelopes,
+        vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
+        "frontier plan Mind",
+    )?;
+    Ok(job_id)
+}
+
 pub fn launch_current_frontier_verification_work(
     store_path: impl AsRef<Path>,
     created_at: &str,
@@ -3615,6 +4010,508 @@ mod tests {
                 .nodes
                 .iter()
                 .any(|node| node.id == "concurrent-unrelated-node")
+        );
+
+        // Planning is one frontier-owned two-pass current-work family. The
+        // complete RepoModel is audit cargo; exact frontier/dependency and
+        // per-claim obligation documents own admission conflicts.
+        let planning_frontier = RepoFrontierItem {
+            id: "planning-frontier".into(),
+            migration_body: "epiphany".into(),
+            question: "How should the keyed Mind cut continue?".into(),
+            gap: "The exact frontier needs one bounded plan.".into(),
+            target_claim_ids: vec!["body-node".into()],
+            source_scope: vec!["epiphany-core/src".into()],
+            recommended_next_organ: "Imagination".into(),
+            status: RepoFrontierStatus::Active,
+            evidence_refs: vec![verdict.receipt_id.clone()],
+            ..Default::default()
+        };
+        let planning_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-planning-frontier",
+            "planning-frontier-fixture-request",
+            "planning-frontier-fixture-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: planning_frontier.clone(),
+            }],
+        )?;
+        let planning_plan = crate::plan_repo_model_mutation(&store, &planning_proposal)?;
+        let mut planning_cache = crate::runtime_spine_cache(&store)?;
+        planning_cache.pull_all_backing_stores()?;
+        let planning_provenance = planning_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("typed planning provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                planning_provenance,
+                "Modeling.planning_obligation_fixture",
+                planning_plan.strong_reads,
+                planning_plan.writes,
+                "2026-08-17T00:00:21.100Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let planning_request = crate::select_and_commit_repo_frontier_planning_request(
+            &store,
+            "2026-08-17T00:00:21.200Z",
+        )?;
+        assert_eq!(planning_request.frontier_item_id, planning_frontier.id);
+        assert_eq!(planning_request.claim_obligation_documents.len(), 1);
+        assert!(
+            planning_request.frontier_authority_documents.len()
+                < planning_request.model_source_documents.len()
+        );
+        assert!(
+            planning_cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .is_none()
+        );
+
+        let challenged_plan_store = temp.path().join("challenged-plan.cc");
+        std::fs::copy(&store, &challenged_plan_store)?;
+        let mut challenged_cache = crate::runtime_spine_cache(&challenged_plan_store)?;
+        challenged_cache.pull_all_backing_stores()?;
+        let challenged_model = crate::assemble_repo_model_view(&challenged_plan_store)?;
+        let challenged_claim = challenged_model
+            .nodes
+            .iter()
+            .find(|node| node.id == "body-node")
+            .expect("planning claim");
+        let packet = crate::EyesEvidencePacket {
+            schema_version: crate::EYES_EVIDENCE_PACKET_SCHEMA_VERSION.into(),
+            packet_id: "planning-challenge-packet".into(),
+            source_result_id: "planning-challenge-result".into(),
+            source_job_id: "planning-challenge-job".into(),
+            source_role_id: "research".into(),
+            evidence_ids: vec!["planning-challenge-evidence".into()],
+            observation_ids: vec!["planning-challenge-observation".into()],
+            source_refs: vec![
+                "github://GameCult/Epiphany@0000000000000000000000000000000000000000/README.md"
+                    .into(),
+            ],
+            summary: "External evidence challenges the planning claim.".into(),
+            uncertainty: "Bounded fixture uncertainty.".into(),
+            emitted_at: "2026-08-17T00:00:21.300Z".into(),
+            contract: "epiphany.eyes.evidence_packet.fixture".into(),
+            source_lookup_receipt_ids: Vec::new(),
+            research_request_id: "planning-challenge-research-request".into(),
+            decision_context_id: "planning-challenge-decision-context".into(),
+        };
+        crate::runtime_spine::put_eyes_evidence_packet(&challenged_plan_store, &packet)?;
+        let challenge = crate::RepoModelClaimChallenge {
+            schema_version: crate::REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION.into(),
+            challenge_id: "planning-claim-challenge".into(),
+            eyes_evidence_packet_id: packet.packet_id.clone(),
+            eyes_evidence_packet_sha256: format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(&packet)?)
+            ),
+            source_result_id: packet.source_result_id.clone(),
+            source_job_id: packet.source_job_id.clone(),
+            model_projection_digest: planning_request.model_projection_digest.clone(),
+            model_source_documents: planning_request.model_source_documents.clone(),
+            target_claim_id: challenged_claim.id.clone(),
+            target_claim_sha256: format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(challenged_claim)?)
+            ),
+            disposition: crate::RepoModelClaimChallengeDisposition::EvidenceInsufficient,
+            finding: "The exact target claim requires external correction.".into(),
+            uncertainty: "The plan must be regenerated after evidence admission.".into(),
+            source_refs: packet.source_refs.clone(),
+            evidence_ids: packet.evidence_ids.clone(),
+            challenged_at: "2026-08-17T00:00:21.400Z".into(),
+            contract: crate::REPO_MODEL_CLAIM_CHALLENGE_CONTRACT.into(),
+        };
+        crate::commit_repo_model_claim_challenge(&challenged_plan_store, &challenge)?;
+        challenged_cache.pull_all_backing_stores()?;
+        let challenged_snapshot = challenged_cache.snapshot_envelopes();
+        assert!(
+            crate::runtime_spine::validate_actionable_repo_frontier_planning_request(
+                &challenged_cache,
+                &planning_request,
+            )
+            .is_err()
+        );
+        assert!(
+            launch_current_frontier_planning_work(
+                &challenged_plan_store,
+                "2026-08-17T00:00:21.500Z",
+            )
+            .is_err()
+        );
+        challenged_cache.pull_all_backing_stores()?;
+        assert_eq!(challenged_cache.snapshot_envelopes(), challenged_snapshot);
+
+        let mut disjoint_planning_node = final_model
+            .nodes
+            .iter()
+            .find(|node| node.id == "body-node")
+            .cloned()
+            .expect("seeded Body node");
+        disjoint_planning_node.id = "planning-concurrent-node".into();
+        disjoint_planning_node.title = "Planning concurrent node".into();
+        disjoint_planning_node.claim = "Unrelated keyed work merges with planning".into();
+        let disjoint_planning_proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "repo-model-mutation-proposal-planning-concurrent",
+            "planning-concurrent-request",
+            "planning-concurrent-result",
+            vec![verdict.receipt_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutNode {
+                node: disjoint_planning_node,
+            }],
+        )?;
+        let disjoint_planning_plan =
+            crate::plan_repo_model_mutation(&store, &disjoint_planning_proposal)?;
+        planning_cache.pull_all_backing_stores()?;
+        let disjoint_planning_provenance = planning_cache
+            .get_envelope::<crate::SoulVerdictReceipt>(&verdict.receipt_id)?
+            .expect("typed disjoint planning provenance");
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                disjoint_planning_provenance,
+                "Modeling.concurrent_with_planning_fixture",
+                disjoint_planning_plan.strong_reads,
+                disjoint_planning_plan.writes,
+                "2026-08-17T00:00:21.600Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let mut current_planning_cache = crate::runtime_spine_cache(&store)?;
+        current_planning_cache.pull_all_backing_stores()?;
+        crate::runtime_spine::validate_actionable_repo_frontier_planning_request(
+            &current_planning_cache,
+            &planning_request,
+        )?;
+        let planning_job =
+            launch_current_frontier_planning_work(&store, "2026-08-17T00:00:21.700Z")?;
+        let mut planning_cache = crate::runtime_spine_cache(&store)?;
+        planning_cache.pull_all_backing_stores()?;
+        let planning_launch = planning_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&planning_job)?
+            .expect("exact Planning launch");
+        assert_eq!(
+            planning_launch.frontier_planning_request_id.as_deref(),
+            Some(planning_request.request_id.as_str())
+        );
+        let planning_basis = crate::worker_reasoning_basis(&store, &planning_launch)?;
+        crate::put_reasoning_basis(&store, &planning_basis)?;
+        let mut planning_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "planning-model-request",
+            "planning-conversation",
+            "openai-codex",
+            "gpt-test",
+            "imagine",
+        );
+        planning_native.reasoning_basis_id = Some(planning_basis.basis_id.clone());
+        planning_native.source_worker_job_id = Some(planning_job.clone());
+        planning_native.output_contract_id = Some(planning_launch.output_contract_id.clone());
+        planning_native.output_schema_json = Some(serde_json::to_string(
+            &crate::epiphany_frontier_planning_output_schema(),
+        )?);
+        let planning_provider = epiphany_openai_adapter::request_from_native(&planning_native);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "planning-model-session".into(),
+                objective: "Propose the exact frontier plan.".into(),
+                created_at: "2026-08-17T00:00:21.750Z".into(),
+                coordinator_note: "Bound Planning model pass.".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "planning-model-job".into(),
+                session_id: "planning-model-session".into(),
+                role: "openai-model".into(),
+                created_at: "2026-08-17T00:00:21.750Z".into(),
+                summary: "Bound Planning inference.".into(),
+                artifact_refs: Vec::new(),
+            },
+            &planning_native,
+            &planning_provider,
+            "2026-08-17T00:00:21.750Z",
+        )?;
+        let planning_context = crate::EpiphanyDecisionContext::new(
+            &planning_basis,
+            planning_native,
+            planning_provider,
+            Vec::new(),
+        )?;
+        crate::put_decision_context(&store, &planning_context)?;
+        let mut candidate = crate::RepoFrontierPlanCandidate {
+            schema_version: crate::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
+            candidate_id: "pending".into(),
+            planning_request_id: planning_request.request_id.clone(),
+            model_projection_digest: planning_request.model_projection_digest.clone(),
+            model_source_documents: planning_request.model_source_documents.clone(),
+            frontier_item_id: planning_request.frontier_item_id.clone(),
+            frontier_item_hash: planning_request.frontier_item_hash.clone(),
+            safe_paths: planning_request.source_scope.clone(),
+            action: "Replace aggregate planning authority with keyed current work.".into(),
+            command: "cargo test --manifest-path epiphany-core/Cargo.toml --lib".into(),
+            checks: vec!["planning lifecycle is thread-free".into()],
+            stop_conditions: vec!["exact frontier authority changes".into()],
+            rollback_steps: vec!["revert the keyed Planning commit".into()],
+            commit_message: "Migrate Planning to keyed Mind authority".into(),
+            proposed_at: "2026-08-17T00:00:21.800Z".into(),
+            contract: crate::REPO_FRONTIER_PLANNING_CONTRACT.into(),
+        };
+        candidate.candidate_id = crate::canonical_repo_frontier_plan_candidate_id(&candidate)?;
+        let planning_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "planning-result".into(),
+            job_id: planning_job.clone(),
+            role_id: "imagination".into(),
+            verdict: "candidate-ready".into(),
+            summary: "proposed one exact bounded plan".into(),
+            next_safe_move: "request Mind review".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec!["body-node".into()],
+            evidence_ids: vec![verdict.receipt_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            frontier_planning_request_id: Some(planning_request.request_id.clone()),
+            frontier_plan_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: planning_context.context_id.clone(),
+        };
+        let planning_process = crate::ProcessInstanceIdentity {
+            process_id: 46,
+            creation_token: 11,
+            created_at_rfc3339: Some("2026-08-17T00:00:21.900Z".into()),
+            executable_path: "planning-worker".into(),
+        };
+        let planning_activation = "planning-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &planning_job,
+            &planning_process,
+            &format!("{:x}", Sha256::digest(planning_activation.as_bytes())),
+            "2026-08-17T00:00:21.900Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &planning_job,
+            &planning_process,
+            planning_activation,
+            "2026-08-17T00:00:21.950Z",
+        )?;
+        crate::put_runtime_role_worker_result(&store, &planning_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{planning_job}"),
+                job_id: planning_job.clone(),
+                completed_at: "2026-08-17T00:00:22Z".into(),
+                verdict: planning_result.verdict.clone(),
+                summary: planning_result.summary.clone(),
+                next_safe_move: planning_result.next_safe_move.clone(),
+                evidence_refs: planning_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(planning_context.context_id.clone()),
+            },
+        )?;
+        let mind_request = crate::commit_repo_frontier_plan_mind_request(
+            &store,
+            &planning_result.result_id,
+            "2026-08-17T00:00:22.100Z",
+        )?;
+        let mind_job = launch_current_frontier_plan_mind_work(&store, "2026-08-17T00:00:22.200Z")?;
+        planning_cache.pull_all_backing_stores()?;
+        let mind_launch = planning_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&mind_job)?
+            .expect("exact plan Mind launch");
+        assert_eq!(
+            mind_launch.frontier_plan_mind_request_id.as_deref(),
+            Some(mind_request.request_id.as_str())
+        );
+        let mind_basis = crate::worker_reasoning_basis(&store, &mind_launch)?;
+        crate::put_reasoning_basis(&store, &mind_basis)?;
+        let mut mind_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "plan-mind-model-request",
+            "plan-mind-conversation",
+            "openai-codex",
+            "gpt-test",
+            "judge",
+        );
+        mind_native.reasoning_basis_id = Some(mind_basis.basis_id.clone());
+        mind_native.source_worker_job_id = Some(mind_job.clone());
+        mind_native.output_contract_id = Some(mind_launch.output_contract_id.clone());
+        mind_native.output_schema_json = Some(serde_json::to_string(
+            &crate::epiphany_frontier_plan_mind_output_schema(),
+        )?);
+        let mind_provider = epiphany_openai_adapter::request_from_native(&mind_native);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "plan-mind-model-session".into(),
+                objective: "Adjudicate the exact frontier plan.".into(),
+                created_at: "2026-08-17T00:00:22.250Z".into(),
+                coordinator_note: "Bound plan Mind model pass.".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "plan-mind-model-job".into(),
+                session_id: "plan-mind-model-session".into(),
+                role: "openai-model".into(),
+                created_at: "2026-08-17T00:00:22.250Z".into(),
+                summary: "Bound plan Mind inference.".into(),
+                artifact_refs: Vec::new(),
+            },
+            &mind_native,
+            &mind_provider,
+            "2026-08-17T00:00:22.250Z",
+        )?;
+        let mind_context = crate::EpiphanyDecisionContext::new(
+            &mind_basis,
+            mind_native,
+            mind_provider,
+            Vec::new(),
+        )?;
+        crate::put_decision_context(&store, &mind_context)?;
+        let mind_decision = crate::RepoFrontierPlanMindDecision {
+            mind_request_id: mind_request.request_id.clone(),
+            planning_request_id: planning_request.request_id.clone(),
+            imagination_result_id: planning_result.result_id.clone(),
+            candidate_id: candidate.candidate_id.clone(),
+            candidate_sha256: mind_request.candidate_sha256.clone(),
+            decision: crate::RepoFrontierPlanDecision::Adopt,
+            rationale: "The candidate is bounded by the exact frontier and claim guard.".into(),
+            decided_at: "2026-08-17T00:00:22.300Z".into(),
+        };
+        let mind_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "plan-mind-result".into(),
+            job_id: mind_job.clone(),
+            role_id: "mindAdmissionReview".into(),
+            verdict: "adopt".into(),
+            summary: "adopted the exact bounded plan".into(),
+            next_safe_move: "commit plan decision".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec!["body-node".into()],
+            evidence_ids: vec![candidate.candidate_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: Some(mind_request.request_id.clone()),
+            frontier_plan_mind_decision_msgpack: Some(rmp_serde::to_vec_named(&mind_decision)?),
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: mind_context.context_id.clone(),
+        };
+        let mind_process = crate::ProcessInstanceIdentity {
+            process_id: 47,
+            creation_token: 12,
+            created_at_rfc3339: Some("2026-08-17T00:00:22.400Z".into()),
+            executable_path: "plan-mind-worker".into(),
+        };
+        let mind_activation = "plan-mind-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &mind_job,
+            &mind_process,
+            &format!("{:x}", Sha256::digest(mind_activation.as_bytes())),
+            "2026-08-17T00:00:22.400Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &mind_job,
+            &mind_process,
+            mind_activation,
+            "2026-08-17T00:00:22.450Z",
+        )?;
+        crate::put_runtime_role_worker_result(&store, &mind_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{mind_job}"),
+                job_id: mind_job.clone(),
+                completed_at: "2026-08-17T00:00:22.500Z".into(),
+                verdict: mind_result.verdict.clone(),
+                summary: mind_result.summary.clone(),
+                next_safe_move: mind_result.next_safe_move.clone(),
+                evidence_refs: mind_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(mind_context.context_id.clone()),
+            },
+        )?;
+        let plan_decision =
+            crate::commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
+        assert_eq!(
+            plan_decision.decision,
+            crate::RepoFrontierPlanDecision::Adopt
+        );
+        assert_eq!(
+            crate::commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?,
+            plan_decision
+        );
+        let adopted_model = crate::assemble_repo_model_view(&store)?;
+        let adopted_frontier = adopted_model
+            .frontier
+            .iter()
+            .find(|item| item.id == planning_frontier.id)
+            .expect("adopted Planning frontier");
+        assert_eq!(
+            adopted_frontier
+                .adopted_plan
+                .as_ref()
+                .expect("Mind adoption")
+                .candidate_id,
+            candidate.candidate_id
+        );
+        assert!(
+            adopted_model
+                .nodes
+                .iter()
+                .any(|node| node.id == "planning-concurrent-node")
+        );
+        assert!(
+            planning_cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .is_none()
         );
 
         // Eyes is its own exact current-work family. It launches from an

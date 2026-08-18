@@ -100,7 +100,7 @@ repo_document!(
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.mind.repo_model.claim_obligations.v1",
+    type = "epiphany.mind.repo_model.claim_obligations.v2",
     schema = "EpiphanyRepoModelClaimObligationsDocument"
 )]
 pub struct EpiphanyRepoModelClaimObligationsDocument {
@@ -108,6 +108,8 @@ pub struct EpiphanyRepoModelClaimObligationsDocument {
     pub node_id: String,
     #[cultcache(key = 1)]
     pub unresolved_frontier_ids: Vec<String>,
+    #[cultcache(key = 2)]
+    pub active_challenge_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,7 +359,7 @@ impl EpiphanyRepoModelSeed {
             require_semantic_id(value, label)?;
         }
         let documents = self.documents()?;
-        let obligations = claim_obligations_for_frontier(&documents.frontier);
+        let obligations = claim_obligations_for_frontier(&documents.nodes, &documents.frontier);
         validate_repo_model_parts(
             &EpiphanyRepoModelIdentityDocument {
                 schema_epoch: REPO_MODEL_SCHEMA_EPOCH.into(),
@@ -573,7 +575,7 @@ pub fn initialize_keyed_repo_model(
     }
 
     let documents = seed.documents()?;
-    let obligations = claim_obligations_for_frontier(&documents.frontier);
+    let obligations = claim_obligations_for_frontier(&documents.nodes, &documents.frontier);
     let mut writes = Vec::new();
     writes.push(cache.prepare_entry(REPO_MODEL_IDENTITY_KEY, &identity)?.0);
     for value in &documents.domains {
@@ -646,7 +648,7 @@ pub fn initialize_keyed_repo_model(
         summaries: documents.summaries.clone(),
         frontier: documents.frontier.clone(),
         lifecycle_receipts: documents.lifecycle_receipts.clone(),
-        claim_obligations: claim_obligations_for_frontier(&documents.frontier),
+        claim_obligations: claim_obligations_for_frontier(&documents.nodes, &documents.frontier),
         surface_offers: Vec::new(),
         dependency_claims: Vec::new(),
         dependency_verifications: Vec::new(),
@@ -692,7 +694,8 @@ fn repo_model_view_matches_seed(
         && view.summaries == documents.summaries
         && view.frontier == documents.frontier
         && view.lifecycle_receipts == documents.lifecycle_receipts
-        && view.claim_obligations == claim_obligations_for_frontier(&documents.frontier))
+        && view.claim_obligations
+            == claim_obligations_for_frontier(&documents.nodes, &documents.frontier))
 }
 
 pub(crate) fn repo_model_write_key(envelope: &CultCacheEnvelope) -> Result<Option<String>> {
@@ -939,10 +942,24 @@ pub fn plan_repo_model_mutation(
                     insert_strong_envelope(&mut strong, existing)?;
                 }
                 nodes.insert(node.id.clone(), node.clone());
+                let obligation = obligations.entry(node.id.clone()).or_insert_with(|| {
+                    EpiphanyRepoModelClaimObligationsDocument {
+                        node_id: node.id.clone(),
+                        unresolved_frontier_ids: Vec::new(),
+                        active_challenge_ids: Vec::new(),
+                    }
+                });
+                if let Some(existing) =
+                    cache.get_envelope::<EpiphanyRepoModelClaimObligationsDocument>(&node.id)?
+                {
+                    insert_strong_envelope(&mut strong, existing)?;
+                }
+                obligation.active_challenge_ids.clear();
                 let envelope = cache
                     .prepare_entry(&node.id, &EpiphanyRepoModelNodeDocument::new(node)?)?
                     .0;
                 insert_envelope(&mut writes, envelope)?;
+                insert_envelope(&mut writes, cache.prepare_entry(&node.id, obligation)?.0)?;
             }
             EpiphanyRepoModelMutationOperation::RetireNode { node_id } => {
                 require_semantic_id(node_id, "RepoModel node")?;
@@ -958,11 +975,14 @@ pub fn plan_repo_model_mutation(
                     EpiphanyRepoModelClaimObligationsDocument {
                         node_id: node_id.clone(),
                         unresolved_frontier_ids: Vec::new(),
+                        active_challenge_ids: Vec::new(),
                     }
                 });
-                if !obligation.unresolved_frontier_ids.is_empty() {
+                if !obligation.unresolved_frontier_ids.is_empty()
+                    || !obligation.active_challenge_ids.is_empty()
+                {
                     return Err(anyhow!(
-                        "RepoModel node retirement is blocked by unresolved frontier"
+                        "RepoModel node retirement is blocked by unresolved claim obligations"
                     ));
                 }
                 if let Some(existing) =
@@ -1108,6 +1128,7 @@ pub fn plan_repo_model_mutation(
                         EpiphanyRepoModelClaimObligationsDocument {
                             node_id: node_id.clone(),
                             unresolved_frontier_ids: Vec::new(),
+                            active_challenge_ids: Vec::new(),
                         }
                     });
                     if let Some(existing) =
@@ -1510,9 +1531,13 @@ fn frontier_is_unresolved(item: &RepoFrontierItem) -> bool {
 }
 
 fn claim_obligations_for_frontier(
+    nodes: &[EpiphanyMemoryNode],
     frontier: &[RepoFrontierItem],
 ) -> Vec<EpiphanyRepoModelClaimObligationsDocument> {
-    let mut obligations = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut obligations = nodes
+        .iter()
+        .map(|node| (node.id.clone(), BTreeSet::<String>::new()))
+        .collect::<BTreeMap<_, _>>();
     for item in frontier.iter().filter(|item| frontier_is_unresolved(item)) {
         for node_id in &item.target_claim_ids {
             obligations
@@ -1527,6 +1552,7 @@ fn claim_obligations_for_frontier(
             |(node_id, unresolved_frontier_ids)| EpiphanyRepoModelClaimObligationsDocument {
                 node_id,
                 unresolved_frontier_ids: unresolved_frontier_ids.into_iter().collect(),
+                active_challenge_ids: Vec::new(),
             },
         )
         .collect()
@@ -1602,6 +1628,37 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         lifecycle_receipts.clone(),
         claim_obligations.clone(),
     )?;
+    let challenges = cache.get_all::<crate::RepoModelClaimChallenge>()?;
+    for obligation in &claim_obligations {
+        for challenge_id in &obligation.active_challenge_ids {
+            let challenge = challenges
+                .iter()
+                .find(|challenge| challenge.challenge_id == *challenge_id)
+                .ok_or_else(|| anyhow!("claim obligation names a missing challenge"))?;
+            if challenge.target_claim_id != obligation.node_id {
+                return Err(anyhow!("claim obligation challenge targets another node"));
+            }
+        }
+    }
+    for challenge in &challenges {
+        let Some(node) = nodes
+            .iter()
+            .find(|node| node.id == challenge.target_claim_id)
+        else {
+            continue;
+        };
+        let node_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(node)?));
+        if node_sha256 == challenge.target_claim_sha256
+            && !claim_obligations.iter().any(|obligation| {
+                obligation.node_id == challenge.target_claim_id
+                    && obligation
+                        .active_challenge_ids
+                        .contains(&challenge.challenge_id)
+            })
+        {
+            return Err(anyhow!("current claim challenge lost its claim obligation"));
+        }
+    }
 
     let mut source_documents = cache
         .snapshot_envelopes()
@@ -1681,9 +1738,29 @@ fn validate_claim_obligations(
     frontier: &[RepoFrontierItem],
     obligations: &[EpiphanyRepoModelClaimObligationsDocument],
 ) -> Result<()> {
+    if obligations.len() != nodes.len() {
+        return Err(anyhow!(
+            "every RepoModel node requires one claim obligation"
+        ));
+    }
     for obligation in obligations {
         if !nodes.iter().any(|node| node.id == obligation.node_id) {
             return Err(anyhow!("RepoModel claim obligation names a missing node"));
+        }
+        if !obligation
+            .unresolved_frontier_ids
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+            || !obligation
+                .active_challenge_ids
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+            || obligation
+                .active_challenge_ids
+                .iter()
+                .any(|id| id.trim().is_empty())
+        {
+            return Err(anyhow!("RepoModel claim obligation is not canonical"));
         }
         for frontier_id in &obligation.unresolved_frontier_ids {
             let item = frontier
@@ -1914,6 +1991,14 @@ mod tests {
                 lifecycle: EpiphanyMemoryLifecycle::Accepted,
                 ..Default::default()
             })?,
+        )?;
+        cache.put(
+            "node-1",
+            &EpiphanyRepoModelClaimObligationsDocument {
+                node_id: "node-1".into(),
+                unresolved_frontier_ids: Vec::new(),
+                active_challenge_ids: Vec::new(),
+            },
         )?;
         let first = assemble_repo_model_view(&store)?;
         let second = assemble_repo_model_view(&store)?;
