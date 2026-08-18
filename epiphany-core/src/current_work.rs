@@ -3191,6 +3191,24 @@ mod tests {
         model_basis_with_payload(vec![1])
     }
 
+    fn assert_current_work_reentry_is_read_only(
+        store: &Path,
+        expected: &EpiphanyCurrentWorkProjection,
+    ) -> Result<()> {
+        let mut before = crate::runtime_spine_cache(store)?;
+        before.pull_all_backing_stores()?;
+        let before = before.snapshot_envelopes();
+        assert_eq!(&project_current_work(store)?, expected);
+        let mut after = crate::runtime_spine_cache(store)?;
+        after.pull_all_backing_stores()?;
+        let after = after.snapshot_envelopes();
+        assert_eq!(after, before);
+        assert!(after.iter().all(|envelope| {
+            envelope.r#type != "epiphany.thread_state" && envelope.r#type != "epiphany.memory_graph"
+        }));
+        Ok(())
+    }
+
     #[test]
     fn body_generation_owns_work_identity_while_repo_model_is_projection_cargo() -> Result<()> {
         let first = EpiphanyBodyModelingWorkProjection::derive(
@@ -3314,6 +3332,7 @@ mod tests {
             crate::assemble_mind_view(&store)?.projection_digest
         );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
+        assert_current_work_reentry_is_read_only(&store, &current_work)?;
         let resident_pressure = crate::resident_self_body_modeling_pressure(&store, 1)?
             .expect("unresolved Body work must create Resident Self pressure");
         assert_eq!(
@@ -3339,6 +3358,7 @@ mod tests {
             scheduled_work.body_modeling_action,
             Some(EpiphanyAgentPassContinuationAction::Wait)
         );
+        assert_current_work_reentry_is_read_only(&store, &scheduled_work)?;
         assert!(crate::resident_self_body_modeling_pressure(&store, 2)?.is_none());
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
         scheduled_cache.pull_all_backing_stores()?;
@@ -3485,6 +3505,7 @@ mod tests {
                 .is_none()
         );
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
+        assert_current_work_reentry_is_read_only(&store, &completed_work)?;
 
         let proposal = crate::intake_user_repo_frontier_proposal(
             &store,
@@ -5414,6 +5435,7 @@ mod tests {
         assert!(after_research.body_modeling_action.is_none());
         assert!(after_research.proposal_modeling.is_none());
         assert!(after_research.frontier_verdict_modeling.is_none());
+        assert_current_work_reentry_is_read_only(&store, &after_research)?;
         Ok(())
     }
 }

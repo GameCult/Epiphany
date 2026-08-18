@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use anyhow::{Context, Result, anyhow};
@@ -22,16 +22,43 @@ use crate::{EpiphanyOpenAiRuntimeOptions, assistant_text_from_model_events, run_
 
 #[derive(Clone, Debug)]
 pub struct PersonaModelExecutionPlan {
-    pub turn_id: String,
-    pub provider: String,
-    pub model: String,
-    pub projector_input: PersonaProjectorInput,
-    pub transcript: Vec<PersonaTranscriptMessage>,
-    pub allowed_channel_ids: Vec<String>,
-    pub dynamic_semantic_memory_recall: String,
-    pub source_documents: Vec<epiphany_core::EpiphanyMindDocumentVersion>,
-    pub cultmesh_store: PathBuf,
-    pub runtime_id: String,
+    turn_id: String,
+    provider: String,
+    model: String,
+    projector_input: PersonaProjectorInput,
+    transcript: Vec<PersonaTranscriptMessage>,
+    allowed_channel_ids: Vec<String>,
+    dynamic_semantic_memory_recall: String,
+    source_documents: Vec<epiphany_core::EpiphanyMindDocumentVersion>,
+    cultmesh_store: PathBuf,
+    runtime_id: String,
+}
+
+impl PersonaModelExecutionPlan {
+    pub fn from_admitted_input(
+        store_path: &Path,
+        turn_id: &str,
+        provider: impl Into<String>,
+        model: impl Into<String>,
+        cultmesh_store: PathBuf,
+        runtime_id: impl Into<String>,
+    ) -> Result<Self> {
+        let (document, source) =
+            epiphany_core::load_admitted_persona_pass_input(store_path, turn_id)?
+                .ok_or_else(|| anyhow!("Persona execution plan has no admitted Mind input"))?;
+        Ok(Self {
+            turn_id: document.turn_id,
+            provider: provider.into(),
+            model: model.into(),
+            projector_input: document.projector_input,
+            transcript: document.transcript,
+            allowed_channel_ids: document.allowed_channel_ids,
+            dynamic_semantic_memory_recall: document.dynamic_semantic_memory_recall,
+            source_documents: vec![source],
+            cultmesh_store,
+            runtime_id: runtime_id.into(),
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -569,10 +596,28 @@ mod tests {
     }
 
     fn plan(store: &PathBuf, cultmesh_store: PathBuf) -> Result<PersonaModelExecutionPlan> {
-        let mut plan = PersonaModelExecutionPlan {
+        if !epiphany_core::runtime_spine_status(store)?.present {
+            epiphany_core::initialize_runtime_spine(
+                store,
+                epiphany_core::RuntimeSpineInitOptions {
+                    runtime_id: "persona-test".into(),
+                    display_name: "Persona test".into(),
+                    created_at: "2026-08-14T00:00:00Z".into(),
+                },
+            )?;
+        }
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let provenance = epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-runtime-bootstrap",
+            &cache
+                .get_envelope::<epiphany_core::EpiphanyRuntimeIdentity>(
+                    epiphany_core::RUNTIME_IDENTITY_KEY,
+                )?
+                .ok_or_else(|| anyhow!("test runtime identity is missing"))?,
+        )?;
+        let document = epiphany_core::EpiphanyMindPersonaPassInputDocument {
             turn_id: "turn-1".into(),
-            provider: "test".into(),
-            model: "test-model".into(),
             projector_input: PersonaProjectorInput {
                 identity: PersonaIdentity {
                     identity_id: "epiphany.Persona".into(),
@@ -586,17 +631,7 @@ mod tests {
             transcript: vec![],
             allowed_channel_ids: vec!["aquarium".into()],
             dynamic_semantic_memory_recall: String::new(),
-            source_documents: Vec::new(),
-            cultmesh_store,
-            runtime_id: "epiphany-test".into(),
-        };
-        let document = epiphany_core::EpiphanyMindPersonaPassInputDocument {
-            turn_id: plan.turn_id.clone(),
-            projector_input: plan.projector_input.clone(),
-            transcript: plan.transcript.clone(),
-            allowed_channel_ids: plan.allowed_channel_ids.clone(),
-            dynamic_semantic_memory_recall: plan.dynamic_semantic_memory_recall.clone(),
-            observed_sources: Vec::new(),
+            observed_sources: vec![provenance.clone()],
             admitted_at: "2026-08-14T00:00:00Z".into(),
         };
         if load_document::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(
@@ -605,20 +640,23 @@ mod tests {
         )?
         .is_none()
         {
-            put_new_document(store, &document.turn_id, &document)?;
+            epiphany_core::admit_persona_pass_input(store, provenance, &document)?;
         }
-        let mut cache = epiphany_core::runtime_spine_cache(store)?;
-        cache.pull_all_backing_stores()?;
-        let envelope = cache
-            .get_envelope::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(&document.turn_id)?
-            .expect("test Persona pass input");
-        plan.source_documents = vec![
-            epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
-                "epiphany-mind",
-                &envelope,
-            )?,
-        ];
-        Ok(plan)
+        admitted_plan(store, cultmesh_store)
+    }
+
+    fn admitted_plan(
+        store: &PathBuf,
+        cultmesh_store: PathBuf,
+    ) -> Result<PersonaModelExecutionPlan> {
+        PersonaModelExecutionPlan::from_admitted_input(
+            store,
+            "turn-1",
+            "test",
+            "test-model",
+            cultmesh_store,
+            "epiphany-test",
+        )
     }
 
     fn release_brake(path: &PathBuf) -> Result<()> {
@@ -637,14 +675,32 @@ mod tests {
         let cultmesh = dir.path().join("cultmesh.cc");
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
-        let first =
-            execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh.clone())?, &mut runner)
-                .await?;
+        let first = execute_persona_model_turn_with_runner(
+            &store,
+            &plan(&store, cultmesh.clone())?,
+            &mut runner,
+        )
+        .await?;
         assert_eq!(runner.calls, ["projector", "persona", "interpreter"]);
+        drop(runner);
+
+        let restarted_plan = admitted_plan(&store, cultmesh)?;
+        let admitted_source = restarted_plan.source_documents[0].clone();
+        let mut restarted_runner = FakeRunner { calls: vec![] };
         let second =
-            execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh)?, &mut runner).await?;
+            execute_persona_model_turn_with_runner(&store, &restarted_plan, &mut restarted_runner)
+                .await?;
         assert_eq!(first, second);
-        assert_eq!(runner.calls.len(), 3);
+        assert!(restarted_runner.calls.is_empty());
+        for receipt_id in &second.stage_receipt_ids {
+            let receipt = load_document::<PersonaModelStageReceipt>(&store, receipt_id)?.unwrap();
+            let basis = load_document::<epiphany_core::EpiphanyReasoningBasis>(
+                &store,
+                &receipt.reasoning_basis_id,
+            )?
+            .unwrap();
+            assert_eq!(basis.source_documents, vec![admitted_source.clone()]);
+        }
         let effects =
             load_document::<PersonaInterpreterEffectDocument>(&store, &first.effect_document_id)?
                 .unwrap();
@@ -699,9 +755,10 @@ mod tests {
         put_new_document(&store, &poisoned.receipt_id, &poisoned)?;
 
         let mut runner = FakeRunner { calls: vec![] };
-        let error = execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh)?, &mut runner)
-            .await
-            .unwrap_err();
+        let error =
+            execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh)?, &mut runner)
+                .await
+                .unwrap_err();
         assert!(error.to_string().contains("replay binding is invalid"));
         assert!(runner.calls.is_empty());
         Ok(())

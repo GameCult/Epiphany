@@ -447,6 +447,45 @@ pub struct EpiphanyMindCommitReceipt {
     pub committed_at: String,
 }
 
+impl EpiphanyMindCommitReceipt {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != MIND_COMMIT_RECEIPT_SCHEMA_VERSION {
+            return Err(anyhow!("Mind commit receipt schema is unsupported"));
+        }
+        require_non_empty(&self.invariant_owner, "Mind commit invariant owner")?;
+        chrono::DateTime::parse_from_rfc3339(&self.committed_at)
+            .map_err(|error| anyhow!("Mind commit time is invalid: {error}"))?;
+        if self.writes.is_empty() {
+            return Err(anyhow!("Mind commit receipt has no writes"));
+        }
+        match &self.authority {
+            EpiphanyMindCommitAuthority::ModelDecisionContext {
+                decision_context_id,
+            } => require_non_empty(decision_context_id, "Mind decision context")?,
+            EpiphanyMindCommitAuthority::OperatorProvenance { provenance } => {
+                provenance.validate()?
+            }
+            EpiphanyMindCommitAuthority::TypedOrganProvenance { organ, provenance } => {
+                require_non_empty(organ, "Mind provenance organ")?;
+                provenance.validate()?;
+            }
+        }
+        validate_mind_document_versions(&self.strong_reads, "strong read")?;
+        validate_mind_document_versions(&self.writes, "write")?;
+        if self.receipt_id
+            != mind_commit_receipt_id(
+                &self.authority,
+                &self.invariant_owner,
+                &self.strong_reads,
+                &self.writes,
+            )?
+        {
+            return Err(anyhow!("Mind commit receipt identity digest mismatch"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EpiphanyMindCommitAuthority {
     ModelDecisionContext {
@@ -1057,6 +1096,7 @@ fn commit_authorized_mind_mutation(
         writes: write_versions,
         committed_at: committed_at.to_string(),
     };
+    receipt.validate()?;
     if let Some(existing) = cache.get::<EpiphanyMindCommitReceipt>(&receipt_id)? {
         if existing != receipt {
             return Err(anyhow!("Mind commit receipt identity collision"));
@@ -1253,6 +1293,20 @@ fn validate_unique_envelope_identities(entries: &[CultCacheEnvelope], label: &st
     for entry in entries {
         if !identities.insert((entry.r#type.as_str(), entry.key.as_str())) {
             return Err(anyhow!("Mind mutation repeats {label} identity"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_mind_document_versions(
+    entries: &[EpiphanyMindDocumentVersion],
+    label: &str,
+) -> Result<()> {
+    let mut identities = BTreeSet::new();
+    for entry in entries {
+        entry.validate()?;
+        if !identities.insert(entry.identity()) {
+            return Err(anyhow!("Mind commit receipt repeats {label} identity"));
         }
     }
     Ok(())
@@ -1553,8 +1607,8 @@ mod tests {
     }
 
     #[test]
-    fn decision_context_reuses_runtime_binding_owner_and_survives_transcript_deletion()
-    -> Result<()> {
+    fn decision_context_reuses_runtime_binding_owner_and_survives_transcript_deletion() -> Result<()>
+    {
         let temp = tempdir()?;
         let store = temp.path().join("mind.cc");
         initialize_runtime_spine(
@@ -1677,12 +1731,15 @@ mod tests {
         cache = runtime_spine_cache(&store)?;
         cache.put("request-2:00000000", &native_delta)?;
         cache.put("request-2:00000000", &provider_delta)?;
-        assert!(cache.delete::<epiphany_model_adapter::EpiphanyModelStreamEvent>(
-            "request-2:00000000"
-        )?);
-        assert!(cache.delete::<epiphany_openai_adapter::EpiphanyOpenAiStreamEvent>(
-            "request-2:00000000"
-        )?);
+        assert!(
+            cache
+                .delete::<epiphany_model_adapter::EpiphanyModelStreamEvent>("request-2:00000000")?
+        );
+        assert!(
+            cache.delete::<epiphany_openai_adapter::EpiphanyOpenAiStreamEvent>(
+                "request-2:00000000"
+            )?
+        );
         cache.pull_all_backing_stores()?;
         let retained = cache
             .get::<EpiphanyDecisionContext>(&context.context_id)?
@@ -1699,7 +1756,10 @@ mod tests {
         cache.put(&intent.intent_id, &hostile_binding)?;
         let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
         assert!(seal_model_decision_context(&store, &terminal_native.request_id).is_err());
-        assert_eq!(SingleFileMessagePackBackingStore::new(&store).pull_all()?, before);
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before
+        );
         Ok(())
     }
 

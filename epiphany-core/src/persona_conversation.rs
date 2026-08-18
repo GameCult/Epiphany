@@ -45,11 +45,7 @@ pub fn admit_persona_pass_input(
         ));
     }
     let cache = runtime_spine_cache(runtime_store)?;
-    let write = crate::mind_documents::prepare_mind_document(
-        &cache,
-        &document.turn_id,
-        document,
-    )?;
+    let write = crate::mind_documents::prepare_mind_document(&cache, &document.turn_id, document)?;
     match crate::reasoning_context::commit_external_typed_observation_mind_mutation(
         runtime_store,
         "Persona",
@@ -74,6 +70,59 @@ pub fn admit_persona_pass_input(
         .get_envelope::<crate::EpiphanyMindPersonaPassInputDocument>(&document.turn_id)?
         .ok_or_else(|| anyhow!("Persona pass input commit lost its document"))?;
     crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)
+}
+
+pub fn load_admitted_persona_pass_input(
+    runtime_store: &Path,
+    turn_id: &str,
+) -> Result<
+    Option<(
+        crate::EpiphanyMindPersonaPassInputDocument,
+        crate::EpiphanyMindDocumentVersion,
+    )>,
+> {
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let Some(document) = cache.get::<crate::EpiphanyMindPersonaPassInputDocument>(turn_id)? else {
+        return Ok(None);
+    };
+    document.validate()?;
+    let envelope = cache
+        .get_envelope::<crate::EpiphanyMindPersonaPassInputDocument>(turn_id)?
+        .ok_or_else(|| anyhow!("Persona pass input lost its exact envelope"))?;
+    let source = crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)?;
+    let candidates = cache
+        .get_all::<crate::EpiphanyMindCommitReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.invariant_owner == "Persona.pass_input"
+                && receipt.writes.iter().any(|write| write == &source)
+        })
+        .collect::<Vec<_>>();
+    for receipt in &candidates {
+        receipt.validate()?;
+    }
+    let receipts = candidates
+        .into_iter()
+        .filter(|receipt| {
+            receipt.committed_at == document.admitted_at
+                && receipt.strong_reads.is_empty()
+                && receipt.writes == vec![source.clone()]
+                && matches!(
+                    &receipt.authority,
+                    crate::EpiphanyMindCommitAuthority::TypedOrganProvenance {
+                        organ,
+                        provenance,
+                    } if organ == "Persona" && document.observed_sources.contains(provenance)
+                )
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "Persona pass input does not have one exact causal Mind commit receipt"
+        ));
+    }
+    Ok(Some((document, source)))
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -1090,9 +1139,7 @@ pub(crate) fn admit_persona_state_notes(
         writes,
         &document.created_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(_) => {
-            Ok(("admitted".into(), Vec::new()))
-        }
+        crate::EpiphanyMindCommitOutcome::Committed(_) => Ok(("admitted".into(), Vec::new())),
         crate::EpiphanyMindCommitOutcome::Conflict {
             document_identities,
         } => Err(anyhow!(
@@ -1620,7 +1667,8 @@ mod tests {
     }
 
     #[test]
-    fn persona_pass_input_is_admitted_once_and_substitution_refuses_byte_identically() -> Result<()> {
+    fn persona_pass_input_is_admitted_once_and_substitution_refuses_byte_identically() -> Result<()>
+    {
         let temp = tempfile::tempdir()?;
         let runtime = temp.path().join("runtime.cc");
         crate::initialize_runtime_spine(
@@ -1636,10 +1684,8 @@ mod tests {
             .into_iter()
             .find(|entry| entry.r#type == crate::RUNTIME_IDENTITY_TYPE)
             .expect("runtime identity provenance");
-        let provenance = crate::EpiphanyMindDocumentVersion::from_envelope(
-            "epiphany-heartbeat",
-            &identity,
-        )?;
+        let provenance =
+            crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-heartbeat", &identity)?;
         let document = crate::EpiphanyMindPersonaPassInputDocument {
             turn_id: "persona-pass-1".into(),
             projector_input: crate::PersonaProjectorInput {
@@ -1661,11 +1707,25 @@ mod tests {
             admit_persona_pass_input(&runtime, provenance.clone(), &document)?,
             first
         );
+        assert_eq!(
+            load_admitted_persona_pass_input(&runtime, &document.turn_id)?,
+            Some((document.clone(), first.clone()))
+        );
         let before = SingleFileMessagePackBackingStore::new(&runtime).pull_all()?;
-        let mut substituted = document;
+        let mut substituted = document.clone();
         substituted.allowed_channel_ids = vec!["elsewhere".into()];
-        assert!(admit_persona_pass_input(&runtime, provenance, &substituted).is_err());
-        assert_eq!(SingleFileMessagePackBackingStore::new(&runtime).pull_all()?, before);
+        assert!(admit_persona_pass_input(&runtime, provenance.clone(), &substituted).is_err());
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&runtime).pull_all()?,
+            before
+        );
+
+        let mut naked = document;
+        naked.turn_id = "persona-pass-without-commit".into();
+        let mut cache = crate::runtime_spine_cache(&runtime)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(&naked.turn_id, &naked)?;
+        assert!(load_admitted_persona_pass_input(&runtime, &naked.turn_id).is_err());
         Ok(())
     }
 

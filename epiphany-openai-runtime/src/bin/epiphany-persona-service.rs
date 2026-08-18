@@ -5,12 +5,12 @@ use cultcache_rs::{CacheBackingStore, DatabaseEntry, SingleFileMessagePackBackin
 use epiphany_core::{
     EpiphanyAgentMemoryEntry, EpiphanyHeartbeatStateEntry, EpiphanyMindDocumentVersion,
     EpiphanyMindPersonaPassInputDocument, PersonaIdentity, PersonaProjectorInput,
-    PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage,
+    PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage, PersonaTurnRequest,
     PersonaTurnTerminalOptions, admit_persona_pass_input, assemble_mind_view,
     complete_persona_turn_request_store, default_organ_dependencies_for,
-    exchange_persona_discord_delivery_rudp, load_agent_memory_entry_for_role,
-    load_epiphany_cultmesh_swarm_brake, load_heartbeat_state_entry,
-    load_persona_discord_receipt_anchor,
+    exchange_persona_discord_delivery_rudp, load_admitted_persona_pass_input,
+    load_agent_memory_entry_for_role, load_epiphany_cultmesh_swarm_brake,
+    load_heartbeat_state_entry, load_persona_discord_receipt_anchor,
     load_persona_discord_service_anchor, open_persona_discord_request_identity,
     pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
     persona_model_terminal_exists, poll_persona_discord_crossing,
@@ -90,149 +90,15 @@ async fn poll_once(options: &Options) -> Result<bool> {
     let Some(request) = candidates.into_iter().next() else {
         return Ok(false);
     };
-    let memory = load_agent_memory_entry_for_role(&options.agent_store, &request.role_id)
-        .ok()
-        .flatten();
-    let identity = PersonaIdentity {
-        identity_id: request.agent_id.clone(),
-        display_name: options.persona_name.clone(),
-        repo_name: options.repo_name.clone(),
-        public_description: options.persona_description.clone(),
-        jurisdiction: vec![options.repo_name.clone()],
-    };
-    let transcript = request
-        .mentions
-        .iter()
-        .map(|mention| PersonaTranscriptMessage {
-            channel_id: mention.channel_id.clone(),
-            message_id: mention.message_id.clone(),
-            author_id: mention.author_id.clone(),
-            author_name: mention
-                .author_name
-                .clone()
-                .unwrap_or_else(|| mention.author_id.clone()),
-            is_agent: false,
-            content: mention.content.clone(),
-            timestamp: mention.queued_at.clone(),
-        })
-        .collect::<Vec<_>>();
-    let semantic_recall = semantic_memory_recall_from_heartbeat_action(
-        &serde_json::json!({"persona_memory_recall": request.semantic_memory_recall}),
-    );
-    let social_affordances = request
-        .mentions
-        .iter()
-        .map(|mention| PersonaSocialAffordance {
-            person_id: mention.author_id.clone(),
-            summary: format!(
-                "{} directly addressed the Persona in this reserved turn.",
-                mention.author_name.as_deref().unwrap_or(&mention.author_id)
-            ),
-            recent_message_ids: vec![mention.message_id.clone()],
-        })
-        .collect();
-    let mind = assemble_mind_view(&options.runtime_store)?;
-    let repo_activity = mind
-        .repository_body_observation
-        .as_ref()
-        .map(|body| PersonaRepoActivity {
-            repo_name: options.repo_name.clone(),
-            summary: format!(
-                "Typed repository Body generation {} at manifest {}.",
-                body.generation, body.manifest_root_sha256
-            ),
-            refs: vec![body.observation_id.clone()],
-        })
-        .into_iter()
-        .collect();
-    let has_memory = memory.is_some();
-    let projector_input = PersonaProjectorInput {
-        identity,
-        memory,
-        semantic_memory_recall: semantic_recall.clone(),
-        pending_mentions: request.mentions.clone(),
-        repo_activity,
-        social_affordances,
-        organ_dependencies: vec![default_organ_dependencies_for("Persona")],
-    };
-    let mut observed_sources = Vec::new();
-    let heartbeat_envelope = SingleFileMessagePackBackingStore::new(&options.heartbeat_store)
-        .pull_all()?
-        .into_iter()
-        .find(|entry| entry.r#type == EpiphanyHeartbeatStateEntry::TYPE)
-        .ok_or_else(|| anyhow!("Persona pass input lost its heartbeat source"))?;
-    observed_sources.push(EpiphanyMindDocumentVersion::from_envelope(
-        "epiphany-heartbeat",
-        &heartbeat_envelope,
-    )?);
-    if has_memory {
-        let agent_envelope = SingleFileMessagePackBackingStore::new(&options.agent_store)
-            .pull_all()?
-            .into_iter()
-            .find(|entry| {
-                entry.r#type == EpiphanyAgentMemoryEntry::TYPE && entry.key == request.role_id
-            })
-            .ok_or_else(|| anyhow!("Persona pass input lost its agent-memory source"))?;
-        observed_sources.push(EpiphanyMindDocumentVersion::from_envelope(
-            "epiphany-agent-memory",
-            &agent_envelope,
-        )?);
-    }
-    if let Some(source) = mind.source_documents.iter().find(|source| {
-        source.document_type
-            == epiphany_core::EpiphanyMindRepositoryBodyObservationDocument::TYPE
-            && mind.repository_body_observation.as_ref().is_some_and(|body| {
-                source.document_key == body.observation_id
-            })
-    }) {
-        observed_sources.push(source.clone());
-    }
-    let observed_pass_input = EpiphanyMindPersonaPassInputDocument {
-        turn_id: request.request_id.clone(),
-        projector_input,
-        transcript,
-        allowed_channel_ids: request
-            .mentions
-            .iter()
-            .map(|mention| mention.channel_id.clone())
-            .collect(),
-        dynamic_semantic_memory_recall: semantic_recall,
-        observed_sources,
-        admitted_at: request.reserved_at.clone(),
-    };
-    let mut runtime_cache = epiphany_core::runtime_spine_cache(&options.runtime_store)?;
-    runtime_cache.pull_all_backing_stores()?;
-    let (pass_input, source) = if let Some(existing) = runtime_cache
-        .get::<EpiphanyMindPersonaPassInputDocument>(&request.request_id)?
-    {
-        existing.validate()?;
-        let envelope = runtime_cache
-            .get_envelope::<EpiphanyMindPersonaPassInputDocument>(&request.request_id)?
-            .ok_or_else(|| anyhow!("Persona pass input lost its exact envelope"))?;
-        (
-            existing,
-            EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)?,
-        )
-    } else {
-        let source = admit_persona_pass_input(
-            &options.runtime_store,
-            observed_pass_input.observed_sources[0].clone(),
-            &observed_pass_input,
-        )?;
-        (observed_pass_input, source)
-    };
-    let plan = PersonaModelExecutionPlan {
-        turn_id: request.request_id.clone(),
-        provider: options.provider.clone(),
-        model: options.model.clone(),
-        projector_input: pass_input.projector_input,
-        transcript: pass_input.transcript,
-        allowed_channel_ids: pass_input.allowed_channel_ids,
-        dynamic_semantic_memory_recall: pass_input.dynamic_semantic_memory_recall,
-        source_documents: vec![source],
-        cultmesh_store: options.cultmesh_store.clone(),
-        runtime_id: options.runtime_id.clone(),
-    };
+    ensure_persona_pass_input_admitted(options, &request)?;
+    let plan = PersonaModelExecutionPlan::from_admitted_input(
+        &options.runtime_store,
+        &request.request_id,
+        options.provider.clone(),
+        options.model.clone(),
+        options.cultmesh_store.clone(),
+        options.runtime_id.clone(),
+    )?;
     let mut runner = NativePersonaModelRunner {
         store_path: options.runtime_store.clone(),
         codex_home: options.codex_home.clone(),
@@ -308,6 +174,128 @@ async fn poll_once(options: &Options) -> Result<bool> {
         }
     }
     Ok(result.is_some())
+}
+
+fn ensure_persona_pass_input_admitted(
+    options: &Options,
+    request: &PersonaTurnRequest,
+) -> Result<()> {
+    if load_admitted_persona_pass_input(&options.runtime_store, &request.request_id)?.is_some() {
+        return Ok(());
+    }
+
+    let memory = load_agent_memory_entry_for_role(&options.agent_store, &request.role_id)
+        .ok()
+        .flatten();
+    let identity = PersonaIdentity {
+        identity_id: request.agent_id.clone(),
+        display_name: options.persona_name.clone(),
+        repo_name: options.repo_name.clone(),
+        public_description: options.persona_description.clone(),
+        jurisdiction: vec![options.repo_name.clone()],
+    };
+    let transcript = request
+        .mentions
+        .iter()
+        .map(|mention| PersonaTranscriptMessage {
+            channel_id: mention.channel_id.clone(),
+            message_id: mention.message_id.clone(),
+            author_id: mention.author_id.clone(),
+            author_name: mention
+                .author_name
+                .clone()
+                .unwrap_or_else(|| mention.author_id.clone()),
+            is_agent: false,
+            content: mention.content.clone(),
+            timestamp: mention.queued_at.clone(),
+        })
+        .collect::<Vec<_>>();
+    let semantic_recall = semantic_memory_recall_from_heartbeat_action(
+        &serde_json::json!({"persona_memory_recall": request.semantic_memory_recall}),
+    );
+    let social_affordances = request
+        .mentions
+        .iter()
+        .map(|mention| PersonaSocialAffordance {
+            person_id: mention.author_id.clone(),
+            summary: format!(
+                "{} directly addressed the Persona in this reserved turn.",
+                mention.author_name.as_deref().unwrap_or(&mention.author_id)
+            ),
+            recent_message_ids: vec![mention.message_id.clone()],
+        })
+        .collect();
+    let mind = assemble_mind_view(&options.runtime_store)?;
+    let repo_activity = mind
+        .repository_body_observation
+        .as_ref()
+        .map(|body| PersonaRepoActivity {
+            repo_name: options.repo_name.clone(),
+            summary: format!(
+                "Typed repository Body generation {} at manifest {}.",
+                body.generation, body.manifest_root_sha256
+            ),
+            refs: vec![body.observation_id.clone()],
+        })
+        .into_iter()
+        .collect();
+    let has_memory = memory.is_some();
+    let projector_input = PersonaProjectorInput {
+        identity,
+        memory,
+        semantic_memory_recall: semantic_recall.clone(),
+        pending_mentions: request.mentions.clone(),
+        repo_activity,
+        social_affordances,
+        organ_dependencies: vec![default_organ_dependencies_for("Persona")],
+    };
+    let heartbeat_envelope = SingleFileMessagePackBackingStore::new(&options.heartbeat_store)
+        .pull_all()?
+        .into_iter()
+        .find(|entry| entry.r#type == EpiphanyHeartbeatStateEntry::TYPE)
+        .ok_or_else(|| anyhow!("Persona pass input lost its heartbeat source"))?;
+    let heartbeat_source =
+        EpiphanyMindDocumentVersion::from_envelope("epiphany-heartbeat", &heartbeat_envelope)?;
+    let mut observed_sources = vec![heartbeat_source.clone()];
+    if has_memory {
+        let agent_envelope = SingleFileMessagePackBackingStore::new(&options.agent_store)
+            .pull_all()?
+            .into_iter()
+            .find(|entry| {
+                entry.r#type == EpiphanyAgentMemoryEntry::TYPE && entry.key == request.role_id
+            })
+            .ok_or_else(|| anyhow!("Persona pass input lost its agent-memory source"))?;
+        observed_sources.push(EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-agent-memory",
+            &agent_envelope,
+        )?);
+    }
+    if let Some(source) = mind.source_documents.iter().find(|source| {
+        source.document_type == epiphany_core::EpiphanyMindRepositoryBodyObservationDocument::TYPE
+            && mind
+                .repository_body_observation
+                .as_ref()
+                .is_some_and(|body| source.document_key == body.observation_id)
+    }) {
+        observed_sources.push(source.clone());
+    }
+    let document = EpiphanyMindPersonaPassInputDocument {
+        turn_id: request.request_id.clone(),
+        projector_input,
+        transcript,
+        allowed_channel_ids: request
+            .mentions
+            .iter()
+            .map(|mention| mention.channel_id.clone())
+            .collect(),
+        dynamic_semantic_memory_recall: semantic_recall,
+        observed_sources,
+        admitted_at: request.reserved_at.clone(),
+    };
+    admit_persona_pass_input(&options.runtime_store, heartbeat_source, &document)?;
+    load_admitted_persona_pass_input(&options.runtime_store, &request.request_id)?
+        .ok_or_else(|| anyhow!("Persona pass input admission was not durable"))?;
+    Ok(())
 }
 
 struct Options {
@@ -395,4 +383,95 @@ impl Options {
 }
 fn value(values: &std::collections::BTreeMap<String, String>, key: &str, default: &str) -> String {
     values.get(key).cloned().unwrap_or_else(|| default.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admitted_reentry_does_not_reobserve_external_stores() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime_store = temp.path().join("runtime.cc");
+        epiphany_core::initialize_runtime_spine(
+            &runtime_store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "persona-reentry".into(),
+                display_name: "Persona reentry".into(),
+                created_at: "2026-08-18T03:00:00Z".into(),
+            },
+        )?;
+        let mut cache = epiphany_core::runtime_spine_cache(&runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        let provenance = EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-heartbeat",
+            &cache
+                .get_envelope::<epiphany_core::EpiphanyRuntimeIdentity>(
+                    epiphany_core::RUNTIME_IDENTITY_KEY,
+                )?
+                .expect("runtime identity"),
+        )?;
+        let document = EpiphanyMindPersonaPassInputDocument {
+            turn_id: "turn-reentry".into(),
+            projector_input: PersonaProjectorInput {
+                identity: PersonaIdentity {
+                    identity_id: "epiphany.Persona".into(),
+                    display_name: "Epiphany".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            transcript: Vec::new(),
+            allowed_channel_ids: vec!["aquarium".into()],
+            dynamic_semantic_memory_recall: String::new(),
+            observed_sources: vec![provenance.clone()],
+            admitted_at: "2026-08-18T03:00:01Z".into(),
+        };
+        admit_persona_pass_input(&runtime_store, provenance, &document)?;
+        let request = PersonaTurnRequest {
+            request_id: document.turn_id.clone(),
+            role_id: "Persona".into(),
+            agent_id: "epiphany.Persona".into(),
+            reserved_at: document.admitted_at.clone(),
+            status: "reserved".into(),
+            ..Default::default()
+        };
+        let absent = temp.path().join("intentionally-absent");
+        let options = Options {
+            runtime_store: runtime_store.clone(),
+            heartbeat_store: absent.join("heartbeat.cc"),
+            agent_store: absent.join("agent.cc"),
+            cultmesh_store: absent.join("cultmesh.cc"),
+            codex_home: absent.join("codex-home"),
+            runtime_id: "persona-reentry".into(),
+            provider: "test".into(),
+            model: "test-model".into(),
+            repo_name: "Epiphany".into(),
+            persona_name: "Epiphany".into(),
+            persona_description: String::new(),
+            _repo_root: absent.join("repo"),
+            mouth_request_store: absent.join("mouth-requests.cc"),
+            mouth_receipt_store: absent.join("mouth-receipts.cc"),
+            mouth_identity_store: absent.join("mouth-identity.cc"),
+            mouth_request_anchor: absent.join("request-anchor.cc"),
+            mouth_receipt_anchor: absent.join("receipt-anchor.cc"),
+            mouth_rudp: "127.0.0.1:1".parse()?,
+            mouth_timeout_ms: 1,
+            retained_terminal_conversations: 1,
+            poll_ms: 1,
+            once: true,
+        };
+
+        ensure_persona_pass_input_admitted(&options, &request)?;
+        PersonaModelExecutionPlan::from_admitted_input(
+            &runtime_store,
+            &request.request_id,
+            "test",
+            "test-model",
+            options.cultmesh_store,
+            "persona-reentry",
+        )?;
+        assert!(!absent.exists());
+        Ok(())
+    }
 }
