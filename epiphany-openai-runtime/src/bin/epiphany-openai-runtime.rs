@@ -36,7 +36,6 @@ use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::fail_model_backed_worker_job;
 use epiphany_openai_runtime::fail_worker_job;
-use epiphany_openai_runtime::failed_frontier_planning_role_result;
 use epiphany_openai_runtime::load_worker_launch_request;
 use epiphany_openai_runtime::record_openai_events;
 use epiphany_openai_runtime::run_model_turn;
@@ -866,12 +865,6 @@ fn fail_worker_for_runtime_error(
     terminal_request_id: Option<&str>,
 ) -> Result<serde_json::Value> {
     let summary = format!("Worker runtime failed before producing usable output: {error}");
-    let launch = load_worker_launch_request(store_path, job_id)?;
-    if epiphany_core::runtime_role_worker_result(store_path, job_id)?.is_none()
-        && let Some(role_failure) = failed_frontier_planning_role_result(&launch, &error)?
-    {
-        epiphany_core::put_runtime_role_worker_result(store_path, &role_failure)?;
-    }
     let result = fail_worker_and_openai_jobs(
         store_path,
         job_id,

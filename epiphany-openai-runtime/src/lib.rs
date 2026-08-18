@@ -832,6 +832,13 @@ pub fn fail_model_backed_worker_job(
 ) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
     let context =
         epiphany_core::seal_model_decision_context(store_path.as_ref(), terminal_request_id)?;
+    let launch = load_worker_launch_request(store_path.as_ref(), job_id)?;
+    if epiphany_core::runtime_role_worker_result(store_path.as_ref(), job_id)?.is_none()
+        && let Some(role_failure) =
+            failed_frontier_planning_role_result(&launch, &summary, &context.context_id)?
+    {
+        epiphany_core::put_runtime_role_worker_result(store_path.as_ref(), &role_failure)?;
+    }
     complete_runtime_job(
         store_path,
         RuntimeSpineJobResultOptions {
@@ -2265,12 +2272,18 @@ fn role_worker_result_from_ingress(
 /// faculty produced no executable candidate or Mind judgment.
 pub fn failed_frontier_planning_role_result(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
-    error: &str,
+    failure_summary: &str,
+    decision_context_id: &str,
 ) -> Result<Option<EpiphanyRuntimeRoleWorkerResult>> {
     if launch_request.frontier_planning_request_id.is_none()
         && launch_request.frontier_plan_mind_request_id.is_none()
     {
         return Ok(None);
+    }
+    if decision_context_id.trim().is_empty() {
+        return Err(anyhow!(
+            "model-backed planning failure requires its sealed decision context"
+        ));
     }
     let document = launch_request.launch_document()?;
     let EpiphanyWorkerLaunchDocument::Role(document) = document else {
@@ -2278,7 +2291,7 @@ pub fn failed_frontier_planning_role_result(
             "frontier planning failure projection requires a role launch"
         ));
     };
-    let summary = format!("Worker runtime failed before producing usable output: {error}");
+    let summary = failure_summary.trim().to_string();
     Ok(Some(EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: format!("result-worker-{}", launch_request.job_id),
@@ -2299,7 +2312,7 @@ pub fn failed_frontier_planning_role_result(
         risks: Vec::new(),
         state_patch_msgpack: None,
         self_patch_msgpack: None,
-        item_error: Some(error.trim().to_string()),
+        item_error: Some(summary.clone()),
         metadata: std::collections::BTreeMap::new(),
         repo_model_mutation_proposal_msgpack: None,
         verification_request_id: None,
@@ -2316,7 +2329,7 @@ pub fn failed_frontier_planning_role_result(
         imagination_consideration_candidate_msgpack: None,
         admitted_model_direction_consideration_request_id: None,
         admitted_model_direction_consideration_result_msgpack: None,
-        decision_context_id: String::new(),
+        decision_context_id: decision_context_id.to_string(),
     }))
 }
 
@@ -3467,8 +3480,12 @@ mod tests {
             repo_frontier_research_request_id: None,
             repo_frontier_verification_request_id: None,
         };
-        let failed = failed_frontier_planning_role_result(&launch, "candidate mismatch")?
-            .expect("typed planning failure");
+        let failed = failed_frontier_planning_role_result(
+            &launch,
+            "candidate mismatch",
+            "decision-context-planning-failure",
+        )?
+        .expect("typed planning failure");
         assert_eq!(failed.job_id, launch.job_id);
         assert_eq!(failed.role_id, "imagination");
         assert_eq!(failed.item_error.as_deref(), Some("candidate mismatch"));
@@ -3476,6 +3493,11 @@ mod tests {
         assert!(failed.frontier_plan_candidate_msgpack.is_none());
         assert!(failed.state_patch_msgpack.is_none());
         assert!(failed.repo_model_mutation_proposal_msgpack.is_none());
+        assert_eq!(
+            failed.decision_context_id,
+            "decision-context-planning-failure"
+        );
+        assert!(failed_frontier_planning_role_result(&launch, "candidate mismatch", "").is_err());
         Ok(())
     }
 
