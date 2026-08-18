@@ -1161,6 +1161,10 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::ImaginationConsiderationReviewRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanMindRequest>()?;
+    cache.register_entry_type::<crate::EpiphanyReorientationRequest>()?;
+    cache.register_entry_type::<crate::EpiphanyReorientationLaunchBinding>()?;
+    cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
+    cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     cache.register_entry_type::<RepoFrontierPlanMindLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;

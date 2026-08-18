@@ -194,10 +194,6 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub checkpoint_present: bool,
     pub pressure: EpiphanyPressure,
     pub recommendation: EpiphanyCrrcRecommendation,
-    /// True when CRRC's manual-regather pressure is causally newer than the
-    /// latest typed frontier relinquishment. Raw CRRC remains observable when
-    /// false, but it cannot route Self from stale continuity history.
-    pub crrc_regather_current: bool,
     pub roles: Vec<EpiphanyRoleBoardLane>,
     pub reorient_action: EpiphanyReorientAction,
     pub research_result_status: EpiphanyCoordinatorRoleResultStatus,

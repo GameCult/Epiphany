@@ -4,20 +4,14 @@ use anyhow::anyhow;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCoordinatorStatus;
 use epiphany_core::EpiphanyCoordinatorStatusInput;
-use epiphany_core::EpiphanyCrrcInput;
-use epiphany_core::EpiphanyCrrcReorientAction;
+use epiphany_core::EpiphanyCrrcAction;
+use epiphany_core::EpiphanyCrrcRecommendation;
 use epiphany_core::EpiphanyCrrcResultStatus;
+use epiphany_core::EpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyFreshnessInput;
-use epiphany_core::EpiphanyGraphFreshnessStatus;
-use epiphany_core::EpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::EpiphanyReorientAction;
-use epiphany_core::EpiphanyReorientFreshnessStatus;
-use epiphany_core::EpiphanyReorientInput;
-use epiphany_core::EpiphanyReorientPressureLevel;
-use epiphany_core::EpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
@@ -29,20 +23,16 @@ use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
-use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
 use epiphany_core::read_accepted_coordinator_state;
-use epiphany_core::recommend_crrc_action;
-use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_self_policy::crrc_scene_action_to_coordinator_scene_action;
 use epiphany_self_policy::derive_coordinator_finding_signals;
 use epiphany_self_policy::derive_coordinator_status;
-use epiphany_self_policy::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
@@ -279,7 +269,7 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
 }
 
 fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Value> {
-    let cwd = absolute_path(&args.cwd)?;
+    let _cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.store)?;
     let runtime_store_path = store_path.clone();
     let state = if store_path.exists() {
@@ -303,53 +293,33 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         reorient_binding_id: REORIENT_BINDING_ID,
     });
     let pressure = derive_pressure_view(None::<&EpiphanyTokenUsageSnapshot>);
-    let freshness = derive_freshness(EpiphanyFreshnessInput {
-        state: state_ref,
-        retrieval_override: None,
-        watcher: None,
-    });
-    let reorient_pressure_level = match pressure.level {
-        epiphany_core::EpiphanyPressureLevel::Unknown => EpiphanyReorientPressureLevel::Unknown,
-        epiphany_core::EpiphanyPressureLevel::Low => EpiphanyReorientPressureLevel::Low,
-        epiphany_core::EpiphanyPressureLevel::Elevated => EpiphanyReorientPressureLevel::Medium,
-        epiphany_core::EpiphanyPressureLevel::High => EpiphanyReorientPressureLevel::High,
-        epiphany_core::EpiphanyPressureLevel::Critical => EpiphanyReorientPressureLevel::Critical,
-    };
-    let reorient_checkpoint = match state_ref
-        .and_then(|state| state.investigation_checkpoint.clone())
-    {
-        Some(checkpoint) => Some(checkpoint),
-        None => match epiphany_core::runtime_current_repo_model(&runtime_store_path)? {
-            None => None,
-            Some(_) => {
-                let projection =
-                    epiphany_core::runtime_modeling_semantic_projection_input(&runtime_store_path)
-                        .context("failed to validate current RepoModel continuity projection")?;
-                Some(
-                    epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
-                        projection.snapshot(),
-                        &projection.obligation().obligation_id,
-                    ),
-                )
+    let mind = epiphany_core::assemble_mind_view(&runtime_store_path)?;
+    let durable_checkpoint_present = mind.investigation_checkpoint.is_some();
+    let latest_reorientation_decision = mind.reorientation_decisions.last();
+    let reorientation_work = current_work.reorientation.as_ref();
+    let reorient_action = latest_reorientation_decision
+        .map(|decision| {
+            if decision.mode == "regather" {
+                EpiphanyReorientAction::Regather
+            } else {
+                EpiphanyReorientAction::Resume
             }
+        })
+        .unwrap_or(EpiphanyReorientAction::Resume);
+    let reorient_next_action = latest_reorientation_decision
+        .map(|decision| decision.next_safe_move.clone())
+        .unwrap_or_else(|| "No unresolved keyed reorientation obligation.".into());
+    let reorient_state_status = "ready";
+    let reorient_decision = json!({
+        "action": match reorient_action {
+            EpiphanyReorientAction::Resume => "resume",
+            EpiphanyReorientAction::Regather => "regather",
         },
-    };
-    let durable_checkpoint_present = reorient_checkpoint.is_some();
-    let (reorient_state_status, reorient_decision) =
-        recommend_reorientation(EpiphanyReorientInput {
-            checkpoint: reorient_checkpoint.as_ref(),
-            state_present: state_ref.is_some(),
-            pressure_level: reorient_pressure_level,
-            retrieval_status: reorient_retrieval_status(freshness.retrieval.status),
-            retrieval_dirty_paths: freshness.retrieval.dirty_paths.clone(),
-            graph_status: reorient_graph_status(freshness.graph.status),
-            graph_dirty_paths: freshness.graph.dirty_paths.clone(),
-            watcher_status: reorient_watcher_status(freshness.watcher.status),
-            watcher_changed_paths: freshness.watcher.changed_paths.clone(),
-            watcher_graph_node_ids: freshness.watcher.graph_node_ids.clone(),
-            active_frontier_node_ids: freshness.watcher.active_frontier_node_ids.clone(),
-            watched_root: freshness.watcher.watched_root.clone().or(Some(cwd.clone())),
-        });
+        "nextAction": reorient_next_action,
+        "requestId": reorientation_work.map(|work| work.request.request_id.as_str()),
+        "basisDigest": reorientation_work.map(|work| work.request.projection.projection_digest.as_str()),
+        "authority": "keyedMindCurrentWork",
+    });
     let planning = derive_planning_view(state_ref);
     let mut jobs = derive_jobs(EpiphanyJobsInput {
         state: state_ref,
@@ -361,35 +331,23 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     } else {
         EpiphanyCrrcStateStatus::Missing
     };
-    let reorient_action = match reorient_decision.action {
-        EpiphanyReorientAction::Resume => EpiphanyCrrcReorientAction::Resume,
-        EpiphanyReorientAction::Regather => EpiphanyCrrcReorientAction::Regather,
-    };
-    let result_status =
-        native_reorient_result_status(state_ref, &runtime_store_path, REORIENT_BINDING_ID);
-    let reorient_finding =
-        native_reorient_finding(state_ref, &runtime_store_path, REORIENT_BINDING_ID);
-    let reorient_finding_accepted = state_ref.is_some_and(|state| {
-        reorient_finding
-            .as_ref()
-            .is_some_and(|finding| reorient_finding_already_accepted(state, finding))
-    });
+    let result_status = keyed_reorientation_result_status(
+        &runtime_store_path,
+        reorientation_work,
+        latest_reorientation_decision.is_some(),
+    )?;
+    let reorient_finding_accepted = latest_reorientation_decision.is_some();
     let modeling_result_status =
         native_role_result_status(state_ref, &runtime_store_path, MODELING_BINDING_ID);
     let research_result_status =
         native_role_result_status(state_ref, &runtime_store_path, RESEARCH_BINDING_ID);
     let verification_result_status =
         native_role_result_status(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID);
-    let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
-        loaded,
-        state_status,
-        should_prepare_compaction: pressure.should_prepare_compaction,
-        reorient_action,
-        result_status,
-        checkpoint_present: durable_checkpoint_present,
-        finding_present: reorient_finding.is_some(),
-        finding_accepted: reorient_finding_accepted,
-    });
+    let recommendation = keyed_reorientation_recommendation(
+        reorientation_work,
+        latest_reorientation_decision,
+        pressure.should_prepare_compaction,
+    );
     let role_jobs = jobs
         .iter()
         .map(|job| EpiphanyRoleBoardJob {
@@ -416,14 +374,14 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
                 }
             })
         }),
-        reorient_next_action: reorient_decision.next_action.clone(),
+        reorient_next_action: reorient_next_action.clone(),
         jobs: role_jobs.clone(),
         crrc_action: recommendation.action,
         crrc_recommended_scene_action: recommendation
             .recommended_scene_action
             .map(crrc_scene_action_to_coordinator_scene_action),
         crrc_reason: recommendation.reason.clone(),
-        reorient_decision_action: format!("{:?}", reorient_decision.action),
+        reorient_decision_action: format!("{:?}", reorient_action),
         pressure_level: format!("{:?}", pressure.level),
         reorient_result_status: result_status,
         reorient_job: role_jobs
@@ -461,7 +419,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         research_finding.as_ref(),
         modeling_finding.as_ref(),
         verification_finding.as_ref(),
-        reorient_finding.as_ref(),
+        None,
     );
     let modeling_result_proposal_bound =
         latest_runtime_job_id_for_binding(state_ref, MODELING_BINDING_ID)
@@ -493,20 +451,14 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let frontier_relinquishment =
         epiphany_core::runtime_latest_repo_frontier_relinquishment(&runtime_store_path)
             .context("failed to derive latest frontier relinquishment from runtime-spine state")?;
-    let crrc_regather_current = crrc_regather_current_after_relinquishment(
-        state_ref,
-        &runtime_store_path,
-        frontier_relinquishment.as_ref(),
-    )?;
     let proposal_modeling_work = current_work.proposal_modeling.as_ref();
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: durable_checkpoint_present,
         pressure: pressure.clone(),
         recommendation: recommendation.clone(),
-        crrc_regather_current,
         roles: roles.clone(),
-        reorient_action: reorient_decision.action,
+        reorient_action,
         research_result_status,
         modeling_result_status,
         verification_result_status,
@@ -534,7 +486,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
-        reorient_finding_accepted: finding_signals.reorient_finding_accepted,
+        reorient_finding_accepted,
         hands_frontier_ready,
         research_continuation_action,
         frontier_planning_stage: frontier_planning.stage,
@@ -645,7 +597,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "verificationResultAccepted": finding_signals.verification_result_accepted,
             "verificationResultFailureReviewed": finding_signals.verification_result_failure_reviewed,
         },
-        "reorientResult": native_reorient_result(state_ref, &runtime_store_path, REORIENT_BINDING_ID),
+        "reorientResult": keyed_reorientation_result(&runtime_store_path, reorientation_work, latest_reorientation_decision)?,
         "crrc": {
             "threadId": thread_id,
             "source": "native",
@@ -907,33 +859,6 @@ fn native_role_result(
     result
 }
 
-fn native_reorient_result(
-    state: Option<&EpiphanyThreadState>,
-    runtime_store: &Path,
-    binding_id: &str,
-) -> Value {
-    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
-        return json!({
-            "source": "native",
-            "status": "backendMissing",
-            "bindingId": binding_id,
-            "note": "No runtime-spine job is linked to this native reorientation binding.",
-        });
-    };
-    let snapshot = epiphany_core::read_runtime_reorient_result(Some(runtime_store), job_id);
-    let mut result = json!({
-        "source": "native",
-        "status": snapshot.status,
-        "bindingId": binding_id,
-        "runtimeJobId": job_id,
-        "note": snapshot.note,
-    });
-    if let Some(finding) = snapshot.finding {
-        result["finding"] = json!(finding);
-    }
-    result
-}
-
 fn native_role_result_status(
     state: Option<&EpiphanyThreadState>,
     runtime_store: &Path,
@@ -957,51 +882,6 @@ fn native_role_finding(
 ) -> Option<EpiphanyRoleFindingInterpretation> {
     let job_id = latest_runtime_job_id_for_binding(state, binding_id)?;
     epiphany_core::read_runtime_role_result(Some(runtime_store), job_id, role_id).finding
-}
-
-fn native_reorient_finding(
-    state: Option<&EpiphanyThreadState>,
-    runtime_store: &Path,
-    binding_id: &str,
-) -> Option<epiphany_core::EpiphanyReorientFindingInterpretation> {
-    let job_id = latest_runtime_job_id_for_binding(state, binding_id)?;
-    epiphany_core::read_runtime_reorient_result(Some(runtime_store), job_id).finding
-}
-
-fn native_reorient_result_status(
-    state: Option<&EpiphanyThreadState>,
-    runtime_store: &Path,
-    binding_id: &str,
-) -> EpiphanyCrrcResultStatus {
-    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
-        return EpiphanyCrrcResultStatus::BackendMissing;
-    };
-    match runtime_job_snapshot(runtime_store, job_id) {
-        Ok(Some(snapshot)) => map_runtime_reorient_result_status(&snapshot),
-        Ok(None) => EpiphanyCrrcResultStatus::BackendMissing,
-        Err(_) => EpiphanyCrrcResultStatus::BackendUnavailable,
-    }
-}
-
-fn crrc_regather_current_after_relinquishment(
-    state: Option<&EpiphanyThreadState>,
-    runtime_store: &Path,
-    relinquishment: Option<&epiphany_core::RepoFrontierRelinquishmentReceipt>,
-) -> Result<bool> {
-    let Some(relinquishment) = relinquishment else {
-        return Ok(true);
-    };
-    let Some(job_id) = latest_runtime_job_id_for_binding(state, REORIENT_BINDING_ID) else {
-        return Ok(false);
-    };
-    let Some(snapshot) = runtime_job_snapshot(runtime_store, job_id)? else {
-        return Ok(false);
-    };
-    let reorient_updated_at = chrono::DateTime::parse_from_rfc3339(&snapshot.job.updated_at)
-        .context("reorientation job updated_at is not RFC3339")?;
-    let relinquished_at = chrono::DateTime::parse_from_rfc3339(&relinquishment.relinquished_at)
-        .context("frontier relinquishment timestamp is not RFC3339")?;
-    Ok(reorient_updated_at > relinquished_at)
 }
 
 fn reconcile_native_runtime_jobs(
@@ -1035,33 +915,6 @@ fn latest_runtime_job_id_for_binding<'a>(
         .iter()
         .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
         .map(|link| link.runtime_job_id.as_str())
-}
-
-fn reorient_retrieval_status(
-    status: EpiphanyRetrievalFreshnessStatus,
-) -> EpiphanyReorientFreshnessStatus {
-    match status {
-        EpiphanyRetrievalFreshnessStatus::Missing
-        | EpiphanyRetrievalFreshnessStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
-        EpiphanyRetrievalFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
-        EpiphanyRetrievalFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
-        EpiphanyRetrievalFreshnessStatus::Indexing => EpiphanyReorientFreshnessStatus::Dirty,
-    }
-}
-
-fn reorient_graph_status(status: EpiphanyGraphFreshnessStatus) -> EpiphanyReorientFreshnessStatus {
-    match status {
-        EpiphanyGraphFreshnessStatus::Missing => EpiphanyReorientFreshnessStatus::Unknown,
-        EpiphanyGraphFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
-    }
-}
-
-fn reorient_watcher_status(status: EpiphanyInvalidationStatus) -> EpiphanyReorientFreshnessStatus {
-    match status {
-        EpiphanyInvalidationStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
-        EpiphanyInvalidationStatus::Clean => EpiphanyReorientFreshnessStatus::Clean,
-        EpiphanyInvalidationStatus::Changed => EpiphanyReorientFreshnessStatus::Changed,
-    }
 }
 
 fn map_runtime_role_result_status(
@@ -1102,6 +955,103 @@ fn map_runtime_reorient_result_status(
         EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
         EpiphanyRuntimeJobStatus::Cancelled => EpiphanyCrrcResultStatus::Cancelled,
     }
+}
+
+fn keyed_reorientation_result_status(
+    runtime_store: &Path,
+    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
+    accepted_decision_present: bool,
+) -> Result<EpiphanyCrrcResultStatus> {
+    let Some(work) = work else {
+        return Ok(if accepted_decision_present {
+            EpiphanyCrrcResultStatus::Completed
+        } else {
+            EpiphanyCrrcResultStatus::MissingBinding
+        });
+    };
+    let Some(job_id) = work.job_id.as_deref() else {
+        return Ok(EpiphanyCrrcResultStatus::MissingBinding);
+    };
+    let snapshot = runtime_job_snapshot(runtime_store, job_id)?
+        .ok_or_else(|| anyhow!("keyed reorientation work lost its runtime job"))?;
+    Ok(map_runtime_reorient_result_status(&snapshot))
+}
+
+fn keyed_reorientation_recommendation(
+    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
+    accepted: Option<&epiphany_core::EpiphanyMindReorientationDecisionDocument>,
+    should_prepare_compaction: bool,
+) -> EpiphanyCrrcRecommendation {
+    let build = |action, scene, reason: &str| EpiphanyCrrcRecommendation {
+        action,
+        recommended_scene_action: scene,
+        reason: reason.into(),
+    };
+    if let Some(work) = work {
+        return match work.action {
+            epiphany_core::EpiphanyAgentPassContinuationAction::Launch => build(
+                EpiphanyCrrcAction::LaunchReorientWorker,
+                Some(EpiphanyCrrcSceneAction::ReorientLaunch),
+                "A keyed Mind continuity request has no live attempt; launch its exact sealed projection.",
+            ),
+            epiphany_core::EpiphanyAgentPassContinuationAction::Wait => build(
+                EpiphanyCrrcAction::WaitForReorientWorker,
+                Some(EpiphanyCrrcSceneAction::ReorientResult),
+                "The exact keyed reorientation attempt is still live.",
+            ),
+            epiphany_core::EpiphanyAgentPassContinuationAction::Review => build(
+                EpiphanyCrrcAction::ReviewReorientResult,
+                Some(EpiphanyCrrcSceneAction::ReorientResult),
+                "The exact keyed reorientation pass has a terminal decision or model-backed failure to review.",
+            ),
+        };
+    }
+    if should_prepare_compaction {
+        return build(
+            EpiphanyCrrcAction::LaunchReorientWorker,
+            Some(EpiphanyCrrcSceneAction::ReorientLaunch),
+            "Context pressure requires a new keyed continuity request over the current Mind projection.",
+        );
+    }
+    if accepted.is_some_and(|decision| decision.mode == "regather") {
+        return build(
+            EpiphanyCrrcAction::RegatherManually,
+            Some(EpiphanyCrrcSceneAction::Reorient),
+            "The accepted keyed continuity decision requires explicit regather work.",
+        );
+    }
+    build(
+        EpiphanyCrrcAction::Continue,
+        Some(EpiphanyCrrcSceneAction::Reorient),
+        "No unresolved keyed reorientation obligation exists.",
+    )
+}
+
+fn keyed_reorientation_result(
+    runtime_store: &Path,
+    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
+    accepted: Option<&epiphany_core::EpiphanyMindReorientationDecisionDocument>,
+) -> Result<Value> {
+    let Some(work) = work else {
+        return Ok(accepted
+            .map(|decision| json!({"status": "accepted", "decision": decision}))
+            .unwrap_or(Value::Null));
+    };
+    let Some(job_id) = work.job_id.as_deref() else {
+        return Ok(json!({
+            "status": "unlaunched",
+            "requestId": work.request.request_id,
+        }));
+    };
+    let snapshot = runtime_job_snapshot(runtime_store, job_id)?
+        .ok_or_else(|| anyhow!("keyed reorientation work lost its runtime job"))?;
+    let result = epiphany_core::runtime_reorient_worker_result(runtime_store, job_id)?;
+    Ok(json!({
+        "status": format!("{:?}", snapshot.job.status).to_ascii_lowercase(),
+        "requestId": work.request.request_id,
+        "jobId": job_id,
+        "result": result,
+    }))
 }
 
 fn map_runtime_job_status(status: EpiphanyRuntimeJobStatus) -> EpiphanyJobStatus {

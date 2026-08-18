@@ -1072,15 +1072,20 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         steps.push(step);
                         break;
                     }
-                    let can_accept = args.auto_review
-                        && reorient_result_auto_acceptable(&result)
-                        && revision.is_some();
+                    if result["status"].as_str() == Some("failed") {
+                        let recorded = accept_reorient(&runtime_store)?;
+                        push_event(
+                            &mut step,
+                            json!({"type": "reorientFailureRecorded", "recorded": status_cli::sanitize_for_operator(recorded)}),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
+                    let can_accept = args.auto_review && reorient_result_auto_acceptable(&result);
                     if can_accept {
-                        let accepted = accept_reorient(
-                            &runtime_store,
-                            &thread_id,
-                            revision.and_then(|value| u64::try_from(value).ok()),
-                        )?;
+                        let accepted = accept_reorient(&runtime_store)?;
                         push_event(
                             &mut step,
                             json!({"type": "reorientAccept", "accepted": status_cli::sanitize_for_operator(accepted)}),
@@ -1858,29 +1863,6 @@ fn launch_role(
     }))
 }
 
-fn launch_job_value(
-    service: &epiphany_core::EpiphanyCoordinatorService,
-    thread_id: &str,
-    state: &epiphany_state_model::EpiphanyThreadState,
-    request: &epiphany_core::EpiphanyJobLaunchRequest,
-) -> Result<Value> {
-    let launched = service.launch_job(
-        thread_id,
-        state,
-        request,
-        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
-        Uuid::new_v4().to_string(),
-        now(),
-    )?;
-    Ok(json!({
-        "bindingId": launched.binding_id,
-        "launcherJobId": launched.launcher_job_id,
-        "backendJobId": launched.backend_job_id,
-        "revision": launched.epiphany_state.revision,
-        "state": launched.epiphany_state,
-    }))
-}
-
 fn accept_role(
     runtime_store: &Path,
     thread_id: &str,
@@ -1919,52 +1901,30 @@ fn accept_role(
     }))
 }
 
-fn accept_reorient(
-    runtime_store: &Path,
-    thread_id: &str,
-    expected_revision: Option<u64>,
-) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot accept reorientation without native coordinator state"))?;
-    let snapshot = service.reorient_result(epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID)?;
-    if let Some(result_id) = snapshot
-        .finding
-        .as_ref()
-        .and_then(|finding| finding.runtime_result_id.as_deref())
-        && let Some(existing) = state.acceptance_receipts.iter().find(|receipt| {
-            receipt.result_id == result_id
-                && receipt.binding_id == epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID
-                && receipt.surface == "reorientAccept"
-                && receipt.status == "accepted"
-        })
-    {
-        return Ok(json!({
-            "revision": state.revision,
-            "state": state,
-            "acceptedReceiptId": existing.id,
-            "changed": false,
-        }));
+fn accept_reorient(runtime_store: &Path) -> Result<Value> {
+    let work = epiphany_core::project_current_work(runtime_store)?
+        .reorientation
+        .ok_or_else(|| anyhow!("Mind has no reviewable reorientation work"))?;
+    if work.action != epiphany_core::EpiphanyAgentPassContinuationAction::Review {
+        return Err(anyhow!("reorientation work is not reviewable"));
     }
-    let accepted = service.accept_reorient(
-        thread_id,
-        &state,
-        epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
-        expected_revision,
-        None,
-        now(),
-        &Uuid::new_v4().to_string(),
-        true,
-        true,
-    )?;
+    let job_id = work
+        .job_id
+        .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
+    let snapshot = epiphany_core::runtime_job_snapshot(runtime_store, &job_id)?
+        .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
+    let accepted = match snapshot.job.status {
+        epiphany_core::EpiphanyRuntimeJobStatus::Completed => {
+            epiphany_core::accept_reorientation_result(runtime_store, &job_id, &now())?
+        }
+        epiphany_core::EpiphanyRuntimeJobStatus::Failed => {
+            epiphany_core::record_reorientation_pass_failure(runtime_store, &job_id)?
+        }
+        _ => return Err(anyhow!("reorientation work is not terminally reviewable")),
+    };
     Ok(json!({
-        "revision": accepted.state.revision,
-        "state": accepted.state,
-        "acceptedReceiptId": accepted.update.accepted_receipt_id,
-        "acceptedObservationId": accepted.update.accepted_observation_id,
-        "acceptedEvidenceId": accepted.update.accepted_evidence_id,
-        "finding": accepted.finding,
+        "mindCommitReceipt": accepted,
+        "changed": true,
     }))
 }
 
@@ -2151,64 +2111,18 @@ fn default_binding_id_for_role(role_id: &str) -> String {
 
 fn launch_reorient(
     runtime_store: &Path,
-    local_verse_store: &Path,
-    thread_id: &str,
-    expected_revision: Option<i64>,
-    max_runtime_seconds: u64,
+    _local_verse_store: &Path,
+    _thread_id: &str,
+    _expected_revision: Option<i64>,
+    _max_runtime_seconds: u64,
 ) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let state = service
-        .state()?
-        .ok_or_else(|| anyhow!("cannot launch reorientation without native coordinator state"))?;
-    let checkpoint = match state.investigation_checkpoint.clone() {
-        Some(checkpoint) => checkpoint,
-        None => {
-            let projection = epiphany_core::runtime_modeling_semantic_projection_input(
-                runtime_store,
-            )
-            .context("cannot launch reorientation without a valid admitted RepoModel checkpoint")?;
-            epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
-                projection.snapshot(),
-                &projection.obligation().obligation_id,
-            )
-        }
-    };
-    let status = collect_coordinator_status(runtime_store, thread_id)?;
-    let decision: epiphany_core::EpiphanyReorientDecision =
-        serde_json::from_value(status["reorient"]["decision"].clone())
-            .context("native reorientation status did not contain a typed decision")?;
-    let context = epiphany_core::render_launch_dynamic_prompt_context(
-        runtime_store,
-        local_verse_store,
-        &state,
-        epiphany_core::reorient_launch_context_focus(&state, &decision.next_action),
-    )
-    .map_err(anyhow::Error::msg)?;
-    let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
-    let request = epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context(
-        thread_id,
-        expected_revision,
-        Some(max_runtime_seconds),
-        &state,
-        &checkpoint,
-        &decision,
-        Some(context),
-    );
-    let launched = service.launch_job(
-        thread_id,
-        &state,
-        &request,
-        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
-        Uuid::new_v4().to_string(),
-        now(),
-    )?;
+    let requested_at = now();
+    let request = epiphany_core::request_current_reorientation(runtime_store, &requested_at)?;
+    let job_id = epiphany_core::launch_current_reorientation_work(runtime_store, &requested_at)?;
     Ok(json!({
-        "bindingId": launched.binding_id,
-        "launcherJobId": launched.launcher_job_id,
-        "backendJobId": launched.backend_job_id,
-        "revision": launched.epiphany_state.revision,
-        "state": launched.epiphany_state,
-        "decision": decision,
+        "bindingId": epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        "backendJobId": job_id,
+        "request": request,
     }))
 }
 
@@ -2344,8 +2258,35 @@ fn read_role_result(runtime_store: &Path, thread_id: &str, role_id: &str) -> Res
     Ok(collect_coordinator_status(runtime_store, thread_id)?["roleResults"][role_id].clone())
 }
 
-fn read_reorient_result(runtime_store: &Path, thread_id: &str) -> Result<Value> {
-    Ok(collect_coordinator_status(runtime_store, thread_id)?["reorientResult"].clone())
+fn read_reorient_result(runtime_store: &Path, _thread_id: &str) -> Result<Value> {
+    let Some(work) = epiphany_core::project_current_work(runtime_store)?.reorientation else {
+        return Ok(json!({
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+            "note": "No keyed reorientation request is active."
+        }));
+    };
+    let Some(job_id) = work.job_id else {
+        return Ok(json!({
+            "source": "native",
+            "status": "pending",
+            "bindingId": epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+            "note": "The keyed reorientation request is ready to launch."
+        }));
+    };
+    let snapshot = epiphany_core::read_runtime_reorient_result(Some(runtime_store), &job_id);
+    let mut value = json!({
+        "source": "native",
+        "status": snapshot.status,
+        "bindingId": epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        "runtimeJobId": job_id,
+        "note": snapshot.note,
+    });
+    if let Some(finding) = snapshot.finding {
+        value["finding"] = json!(finding);
+    }
+    Ok(value)
 }
 
 fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Result<Option<Value>> {

@@ -5,11 +5,9 @@ use crate::EpiphanyJobInterruptRequest;
 use crate::EpiphanyJobInterruptResult;
 use crate::EpiphanyJobLaunchRequest;
 use crate::EpiphanyJobLaunchResult;
-use crate::EpiphanyNativeReorientAcceptance;
 use crate::EpiphanyNativeRoleAcceptance;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyStateUpdate;
-use crate::accept_coordinator_reorient_finding;
 use crate::accept_coordinator_role_finding;
 use crate::apply_coordinator_state_update;
 use crate::apply_coordinator_state_update_from_state;
@@ -159,32 +157,6 @@ impl EpiphanyCoordinatorService {
             reference_turn_id,
             accepted_at,
             nonce,
-        )
-    }
-
-    pub fn accept_reorient(
-        &self,
-        thread_id: &str,
-        state: &EpiphanyThreadState,
-        binding_id: &str,
-        expected_revision: Option<u64>,
-        reference_turn_id: Option<String>,
-        accepted_at: String,
-        nonce: &str,
-        update_scratch: bool,
-        update_investigation_checkpoint: bool,
-    ) -> Result<EpiphanyNativeReorientAcceptance> {
-        accept_coordinator_reorient_finding(
-            &self.store,
-            thread_id,
-            state,
-            binding_id,
-            expected_revision,
-            reference_turn_id,
-            accepted_at,
-            nonce,
-            update_scratch,
-            update_investigation_checkpoint,
         )
     }
 

@@ -630,7 +630,7 @@ pub fn build_worker_model_request(
         (
             EpiphanyWorkerLaunchDocument::Reorient(document),
             epiphany_core::EpiphanyReasoningProjection::ReorientLaunch(projection),
-        ) if projection == document => {}
+        ) if projection.authority == *document => {}
         _ => {
             return Err(anyhow!(
                 "worker model request reasoning projection does not match its launch authority"
@@ -2571,6 +2571,8 @@ mod tests {
             observations: Vec::new(),
             evidence: Vec::new(),
             verification_audits: Vec::new(),
+            reorientation_decisions: Vec::new(),
+            reorientation_failures: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
             planning: Default::default(),

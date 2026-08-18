@@ -57,8 +57,7 @@ pub fn derive_coordinator_status(
         .iter()
         .map(coordinator_role_lane_from_role_board)
         .collect();
-    let routing_recommendation =
-        routing_crrc_recommendation(&input.recommendation, input.crrc_regather_current);
+    let routing_recommendation = routing_crrc_recommendation(&input.recommendation);
     let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
         state_status: input.state_status,
         checkpoint_present: input.checkpoint_present,
@@ -110,14 +109,7 @@ pub fn derive_coordinator_status(
 
 fn routing_crrc_recommendation(
     recommendation: &epiphany_core::EpiphanyCrrcRecommendation,
-    regather_current: bool,
 ) -> EpiphanyCoordinatorCrrcRecommendation {
-    if recommendation.action == EpiphanyCrrcAction::RegatherManually && !regather_current {
-        return EpiphanyCoordinatorCrrcRecommendation {
-            action: EpiphanyCrrcAction::Continue,
-            recommended_scene_action: None,
-        };
-    }
     EpiphanyCoordinatorCrrcRecommendation {
         action: recommendation.action,
         recommended_scene_action: recommendation
@@ -1056,26 +1048,6 @@ mod tests {
     use super::*;
     use epiphany_state_model::EpiphanyAcceptanceReceipt;
     use epiphany_state_model::EpiphanyEvidenceRecord;
-
-    #[test]
-    fn relinquishment_demotes_older_manual_regather_to_observation_only() {
-        let recommendation = epiphany_core::EpiphanyCrrcRecommendation {
-            action: EpiphanyCrrcAction::RegatherManually,
-            recommended_scene_action: Some(EpiphanyCrrcSceneAction::ReorientResult),
-            reason: "historical failed reorientation".to_string(),
-        };
-
-        let stale = routing_crrc_recommendation(&recommendation, false);
-        assert_eq!(stale.action, EpiphanyCrrcAction::Continue);
-        assert_eq!(stale.recommended_scene_action, None);
-
-        let current = routing_crrc_recommendation(&recommendation, true);
-        assert_eq!(current.action, EpiphanyCrrcAction::RegatherManually);
-        assert_eq!(
-            current.recommended_scene_action,
-            Some(EpiphanyCoordinatorSceneAction::ReorientResult)
-        );
-    }
 
     fn base_roles() -> Vec<EpiphanyCoordinatorRoleLane> {
         vec![

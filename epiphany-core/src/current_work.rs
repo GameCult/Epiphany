@@ -25,6 +25,7 @@ pub struct EpiphanyCurrentWorkProjection {
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
     pub frontier_verdict_modeling: Option<EpiphanyFrontierVerdictModelingWorkProjection>,
     pub verification: Option<EpiphanyVerificationWorkProjection>,
+    pub reorientation: Option<crate::EpiphanyReorientationWorkProjection>,
     pub hands_frontier_ready: bool,
 }
 
@@ -339,6 +340,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
         proposal_modeling: current_proposal_modeling_work(&cache)?,
         frontier_verdict_modeling: current_frontier_verdict_modeling_work(&cache)?,
         verification: current_verification_work(&cache)?,
+        reorientation: crate::reorientation_work::current_reorientation_work(&cache)?,
         hands_frontier_ready: crate::runtime_has_actionable_hands_frontier(store_path)?,
     })
 }
@@ -2119,7 +2121,7 @@ pub fn accept_frontier_verdict_modeling_result(
     }
 }
 
-fn commit_current_work_launch(
+pub(crate) fn commit_current_work_launch(
     store_path: &Path,
     cache: &CultCache,
     mut expected: Vec<CultCacheEnvelope>,

@@ -110,6 +110,8 @@ pub struct EpiphanyMindPromptProjection {
     pub observations: Vec<epiphany_state_model::EpiphanyObservation>,
     pub evidence: Vec<epiphany_state_model::EpiphanyEvidenceRecord>,
     pub verification_audits: Vec<crate::EpiphanyMindVerificationAuditDocument>,
+    pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
+    pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
     pub investigation_checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
     pub mode: Option<epiphany_state_model::EpiphanyModeState>,
     pub planning: epiphany_state_model::EpiphanyPlanningState,
@@ -130,6 +132,8 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
             observations: value.observations,
             evidence: value.evidence,
             verification_audits: value.verification_audits,
+            reorientation_decisions: value.reorientation_decisions,
+            reorientation_failures: value.reorientation_failures,
             investigation_checkpoint: value.investigation_checkpoint,
             mode: value.mode,
             planning: value.planning,
@@ -143,6 +147,12 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
 pub struct EpiphanyRoleReasoningProjection {
     pub authority: EpiphanyRolePassAuthorityProjection,
     pub mind: EpiphanyMindPromptProjection,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EpiphanyReorientationReasoningProjection {
+    pub authority: crate::EpiphanyReorientWorkerLaunchDocument,
+    pub request: crate::EpiphanyReorientationRequest,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -194,7 +204,7 @@ impl EpiphanyMindDocumentVersion {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EpiphanyReasoningProjection {
     RolePass(EpiphanyRoleReasoningProjection),
-    ReorientLaunch(crate::EpiphanyReorientWorkerLaunchDocument),
+    ReorientLaunch(EpiphanyReorientationReasoningProjection),
     PersonaProjector(PersonaProjectorInput),
     PersonaTurn(PersonaTurnInput),
     PersonaInterpreter(PersonaInterpreterInput),
@@ -462,7 +472,7 @@ pub fn worker_reasoning_basis(
 ) -> Result<EpiphanyReasoningBasis> {
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let launch_envelope = cache
+    cache
         .get_envelope::<EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
         .ok_or_else(|| anyhow!("worker reasoning basis lost its launch envelope"))?;
     let launch_document = launch.launch_document()?;
@@ -478,13 +488,21 @@ pub fn worker_reasoning_basis(
                 }),
             )
         }
-        EpiphanyWorkerLaunchDocument::Reorient(document) => (
-            vec![EpiphanyMindDocumentVersion::from_envelope(
-                "epiphany-mind",
-                &launch_envelope,
-            )?],
-            EpiphanyReasoningProjection::ReorientLaunch(document),
-        ),
+        EpiphanyWorkerLaunchDocument::Reorient(document) => {
+            let request = cache
+                .get::<crate::EpiphanyReorientationRequest>(&document.request_id)?
+                .ok_or_else(|| anyhow!("reorientation reasoning basis lost its request"))?;
+            crate::reorientation_work::validate_reorientation_request_current(&cache, &request)?;
+            (
+                request.source_documents.clone(),
+                EpiphanyReasoningProjection::ReorientLaunch(
+                    EpiphanyReorientationReasoningProjection {
+                        authority: document,
+                        request,
+                    },
+                ),
+            )
+        }
     };
     EpiphanyReasoningBasis::new(
         &launch.job_id,
@@ -545,29 +563,54 @@ pub fn put_reasoning_basis(
     basis.validate()?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    if let EpiphanyReasoningProjection::RolePass(projection) = basis.projection()? {
-        let launch = cache
-            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&basis.pass_id)?
-            .ok_or_else(|| anyhow!("role reasoning basis lost its worker launch"))?;
-        let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document()? else {
-            return Err(anyhow!("role reasoning basis cites a non-role launch"));
-        };
-        let current_mind = crate::assemble_mind_view(store_path)?;
-        let modeling_body_mismatch = projection
-            .authority
-            .role_id
-            .eq_ignore_ascii_case("modeling")
-            && projection.authority.repository_body_observation_basis
-                != current_mind.repository_body_observation;
-        if projection.authority != document.into()
-            || projection.mind != current_mind.clone().into()
-            || basis.source_documents != current_mind.source_documents
-            || modeling_body_mismatch
-        {
-            return Err(anyhow!(
-                "role reasoning projection diverges from its exact launch or keyed Mind sources"
-            ));
+    match basis.projection()? {
+        EpiphanyReasoningProjection::RolePass(projection) => {
+            let launch = cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(&basis.pass_id)?
+                .ok_or_else(|| anyhow!("role reasoning basis lost its worker launch"))?;
+            let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document()? else {
+                return Err(anyhow!("role reasoning basis cites a non-role launch"));
+            };
+            let current_mind = crate::assemble_mind_view(store_path)?;
+            let modeling_body_mismatch = projection
+                .authority
+                .role_id
+                .eq_ignore_ascii_case("modeling")
+                && projection.authority.repository_body_observation_basis
+                    != current_mind.repository_body_observation;
+            if projection.authority != document.into()
+                || projection.mind != current_mind.clone().into()
+                || basis.source_documents != current_mind.source_documents
+                || modeling_body_mismatch
+            {
+                return Err(anyhow!(
+                    "role reasoning projection diverges from its exact launch or keyed Mind sources"
+                ));
+            }
         }
+        EpiphanyReasoningProjection::ReorientLaunch(projection) => {
+            let launch = cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(&basis.pass_id)?
+                .ok_or_else(|| anyhow!("reorientation reasoning basis lost its worker launch"))?;
+            let EpiphanyWorkerLaunchDocument::Reorient(document) = launch.launch_document()? else {
+                return Err(anyhow!("reorientation basis cites a non-reorient launch"));
+            };
+            if projection.authority != document
+                || projection.request.request_id != document.request_id
+                || projection.request.source_documents != basis.source_documents
+            {
+                return Err(anyhow!(
+                    "reorientation reasoning projection diverges from its request"
+                ));
+            }
+            crate::reorientation_work::validate_reorientation_request_current(
+                &cache,
+                &projection.request,
+            )?;
+        }
+        EpiphanyReasoningProjection::PersonaProjector(_)
+        | EpiphanyReasoningProjection::PersonaTurn(_)
+        | EpiphanyReasoningProjection::PersonaInterpreter(_) => {}
     }
     for source in &basis.source_documents {
         if source.store_id != "epiphany-mind" {
@@ -1334,6 +1377,8 @@ mod tests {
                 observations: Vec::new(),
                 evidence: Vec::new(),
                 verification_audits: Vec::new(),
+                reorientation_decisions: Vec::new(),
+                reorientation_failures: Vec::new(),
                 investigation_checkpoint: None,
                 mode: None,
                 planning: Default::default(),

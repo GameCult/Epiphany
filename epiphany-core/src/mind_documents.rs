@@ -263,6 +263,8 @@ pub struct EpiphanyMindView {
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub verification_audits: Vec<EpiphanyMindVerificationAuditDocument>,
+    pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
+    pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
     pub planning: EpiphanyPlanningState,
@@ -280,6 +282,8 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindObservationDocument>()?;
     cache.register_entry_type::<EpiphanyMindEvidenceDocument>()?;
     cache.register_entry_type::<EpiphanyMindVerificationAuditDocument>()?;
+    cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
+    cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     cache.register_entry_type::<EpiphanyMindInvestigationCheckpointDocument>()?;
     cache.register_entry_type::<EpiphanyMindPlanningCaptureDocument>()?;
     cache.register_entry_type::<EpiphanyMindBacklogItemDocument>()?;
@@ -398,6 +402,28 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
             rmp_serde::from_slice(&envelope.payload)?;
         value.validate()?;
         value.audit_id
+    } else if envelope.r#type == crate::EpiphanyMindReorientationDecisionDocument::TYPE {
+        let value: crate::EpiphanyMindReorientationDecisionDocument =
+            rmp_serde::from_slice(&envelope.payload)?;
+        if value.schema_version != crate::MIND_REORIENTATION_DECISION_SCHEMA_VERSION
+            || value.decision_id.trim().is_empty()
+            || value.request_id.trim().is_empty()
+            || value.decision_context_id.trim().is_empty()
+        {
+            return Err(anyhow!("Mind reorientation decision is invalid"));
+        }
+        value.decision_id
+    } else if envelope.r#type == crate::EpiphanyMindReorientationPassFailureDocument::TYPE {
+        let value: crate::EpiphanyMindReorientationPassFailureDocument =
+            rmp_serde::from_slice(&envelope.payload)?;
+        if value.schema_version != crate::MIND_REORIENTATION_PASS_FAILURE_SCHEMA_VERSION
+            || value.failure_id.trim().is_empty()
+            || value.request_id.trim().is_empty()
+            || value.decision_context_id.trim().is_empty()
+        {
+            return Err(anyhow!("Mind reorientation failure is invalid"));
+        }
+        value.failure_id
     } else if envelope.r#type == EpiphanyMindInvestigationCheckpointDocument::TYPE {
         rmp_serde::from_slice::<EpiphanyMindInvestigationCheckpointDocument>(&envelope.payload)?
             .value
@@ -462,6 +488,10 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         values::<EpiphanyMindObservationDocument, _>(&cache, |value| value.value)?;
     let mut evidence = values::<EpiphanyMindEvidenceDocument, _>(&cache, |value| value.value)?;
     let mut verification_audits = cache.get_all::<EpiphanyMindVerificationAuditDocument>()?;
+    let mut reorientation_decisions =
+        cache.get_all::<crate::EpiphanyMindReorientationDecisionDocument>()?;
+    let mut reorientation_failures =
+        cache.get_all::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
     let checkpoints =
         values::<EpiphanyMindInvestigationCheckpointDocument, _>(&cache, |value| value.value)?;
     let mut captures =
@@ -503,6 +533,8 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     observations.sort_by(|left, right| left.id.cmp(&right.id));
     evidence.sort_by(|left, right| left.id.cmp(&right.id));
     verification_audits.sort_by(|left, right| left.audit_id.cmp(&right.audit_id));
+    reorientation_decisions.sort_by(|left, right| left.decision_id.cmp(&right.decision_id));
+    reorientation_failures.sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
     captures.sort_by(|left, right| left.id.cmp(&right.id));
     backlog_items.sort_by(|left, right| left.id.cmp(&right.id));
     roadmap_streams.sort_by(|left, right| left.id.cmp(&right.id));
@@ -545,6 +577,8 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         observations,
         evidence,
         verification_audits,
+        reorientation_decisions,
+        reorientation_failures,
         investigation_checkpoint,
         mode,
         planning: EpiphanyPlanningState {
@@ -583,6 +617,8 @@ fn canonical_mind_versions(
                     | EpiphanyMindObservationDocument::TYPE
                     | EpiphanyMindEvidenceDocument::TYPE
                     | EpiphanyMindVerificationAuditDocument::TYPE
+                    | crate::EpiphanyMindReorientationDecisionDocument::TYPE
+                    | crate::EpiphanyMindReorientationPassFailureDocument::TYPE
                     | EpiphanyMindInvestigationCheckpointDocument::TYPE
                     | EpiphanyMindPlanningCaptureDocument::TYPE
                     | EpiphanyMindBacklogItemDocument::TYPE

@@ -1,7 +1,6 @@
 use crate::coordinator_results::latest_runtime_link;
 use crate::coordinator_state::changed_fields;
 use crate::*;
-use anyhow::Context;
 use epiphany_state_model::EpiphanyThreadState;
 use std::path::Path;
 
@@ -38,132 +37,10 @@ pub struct EpiphanyRoleAcceptanceUpdate {
 }
 
 #[derive(Debug, Clone)]
-pub struct EpiphanyReorientAcceptanceUpdate {
-    pub state_update: EpiphanyStateUpdate,
-    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
-    pub accepted_receipt_id: String,
-    pub accepted_observation_id: String,
-    pub accepted_evidence_id: String,
-    pub mind_review: MindGatewayReview,
-}
-
-#[derive(Debug, Clone)]
 pub struct EpiphanyNativeRoleAcceptance {
     pub state: EpiphanyThreadState,
     pub finding: EpiphanyRoleFindingInterpretation,
     pub update: EpiphanyRoleAcceptanceUpdate,
-}
-
-#[derive(Debug, Clone)]
-pub struct EpiphanyNativeReorientAcceptance {
-    pub state: EpiphanyThreadState,
-    pub finding: EpiphanyReorientFindingInterpretation,
-    pub update: EpiphanyReorientAcceptanceUpdate,
-}
-
-pub fn accept_coordinator_reorient_finding(
-    store: &Path,
-    thread_id: &str,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-    expected_revision: Option<u64>,
-    reference_turn_id: Option<String>,
-    accepted_at: String,
-    nonce: &str,
-    update_scratch: bool,
-    update_investigation_checkpoint: bool,
-) -> anyhow::Result<EpiphanyNativeReorientAcceptance> {
-    let investigation_checkpoint = if update_investigation_checkpoint {
-        match state.investigation_checkpoint.clone() {
-            Some(checkpoint) => Some(checkpoint),
-            None => {
-                let model = crate::assemble_repo_model_view(store).context(
-                    "cannot accept reorientation without a current keyed RepoModel checkpoint",
-                )?;
-                Some(
-                    epiphany_state_model::reorient_checkpoint_from_admitted_repo_model(
-                        &model.memory_context_projection(),
-                        &model.projection_digest,
-                    ),
-                )
-            }
-        }
-    } else {
-        None
-    };
-    let snapshot = read_reorient_result_snapshot(Some(state), Some(store), binding_id);
-    if snapshot.status != EpiphanyCrrcResultStatus::Completed {
-        return Err(anyhow::anyhow!(
-            "reorientation finding is not completed: {}",
-            snapshot.note
-        ));
-    }
-    let finding = snapshot
-        .finding
-        .ok_or_else(|| anyhow::anyhow!("completed reorientation result has no typed finding"))?;
-    let update = build_native_reorient_acceptance_update(
-        expected_revision,
-        binding_id,
-        &finding,
-        format!("ev-reorient-{nonce}"),
-        format!("obs-reorient-{nonce}"),
-        accepted_at.clone(),
-        update_scratch,
-        update_investigation_checkpoint,
-        investigation_checkpoint,
-    )
-    .map_err(anyhow::Error::msg)?;
-    let contract = acceptance_launch_contract_for_binding(store, state, binding_id, "reorient")
-        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    enforce_acceptance_receipt_proofs(
-        &contract,
-        &reorient_acceptance_claimed_effects(),
-        &[
-            MIND_GATEWAY_REVIEW_TYPE.to_string(),
-            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
-        ],
-        &[
-            MIND_GATEWAY_REVIEW_TYPE.to_string(),
-            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
-        ],
-    )
-    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let recovery = continuity_recovery_receipt_from_reorient_finding(
-        format!("continuity-recovery-{}", update.accepted_receipt_id),
-        binding_id.to_string(),
-        &finding,
-        accepted_at.clone(),
-    );
-    let next_state = apply_coordinator_state_update_to_state(
-        state,
-        update.state_update.clone(),
-        reference_turn_id,
-    )?;
-    let commit = mind_state_commit_receipt(
-        format!("mind-commit-{}", update.accepted_receipt_id),
-        &update.mind_review,
-        next_state.revision,
-        update
-            .changed_fields
-            .iter()
-            .map(|field| format!("{field:?}"))
-            .collect(),
-        accepted_at,
-    );
-    commit_state_with_mind_witness(
-        store,
-        thread_id,
-        state,
-        &next_state,
-        &update.mind_review,
-        &commit,
-        &[EpiphanyAcceptancePrerequisite::Continuity(recovery)],
-    )?;
-    Ok(EpiphanyNativeReorientAcceptance {
-        state: next_state,
-        finding,
-        update,
-    })
 }
 
 pub fn accept_coordinator_role_finding(
@@ -332,48 +209,6 @@ pub fn completed_role_finding(
     })
 }
 
-pub fn completed_reorient_finding(
-    runtime_store_path: Option<&Path>,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-) -> Result<EpiphanyReorientFindingInterpretation, EpiphanyCoordinatorAdmissionError> {
-    let Some(link) = latest_runtime_link(state, binding_id) else {
-        return if state
-            .job_bindings
-            .iter()
-            .any(|binding| binding.id == binding_id)
-        {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(
-                "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results".to_string(),
-            ))
-        } else {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-                "epiphany reorientation binding {binding_id:?} was not found"
-            )))
-        };
-    };
-    let snapshot = read_runtime_reorient_result(runtime_store_path, &link.runtime_job_id);
-    if snapshot.status != EpiphanyCrrcResultStatus::Completed {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept reorientation result while worker status is {:?}",
-            snapshot.status
-        )));
-    }
-    let store = runtime_store_path.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed reorientation worker without a loaded runtime-spine store"
-                .to_string(),
-        )
-    })?;
-    load_launch_organ_contract(store, &link.runtime_job_id, "reorient")?;
-    snapshot.finding.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
-                .to_string(),
-        )
-    })
-}
-
 pub fn load_launch_organ_contract(
     runtime_store_path: &Path,
     job_id: &str,
@@ -493,13 +328,6 @@ pub fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -
         receipts.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
     }
     receipts
-}
-
-pub fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
-    vec![
-        EpiphanyReceiptEffectKind::StateAdmission,
-        EpiphanyReceiptEffectKind::ContinuityRecovery,
-    ]
 }
 
 pub fn coordinator_acceptance_cache(store_path: &Path) -> anyhow::Result<CultCache> {
@@ -641,76 +469,6 @@ pub fn build_native_role_acceptance_update(
     Ok(EpiphanyRoleAcceptanceUpdate {
         state_update: state_update_from_patch(expected_revision, patch.clone()),
         applied_patch: patch,
-        changed_fields,
-        accepted_receipt_id,
-        accepted_observation_id,
-        accepted_evidence_id,
-        mind_review,
-    })
-}
-
-pub fn build_native_reorient_acceptance_update(
-    expected_revision: Option<u64>,
-    binding_id: &str,
-    finding: &EpiphanyReorientFindingInterpretation,
-    accepted_evidence_id: String,
-    accepted_observation_id: String,
-    accepted_at: String,
-    update_scratch: bool,
-    update_investigation_checkpoint: bool,
-    checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
-) -> Result<EpiphanyReorientAcceptanceUpdate, String> {
-    let mind_finding = EpiphanyReorientAcceptanceFinding {
-        mode: finding.mode.clone(),
-        summary: finding.summary.clone(),
-        next_safe_move: finding.next_safe_move.clone(),
-        checkpoint_still_valid: finding.checkpoint_still_valid,
-        files_inspected: finding.files_inspected.clone(),
-        runtime_result_id: finding.runtime_result_id.clone(),
-        runtime_job_id: finding.runtime_job_id.clone(),
-    };
-    let mind_review = mind_review_reorient_acceptance(
-        binding_id,
-        &mind_finding,
-        update_scratch,
-        update_investigation_checkpoint,
-    );
-    mind_review_allows_state(&mind_review)?;
-    let bundle = build_reorient_acceptance_bundle(
-        binding_id,
-        mind_finding,
-        accepted_evidence_id,
-        accepted_observation_id,
-        accepted_at,
-        update_scratch,
-        update_investigation_checkpoint
-            .then_some(checkpoint)
-            .flatten(),
-    )?;
-    let accepted_receipt_id = bundle.accepted_receipt_id.clone();
-    let accepted_observation_id = bundle.accepted_observation_id.clone();
-    let accepted_evidence_id = bundle.accepted_evidence_id.clone();
-    let mut changed_fields = vec![
-        EpiphanyStateUpdatedField::AcceptanceReceipts,
-        EpiphanyStateUpdatedField::Observations,
-        EpiphanyStateUpdatedField::Evidence,
-    ];
-    if bundle.scratch.is_some() {
-        changed_fields.push(EpiphanyStateUpdatedField::Scratch);
-    }
-    if bundle.investigation_checkpoint.is_some() {
-        changed_fields.push(EpiphanyStateUpdatedField::InvestigationCheckpoint);
-    }
-    Ok(EpiphanyReorientAcceptanceUpdate {
-        state_update: EpiphanyStateUpdate {
-            expected_revision,
-            scratch: bundle.scratch,
-            investigation_checkpoint: bundle.investigation_checkpoint,
-            acceptance_receipts: vec![bundle.receipt],
-            observations: vec![bundle.observation],
-            evidence: vec![bundle.evidence],
-            ..Default::default()
-        },
         changed_fields,
         accepted_receipt_id,
         accepted_observation_id,

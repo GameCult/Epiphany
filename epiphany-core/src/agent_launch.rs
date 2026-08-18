@@ -8,14 +8,10 @@ use crate::EpiphanyJobLaunchRequest;
 use crate::EpiphanyPressure;
 use crate::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use crate::EpiphanyReorientAction as CoreEpiphanyReorientAction;
-use crate::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
-use crate::EpiphanyReorientLaunchRequestInput;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyRoleWorkerLaunchDocument;
 use crate::EpiphanyWorkerLaunchDocument;
-use crate::build_reorient_job_launch_request;
 use crate::default_launch_organ_contract;
-use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyThreadState;
 
@@ -1236,49 +1232,6 @@ fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> 
         }
     };
     epiphany_worker_prompt(body)
-}
-
-pub fn build_epiphany_reorient_launch_request(
-    thread_id: &str,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-    checkpoint: &EpiphanyInvestigationCheckpoint,
-    decision: &CoreEpiphanyReorientDecision,
-) -> EpiphanyJobLaunchRequest {
-    build_epiphany_reorient_launch_request_with_dynamic_context(
-        thread_id,
-        expected_revision,
-        max_runtime_seconds,
-        state,
-        checkpoint,
-        decision,
-        None,
-    )
-}
-
-pub fn build_epiphany_reorient_launch_request_with_dynamic_context(
-    thread_id: &str,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-    checkpoint: &EpiphanyInvestigationCheckpoint,
-    decision: &CoreEpiphanyReorientDecision,
-    dynamic_prompt_context: Option<String>,
-) -> EpiphanyJobLaunchRequest {
-    let instruction = build_epiphany_reorient_launch_instruction(decision.action);
-    build_reorient_job_launch_request(EpiphanyReorientLaunchRequestInput {
-        thread_id,
-        expected_revision,
-        max_runtime_seconds,
-        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
-        owner_role: EPIPHANY_REORIENT_OWNER_ROLE,
-        instruction,
-        state,
-        checkpoint,
-        decision,
-        dynamic_prompt_context,
-    })
 }
 
 pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAction) -> String {
