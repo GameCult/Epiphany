@@ -526,29 +526,15 @@ const RESPONSES_UNSUPPORTED_SCHEMA_KEYWORDS: &[&str] = &[
     "if",
     "then",
     "else",
-    // String, numeric, object, and array assertions remain native-ingress
-    // authority. The Responses backend is a formatting projection, and its
-    // accepted subset is narrower (including observed rejection of
-    // `uniqueItems`).
-    "minLength",
-    "maxLength",
-    "pattern",
-    "format",
-    "contentEncoding",
-    "contentMediaType",
-    "contentSchema",
-    "minimum",
-    "maximum",
-    "exclusiveMinimum",
-    "exclusiveMaximum",
-    "multipleOf",
+    // Standard-model Responses accepts type-specific assertions which remain
+    // useful generation constraints; native ingress still owns final
+    // validation. `uniqueItems` is excluded because the live strict endpoint
+    // rejects it even though ordinary JSON Schema permits it.
     "patternProperties",
     "propertyNames",
     "minProperties",
     "maxProperties",
     "unevaluatedProperties",
-    "minItems",
-    "maxItems",
     "uniqueItems",
     "contains",
     "minContains",
@@ -1487,13 +1473,13 @@ mod tests {
             "string"
         );
         let source_refs = &schema["properties"]["source_refs"];
-        assert!(source_refs.get("minItems").is_none());
-        assert!(source_refs.get("maxItems").is_none());
+        assert_eq!(source_refs["minItems"], 1);
+        assert_eq!(source_refs["maxItems"], 8);
         assert!(source_refs.get("uniqueItems").is_none());
-        assert!(source_refs["items"].get("minLength").is_none());
-        assert!(source_refs["items"].get("pattern").is_none());
+        assert_eq!(source_refs["items"]["minLength"], 1);
+        assert_eq!(source_refs["items"]["pattern"], "^source:");
         assert_eq!(schema["properties"]["format"]["type"], "string");
-        assert!(schema["properties"]["format"].get("format").is_none());
+        assert_eq!(schema["properties"]["format"]["format"], "uri");
         assert!(schema["properties"]["node"].get("anyOf").is_none());
     }
 
