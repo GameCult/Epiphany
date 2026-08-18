@@ -173,7 +173,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v1";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -1017,6 +1017,8 @@ pub struct EpiphanyRuntimeJobSnapshot {
 
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
+    let backing_store = runtime_spine_backing_store(store_path)?;
+    validate_runtime_store_epoch(&backing_store.pull_all()?)?;
     let mut cache = CultCache::new();
     crate::mind_documents::register_mind_document_types(&mut cache)?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
@@ -1114,8 +1116,47 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyToolCapability>()?;
     cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
     cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
-    cache.add_generic_backing_store(runtime_spine_backing_store(store_path)?);
+    cache.add_generic_backing_store(backing_store);
     Ok(cache)
+}
+
+fn validate_runtime_store_epoch(envelopes: &[CultCacheEnvelope]) -> Result<()> {
+    if envelopes.is_empty() {
+        return Ok(());
+    }
+    let mind_identities = envelopes
+        .iter()
+        .filter(|envelope| envelope.r#type == crate::EpiphanyMindIdentity::TYPE)
+        .collect::<Vec<_>>();
+    let runtime_identities = envelopes
+        .iter()
+        .filter(|envelope| envelope.r#type == EpiphanyRuntimeIdentity::TYPE)
+        .collect::<Vec<_>>();
+    if mind_identities.is_empty() && runtime_identities.is_empty() {
+        return Ok(());
+    }
+    if mind_identities.len() != 1 || runtime_identities.len() != 1 {
+        return Err(anyhow!(
+            "claimed runtime Mind store does not have one current schema identity pair"
+        ));
+    }
+    let mind_envelope = mind_identities[0];
+    let runtime_envelope = runtime_identities[0];
+    let mind: crate::EpiphanyMindIdentity = rmp_serde::from_slice(&mind_envelope.payload)
+        .map_err(|error| anyhow!("runtime Mind schema identity is invalid: {error}"))?;
+    let runtime: EpiphanyRuntimeIdentity = rmp_serde::from_slice(&runtime_envelope.payload)
+        .map_err(|error| anyhow!("runtime schema identity is invalid: {error}"))?;
+    if mind_envelope.key != crate::MIND_SCHEMA_EPOCH
+        || mind.schema_epoch != crate::MIND_SCHEMA_EPOCH
+        || runtime_envelope.key != RUNTIME_IDENTITY_KEY
+        || runtime.schema_version != RUNTIME_SPINE_SCHEMA_VERSION
+        || mind.runtime_id != runtime.runtime_id
+    {
+        return Err(anyhow!(
+            "nonempty runtime Mind store belongs to an unsupported writable schema epoch"
+        ));
+    }
+    Ok(())
 }
 
 pub fn initialize_runtime_spine(
@@ -13795,6 +13836,51 @@ pub(crate) mod tests {
                 .iter()
                 .any(|kind| kind == crate::EpiphanyRepoModelIdentityDocument::TYPE)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn current_runtime_refuses_old_writable_epoch_without_mutation() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("historical.cc");
+        let mut historical = CultCache::new();
+        historical.register_entry_type::<crate::EpiphanyMindIdentity>()?;
+        historical.register_entry_type::<EpiphanyRuntimeIdentity>()?;
+        historical.add_generic_backing_store(runtime_spine_backing_store(&store)?);
+        historical.put(
+            "epiphany.mind.epoch.v1",
+            &crate::EpiphanyMindIdentity {
+                schema_epoch: "epiphany.mind.epoch.v1".into(),
+                runtime_id: "historical-runtime".into(),
+            },
+        )?;
+        historical.put(
+            RUNTIME_IDENTITY_KEY,
+            &EpiphanyRuntimeIdentity {
+                schema_version: "epiphany.runtime_spine.v0".into(),
+                runtime_id: "historical-runtime".into(),
+                display_name: "Historical runtime".into(),
+                runtime_kind: "epiphany.native".into(),
+                created_at: "2026-08-17T00:00:00Z".into(),
+                updated_at: "2026-08-17T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        let before = runtime_spine_backing_store(&store)?.pull_all()?;
+        assert!(runtime_spine_cache(&store).is_err());
+        assert!(
+            initialize_runtime_spine(
+                &store,
+                RuntimeSpineInitOptions {
+                    runtime_id: "historical-runtime".into(),
+                    display_name: "Must not migrate".into(),
+                    created_at: "2026-08-18T00:00:00Z".into(),
+                },
+            )
+            .is_err()
+        );
+        assert_eq!(runtime_spine_backing_store(&store)?.pull_all()?, before);
         Ok(())
     }
 }

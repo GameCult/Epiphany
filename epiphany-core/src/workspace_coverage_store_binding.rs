@@ -488,9 +488,10 @@ fn workspace_coverage_binding_id(
 mod tests {
     use super::*;
     use crate::{
-        BODY_SCHEMA_VERSION, EpiphanyRuntimeIdentity, EpiphanyRuntimeSwarmBinding,
-        RUNTIME_IDENTITY_KEY, RUNTIME_IDENTITY_TYPE, RUNTIME_SPINE_SCHEMA_VERSION,
-        RUNTIME_SWARM_BINDING_KEY, RUNTIME_SWARM_BINDING_SCHEMA_VERSION,
+        BODY_SCHEMA_VERSION, EpiphanyMindIdentity, EpiphanyRuntimeIdentity,
+        EpiphanyRuntimeSwarmBinding, MIND_SCHEMA_EPOCH, RUNTIME_IDENTITY_KEY,
+        RUNTIME_IDENTITY_TYPE, RUNTIME_SPINE_SCHEMA_VERSION, RUNTIME_SWARM_BINDING_KEY,
+        RUNTIME_SWARM_BINDING_SCHEMA_VERSION,
     };
     use std::collections::BTreeMap;
 
@@ -565,6 +566,15 @@ mod tests {
         runtime_backing.push_all(
             &[
                 envelope(RUNTIME_IDENTITY_TYPE, RUNTIME_IDENTITY_KEY, &identity, NOW)?,
+                envelope(
+                    EpiphanyMindIdentity::TYPE,
+                    MIND_SCHEMA_EPOCH,
+                    &EpiphanyMindIdentity {
+                        schema_epoch: MIND_SCHEMA_EPOCH.into(),
+                        runtime_id: identity.runtime_id.clone(),
+                    },
+                    NOW,
+                )?,
                 envelope(
                     EpiphanyRuntimeSwarmBinding::TYPE,
                     RUNTIME_SWARM_BINDING_KEY,
