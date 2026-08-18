@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`fc5d1a4a` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`c9329ed6` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -22,8 +22,8 @@ or repair path can restore their authority.
 This is not yet the full Concurrent Mind cut. Persisted
 `EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
 unmigrated launch/acceptance/status readers remain live production authorities.
-Baseline Body, Proposal, frontier-verdict Modeling, frontier Research, and
-frontier Verification are no longer among them:
+Baseline Body, Proposal, frontier-verdict Modeling, frontier Research,
+frontier Verification, and frontier Planning/PlanMind are no longer among them:
 keyed Mind owns their work projections, operator and Resident launch, exact job-bound
 continuation, review, and semantic admission. Research is driven only by an explicit
 external-evidence obligation; accepted Eyes state, timestamps, generic regather, and
@@ -57,7 +57,7 @@ canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
 Verification is green at the latest ownership cut: Epiphany core library
-559/559, OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI
+555/555, OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI
 all-target checks pass.
 An unfiltered core package run also exposed two pre-existing
 `epiphany-hands-action` fixture failures: those fixtures omit the exact
@@ -69,8 +69,8 @@ still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
 
 These are implementation and isolated proof claims. They are not sustained
-Starfire dogfood. Planning, reorientation, and final aggregate deletion are the
-next source rites; only then may Gate 1 use separate real stores and
+Starfire dogfood. Reorientation and final aggregate deletion are the next
+source rites; only then may Gate 1 use separate real stores and
 identities; keep impact ingress absent while ordinary Modeling seeds facts and
 publishers/projector establish signed sight; then engage all three Atlas brakes
 and prove later organ cycles are held while the last Eve projection remains
@@ -419,9 +419,22 @@ original receipt. Generic Verification launch/acceptance, accepted-at/latest
 selection, dynamic telemetry prompt mutation, and model-authored causal IDs are
 gone.
 
-Map and migrate frontier Planning and PlanMind next onto their exact frontier,
-candidate, decision-context, and keyed Mind authorities. Continue with
-reorientation, then delete the aggregate schema/transaction. Run the source
+Exact `c9329ed6` completes frontier Planning and PlanMind. The Planning request
+seals the exact frontier/dependency documents and per-claim obligation guards;
+current-work owns deterministic Imagination and Mind launches; and the terminal
+candidate plus PlanMind decision context are the only model-authored inputs to
+Mind adoption. Claim challenges now replace the exact per-node obligation
+document in the same transaction as the challenge, so a concurrent challenge
+physically conflicts with stale plan adoption while unrelated graph documents
+still merge. Plan adoption writes only the exact frontier and receipt. Replay
+authenticates the immutable request/result chain and the already-adopted
+consequence rather than requiring the obsolete pre-adoption frontier. Generic
+Planning/PlanMind launch constructors and validators, role-lane failure review,
+thread-derived request identity, and aggregate coordinator routing are gone.
+
+Map and migrate reorientation next onto exact keyed freshness and continuity
+obligations, sealed decision contexts, deterministic attempts, and family-owned
+Mind mutations. Then delete the aggregate schema/transaction. Run the source
 guards and fresh-store concurrency/decision-context suite. Only after that may
 Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
 partial roots read-only; do not release scheduling, register operational

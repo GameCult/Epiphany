@@ -359,7 +359,8 @@ scheduler, route, notification, or interface contract.
 | `current_work.rs` | sealed Mind view plus exact family requests, jobs, results, and decisions | pure family-specific scheduling/continuation projections | Events, timestamps, role lanes, and thread revisions cannot create or suppress work. |
 | Body Modeling launch/acceptance owners | exact Body obligation, runtime attempt, sealed decision context, and semantic mutation | one job-bound lifecycle and keyed Mind/RepoModel commit | Baseline Body Modeling never reads or writes `EpiphanyThreadStateEntry`; Eyes is not its gate. |
 | Proposal Modeling launch/acceptance owners | immutable proposal request, exact launch binding and attempt, sealed decision context, and frontier mutation | one deterministic Launch/Wait/Review lifecycle and `Modeling.proposal_frontier` commit | Thread is creation provenance only; the aggregate launcher refuses proposal cargo. |
-| `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and unmigrated family companions | obsolete aggregate commits for residual families only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body Modeling. |
+| frontier Planning/PlanMind launch and adoption owners | exact frontier/dependency versions, per-claim obligation guards, immutable candidate, exact attempts, and sealed decision contexts | deterministic Imagination/Mind lifecycle plus atomic adopted frontier and receipt | Imagination proposes; Mind alone adopts. Unrelated keyed writes merge, while frontier or claim-obligation drift conflicts. |
+| `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and unmigrated reorientation/generic coordinator companions | obsolete aggregate commits for residual families only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body, Modeling, Research, Verification, or Planning families. |
 | `coordinator_acceptance.rs` | reviewed family result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | Body and Proposal delegate to their concrete acceptance owners; no duplicate semantic owner survives there. |
 | `thread_state_store.rs` | typed state entry | low-level CultCache codec/read access | Substrate, not policy; it exposes no production writer. |
 | `coordinator_service.rs` | state/runtime store paths and typed commands | state update, launch, accept, interrupt results | Facade routes typed work; it contains no policy or protocol mapping. |
@@ -5137,3 +5138,48 @@ audit cargo and cannot turn unrelated graph work into a conflict.
   change refuses admission with the copied store byte-identical. Core 559/559,
   OpenAI runtime 23/23, coordinator runtime 18/18, and both all-target checks
   pass.
+
+## Keyed frontier Planning and PlanMind lifecycle (2026-08-18)
+
+Exact `c9329ed6` removes Planning and PlanMind from aggregate coordinator
+behavior. `RepoFrontierPlanningRequest` v4 seals the exact current frontier and
+dependency documents plus each affected claim's obligation document. The full
+keyed RepoModel projection remains immutable audit cargo; it is not a global
+strong read. Request identity is runtime plus frontier semantic identity and
+contains no coordinator thread.
+
+- Owner: `project_current_work` derives Planning and PlanMind
+  Launch/Wait/Review; `launch_current_frontier_planning_work` and
+  `launch_current_frontier_plan_mind_work` publish deterministic attempts;
+  `commit_repo_frontier_plan_decision` alone adopts or refuses the candidate.
+- Inputs: exact frontier/dependency versions, per-claim obligation guards,
+  immutable Planning request, exact Imagination candidate/result, immutable
+  PlanMind request, exact Mind result, and both sealed decision contexts.
+- Outputs: one typed plan-decision receipt and, for adoption, one atomic
+  replacement of the exact frontier containing the adopted plan. Imagination
+  has proposal authority only; Mind owns adoption.
+- Derived state: complete RepoModel view, role boards, events, accepted-at
+  timestamps, latest-result slots, coordinator thread, and operator status are
+  audit or display projections only.
+- Forbidden writers: aggregate state patches, generic coordinator Planning or
+  PlanMind launch validators, role-lane terminality, accepted-at ordering, and
+  thread-derived identities cannot create, suppress, retry, review, or adopt a
+  plan.
+- Shared paths: operator, status, and Resident consume the same current-work
+  projection. Planning and PlanMind use family-specific requests and admission
+  rules while sharing only the pure Launch/Wait/Review vocabulary.
+- Cut line: old aggregate launch constructors and validators are deleted.
+  Planning failure review is a typed Self receipt. Terminal replay authenticates
+  the immutable request/result chain, then verifies the adopted consequence; it
+  does not demand that the frontier still have its pre-adoption value.
+- Concurrency guard: every RepoModel node has a keyed
+  `EpiphanyRepoModelClaimObligationsDocument`. Claim challenge admission updates
+  that document atomically with the challenge. Planning strongly reads the
+  exact guard, so a new external-evidence obligation and stale plan adoption
+  cannot both commit; unrelated graph identities still merge.
+- Verification: the capstone launches Imagination and Mind without persisted
+  thread state, seals both contexts, adopts and replays the exact candidate,
+  preserves an unrelated concurrent node, and makes a copied challenge state
+  reject the stale request and launch byte-identically. Core library 555/555,
+  OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI all-target
+  checks pass.

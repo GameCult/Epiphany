@@ -19,8 +19,8 @@ earned OpenAI-compatible authentication or model-transport capability.
   status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
   that aggregate is an obsolete live authority and currently blocks fresh keyed
   stores from coordinating. Body, Proposal, frontier-verdict Modeling,
-  Research, and Verification have been removed from that authority; planning,
-  reorientation, and generic coordinator presence remain.
+  Research, Verification, and Planning/PlanMind have been removed from that
+  authority; reorientation and generic coordinator presence remain.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -256,14 +256,21 @@ Cut in this order:
    refuses byte-identically, and replay is stable. Generic launch/acceptance,
    accepted-at/latest-result selection, dynamic telemetry prompts, and
    model-authored causal IDs no longer own this family.
-   Migrate planning and reorientation next from
-   aggregate state patches and generic role lanes to family-owned current-work
-   projections, exact job identities, `MindMutation` plans, and exact commit
-   receipts. Reuse pure invariant primitives, not a generic mutable registry.
-10. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+10. **Frontier Planning and PlanMind landed at `c9329ed6`:** the Planning
+   request seals exact frontier/dependency versions plus per-claim obligation
+   guards. Current-work owns deterministic Imagination and Mind attempts;
+   Imagination authors a typed candidate, while Mind alone adopts it through a
+   sealed PlanMind request and family-owned frontier mutation. Claim challenge
+   admission atomically updates the target claim-obligation document, so stale
+   planning conflicts without turning unrelated graph writes into a global
+   head. Thread provenance, generic coordinator validators/constructors,
+   aggregate role lanes, and accepted-at/latest-result behavior no longer own
+   this family. Migrate reorientation next with the same exact-document
+   doctrine, without a generic mutable registry.
+11. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-11. Replay fresh-store concurrency and decision-context acceptance. Only then
+12. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
