@@ -3008,7 +3008,6 @@ mod tests {
             EpiphanyWorkerLaunchDocument::Role(epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: "thread-1".into(),
                 role_id: "modeling".into(),
-                state_revision: 1,
                 objective: Some("obsolete aggregate objective must not cross inference".into()),
                 dynamic_prompt_context: None,
                 repository_body_observation_basis: None,
@@ -3418,7 +3417,6 @@ mod tests {
             EpiphanyWorkerLaunchDocument::Role(epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                 thread_id: "thread-1".into(),
                 role_id: "imagination".into(),
-                state_revision: 1,
                 objective: Some("Plan one frontier.".into()),
                 dynamic_prompt_context: None,
                 repository_body_observation_basis: None,
@@ -3913,7 +3911,6 @@ mod tests {
                     epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
                         role_id: "modeling".to_string(),
-                        state_revision: 1,
                         objective: Some("Map the machine.".to_string()),
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: Some(body_basis.clone()),
@@ -4203,7 +4200,6 @@ mod tests {
                     epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
                         role_id: "verification".to_string(),
-                        state_revision: 1,
                         objective: Some("Verify Hands receipts.".to_string()),
                         dynamic_prompt_context: Some(
                             "<verification_work_loop_telemetry>hands receipts</verification_work_loop_telemetry>"

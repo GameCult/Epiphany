@@ -175,10 +175,6 @@ name = "epiphany-prepare-compaction"
 path = "src/bin/epiphany-prepare-compaction.rs"
 
 [[bin]]
-name = "epiphany-prompt-context-smoke"
-path = "src/bin/epiphany-prompt-context-smoke.rs"
-
-[[bin]]
 name = "epiphany-repo"
 path = "src/bin/epiphany-repo.rs"
 

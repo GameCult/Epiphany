@@ -87,7 +87,6 @@ impl EpiphanyWorkerLaunchDocument {
 pub struct EpiphanyRoleWorkerLaunchDocument {
     pub thread_id: String,
     pub role_id: String,
-    pub state_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub objective: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

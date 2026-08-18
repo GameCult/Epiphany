@@ -81,7 +81,6 @@ fn prepare_authority_family(store: &Path) -> Result<EpiphanyToolInvocationIntent
     let launch_document = EpiphanyWorkerLaunchDocument::Role(EpiphanyRoleWorkerLaunchDocument {
         thread_id: "public-source-no-grant-thread".into(),
         role_id: "research".into(),
-        state_revision: 0,
         objective: Some("Prove the exact public-source grant boundary.".into()),
         dynamic_prompt_context: None,
         repository_body_observation_basis: None,

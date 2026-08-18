@@ -134,10 +134,6 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
-use epiphany_state_model::EpiphanyJobBinding;
-use epiphany_state_model::EpiphanyJobKind;
-use epiphany_state_model::EpiphanyRuntimeLink;
-use epiphany_state_model::EpiphanyThreadState;
 use epiphany_tool_adapter::EpiphanyToolCapability;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -1021,77 +1017,6 @@ pub struct RuntimeSpineHeartbeatJobOptions {
 pub struct PreparedRuntimeSpineHeartbeatJob {
     pub job: EpiphanyRuntimeJob,
     pub envelopes: Vec<CultCacheEnvelope>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RuntimeSpineHeartbeatLaunchPlanOptions {
-    pub binding_id: String,
-    pub kind: EpiphanyJobKind,
-    pub scope: String,
-    pub owner_role: String,
-    pub authority_scope: String,
-    pub linked_subgoal_ids: Vec<String>,
-    pub linked_graph_node_ids: Vec<String>,
-    pub instruction: String,
-    pub launch_document: EpiphanyWorkerLaunchDocument,
-    pub output_contract_id: String,
-    pub organ_launch_contract: EpiphanyLaunchOrganContract,
-    pub max_runtime_seconds: Option<u64>,
-    pub runtime_job_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RuntimeSpineHeartbeatLaunchPlan {
-    pub binding: EpiphanyJobBinding,
-    pub runtime_link: EpiphanyRuntimeLink,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct EpiphanyJobLaunchRequest {
-    pub expected_revision: Option<u64>,
-    pub binding_id: String,
-    pub kind: EpiphanyJobKind,
-    pub scope: String,
-    pub owner_role: String,
-    pub authority_scope: String,
-    pub linked_subgoal_ids: Vec<String>,
-    pub linked_graph_node_ids: Vec<String>,
-    pub instruction: String,
-    pub launch_document: EpiphanyWorkerLaunchDocument,
-    pub output_contract_id: String,
-    pub organ_launch_contract: EpiphanyLaunchOrganContract,
-    pub max_runtime_seconds: Option<u64>,
-    pub proposal_modeling_request_id: Option<String>,
-    pub frontier_planning_request_id: Option<String>,
-    pub frontier_plan_mind_request_id: Option<String>,
-    pub imagination_consideration_request_id: Option<String>,
-    pub admitted_model_direction_consideration_request_id: Option<String>,
-    pub repo_frontier_modeling_request_id: Option<String>,
-    pub repo_frontier_research_request_id: Option<String>,
-    pub repo_frontier_verification_request_id: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct EpiphanyJobLaunchResult {
-    pub epiphany_state: EpiphanyThreadState,
-    pub binding_id: String,
-    pub launcher_job_id: String,
-    pub backend_job_id: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyJobInterruptRequest {
-    pub expected_revision: Option<u64>,
-    pub binding_id: String,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct EpiphanyJobInterruptResult {
-    pub epiphany_state: EpiphanyThreadState,
-    pub binding_id: String,
-    pub cancel_requested: bool,
-    pub interrupted_thread_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3053,64 +2978,6 @@ where
         ));
     }
     Ok(archive)
-}
-
-pub fn plan_runtime_spine_heartbeat_launch(
-    state: &EpiphanyThreadState,
-    options: RuntimeSpineHeartbeatLaunchPlanOptions,
-) -> Result<RuntimeSpineHeartbeatLaunchPlan> {
-    validate_heartbeat_launch_options(state, &options)?;
-    Ok(RuntimeSpineHeartbeatLaunchPlan {
-        binding: EpiphanyJobBinding {
-            id: options.binding_id.clone(),
-            kind: options.kind,
-            scope: options.scope.clone(),
-            owner_role: options.owner_role.clone(),
-            authority_scope: Some(options.authority_scope.clone()),
-            linked_subgoal_ids: options.linked_subgoal_ids.clone(),
-            linked_graph_node_ids: options.linked_graph_node_ids.clone(),
-            blocking_reason: None,
-        },
-        runtime_link: EpiphanyRuntimeLink {
-            id: format!(
-                "runtime-link-{}-{}",
-                options.binding_id, options.runtime_job_id
-            ),
-            binding_id: options.binding_id,
-            surface: "jobLaunch".to_string(),
-            role_id: options.owner_role,
-            authority_scope: options.authority_scope,
-            runtime_job_id: options.runtime_job_id,
-            runtime_result_id: None,
-            linked_subgoal_ids: options.linked_subgoal_ids,
-            linked_graph_node_ids: options.linked_graph_node_ids,
-        },
-    })
-}
-
-pub fn replace_or_append_epiphany_job_binding(
-    mut bindings: Vec<EpiphanyJobBinding>,
-    replacement: EpiphanyJobBinding,
-) -> Vec<EpiphanyJobBinding> {
-    if let Some(existing) = bindings
-        .iter_mut()
-        .find(|binding| binding.id == replacement.id)
-    {
-        *existing = replacement;
-        return bindings;
-    }
-    bindings.push(replacement);
-    bindings
-}
-
-pub fn clear_epiphany_job_binding_backend(
-    mut bindings: Vec<EpiphanyJobBinding>,
-    binding_index: usize,
-    blocking_reason: &str,
-) -> Vec<EpiphanyJobBinding> {
-    let binding = &mut bindings[binding_index];
-    binding.blocking_reason = Some(blocking_reason.to_string());
-    bindings
 }
 
 pub fn open_runtime_spine_heartbeat_job(
@@ -13854,76 +13721,6 @@ where
             rmp_serde::from_slice(payload).with_context(|| format!("failed to decode {label}"))
         })
         .transpose()
-}
-
-fn validate_heartbeat_launch_options(
-    state: &EpiphanyThreadState,
-    options: &RuntimeSpineHeartbeatLaunchPlanOptions,
-) -> Result<()> {
-    validate_non_empty(&options.binding_id, "epiphany job launch binding_id")?;
-    if matches!(
-        options.binding_id.as_str(),
-        "retrieval-index" | "graph-remap" | "verification"
-    ) {
-        return Err(anyhow!(
-            "epiphany job launch binding_id {:?} is reserved for a derived built-in slot",
-            options.binding_id
-        ));
-    }
-    if options.kind != EpiphanyJobKind::Specialist {
-        return Err(anyhow!(
-            "epiphany job launch currently supports only specialist heartbeat turns"
-        ));
-    }
-    validate_non_empty(&options.scope, "epiphany job launch scope")?;
-    validate_non_empty(&options.owner_role, "epiphany job launch owner_role")?;
-    validate_non_empty(
-        &options.authority_scope,
-        "epiphany job launch authority_scope",
-    )?;
-    validate_non_empty(&options.instruction, "epiphany job launch instruction")?;
-    validate_non_empty(
-        options.launch_document.thread_id(),
-        "epiphany job launch document thread id",
-    )?;
-    validate_non_empty(
-        &options.output_contract_id,
-        "epiphany job launch output_contract_id",
-    )?;
-    if options.output_contract_id != options.launch_document.output_contract_id() {
-        return Err(anyhow!(
-            "epiphany job launch output_contract_id must match the typed launch document"
-        ));
-    }
-    validate_launch_organ_contract(
-        &options.organ_launch_contract,
-        &options.authority_scope,
-        options.launch_document.document_kind(),
-        &options.output_contract_id,
-    )?;
-    if let Some(max_runtime_seconds) = options.max_runtime_seconds
-        && max_runtime_seconds == 0
-    {
-        return Err(anyhow!(
-            "epiphany job launch max_runtime_seconds must be >= 1"
-        ));
-    }
-    let existing_binding = state
-        .job_bindings
-        .iter()
-        .find(|binding| binding.id == options.binding_id);
-    let latest_runtime_link = state.runtime_links.iter().find(|link| {
-        link.binding_id == options.binding_id && !link.runtime_job_id.trim().is_empty()
-    });
-    if latest_runtime_link.is_some_and(|link| link.runtime_result_id.is_none())
-        && existing_binding.is_none_or(|binding| binding.blocking_reason.is_none())
-    {
-        return Err(anyhow!(
-            "epiphany job binding {:?} is already bound to an active heartbeat turn; interrupt it before launching a replacement",
-            options.binding_id
-        ));
-    }
-    Ok(())
 }
 
 fn terminal_status_for_verdict(verdict: &str) -> EpiphanyRuntimeJobStatus {

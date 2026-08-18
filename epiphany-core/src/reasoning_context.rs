@@ -1293,7 +1293,6 @@ mod tests {
         EpiphanyRoleWorkerLaunchDocument {
             thread_id: "creation-thread".into(),
             role_id: "Modeling".into(),
-            state_revision: 7,
             objective: Some("Map the Body".into()),
             dynamic_prompt_context: Some("typed projection".into()),
             repository_body_observation_basis: None,

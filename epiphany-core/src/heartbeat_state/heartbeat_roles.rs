@@ -276,7 +276,7 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
     vec![
         "Runs Ghostlight-shaped persistent role memory.",
         "May improve lane memory when awake and idle.",
-        "Project truth belongs in EpiphanyThreadState, not role memory.",
+        "Project truth belongs in keyed Mind documents, not role memory.",
         role_specific,
     ]
 }

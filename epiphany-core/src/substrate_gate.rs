@@ -1,4 +1,3 @@
-use crate::EpiphanyJobLaunchRequest;
 use cultcache_rs::DatabaseEntry;
 use serde::Deserialize;
 use serde::Serialize;
@@ -139,23 +138,6 @@ pub fn default_substrate_gate_cultnet_contracts() -> Vec<SubstrateGateCultNetCon
     ]
 }
 
-pub fn substrate_gate_repo_access_grant_for_launch(
-    receipt_id: String,
-    runtime_job_id: String,
-    request: &EpiphanyJobLaunchRequest,
-    granted_at: String,
-) -> SubstrateGateRepoAccessGrantReceipt {
-    substrate_gate_repo_access_grant_for_worker(
-        receipt_id,
-        runtime_job_id,
-        request.binding_id.clone(),
-        request.owner_role.clone(),
-        request.authority_scope.clone(),
-        request.binding_id == crate::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
-        granted_at,
-    )
-}
-
 pub fn substrate_gate_repo_access_grant_for_worker(
     receipt_id: String,
     runtime_job_id: String,
@@ -277,68 +259,14 @@ mod tests {
     }
 
     #[test]
-    fn substrate_gate_grant_for_launch_is_read_only() {
-        let request = EpiphanyJobLaunchRequest {
-            expected_revision: Some(7),
-            binding_id: "research-source-gather-worker".to_string(),
-            kind: epiphany_state_model::EpiphanyJobKind::Specialist,
-            scope: "research".to_string(),
-            owner_role: "epiphany-eyes".to_string(),
-            authority_scope: "epiphany.role.research".to_string(),
-            linked_subgoal_ids: Vec::new(),
-            linked_graph_node_ids: Vec::new(),
-            instruction: "Gather source evidence.".to_string(),
-            launch_document: crate::EpiphanyWorkerLaunchDocument::Role(
-                crate::EpiphanyRoleWorkerLaunchDocument {
-                    thread_id: "thread-1".to_string(),
-                    role_id: "research".to_string(),
-                    state_revision: 7,
-                    objective: None,
-                    dynamic_prompt_context: None,
-                    repository_body_observation_basis: None,
-                    proposal_modeling_context: None,
-                    frontier_verdict_modeling_context: None,
-                    frontier_planning_context: None,
-                    frontier_research_context: None,
-                    frontier_verification_context: None,
-                    frontier_plan_mind_context: None,
-                    imagination_consideration_context: None,
-                    admitted_model_direction_consideration_context: None,
-                    active_subgoal_id: None,
-                    active_subgoals: Vec::new(),
-                    active_graph_node_ids: Vec::new(),
-                    investigation_checkpoint: None,
-                    scratch: None,
-                    invariants: Vec::new(),
-                    graphs: None,
-                    recent_evidence: Vec::new(),
-                    recent_observations: Vec::new(),
-                    graph_frontier: None,
-                    graph_checkpoint: None,
-                    planning: None,
-                    churn: None,
-                },
-            ),
-            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "epiphany.role.research",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            max_runtime_seconds: None,
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
-        };
-        let grant = substrate_gate_repo_access_grant_for_launch(
+    fn substrate_gate_grant_for_worker_is_read_only() {
+        let grant = substrate_gate_repo_access_grant_for_worker(
             "grant-1".to_string(),
             "job-1".to_string(),
-            &request,
+            "research-source-gather-worker".to_string(),
+            "epiphany-eyes".to_string(),
+            "epiphany.role.research".to_string(),
+            true,
             "2026-05-30T00:00:00Z".to_string(),
         );
         assert!(grant.granted_operations.contains(&"read".to_string()));

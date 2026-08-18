@@ -1538,39 +1538,13 @@ mod tests {
         store: &Path,
         launch: &epiphany_core::EpiphanyRuntimeWorkerLaunchRequest,
     ) -> Result<()> {
-        let request = epiphany_core::EpiphanyJobLaunchRequest {
-            expected_revision: None,
-            binding_id: launch.binding_id.clone(),
-            kind: epiphany_state_model::EpiphanyJobKind::Specialist,
-            scope: launch.authority_scope.clone(),
-            owner_role: launch.role.clone(),
-            authority_scope: launch.authority_scope.clone(),
-            linked_subgoal_ids: Vec::new(),
-            linked_graph_node_ids: Vec::new(),
-            instruction: launch.instruction.clone(),
-            launch_document: launch.launch_document()?,
-            output_contract_id: launch.output_contract_id.clone(),
-            organ_launch_contract: launch.organ_launch_contract.clone(),
-            max_runtime_seconds: None,
-            proposal_modeling_request_id: launch.proposal_modeling_request_id.clone(),
-            frontier_planning_request_id: launch.frontier_planning_request_id.clone(),
-            frontier_plan_mind_request_id: launch.frontier_plan_mind_request_id.clone(),
-            imagination_consideration_request_id: launch
-                .imagination_consideration_request_id
-                .clone(),
-            admitted_model_direction_consideration_request_id: launch
-                .admitted_model_direction_consideration_request_id
-                .clone(),
-            repo_frontier_modeling_request_id: launch.repo_frontier_modeling_request_id.clone(),
-            repo_frontier_research_request_id: launch.repo_frontier_research_request_id.clone(),
-            repo_frontier_verification_request_id: launch
-                .repo_frontier_verification_request_id
-                .clone(),
-        };
-        let grant = epiphany_core::substrate_gate_repo_access_grant_for_launch(
+        let grant = epiphany_core::substrate_gate_repo_access_grant_for_worker(
             format!("substrate-grant-{}", launch.job_id),
             launch.job_id.clone(),
-            &request,
+            launch.binding_id.clone(),
+            launch.role.clone(),
+            launch.authority_scope.clone(),
+            launch.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID,
             now(),
         );
         epiphany_core::put_substrate_gate_repo_access_grant_receipt(store, &grant)?;
@@ -1598,7 +1572,6 @@ mod tests {
                     epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
                         role_id: "verification".to_string(),
-                        state_revision: 1,
                         objective: Some("Verify the worker loop.".to_string()),
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,
@@ -1711,7 +1684,6 @@ mod tests {
                     epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
                         role_id: "verification".to_string(),
-                        state_revision: 1,
                         objective: Some("Verify runtime error sealing.".to_string()),
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,
@@ -1848,7 +1820,6 @@ mod tests {
                     epiphany_core::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
                         role_id: "verification".to_string(),
-                        state_revision: 1,
                         objective: Some("Verify the worker loop ceiling.".to_string()),
                         dynamic_prompt_context: None,
                         repository_body_observation_basis: None,

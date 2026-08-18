@@ -4,16 +4,10 @@ use crate::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use crate::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use crate::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
 use crate::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
-use crate::EpiphanyJobLaunchRequest;
 use crate::EpiphanyPressure;
 use crate::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use crate::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use crate::EpiphanyRoleResultRoleId;
-use crate::EpiphanyRoleWorkerLaunchDocument;
-use crate::EpiphanyWorkerLaunchDocument;
-use crate::default_launch_organ_contract;
-use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
-use epiphany_state_model::EpiphanyThreadState;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
@@ -1045,181 +1039,7 @@ pub fn epiphany_worker_prompt(body: &str) -> String {
     }
 }
 
-pub fn build_epiphany_role_launch_request(
-    thread_id: &str,
-    role_id: EpiphanyRoleResultRoleId,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-) -> Result<EpiphanyJobLaunchRequest, String> {
-    build_epiphany_role_launch_request_with_dynamic_context(
-        thread_id,
-        role_id,
-        expected_revision,
-        max_runtime_seconds,
-        state,
-        None,
-    )
-}
-
-pub fn build_epiphany_role_launch_request_with_dynamic_context(
-    thread_id: &str,
-    role_id: EpiphanyRoleResultRoleId,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-    dynamic_prompt_context: Option<String>,
-) -> Result<EpiphanyJobLaunchRequest, String> {
-    let binding_id = epiphany_role_binding_id(role_id)?;
-    let owner_role = epiphany_role_owner(role_id)?;
-    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
-    let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
-    let (scope, authority_scope, instruction) = match role_id {
-        EpiphanyRoleResultRoleId::Imagination => (
-            "role-scoped planning synthesis",
-            "epiphany.role.imagination",
-            build_epiphany_role_launch_instruction(role_id),
-        ),
-        EpiphanyRoleResultRoleId::Research => (
-            "role-scoped source gathering",
-            "epiphany.role.research",
-            build_epiphany_role_launch_instruction(role_id),
-        ),
-        EpiphanyRoleResultRoleId::Modeling => (
-            "role-scoped modeling/checkpoint maintenance",
-            "epiphany.role.modeling",
-            build_epiphany_role_launch_instruction(role_id),
-        ),
-        EpiphanyRoleResultRoleId::Verification => (
-            "role-scoped verification/review",
-            "epiphany.role.verification",
-            build_epiphany_role_launch_instruction(role_id),
-        ),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            return Err(epiphany_role_binding_id(role_id).unwrap_err());
-        }
-    };
-    let launch_document = EpiphanyWorkerLaunchDocument::Role(EpiphanyRoleWorkerLaunchDocument {
-        thread_id: thread_id.to_string(),
-        role_id: epiphany_role_label(role_id).to_string(),
-        state_revision: state.revision,
-        objective: state.objective.clone(),
-        dynamic_prompt_context,
-        repository_body_observation_basis: None,
-        proposal_modeling_context: None,
-        frontier_verdict_modeling_context: None,
-        frontier_planning_context: None,
-        frontier_research_context: None,
-        frontier_verification_context: None,
-        frontier_plan_mind_context: None,
-        imagination_consideration_context: None,
-        admitted_model_direction_consideration_context: None,
-        active_subgoal_id: state.active_subgoal_id.clone(),
-        active_subgoals: state
-            .subgoals
-            .iter()
-            .filter(|subgoal| Some(subgoal.id.as_str()) == state.active_subgoal_id.as_deref())
-            .cloned()
-            .collect(),
-        active_graph_node_ids: linked_graph_node_ids.clone(),
-        investigation_checkpoint: state.investigation_checkpoint.clone(),
-        scratch: state.scratch.clone(),
-        invariants: state.invariants.clone(),
-        graphs: Some(state.graphs.clone()),
-        recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
-        recent_observations: state.observations.iter().take(8).cloned().collect(),
-        graph_frontier: state.graph_frontier.clone(),
-        graph_checkpoint: state.graph_checkpoint.clone(),
-        planning: Some(state.planning.clone()),
-        churn: state.churn.clone(),
-    });
-    let output_contract_id = launch_document.output_contract_id().to_string();
-    let organ_launch_contract = default_launch_organ_contract(
-        authority_scope,
-        launch_document.document_kind(),
-        &output_contract_id,
-    );
-
-    Ok(EpiphanyJobLaunchRequest {
-        expected_revision,
-        binding_id: binding_id.to_string(),
-        kind: CoreEpiphanyJobKind::Specialist,
-        scope: scope.to_string(),
-        owner_role: owner_role.to_string(),
-        authority_scope: authority_scope.to_string(),
-        linked_subgoal_ids,
-        linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
-        instruction,
-        launch_document,
-        output_contract_id,
-        organ_launch_contract,
-        max_runtime_seconds,
-        proposal_modeling_request_id: None,
-        frontier_planning_request_id: None,
-        frontier_plan_mind_request_id: None,
-        imagination_consideration_request_id: None,
-        admitted_model_direction_consideration_request_id: None,
-        repo_frontier_modeling_request_id: None,
-        repo_frontier_research_request_id: None,
-        repo_frontier_verification_request_id: None,
-    })
-}
-
-pub fn build_epiphany_imagination_consideration_launch_request(
-    thread_id: &str,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-    request_id: String,
-) -> Result<EpiphanyJobLaunchRequest, String> {
-    let mut launch = build_epiphany_role_launch_request_with_dynamic_context(
-        thread_id,
-        EpiphanyRoleResultRoleId::Imagination,
-        expected_revision,
-        max_runtime_seconds,
-        state,
-        None,
-    )?;
-    launch.scope = "role-scoped organizational feedback consideration".into();
-    launch.authority_scope = "epiphany.imagination.consideration.proposal_only".into();
-    launch.instruction = "Await coordinator-owned typed consideration context.".into();
-    launch.organ_launch_contract = default_launch_organ_contract(
-        &launch.authority_scope,
-        launch.launch_document.document_kind(),
-        &launch.output_contract_id,
-    );
-    launch.imagination_consideration_request_id = Some(request_id);
-    Ok(launch)
-}
-
-pub fn build_epiphany_admitted_model_direction_consideration_launch_request(
-    thread_id: &str,
-    expected_revision: Option<u64>,
-    max_runtime_seconds: Option<u64>,
-    state: &EpiphanyThreadState,
-    request_id: String,
-) -> Result<EpiphanyJobLaunchRequest, String> {
-    let mut launch = build_epiphany_role_launch_request_with_dynamic_context(
-        thread_id,
-        EpiphanyRoleResultRoleId::Imagination,
-        expected_revision,
-        max_runtime_seconds,
-        state,
-        None,
-    )?;
-    launch.scope = "role-scoped admitted Modeling-map direction consideration".into();
-    launch.authority_scope =
-        "epiphany.imagination.admitted_model_direction_consideration.proposal_only".into();
-    launch.instruction = "Await coordinator-owned typed admitted model context.".into();
-    launch.organ_launch_contract = default_launch_organ_contract(
-        &launch.authority_scope,
-        launch.launch_document.document_kind(),
-        &launch.output_contract_id,
-    );
-    launch.admitted_model_direction_consideration_request_id = Some(request_id);
-    Ok(launch)
-}
-
+#[cfg(test)]
 fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
     let prompts = &epiphany_specialist_prompt_config().roles;
     let body = match role_id {
@@ -1241,50 +1061,6 @@ pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAc
         CoreEpiphanyReorientAction::Regather => prompts.regather.as_str(),
     };
     epiphany_worker_prompt(body)
-}
-
-pub fn build_epiphany_job_launch_request(
-    expected_revision: Option<u64>,
-    binding_id: String,
-    kind: CoreEpiphanyJobKind,
-    scope: String,
-    owner_role: String,
-    authority_scope: String,
-    linked_subgoal_ids: Vec<String>,
-    linked_graph_node_ids: Vec<String>,
-    instruction: String,
-    launch_document: EpiphanyWorkerLaunchDocument,
-    output_contract_id: String,
-    max_runtime_seconds: Option<u64>,
-) -> EpiphanyJobLaunchRequest {
-    let organ_launch_contract = default_launch_organ_contract(
-        &authority_scope,
-        launch_document.document_kind(),
-        &output_contract_id,
-    );
-    EpiphanyJobLaunchRequest {
-        expected_revision,
-        binding_id,
-        kind,
-        scope,
-        owner_role,
-        authority_scope,
-        linked_subgoal_ids,
-        linked_graph_node_ids,
-        instruction,
-        launch_document,
-        output_contract_id,
-        organ_launch_contract,
-        max_runtime_seconds,
-        proposal_modeling_request_id: None,
-        frontier_planning_request_id: None,
-        frontier_plan_mind_request_id: None,
-        imagination_consideration_request_id: None,
-        admitted_model_direction_consideration_request_id: None,
-        repo_frontier_modeling_request_id: None,
-        repo_frontier_research_request_id: None,
-        repo_frontier_verification_request_id: None,
-    }
 }
 
 pub fn render_epiphany_coordinator_note(
@@ -1371,20 +1147,6 @@ fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Ite
             target.push(value);
         }
     }
-}
-
-fn epiphany_active_subgoal_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
-    state
-        .and_then(|state| state.active_subgoal_id.clone())
-        .map(|id| vec![id])
-        .unwrap_or_default()
-}
-
-fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
-    state
-        .and_then(|state| state.graph_frontier.as_ref())
-        .map(|frontier| frontier.active_node_ids.clone())
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

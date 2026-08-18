@@ -954,7 +954,6 @@ pub fn launch_current_frontier_planning_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "imagination".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: None,
@@ -1147,7 +1146,6 @@ pub fn launch_current_frontier_plan_mind_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "mindAdmissionReview".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: None,
@@ -1336,7 +1334,6 @@ pub fn launch_current_frontier_verification_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "verification".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: None,
@@ -1515,7 +1512,6 @@ pub fn launch_current_frontier_research_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "research".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: None,
@@ -2443,7 +2439,6 @@ fn launch_consideration_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "imagination".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: Some(dynamic_prompt_context),
             repository_body_observation_basis: None,
@@ -2679,7 +2674,6 @@ pub fn launch_current_body_modeling_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: binding_record_id.clone(),
             role_id: "modeling".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(work.body_basis.clone()),
@@ -2850,7 +2844,6 @@ pub fn launch_current_proposal_modeling_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: request.thread_id.clone(),
             role_id: "modeling".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(body_basis),
@@ -3023,7 +3016,6 @@ pub fn launch_current_frontier_verdict_modeling_work(
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: job_id.clone(),
             role_id: "modeling".into(),
-            state_revision: 0,
             objective: None,
             dynamic_prompt_context: None,
             repository_body_observation_basis: Some(body_basis),
@@ -3627,7 +3619,6 @@ mod tests {
         let crate::EpiphanyWorkerLaunchDocument::Role(proposal_document) = proposal_document else {
             panic!("proposal Modeling must be a role pass")
         };
-        assert_eq!(proposal_document.state_revision, 0);
         assert!(proposal_document.proposal_modeling_context.is_some());
         assert!(
             proposal_document
