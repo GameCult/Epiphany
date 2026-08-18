@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-18
-Latest implementation cut: `7c2ebd81` on `codex/epiphany-shakedown-live`
+Latest implementation cut: `79c0e373` on `codex/epiphany-shakedown-live`
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -225,10 +225,10 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted through `7c2ebd81`:
+Accepted through `79c0e373`:
 
 - every Epiphany core target compiles;
-- core library `492/492`;
+- core library `493/493`;
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
@@ -236,12 +236,11 @@ Accepted through `7c2ebd81`:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. admit the Persona projector's assembled external input as one exact typed
-   Mind observation before inference, then prove restart reproduces identical
-   decisions and obligations without authority resurrection. Concrete
-   Persona+Hands concurrency, concurrent disjoint graph writes, simultaneous
-   Verification+Modeling, same-identity conflict, exact replay, transcript
-   deletion, and old-epoch refusal are already accepted;
+1. prove fresh restart reproduces identical decisions and obligations without
+   Persona input reformulation or authority resurrection. Sealed Persona
+   ingress, concrete Persona+Hands concurrency, concurrent disjoint graph
+   writes, simultaneous Verification+Modeling, same-identity conflict, exact
+   replay, transcript deletion, and old-epoch refusal are accepted;
 2. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
    external root.
 

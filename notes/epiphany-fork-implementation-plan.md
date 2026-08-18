@@ -213,8 +213,8 @@ the remaining Decision-Auditable Concurrent Mind hard cut before another live
 coordinator run. Fresh Gate preflight exposed the aggregate ownership defect;
 the aggregate has now been structurally removed. Decision-context admission,
 retention, writable-epoch refusal, keyed graph/Verification concurrency, and
-concrete Persona+Hands concurrency are accepted. The remaining gate is sealed
-Persona projector ingress plus fresh restart/re-entry proof.
+concrete Persona+Hands concurrency, and sealed Persona projector ingress are
+accepted. The remaining gate is fresh restart/re-entry proof.
 
 Cut in this order:
 
@@ -314,9 +314,13 @@ Cut in this order:
    `state_note` output commits keyed Persona-memory documents through its exact
    decision context; the legacy agent-memory aggregate is no longer a writer on
    this path. A real Hands consequence and Persona Mind admission commit
-   simultaneously. Seal external Persona projector input into Mind, then
-   complete restart/re-entry. Only then restart Model Atlas Gate 1 from a new
-   external root.
+   simultaneously.
+19. **Persona ingress landed at `79c0e373`:** one typed Mind pass-input
+   document seals the exact assembled projector input and observed source
+   versions before inference; every Persona stage cites it, replay reuses it,
+   substitution refuses, and generic role projections exclude Persona-private
+   documents. Complete restart/re-entry. Only then restart Model Atlas Gate 1
+   from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
