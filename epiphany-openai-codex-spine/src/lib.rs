@@ -517,51 +517,109 @@ fn nullable_responses_property(property: serde_json::Value) -> serde_json::Value
     })
 }
 
+const RESPONSES_UNSUPPORTED_SCHEMA_KEYWORDS: &[&str] = &[
+    // Composition and conditional validation are outside the Responses subset.
+    "allOf",
+    "not",
+    "dependentRequired",
+    "dependentSchemas",
+    "if",
+    "then",
+    "else",
+    // String, numeric, object, and array assertions remain native-ingress
+    // authority. The Responses backend is a formatting projection, and its
+    // accepted subset is narrower (including observed rejection of
+    // `uniqueItems`).
+    "minLength",
+    "maxLength",
+    "pattern",
+    "format",
+    "contentEncoding",
+    "contentMediaType",
+    "contentSchema",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "multipleOf",
+    "patternProperties",
+    "propertyNames",
+    "minProperties",
+    "maxProperties",
+    "unevaluatedProperties",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+    "contains",
+    "minContains",
+    "maxContains",
+    "prefixItems",
+    "unevaluatedItems",
+    // Annotation and dialect metadata do not belong in the provider contract.
+    // Title and description are retained because they help generation without
+    // claiming validation authority.
+    "default",
+    "examples",
+    "readOnly",
+    "writeOnly",
+    "$schema",
+    "$id",
+    "$anchor",
+    "$dynamicAnchor",
+    "$dynamicRef",
+    "$vocabulary",
+];
+
 fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
-    match schema {
-        serde_json::Value::Object(map) => {
-            infer_responses_literal_type(map);
-            // Responses structured output accepts only a JSON-Schema subset.
-            // Canonical conditional authority remains enforced by Epiphany ingress
-            // and Mind admission; this projection owns formatting only.
-            for unsupported in [
-                "allOf",
-                "not",
-                "dependentRequired",
-                "dependentSchemas",
-                "if",
-                "then",
-                "else",
-                "contains",
-                "minContains",
-                "maxContains",
-            ] {
-                map.remove(unsupported);
-            }
-            if let Some(one_of) = map.remove("oneOf") {
-                map.insert("anyOf".to_string(), one_of);
-            }
-            // A canonical object may use anyOf solely to require one of several
-            // sibling properties. Responses strict schemas require every object
-            // alternative to repeat a complete closed property declaration, so
-            // those parent-relative fragments are not a valid provider shape.
-            // Runtime ingress remains the owner of the conditional invariant.
-            if map
-                .get("anyOf")
-                .is_some_and(parent_relative_object_alternatives)
-            {
-                map.remove("anyOf");
-            }
-            for value in map.values_mut() {
-                lower_schema_for_responses_format(value);
+    let serde_json::Value::Object(map) = schema else {
+        return;
+    };
+    infer_responses_literal_type(map);
+    // Responses structured output accepts only a JSON-Schema subset.
+    // Canonical assertion authority remains enforced by Epiphany ingress
+    // and Mind admission; this projection owns provider formatting only.
+    for unsupported in RESPONSES_UNSUPPORTED_SCHEMA_KEYWORDS {
+        map.remove(*unsupported);
+    }
+    if let Some(one_of) = map.remove("oneOf") {
+        map.insert("anyOf".to_string(), one_of);
+    }
+    // A canonical object may use anyOf solely to require one of several
+    // sibling properties. Responses strict schemas require every object
+    // alternative to repeat a complete closed property declaration, so
+    // those parent-relative fragments are not a valid provider shape.
+    // Runtime ingress remains the owner of the conditional invariant.
+    if map
+        .get("anyOf")
+        .is_some_and(parent_relative_object_alternatives)
+    {
+        map.remove("anyOf");
+    }
+
+    // Recurse only through positions that contain schemas. A `properties` or
+    // `$defs` map contains user-authored names; treating those names as schema
+    // keywords would silently delete legitimate fields such as `format`.
+    for collection in ["properties", "$defs", "definitions"] {
+        if let Some(serde_json::Value::Object(children)) = map.get_mut(collection) {
+            for child in children.values_mut() {
+                lower_schema_for_responses_format(child);
             }
         }
-        serde_json::Value::Array(values) => {
-            for value in values {
-                lower_schema_for_responses_format(value);
+    }
+    if let Some(items) = map.get_mut("items") {
+        match items {
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    lower_schema_for_responses_format(item);
+                }
             }
+            item => lower_schema_for_responses_format(item),
         }
-        _ => {}
+    }
+    if let Some(serde_json::Value::Array(alternatives)) = map.get_mut("anyOf") {
+        for alternative in alternatives {
+            lower_schema_for_responses_format(alternative);
+        }
     }
 }
 
@@ -1366,7 +1424,7 @@ mod tests {
         request.output_schema_json = Some(
             serde_json::json!({
                 "type": "object",
-                "required": ["schemaVersion", "effects", "node"],
+                "required": ["schemaVersion", "effects", "source_refs", "format", "node"],
                 "properties": {
                     "schemaVersion": {"const": "epiphany.test.v0"},
                     "effects": {
@@ -1382,6 +1440,21 @@ mod tests {
                                 "additionalProperties": false
                             }]
                         }
+                    },
+                    "source_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "uniqueItems": true,
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^source:"
+                        }
+                    },
+                    "format": {
+                        "type": "string",
+                        "format": "uri"
                     },
                     "node": {
                         "type": "object",
@@ -1413,6 +1486,14 @@ mod tests {
             schema["properties"]["effects"]["items"]["anyOf"][0]["properties"]["memory_kind"]["type"],
             "string"
         );
+        let source_refs = &schema["properties"]["source_refs"];
+        assert!(source_refs.get("minItems").is_none());
+        assert!(source_refs.get("maxItems").is_none());
+        assert!(source_refs.get("uniqueItems").is_none());
+        assert!(source_refs["items"].get("minLength").is_none());
+        assert!(source_refs["items"].get("pattern").is_none());
+        assert_eq!(schema["properties"]["format"]["type"], "string");
+        assert!(schema["properties"]["format"].get("format").is_none());
         assert!(schema["properties"]["node"].get("anyOf").is_none());
     }
 
