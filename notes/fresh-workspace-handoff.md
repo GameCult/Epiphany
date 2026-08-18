@@ -82,6 +82,14 @@ The global thread-state authority is gone.
   Body, repository, or model read when that input and terminal decision already
   exist. Current-work reconstruction is identical and byte-for-byte read-only
   at Launch, Wait, completed, and post-Research boundaries.
+- `f8412b69` makes decision audit an operator capability rather than a test
+  claim. `reasoning_context::audit_decision_context` reconstructs the sealed
+  basis, decoded typed projection, exact terminal native/provider requests,
+  governed tool observations, structured terminal records, and exact Mind
+  commit receipts without consulting streams, events, or current Mind state.
+  Worker archival now retains the complete typed role/generic result family;
+  the digest-only archive shape is deleted. Runtime schema v2 refuses the
+  prior writable archive epoch.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -159,15 +167,26 @@ Retention must preserve direct reachability: worker attempt or Persona terminal
 to decision context to reasoning basis. No raw stream event, request family, or
 transcript may be required for that query after archival.
 
+The packaged `epiphany-model-runtime audit-decision` command exposes that
+read-only projection by exact context ID. Its JSON is an operator/xenos
+rendering only; it never writes Mind or reconstructs prompts from live state.
+
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
 without input reformulation or inference. This is source acceptance, not yet a
 package/live claim.
 
+An exact clean `d26a99d5` Linux baseline package completed successfully with 27
+binaries and release witness
+`sha256-55346d97207d5a847317e654256f91378f5d5ee7cac62093539c70413f9d57a3`.
+That proves the isolated package machinery and warmed cache, not the final
+capstone: the exact final package must be rebuilt from `f8412b69` or its
+document-only successor.
+
 ## Immediate next action
 
-1. Build one exact clean-source package without adding a shipped proof-only
-   binary.
+1. Build one exact clean-source package from `f8412b69` or its document-only
+   successor without adding a shipped proof-only binary.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against that
    package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,

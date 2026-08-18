@@ -217,6 +217,13 @@ Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
 restart/re-entry are accepted. The remaining gate is the fresh exact-package
 capstone.
 
+Exact `f8412b69` closes the last known retention wound before that capstone:
+the packaged model runtime can reconstruct a decision by context ID from its
+sealed basis, exact terminal requests, tool observations, structured terminal
+records, and Mind commit receipts. Worker attempt archival retains the typed
+result family instead of reducing it to IDs and a digest. Runtime schema v2
+refuses the superseded writable archive shape; there is no reader or migrator.
+
 Cut in this order:
 
 1. **Landed at `79346523`:** replace the aggregate-shaped role reasoning input with one sealed typed

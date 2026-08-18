@@ -98,9 +98,12 @@ Structured decisions are authoritative; token streams and assistant deltas are
 optional retention. A model-backed failure is also a typed terminal decision
 record. Generic diagnostic model runs cannot produce Mind-admissible decisions.
 
-Current migration seam: the typed basis/context foundation, concrete Body,
+Current migration boundary: the typed basis/context foundation, concrete Body,
 frontier, Research, Verification, Planning, Reorientation, and Persona paths,
-plus worker/session/Persona archive reachability are landed. Exact `f7948795`
+plus worker/session/Persona archive reachability are landed. Exact `f8412b69`
+adds one read-only context-ID audit projection and deletes the digest-only
+worker archive: the typed role and generic terminal result family now survives
+retention, and runtime schema v2 refuses the earlier writable shape. Exact `f7948795`
 deletes `MindGatewayReview`, `MindStateCommitReceipt` v0, the generic Mind
 interpreter prompt, and their false CultNet mutation mouths. Exact `e0e75a30`
 deletes the residual aggregate-shaped role patch, its parser, and its
@@ -108,8 +111,8 @@ family-policy tribunals. Research now authors one closed typed decision whose
 admission owner derives keyed Mind writes; the unowned generic Imagination
 planning patch is gone. Exact `1c9aafd8` seals one decision context before model-backed
 frontier-Planning failure terminalization and binds both the typed faculty
-failure and generic job result to it. Governed tool-observation coverage still
-needs the full store-backed refusal matrix.
+failure and generic job result to it. Shared runtime validators own the
+store-backed model/tool refusal matrix used by both execution and sealing.
 
 ## Concurrent Mind mutation
 
@@ -222,10 +225,13 @@ receipts, and their direct context links.
 Runtime retention may remove SSE frames, deltas, intermediate requests,
 provider events, and tool scaffolding only after the terminal context is sealed
 and the retained decision can still reach its basis/context without them.
+The v1 worker-attempt archive embeds the exact typed role result and its
+context-bound generic result family. The read-only decision audit consumes the
+same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted through `d3300bba`:
+Accepted through `f8412b69`:
 
 - every Epiphany core target compiles;
 - core library `493/493`;
@@ -239,6 +245,11 @@ Accepted through `d3300bba`:
   decision chain;
 - reopened current-work projection is identical and byte-for-byte read-only at
   Launch, Wait, completed, and post-Research boundaries.
+- `epiphany-model-runtime audit-decision` reconstructs an exact terminal pass
+  from typed durable records only; the query is byte-for-byte read-only and
+  remains complete after live worker result retirement.
+- runtime schema v2 refuses the prior digest-only worker archive epoch without
+  mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
