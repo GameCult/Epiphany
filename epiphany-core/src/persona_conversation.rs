@@ -33,6 +33,49 @@ pub const PERSONA_EFFECT_EXECUTION_INTENT_SCHEMA_VERSION: &str =
 pub const PERSONA_CONVERSATION_STORE_RETIREMENT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.persona_conversation_store_retirement_receipt.v0";
 
+pub fn admit_persona_pass_input(
+    runtime_store: &Path,
+    provenance: crate::EpiphanyMindDocumentVersion,
+    document: &crate::EpiphanyMindPersonaPassInputDocument,
+) -> Result<crate::EpiphanyMindDocumentVersion> {
+    document.validate()?;
+    if !document.observed_sources.contains(&provenance) {
+        return Err(anyhow!(
+            "Persona pass input provenance is absent from its observed sources"
+        ));
+    }
+    let cache = runtime_spine_cache(runtime_store)?;
+    let write = crate::mind_documents::prepare_mind_document(
+        &cache,
+        &document.turn_id,
+        document,
+    )?;
+    match crate::reasoning_context::commit_external_typed_observation_mind_mutation(
+        runtime_store,
+        "Persona",
+        provenance,
+        "Persona.pass_input",
+        Vec::new(),
+        vec![write],
+        &document.admitted_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(_) => {}
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => {
+            return Err(anyhow!(
+                "Persona pass input identity conflicted: {document_identities:?}"
+            ));
+        }
+    }
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let envelope = cache
+        .get_envelope::<crate::EpiphanyMindPersonaPassInputDocument>(&document.turn_id)?
+        .ok_or_else(|| anyhow!("Persona pass input commit lost its document"))?;
+    crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.persona_effect_execution_intent.v0",
@@ -1573,6 +1616,56 @@ mod tests {
         );
         cache.pull_all_backing_stores()?;
         assert_eq!(cache.get_all::<crate::EpiphanyMindCommitReceipt>()?, first);
+        Ok(())
+    }
+
+    #[test]
+    fn persona_pass_input_is_admitted_once_and_substitution_refuses_byte_identically() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let runtime = temp.path().join("runtime.cc");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "persona-pass-input".into(),
+                display_name: "Persona pass input".into(),
+                created_at: "2026-08-18T02:00:00Z".into(),
+            },
+        )?;
+        let identity = SingleFileMessagePackBackingStore::new(&runtime)
+            .pull_all()?
+            .into_iter()
+            .find(|entry| entry.r#type == crate::RUNTIME_IDENTITY_TYPE)
+            .expect("runtime identity provenance");
+        let provenance = crate::EpiphanyMindDocumentVersion::from_envelope(
+            "epiphany-heartbeat",
+            &identity,
+        )?;
+        let document = crate::EpiphanyMindPersonaPassInputDocument {
+            turn_id: "persona-pass-1".into(),
+            projector_input: crate::PersonaProjectorInput {
+                identity: crate::PersonaIdentity {
+                    identity_id: "epiphany.Persona".into(),
+                    display_name: "Epiphany".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            transcript: Vec::new(),
+            allowed_channel_ids: vec!["aquarium".into()],
+            dynamic_semantic_memory_recall: String::new(),
+            observed_sources: vec![provenance.clone()],
+            admitted_at: "2026-08-18T02:00:01Z".into(),
+        };
+        let first = admit_persona_pass_input(&runtime, provenance.clone(), &document)?;
+        assert_eq!(
+            admit_persona_pass_input(&runtime, provenance.clone(), &document)?,
+            first
+        );
+        let before = SingleFileMessagePackBackingStore::new(&runtime).pull_all()?;
+        let mut substituted = document;
+        substituted.allowed_channel_ids = vec!["elsewhere".into()];
+        assert!(admit_persona_pass_input(&runtime, provenance, &substituted).is_err());
+        assert_eq!(SingleFileMessagePackBackingStore::new(&runtime).pull_all()?, before);
         Ok(())
     }
 

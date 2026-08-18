@@ -4,6 +4,7 @@ use std::pin::Pin;
 
 use anyhow::{Context, Result, anyhow};
 use chrono::SecondsFormat;
+use cultcache_rs::DatabaseEntry;
 use epiphany_core::{
     PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION, PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION,
     PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION, PersonaInterpreterEffectDocument,
@@ -28,6 +29,7 @@ pub struct PersonaModelExecutionPlan {
     pub transcript: Vec<PersonaTranscriptMessage>,
     pub allowed_channel_ids: Vec<String>,
     pub dynamic_semantic_memory_recall: String,
+    pub source_documents: Vec<epiphany_core::EpiphanyMindDocumentVersion>,
     pub cultmesh_store: PathBuf,
     pub runtime_id: String,
 }
@@ -111,6 +113,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
     runner: &mut R,
 ) -> Result<PersonaModelTerminalReceipt> {
     validate_plan(plan)?;
+    validate_plan_source(store_path, plan)?;
     let terminal_id = terminal_receipt_id(&plan.turn_id);
     if let Some(receipt) = load_document::<PersonaModelTerminalReceipt>(store_path, &terminal_id)? {
         validate_terminal_replay(store_path, plan, &receipt)?;
@@ -279,7 +282,7 @@ async fn run_stage<R: PersonaModelRunner>(
         &request_id,
         format!("Persona.{stage}"),
         format!("epiphany.reasoning_projection.persona.{stage}.v1"),
-        Vec::new(),
+        plan.source_documents.clone(),
         projection,
     )?
     .with_predecessor_contexts(predecessor_decision_context_ids)?;
@@ -322,8 +325,43 @@ fn validate_plan(plan: &PersonaModelExecutionPlan) -> Result<()> {
             "Persona model execution requires turn, provider, and model ids"
         ));
     }
+    if plan.source_documents.len() != 1
+        || plan.source_documents[0].document_type
+            != epiphany_core::EpiphanyMindPersonaPassInputDocument::TYPE
+        || plan.source_documents[0].document_key != plan.turn_id
+    {
+        return Err(anyhow!(
+            "Persona execution requires one exact admitted Mind pass input"
+        ));
+    }
     if plan.projector_input.identity.identity_id.trim().is_empty() {
         return Err(anyhow!("Persona model execution requires an identity id"));
+    }
+    Ok(())
+}
+
+fn validate_plan_source(store_path: &PathBuf, plan: &PersonaModelExecutionPlan) -> Result<()> {
+    let source = &plan.source_documents[0];
+    let document = load_document::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(
+        store_path,
+        &plan.turn_id,
+    )?
+    .ok_or_else(|| anyhow!("Persona execution lost its admitted Mind pass input"))?;
+    let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let envelope = cache
+        .get_envelope::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(&plan.turn_id)?
+        .ok_or_else(|| anyhow!("Persona execution lost its pass input envelope"))?;
+    if epiphany_core::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)?
+        != *source
+        || document.projector_input != plan.projector_input
+        || document.transcript != plan.transcript
+        || document.allowed_channel_ids != plan.allowed_channel_ids
+        || document.dynamic_semantic_memory_recall != plan.dynamic_semantic_memory_recall
+    {
+        return Err(anyhow!(
+            "Persona execution plan diverges from its admitted Mind input"
+        ));
     }
     Ok(())
 }
@@ -530,8 +568,8 @@ mod tests {
         }
     }
 
-    fn plan(cultmesh_store: PathBuf) -> PersonaModelExecutionPlan {
-        PersonaModelExecutionPlan {
+    fn plan(store: &PathBuf, cultmesh_store: PathBuf) -> Result<PersonaModelExecutionPlan> {
+        let mut plan = PersonaModelExecutionPlan {
             turn_id: "turn-1".into(),
             provider: "test".into(),
             model: "test-model".into(),
@@ -548,9 +586,39 @@ mod tests {
             transcript: vec![],
             allowed_channel_ids: vec!["aquarium".into()],
             dynamic_semantic_memory_recall: String::new(),
+            source_documents: Vec::new(),
             cultmesh_store,
             runtime_id: "epiphany-test".into(),
+        };
+        let document = epiphany_core::EpiphanyMindPersonaPassInputDocument {
+            turn_id: plan.turn_id.clone(),
+            projector_input: plan.projector_input.clone(),
+            transcript: plan.transcript.clone(),
+            allowed_channel_ids: plan.allowed_channel_ids.clone(),
+            dynamic_semantic_memory_recall: plan.dynamic_semantic_memory_recall.clone(),
+            observed_sources: Vec::new(),
+            admitted_at: "2026-08-14T00:00:00Z".into(),
+        };
+        if load_document::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(
+            store,
+            &document.turn_id,
+        )?
+        .is_none()
+        {
+            put_new_document(store, &document.turn_id, &document)?;
         }
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let envelope = cache
+            .get_envelope::<epiphany_core::EpiphanyMindPersonaPassInputDocument>(&document.turn_id)?
+            .expect("test Persona pass input");
+        plan.source_documents = vec![
+            epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
+                "epiphany-mind",
+                &envelope,
+            )?,
+        ];
+        Ok(plan)
     }
 
     fn release_brake(path: &PathBuf) -> Result<()> {
@@ -570,11 +638,11 @@ mod tests {
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
         let first =
-            execute_persona_model_turn_with_runner(&store, &plan(cultmesh.clone()), &mut runner)
+            execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh.clone())?, &mut runner)
                 .await?;
         assert_eq!(runner.calls, ["projector", "persona", "interpreter"]);
         let second =
-            execute_persona_model_turn_with_runner(&store, &plan(cultmesh), &mut runner).await?;
+            execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh)?, &mut runner).await?;
         assert_eq!(first, second);
         assert_eq!(runner.calls.len(), 3);
         let effects =
@@ -592,7 +660,7 @@ mod tests {
         let cultmesh = dir.path().join("cultmesh.cc");
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
-        let mut escaped = plan(cultmesh);
+        let mut escaped = plan(&store, cultmesh)?;
         escaped.allowed_channel_ids = vec!["elsewhere".into()];
         assert!(
             execute_persona_model_turn_with_runner(&store, &escaped, &mut runner)
@@ -631,7 +699,7 @@ mod tests {
         put_new_document(&store, &poisoned.receipt_id, &poisoned)?;
 
         let mut runner = FakeRunner { calls: vec![] };
-        let error = execute_persona_model_turn_with_runner(&store, &plan(cultmesh), &mut runner)
+        let error = execute_persona_model_turn_with_runner(&store, &plan(&store, cultmesh)?, &mut runner)
             .await
             .unwrap_err();
         assert!(error.to_string().contains("replay binding is invalid"));
