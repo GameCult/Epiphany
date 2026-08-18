@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `1c9aafd8`
+Latest implementation cut: `e0e75a30`
 
 ## Orientation
 
@@ -38,6 +38,12 @@ The global thread-state authority is gone.
   frontier-Planning failure is written. The typed faculty failure and generic
   runtime job now cite the same context; transport-only failure remains
   physiological and cannot impersonate a Mind decision.
+- `e0e75a30` deletes `EpiphanyRoleStatePatchDocument`, its generic parser and
+  three role-policy tribunals. Research now emits one closed
+  `EpiphanyResearchDecision`; its admission owner derives keyed evidence,
+  observation, and checkpoint writes. The old generic Imagination planning
+  patch had no current-work owner and was deleted rather than generalized.
+  Runtime role-result and worker output contracts advanced to v4.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -105,12 +111,6 @@ explicit external-evidence obligations; Eyes does not gate Body Modeling.
 
 The broader Decision-Auditable Concurrent Mind migration is incomplete.
 
-`EpiphanyRoleStatePatchDocument` remains an aggregate-shaped model output mouth.
-Research currently uses it to carry evidence/observations and the old generic
-Imagination lane uses it to carry planning drafts, even though concrete current
-work families otherwise use typed result cargo. These live payloads need narrow
-family contracts before the generic patch can be deleted.
-
 Context validation must become exact and DRY:
 
 - provider request must equal internal lowering of the native request;
@@ -128,18 +128,15 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Replace the two live uses of `EpiphanyRoleStatePatchDocument` with narrow
-   Research evidence/observation and Imagination planning-decision payloads;
-   then delete the generic patch schema, parser, and policy tribunal.
-2. Expand the store-backed request/tool substitution matrix and prove context
+1. Expand the store-backed request/tool substitution matrix and prove context
    audit survives deletion of streams, assistant deltas, and scaffolding.
-3. Bump the writable schema epoch and refuse old stores. Historical releases
+2. Bump the writable schema epoch and refuse old stores. Historical releases
    remain readers for historical proof stores; no migrator or dual path.
-4. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
+3. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
    unrelated Modeling-node writes; distinct graph writes; same-identity
    conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
    and source guards for deleted aggregate/global revision paths.
-5. Only then package a fresh body and resume Model Atlas Gate 1 from a new
+4. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
 ## Operational state that matters

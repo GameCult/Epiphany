@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-18
-Latest implementation cut: `ec1431ff` on `codex/epiphany-shakedown-live`
+Latest implementation cut: `e0e75a30` on `codex/epiphany-shakedown-live`
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -102,10 +102,11 @@ Current migration seam: the typed basis/context foundation, concrete Body,
 frontier, Research, Verification, Planning, Reorientation, and Persona paths,
 plus worker/session/Persona archive reachability are landed. Exact `f7948795`
 deletes `MindGatewayReview`, `MindStateCommitReceipt` v0, the generic Mind
-interpreter prompt, and their false CultNet mutation mouths. The remaining
-aggregate-shaped output is `EpiphanyRoleStatePatchDocument`, used by Research
-for evidence/observations and the old generic Imagination lane for planning
-drafts. Exact `1c9aafd8` seals one decision context before model-backed
+interpreter prompt, and their false CultNet mutation mouths. Exact `e0e75a30`
+deletes the residual aggregate-shaped role patch, its parser, and its
+family-policy tribunals. Research now authors one closed typed decision whose
+admission owner derives keyed Mind writes; the unowned generic Imagination
+planning patch is gone. Exact `1c9aafd8` seals one decision context before model-backed
 frontier-Planning failure terminalization and binds both the typed faculty
 failure and generic job result to it. Governed tool-observation coverage still
 needs the full store-backed refusal matrix.
@@ -224,25 +225,24 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted through `1c9aafd8`:
+Accepted through `e0e75a30`:
 
 - every Epiphany core target compiles;
 - core library `486/486`;
 - OpenAI runtime library `23/23`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
+- all core targets compile; generic role-patch source guards pass.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. replace live Research and Imagination uses of the generic state patch with
-   narrow family payloads, then delete it;
-2. prove exact request/tool/receipt coverage with byte-identical refusals and
+1. prove exact request/tool/receipt coverage with byte-identical refusals and
    transcript deletion;
-3. bump/refuse old writable-store epoch with no migrator;
-4. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
+2. bump/refuse old writable-store epoch with no migrator;
+3. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
    refuse, transcripts can be deleted, restart reproduces obligations, and no
    legacy authority resurrects;
-5. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
+4. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a
