@@ -1945,6 +1945,66 @@ pub fn put_runtime_tool_execution_intent(
     Ok(binding)
 }
 
+pub(crate) fn validate_runtime_model_execution_binding(
+    cache: &CultCache,
+    request_id: &str,
+) -> Result<EpiphanyRuntimeModelExecutionBinding> {
+    validate_non_empty(request_id, "model execution request id")?;
+    let binding = cache
+        .get::<EpiphanyRuntimeModelExecutionBinding>(request_id)?
+        .ok_or_else(|| anyhow!("model execution request {request_id:?} is unbound"))?;
+    let native = cache
+        .get::<EpiphanyModelRequest>(request_id)?
+        .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its native request"))?;
+    let provider = cache
+        .get::<EpiphanyOpenAiModelRequest>(request_id)?
+        .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its provider request"))?;
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(&binding.session_id)?
+        .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its session"))?;
+    let job = cache
+        .get::<EpiphanyRuntimeJob>(&binding.job_id)?
+        .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its job"))?;
+    if binding.schema_version != RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION
+        || binding.binding_id != request_id
+        || binding.request_id != request_id
+        || binding.provider != native.provider
+        || binding.source_worker_job_id != native.source_worker_job_id
+        || binding.reasoning_basis_id != native.reasoning_basis_id
+        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
+        || provider != epiphany_openai_adapter::request_from_native(&native)
+        || session.status == EpiphanyRuntimeSessionStatus::Archived
+        || job.session_id != binding.session_id
+    {
+        return Err(anyhow!(
+            "model execution binding {request_id:?} is not one exact request family"
+        ));
+    }
+    if let Some(worker_job_id) = binding.source_worker_job_id.as_deref() {
+        let basis_id = binding.reasoning_basis_id.as_deref().ok_or_else(|| {
+            anyhow!("decision-bearing model execution lost its reasoning basis")
+        })?;
+        let basis = cache
+            .get::<crate::EpiphanyReasoningBasis>(basis_id)?
+            .ok_or_else(|| anyhow!("model execution binding lost its reasoning basis"))?;
+        let launch = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(worker_job_id)?
+            .ok_or_else(|| anyhow!("model execution binding lost its source worker launch"))?;
+        let worker_job = cache
+            .get::<EpiphanyRuntimeJob>(worker_job_id)?
+            .ok_or_else(|| anyhow!("model execution binding lost its source worker job"))?;
+        if basis.pass_id != worker_job_id
+            || launch.job_id != worker_job_id
+            || worker_job.role != launch.role
+        {
+            return Err(anyhow!(
+                "model execution binding {request_id:?} has foreign worker authority"
+            ));
+        }
+    }
+    Ok(binding)
+}
+
 pub fn require_runtime_tool_execution_binding(
     store_path: impl AsRef<Path>,
     intent_id: &str,
@@ -1953,6 +2013,14 @@ pub fn require_runtime_tool_execution_binding(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    validate_runtime_tool_execution_binding(&cache, intent_id)
+}
+
+pub(crate) fn validate_runtime_tool_execution_binding(
+    cache: &CultCache,
+    intent_id: &str,
+) -> Result<EpiphanyRuntimeToolExecutionBinding> {
+    validate_non_empty(intent_id, "tool execution intent id")?;
     let binding = cache
         .get::<EpiphanyRuntimeToolExecutionBinding>(intent_id)?
         .ok_or_else(|| anyhow!("tool execution intent {intent_id:?} is unbound"))?;
@@ -2055,7 +2123,7 @@ pub fn put_runtime_tool_execution_receipt(
     Ok(())
 }
 
-fn validate_terminal_tool_execution_family(
+pub(crate) fn validate_terminal_tool_execution_family(
     binding: &EpiphanyRuntimeToolExecutionBinding,
     intent: &EpiphanyToolInvocationIntent,
     receipt: &EpiphanyToolInvocationReceipt,

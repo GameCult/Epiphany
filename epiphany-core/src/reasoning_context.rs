@@ -761,11 +761,9 @@ fn validate_context_store_ownership(
             "decision context terminal request family is absent or substituted"
         ));
     }
-    let model_binding = cache
-        .get::<crate::EpiphanyRuntimeModelExecutionBinding>(&native.request_id)?
-        .ok_or_else(|| anyhow!("decision context terminal request has no runtime binding"))?;
-    if model_binding.request_id != native.request_id
-        || model_binding.reasoning_basis_id.as_deref() != Some(context.basis_id.as_str())
+    let model_binding =
+        crate::runtime_spine::validate_runtime_model_execution_binding(cache, &native.request_id)?;
+    if model_binding.reasoning_basis_id.as_deref() != Some(context.basis_id.as_str())
         || model_binding.source_worker_job_id != native.source_worker_job_id
     {
         return Err(anyhow!(
@@ -783,14 +781,18 @@ fn validate_context_store_ownership(
                 &observation.intent.intent_id,
             ))?
             .ok_or_else(|| anyhow!("decision context tool receipt is absent"))?;
-        let tool_binding = cache
-            .get::<crate::EpiphanyRuntimeToolExecutionBinding>(&observation.intent.intent_id)?
-            .ok_or_else(|| anyhow!("decision context tool binding is absent"))?;
+        let tool_binding = crate::runtime_spine::validate_runtime_tool_execution_binding(
+            cache,
+            &observation.intent.intent_id,
+        )?;
         if intent != observation.intent
             || receipt != observation.receipt
-            || !matches!(receipt.status.as_str(), "completed" | "failed")
-            || tool_binding.intent_id != intent.intent_id
-            || tool_binding.model_request_id != intent.model_request_id
+            || crate::runtime_spine::validate_terminal_tool_execution_family(
+                &tool_binding,
+                &intent,
+                &receipt,
+            )
+            .is_err()
         {
             return Err(anyhow!(
                 "decision context tool observation has foreign stored ownership"
@@ -1442,6 +1444,262 @@ mod tests {
         let mut substituted = context.clone();
         substituted.native_request_msgpack.push(0xff);
         assert!(substituted.validate(&reasoning_basis).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn decision_context_binds_exact_provider_and_tool_bytes() -> Result<()> {
+        let reasoning_basis = basis()?;
+        let (native, provider) = requests(&reasoning_basis);
+
+        let mut substituted_provider_input = provider.clone();
+        substituted_provider_input.input.clear();
+        assert!(
+            EpiphanyDecisionContext::new(
+                &reasoning_basis,
+                native.clone(),
+                substituted_provider_input,
+                Vec::new(),
+            )
+            .is_err()
+        );
+
+        let mut native_with_substituted_tools = native.clone();
+        native_with_substituted_tools.tools.push(
+            epiphany_model_adapter::EpiphanyModelToolDefinition {
+                name: "mcp__test__read".into(),
+                description: "test".into(),
+                parameters_json: r#"{"type":"object"}"#.into(),
+            },
+        );
+        assert!(
+            EpiphanyDecisionContext::new(
+                &reasoning_basis,
+                native_with_substituted_tools,
+                provider,
+                Vec::new(),
+            )
+            .is_err()
+        );
+
+        let intent = EpiphanyToolInvocationIntent::new(
+            "intent-1",
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+            "test",
+            "read",
+            r#"{"key":"exact"}"#,
+            "model",
+            "test exact terminal context",
+            "2026-08-17T00:00:00Z",
+        )
+        .with_model_call("call-1", &native.request_id);
+        let mut receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-1",
+            &intent.intent_id,
+            &intent.adapter,
+            &intent.server,
+            &intent.tool_name,
+            "completed",
+            "2026-08-17T00:00:01Z",
+        );
+        receipt.result_json = Some(r#"{"value":"exact"}"#.into());
+        let observation = EpiphanyDecisionToolObservation {
+            intent: intent.clone(),
+            receipt: receipt.clone(),
+        };
+        let mut terminal_native = native;
+        terminal_native.input.extend([
+            EpiphanyModelInputItem::ToolCall {
+                call_id: "call-1".into(),
+                name: "mcp__test__read".into(),
+                arguments: r#"{"key":"exact"}"#.into(),
+            },
+            EpiphanyModelInputItem::ToolResult {
+                call_id: "call-1".into(),
+                output: r#"{"value":"exact"}"#.into(),
+            },
+        ]);
+        let terminal_provider = epiphany_openai_adapter::request_from_native(&terminal_native);
+        EpiphanyDecisionContext::new(
+            &reasoning_basis,
+            terminal_native.clone(),
+            terminal_provider.clone(),
+            vec![observation.clone()],
+        )?;
+
+        let mut substituted_receipt = observation;
+        substituted_receipt.receipt.result_json = Some(r#"{"value":"foreign"}"#.into());
+        assert!(
+            EpiphanyDecisionContext::new(
+                &reasoning_basis,
+                terminal_native.clone(),
+                terminal_provider.clone(),
+                vec![substituted_receipt],
+            )
+            .is_err()
+        );
+
+        terminal_native.input.swap(1, 2);
+        assert!(
+            EpiphanyDecisionContext::new(
+                &reasoning_basis,
+                terminal_native,
+                terminal_provider,
+                vec![EpiphanyDecisionToolObservation { intent, receipt }],
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn decision_context_reuses_runtime_binding_owner_and_survives_transcript_deletion()
+    -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "decision-context-binding-test".into(),
+                display_name: "Decision context binding test".into(),
+                created_at: "2026-08-17T00:00:00Z".into(),
+            },
+        )?;
+        let launch = role_launch()?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(&launch.job_id, &launch)?;
+        let reasoning_basis = worker_reasoning_basis(&store, &launch)?;
+        let reasoning_basis = put_reasoning_basis(&store, &reasoning_basis)?;
+        let (initial_native, initial_provider) = requests(&reasoning_basis);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "session-1".into(),
+                objective: "Prove governed decision context".into(),
+                created_at: "2026-08-17T00:00:01Z".into(),
+                coordinator_note: "decision context binding test".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "model-job-1".into(),
+                session_id: "session-1".into(),
+                role: "model-adapter".into(),
+                created_at: "2026-08-17T00:00:01Z".into(),
+                summary: "Initial model request".into(),
+                artifact_refs: Vec::new(),
+            },
+            &initial_native,
+            &initial_provider,
+            "2026-08-17T00:00:01Z",
+        )?;
+        let intent = EpiphanyToolInvocationIntent::new(
+            "intent-1",
+            epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID,
+            "test",
+            "read",
+            r#"{"key":"exact"}"#,
+            "model",
+            "test exact runtime ownership",
+            "2026-08-17T00:00:02Z",
+        )
+        .with_model_call("call-1", &initial_native.request_id);
+        crate::put_runtime_tool_execution_intent(
+            &store,
+            "session-1",
+            "model-job-1",
+            &intent,
+            "2026-08-17T00:00:02Z",
+        )?;
+        let mut receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-1",
+            &intent.intent_id,
+            &intent.adapter,
+            &intent.server,
+            &intent.tool_name,
+            "completed",
+            "2026-08-17T00:00:03Z",
+        );
+        receipt.result_json = Some(r#"{"value":"exact"}"#.into());
+        crate::put_runtime_tool_execution_receipt(&store, &receipt)?;
+
+        let mut terminal_native = initial_native.clone();
+        terminal_native.request_id = "request-2".into();
+        terminal_native.input.extend([
+            EpiphanyModelInputItem::ToolCall {
+                call_id: "call-1".into(),
+                name: "mcp__test__read".into(),
+                arguments: r#"{"key":"exact"}"#.into(),
+            },
+            EpiphanyModelInputItem::ToolResult {
+                call_id: "call-1".into(),
+                output: r#"{"value":"exact"}"#.into(),
+            },
+        ]);
+        let terminal_provider = epiphany_openai_adapter::request_from_native(&terminal_native);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "session-1".into(),
+                objective: "Prove governed decision context".into(),
+                created_at: "2026-08-17T00:00:04Z".into(),
+                coordinator_note: "decision context binding test".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "model-job-2".into(),
+                session_id: "session-1".into(),
+                role: "model-adapter".into(),
+                created_at: "2026-08-17T00:00:04Z".into(),
+                summary: "Terminal model request".into(),
+                artifact_refs: Vec::new(),
+            },
+            &terminal_native,
+            &terminal_provider,
+            "2026-08-17T00:00:04Z",
+        )?;
+        let context = seal_model_decision_context(&store, &terminal_native.request_id)?;
+
+        let native_delta = epiphany_model_adapter::EpiphanyModelStreamEvent {
+            schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.into(),
+            request_id: terminal_native.request_id.clone(),
+            provider: terminal_native.provider.clone(),
+            sequence: 0,
+            payload: epiphany_model_adapter::EpiphanyModelStreamPayload::TextDelta {
+                text: "optional transcript".into(),
+            },
+        };
+        let provider_delta = epiphany_openai_adapter::EpiphanyOpenAiStreamEvent {
+            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.into(),
+            request_id: terminal_native.request_id.clone(),
+            sequence: 0,
+            payload: epiphany_openai_adapter::EpiphanyOpenAiStreamPayload::TextDelta {
+                text: "optional transcript".into(),
+            },
+        };
+        cache = runtime_spine_cache(&store)?;
+        cache.put("request-2:00000000", &native_delta)?;
+        cache.put("request-2:00000000", &provider_delta)?;
+        assert!(cache.delete::<epiphany_model_adapter::EpiphanyModelStreamEvent>(
+            "request-2:00000000"
+        )?);
+        assert!(cache.delete::<epiphany_openai_adapter::EpiphanyOpenAiStreamEvent>(
+            "request-2:00000000"
+        )?);
+        cache.pull_all_backing_stores()?;
+        let retained = cache
+            .get::<EpiphanyDecisionContext>(&context.context_id)?
+            .expect("decision context remains after transcript deletion");
+        let retained_basis = cache
+            .get::<EpiphanyReasoningBasis>(&reasoning_basis.basis_id)?
+            .expect("reasoning basis remains after transcript deletion");
+        retained.validate(&retained_basis)?;
+
+        let mut hostile_binding = cache
+            .get::<crate::EpiphanyRuntimeToolExecutionBinding>(&intent.intent_id)?
+            .expect("tool binding");
+        hostile_binding.bound_at = "not-a-time".into();
+        cache.put(&intent.intent_id, &hostile_binding)?;
+        let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(seal_model_decision_context(&store, &terminal_native.request_id).is_err());
+        assert_eq!(SingleFileMessagePackBackingStore::new(&store).pull_all()?, before);
         Ok(())
     }
 
