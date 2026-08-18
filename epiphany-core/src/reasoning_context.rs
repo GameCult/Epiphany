@@ -822,7 +822,7 @@ fn validate_context_store_ownership(
     Ok(())
 }
 
-pub fn commit_mind_mutation(
+pub(crate) fn commit_mind_mutation(
     store_path: &Path,
     decision_context_id: &str,
     invariant_owner: &str,
@@ -886,7 +886,7 @@ pub(crate) fn commit_mind_mutation_with_derived_companions(
     )
 }
 
-pub fn commit_operator_mind_mutation(
+pub(crate) fn commit_operator_mind_mutation(
     store_path: &Path,
     provenance: CultCacheEnvelope,
     invariant_owner: &str,
@@ -933,7 +933,7 @@ pub(crate) fn commit_operator_mind_mutation_with_derived_companions(
     )
 }
 
-pub fn commit_typed_organ_mind_mutation(
+pub(crate) fn commit_typed_organ_mind_mutation(
     store_path: &Path,
     organ: &str,
     provenance: CultCacheEnvelope,

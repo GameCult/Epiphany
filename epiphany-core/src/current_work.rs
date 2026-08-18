@@ -4108,24 +4108,43 @@ mod tests {
         let hands_provenance = accepted_cache
             .get_envelope::<crate::HandsCommitReceipt>(&hands_commit.receipt_id)?
             .expect("typed Hands provenance");
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let (modeling_outcome, verification_commit) = std::thread::scope(|scope| {
+            let modeling_barrier = barrier.clone();
+            let modeling_store = store.clone();
+            let modeling = scope.spawn(move || {
+                modeling_barrier.wait();
+                crate::commit_typed_organ_mind_mutation(
+                    &modeling_store,
+                    "Modeling",
+                    hands_provenance,
+                    "Modeling.verification_concurrent_fixture",
+                    concurrent_plan.strong_reads,
+                    concurrent_plan.writes,
+                    "2026-08-17T00:00:15.100Z",
+                )
+            });
+            let verification_barrier = barrier.clone();
+            let verification_store = store.clone();
+            let verification_job_id = verification_job_id.clone();
+            let verification = scope.spawn(move || {
+                verification_barrier.wait();
+                accept_frontier_verification_result(
+                    &verification_store,
+                    &verification_job_id,
+                    "2026-08-17T00:00:16Z",
+                )
+            });
+            (
+                modeling.join().expect("concurrent Modeling commit"),
+                verification.join().expect("concurrent Verification commit"),
+            )
+        });
         assert!(matches!(
-            crate::commit_typed_organ_mind_mutation(
-                &store,
-                "Modeling",
-                hands_provenance,
-                "Modeling.verification_concurrent_fixture",
-                concurrent_plan.strong_reads,
-                concurrent_plan.writes,
-                "2026-08-17T00:00:15.100Z",
-            )?,
+            modeling_outcome?,
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
-
-        let verification_commit = accept_frontier_verification_result(
-            &store,
-            &verification_job_id,
-            "2026-08-17T00:00:16Z",
-        )?;
+        let verification_commit = verification_commit?;
         assert_eq!(verification_commit.invariant_owner, "Soul.verification");
         assert!(project_current_work(&store)?.verification.is_none());
         let replayed_verification_commit = accept_frontier_verification_result(

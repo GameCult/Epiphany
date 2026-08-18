@@ -2212,6 +2212,222 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_distinct_nodes_merge_same_identity_conflicts_and_restart_replays() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("repo-model-concurrency.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "repo-model-concurrency".into(),
+                display_name: "RepoModel concurrency".into(),
+                created_at: "2026-08-18T00:00:00Z".into(),
+            },
+        )?;
+        let body = bind_test_body(&store, "swarm-concurrency", "workspace-concurrency")?;
+        let domain = EpiphanyMemoryDomain {
+            id: "domain-concurrency".into(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            title: "Concurrent domain".into(),
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        initialize_keyed_repo_model(
+            &store,
+            &EpiphanyRepoModelSeed::new(
+                "seed-concurrency",
+                "graph-concurrency",
+                "swarm-concurrency",
+                "workspace-concurrency",
+                body.body_binding_sha256.clone(),
+                EpiphanyRepoModelSeedDocuments {
+                    domains: vec![domain.clone()],
+                    nodes: Vec::new(),
+                    edges: Vec::new(),
+                    summaries: Vec::new(),
+                    frontier: Vec::new(),
+                    lifecycle_receipts: Vec::new(),
+                },
+            )?,
+            "2026-08-18T00:00:01Z",
+        )?;
+        let node = |id: &str, claim: &str| EpiphanyMemoryNode {
+            id: id.into(),
+            domain_id: domain.id.clone(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::Module,
+            title: id.into(),
+            claim: claim.into(),
+            question: "Can this identity commit independently?".into(),
+            action_implication: "Use exact-envelope CAS".into(),
+            source_hashes: vec!["anchor:missing".into()],
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        let proposals = [
+            make_proposal(
+                "proposal-node-left",
+                &body,
+                vec![EpiphanyRepoModelMutationOperation::PutNode {
+                    node: node("node-left", "Left is independently owned"),
+                }],
+            )?,
+            make_proposal(
+                "proposal-node-right",
+                &body,
+                vec![EpiphanyRepoModelMutationOperation::PutNode {
+                    node: node("node-right", "Right is independently owned"),
+                }],
+            )?,
+        ];
+        let cache = runtime_spine_cache(&store)?;
+        let prepared = proposals
+            .iter()
+            .map(|proposal| {
+                Ok((
+                    plan_repo_model_mutation(&store, proposal)?,
+                    cache.prepare_entry(&proposal.proposal_id, proposal)?.0,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let outcomes = std::thread::scope(|scope| {
+            prepared
+                .into_iter()
+                .enumerate()
+                .map(|(index, (plan, provenance))| {
+                    let barrier = barrier.clone();
+                    let store = store.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        crate::commit_operator_mind_mutation(
+                            &store,
+                            provenance,
+                            "Modeling.repo_model_mutation",
+                            plan.strong_reads,
+                            plan.writes,
+                            if index == 0 {
+                                "2026-08-18T00:00:02Z"
+                            } else {
+                                "2026-08-18T00:00:03Z"
+                            },
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|handle| handle.join().expect("concurrent node writer"))
+                .collect::<Result<Vec<_>>>()
+        })?;
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, crate::EpiphanyMindCommitOutcome::Committed(_)))
+                .count(),
+            2
+        );
+        let reopened = assemble_repo_model_view(&store)?;
+        assert_eq!(
+            reopened
+                .nodes
+                .iter()
+                .map(|node| node.id.as_str())
+                .collect::<Vec<_>>(),
+            ["node-left", "node-right"]
+        );
+
+        let competing = [
+            make_proposal(
+                "proposal-collision-left",
+                &body,
+                vec![EpiphanyRepoModelMutationOperation::PutNode {
+                    node: node("node-collision", "Left claim"),
+                }],
+            )?,
+            make_proposal(
+                "proposal-collision-right",
+                &body,
+                vec![EpiphanyRepoModelMutationOperation::PutNode {
+                    node: node("node-collision", "Right claim"),
+                }],
+            )?,
+        ];
+        let prepared = competing
+            .iter()
+            .map(|proposal| {
+                Ok((
+                    plan_repo_model_mutation(&store, proposal)?,
+                    cache.prepare_entry(&proposal.proposal_id, proposal)?.0,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let replay_inputs = prepared.clone();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let outcomes = std::thread::scope(|scope| {
+            prepared
+                .into_iter()
+                .enumerate()
+                .map(|(index, (plan, provenance))| {
+                    let barrier = barrier.clone();
+                    let store = store.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        crate::commit_operator_mind_mutation(
+                            &store,
+                            provenance,
+                            "Modeling.repo_model_mutation",
+                            plan.strong_reads,
+                            plan.writes,
+                            if index == 0 {
+                                "2026-08-18T00:00:04Z"
+                            } else {
+                                "2026-08-18T00:00:05Z"
+                            },
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|handle| handle.join().expect("competing node writer"))
+                .collect::<Result<Vec<_>>>()
+        })?;
+        let winner = outcomes
+            .iter()
+            .position(|outcome| matches!(outcome, crate::EpiphanyMindCommitOutcome::Committed(_)))
+            .expect("one same-identity writer wins");
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|outcome| matches!(outcome, crate::EpiphanyMindCommitOutcome::Conflict { .. }))
+                .count(),
+            1
+        );
+        let original_receipt = match &outcomes[winner] {
+            crate::EpiphanyMindCommitOutcome::Committed(receipt) => receipt.clone(),
+            _ => unreachable!(),
+        };
+        let (plan, provenance) = replay_inputs[winner].clone();
+        assert_eq!(
+            crate::commit_operator_mind_mutation(
+                &store,
+                provenance,
+                "Modeling.repo_model_mutation",
+                plan.strong_reads,
+                plan.writes,
+                if winner == 0 {
+                    "2026-08-18T00:00:04Z"
+                } else {
+                    "2026-08-18T00:00:05Z"
+                },
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(original_receipt)
+        );
+        let restarted = assemble_repo_model_view(&store)?;
+        assert_eq!(restarted.nodes.len(), 3);
+        assert!(restarted.nodes.iter().any(|node| node.id == "node-collision"));
+        Ok(())
+    }
+
+    #[test]
     fn modeling_operations_own_local_atlas_offer_and_claim_lifecycles() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("repo-model-atlas.cc");
