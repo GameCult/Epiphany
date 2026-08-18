@@ -279,12 +279,18 @@ Cut in this order:
    `EpiphanyThreadState` schema/prompt renderer, aggregate freshness/context
    views, generic launch/interrupt requests, and global launch revisions are
    deleted. No dual reader, bootstrap aggregate, or migrator survives.
-13. Replace the residual generic Mind gateway/state-patch mouth with concrete
-   invariant-owned mutations. Make reasoning basis and terminal decision
-   context mandatory for role, reorient, Persona, and model-backed failure
-   admission; derive provider requests internally; preserve context links
-   through retention; and prove exact governed tool coverage.
-14. Refuse old writable-store epochs and replay fresh-store disjoint
+13. **Generic Mind gateway deleted at `f7948795`:**
+   `MindGatewayReview`, `MindStateCommitReceipt` v0, their generic interpreter
+   prompt, runtime registration/read APIs, phantom thought/state-effect/public-
+   adoption CultNet mouths, and stale launch receipt profiles are gone.
+   CultMesh and runtime schema catalogues expose only reasoning basis, decision
+   context, and exact Mind commit receipt as read-only audit projections.
+14. Replace the residual aggregate-shaped `EpiphanyRoleStatePatchDocument`
+   with narrow Research evidence/observation and Imagination planning payloads,
+   then delete its generic parser/policy surface. Seal one exact context before
+   model-backed typed failure and generic job terminalization, and complete the
+   store-backed governed-tool substitution matrix.
+15. Refuse old writable-store epochs and replay fresh-store disjoint
    concurrency, same-identity conflict, transcript deletion, restart, and
    re-entry. Only then restart Model Atlas Gate 1 from a new external root.
 

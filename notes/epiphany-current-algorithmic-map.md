@@ -98,13 +98,16 @@ Structured decisions are authoritative; token streams and assistant deltas are
 optional retention. A model-backed failure is also a typed terminal decision
 record. Generic diagnostic model runs cannot produce Mind-admissible decisions.
 
-Current migration seam: the typed basis/context foundation and several concrete
-Body, frontier, Research, Verification, Planning, and Reorientation paths are
-landed. The residual generic `MindGatewayReview` /
-`MindStateCommitReceipt` v0 / `EpiphanyRoleStatePatchDocument` path, generic
-role failures, Persona stages, and archival paths still need mandatory exact
-context binding. Provider/native equality and governed tool-observation
-coverage also need the full store-backed refusal matrix.
+Current migration seam: the typed basis/context foundation, concrete Body,
+frontier, Research, Verification, Planning, Reorientation, and Persona paths,
+plus worker/session/Persona archive reachability are landed. Exact `f7948795`
+deletes `MindGatewayReview`, `MindStateCommitReceipt` v0, the generic Mind
+interpreter prompt, and their false CultNet mutation mouths. The remaining
+aggregate-shaped output is `EpiphanyRoleStatePatchDocument`, used by Research
+for evidence/observations and the old generic Imagination lane for planning
+drafts. Model-backed frontier-Planning failure also needs to seal and share its
+exact decision context before typed terminalization. Governed tool-observation
+coverage still needs the full store-backed refusal matrix.
 
 ## Concurrent Mind mutation
 
@@ -220,27 +223,27 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted at `ec1431ff`:
+Accepted through `f7948795`:
 
 - every Epiphany core target compiles;
-- core library `489/489`;
+- core library `486/486`;
 - OpenAI runtime library `23/23`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. delete the generic Mind gateway/state-patch admission mouth;
-2. require exact basis/context on all model-backed terminal outcomes and
-   failures, including Persona stages;
-3. derive provider requests internally and prove exact request/tool/receipt
-   coverage with byte-identical refusals;
-4. preserve context reachability through worker, session, and Persona archival;
-5. bump/refuse old writable-store epoch with no migrator;
-6. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
+1. replace live Research and Imagination uses of the generic state patch with
+   narrow family payloads, then delete it;
+2. bind model-backed typed failures and their generic job result to one sealed
+   decision context;
+3. prove exact request/tool/receipt coverage with byte-identical refusals and
+   transcript deletion;
+4. bump/refuse old writable-store epoch with no migrator;
+5. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
    refuse, transcripts can be deleted, restart reproduces obligations, and no
    legacy authority resurrects;
-7. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
+6. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a

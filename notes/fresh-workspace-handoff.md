@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `ec1431ff`
+Latest implementation cut: `f7948795`
 
 ## Orientation
 
@@ -28,6 +28,12 @@ The global thread-state authority is gone.
   generic launch/interrupt request types, aggregate prompt/freshness/graph-
   context surfaces, the obsolete Repo graph importer, and the historical
   prompt-context smoke.
+- `f7948795` deletes the generic `MindGatewayReview` and
+  `MindStateCommitReceipt` v0 authority, its interpreter prompt, runtime
+  registration/read APIs, false state-effect/thought/adoption CultNet mouths,
+  and launch proof profiles that required phantom gateway receipts. CultMesh
+  now projects only the sealed reasoning basis, decision context, and exact
+  `EpiphanyMindCommitReceipt`, all read-only.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -36,7 +42,7 @@ provenance; they do not own identity, currentness, or conflict.
 Verification at this boundary:
 
 - every Epiphany core target compiles;
-- core library `489/489`;
+- core library `486/486`;
 - OpenAI runtime library `23/23`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
@@ -83,21 +89,30 @@ Transcripts, SSE frames, reasoning deltas, and intermediate prose are optional
 and non-authoritative. A retained decision must remain auditable after deleting
 them.
 
-Several concrete Body, Proposal, frontier-verdict Modeling, Research,
-Verification, Planning/PlanMind, and Reorientation paths already use sealed
-bases/contexts and keyed admission. Research is driven only by explicit
-external-evidence obligations; Eyes does not gate Body Modeling.
+Model opening already requires the sealed basis for worker passes and derives
+the provider request from the native request. Structured role/reorient results,
+the three Persona stages, and retained worker/session/Persona authority already
+bind and preserve exact decision contexts. Concrete Body, Proposal,
+frontier-verdict Modeling, Research, Verification, Planning/PlanMind, and
+Reorientation admissions use keyed mutations. Research is driven only by
+explicit external-evidence obligations; Eyes does not gate Body Modeling.
 
 ## Remaining wound
 
 The broader Decision-Auditable Concurrent Mind migration is incomplete.
 
-The residual generic `MindGatewayReview` / `MindStateCommitReceipt` v0 /
-`EpiphanyRoleStatePatchDocument` path still represents a generic state-effect
-admission mouth outside concrete invariant-owned `MindMutation` families.
-Generic role failures, Persona projector/persona/interpreter stages, and some
-worker/session archival paths do not yet make exact `reasoning_basis_id` and
-`decision_context_id` structurally mandatory.
+`EpiphanyRoleStatePatchDocument` remains an aggregate-shaped model output mouth.
+Research currently uses it to carry evidence/observations and the old generic
+Imagination lane uses it to carry planning drafts, even though concrete current
+work families otherwise use typed result cargo. These live payloads need narrow
+family contracts before the generic patch can be deleted.
+
+One model-backed failure seam is also live: frontier Planning constructs a
+typed failure with an empty decision-context ID before the terminal request is
+sealed, so runtime admission correctly refuses it. Failure must seal one exact
+context first and bind the typed failure and generic job result to that same
+context. Unbacked transport/process failure may remain physiological and
+non-Mind-admissible.
 
 Context validation must become exact and DRY:
 
@@ -116,23 +131,20 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Map and delete the generic Mind gateway/state-patch authority. Replace each
-   genuinely live outcome with its concrete invariant-owned mutation; do not
-   add a generic mutation registry.
-2. Require a sealed basis before model execution and an exact decision context
-   before any structured role/reorient/Persona result or model-backed failure
-   terminalizes.
-3. Derive provider requests internally and close the store-backed tool-
-   observation substitution matrix.
-4. Preserve basis/context/decision links through worker, model-session, and
-   Persona retention while allowing stream/transcript deletion.
-5. Bump the writable schema epoch and refuse old stores. Historical releases
+1. Replace the two live uses of `EpiphanyRoleStatePatchDocument` with narrow
+   Research evidence/observation and Imagination planning-decision payloads;
+   then delete the generic patch schema, parser, and policy tribunal.
+2. Seal one exact decision context before a model-backed failure terminalizes;
+   bind the typed family failure and generic job result to that same context.
+3. Expand the store-backed request/tool substitution matrix and prove context
+   audit survives deletion of streams, assistant deltas, and scaffolding.
+4. Bump the writable schema epoch and refuse old stores. Historical releases
    remain readers for historical proof stores; no migrator or dual path.
-6. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
+5. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
    unrelated Modeling-node writes; distinct graph writes; same-identity
    conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
    and source guards for deleted aggregate/global revision paths.
-7. Only then package a fresh body and resume Model Atlas Gate 1 from a new
+6. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
 ## Operational state that matters
