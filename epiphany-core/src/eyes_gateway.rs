@@ -1,5 +1,5 @@
+use crate::EpiphanyResearchDecision;
 use crate::EpiphanyRoleFindingInterpretation;
-use crate::EpiphanyRoleStatePatchDocument;
 use cultcache_rs::DatabaseEntry;
 use serde::Deserialize;
 use serde::Serialize;
@@ -176,22 +176,22 @@ pub fn eyes_evidence_packet_from_research_finding(
     research_request_id: String,
     decision_context_id: String,
     finding: &EpiphanyRoleFindingInterpretation,
-    patch: &EpiphanyRoleStatePatchDocument,
+    decision: &EpiphanyResearchDecision,
     source_lookups: &[EyesSourceLookupReceipt],
     emitted_at: String,
 ) -> EyesEvidencePacket {
-    let evidence_ids = patch
+    let evidence_ids = decision
         .evidence
         .iter()
         .filter_map(|evidence| non_empty_string(&evidence.id))
         .collect::<Vec<_>>();
-    let observation_ids = patch
+    let observation_ids = decision
         .observations
         .iter()
         .filter_map(|observation| non_empty_string(&observation.id))
         .collect::<Vec<_>>();
     let mut source_refs = Vec::new();
-    for evidence in &patch.evidence {
+    for evidence in &decision.evidence {
         for code_ref in &evidence.code_refs {
             let mut rendered = code_ref.path.display().to_string();
             if let Some(start_line) = code_ref.start_line {
@@ -301,7 +301,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch: None,
+            research_decision: None,
             repo_model_mutation_proposal: None,
             self_patch: None,
             self_persistence: None,
@@ -311,10 +311,8 @@ mod tests {
             frontier_route_id: None,
             proposal_modeling_request_id: None,
         };
-        let mut patch = EpiphanyRoleStatePatchDocument::default();
-        patch
-            .evidence
-            .push(epiphany_state_model::EpiphanyEvidenceRecord {
+        let decision = EpiphanyResearchDecision {
+            evidence: vec![epiphany_state_model::EpiphanyEvidenceRecord {
                 id: "ev-source".to_string(),
                 kind: "source".to_string(),
                 status: "ok".to_string(),
@@ -326,24 +324,24 @@ mod tests {
                     symbol: Some("thing".to_string()),
                     note: None,
                 }],
-            });
-        patch
-            .observations
-            .push(epiphany_state_model::EpiphanyObservation {
+            }],
+            observations: vec![epiphany_state_model::EpiphanyObservation {
                 id: "obs-source".to_string(),
                 summary: "Observed source proof.".to_string(),
                 source_kind: "research".to_string(),
                 status: "ok".to_string(),
                 code_refs: Vec::new(),
                 evidence_ids: vec!["ev-source".to_string()],
-            });
+            }],
+            investigation_checkpoint: None,
+        };
 
         let packet = eyes_evidence_packet_from_research_finding(
             "eyes-packet-1".to_string(),
             "research-request-1".to_string(),
             "decision-context-1".to_string(),
             &finding,
-            &patch,
+            &decision,
             &[],
             "2026-05-30T00:00:00Z".to_string(),
         );

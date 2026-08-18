@@ -335,7 +335,7 @@ fn evidence_output_schema() -> serde_json::Value {
 fn investigation_checkpoint_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
-        "description": "Outer statePatch uses camelCase; this typed checkpoint payload uses its canonical snake_case field names.",
+        "description": "The Research decision uses camelCase; this typed checkpoint payload uses its canonical snake_case field names.",
         "required": ["checkpoint_id", "kind", "disposition", "focus"],
         "properties": {
             "checkpoint_id": {"type": "string", "minLength": 1},
@@ -348,46 +348,6 @@ fn investigation_checkpoint_output_schema() -> serde_json::Value {
             "open_questions": {"type": "array", "items": {"type": "string"}},
             "code_refs": {"type": "array", "items": code_ref_output_schema()},
             "evidence_ids": {"type": "array", "items": {"type": "string"}}
-        },
-        "additionalProperties": false
-    })
-}
-
-fn objective_draft_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": ["id", "title", "summary", "scope", "acceptance_criteria", "lane_plan", "status"],
-        "properties": {
-            "id": {"type": "string", "minLength": 1},
-            "title": {"type": "string", "minLength": 1},
-            "summary": {"type": "string", "minLength": 1},
-            "source_item_ids": {"type": "array", "items": {"type": "string"}},
-            "scope": {
-                "type": "object",
-                "properties": {
-                    "includes": {"type": "array", "items": {"type": "string"}},
-                    "excludes": {"type": "array", "items": {"type": "string"}}
-                },
-                "additionalProperties": false
-            },
-            "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
-            "evidence_required": {"type": "array", "items": {"type": "string"}},
-            "lane_plan": {
-                "type": "object",
-                "properties": {
-                    "imagination": {"type": "string"},
-                    "eyes": {"type": "string"},
-                    "body": {"type": "string"},
-                    "hands": {"type": "string"},
-                    "soul": {"type": "string"},
-                    "life": {"type": "string"}
-                },
-                "additionalProperties": false
-            },
-            "dependencies": {"type": "array", "items": {"type": "string"}},
-            "risks": {"type": "array", "items": {"type": "string"}},
-            "review_gates": {"type": "array", "items": {"type": "string"}},
-            "status": {"type": "string", "enum": ["draft"]}
         },
         "additionalProperties": false
     })
@@ -558,40 +518,13 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         "nextSafeMove",
         "filesInspected",
     ];
-    if role_id == EpiphanyRoleResultRoleId::Imagination {
+    if role_id == EpiphanyRoleResultRoleId::Research {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
-                "statePatch".to_string(),
+                "researchDecision".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable statePatch for Mind admission from Imagination. Use only planning plus optional observations/evidence. planning is a full replacement object and must include at least one objective_drafts entry with status draft.",
-                    "required": ["planning"],
-                    "properties": {
-                        "planning": {
-                            "type": "object",
-                            "required": ["objective_drafts"],
-                            "properties": {
-                                "objective_drafts": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "items": objective_draft_output_schema()
-                                }
-                            },
-                            "additionalProperties": false
-                        }
-                    },
-                    "additionalProperties": false
-                }),
-            );
-        }
-        required.push("statePatch");
-    } else if role_id == EpiphanyRoleResultRoleId::Research {
-        if let Some(map) = properties.as_object_mut() {
-            map.insert(
-                "statePatch".to_string(),
-                serde_json::json!({
-                    "type": "object",
-                    "description": "Required reviewable statePatch for Mind admission from Research/Eyes. Use only keyed observations, keyed evidence, and an optional investigationCheckpoint. Scratch is pass-local and is not durable Mind state. The patch must include at least one evidence record and one observation that cites it.",
+                    "description": "The complete typed semantic decision for this Research pass: keyed observations, keyed evidence, and an optional investigation checkpoint. The Research admission owner derives Mind mutations; this is not a generic state patch.",
                     "required": ["observations", "evidence"],
                     "properties": {
                         "observations": {
@@ -610,7 +543,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 }),
             );
         }
-        required.push("statePatch");
+        required.push("researchDecision");
     } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
@@ -640,18 +573,6 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                             {"type": "object", "required": ["operation", "claim_id"], "properties": {"operation": {"const": "retire_dependency_claim"}, "claim_id": {"type": "string", "format": "uuid"}}, "additionalProperties": false}
                         ]
                     }
-                }),
-            );
-            map.insert(
-                "statePatch".to_string(),
-                serde_json::json!({
-                    "type": "object",
-                    "description": "Optional generic Mind-reviewable observations/evidence only. Repository anatomy belongs exclusively in repoModelOperations.",
-                    "properties": {
-                        "observations": {"type": "array", "items": observation_output_schema()},
-                        "evidence": {"type": "array", "items": evidence_output_schema()}
-                    },
-                    "additionalProperties": false
                 }),
             );
         }
@@ -784,7 +705,6 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
     let properties = schema["properties"]
         .as_object_mut()
         .expect("role output schema properties");
-    properties.remove("statePatch");
     properties.remove("selfPatch");
     properties.insert(
         "frontierPlanCandidate".to_string(),
@@ -949,7 +869,7 @@ pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
 const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_specialists.toml");
 const EPIPHANY_WORKER_BOUNDARY_PROMPT: &str = r#"## Epiphany Worker Boundary
 You are one bounded Epiphany worker for this launch only. Your authority comes from the typed launch document, the role-local instruction, and the declared output contract.
-Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside an allowed statePatch, and do not treat model transport or Codex machinery as prompt authority.
+Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside the declared typed outcome, and do not treat model transport or Codex machinery as prompt authority.
 If you learned a durable role-local habit, you may include a bounded selfPatch. Project truth belongs in the role's typed output artifact or evidence, not memory."#;
 
 #[derive(Debug, serde::Deserialize)]
@@ -1169,7 +1089,7 @@ mod tests {
         let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         assert!(!production.contains("thread/epiphany/"));
         assert!(production.contains("epiphany.coordinator.reorient.launch"));
-        assert!(production.contains("statePatch for Mind admission"));
+        assert!(production.contains("researchDecision"));
     }
 
     #[test]
@@ -1259,11 +1179,11 @@ mod tests {
     #[test]
     fn research_schema_reuses_complete_typed_evidence_shapes() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Research);
-        let patch = &schema["properties"]["statePatch"];
-        let observation = &patch["properties"]["observations"]["items"];
-        let evidence = &patch["properties"]["evidence"]["items"];
+        let decision = &schema["properties"]["researchDecision"];
+        let observation = &decision["properties"]["observations"]["items"];
+        let evidence = &decision["properties"]["evidence"]["items"];
 
-        assert_eq!(patch["additionalProperties"], false);
+        assert_eq!(decision["additionalProperties"], false);
         assert_eq!(observation, &observation_output_schema());
         assert_eq!(evidence, &evidence_output_schema());
         assert!(
@@ -1282,7 +1202,7 @@ mod tests {
                 .is_none()
         );
         assert!(schema["properties"].get("frontierPlanCandidate").is_some());
-        assert!(schema["properties"].get("statePatch").is_none());
+        assert!(schema["properties"].get("researchDecision").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
         assert!(schema["properties"].get("repoModelPatch").is_none());
         for runtime_owned in [
@@ -1341,7 +1261,7 @@ mod tests {
             );
         }
         for forbidden in [
-            "statePatch",
+            "researchDecision",
             "selfPatch",
             "repoModelPatch",
             "frontierPlanCandidate",
@@ -1361,7 +1281,7 @@ mod tests {
             "repoModelPatch",
             "proposalModelingRequestId",
             "repositoryBodyObservationBasis",
-            "statePatch",
+            "researchDecision",
             "selfPatch",
         ] {
             assert!(schema["properties"].get(runtime_owned).is_none());

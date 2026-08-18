@@ -1690,34 +1690,10 @@ pub fn accept_frontier_research_result(
     {
         return Err(anyhow!("frontier Research result crossed family authority"));
     }
-    let patch = result
-        .state_patch()?
-        .ok_or_else(|| anyhow!("frontier Research result has no keyed state proposal"))?;
-    let policy_errors = crate::research_role_state_patch_policy_errors(&patch);
-    if !policy_errors.is_empty() {
-        return Err(anyhow!(
-            "frontier Research state proposal is invalid: {}",
-            policy_errors.join("; ")
-        ));
-    }
-    let evidence_ids = patch
-        .evidence
-        .iter()
-        .map(|evidence| evidence.id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    if evidence_ids.len() != patch.evidence.len()
-        || patch.observations.iter().any(|observation| {
-            observation.evidence_ids.is_empty()
-                || observation
-                    .evidence_ids
-                    .iter()
-                    .any(|id| !evidence_ids.contains(id.as_str()))
-        })
-    {
-        return Err(anyhow!(
-            "frontier Research observations do not cite the exact proposed evidence set"
-        ));
-    }
+    let decision = result
+        .research_decision()?
+        .ok_or_else(|| anyhow!("frontier Research result has no typed decision"))?;
+    decision.validate()?;
     let lookups =
         crate::runtime_authenticated_public_source_lookups_for_worker(store_path, job_id)?;
     for lookup in &lookups {
@@ -1729,7 +1705,7 @@ pub fn accept_frontier_research_result(
             ));
         }
     }
-    if patch
+    if decision
         .evidence
         .iter()
         .any(|evidence| !result.evidence_ids.contains(&evidence.id))
@@ -1748,12 +1724,12 @@ pub fn accept_frontier_research_result(
         request.request_id.clone(),
         result.decision_context_id.clone(),
         &finding,
-        &patch,
+        &decision,
         &lookups,
         accepted_at.to_string(),
     );
     let mut writes = Vec::new();
-    for evidence in &patch.evidence {
+    for evidence in &decision.evidence {
         writes.push(crate::mind_documents::prepare_mind_document(
             &cache,
             &evidence.id,
@@ -1762,7 +1738,7 @@ pub fn accept_frontier_research_result(
             },
         )?);
     }
-    for observation in &patch.observations {
+    for observation in &decision.observations {
         writes.push(crate::mind_documents::prepare_mind_document(
             &cache,
             &observation.id,
@@ -1771,7 +1747,7 @@ pub fn accept_frontier_research_result(
             },
         )?);
     }
-    if let Some(checkpoint) = patch.investigation_checkpoint.as_ref() {
+    if let Some(checkpoint) = decision.investigation_checkpoint.as_ref() {
         writes.push(crate::mind_documents::prepare_mind_document(
             &cache,
             &checkpoint.checkpoint_id,
@@ -3432,7 +3408,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -3685,7 +3661,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -4005,7 +3981,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -4328,7 +4304,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -4741,7 +4717,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -4882,7 +4858,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -5093,10 +5069,10 @@ mod tests {
             code_refs: Vec::new(),
             evidence_ids: vec![evidence.id.clone()],
         };
-        let research_patch = crate::EpiphanyRoleStatePatchDocument {
+        let research_decision = crate::EpiphanyResearchDecision {
             evidence: vec![evidence.clone()],
             observations: vec![observation.clone()],
-            ..Default::default()
+            investigation_checkpoint: None,
         };
         let research_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
@@ -5115,7 +5091,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: Some(rmp_serde::to_vec_named(&research_patch)?),
+            research_decision_msgpack: Some(rmp_serde::to_vec_named(&research_decision)?),
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),

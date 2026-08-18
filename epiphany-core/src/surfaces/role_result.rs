@@ -45,7 +45,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub open_questions: Vec<String>,
     pub evidence_gaps: Vec<String>,
     pub risks: Vec<String>,
-    pub state_patch: Option<EpiphanyRoleStatePatchDocument>,
+    pub research_decision: Option<crate::EpiphanyResearchDecision>,
     pub repo_model_mutation_proposal: Option<crate::EpiphanyRepoModelMutationProposal>,
     pub self_patch: Option<AgentSelfPatch>,
     pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
@@ -126,18 +126,18 @@ pub struct EpiphanyReorientAcceptanceBundle {
 fn interpret_role_finding(
     role_id: EpiphanyRoleResultRoleId,
     raw_result: &serde_json::Value,
-    _legacy_state_patch_parse_error: Option<String>,
+    _retired_generic_patch_parse_error: Option<String>,
     job_error: Option<String>,
     item_error: Option<String>,
 ) -> EpiphanyRoleFindingInterpretation {
-    let state_patch_result = raw_result
-        .get("statePatch")
+    let research_decision_result = raw_result
+        .get("researchDecision")
         .cloned()
-        .map(serde_json::from_value::<EpiphanyRoleStatePatchDocument>);
-    let state_patch = state_patch_result
+        .map(serde_json::from_value::<crate::EpiphanyResearchDecision>);
+    let research_decision = research_decision_result
         .as_ref()
         .and_then(|result| result.as_ref().ok().cloned());
-    let state_patch_parse_error = state_patch_result
+    let research_decision_parse_error = research_decision_result
         .as_ref()
         .and_then(|result| result.as_ref().err().map(ToString::to_string));
     let repo_model_mutation_proposal_result = raw_result
@@ -155,30 +155,21 @@ fn interpret_role_finding(
         .map(|patch| decode_role_self_patch(role_id, patch))
         .unwrap_or((None, None));
     let item_error = match role_id {
-        EpiphanyRoleResultRoleId::Imagination => merge_item_error(
-            item_error,
-            imagination_role_state_patch_error(
-                raw_result.get("statePatch").is_some(),
-                state_patch.as_ref(),
-                state_patch_parse_error,
-            ),
-        ),
+        EpiphanyRoleResultRoleId::Imagination => item_error,
         EpiphanyRoleResultRoleId::Modeling => merge_item_error(
             item_error,
             modeling_role_result_error(
                 raw_result.get("repoModelMutationProposal").is_some(),
                 repo_model_mutation_proposal.as_ref(),
                 repo_model_mutation_proposal_parse_error,
-                state_patch.as_ref(),
-                state_patch_parse_error,
             ),
         ),
         EpiphanyRoleResultRoleId::Research => merge_item_error(
             item_error,
-            research_role_state_patch_error(
-                raw_result.get("statePatch").is_some(),
-                state_patch.as_ref(),
-                state_patch_parse_error,
+            research_role_decision_error(
+                raw_result.get("researchDecision").is_some(),
+                research_decision.as_ref(),
+                research_decision_parse_error,
             ),
         ),
         EpiphanyRoleResultRoleId::Implementation
@@ -201,7 +192,7 @@ fn interpret_role_finding(
         open_questions: json_string_array_field(raw_result, "openQuestions"),
         evidence_gaps: json_string_array_field(raw_result, "evidenceGaps"),
         risks: json_string_array_field(raw_result, "risks"),
-        state_patch,
+        research_decision,
         repo_model_mutation_proposal,
         self_patch,
         self_persistence,
@@ -241,13 +232,13 @@ pub fn interpret_runtime_role_worker_result(
     role_id: EpiphanyRoleResultRoleId,
     result: &crate::EpiphanyRuntimeRoleWorkerResult,
 ) -> EpiphanyRoleFindingInterpretation {
-    let state_patch_result = result.state_patch();
+    let research_decision_result = result.research_decision();
     let repo_model_mutation_proposal_result = result.repo_model_mutation_proposal();
     let self_patch_result = result.self_patch();
-    let state_patch = state_patch_result
+    let research_decision = research_decision_result
         .as_ref()
         .ok()
-        .and_then(|patch| patch.clone());
+        .and_then(|decision| decision.clone());
     let self_patch = self_patch_result
         .as_ref()
         .ok()
@@ -258,7 +249,10 @@ pub fn interpret_runtime_role_worker_result(
         .and_then(|patch| patch.clone());
     let item_error = merge_item_error(
         result.item_error.clone(),
-        state_patch_result.as_ref().err().map(ToString::to_string),
+        research_decision_result
+            .as_ref()
+            .err()
+            .map(ToString::to_string),
     );
     let item_error = merge_item_error(
         item_error,
@@ -286,7 +280,7 @@ pub fn interpret_runtime_role_worker_result(
         open_questions: result.open_questions.clone(),
         evidence_gaps: result.evidence_gaps.clone(),
         risks: result.risks.clone(),
-        state_patch: state_patch.clone(),
+        research_decision: research_decision.clone(),
         repo_model_mutation_proposal: repo_model_mutation_proposal.clone(),
         self_patch,
         self_persistence: None,
@@ -298,23 +292,14 @@ pub fn interpret_runtime_role_worker_result(
                     result.repo_model_mutation_proposal_msgpack.is_some(),
                     repo_model_mutation_proposal.as_ref(),
                     None,
-                    state_patch.as_ref(),
-                    None,
                 ),
             ),
-            EpiphanyRoleResultRoleId::Imagination => merge_item_error(
-                item_error,
-                imagination_role_state_patch_error(
-                    result.state_patch_msgpack.is_some(),
-                    state_patch.as_ref(),
-                    None,
-                ),
-            ),
+            EpiphanyRoleResultRoleId::Imagination => item_error,
             EpiphanyRoleResultRoleId::Research => merge_item_error(
                 item_error,
-                research_role_state_patch_error(
-                    result.state_patch_msgpack.is_some(),
-                    state_patch.as_ref(),
+                research_role_decision_error(
+                    result.research_decision_msgpack.is_some(),
+                    research_decision.as_ref(),
                     None,
                 ),
             ),
@@ -595,222 +580,10 @@ fn decode_role_self_patch(
     (decoded, Some(review))
 }
 
-pub fn modeling_role_state_patch_policy_errors(
-    patch: &EpiphanyRoleStatePatchDocument,
-) -> Vec<String> {
-    let mut errors = Vec::new();
-    if patch.objective.is_some() {
-        errors
-            .push("objective changes are not allowed through modeling role acceptance".to_string());
-    }
-    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
-        errors.push("subgoal changes are not allowed through modeling role acceptance".to_string());
-    }
-    if patch.invariants.is_some() {
-        errors
-            .push("invariant changes are not allowed through modeling role acceptance".to_string());
-    }
-    if patch.job_bindings.is_some() {
-        errors.push(
-            "job binding changes are not allowed through modeling role acceptance".to_string(),
-        );
-    }
-    if !patch.acceptance_receipts.is_empty() {
-        errors.push(
-            "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
-        );
-    }
-    if !patch.runtime_links.is_empty() {
-        errors.push(
-            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
-                .to_string(),
-        );
-    }
-    if patch.planning.is_some() {
-        errors
-            .push("planning changes are not allowed through modeling role acceptance".to_string());
-    }
-    if patch.churn.is_some() || patch.mode.is_some() {
-        errors.push(
-            "churn or mode changes are not allowed through modeling role acceptance".to_string(),
-        );
-    }
-    if patch.graphs.is_some()
-        || patch.graph_frontier.is_some()
-        || patch.graph_checkpoint.is_some()
-        || patch.scratch.is_some()
-        || patch.investigation_checkpoint.is_some()
-    {
-        errors.push(
-            "repository anatomy is not allowed in generic Modeling statePatch; use repoModelOperations"
-                .to_string(),
-        );
-    }
-    errors
-}
-
-pub fn imagination_role_state_patch_policy_errors(
-    patch: &EpiphanyRoleStatePatchDocument,
-) -> Vec<String> {
-    let mut errors = Vec::new();
-    if patch.objective.is_some() {
-        errors.push(
-            "objective changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
-        errors.push(
-            "subgoal changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    if patch.invariants.is_some() {
-        errors.push(
-            "invariant changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    if patch.graphs.is_some()
-        || patch.graph_frontier.is_some()
-        || patch.graph_checkpoint.is_some()
-        || patch.investigation_checkpoint.is_some()
-    {
-        errors.push(
-            "graph or checkpoint changes are not allowed through imagination role acceptance"
-                .to_string(),
-        );
-    }
-    if patch.scratch.is_some() {
-        errors.push(
-            "scratch changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    if patch.job_bindings.is_some() {
-        errors.push(
-            "job binding changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    if !patch.acceptance_receipts.is_empty() {
-        errors.push(
-            "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
-        );
-    }
-    if !patch.runtime_links.is_empty() {
-        errors.push(
-            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
-                .to_string(),
-        );
-    }
-    if patch.churn.is_some() || patch.mode.is_some() {
-        errors.push(
-            "churn or mode changes are not allowed through imagination role acceptance".to_string(),
-        );
-    }
-    let Some(planning) = patch.planning.as_ref() else {
-        errors.push("statePatch must include planning changes".to_string());
-        return errors;
-    };
-    if planning.objective_drafts.is_empty() {
-        errors.push("planning patch must include at least one objective draft".to_string());
-    }
-    if !planning
-        .objective_drafts
-        .iter()
-        .any(|draft| draft.status.eq_ignore_ascii_case("draft"))
-    {
-        errors.push(
-            "planning patch must include at least one objective draft with status draft"
-                .to_string(),
-        );
-    }
-    for draft in &planning.objective_drafts {
-        if draft.acceptance_criteria.is_empty() {
-            errors.push(format!(
-                "planning objective draft {:?} must include acceptance criteria",
-                draft.id
-            ));
-        }
-        if draft.review_gates.is_empty() {
-            errors.push(format!(
-                "planning objective draft {:?} must include review gates",
-                draft.id
-            ));
-        }
-    }
-    errors
-}
-
-pub fn research_role_state_patch_policy_errors(
-    patch: &EpiphanyRoleStatePatchDocument,
-) -> Vec<String> {
-    let mut errors = Vec::new();
-    if patch.objective.is_some() {
-        errors
-            .push("objective changes are not allowed through research role acceptance".to_string());
-    }
-    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
-        errors.push("subgoal changes are not allowed through research role acceptance".to_string());
-    }
-    if patch.invariants.is_some() {
-        errors
-            .push("invariant changes are not allowed through research role acceptance".to_string());
-    }
-    if patch.graphs.is_some() || patch.graph_frontier.is_some() || patch.graph_checkpoint.is_some()
-    {
-        errors.push(
-            "graph modeling changes are not allowed through research role acceptance".to_string(),
-        );
-    }
-    if patch.job_bindings.is_some() {
-        errors.push(
-            "job binding changes are not allowed through research role acceptance".to_string(),
-        );
-    }
-    if !patch.acceptance_receipts.is_empty() {
-        errors.push(
-            "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
-        );
-    }
-    if !patch.runtime_links.is_empty() {
-        errors.push(
-            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
-                .to_string(),
-        );
-    }
-    if patch.planning.is_some() {
-        errors
-            .push("planning changes are not allowed through research role acceptance".to_string());
-    }
-    if patch.churn.is_some() || patch.mode.is_some() {
-        errors.push(
-            "churn or mode changes are not allowed through research role acceptance".to_string(),
-        );
-    }
-    if patch.evidence.is_empty() {
-        errors.push("research statePatch must include at least one evidence record".to_string());
-    }
-    if patch.observations.is_empty() {
-        errors.push("research statePatch must include at least one observation".to_string());
-    }
-    for observation in &patch.observations {
-        if observation.evidence_ids.is_empty() {
-            errors.push(format!(
-                "research observation {:?} must cite at least one evidence id",
-                observation.id
-            ));
-        }
-    }
-    if patch.scratch.is_some() {
-        errors
-            .push("research scratch is pass-local and cannot enter durable Mind state".to_string());
-    }
-    errors
-}
-
 fn modeling_role_result_error(
     repo_model_mutation_proposal_present: bool,
     repo_model_mutation_proposal: Option<&crate::EpiphanyRepoModelMutationProposal>,
     repo_model_mutation_proposal_parse_error: Option<String>,
-    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
-    state_patch_parse_error: Option<String>,
 ) -> Option<String> {
     if let Some(error) = repo_model_mutation_proposal_parse_error {
         return Some(format!(
@@ -829,78 +602,31 @@ fn modeling_role_result_error(
             "modeling result is not reviewable: invalid RepoModel mutation proposal ({error})"
         ));
     };
-    if let Some(error) = state_patch_parse_error {
-        return Some(format!(
-            "modeling result is not reviewable: invalid optional statePatch ({error})"
-        ));
-    }
-    let errors = state_patch
-        .map(modeling_role_state_patch_policy_errors)
-        .unwrap_or_default();
-    if errors.is_empty() {
-        None
-    } else {
-        Some(format!(
-            "modeling result is not reviewable: {}",
-            errors.join("; ")
-        ))
-    }
+    None
 }
 
-fn research_role_state_patch_error(
-    state_patch_present: bool,
-    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
+fn research_role_decision_error(
+    decision_present: bool,
+    decision: Option<&crate::EpiphanyResearchDecision>,
     parse_error: Option<String>,
 ) -> Option<String> {
-    if !state_patch_present {
-        return Some("research result is not reviewable: missing required statePatch".to_string());
-    };
-    if let Some(error) = parse_error {
-        return Some(format!(
-            "research result is not reviewable: invalid statePatch ({error})"
-        ));
-    }
-    let Some(state_patch) = state_patch else {
-        return Some("research result is not reviewable: invalid statePatch".to_string());
-    };
-    let errors = research_role_state_patch_policy_errors(state_patch);
-    if errors.is_empty() {
-        None
-    } else {
-        Some(format!(
-            "research result is not reviewable: {}",
-            errors.join("; ")
-        ))
-    }
-}
-
-fn imagination_role_state_patch_error(
-    state_patch_present: bool,
-    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
-    parse_error: Option<String>,
-) -> Option<String> {
-    if !state_patch_present {
+    if !decision_present {
         return Some(
-            "imagination result is not reviewable: missing required statePatch".to_string(),
+            "research result is not reviewable: missing required researchDecision".to_string(),
         );
     };
     if let Some(error) = parse_error {
         return Some(format!(
-            "imagination result is not reviewable: invalid statePatch ({error})"
+            "research result is not reviewable: invalid researchDecision ({error})"
         ));
     }
-    let Some(state_patch) = state_patch else {
-        return Some("imagination result is not reviewable: invalid statePatch".to_string());
+    let Some(decision) = decision else {
+        return Some("research result is not reviewable: invalid researchDecision".to_string());
     };
-    let errors = imagination_role_state_patch_policy_errors(state_patch);
-    if errors.is_empty() {
-        None
-    } else {
-        Some(format!(
-            "imagination result is not reviewable: {}",
-            errors.join("; ")
-        ))
-    }
+    decision
+        .validate()
+        .err()
+        .map(|error| format!("research result is not reviewable: {error}"))
 }
 
 fn merge_item_error(item_error: Option<String>, extra_error: Option<String>) -> Option<String> {
@@ -1144,7 +870,6 @@ mod tests {
         let finding = interpret_role_finding(
             EpiphanyRoleResultRoleId::Modeling,
             &serde_json::json!({
-                "statePatch": {"scratch": {"summary": "Source-grounded modeling checkpoint."}},
                 "selfPatch": {
                     "agentId": "epiphany.modeling",
                     "reason": "Modeling should remember graph growth must stay source-grounded and bounded.",
@@ -1218,62 +943,48 @@ mod tests {
     }
 
     #[test]
-    fn modeling_state_patch_cannot_smuggle_repository_anatomy() {
-        let finding = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Modeling,
-            &serde_json::json!({
-                "statePatch": {"graphs": {}}
-            }),
-            None,
-            None,
-            None,
-        );
-        assert!(finding.item_error.as_deref().is_some_and(|error| {
-            error.contains("repository anatomy") && error.contains("repoModelOperations")
-        }));
-    }
-
-    #[test]
-    fn marks_imagination_without_planning_patch_unreviewable() {
+    fn research_requires_one_closed_typed_decision() {
         let missing = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Imagination,
-            &serde_json::json!({"verdict": "draft-ready"}),
+            EpiphanyRoleResultRoleId::Research,
+            &serde_json::json!({"verdict": "evidence-ready"}),
             None,
             None,
             None,
         );
-
         assert!(
             missing
                 .item_error
                 .as_deref()
-                .is_some_and(|error| error.contains("missing required statePatch"))
+                .is_some_and(|error| { error.contains("missing required researchDecision") })
         );
 
         let reviewable = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Imagination,
+            EpiphanyRoleResultRoleId::Research,
             &serde_json::json!({
-                "statePatch": {
-                    "planning": {
-                        "objective_drafts": [{
-                            "id": "draft-imagination-test",
-                            "title": "Draft from imagination",
-                            "summary": "Reviewable objective draft.",
-                            "scope": {"includes": ["typed state"], "excludes": []},
-                            "status": "draft",
-                            "lane_plan": {},
-                            "acceptance_criteria": ["A criterion"],
-                            "review_gates": ["human review"]
-                        }]
-                    }
+                "researchDecision": {
+                    "evidence": [{
+                        "id": "evidence-a",
+                        "kind": "source",
+                        "status": "ok",
+                        "summary": "Exact source proof.",
+                        "code_refs": []
+                    }],
+                    "observations": [{
+                        "id": "observation-a",
+                        "summary": "Observed exact source proof.",
+                        "source_kind": "research",
+                        "status": "ok",
+                        "code_refs": [],
+                        "evidence_ids": ["evidence-a"]
+                    }]
                 }
             }),
             None,
             None,
             None,
         );
-
         assert!(reviewable.item_error.is_none());
+        assert!(reviewable.research_decision.is_some());
     }
 
     #[test]
@@ -1409,7 +1120,6 @@ mod tests {
         }));
     }
 }
-use super::state_patch::EpiphanyRoleStatePatchDocument;
 use crate::agent_memory::AgentSelfPatch;
 #[cfg(test)]
 use crate::agent_memory::decode_agent_self_patch;

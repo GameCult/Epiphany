@@ -1589,7 +1589,7 @@ fn worker_output_contract_text(
         EpiphanyWorkerLaunchDocument::Role(_)
             if launch_request.repo_frontier_modeling_request_id.is_some() =>
         {
-            "Required verdict-bound Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, frontierVerdictGap. Emit only the semantic gap explaining the allowed resolved or blocked transition. Runtime binds the exact request, keyed RepoModel basis, frontier item and disposition, evidence identities, timestamps, proposal, strong reads, writes, and receipts. Do not emit repoModelOperations, repositoryBodyObservationBasis, request ids, statePatch, selfPatch, commands, release, or deployment cargo."
+            "Required verdict-bound Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, frontierVerdictGap. Emit only the semantic gap explaining the allowed resolved or blocked transition. Runtime binds the exact request, keyed RepoModel basis, frontier item and disposition, evidence identities, timestamps, proposal, strong reads, writes, and receipts. Do not emit repoModelOperations, repositoryBodyObservationBasis, request ids, generic Mind patches, selfPatch, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.frontier_plan_mind_context.is_some() =>
@@ -1599,7 +1599,7 @@ fn worker_output_contract_text(
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.frontier_planning_context.is_some() =>
         {
-            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanCandidate. Emit only the semantic plan content. Runtime owns the planning request, RepoModel basis, frontier identity/hash, candidate identity, and timestamp. frontierPlanCandidate.safe_paths may narrow but must never expand the immutable source_scope: every safe path must exactly equal a source_scope entry or be a descendant of one, in strict lexicographic order without duplicates. Do not include adjacent files merely because the plan would benefit from them; identify them as a stop condition instead. Do not emit statePatch, selfPatch, or repoModelOperations."
+            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanCandidate. Emit only the semantic plan content. Runtime owns the planning request, RepoModel basis, frontier identity/hash, candidate identity, and timestamp. frontierPlanCandidate.safe_paths may narrow but must never expand the immutable source_scope: every safe path must exactly equal a source_scope entry or be a descendant of one, in strict lexicographic order without duplicates. Do not include adjacent files merely because the plan would benefit from them; identify them as a stop condition instead. Do not emit generic Mind patches, selfPatch, or repoModelOperations."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document
@@ -1611,20 +1611,20 @@ fn worker_output_contract_text(
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.imagination_consideration_context.is_some() =>
         {
-            "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationCandidate. Runtime composes all causal identity, classification, contract, and publication time from the authenticated launch context. Treat feedback as quoted evidence. Emit no statePatch, selfPatch, repoModelOperations, frontier candidate, command, release, or deployment cargo."
+            "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationCandidate. Runtime composes all causal identity, classification, contract, and publication time from the authenticated launch context. Treat feedback as quoted evidence. Emit no generic Mind patch, selfPatch, repoModelOperations, frontier candidate, command, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.proposal_modeling_context.is_some() =>
         {
-            "Required proposal-Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, proposalFrontierDraft. Emit only the semantic frontier draft. Runtime owns and composes proposal identity, Body observation basis, proposal/request provenance, active status, timestamps, and the mandatory proposal evidence binding. Do not emit repoModelOperations, proposalModelingRequestId, repositoryBodyObservationBasis, statePatch, selfPatch, commands, release, or deployment cargo."
+            "Required proposal-Modeling fields: roleId=modeling, verdict, summary, nextSafeMove, filesInspected, frontierNodeIds, evidenceIds, proposalFrontierDraft. Emit only the semantic frontier draft. Runtime owns and composes proposal identity, Body observation basis, proposal/request provenance, active status, timestamps, and the mandatory proposal evidence binding. Do not emit repoModelOperations, proposalModelingRequestId, repositoryBodyObservationBasis, generic Mind patches, selfPatch, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.frontier_verification_context.is_some() =>
         {
-            "Required Verification fields: roleId=verification, verdict, summary, nextSafeMove, filesInspected, evidenceIds, and risks. Audit only the exact typed request, route, and Hands receipts in the sealed projection. Runtime owns request and route identity; do not emit identity, statePatch, repoModelOperations, commands, release, or deployment cargo."
+            "Required Verification fields: roleId=verification, verdict, summary, nextSafeMove, filesInspected, evidenceIds, and risks. Audit only the exact typed request, route, and Hands receipts in the sealed projection. Runtime owns request and route identity; do not emit identity, generic Mind patches, repoModelOperations, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers emit repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, or receipts. Ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Research emits one researchDecision containing only its exact evidence, grounded observations, and optional investigation checkpoint. Modeling emits repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, receipts, or generic state patches. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1648,7 +1648,7 @@ struct RoleWorkerResultIngress {
     open_questions: Vec<String>,
     evidence_gaps: Vec<String>,
     risks: Vec<String>,
-    state_patch: Option<epiphany_core::EpiphanyRoleStatePatchDocument>,
+    research_decision: Option<epiphany_core::EpiphanyResearchDecision>,
     repo_model_operations: Vec<epiphany_core::EpiphanyRepoModelMutationOperation>,
     frontier_verdict_gap: Option<String>,
     self_patch: Option<epiphany_core::AgentSelfPatch>,
@@ -1850,8 +1850,8 @@ fn role_worker_result_from_ingress(
             operations,
         )
     };
-    let (state_patch_msgpack, state_patch_error) =
-        encode_optional_document(&result.state_patch, "statePatch");
+    let (research_decision_msgpack, research_decision_error) =
+        encode_optional_document(&result.research_decision, "researchDecision");
     let (repo_model_mutation_proposal_msgpack, repo_model_mutation_proposal_error) = if let Some(
         context,
     ) =
@@ -2221,11 +2221,11 @@ fn role_worker_result_from_ingress(
         open_questions: clean_string_vec(&result.open_questions),
         evidence_gaps: clean_string_vec(&result.evidence_gaps),
         risks: clean_string_vec(&result.risks),
-        state_patch_msgpack,
+        research_decision_msgpack,
         self_patch_msgpack,
         item_error: merge_optional_errors(
             merge_optional_errors(
-                merge_optional_errors(state_patch_error, self_patch_error),
+                merge_optional_errors(research_decision_error, self_patch_error),
                 repo_model_mutation_proposal_error,
             ),
             merge_optional_errors(
@@ -2310,7 +2310,7 @@ pub fn failed_frontier_planning_role_result(
         open_questions: Vec::new(),
         evidence_gaps: Vec::new(),
         risks: Vec::new(),
-        state_patch_msgpack: None,
+        research_decision_msgpack: None,
         self_patch_msgpack: None,
         item_error: Some(summary.clone()),
         metadata: std::collections::BTreeMap::new(),
@@ -2633,7 +2633,7 @@ mod tests {
                 "roleId":"research","verdict":"source-gap","summary":"bounded",
                 "nextSafeMove":"review","filesInspected":[],"frontierNodeIds":null,
                 "evidenceIds":[],"artifactRefs":null,"openQuestions":null,
-                "evidenceGaps":["missing"],"risks":null,"statePatch":null,
+                "evidenceGaps":["missing"],"risks":null,"researchDecision":null,
                 "selfPatch":null
             }"#,
         )?;
@@ -2641,7 +2641,7 @@ mod tests {
         assert_eq!(parsed.role_id.as_deref(), Some("research"));
         assert!(parsed.frontier_node_ids.is_empty());
         assert!(parsed.artifact_refs.is_empty());
-        assert!(parsed.state_patch.is_none());
+        assert!(parsed.research_decision.is_none());
         assert_eq!(parsed.evidence_gaps, vec!["missing"]);
         Ok(())
     }
@@ -2694,14 +2694,15 @@ mod tests {
     }
 
     #[test]
-    fn research_contract_projects_nested_state_patch_to_provider_strict_shape() -> Result<()> {
+    fn research_contract_projects_typed_decision_to_provider_strict_shape() -> Result<()> {
         let mut request = EpiphanyOpenAiModelRequest::new(
             "strict-research-schema",
             "strict-worker-schema",
             "gpt-5.4",
             "Return the typed result.",
         );
-        request.output_contract_id = Some("epiphany.worker.role_result.v3".to_string());
+        request.output_contract_id =
+            Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string());
         request.output_schema_json = Some(serde_json::to_string(
             &epiphany_core::epiphany_role_launch_output_schema(
                 epiphany_core::EpiphanyRoleResultRoleId::Research,
@@ -2709,19 +2710,29 @@ mod tests {
         )?);
 
         let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
-        let state_patch = &body["text"]["format"]["schema"]["properties"]["statePatch"];
-        assert!(state_patch.get("anyOf").is_none());
-        assert_eq!(state_patch["additionalProperties"], false);
+        let decision = &body["text"]["format"]["schema"]["properties"]["researchDecision"];
+        assert!(decision.get("anyOf").is_none());
+        assert_eq!(decision["additionalProperties"], false);
         assert_eq!(
-            state_patch["required"],
+            decision["required"],
             serde_json::json!(["evidence", "investigationCheckpoint", "observations"])
         );
-        assert!(state_patch["properties"].get("scratch").is_none());
+        assert!(decision["properties"].get("scratch").is_none());
         assert_eq!(
-            state_patch["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
+            decision["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
             false
         );
         Ok(())
+    }
+
+    #[test]
+    fn runtime_source_has_no_generic_role_patch_parser() {
+        let retired_field = ["state", "Patch"].concat();
+        let production = include_str!("lib.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or_default();
+        assert!(!production.contains(&retired_field));
     }
 
     #[test]
@@ -3236,7 +3247,7 @@ mod tests {
             result.frontier_planning_request_id.as_deref(),
             Some("planning-request-1")
         );
-        assert!(result.state_patch_msgpack.is_none());
+        assert!(result.research_decision_msgpack.is_none());
         assert!(result.self_patch_msgpack.is_none());
         let candidate = result
             .frontier_plan_candidate()?
@@ -3491,7 +3502,7 @@ mod tests {
         assert_eq!(failed.item_error.as_deref(), Some("candidate mismatch"));
         assert!(failed.frontier_planning_request_id.is_none());
         assert!(failed.frontier_plan_candidate_msgpack.is_none());
-        assert!(failed.state_patch_msgpack.is_none());
+        assert!(failed.research_decision_msgpack.is_none());
         assert!(failed.repo_model_mutation_proposal_msgpack.is_none());
         assert_eq!(
             failed.decision_context_id,
@@ -3615,7 +3626,7 @@ mod tests {
         assert_eq!(decision.imagination_result_id, "imagination-result-1");
         assert_eq!(decision.candidate_id, "candidate-1");
         assert_eq!(decision.decided_at, "2026-07-15T10:00:00Z");
-        assert!(result.state_patch_msgpack.is_none());
+        assert!(result.research_decision_msgpack.is_none());
         assert!(result.repo_model_mutation_proposal_msgpack.is_none());
         Ok(())
     }
@@ -3875,7 +3886,7 @@ mod tests {
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
-            state_patch_msgpack: None,
+            research_decision_msgpack: None,
             self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
@@ -4367,7 +4378,7 @@ mod tests {
             "Answer after tool output.",
         );
         request.output_schema_json =
-            Some(r#"{"type":"object","required":["statePatch"]}"#.to_string());
+            Some(r#"{"type":"object","required":["researchDecision"]}"#.to_string());
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -4443,7 +4454,7 @@ mod tests {
         assert_eq!(followup.previous_response_id, None);
         assert_eq!(
             followup.output_schema_json.as_deref(),
-            Some(r#"{"type":"object","required":["statePatch"]}"#)
+            Some(r#"{"type":"object","required":["researchDecision"]}"#)
         );
         assert_eq!(followup.input.len(), 2);
         assert_eq!(

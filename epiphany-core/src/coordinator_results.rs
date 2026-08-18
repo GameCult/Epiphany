@@ -220,7 +220,7 @@ fn interpret_role_lifecycle_failure(
         open_questions: Vec::new(),
         evidence_gaps: Vec::new(),
         risks: Vec::new(),
-        state_patch: None,
+        research_decision: None,
         repo_model_mutation_proposal: None,
         self_patch: None,
         self_persistence: None,

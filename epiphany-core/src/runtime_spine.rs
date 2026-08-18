@@ -32,10 +32,6 @@ use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
-use crate::{
-    DECISION_CONTEXT_SCHEMA_VERSION, DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
-    MIND_COMMIT_RECEIPT_TYPE, REASONING_BASIS_SCHEMA_VERSION, REASONING_BASIS_TYPE,
-};
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
@@ -95,6 +91,10 @@ use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::substrate_gate::SubstrateGateRepoAccessGrantReceipt;
+use crate::{
+    DECISION_CONTEXT_SCHEMA_VERSION, DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
+    MIND_COMMIT_RECEIPT_TYPE, REASONING_BASIS_SCHEMA_VERSION, REASONING_BASIS_TYPE,
+};
 use crate::{RuntimeTypedRequestRef, WorkerProcessStatus};
 use anyhow::Context;
 use anyhow::Result;
@@ -187,7 +187,7 @@ pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
 pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION: &str =
     "epiphany.runtime.archived_worker_attempt.v0";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.role_worker_result.v3";
+    "epiphany.runtime.role_worker_result.v4";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
@@ -590,7 +590,7 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     #[cultcache(key = 15, default)]
     pub risks: Vec<String>,
     #[cultcache(key = 16, default)]
-    pub state_patch_msgpack: Option<Vec<u8>>,
+    pub research_decision_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 17, default)]
     pub self_patch_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 18, default)]
@@ -632,10 +632,10 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
-    pub fn state_patch(&self) -> Result<Option<crate::EpiphanyRoleStatePatchDocument>> {
+    pub fn research_decision(&self) -> Result<Option<crate::EpiphanyResearchDecision>> {
         decode_optional_msgpack(
-            self.state_patch_msgpack.as_deref(),
-            "role worker statePatch",
+            self.research_decision_msgpack.as_deref(),
+            "role worker researchDecision",
         )
     }
 
@@ -4557,6 +4557,14 @@ pub fn put_runtime_role_worker_result(
         {
             return Err(anyhow!("Research result substituted its typed request"));
         }
+        result
+            .research_decision()?
+            .ok_or_else(|| anyhow!("Research result requires its typed decision"))?
+            .validate()?;
+    } else if result.research_decision_msgpack.is_some() {
+        return Err(anyhow!(
+            "only an exact frontier Research result may carry a Research decision"
+        ));
     }
     let is_frontier_verification = worker_launch
         .repo_frontier_verification_request_id
@@ -4627,7 +4635,7 @@ pub fn put_runtime_role_worker_result(
                 "frontier planning result with an item error cannot carry an executable candidate"
             ));
         }
-        if result.state_patch_msgpack.is_some()
+        if result.research_decision_msgpack.is_some()
             || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.verification_request_id.is_some()
@@ -4724,7 +4732,7 @@ pub fn put_runtime_role_worker_result(
     if has_model_direction_echo {
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
-            || result.state_patch_msgpack.is_some()
+            || result.research_decision_msgpack.is_some()
             || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.imagination_consideration_request_id.is_some()
@@ -4796,7 +4804,7 @@ pub fn put_runtime_role_worker_result(
     if has_consideration_echo {
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
-            || result.state_patch_msgpack.is_some()
+            || result.research_decision_msgpack.is_some()
             || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.verification_request_id.is_some()
@@ -4884,7 +4892,7 @@ pub fn put_runtime_role_worker_result(
     if has_mind_echo {
         if !result.role_id.eq_ignore_ascii_case("mindAdmissionReview")
             || result.item_error.is_some()
-            || result.state_patch_msgpack.is_some()
+            || result.research_decision_msgpack.is_some()
             || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.frontier_planning_request_id.is_some()
