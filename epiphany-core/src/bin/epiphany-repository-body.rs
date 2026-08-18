@@ -49,7 +49,7 @@ fn main() -> Result<()> {
                 format!("{}-repo-model", binding.runtime_id),
                 binding.swarm_id.clone(),
                 binding.workspace_id.clone(),
-                binding.source_identity_sha256.clone(),
+                body_basis.body_binding_sha256.clone(),
                 EpiphanyRepoModelSeedDocuments {
                     domains: vec![EpiphanyMemoryDomain {
                     id: "repository-body".to_string(),

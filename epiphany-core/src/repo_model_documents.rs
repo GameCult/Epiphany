@@ -550,6 +550,16 @@ pub fn initialize_keyed_repo_model(
     {
         return Err(anyhow!("RepoModel seed crosses the Mind schema epoch"));
     }
+    let body_basis = crate::load_current_runtime_repository_body_basis(store_path)?;
+    if body_basis.runtime_id != runtime.runtime_id
+        || body_basis.swarm_id != seed.swarm_id
+        || body_basis.workspace_id != seed.workspace_id
+        || body_basis.body_binding_sha256 != seed.body_binding_sha256
+    {
+        return Err(anyhow!(
+            "RepoModel seed disagrees with the authenticated runtime Body binding"
+        ));
+    }
     let identity = EpiphanyRepoModelIdentityDocument {
         schema_epoch: REPO_MODEL_SCHEMA_EPOCH.into(),
         graph_id: seed.graph_id.clone(),
@@ -1891,6 +1901,34 @@ mod tests {
                 lifecycle_receipts: Vec::new(),
             },
         )?;
+        let before_invalid_seed = runtime_spine_cache(&store)?.snapshot_envelopes();
+        let invalid_body_seed = EpiphanyRepoModelSeed::new(
+            "seed-wrong-body",
+            "graph-wrong-body",
+            "swarm-seed",
+            "workspace-seed",
+            "sha256:not-the-runtime-body-binding",
+            EpiphanyRepoModelSeedDocuments {
+                domains: Vec::new(),
+                nodes: Vec::new(),
+                edges: Vec::new(),
+                summaries: Vec::new(),
+                frontier: Vec::new(),
+                lifecycle_receipts: Vec::new(),
+            },
+        )?;
+        assert!(
+            initialize_keyed_repo_model(
+                &store,
+                &invalid_body_seed,
+                "2026-08-14T00:00:00.500Z"
+            )
+            .is_err()
+        );
+        assert_eq!(
+            runtime_spine_cache(&store)?.snapshot_envelopes(),
+            before_invalid_seed
+        );
         let first = initialize_keyed_repo_model(&store, &seed, "2026-08-14T00:00:01Z")?;
         let replay = initialize_keyed_repo_model(&store, &seed, "2026-08-14T00:00:02Z")?;
         assert_eq!(first, replay);
