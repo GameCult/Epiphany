@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `01602fd3`
+Latest implementation cut: `26b6a5bf`
 
 ## Orientation
 
@@ -57,6 +57,13 @@ The global thread-state authority is gone.
   stores and split identities refuse byte-identically; unrelated Persona and
   coverage physiology stores remain outside this authority. There is no schema
   migrator or dual reader.
+- `26b6a5bf` closes the first fresh concurrency slice. Two independently
+  planned Modeling-node writes commit simultaneously and assemble into one
+  valid reopened graph; competing writes to one semantic identity yield one
+  winner and one typed conflict; exact winner replay returns the original
+  receipt. A real Verification admission also commits simultaneously with an
+  unrelated Modeling-node write. Raw mutation primitives are crate-private,
+  so external callers cannot manufacture generic Mind CAS plans.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -65,7 +72,7 @@ provenance; they do not own identity, currentness, or conflict.
 Verification at this boundary:
 
 - every Epiphany core target compiles;
-- core library `490/490`;
+- core library `491/491`;
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
@@ -135,10 +142,12 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
-   unrelated Modeling-node writes; distinct graph writes; same-identity
-   conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
-   and source guards for deleted aggregate/global revision paths.
+1. Complete the remaining fresh acceptance: concurrent Persona+Hands through
+   their concrete owners, then restart/re-entry with identical decisions and
+   obligations. Distinct graph writes, same-identity conflict, stale
+   strong-read refusal, simultaneous Verification+Modeling, transcript
+   deletion, writable-epoch refusal, and aggregate/global-revision source
+   guards are already accepted.
 2. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 

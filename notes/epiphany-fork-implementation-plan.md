@@ -211,8 +211,10 @@ Delete or demote:
 Keep the five-day shakedown and Model Atlas operational Gate 1 paused. Complete
 the remaining Decision-Auditable Concurrent Mind hard cut before another live
 coordinator run. Fresh Gate preflight exposed the aggregate ownership defect;
-the aggregate has now been structurally removed. The remaining gate is exact
-decision-context admission/retention plus fresh concurrent and restart proof.
+the aggregate has now been structurally removed. Decision-context admission,
+retention, writable-epoch refusal, and keyed graph/Verification concurrency are
+accepted. The remaining gate is concrete Persona+Hands concurrency plus fresh
+restart/re-entry proof.
 
 Cut in this order:
 
@@ -303,9 +305,13 @@ Cut in this order:
    split runtime stores refuse before registered writers see them; foreign
    physiology stores remain outside Mind ownership. No schema migrator or dual
    reader exists.
-17. Replay fresh-store disjoint concurrency, same-identity conflict, transcript
-   deletion, restart, and re-entry. Only then restart Model Atlas Gate 1 from a
-   new external root.
+17. **Keyed concurrency landed at `26b6a5bf`:** simultaneous disjoint
+   Modeling-node writes merge; simultaneous Verification admission and an
+   unrelated Modeling-node write merge; same-identity competitors yield one
+   winner and one typed conflict; exact replay returns the original receipt;
+   and reopening assembles one valid graph. Complete concrete Persona+Hands
+   concurrency plus restart/re-entry. Only then restart Model Atlas Gate 1 from
+   a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
