@@ -19,8 +19,9 @@ earned OpenAI-compatible authentication or model-transport capability.
   status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
   that aggregate is an obsolete live authority and currently blocks fresh keyed
   stores from coordinating. Body, Proposal, frontier-verdict Modeling,
-  Research, Verification, and Planning/PlanMind have been removed from that
-  authority; reorientation and generic coordinator presence remain.
+  Research, Verification, Planning/PlanMind, and Reorientation have been
+  removed from that authority; generic coordinator presence and residual
+  objective/state/status paths remain.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -265,12 +266,20 @@ Cut in this order:
    planning conflicts without turning unrelated graph writes into a global
    head. Thread provenance, generic coordinator validators/constructors,
    aggregate role lanes, and accepted-at/latest-result behavior no longer own
-   this family. Migrate reorientation next with the same exact-document
-   doctrine, without a generic mutable registry.
-11. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
+   this family.
+11. **Reorientation landed at `d5df53ae`:** one keyed request seals the exact
+   continuity projection and source document versions; deterministic attempts
+   bind an exact reasoning basis and terminal decision context. The family
+   owner alone admits resume/regather plus its continuity receipt. Model-backed
+   failure retains a typed Mind failure document before retry. Status and
+   coordinator routing use the same current-work projection. Aggregate
+   launch/acceptance, checkpoint/freshness recommendation, latest binding,
+   global revision acceptance, and accepted-at comparison no longer own this
+   family.
+12. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
    expected revisions, aggregate update APIs, and all source references from
    production. Refuse old writable stores; add no dual reader or migrator.
-12. Replay fresh-store concurrency and decision-context acceptance. Only then
+13. Replay fresh-store concurrency and decision-context acceptance. Only then
    restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap

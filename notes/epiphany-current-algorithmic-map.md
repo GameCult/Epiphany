@@ -360,8 +360,9 @@ scheduler, route, notification, or interface contract.
 | Body Modeling launch/acceptance owners | exact Body obligation, runtime attempt, sealed decision context, and semantic mutation | one job-bound lifecycle and keyed Mind/RepoModel commit | Baseline Body Modeling never reads or writes `EpiphanyThreadStateEntry`; Eyes is not its gate. |
 | Proposal Modeling launch/acceptance owners | immutable proposal request, exact launch binding and attempt, sealed decision context, and frontier mutation | one deterministic Launch/Wait/Review lifecycle and `Modeling.proposal_frontier` commit | Thread is creation provenance only; the aggregate launcher refuses proposal cargo. |
 | frontier Planning/PlanMind launch and adoption owners | exact frontier/dependency versions, per-claim obligation guards, immutable candidate, exact attempts, and sealed decision contexts | deterministic Imagination/Mind lifecycle plus atomic adopted frontier and receipt | Imagination proposes; Mind alone adopts. Unrelated keyed writes merge, while frontier or claim-obligation drift conflicts. |
-| `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and unmigrated reorientation/generic coordinator companions | obsolete aggregate commits for residual families only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body, Modeling, Research, Verification, or Planning families. |
-| `coordinator_acceptance.rs` | reviewed family result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | Body and Proposal delegate to their concrete acceptance owners; no duplicate semantic owner survives there. |
+| `reorientation_work.rs` | exact keyed continuity projection, deterministic attempt, sealed decision context, and terminal result or model-backed failure | typed resume/regather decision plus continuity receipt, or typed failure before retry | Thread, role lanes, freshness labels, timestamps, and aggregate revision cannot launch or admit Reorientation. |
+| `coordinator_state_transaction.rs` and `EpiphanyThreadStateEntry` | legacy aggregate state and generic coordinator companions | obsolete aggregate commits for residual generic paths only | This is a deletion target, not canonical Mind; it may not regain authority over migrated Body, Modeling, Research, Verification, Planning, or Reorientation families. |
+| `coordinator_acceptance.rs` | reviewed residual role result and its concrete admission owner | family-owned admission or residual legacy aggregate transaction | The aggregate Reorientation acceptor is deleted; no duplicate continuity owner survives here. |
 | `thread_state_store.rs` | typed state entry | low-level CultCache codec/read access | Substrate, not policy; it exposes no production writer. |
 | `coordinator_service.rs` | state/runtime store paths and typed commands | state update, launch, accept, interrupt results | Facade routes typed work; it contains no policy or protocol mapping. |
 | `surfaces/*` | native state, runtime snapshots, pressure/freshness inputs | scene, jobs, roles, planning, context, graph, CRRC, coordinator recommendations | Read surfaces derive; they do not mutate. |
@@ -394,9 +395,10 @@ flowchart LR
 primitive. Concrete invariant owners derive exact strong reads and complete
 write sets; disjoint document identities merge under one CultCache batch CAS,
 while same-identity or changed strong-read conflicts refuse without partial
-mutation. `coordinator_state_transaction` remains only because unmigrated
-families still depend on the obsolete aggregate. It is explicitly not a second
-canonical Mind and must be deleted when those families move.
+mutation. `coordinator_state_transaction` remains only because generic
+coordinator presence and residual objective/state/status paths still depend on
+the obsolete aggregate. It is explicitly not a second canonical Mind and is
+the next deletion target.
 
 Forbidden writers:
 
@@ -877,40 +879,14 @@ Future audit frontier, not established anatomy: sibling Bifrost subprocess JSON
 used by readiness needs a focused identity/schema/provenance audit before any
 cut or confirmed finding.
 
-## Freshness -> reorientation authority (2026-07-15)
+## Historical freshness-based Reorientation path (deleted 2026-08-18)
 
-```text
-canonical retrieval state -----------------------> retrieval judgment --+
-legacy graph checkpoint + churn + frontier -----> legacy graph judgment -+--> reorientation decision --> CRRC/coordinator/launch
-positive watcher changes ------------------------> watcher judgment -----+
-durable investigation checkpoint ---------------------------------------+
-```
-
-`derive_freshness` owns the first three judgments. Retrieval Ready becomes
-Clean only with an empty dirty-path set; otherwise it derives Stale. The legacy
-thread graph can prove Stale from explicit frontier pressure, but cannot prove
-Clean/Ready because it has no legal Modeling writer and cannot see canonical
-RepoModel admission. Missing authority stays Missing/Unknown. Watcher silence stays
-Unavailable/Unknown because no continuity receipt exists; Changed is positive
-evidence. `surfaces/jobs.rs` consumes the same graph judgment for remap work.
-
-`recommend_reorientation` alone owns Resume/Regather. Resume requires a
-resume-ready investigation checkpoint, retrieval Clean, graph Clean, and a
-watcher that is Clean or Unknown. Any retrieval/graph non-clean value or
-watcher Dirty/Stale/Changed forces Regather. Path matches, status labels,
-worker-launch documents, coordinator rows, and CRRC recommendations are derived
-consumers and forbidden decision writers.
-
-Canonical RepoModel is the admitted keyed map, not the repository Body. Its
-exact projection digest and sealed source-document versions prove map identity
-only. Future Ready additionally requires a nervous-system-owned, continuity-
-bearing Body observation and retrieval coverage bound to the same source
-generation; Mind derives readiness from that exact join. Legacy graph
-checkpoints retain only checkpoint identity and frontier content; churn retains
-understanding and diff pressure. Neither can publish graph freshness or a graph
-revision. Generic thread patches, watcher silence, snapshot source metadata,
-and unrelated thread revisions are forbidden readiness writers. Until every
-authority is present and current, Unknown is the truthful result.
+The old `derive_freshness` -> `recommend_reorientation` -> CRRC launch path is
+deleted. It mixed legacy thread checkpoints, watcher/retrieval labels, role-lane
+results, and timestamp ordering into behavioral authority. Those surfaces may
+still describe physiology or display state, but they cannot create, suppress,
+or admit Reorientation. The live owner is the keyed continuity request and
+current-work lifecycle documented below.
 
 ## Repository Body observation substrate (2026-07-15)
 
@@ -2107,7 +2083,7 @@ steward must ship in the owned release graph or its narrow typed write port must
 move into an already-shipped native owner; canonical Mind maintenance must not
 require a second monolithic core build.
 
-## Live route relinquishment and stale CRRC fallback (2026-08-09)
+## Historical route relinquishment and CRRC fallback (retired 2026-08-18)
 
 The adopted frontier candidate carried its own negative transition: discard the
 planning draft if later admitted evidence proves the coordinated resident
@@ -2119,20 +2095,12 @@ artifact scope. Mind-owned relinquishment `7b846272...` atomically retired route
 `817bf422...`, advanced RepoModel from revision 2 to 3, and preserved the adopted
 route as immutable history.
 
-The status owner now compares the latest bound reorientation job `updated_at`
-with the latest typed relinquishment `relinquished_at`. No relinquishment keeps
-the ordinary CRRC path. After relinquishment, a missing or older reorientation
-job makes manual-regather pressure stale. Coordinator status preserves the raw
-CRRC source projection but feeds routing `Continue` with no scene action to
-Self. A newer reorientation result retains ordinary manual-regather authority.
-
-The focused policy regression passed 1/1. A collision-safe copy of the c005
-`eyes-tools` store derived `awaitFrontierProposal`, `canAutoRun=false`, and
-target Imagination while source signals still published raw CRRC
-`regatherManually`. The live c005 store was never mounted. CRRC therefore owns
-continuity observation, Self owns routing, and relinquishment is the causal
-boundary preventing dead continuity history from impersonating current Eyes
-pressure.
+The route receipt remains immutable historical evidence. The later status
+compensator that compared reorientation `updated_at` with relinquishment time
+is deleted: timestamps no longer decide causal currency. Current work derives
+from exact typed obligations and their request/result/decision chains. A stale
+continuity projection cannot suppress or manufacture Eyes, Modeling, Planning,
+Hands, or Reorientation work.
 
 ## Build runner and dependency-graph authority receipt (2026-08-09)
 
@@ -5183,3 +5151,46 @@ contains no coordinator thread.
   reject the stale request and launch byte-identically. Core library 555/555,
   OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI all-target
   checks pass.
+
+## Keyed Reorientation lifecycle (2026-08-18)
+
+Exact `d5df53ae` removes Reorientation from aggregate thread-state behavior.
+`EpiphanyReorientationRequest` seals one explicit typed continuity projection:
+Mind identity, objective, focus/checkpoint, mode, current Body observation,
+RepoModel identity/frontier documents, and the preceding accepted continuity
+decision when one exists. The request stores every exact typed source version;
+thread is creation provenance only and does not participate in request identity
+or currentness.
+
+- Owner: `reorientation_work.rs` creates the request, derives
+  Launch/Wait/Review, publishes deterministic attempts, records model-backed
+  terminal failure, and alone admits a successful decision under
+  `Continuity.reorientation`.
+- Inputs: exact keyed Mind source versions, immutable request and launch
+  binding, exact runtime job/process result, sealed reasoning basis, and exact
+  decision context.
+- Outputs: one immutable `EpiphanyMindReorientationDecisionDocument` plus
+  `ContinuityRecoveryReceipt`, or one immutable
+  `EpiphanyMindReorientationPassFailureDocument` before retry. Both preserve the
+  exact terminal decision context; neither needs a transcript.
+- Derived state: operator status, CRRC wording, role boards, runtime events,
+  timestamps, and creation thread are display, physiology, or provenance only.
+- Forbidden writers: `EpiphanyThreadStateEntry`, global expected revision,
+  generic coordinator launch/acceptance, latest role-lane result, checkpoint
+  freshness labels, accepted-at ordering, and aggregate scratch/checkpoint
+  patches cannot launch, suppress, retry, or admit Reorientation.
+- Shared paths: status, operator, coordinator, reasoning-basis sealing, result
+  review, and retry all consume the same keyed current-work projection and
+  family owner.
+- Cut line: aggregate Reorientation service/acceptance APIs, generic launch
+  constructors, the checkpoint/freshness recommender, and the timestamp
+  relinquishment compensator are deleted. `surfaces/reorient.rs` retains only
+  the display enum for an accepted resume/regather decision.
+- Concurrency: an unrelated Mind insert after basis sealing merges because it
+  is not a family strong read. Replacing an exact objective/frontier source
+  refuses admission byte-identically; model output is never rebased. The
+  accepted decision itself becomes immutable source cargo for a later explicit
+  request over otherwise identical state.
+- Verification: core 552/552; OpenAI runtime library 23/23 and both runtime
+  binaries 10/10; coordinator 18/18; status 3/3; relevant all-target checks
+  pass.

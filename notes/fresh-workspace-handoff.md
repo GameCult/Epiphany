@@ -12,7 +12,7 @@ effects, receipts, Mind admission, brakes, external consequence gates, and
 terminal commit. Focused core and OpenAI-runtime Persona suites pass.
 
 The five-day shakedown remains paused. The active branch includes exact
-`c9329ed6` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
+`d5df53ae` on `codex/epiphany-shakedown-live`: the keyed Mind foundation, federated Model Atlas
 vertical slice, ordinary Modeling authoring path, durable publisher identity,
 fresh seven-organ Mind bootstrap, and atomic RepoModel projection bootstrap are
 landed. Historical aggregate RepoModel and partial Gate stores are evidence
@@ -20,10 +20,10 @@ only. No production model output, registry, command, admission path, projector,
 or repair path can restore their authority.
 
 This is not yet the full Concurrent Mind cut. Persisted
-`EpiphanyThreadStateEntry`, its coordinator transaction, and multiple
-unmigrated launch/acceptance/status readers remain live production authorities.
+`EpiphanyThreadStateEntry`, its coordinator transaction, and multiple generic
+objective/state/status readers remain live production authorities.
 Baseline Body, Proposal, frontier-verdict Modeling, frontier Research,
-frontier Verification, and frontier Planning/PlanMind are no longer among them:
+frontier Verification, frontier Planning/PlanMind, and Reorientation are no longer among them:
 keyed Mind owns their work projections, operator and Resident launch, exact job-bound
 continuation, review, and semantic admission. Research is driven only by an explicit
 external-evidence obligation; accepted Eyes state, timestamps, generic regather, and
@@ -57,8 +57,8 @@ canonical Eve schema IDs without dependency semantics. Eve exact `b597dab` and
 `gamecult.eve.surface.v1` retained tree for GUI and TUI.
 
 Verification is green at the latest ownership cut: Epiphany core library
-555/555, OpenAI runtime 23/23, coordinator runtime 18/18, and core/OpenAI
-all-target checks pass.
+552/552, OpenAI runtime library 23/23 plus both runtime binaries 10/10,
+coordinator runtime 18/18, status 3/3, and relevant all-target checks pass.
 An unfiltered core package run also exposed two pre-existing
 `epiphany-hands-action` fixture failures: those fixtures omit the exact
 `RepoFrontierHandsAuthority` already required by production. The gate was not
@@ -69,8 +69,8 @@ still reaches an older feature-gated workspace-coverage recovery smoke whose
 already-absent API predates this slice; no compatibility shim was added.
 
 These are implementation and isolated proof claims. They are not sustained
-Starfire dogfood. Reorientation and final aggregate deletion are the next
-source rites; only then may Gate 1 use separate real stores and
+Starfire dogfood. Final aggregate deletion is the next source rite; only then
+may Gate 1 use separate real stores and
 identities; keep impact ingress absent while ordinary Modeling seeds facts and
 publishers/projector establish signed sight; then engage all three Atlas brakes
 and prove later organ cycles are held while the last Eve projection remains
@@ -432,10 +432,25 @@ consequence rather than requiring the obsolete pre-adoption frontier. Generic
 Planning/PlanMind launch constructors and validators, role-lane failure review,
 thread-derived request identity, and aggregate coordinator routing are gone.
 
-Map and migrate reorientation next onto exact keyed freshness and continuity
-obligations, sealed decision contexts, deterministic attempts, and family-owned
-Mind mutations. Then delete the aggregate schema/transaction. Run the source
-guards and fresh-store concurrency/decision-context suite. Only after that may
-Model Atlas Gate 1 restart from a new external root. Keep the current fresh and
-partial roots read-only; do not release scheduling, register operational
-topology, touch the original c011 volumes, or build on Yggdrasil.
+Exact `d5df53ae` completes Reorientation. One immutable request seals the exact
+typed continuity projection and source document versions; thread is creation
+provenance only. Current-work owns deterministic Launch/Wait/Review attempts,
+the worker reasoning basis uses the request's exact source documents, and
+`Continuity.reorientation` alone admits a typed resume/regather decision plus
+continuity receipt. A model-backed terminal failure retains its exact decision
+context in a typed Mind failure document before retry. Unrelated Mind inserts
+merge, exact source replacement refuses admission byte-identically, accepted
+decisions support later reorientation over otherwise identical state, and
+replay returns the original receipt. Status and coordinator routing consume the
+same current-work projection. The aggregate launcher/acceptor, latest binding,
+checkpoint/freshness recommender, global revision acceptance gate, and
+accepted-at comparison are deleted.
+
+Delete the aggregate schema/transaction next. Replace only genuinely live
+objective/focus/mode/planning mutations with keyed Mind owners; derive scene,
+planning, jobs, roles, and operator status from keyed Mind plus exact runtime
+receipts. Run source guards and the fresh-store concurrency/decision-context
+suite. Only after that may Model Atlas Gate 1 restart from a new external root.
+Keep the current fresh and partial roots read-only; do not release scheduling,
+register operational topology, touch the original c011 volumes, or build on
+Yggdrasil.
