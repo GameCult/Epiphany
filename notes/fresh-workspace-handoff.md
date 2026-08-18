@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `12b1b285`
+Latest implementation cut: `01602fd3`
 
 ## Orientation
 
@@ -51,6 +51,12 @@ The global thread-state authority is gone.
   receipt, and stored-binding substitutions refuse; reasoning bases and
   decision contexts remain valid after native/provider transcript deltas are
   deleted.
+- `01602fd3` advances the Mind epoch to v2 and runtime-spine schema to v1.
+  Opening any store that claims runtime or Mind identity now requires one exact
+  current identity pair before registered runtime writers can see it. Old v1/v0
+  stores and split identities refuse byte-identically; unrelated Persona and
+  coverage physiology stores remain outside this authority. There is no schema
+  migrator or dual reader.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -59,7 +65,7 @@ provenance; they do not own identity, currentness, or conflict.
 Verification at this boundary:
 
 - every Epiphany core target compiles;
-- core library `489/489`;
+- core library `490/490`;
 - OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
@@ -129,13 +135,11 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Bump the writable schema epoch and refuse old stores. Historical releases
-   remain readers for historical proof stores; no migrator or dual path.
-2. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
+1. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
    unrelated Modeling-node writes; distinct graph writes; same-identity
    conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
    and source guards for deleted aggregate/global revision paths.
-3. Only then package a fresh body and resume Model Atlas Gate 1 from a new
+2. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
 ## Operational state that matters

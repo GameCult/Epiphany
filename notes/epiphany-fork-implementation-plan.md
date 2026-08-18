@@ -298,9 +298,14 @@ Cut in this order:
    Provider, tool-call, tool-result, receipt, session, job, basis, and worker
    substitution refuse, and transcript delta deletion leaves the retained
    basis/context usable.
-16. Refuse old writable-store epochs and replay fresh-store disjoint
-   concurrency, same-identity conflict, transcript deletion, restart, and
-   re-entry. Only then restart Model Atlas Gate 1 from a new external root.
+16. **Writable epoch cut landed at `01602fd3`:** Mind epoch v2 and runtime-spine
+   schema v1 are admitted only through one exact identity pair. Historical or
+   split runtime stores refuse before registered writers see them; foreign
+   physiology stores remain outside Mind ownership. No schema migrator or dual
+   reader exists.
+17. Replay fresh-store disjoint concurrency, same-identity conflict, transcript
+   deletion, restart, and re-entry. Only then restart Model Atlas Gate 1 from a
+   new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
