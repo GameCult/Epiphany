@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-18
-Latest implementation cut: `e0e75a30` on `codex/epiphany-shakedown-live`
+Latest implementation cut: `12b1b285` on `codex/epiphany-shakedown-live`
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -225,24 +225,22 @@ and the retained decision can still reach its basis/context without them.
 
 ## Verification and open gates
 
-Accepted through `e0e75a30`:
+Accepted through `12b1b285`:
 
 - every Epiphany core target compiles;
-- core library `486/486`;
-- OpenAI runtime library `23/23`;
+- core library `489/489`;
+- OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
 - all core targets compile; generic role-patch source guards pass.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. prove exact request/tool/receipt coverage with byte-identical refusals and
-   transcript deletion;
-2. bump/refuse old writable-store epoch with no migrator;
-3. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
+1. bump/refuse old writable-store epoch with no migrator;
+2. prove disjoint Persona/Hands and graph writes merge, same-identity conflicts
    refuse, transcripts can be deleted, restart reproduces obligations, and no
    legacy authority resurrects;
-4. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
+3. run the fresh packaged capstone, then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a

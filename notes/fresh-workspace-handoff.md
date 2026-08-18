@@ -2,7 +2,7 @@
 
 Updated: 2026-08-18
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `e0e75a30`
+Latest implementation cut: `12b1b285`
 
 ## Orientation
 
@@ -44,6 +44,13 @@ The global thread-state authority is gone.
   observation, and checkpoint writes. The old generic Imagination planning
   patch had no current-work owner and was deleted rather than generalized.
   Runtime role-result and worker output contracts advanced to v4.
+- `12b1b285` makes runtime model/tool binding validation one shared owner for
+  both execution and decision-context sealing. Exact native/provider lowering,
+  ToolCall arguments, ToolResult bytes, terminal receipts, session/job/basis,
+  and source-worker authority must describe one family. Hostile provider,
+  receipt, and stored-binding substitutions refuse; reasoning bases and
+  decision contexts remain valid after native/provider transcript deltas are
+  deleted.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -52,8 +59,8 @@ provenance; they do not own identity, currentness, or conflict.
 Verification at this boundary:
 
 - every Epiphany core target compiles;
-- core library `486/486`;
-- OpenAI runtime library `23/23`;
+- core library `489/489`;
+- OpenAI runtime library `24/24`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
 - Persona service target compiles.
@@ -111,16 +118,10 @@ explicit external-evidence obligations; Eyes does not gate Body Modeling.
 
 The broader Decision-Auditable Concurrent Mind migration is incomplete.
 
-Context validation must become exact and DRY:
-
-- provider request must equal internal lowering of the native request;
-- final native input/tool definitions must be exact;
-- every ToolCall name/arguments and ToolResult output must bind the exact
-  governed intent/terminal receipt/runtime binding;
-- request-owned public-source observations and model-continuation observations
-  must have distinct validated ownership;
-- foreign, missing, extra, duplicated, reordered, or nonterminal observations
-  must refuse byte-identically.
+Context validation is now exact and DRY: execution and sealing share the same
+model/tool binding owners, native/provider lowering is exact, final ToolCall/
+ToolResult bytes are closed, and request-owned public-source observations stay
+distinct from model-continuation observations.
 
 Retention must preserve direct reachability: worker attempt or Persona terminal
 to decision context to reasoning basis. No raw stream event, request family, or
@@ -128,15 +129,13 @@ transcript may be required for that query after archival.
 
 ## Immediate next action
 
-1. Expand the store-backed request/tool substitution matrix and prove context
-   audit survives deletion of streams, assistant deltas, and scaffolding.
-2. Bump the writable schema epoch and refuse old stores. Historical releases
+1. Bump the writable schema epoch and refuse old stores. Historical releases
    remain readers for historical proof stores; no migrator or dual path.
-3. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
+2. Run fresh acceptance: concurrent Persona+Hands; evidence+Verification+
    unrelated Modeling-node writes; distinct graph writes; same-identity
    conflict; stale strong-read refusal; transcript deletion; restart/re-entry;
    and source guards for deleted aggregate/global revision paths.
-4. Only then package a fresh body and resume Model Atlas Gate 1 from a new
+3. Only then package a fresh body and resume Model Atlas Gate 1 from a new
    external root.
 
 ## Operational state that matters

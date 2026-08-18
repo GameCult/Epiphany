@@ -292,9 +292,13 @@ Cut in this order:
    context. Transport-only failure remains physiological. Research emits one
    closed typed decision and its owner derives keyed Mind writes. The unowned
    generic Imagination planning lane, generic patch parser, and policy
-   tribunals are gone. Next, complete the store-backed governed-tool
-   substitution matrix and transcript-deletion proof.
-15. Refuse old writable-store epochs and replay fresh-store disjoint
+   tribunals are gone.
+15. **Decision-context binding unified at `12b1b285`:** runtime execution and
+   context sealing consume the same exact model/tool binding validators.
+   Provider, tool-call, tool-result, receipt, session, job, basis, and worker
+   substitution refuse, and transcript delta deletion leaves the retained
+   basis/context usable.
+16. Refuse old writable-store epochs and replay fresh-store disjoint
    concurrency, same-identity conflict, transcript deletion, restart, and
    re-entry. Only then restart Model Atlas Gate 1 from a new external root.
 
