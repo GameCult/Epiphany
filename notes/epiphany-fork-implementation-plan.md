@@ -13,15 +13,13 @@ earned OpenAI-compatible authentication or model-transport capability.
 
 ## Current Mechanism
 
-- `epiphany-state-model` owns durable Mind shape.
+- `epiphany-state-model` owns shared typed semantic contracts; durable Mind is keyed CultCache owned by `epiphany-core`.
 - `epiphany-core` owns keyed Mind admission, runtime spine, organ gates,
-  heartbeat physiology, Persona, and CultMesh integration. Its coordinator and
-  status surfaces still retain a legacy persisted `EpiphanyThreadStateEntry`;
-  that aggregate is an obsolete live authority and currently blocks fresh keyed
-  stores from coordinating. Body, Proposal, frontier-verdict Modeling,
-  Research, Verification, Planning/PlanMind, and Reorientation have been
-  removed from that authority; generic coordinator presence and residual
-  objective/state/status paths remain.
+  heartbeat physiology, Persona, and CultMesh integration. Coordinator policy,
+  status, and every migrated work family consume keyed Mind plus exact runtime
+  receipts. Persisted `EpiphanyThreadStateEntry`, the in-memory
+  `EpiphanyThreadState` schema, generic launch/update transactions, and global
+  launch revisions have been deleted with no compatibility path.
 - Native binaries expose coordinator, status, state, runtime, memory, daemon,
   Persona, repo-work, and Verse operations.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
@@ -212,10 +210,9 @@ Delete or demote:
 
 Keep the five-day shakedown and Model Atlas operational Gate 1 paused. Complete
 the remaining Decision-Auditable Concurrent Mind hard cut before another live
-coordinator run. Fresh Gate preflight proved that keyed Mind and both semantic
-partitions become ready, then falsified coordinator ownership: status still
-declares the organism missing because it reads persisted
-`EpiphanyThreadStateEntry` as the presence and routing head.
+coordinator run. Fresh Gate preflight exposed the aggregate ownership defect;
+the aggregate has now been structurally removed. The remaining gate is exact
+decision-context admission/retention plus fresh concurrent and restart proof.
 
 Cut in this order:
 
@@ -276,11 +273,20 @@ Cut in this order:
    launch/acceptance, checkpoint/freshness recommendation, latest binding,
    global revision acceptance, and accepted-at comparison no longer own this
    family.
-12. Delete `EpiphanyThreadStateEntry`, `coordinator_state_transaction`, global
-   expected revisions, aggregate update APIs, and all source references from
-   production. Refuse old writable stores; add no dual reader or migrator.
-13. Replay fresh-store concurrency and decision-context acceptance. Only then
-   restart Model Atlas Gate 1 from a new external root.
+12. **Landed at `1662a012`, `07d891ba`, and `ec1431ff`:** coordinator policy now
+   projects keyed current work; persisted `EpiphanyThreadStateEntry`,
+   `coordinator_state_transaction`, generic coordinator services, the
+   `EpiphanyThreadState` schema/prompt renderer, aggregate freshness/context
+   views, generic launch/interrupt requests, and global launch revisions are
+   deleted. No dual reader, bootstrap aggregate, or migrator survives.
+13. Replace the residual generic Mind gateway/state-patch mouth with concrete
+   invariant-owned mutations. Make reasoning basis and terminal decision
+   context mandatory for role, reorient, Persona, and model-backed failure
+   admission; derive provider requests internally; preserve context links
+   through retention; and prove exact governed tool coverage.
+14. Refuse old writable-store epochs and replay fresh-store disjoint
+   concurrency, same-identity conflict, transcript deletion, restart, and
+   re-entry. Only then restart Model Atlas Gate 1 from a new external root.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
