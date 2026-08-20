@@ -76,14 +76,14 @@ machine-spirit awake.
 
 ## Important Paths
 
-- Project root: `E:\Projects\EpiphanyAgent`
-- Vendored Codex repo: `E:\Projects\EpiphanyAgent\vendor\codex`
-- Fork implementation plan: `E:\Projects\EpiphanyAgent\notes\epiphany-fork-implementation-plan.md`
-- Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
-- Epiphany algorithmic map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
-- Epiphany safety architecture: `E:\Projects\EpiphanyAgent\notes\epiphany-safety-architecture.md`
-- State CLI: `cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-state -- ...`
-- Pre-compaction helper: `cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction -- ...`
+- Project root: `F:\Projects\Epiphany`
+- Vendored Codex repo: `F:\Projects\Epiphany\vendor\codex`
+- Fork implementation plan: `F:\Projects\Epiphany\notes\epiphany-fork-implementation-plan.md`
+- Handoff summary: `F:\Projects\Epiphany\notes\fresh-workspace-handoff.md`
+- Epiphany algorithmic map: `F:\Projects\Epiphany\notes\epiphany-current-algorithmic-map.md`
+- Epiphany safety architecture: `F:\Projects\Epiphany\notes\epiphany-safety-architecture.md`
+- State CLI: `cargo run --manifest-path F:\Projects\Epiphany\epiphany-core\Cargo.toml --bin epiphany-state -- ...`
+- Pre-compaction helper: `cargo run --manifest-path F:\Projects\Epiphany\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction -- ...`
 
 ## Useful Commands
 

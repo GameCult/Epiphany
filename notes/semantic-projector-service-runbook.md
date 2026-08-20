@@ -174,7 +174,7 @@ the repository root:
 Get-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime
 Get-ScheduledTask -TaskName GameCult-Yggdrasil-Tunnel,Epiphany-Idunn-Managed-Service-Reconciler |
   Select-Object TaskName, State
-E:\Projects\gamecult-ops\scripts\check-yggdrasil-tunnel.ps1
+F:\Projects\gamecult-ops\scripts\check-yggdrasil-tunnel.ps1
 curl.exe -fsS http://127.0.0.1:16333/collections
 Get-CimInstance Win32_Process |
   Where-Object { $_.CommandLine -match 'managed-service-serve|memory-semantic-projector' } |

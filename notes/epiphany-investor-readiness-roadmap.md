@@ -2,7 +2,7 @@
 
 This note retunes this Codex operator's own planning posture, and the optional
 Epiphany Imagination sub-agent rail, toward the new scale target named by
-`E:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`.
+`F:\Projects\gamecult-site\docs\gamecult_integrated_dossier.tex`.
 
 The ambition is world-scale connection: angel capital buys time, compute,
 review capacity, legal diligence, infrastructure, and public proof so GameCult
@@ -11,7 +11,7 @@ the intended world. Capital is fuel, not a throne.
 
 ## Codex Operator Roadmap
 
-When running inside `E:\Projects\EpiphanyAgent`, Codex should now imagine the
+When running inside `F:\Projects\Epiphany`, Codex should now imagine the
 work as preparation for angel-investor diligence and world-scale connection,
 not merely as local harness hardening.
 

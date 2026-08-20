@@ -238,16 +238,16 @@ path is later work and must not delay the move-period command nerve.
 ## Source anchors
 
 - VoidBot interaction/addressing owner:
-  `E:\Projects\VoidBot\apps\bot\src\discord-bot.ts`
+  `F:\Projects\VoidBot\apps\bot\src\discord-bot.ts`
 - VoidBot feedback-only document:
-  `E:\Projects\VoidBot\packages\core\src\persona-feedback-observation.ts`
+  `F:\Projects\VoidBot\packages\core\src\persona-feedback-observation.ts`
 - VoidBot slash commands and owner job controls:
-  `E:\Projects\VoidBot\apps\bot\src\discord-bot-handlers.ts`
+  `F:\Projects\VoidBot\apps\bot\src\discord-bot-handlers.ts`
 - Bifrost feedback documents/provider:
-  `E:\Projects\Bifrost\tools\persona-feedback-documents.mjs` and
-  `E:\Projects\Bifrost\tools\persona-feedback.mjs`
+  `F:\Projects\Bifrost\tools\persona-feedback-documents.mjs` and
+  `F:\Projects\Bifrost\tools\persona-feedback.mjs`
 - Bifrost outbound operator alarm seed:
-  `E:\Projects\Bifrost\tools\operator-notification.mjs`
+  `F:\Projects\Bifrost\tools\operator-notification.mjs`
 - Epiphany signature/target admission pattern:
   `epiphany-core/src/persona_feedback_admission.rs`
 - Epiphany pressure owner:
@@ -263,6 +263,6 @@ path is later work and must not delay the move-period command nerve.
   `epiphany-core/src/runtime_spine.rs` around
   `commit_repo_frontier_plan_decision`
 - Ygg deployment/configuration:
-  `E:\Projects\gamecult-ops\compose\voidbot.yggdrasil.yaml`,
+  `F:\Projects\gamecult-ops\compose\voidbot.yggdrasil.yaml`,
   `compose\bifrost.yggdrasil.yaml`, and
   `runbooks\epiphany-yggdrasil-deploy.md`

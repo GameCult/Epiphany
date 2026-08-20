@@ -465,8 +465,8 @@ epiphany-repo-personality
 Initial commands:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- scout --root E:\Projects --artifact-dir .\.epiphany-imports\repo-personality-terrain
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- project --repo E:\Projects\AetheriaLore --baseline .\.epiphany-imports\repo-personality-terrain\baseline.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-personality
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- scout --root F:\Projects --artifact-dir .\.epiphany-imports\repo-personality-terrain
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- project --repo F:\Projects\AetheriaLore --baseline .\.epiphany-imports\repo-personality-terrain\baseline.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-personality
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- memory-packet --store .\.epiphany-imports\aetheria-lore-personality\projection.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-memory
 ```
 
