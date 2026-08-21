@@ -191,12 +191,18 @@ impl McpServerConfig {
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    const ABSOLUTE_COMMAND: &str = "C:/mcp/server.exe";
+    #[cfg(not(windows))]
+    const ABSOLUTE_COMMAND: &str = "/usr/local/bin/mcp-server";
+
     #[test]
     fn parses_only_the_owned_stdio_and_http_subset() -> Result<()> {
         let config = McpRuntimeConfig::from_toml(
-            r#"
+            &format!(
+                r#"
 [mcp_servers.local]
-command = "C:/mcp/server.exe"
+command = "{ABSOLUTE_COMMAND}"
 args = ["--stdio"]
 startup_timeout_sec = 2
 
@@ -204,7 +210,8 @@ startup_timeout_sec = 2
 url = "https://example.test/mcp"
 bearer_token_env_var = "MCP_TOKEN"
 tool_timeout_sec = 4
-"#,
+"#
+            ),
         )?;
         assert!(matches!(
             config.server("local")?.transport,
