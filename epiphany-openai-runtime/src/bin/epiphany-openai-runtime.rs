@@ -163,6 +163,22 @@ async fn main() -> Result<()> {
                 print_json(&audit)?;
             }
         }
+        "list-decisions" => {
+            let mut store = PathBuf::from(DEFAULT_STORE);
+            let mut args = args.peekable();
+            while let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "--store" => {
+                        store = PathBuf::from(
+                            args.next()
+                                .context("list-decisions missing --store value")?,
+                        )
+                    }
+                    other => return Err(anyhow!("unknown list-decisions argument: {other}")),
+                }
+            }
+            print_json(&epiphany_core::list_auditable_decision_contexts(&store)?)?;
+        }
         "model-turn" => {
             let options = parse_model_turn_options(args.collect())?;
             require_supported_provider(&options.provider)?;
@@ -1237,6 +1253,15 @@ mod tests {
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
 
+    #[test]
+    fn packaged_runtime_exposes_read_only_decision_discovery_and_exact_audit() {
+        let source = include_str!("epiphany-openai-runtime.rs");
+        assert!(source.contains("\"list-decisions\" =>"));
+        assert!(source.contains("list_auditable_decision_contexts"));
+        assert!(source.contains("\"audit-decision\" =>"));
+        assert!(!source.contains(concat!("put_decision_", "context")));
+    }
+
     fn assert_typed_model_pass_failure(
         store: &Path,
         outer_job_id: &str,
@@ -2084,5 +2109,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <list-decisions|audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }

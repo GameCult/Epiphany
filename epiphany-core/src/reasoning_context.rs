@@ -26,6 +26,7 @@ pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v1";
 pub const MODEL_PASS_FAILURE_TYPE: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
 pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
+pub const DECISION_AUDIT_INDEX_SCHEMA_VERSION: &str = "epiphany.decision_audit_index.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
     "epiphany.reasoning_projection.worker_launch.v2";
 
@@ -646,6 +647,29 @@ pub struct EpiphanyDecisionAuditProjection {
     pub transcript_required: bool,
 }
 
+/// Read-only, deterministic discovery surface for decisions that already have
+/// a complete durable audit chain. This is not persisted state and cannot
+/// create, complete, or admit a decision.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyDecisionAuditIndexProjection {
+    pub schema_version: String,
+    pub decisions: Vec<EpiphanyDecisionAuditIndexEntry>,
+    pub transcript_required: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyDecisionAuditIndexEntry {
+    pub context_id: String,
+    pub basis_id: String,
+    pub pass_id: String,
+    pub organ_id: String,
+    pub terminal_request_id: String,
+    pub terminal_record_count: usize,
+    pub mind_commit_receipt_count: usize,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyDecisionTerminalRecords {
@@ -716,6 +740,48 @@ pub fn audit_decision_context(
     let context = cache
         .get::<EpiphanyDecisionContext>(context_id)?
         .ok_or_else(|| anyhow!("decision audit context is absent"))?;
+    audit_decision_context_from_cache(&cache, &context)?
+        .ok_or_else(|| anyhow!("decision audit context has no durable terminal decision record"))
+}
+
+/// Enumerate only decisions whose complete transcript-free audit projection
+/// validates against the current durable store. Sealed contexts that have not
+/// terminalized yet are pass physiology, not decisions, and are omitted.
+pub fn list_auditable_decision_contexts(
+    store_path: impl AsRef<Path>,
+) -> Result<EpiphanyDecisionAuditIndexProjection> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut contexts = cache.get_all::<EpiphanyDecisionContext>()?;
+    contexts.sort_by(|left, right| left.context_id.cmp(&right.context_id));
+    let mut decisions = Vec::new();
+    for context in contexts {
+        let Some(audit) = audit_decision_context_from_cache(&cache, &context)? else {
+            continue;
+        };
+        let terminal_record_count = audit.terminal_records.len();
+        let mind_commit_receipt_count = audit.mind_commit_receipts.len();
+        decisions.push(EpiphanyDecisionAuditIndexEntry {
+            context_id: audit.context_id,
+            basis_id: audit.reasoning_basis.basis_id,
+            pass_id: audit.reasoning_basis.pass_id,
+            organ_id: audit.reasoning_basis.organ_id,
+            terminal_request_id: audit.decision_context.terminal_request_id,
+            terminal_record_count,
+            mind_commit_receipt_count,
+        });
+    }
+    Ok(EpiphanyDecisionAuditIndexProjection {
+        schema_version: DECISION_AUDIT_INDEX_SCHEMA_VERSION.to_string(),
+        decisions,
+        transcript_required: false,
+    })
+}
+
+fn audit_decision_context_from_cache(
+    cache: &CultCache,
+    context: &EpiphanyDecisionContext,
+) -> Result<Option<EpiphanyDecisionAuditProjection>> {
     let basis = cache
         .get::<EpiphanyReasoningBasis>(&context.basis_id)?
         .ok_or_else(|| anyhow!("decision audit context lost its reasoning basis"))?;
@@ -785,9 +851,7 @@ pub fn audit_decision_context(
     };
     terminal_records.canonicalize();
     if terminal_records.len() == 0 {
-        return Err(anyhow!(
-            "decision audit context has no durable terminal decision record"
-        ));
+        return Ok(None);
     }
     validate_decision_terminal_records(&cache, &basis, &context, &terminal_records)?;
 
@@ -808,7 +872,7 @@ pub fn audit_decision_context(
     }
     mind_commit_receipts.sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
 
-    Ok(EpiphanyDecisionAuditProjection {
+    Ok(Some(EpiphanyDecisionAuditProjection {
         schema_version: DECISION_AUDIT_PROJECTION_SCHEMA_VERSION.to_string(),
         context_id: context.context_id.clone(),
         decision_context: context.clone(),
@@ -820,7 +884,7 @@ pub fn audit_decision_context(
         terminal_records,
         mind_commit_receipts,
         transcript_required: false,
-    })
+    }))
 }
 
 fn validate_decision_terminal_records(
@@ -2255,6 +2319,14 @@ mod tests {
             vec![failure.clone()]
         );
         assert!(!audit.transcript_required);
+        let index = list_auditable_decision_contexts(&store)?;
+        assert_eq!(index.schema_version, DECISION_AUDIT_INDEX_SCHEMA_VERSION);
+        assert!(!index.transcript_required);
+        assert_eq!(index.decisions.len(), 1);
+        assert_eq!(index.decisions[0].context_id, context.context_id);
+        assert_eq!(index.decisions[0].pass_id, basis.pass_id);
+        assert_eq!(index.decisions[0].organ_id, basis.organ_id);
+        assert_eq!(index.decisions[0].terminal_record_count, 1);
 
         let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
         let mut replay = options.clone();
