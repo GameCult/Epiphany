@@ -2324,8 +2324,8 @@ mod tests {
         assert!(!index.transcript_required);
         assert_eq!(index.decisions.len(), 1);
         assert_eq!(index.decisions[0].context_id, context.context_id);
-        assert_eq!(index.decisions[0].pass_id, basis.pass_id);
-        assert_eq!(index.decisions[0].organ_id, basis.organ_id);
+        assert_eq!(index.decisions[0].pass_id, reasoning_basis.pass_id);
+        assert_eq!(index.decisions[0].organ_id, reasoning_basis.organ_id);
         assert_eq!(index.decisions[0].terminal_record_count, 1);
 
         let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
