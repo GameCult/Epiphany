@@ -405,6 +405,11 @@ Cut in this order:
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
    names the invariant they preserve.
+25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
+   `list-decisions` beside `audit-decision` in the existing packaged model
+   runtime. It lists only fully validated terminal decision contexts, persists
+   nothing, and omits nonterminal pass physiology. Idunn's exact build/test/
+   package receipt remains the acceptance boundary for this source.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

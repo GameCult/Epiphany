@@ -314,13 +314,17 @@ Accepted at the `bb823c54` source boundary:
 - `epiphany-model-runtime audit-decision` reconstructs an exact terminal pass
   from typed durable records only; the query is byte-for-byte read-only and
   remains complete after live worker result retirement.
+- exact source `5f66d6c9` adds `epiphany-model-runtime list-decisions`, a
+  deterministic read-only index of contexts whose terminal audit chain already
+  validates. It omits sealed nonterminal pass physiology and cannot author or
+  admit state. Idunn's Yggdrasil receipt for this source remains open.
 - runtime schema v2 refuses the prior digest-only worker archive epoch without
   mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
 1. receive Idunn's exact Yggdrasil compile/test/package/deployment receipts for
-   pushed source `f5edfc9d`;
+   pushed source `5f66d6c9`;
 2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,

@@ -222,6 +222,10 @@ transcript may be required for that query after archival.
 The packaged `epiphany-model-runtime audit-decision` command exposes that
 read-only projection by exact context ID. Its JSON is an operator/xenos
 rendering only; it never writes Mind or reconstructs prompts from live state.
+Exact source `5f66d6c9` adds `list-decisions` to the same runtime. It
+deterministically lists only contexts with a complete validated terminal audit
+chain; sealed nonterminal contexts remain physiology and are omitted. This
+source is pushed but is not package evidence until Idunn receipts it.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -267,17 +271,17 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Observe Idunn on upgraded Yggdrasil consume pushed source `f5edfc9d`. Require
+1. Observe Idunn on upgraded Yggdrasil consume pushed source `5f66d6c9`. Require
    exact compile, test, package, deployment, and service-health receipts. Do not
    run a competing release build on Starfire.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
    Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
-   transcript-independent decision inspection, and process restart/re-entry
+   `list-decisions` plus exact `audit-decision`, and process restart/re-entry
    with identical obligations and no resurrection.
-3. Before that capstone, expose a bounded packaged decision-context listing for
-   operator audit and establish a fresh canonical Persona mouth receipt anchor.
-   Do not transplant the old proof anchor or ship a generic test harness.
+3. Establish a fresh canonical Persona mouth receipt anchor before the Persona
+   consequence leg. Do not transplant the old proof anchor or ship a generic
+   test harness.
 4. Only then resume Model Atlas Gate 1 from a new external root. Yggdrasil
    deployment preparation remains owned by the separate deployment task.
 
