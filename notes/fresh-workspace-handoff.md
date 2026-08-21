@@ -271,9 +271,13 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Observe Idunn on upgraded Yggdrasil consume pushed source `5f66d6c9`. Require
-   exact compile, test, package, deployment, and service-health receipts. Do not
-   run a competing release build on Starfire.
+1. Receive the Yggdrasil deployment task's installation of Idunn's missing
+   Epiphany source-change CI/CD loop. Current Idunn is active with zero
+   restarts, but `/srv/build/Epiphany`, the Epiphany target, and the deployment
+   receipt are absent; the old runbook still requires manual Bifrost
+   authorization of `refs/heads/main`. Once repaired, require exact compile,
+   test, package, deployment, and service-health receipts for source
+   `5f66d6c9`. Do not run a competing release build on Starfire.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
    Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
@@ -295,6 +299,9 @@ A stopped build container or cloned source volume owns no durable proof.
   intended swarm body and CI/CD machine. Idunn owns source-change compilation,
   testing, release construction, deployment, and daemon survival there; its
   current deployment truth belongs to the separate deployment task.
+- Read-only inspection on 2026-08-21 found Idunn active and independent, but no
+  Epiphany checkout, target, or deployment receipt. This is a missing CI/CD
+  installation, not a reason to fall back to Starfire compilation.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.

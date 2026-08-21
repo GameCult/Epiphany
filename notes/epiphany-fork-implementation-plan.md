@@ -404,7 +404,12 @@ Cut in this order:
    parallel release build. Any containerized run must use exact run labels and remove disposable
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
-   names the invariant they preserve.
+   names the invariant they preserve. Read-only inspection on 2026-08-21 found
+   that this intended Epiphany CI/CD target is not installed: Idunn itself is
+   healthy, but no Epiphany checkout, target, or deployment receipt exists and
+   the old ops runbook still describes manual `refs/heads/main` authorization.
+   The Yggdrasil deployment task owns that missing installation; Starfire is
+   not its fallback.
 25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists

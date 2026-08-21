@@ -323,8 +323,11 @@ Accepted at the `bb823c54` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. receive Idunn's exact Yggdrasil compile/test/package/deployment receipts for
-   pushed source `5f66d6c9`;
+1. receive the Yggdrasil deployment task's installation receipt for Idunn's
+   missing Epiphany source-change CI/CD loop, then Idunn's exact compile/test/
+   package/deployment receipts for pushed source `5f66d6c9`; current Idunn is
+   healthy but has no Epiphany checkout, target, or deployment receipt, and the
+   old runbook still describes manual `refs/heads/main` authorization;
 2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,
