@@ -79,12 +79,7 @@ fn run_smoke() -> Result<Value> {
         &workspace,
         &artifact_root,
         &fake_roots,
-        &[
-            "run",
-            "--dry-run",
-            "--",
-            "-nographics",
-        ],
+        &["run", "--dry-run", "--", "-nographics"],
         true,
     )?;
     require(
@@ -291,12 +286,7 @@ fn run_smoke() -> Result<Value> {
         &workspace,
         &artifact_root,
         &fake_roots.join("missing"),
-        &[
-            "run",
-            "--dry-run",
-            "--",
-            "-nographics",
-        ],
+        &["run", "--dry-run", "--", "-nographics"],
         false,
     )?;
     require(

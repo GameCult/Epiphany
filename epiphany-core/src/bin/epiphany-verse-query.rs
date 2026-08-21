@@ -46,8 +46,8 @@ use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::load_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
-use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
+use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
@@ -659,7 +659,7 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 daemon_id,
             )?
-                .with_context(|| format!("local Verse has no daemon status for {daemon_id:?}"))?;
+            .with_context(|| format!("local Verse has no daemon status for {daemon_id:?}"))?;
             let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
             let topology =
                 load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
@@ -1447,8 +1447,7 @@ fn run_cli() -> Result<()> {
                 .iter()
                 .find(|row| row.daemon_id == "epiphany-daemon-hands")
                 .context("local Verse query smoke lost Hands topology")?;
-            if batch_pokes[0]["targetDaemonId"].as_str()
-                != Some(hands_topology.daemon_id.as_str())
+            if batch_pokes[0]["targetDaemonId"].as_str() != Some(hands_topology.daemon_id.as_str())
                 || batch_pokes[0]["observedStatus"] != "degraded"
                 || batch_pokes[0]["declaredBodyDomain"].as_str()
                     != Some(hands_topology.body_domain.as_str())
@@ -7456,7 +7455,9 @@ mod lifecycle_projection_tests {
     #[test]
     fn single_daemon_poke_uses_narrow_status_brake_topology_and_intent_reads() {
         let source = include_str!("epiphany-verse-query.rs");
-        let start = source.find("\"poke-daemon\" | \"daemon-poke\" => {").unwrap();
+        let start = source
+            .find("\"poke-daemon\" | \"daemon-poke\" => {")
+            .unwrap();
         let tail = &source[start..];
         let end = tail
             .find("\n        \"poke-down-daemons\"")

@@ -5,7 +5,7 @@ use crate::{
     runtime_spine_cache,
 };
 use anyhow::{Result, anyhow};
-use cultcache_rs::{CacheBackingStore, CultCacheEnvelope, DatabaseEntry};
+use cultcache_rs::{CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_tool_adapter::{
@@ -19,9 +19,11 @@ use std::path::Path;
 
 pub const REASONING_BASIS_SCHEMA_VERSION: &str = "epiphany.reasoning_basis.v1";
 pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v1";
+pub const MODEL_PASS_FAILURE_SCHEMA_VERSION: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_receipt.v1";
 pub const REASONING_BASIS_TYPE: &str = "epiphany.reasoning_basis.v1";
 pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v1";
+pub const MODEL_PASS_FAILURE_TYPE: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
 pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
@@ -370,10 +372,10 @@ impl EpiphanyDecisionContext {
     pub fn new(
         basis: &EpiphanyReasoningBasis,
         native_request: EpiphanyModelRequest,
-        provider_request: EpiphanyOpenAiModelRequest,
         tool_observations: Vec<EpiphanyDecisionToolObservation>,
     ) -> Result<Self> {
         basis.validate()?;
+        let provider_request = epiphany_openai_adapter::request_from_native(&native_request);
         validate_request_pair(basis, &native_request, &provider_request)?;
         validate_tool_observations(&native_request, &tool_observations)?;
         let mut context = Self {
@@ -423,6 +425,123 @@ impl EpiphanyDecisionContext {
     pub fn tool_observations(&self) -> Result<Vec<EpiphanyDecisionToolObservation>> {
         rmp_serde::from_slice(&self.tool_observations_msgpack)
             .map_err(|error| anyhow!("decision tool observations are invalid: {error}"))
+    }
+}
+
+/// Durable terminal record for a model-backed pass that could not produce an
+/// admissible structured decision. This is not a transcript or transport log:
+/// it binds the failure to the same sealed request/context that the model
+/// actually reasoned from.
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.model_pass_failure.v1",
+    schema = "EpiphanyModelPassFailure"
+)]
+pub struct EpiphanyModelPassFailure {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub failure_id: String,
+    #[cultcache(key = 2)]
+    pub pass_id: String,
+    #[cultcache(key = 3)]
+    pub organ_id: String,
+    #[cultcache(key = 4)]
+    pub model_request_id: String,
+    #[cultcache(key = 5)]
+    pub reasoning_basis_id: String,
+    #[cultcache(key = 6)]
+    pub decision_context_id: String,
+    #[cultcache(key = 7)]
+    pub runtime_session_id: String,
+    #[cultcache(key = 8)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 9)]
+    pub failure_kind: String,
+    #[cultcache(key = 10)]
+    pub summary: String,
+    #[cultcache(key = 11)]
+    pub failed_at: String,
+    #[cultcache(key = 12)]
+    pub private_state_exposed: bool,
+}
+
+impl EpiphanyModelPassFailure {
+    pub fn new(
+        basis: &EpiphanyReasoningBasis,
+        context: &EpiphanyDecisionContext,
+        runtime_session_id: impl Into<String>,
+        runtime_job_id: impl Into<String>,
+        failure_kind: impl Into<String>,
+        summary: impl Into<String>,
+        failed_at: impl Into<String>,
+    ) -> Result<Self> {
+        context.validate(basis)?;
+        let mut failure = Self {
+            schema_version: MODEL_PASS_FAILURE_SCHEMA_VERSION.to_string(),
+            failure_id: String::new(),
+            pass_id: basis.pass_id.clone(),
+            organ_id: basis.organ_id.clone(),
+            model_request_id: context.terminal_request_id.clone(),
+            reasoning_basis_id: basis.basis_id.clone(),
+            decision_context_id: context.context_id.clone(),
+            runtime_session_id: runtime_session_id.into(),
+            runtime_job_id: runtime_job_id.into(),
+            failure_kind: failure_kind.into(),
+            summary: summary.into(),
+            failed_at: failed_at.into(),
+            private_state_exposed: false,
+        };
+        failure.failure_id = format!(
+            "model-pass-failure-{}",
+            sha256(failure.decision_context_id.as_bytes()).trim_start_matches("sha256:")
+        );
+        failure.validate(basis, context)?;
+        Ok(failure)
+    }
+
+    pub fn validate(
+        &self,
+        basis: &EpiphanyReasoningBasis,
+        context: &EpiphanyDecisionContext,
+    ) -> Result<()> {
+        if self.schema_version != MODEL_PASS_FAILURE_SCHEMA_VERSION || self.private_state_exposed {
+            return Err(anyhow!(
+                "model pass failure schema or privacy marker is invalid"
+            ));
+        }
+        context.validate(basis)?;
+        for (value, label) in [
+            (&self.failure_id, "failure id"),
+            (&self.pass_id, "pass id"),
+            (&self.organ_id, "organ id"),
+            (&self.model_request_id, "model request id"),
+            (&self.reasoning_basis_id, "reasoning basis id"),
+            (&self.decision_context_id, "decision context id"),
+            (&self.runtime_session_id, "runtime session id"),
+            (&self.runtime_job_id, "runtime job id"),
+            (&self.failure_kind, "failure kind"),
+            (&self.summary, "failure summary"),
+            (&self.failed_at, "failure time"),
+        ] {
+            require_non_empty(value, label)?;
+        }
+        chrono::DateTime::parse_from_rfc3339(&self.failed_at)
+            .map_err(|error| anyhow!("model pass failure time is invalid: {error}"))?;
+        let expected_id = format!(
+            "model-pass-failure-{}",
+            sha256(context.context_id.as_bytes()).trim_start_matches("sha256:")
+        );
+        if self.failure_id != expected_id
+            || self.pass_id != basis.pass_id
+            || self.organ_id != basis.organ_id
+            || self.model_request_id != context.terminal_request_id
+            || self.reasoning_basis_id != basis.basis_id
+            || self.decision_context_id != context.context_id
+        {
+            return Err(anyhow!("model pass failure ownership mismatch"));
+        }
+        Ok(())
     }
 }
 
@@ -533,6 +652,7 @@ pub struct EpiphanyDecisionTerminalRecords {
     pub role_worker_results: Vec<crate::EpiphanyRuntimeRoleWorkerResult>,
     pub reorient_worker_results: Vec<crate::EpiphanyRuntimeReorientWorkerResult>,
     pub runtime_job_results: Vec<crate::EpiphanyRuntimeJobResult>,
+    pub model_pass_failures: Vec<EpiphanyModelPassFailure>,
     pub archived_worker_attempts: Vec<crate::EpiphanyArchivedRuntimeWorkerAttempt>,
     pub persona_stage_receipts: Vec<crate::PersonaModelStageReceipt>,
     pub persona_effect_documents: Vec<crate::PersonaInterpreterEffectDocument>,
@@ -547,6 +667,7 @@ impl EpiphanyDecisionTerminalRecords {
         self.role_worker_results.len()
             + self.reorient_worker_results.len()
             + self.runtime_job_results.len()
+            + self.model_pass_failures.len()
             + self.archived_worker_attempts.len()
             + self.persona_stage_receipts.len()
             + self.persona_effect_documents.len()
@@ -563,6 +684,8 @@ impl EpiphanyDecisionTerminalRecords {
             .sort_by(|left, right| left.result_id.cmp(&right.result_id));
         self.runtime_job_results
             .sort_by(|left, right| left.result_id.cmp(&right.result_id));
+        self.model_pass_failures
+            .sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
         self.archived_worker_attempts
             .sort_by(|left, right| left.archive_id.cmp(&right.archive_id));
         self.persona_stage_receipts
@@ -614,6 +737,11 @@ pub fn audit_decision_context(
             .into_iter()
             .filter(|record| record.decision_context_id.as_deref() == Some(context_id))
             .collect(),
+        model_pass_failures: cache
+            .get_all::<EpiphanyModelPassFailure>()?
+            .into_iter()
+            .filter(|record| record.decision_context_id == context_id)
+            .collect(),
         archived_worker_attempts: cache
             .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
             .into_iter()
@@ -661,7 +789,7 @@ pub fn audit_decision_context(
             "decision audit context has no durable terminal decision record"
         ));
     }
-    validate_decision_terminal_records(&basis, context_id, &terminal_records)?;
+    validate_decision_terminal_records(&cache, &basis, &context, &terminal_records)?;
 
     let mut mind_commit_receipts = cache
         .get_all::<EpiphanyMindCommitReceipt>()?
@@ -696,10 +824,12 @@ pub fn audit_decision_context(
 }
 
 fn validate_decision_terminal_records(
+    cache: &CultCache,
     basis: &EpiphanyReasoningBasis,
-    context_id: &str,
+    context: &EpiphanyDecisionContext,
     records: &EpiphanyDecisionTerminalRecords,
 ) -> Result<()> {
+    let context_id = context.context_id.as_str();
     if records
         .role_worker_results
         .iter()
@@ -728,6 +858,27 @@ fn validate_decision_terminal_records(
         return Err(anyhow!(
             "decision audit terminal worker record does not belong to its reasoning pass"
         ));
+    }
+    if records.model_pass_failures.len() > 1
+        || (!records.model_pass_failures.is_empty()
+            && records.len() != records.model_pass_failures.len())
+    {
+        return Err(anyhow!(
+            "decision audit context cannot be both successful and failed"
+        ));
+    }
+    for failure in &records.model_pass_failures {
+        failure.validate(basis, context)?;
+        let binding = cache
+            .get::<crate::EpiphanyRuntimeModelExecutionBinding>(&failure.model_request_id)?
+            .ok_or_else(|| anyhow!("decision audit model failure lost its runtime binding"))?;
+        if failure.runtime_session_id != binding.session_id
+            || failure.runtime_job_id != binding.job_id
+        {
+            return Err(anyhow!(
+                "decision audit model pass failure disagrees with its runtime binding"
+            ));
+        }
     }
     for record in &records.archived_worker_attempts {
         let fulfilled = crate::WorkerProcessStatus::parse(&record.terminal_process_status)?
@@ -1005,9 +1156,6 @@ pub fn seal_model_decision_context(
     let native = cache
         .get::<EpiphanyModelRequest>(terminal_request_id)?
         .ok_or_else(|| anyhow!("terminal native model request is absent"))?;
-    let provider = cache
-        .get::<EpiphanyOpenAiModelRequest>(terminal_request_id)?
-        .ok_or_else(|| anyhow!("terminal provider model request is absent"))?;
     let basis_id = native
         .reasoning_basis_id
         .as_deref()
@@ -1047,7 +1195,7 @@ pub fn seal_model_decision_context(
             receipt,
         });
     }
-    let context = EpiphanyDecisionContext::new(&basis, native, provider, observations)?;
+    let context = EpiphanyDecisionContext::new(&basis, native, observations)?;
     put_decision_context(store_path, &context)
 }
 
@@ -1369,7 +1517,10 @@ fn commit_authorized_mind_mutation(
     };
     receipt.validate()?;
     if let Some(existing) = cache.get::<EpiphanyMindCommitReceipt>(&receipt_id)? {
-        if existing != receipt {
+        existing.validate()?;
+        let mut replay = receipt;
+        replay.committed_at = existing.committed_at.clone();
+        if existing != replay {
             return Err(anyhow!("Mind commit receipt identity collision"));
         }
         return Ok(EpiphanyMindCommitOutcome::Committed(existing));
@@ -1762,9 +1913,8 @@ mod tests {
     fn basis_and_context_are_content_addressed_and_reject_substitution() -> Result<()> {
         let reasoning_basis = basis()?;
         assert_eq!(reasoning_basis, basis()?);
-        let (native, provider) = requests(&reasoning_basis);
-        let context =
-            EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), provider, Vec::new())?;
+        let (native, _) = requests(&reasoning_basis);
+        let context = EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), Vec::new())?;
         context.validate(&reasoning_basis)?;
         let mut substituted = context.clone();
         substituted.native_request_msgpack.push(0xff);
@@ -1775,18 +1925,17 @@ mod tests {
     #[test]
     fn decision_context_binds_exact_provider_and_tool_bytes() -> Result<()> {
         let reasoning_basis = basis()?;
-        let (native, provider) = requests(&reasoning_basis);
-
-        let mut substituted_provider_input = provider.clone();
+        let (native, _) = requests(&reasoning_basis);
+        let context = EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), Vec::new())?;
+        let mut substituted_provider_input = context.provider_request()?;
         substituted_provider_input.input.clear();
+        let mut substituted_provider_context = context;
+        substituted_provider_context.provider_request_msgpack =
+            rmp_serde::to_vec_named(&substituted_provider_input)?;
         assert!(
-            EpiphanyDecisionContext::new(
-                &reasoning_basis,
-                native.clone(),
-                substituted_provider_input,
-                Vec::new(),
-            )
-            .is_err()
+            substituted_provider_context
+                .validate(&reasoning_basis)
+                .is_err()
         );
 
         let mut native_with_substituted_tools = native.clone();
@@ -1797,14 +1946,15 @@ mod tests {
                 parameters_json: r#"{"type":"object"}"#.into(),
             },
         );
-        assert!(
-            EpiphanyDecisionContext::new(
-                &reasoning_basis,
-                native_with_substituted_tools,
-                provider,
-                Vec::new(),
-            )
-            .is_err()
+        let tool_context = EpiphanyDecisionContext::new(
+            &reasoning_basis,
+            native_with_substituted_tools.clone(),
+            Vec::new(),
+        )?;
+        assert_eq!(
+            tool_context.provider_request()?,
+            epiphany_openai_adapter::request_from_native(&native_with_substituted_tools),
+            "provider request must be derived from the complete native request"
         );
 
         let intent = EpiphanyToolInvocationIntent::new(
@@ -1844,11 +1994,9 @@ mod tests {
                 output: r#"{"value":"exact"}"#.into(),
             },
         ]);
-        let terminal_provider = epiphany_openai_adapter::request_from_native(&terminal_native);
         EpiphanyDecisionContext::new(
             &reasoning_basis,
             terminal_native.clone(),
-            terminal_provider.clone(),
             vec![observation.clone()],
         )?;
 
@@ -1858,7 +2006,6 @@ mod tests {
             EpiphanyDecisionContext::new(
                 &reasoning_basis,
                 terminal_native.clone(),
-                terminal_provider.clone(),
                 vec![substituted_receipt],
             )
             .is_err()
@@ -1869,7 +2016,6 @@ mod tests {
             EpiphanyDecisionContext::new(
                 &reasoning_basis,
                 terminal_native,
-                terminal_provider,
                 vec![EpiphanyDecisionToolObservation { intent, receipt }],
             )
             .is_err()
@@ -1895,7 +2041,7 @@ mod tests {
         cache.put(&launch.job_id, &launch)?;
         let reasoning_basis = worker_reasoning_basis(&store, &launch)?;
         let reasoning_basis = put_reasoning_basis(&store, &reasoning_basis)?;
-        let (initial_native, initial_provider) = requests(&reasoning_basis);
+        let (initial_native, _) = requests(&reasoning_basis);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -1913,7 +2059,6 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &initial_native,
-            &initial_provider,
             "2026-08-17T00:00:01Z",
         )?;
         let intent = EpiphanyToolInvocationIntent::new(
@@ -1959,7 +2104,6 @@ mod tests {
                 output: r#"{"value":"exact"}"#.into(),
             },
         ]);
-        let terminal_provider = epiphany_openai_adapter::request_from_native(&terminal_native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -1977,7 +2121,6 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &terminal_native,
-            &terminal_provider,
             "2026-08-17T00:00:04Z",
         )?;
         let context = seal_model_decision_context(&store, &terminal_native.request_id)?;
@@ -2031,6 +2174,130 @@ mod tests {
             SingleFileMessagePackBackingStore::new(&store).pull_all()?,
             before
         );
+        Ok(())
+    }
+
+    #[test]
+    fn model_pass_failure_atomically_closes_session_and_remains_auditable() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("mind.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "model-pass-failure-test".into(),
+                display_name: "Model pass failure test".into(),
+                created_at: "2026-08-18T00:00:00Z".into(),
+            },
+        )?;
+        let launch = role_launch()?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(&launch.job_id, &launch)?;
+        let reasoning_basis =
+            put_reasoning_basis(&store, &worker_reasoning_basis(&store, &launch)?)?;
+        let (native, _provider) = requests(&reasoning_basis);
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "failed-pass-session".into(),
+                objective: "Prove terminal failure ownership".into(),
+                created_at: "2026-08-18T00:00:01Z".into(),
+                coordinator_note: "model pass failure test".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "failed-model-job".into(),
+                session_id: "failed-pass-session".into(),
+                role: "model-adapter".into(),
+                created_at: "2026-08-18T00:00:01Z".into(),
+                summary: "Run the model pass".into(),
+                artifact_refs: Vec::new(),
+            },
+            &native,
+            "2026-08-18T00:00:01Z",
+        )?;
+        let context = seal_model_decision_context(&store, &native.request_id)?;
+        let options = crate::ModelPassFailureTerminalOptions {
+            decision_context_id: context.context_id.clone(),
+            failure_kind: "provider_or_transport_failure".into(),
+            summary: "Provider refused before assistant output.".into(),
+            failed_at: "2026-08-18T00:00:03Z".into(),
+        };
+        let failure = crate::terminalize_model_pass_failure_session(&store, options.clone())?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<crate::EpiphanyRuntimeSession>("failed-pass-session")?
+                .expect("session")
+                .status,
+            crate::EpiphanyRuntimeSessionStatus::Completed
+        );
+        assert_eq!(
+            crate::model_pass_failure_for_request(&store, &native.request_id)?,
+            Some(failure.clone())
+        );
+        let model_job =
+            crate::runtime_job_snapshot(&store, "failed-model-job")?.expect("model job snapshot");
+        assert_eq!(
+            model_job.job.status,
+            crate::EpiphanyRuntimeJobStatus::Failed
+        );
+        assert!(
+            model_job
+                .result
+                .expect("model transport failure result")
+                .decision_context_id
+                .is_none(),
+            "generic model transport must not own decision authority"
+        );
+        let audit = audit_decision_context(&store, &context.context_id)?;
+        assert_eq!(
+            audit.terminal_records.model_pass_failures,
+            vec![failure.clone()]
+        );
+        assert!(!audit.transcript_required);
+
+        let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let mut replay = options.clone();
+        replay.failed_at = "2026-08-18T00:00:04Z".into();
+        assert!(crate::terminalize_model_pass_failure_session(&store, replay).is_err());
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before
+        );
+        let mut conflict = options;
+        conflict.summary = "A different failure tried to claim the context.".into();
+        assert!(crate::terminalize_model_pass_failure_session(&store, conflict).is_err());
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before
+        );
+        for hostile_kind in ["session", "job", "time", "privacy"] {
+            let mut hostile = failure.clone();
+            match hostile_kind {
+                "session" => hostile.runtime_session_id = "foreign-session".into(),
+                "job" => hostile.runtime_job_id = "foreign-job".into(),
+                "time" => hostile.failed_at = "not-rfc3339".into(),
+                "privacy" => hostile.private_state_exposed = true,
+                _ => unreachable!(),
+            }
+            let mut hostile_cache = runtime_spine_cache(&store)?;
+            hostile_cache.put(&hostile.failure_id, &hostile)?;
+            let hostile_snapshot = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+            assert!(
+                crate::model_pass_failure_for_request(&store, &native.request_id).is_err(),
+                "hostile {hostile_kind} failure must not project through request lookup"
+            );
+            assert!(
+                audit_decision_context(&store, &context.context_id).is_err(),
+                "hostile {hostile_kind} failure must not project through decision audit"
+            );
+            assert_eq!(
+                SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+                hostile_snapshot,
+                "failure inspection must remain read-only"
+            );
+            runtime_spine_cache(&store)?.put(&failure.failure_id, &failure)?;
+        }
         Ok(())
     }
 
@@ -2089,7 +2356,7 @@ mod tests {
         cache.put(&launch.job_id, &launch)?;
         let basis = worker_reasoning_basis(&store, &launch)?;
         let basis = put_reasoning_basis(&store, &basis)?;
-        let (native, provider) = requests(&basis);
+        let (native, _) = requests(&basis);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -2107,12 +2374,11 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &native,
-            &provider,
             "2026-08-14T00:00:01Z",
         )?;
         let context = put_decision_context(
             &store,
-            &EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?,
+            &EpiphanyDecisionContext::new(&basis, native, Vec::new())?,
         )?;
         let backing = SingleFileMessagePackBackingStore::new(&store);
         let make = |key: &str, summary: &str| -> Result<CultCacheEnvelope> {
@@ -2129,17 +2395,30 @@ mod tests {
             };
             Ok(cache.prepare_entry(key, &document)?.0)
         };
-        assert!(matches!(
+        let persona_write = make("persona", "one")?;
+        let first_persona_receipt = match commit_mind_mutation(
+            &store,
+            &context.context_id,
+            "test-owner",
+            Vec::new(),
+            vec![persona_write.clone()],
+            "2026-08-14T00:00:02Z",
+        )? {
+            EpiphanyMindCommitOutcome::Committed(receipt) => receipt,
+            EpiphanyMindCommitOutcome::Conflict { .. } => panic!("first write must commit"),
+        };
+        assert_eq!(
             commit_mind_mutation(
                 &store,
                 &context.context_id,
                 "test-owner",
                 Vec::new(),
-                vec![make("persona", "one")?],
-                "2026-08-14T00:00:02Z"
+                vec![persona_write],
+                "2026-08-14T00:00:20Z",
             )?,
-            EpiphanyMindCommitOutcome::Committed(_)
-        ));
+            EpiphanyMindCommitOutcome::Committed(first_persona_receipt),
+            "exact replay returns the original receipt independent of retry wall time"
+        );
         assert!(matches!(
             commit_mind_mutation(
                 &store,

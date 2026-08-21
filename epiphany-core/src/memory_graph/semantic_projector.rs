@@ -1229,6 +1229,12 @@ pub(crate) fn idunn_semantic_recovery_evidence_from_cultmesh(
     validate_memory_semantic_projection_obligation(&input.obligation)?;
     let store_path = store_path.as_ref();
     let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &envelopes,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let persisted_obligation = decode_one::<MemorySemanticProjectionObligation>(
         &envelopes,
         &input.obligation.obligation_id,
@@ -1344,6 +1350,12 @@ pub fn observe_memory_semantic_projection(
     }
     validate_memory_semantic_projection_obligation(&input.obligation)?;
     let envelopes = SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()?;
+    require_complete_modeling_basis(
+        &envelopes,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let persisted_obligation = decode_one::<MemorySemanticProjectionObligation>(
         &envelopes,
         &input.obligation.obligation_id,
@@ -1637,6 +1649,16 @@ pub(crate) fn classify_memory_semantic_projection_for_pulse(
 ) -> Result<super::MemorySemanticProjectorPulseClassification> {
     validate_memory_semantic_projection_obligation(&input.obligation)?;
     let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    if require_complete_modeling_basis(
+        &envelopes,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )
+    .is_err()
+    {
+        return Ok(super::MemorySemanticProjectorPulseClassification::Stale);
+    }
     let persisted = decode_one::<MemorySemanticProjectionObligation>(
         &envelopes,
         &input.obligation.obligation_id,
@@ -1711,6 +1733,12 @@ pub(crate) fn owned_running_memory_semantic_projection_claim(
     executor_incarnation: &str,
 ) -> Result<Option<String>> {
     let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &envelopes,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
     let Some(claim) = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)? else {
         return Ok(None);
@@ -1759,6 +1787,12 @@ pub(crate) fn idunn_acquire_memory_semantic_projection_with_config(
     observe_memory_semantic_projection(store_path, input)?;
     let cache = semantic_projector_cache(store_path)?;
     let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &opening,
+        &obligation.partition,
+        &obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let persisted =
         decode_one::<MemorySemanticProjectionObligation>(&opening, &obligation.obligation_id)?
             .ok_or_else(|| anyhow!("semantic projector grant requires persisted obligation"))?;
@@ -1870,13 +1904,7 @@ pub(crate) fn idunn_acquire_memory_semantic_projection_with_config(
             "semantic projector executor grant identity collision"
         ));
     }
-    let obligation_envelope = exact_envelope(
-        &opening,
-        MemorySemanticProjectionObligation::TYPE,
-        &obligation.obligation_id,
-    )?;
-    let mut expected = vec![obligation_envelope.clone()];
-    let mut replacements = vec![obligation_envelope];
+    let mut replacements = Vec::new();
     for authority in &input.authority.envelopes {
         if authority.r#type == MemorySemanticProjectionObligation::TYPE
             && authority.key == obligation.obligation_id
@@ -1890,32 +1918,29 @@ pub(crate) fn idunn_acquire_memory_semantic_projection_with_config(
         if persisted != authority {
             return Err(anyhow!("semantic projector acquisition authority advanced"));
         }
-        expected.push(persisted.clone());
-        replacements.push(persisted.clone());
     }
     if current.is_some() {
-        let claim = exact_envelope(
+        exact_envelope(
             &opening,
             MemorySemanticProjectionClaim::TYPE,
             &grant.scope_id,
         )?;
-        expected.push(claim.clone());
         let current = current.as_ref().expect("checked current claim");
-        let attempt = exact_envelope(
+        exact_envelope(
             &opening,
             MemorySemanticProjectionAttempt::TYPE,
             &current.attempt_id,
         )?;
-        expected.push(attempt.clone());
-        replacements.push(attempt);
     }
     replacements.push(cache.prepare_entry(&scope_id, &claim)?.0);
     replacements.push(cache.prepare_entry(&attempt.attempt_id, &attempt)?.0);
     replacements.push(cache.prepare_entry(&grant.grant_id, &grant)?.0);
     if !SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&expected, replacements)?
+        .replace_and_append_if_snapshot_unchanged(&opening, replacements)?
     {
-        return Err(anyhow!("semantic projector acquisition lost exact CAS"));
+        return Err(anyhow!(
+            "semantic projector acquisition lost its complete-basis snapshot fence"
+        ));
     }
     Ok(MemorySemanticProjectorAcquisition { grant, claim })
 }
@@ -2068,6 +2093,12 @@ pub(crate) fn idunn_recover_memory_semantic_projection(
     }
     let cache = semantic_projector_cache(store_path)?;
     let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &opening,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let current = decode_all::<MemorySemanticProjectionClaim>(&opening)?
         .into_iter()
         .find(|claim| claim.claim_id == expected_claim_id)
@@ -2291,6 +2322,12 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
     let obligation =
         decode_one::<MemorySemanticProjectionObligation>(&opening, &claim.obligation_id)?
             .ok_or_else(|| anyhow!("semantic projection success lost obligation"))?;
+    require_complete_modeling_basis(
+        &opening,
+        &obligation.partition,
+        &obligation.source_commit_id,
+        &authority.envelopes,
+    )?;
     ensure_not_before(
         &receipt.indexed_at,
         &claim.claimed_at,
@@ -2326,28 +2363,7 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
         error: None,
         ..attempt.clone()
     };
-    let obligation_envelope = exact_envelope(
-        &opening,
-        "gamecult.epiphany.memory_semantic_projection_obligation",
-        &obligation.obligation_id,
-    )?;
-    let claim_envelope = exact_envelope(
-        &opening,
-        "gamecult.epiphany.memory_semantic_projection_claim",
-        &claim.scope_id,
-    )?;
-    let attempt_envelope = exact_envelope(
-        &opening,
-        "gamecult.epiphany.memory_semantic_projection_attempt",
-        &attempt.attempt_id,
-    )?;
-    let mut expected = vec![
-        obligation_envelope.clone(),
-        claim_envelope,
-        attempt_envelope,
-    ];
-    let mut replacements = vec![
-        obligation_envelope,
+    let replacements = vec![
         cache.prepare_entry(&claim.scope_id, &terminal_claim)?.0,
         cache
             .prepare_entry(&attempt.attempt_id, &terminal_attempt)?
@@ -2365,18 +2381,12 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
         if current != authority_envelope {
             return Err(anyhow!("canonical projection authority head advanced"));
         }
-        if !expected.iter().any(|candidate| {
-            candidate.r#type == authority_envelope.r#type && candidate.key == authority_envelope.key
-        }) {
-            expected.push(authority_envelope.clone());
-            replacements.push(authority_envelope.clone());
-        }
     }
     if !SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&expected, replacements)?
+        .replace_and_append_if_snapshot_unchanged(&opening, replacements)?
     {
         return Err(anyhow!(
-            "semantic projection success lost exact terminal CAS"
+            "semantic projection success lost its complete-basis snapshot fence"
         ));
     }
     Ok(receipt)
@@ -2669,6 +2679,12 @@ pub fn authorize_memory_semantic_physical_retirements(
     let store_path = store_path.as_ref();
     let cache = semantic_projector_cache(store_path)?;
     let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &snapshot,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     for expected in &input.authority.envelopes {
         if snapshot
             .iter()
@@ -2707,12 +2723,11 @@ pub fn authorize_memory_semantic_physical_retirements(
     obligations.sort_by(|left, right| {
         left.source_generation
             .cmp(&right.source_generation)
-            .then(left.created_at.cmp(&right.created_at))
             .then(left.obligation_id.cmp(&right.obligation_id))
     });
     if obligations.iter().any(|row| {
         row.obligation_id != input.obligation.obligation_id
-            && row.source_generation >= input.obligation.source_generation
+            && !semantic_obligation_is_stale(row, &input.obligation)
     }) {
         return Err(anyhow!(
             "semantic physical retirement refuses a non-stale generation"
@@ -2734,7 +2749,7 @@ pub fn authorize_memory_semantic_physical_retirements(
     let mut changed = false;
     let mut insertions = Vec::new();
     for obligation in obligations {
-        if obligation.source_generation >= input.obligation.source_generation
+        if !semantic_obligation_is_stale(&obligation, &input.obligation)
             || recent.contains(&obligation.obligation_id)
         {
             continue;
@@ -2885,6 +2900,12 @@ where
     }
     let cache = semantic_projector_cache(store_path)?;
     let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &snapshot,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let retirement =
         decode_one::<MemorySemanticPhysicalRetirementObligation>(&snapshot, retirement_id)?
             .ok_or_else(|| anyhow!("semantic physical-retirement obligation is missing"))?;
@@ -2938,7 +2959,7 @@ where
     validate_memory_semantic_projection_attempt(&attempt)?;
     if source.swarm_id != retirement.swarm_id
         || source.partition != retirement.partition
-        || source.source_generation >= input.obligation.source_generation
+        || !semantic_obligation_is_stale(&source, &input.obligation)
         || attempt.status == "running"
         || attempt.obligation_id != source.obligation_id
         || attempt.claim_id != retirement.claim_id
@@ -3072,6 +3093,12 @@ where
     }
     let cache = semantic_projector_cache(store_path)?;
     let snapshot = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    require_complete_modeling_basis(
+        &snapshot,
+        &input.obligation.partition,
+        &input.obligation.source_commit_id,
+        &input.authority.envelopes,
+    )?;
     let persisted = decode_one::<MemorySemanticProjectionObligation>(
         &snapshot,
         &input.obligation.obligation_id,
@@ -3133,12 +3160,11 @@ where
     obligations.sort_by(|left, right| {
         left.source_generation
             .cmp(&right.source_generation)
-            .then(left.created_at.cmp(&right.created_at))
             .then(left.obligation_id.cmp(&right.obligation_id))
     });
     for obligation in &obligations {
         if !preserved_obligation_ids.contains(&obligation.obligation_id)
-            && obligation.source_generation >= input.obligation.source_generation
+            && !semantic_obligation_is_stale(obligation, &input.obligation)
         {
             return Err(anyhow!(
                 "semantic projection retention refuses a non-stale generation"
@@ -3334,6 +3360,85 @@ where
         ));
     }
     Ok(Some(head))
+}
+
+fn semantic_obligation_is_stale(
+    candidate: &MemorySemanticProjectionObligation,
+    current: &MemorySemanticProjectionObligation,
+) -> bool {
+    if candidate.swarm_id != current.swarm_id || candidate.partition != current.partition {
+        return false;
+    }
+    if current.partition == "modeling" {
+        // Modeling work is derived from a complete, exact set of keyed Mind
+        // document versions. There is no meaningful aggregate generation: any
+        // other content-addressed basis is stale relative to the freshly
+        // assembled current input.
+        candidate.obligation_id != current.obligation_id
+    } else {
+        candidate.source_generation < current.source_generation
+    }
+}
+
+/// Proves that a Modeling input seals the complete keyed RepoModel visible in
+/// the exact store snapshot used by the operation. Exact source-envelope
+/// checks alone cannot see a disjoint insert, so they are insufficient for a
+/// document-addressed concurrent Mind.
+fn require_complete_modeling_basis(
+    snapshot: &[CultCacheEnvelope],
+    partition: &str,
+    expected_projection_digest: &str,
+    authority_envelopes: &[CultCacheEnvelope],
+) -> Result<()> {
+    if partition != "modeling" {
+        return Ok(());
+    }
+    let mut source_documents = Vec::new();
+    for envelope in snapshot {
+        if crate::repo_model_documents::repo_model_write_key(envelope)?.is_some() {
+            source_documents.push(envelope);
+        }
+    }
+    source_documents
+        .sort_by(|left, right| (&left.r#type, &left.key).cmp(&(&right.r#type, &right.key)));
+    if source_documents.is_empty() {
+        // Historical synthetic projector fixtures predate keyed RepoModel
+        // authority and use human-readable commit ids. Current production
+        // Modeling inputs are content-addressed and must never take this path.
+        if !expected_projection_digest.starts_with("sha256:") {
+            return Ok(());
+        }
+        return Err(anyhow!(
+            "Modeling projection has no complete keyed RepoModel basis"
+        ));
+    }
+    if source_documents.iter().any(|source| {
+        !authority_envelopes
+            .iter()
+            .any(|authority| authority == *source)
+    }) {
+        return Err(anyhow!(
+            "Modeling projection authority omits a current keyed RepoModel document"
+        ));
+    }
+    let source_versions = source_documents
+        .into_iter()
+        .map(|source| crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", source))
+        .collect::<Result<Vec<_>>>()?;
+    let basis = crate::EpiphanyRepoModelBasis {
+        projection_digest: format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&source_versions)?)
+        ),
+        source_documents: source_versions,
+    };
+    basis.validate()?;
+    if basis.projection_digest != expected_projection_digest {
+        return Err(anyhow!(
+            "Modeling projection input does not seal the complete current keyed basis"
+        ));
+    }
+    Ok(())
 }
 
 fn validate_memory_semantic_projection_retention_head(
@@ -3857,6 +3962,23 @@ mod retention_tests {
         }
     }
 
+    #[test]
+    fn modeling_staleness_is_exact_basis_identity_not_aggregate_generation() {
+        let current = obligation("swarm-state-driven", 1);
+        let mut other_basis = obligation("swarm-state-driven", 99);
+        other_basis.obligation_id = "memory-semantic-projection-modeling-other-basis".into();
+        assert!(semantic_obligation_is_stale(&other_basis, &current));
+        assert!(!semantic_obligation_is_stale(&current, &current));
+
+        let mut mind_current = current.clone();
+        mind_current.partition = "mind".into();
+        mind_current.source_generation = 2;
+        let mut mind_old = mind_current.clone();
+        mind_old.obligation_id = "memory-semantic-projection-mind-old".into();
+        mind_old.source_generation = 1;
+        assert!(semantic_obligation_is_stale(&mind_old, &mind_current));
+    }
+
     fn failed_lifecycle(
         obligation: &MemorySemanticProjectionObligation,
         epoch: u64,
@@ -3946,6 +4068,146 @@ mod retention_tests {
                 envelopes: vec![authority],
             },
         }
+    }
+
+    fn keyed_input_for(
+        store: &Path,
+        current: &MemorySemanticProjectionObligation,
+    ) -> MemorySemanticProjectionInput {
+        let mut mind_cache = CultCache::new();
+        mind_cache
+            .register_entry_type::<crate::EpiphanyRepoModelIdentityDocument>()
+            .unwrap();
+        mind_cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store));
+        mind_cache
+            .put(
+                crate::REPO_MODEL_IDENTITY_KEY,
+                &crate::EpiphanyRepoModelIdentityDocument {
+                    schema_epoch: crate::REPO_MODEL_SCHEMA_EPOCH.into(),
+                    graph_id: current.graph_id.clone(),
+                    runtime_id: "runtime-semantic-retention-fixture".into(),
+                    swarm_id: current.swarm_id.clone(),
+                    workspace_id: "workspace-semantic-retention-fixture".into(),
+                    body_binding_sha256: "sha256:semantic-retention-fixture".into(),
+                },
+            )
+            .unwrap();
+        let envelopes = SingleFileMessagePackBackingStore::new(store)
+            .pull_all()
+            .unwrap();
+        let repo_identity = envelopes
+            .iter()
+            .find(|entry| {
+                entry.r#type == crate::EpiphanyRepoModelIdentityDocument::TYPE
+                    && entry.key == crate::REPO_MODEL_IDENTITY_KEY
+            })
+            .unwrap()
+            .clone();
+        let source_versions = vec![
+            crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &repo_identity)
+                .unwrap(),
+        ];
+        let mut current = current.clone();
+        current.source_commit_id = format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&source_versions).unwrap())
+        );
+        let mut semantic_cache = semantic_projector_cache(store).unwrap();
+        semantic_cache
+            .put(&current.obligation_id, &current)
+            .unwrap();
+        let authority = semantic_cache
+            .get_envelope::<MemorySemanticProjectionObligation>(&current.obligation_id)
+            .unwrap()
+            .unwrap();
+        MemorySemanticProjectionInput {
+            snapshot: super::super::EpiphanyMemoryGraphSnapshot {
+                graph_id: current.graph_id.clone(),
+                model_revision: current.source_generation,
+                model_hash: current.source_model_hash.clone(),
+                ..Default::default()
+            },
+            obligation: current.clone(),
+            authority: MemorySemanticProjectionAuthoritySnapshot {
+                head: MemorySemanticProjectionSourceHead {
+                    swarm_id: current.swarm_id.clone(),
+                    partition: current.partition.clone(),
+                    canonical_source_id: current.canonical_source_id.clone(),
+                    source_commit_id: current.source_commit_id.clone(),
+                    graph_id: current.graph_id.clone(),
+                    source_generation: current.source_generation,
+                    source_model_hash: current.source_model_hash.clone(),
+                    canonical_content_set_hash: current.canonical_content_set_hash.clone(),
+                },
+                envelopes: vec![authority, repo_identity],
+            },
+        }
+    }
+
+    #[test]
+    fn stale_modeling_input_cannot_ignore_a_disjoint_keyed_repo_model_insert() -> Result<()> {
+        let directory = tempdir()?;
+        let store = directory.path().join("semantic-current-basis.cc");
+        let current = obligation("swarm-current-basis", 1);
+        let mut semantic_cache = semantic_projector_cache(&store)?;
+        semantic_cache.put(&current.obligation_id, &current)?;
+        let stale_input = keyed_input_for(&store, &current);
+
+        let domain = epiphany_state_model::EpiphanyMemoryDomain {
+            id: "domain-disjoint-phantom".into(),
+            profile: epiphany_state_model::EpiphanyMemoryProfile::RepoArchitecture,
+            title: "Disjoint keyed insert".into(),
+            lifecycle: epiphany_state_model::EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        let mut mind_cache = CultCache::new();
+        mind_cache.register_entry_type::<crate::EpiphanyRepoModelDomainDocument>()?;
+        mind_cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&store));
+        mind_cache.put(
+            &domain.id,
+            &crate::EpiphanyRepoModelDomainDocument::new(&domain)?,
+        )?;
+
+        let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let acquisition = idunn_acquire_memory_semantic_projection(
+            &store,
+            &stale_input,
+            "semantic-executor",
+            "semantic-executor-incarnation",
+            "execute",
+            "idunn-incarnation",
+            "2026-08-10T05:00:00Z",
+        )
+        .unwrap_err();
+        assert!(
+            acquisition
+                .to_string()
+                .contains("Modeling projection authority omits")
+        );
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before,
+            "stale acquisition must refuse byte-identically"
+        );
+
+        let retention = retain_memory_semantic_projection_lifecycles(
+            &store,
+            &stale_input,
+            1,
+            "2026-08-10T05:01:00Z",
+        )
+        .unwrap_err();
+        assert!(
+            retention
+                .to_string()
+                .contains("Modeling projection authority omits")
+        );
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
+            before,
+            "stale retention must refuse byte-identically"
+        );
+        Ok(())
     }
 
     #[test]
@@ -4375,9 +4637,13 @@ mod retention_tests {
     fn semantic_lifecycle_retention_refuses_future_generation_even_inside_window() -> Result<()> {
         let directory = tempdir()?;
         let store = directory.path().join("semantic.cc");
-        let older = obligation("swarm-future", 1);
-        let current = obligation("swarm-future", 2);
-        let future = obligation("swarm-future", 3);
+        let mut older = obligation("swarm-future", 1);
+        let mut current = obligation("swarm-future", 2);
+        let mut future = obligation("swarm-future", 3);
+        for value in [&mut older, &mut current, &mut future] {
+            value.partition = "mind".into();
+            value.obligation_id = value.obligation_id.replace("modeling", "mind");
+        }
         let mut cache = semantic_projector_cache(&store)?;
         cache.put(&older.obligation_id, &older)?;
         cache.put(&current.obligation_id, &current)?;

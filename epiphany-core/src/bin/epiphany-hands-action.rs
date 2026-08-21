@@ -632,16 +632,35 @@ fn usage() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_core::EpiphanyRepoModelSeed;
+    use epiphany_core::EpiphanyRepoModelSeedDocuments;
     use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+    use epiphany_core::RepoFrontierHandsAuthority;
     use epiphany_core::RuntimeSpineInitOptions;
+    use epiphany_core::bind_repository_body;
+    use epiphany_core::bind_runtime_to_agent_memory_swarm;
+    use epiphany_core::ensure_agent_memory_swarm_identity;
     use epiphany_core::hands_action_review_for_intent;
+    use epiphany_core::initialize_keyed_repo_model;
     use epiphany_core::initialize_runtime_spine;
+    use epiphany_core::observe_runtime_repository_body_basis;
     use epiphany_core::put_hands_action_intent;
     use epiphany_core::put_hands_action_review;
+    use epiphany_core::put_repo_frontier_hands_authority;
     use epiphany_core::runtime_hands_command_receipt;
     use epiphany_core::runtime_hands_commit_receipt;
     use epiphany_core::runtime_hands_patch_receipt;
     use epiphany_core::runtime_latest_hands_receipt_chain_after;
+    use epiphany_core::select_and_commit_repo_frontier_route;
+    use epiphany_state_model::EpiphanyMemoryDomain;
+    use epiphany_state_model::EpiphanyMemoryLifecycle;
+    use epiphany_state_model::EpiphanyMemoryNode;
+    use epiphany_state_model::EpiphanyMemoryNodeKind;
+    use epiphany_state_model::EpiphanyMemoryProfile;
+    use epiphany_state_model::RepoFrontierAdoptedPlan;
+    use epiphany_state_model::RepoFrontierItem;
+    use epiphany_state_model::RepoFrontierStatus;
+    use std::process::Command as ProcessCommand;
 
     #[test]
     fn records_patch_command_and_commit_receipts_against_approved_gate() -> Result<()> {
@@ -845,6 +864,97 @@ mod tests {
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
+        let fixture_root = store
+            .parent()
+            .ok_or_else(|| anyhow!("Hands test store has no fixture root"))?;
+        let agent_store = fixture_root.join("agents.cc");
+        let body_store = fixture_root.join("body.cc");
+        let repo = fixture_root.join("workspace");
+        fs::create_dir_all(repo.join("src"))?;
+        fs::write(repo.join("src/lib.rs"), "pub fn fixture() {}\n")?;
+        let git = ProcessCommand::new("git")
+            .args(["init", "-q"])
+            .current_dir(&repo)
+            .status()?;
+        if !git.success() {
+            return Err(anyhow!("Hands test fixture could not initialize Git Body"));
+        }
+        ensure_agent_memory_swarm_identity(&agent_store, "hands-action-test-swarm")?;
+        bind_runtime_to_agent_memory_swarm(store, &agent_store, "2026-06-02T00:00:00.100Z")?;
+        bind_repository_body(&repo, &body_store, store, "hands-action-test-workspace")?;
+        let body = observe_runtime_repository_body_basis(store)?;
+        let domain = EpiphanyMemoryDomain {
+            id: "hands-action-domain".into(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            title: "Hands action fixture".into(),
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        let node = EpiphanyMemoryNode {
+            id: "hands-action-node".into(),
+            domain_id: domain.id.clone(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::Module,
+            title: "Hands action CLI".into(),
+            claim: "Hands consequences require exact frontier authority.".into(),
+            question: "Can the CLI record the adopted consequence?".into(),
+            action_implication: "Exercise the exact typed route.".into(),
+            source_hashes: vec!["anchor:missing".into()],
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        };
+        let planned_action = if operations == ["patch"] {
+            "patch"
+        } else {
+            "continueImplementation"
+        };
+        let frontier = RepoFrontierItem {
+            id: "hands-action-frontier".into(),
+            migration_body: "repo".into(),
+            question: "Can Hands record the approved consequence?".into(),
+            gap: "The CLI path needs its exact adopted route.".into(),
+            target_claim_ids: vec![node.id.clone()],
+            source_scope: requested_paths.clone(),
+            recommended_next_organ: "Hands".into(),
+            adopted_plan: Some(RepoFrontierAdoptedPlan {
+                planning_request_id: "hands-action-planning-request".into(),
+                result_id: "hands-action-plan-result".into(),
+                job_id: "hands-action-plan-job".into(),
+                candidate_id: "hands-action-plan-candidate".into(),
+                candidate_sha256:
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
+                safe_paths: requested_paths.clone(),
+                action: planned_action.into(),
+                command: "cargo test".into(),
+                checks: vec!["cargo test".into()],
+                stop_conditions: vec!["A check fails.".into()],
+                rollback_steps: vec!["Revert the fixture change.".into()],
+                commit_message: "Exercise exact Hands authority".into(),
+                execution_amendment: None,
+            }),
+            status: RepoFrontierStatus::Active,
+            ..Default::default()
+        };
+        initialize_keyed_repo_model(
+            store,
+            &EpiphanyRepoModelSeed::new(
+                "hands-action-model-seed",
+                "hands-action-graph",
+                "hands-action-test-swarm",
+                "hands-action-test-workspace",
+                body.body_binding_sha256,
+                EpiphanyRepoModelSeedDocuments {
+                    domains: vec![domain],
+                    nodes: vec![node],
+                    edges: Vec::new(),
+                    summaries: Vec::new(),
+                    frontier: vec![frontier],
+                    lifecycle_receipts: Vec::new(),
+                },
+            )?,
+            "2026-06-02T00:00:00.900Z",
+        )?;
+        let route = select_and_commit_repo_frontier_route(store, "2026-06-02T00:00:00.950Z")?;
         let grant = epiphany_core::substrate_gate_coordinator_implementation_grant(
             "substrate-grant-test".to_string(),
             "hands-job-test".to_string(),
@@ -869,9 +979,17 @@ mod tests {
             substrate_gate_grant_receipt_id: "substrate-grant-test".to_string(),
             requested_at: "2026-06-02T00:00:01Z".to_string(),
             contract: "Test Hands intent.".to_string(),
-            frontier_route_id: String::new(),
-            plan_candidate_sha256: String::new(),
-            plan_action: String::new(),
+            frontier_route_id: route.route_id.clone(),
+            plan_candidate_sha256: route
+                .adopted_plan
+                .as_ref()
+                .map(|plan| plan.candidate_sha256.clone())
+                .unwrap_or_default(),
+            plan_action: route
+                .adopted_plan
+                .as_ref()
+                .map(|plan| plan.effective_action().to_string())
+                .unwrap_or_default(),
         };
         put_hands_action_intent(store, &intent)?;
         let review = hands_action_review_for_intent(
@@ -883,6 +1001,24 @@ mod tests {
             "2026-06-02T00:00:02Z".to_string(),
         );
         put_hands_action_review(store, &review)?;
+        put_repo_frontier_hands_authority(
+            store,
+            &RepoFrontierHandsAuthority {
+                schema_version: epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.into(),
+                authority_id: "repo-frontier-hands-authority-test".into(),
+                route_id: route.route_id,
+                model_projection_digest: route.model_projection_digest,
+                model_source_documents: route.model_source_documents,
+                frontier_item_id: route.frontier_item_id,
+                frontier_item_hash: route.frontier_item_hash,
+                hands_intent_id: intent.intent_id,
+                hands_review_id: review.review_id,
+                substrate_grant_receipt_id: grant.receipt_id,
+                requested_paths: route.source_scope,
+                granted_at: review.reviewed_at,
+                contract: epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.into(),
+            },
+        )?;
         Ok(())
     }
 

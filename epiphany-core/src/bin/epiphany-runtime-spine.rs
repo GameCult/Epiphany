@@ -202,7 +202,10 @@ fn main() -> Result<()> {
             println!("session: {}", session.session_id);
             println!("objective: {}", session.objective);
         }
-        Command::CloseSession { session_id, summary } => {
+        Command::CloseSession {
+            session_id,
+            summary,
+        } => {
             let session = close_runtime_session(
                 &args.store,
                 RuntimeSpineSessionClosureOptions {
@@ -215,11 +218,8 @@ fn main() -> Result<()> {
             println!("session: {}", session.session_id);
         }
         Command::RepairRootSession { reason } => {
-            let session = repair_runtime_root_session_after_invalid_completion(
-                &args.store,
-                &now(),
-                &reason,
-            )?;
+            let session =
+                repair_runtime_root_session_after_invalid_completion(&args.store, &now(), &reason)?;
             println!("runtime root session repaired");
             println!("session: {}", session.session_id);
         }
@@ -562,7 +562,10 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
             if summary.trim().is_empty() {
                 return Err(anyhow!("close-session requires --summary"));
             }
-            Ok(Command::CloseSession { session_id, summary })
+            Ok(Command::CloseSession {
+                session_id,
+                summary,
+            })
         }
         "repair-root-session" => {
             let mut reason = String::new();

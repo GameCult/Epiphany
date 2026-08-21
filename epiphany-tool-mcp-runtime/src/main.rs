@@ -103,7 +103,10 @@ async fn execute_to_receipt(
                 anyhow!("epiphany_state requires an explicitly bound --resident-store")
             })?;
             if intent.tool_name != "resident_grant_lifecycle" {
-                return Err(anyhow!("unknown epiphany_state tool {:?}", intent.tool_name));
+                return Err(anyhow!(
+                    "unknown epiphany_state tool {:?}",
+                    intent.tool_name
+                ));
             }
             let arguments: serde_json::Value = serde_json::from_str(&intent.arguments_json)
                 .context("arguments_json is not valid JSON")?;
@@ -460,7 +463,13 @@ mod tests {
         )
         .await;
         assert_eq!(unbound.status, "failed");
-        assert!(unbound.error.as_deref().unwrap().contains("explicitly bound"));
+        assert!(
+            unbound
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("explicitly bound")
+        );
 
         let summary = run(RunOptions {
             store: runtime_store.clone(),
@@ -476,7 +485,10 @@ mod tests {
             &tool_invocation_receipt_key(&intent.intent_id),
         )?;
         let body: serde_json::Value = serde_json::from_str(
-            receipt.result_json.as_deref().expect("state projection body"),
+            receipt
+                .result_json
+                .as_deref()
+                .expect("state projection body"),
         )?;
         assert_eq!(body["grants"][0]["grantId"], grant.grant_id);
         assert_eq!(body["grants"][0]["launchable"], true);
@@ -521,13 +533,19 @@ mod tests {
             Ok(_) => panic!("unbound tool intent unexpectedly executed"),
             Err(error) => error,
         };
-        assert!(error.to_string().contains("validating tool intent ownership"));
+        assert!(
+            error
+                .to_string()
+                .contains("validating tool intent ownership")
+        );
         let cache = open_store(&store)?;
-        assert!(cache
-            .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
-                &intent.intent_id
-            ))?
-            .is_none());
+        assert!(
+            cache
+                .get::<EpiphanyToolInvocationReceipt>(&tool_invocation_receipt_key(
+                    &intent.intent_id
+                ))?
+                .is_none()
+        );
         Ok(())
     }
 }

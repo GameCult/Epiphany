@@ -839,7 +839,7 @@ fn reconcile(args: Args) -> Result<()> {
         args.runtime_id.clone(),
         &args.daemon_id,
     )?
-        .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
+    .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
 
     let mut policy = load_policy_or_override(&args, &daemon_status)?;

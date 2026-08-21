@@ -636,53 +636,22 @@ pub fn initialize_keyed_repo_model(
     for obligation in obligations {
         writes.push(cache.prepare_entry(&obligation.node_id, &obligation)?.0);
     }
-    let mut source_documents = writes
-        .iter()
-        .filter(|entry| repo_model_write_key(entry).is_ok_and(|key| key.is_some()))
-        .map(|entry| EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", entry))
-        .collect::<Result<Vec<_>>>()?;
-    source_documents.sort_by(|left, right| {
-        (&left.document_type, &left.document_key).cmp(&(&right.document_type, &right.document_key))
-    });
-    let projection_digest = format!(
-        "sha256:{:x}",
-        Sha256::digest(rmp_serde::to_vec_named(&source_documents)?)
-    );
-    let seed_view = EpiphanyRepoModelView {
-        identity: identity.clone(),
-        projection_digest: projection_digest.clone(),
-        source_documents,
-        domains: documents.domains.clone(),
-        nodes: documents.nodes.clone(),
-        edges: documents.edges.clone(),
-        summaries: documents.summaries.clone(),
-        frontier: documents.frontier.clone(),
-        lifecycle_receipts: documents.lifecycle_receipts.clone(),
-        claim_obligations: claim_obligations_for_frontier(&documents.nodes, &documents.frontier),
-        surface_offers: Vec::new(),
-        dependency_claims: Vec::new(),
-        dependency_verifications: Vec::new(),
-        dependency_impacts: Vec::new(),
-    };
-    let semantic_obligation =
-        derive_repo_model_semantic_projection_obligation(&seed_view, seeded_at)?;
-    let semantic_obligation_envelope = cache
-        .prepare_entry(&semantic_obligation.obligation_id, &semantic_obligation)?
-        .0;
     let mind_envelope = cache
         .get_envelope::<crate::EpiphanyMindIdentity>(crate::MIND_SCHEMA_EPOCH)?
         .ok_or_else(|| anyhow!("RepoModel seed lost its Mind identity envelope"))?;
     let provenance = cache.prepare_entry(&seed.seed_id, seed)?.0;
-    match crate::reasoning_context::commit_operator_mind_mutation_with_derived_companions(
+    match crate::commit_operator_mind_mutation(
         store_path,
         provenance,
         "Modeling.repo_model_seed",
         vec![mind_envelope],
         writes,
-        vec![semantic_obligation_envelope],
         seeded_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(_) => assemble_repo_model_view(store_path),
+        crate::EpiphanyMindCommitOutcome::Committed(_) => {
+            crate::runtime_modeling_semantic_projection_input(store_path)?;
+            assemble_repo_model_view(store_path)
+        }
         crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
             Err(anyhow!("RepoModel seed lost its exact-envelope commit"))
         }
@@ -1918,12 +1887,8 @@ mod tests {
             },
         )?;
         assert!(
-            initialize_keyed_repo_model(
-                &store,
-                &invalid_body_seed,
-                "2026-08-14T00:00:00.500Z"
-            )
-            .is_err()
+            initialize_keyed_repo_model(&store, &invalid_body_seed, "2026-08-14T00:00:00.500Z")
+                .is_err()
         );
         assert_eq!(
             runtime_spine_cache(&store)?.snapshot_envelopes(),
@@ -2372,6 +2337,34 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["node-left", "node-right"]
         );
+        let semantic = crate::runtime_modeling_semantic_projection_input(&store)?;
+        assert_eq!(
+            semantic.source_head().source_commit_id,
+            reopened.projection_digest
+        );
+        assert_eq!(
+            semantic.obligation().source_commit_id,
+            reopened.projection_digest
+        );
+        assert!(
+            semantic
+                .authority
+                .envelopes
+                .iter()
+                .any(|envelope| { envelope.r#type == crate::EpiphanyMindCommitReceipt::TYPE })
+        );
+        let mut reopened_cache = runtime_spine_cache(&store)?;
+        reopened_cache.pull_all_backing_stores()?;
+        assert_eq!(
+            reopened_cache
+                .get_all::<crate::MemorySemanticProjectionObligation>()?
+                .into_iter()
+                .filter(|obligation| obligation.partition == "modeling")
+                .count(),
+            2
+        );
+        let replayed_semantic = crate::runtime_modeling_semantic_projection_input(&store)?;
+        assert_eq!(replayed_semantic.obligation(), semantic.obligation());
 
         let competing = [
             make_proposal(
@@ -2435,7 +2428,10 @@ mod tests {
         assert_eq!(
             outcomes
                 .iter()
-                .filter(|outcome| matches!(outcome, crate::EpiphanyMindCommitOutcome::Conflict { .. }))
+                .filter(|outcome| matches!(
+                    outcome,
+                    crate::EpiphanyMindCommitOutcome::Conflict { .. }
+                ))
                 .count(),
             1
         );
@@ -2461,7 +2457,12 @@ mod tests {
         );
         let restarted = assemble_repo_model_view(&store)?;
         assert_eq!(restarted.nodes.len(), 3);
-        assert!(restarted.nodes.iter().any(|node| node.id == "node-collision"));
+        assert!(
+            restarted
+                .nodes
+                .iter()
+                .any(|node| node.id == "node-collision")
+        );
         Ok(())
     }
 

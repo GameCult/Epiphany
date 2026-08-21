@@ -7,24 +7,19 @@ use epiphany_core::{
     ResidentSelfState, acknowledge_resident_self_launch, acquire_resident_process_singleton,
     authenticate_resident_self_policy, bind_runtime_repository_domain,
     bridge_admitted_persona_feedback_to_heartbeat, capture_process_instance,
-    coordinator_run_receipts, derive_resident_cognition_readiness,
-    enqueue_resident_self_pressure, import_bifrost_persona_feedback_deliveries,
-    ingest_resident_self_coordinator_continuation_pressure,
-    ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
-    live_resident_self_typed_request_ids, load_resident_self_state, observe_process_instance,
-    pending_resident_self_acks, reap_exited_child_process,
-    prepare_resident_self_launch, publish_resident_provider_readiness,
-    resident_cognitive_runtime_id,
-    resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_local_provider_status,
-    retain_completed_runtime_sessions,
+    coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
+    import_bifrost_persona_feedback_deliveries,
+    ingest_resident_self_coordinator_continuation_pressure, ingest_resident_self_domain_pressure,
+    live_resident_self_typed_request_ids, load_epiphany_cultmesh_swarm_brake,
+    load_resident_self_state, observe_process_instance, pending_resident_self_acks,
+    prepare_resident_self_launch, publish_resident_provider_readiness, reap_exited_child_process,
+    resident_cognitive_runtime_id, resident_prepared_launch_thread_id, resident_self_child_claim,
+    resident_self_local_provider_status, retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
     retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
-    settle_resident_self_exited_coordinator,
-    runtime_worker_process_claims, settle_resident_self_receipt_free_dead_coordinator,
-    terminate_process_instance,
-    validate_persona_feedback_store_separation,
-    validate_resident_self_coordinator_receipt_binding,
+    runtime_worker_process_claims, settle_resident_self_exited_coordinator,
+    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
+    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt_binding,
     validate_resident_self_store_separation,
 };
 use serde_json::json;
@@ -108,8 +103,7 @@ fn main() -> Result<()> {
                 ) {
                     maintain_resident_runtime(&args, &state)?;
                     last_maintained_revision = Some(state.revision);
-                    next_maintenance_at =
-                        std::time::Instant::now() + RESIDENT_MAINTENANCE_INTERVAL;
+                    next_maintenance_at = std::time::Instant::now() + RESIDENT_MAINTENANCE_INTERVAL;
                 }
                 publish_self_readiness(&args)?;
                 println!(
@@ -285,10 +279,8 @@ fn exact_resident_coordinator_receipt(
     runtime_store: &std::path::Path,
     lease: &epiphany_core::ResidentSelfTurnLease,
 ) -> Result<Option<epiphany_core::EpiphanyCoordinatorRunReceipt>> {
-    let session_id = epiphany_core::coordinator_run_session_id(
-        &lease.turn_id,
-        Some(&lease.launch_digest),
-    )?;
+    let session_id =
+        epiphany_core::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?;
     let mut receipts = coordinator_run_receipts(runtime_store)?
         .into_iter()
         .filter(|receipt| receipt.session_id == session_id)
@@ -623,12 +615,9 @@ impl Args {
             )?
             .try_into()
             .context("--retained-completed-runtime-sessions exceeds platform size")?,
-            retained_runtime_worker_attempts: u64v(
-                "--retained-runtime-worker-attempts",
-                256,
-            )?
-            .try_into()
-            .context("--retained-runtime-worker-attempts exceeds platform size")?,
+            retained_runtime_worker_attempts: u64v("--retained-runtime-worker-attempts", 256)?
+                .try_into()
+                .context("--retained-runtime-worker-attempts exceeds platform size")?,
             persona_feedback_source_store: path("--persona-feedback-source-store")?,
             persona_feedback_store: path("--persona-feedback-store")?,
             bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,
@@ -692,10 +681,7 @@ impl<'a> NativePorts<'a> {
 
 impl ResidentSelfPorts for NativePorts<'_> {
     fn brake_engaged(&mut self) -> Result<bool> {
-        resident_self_brake_engaged(
-            &self.policy.local_verse_store,
-            &self.cognitive_runtime_id,
-        )
+        resident_self_brake_engaged(&self.policy.local_verse_store, &self.cognitive_runtime_id)
     }
 
     fn observe_child(
@@ -927,25 +913,9 @@ mod brake_tests {
 
     #[test]
     fn maintenance_follows_revision_and_deadline_not_poll_outcome() {
-        assert!(resident_maintenance_required(
-            7,
-            None,
-            false,
-        ));
-        assert!(!resident_maintenance_required(
-            7,
-            Some(7),
-            false,
-        ));
-        assert!(resident_maintenance_required(
-            8,
-            Some(7),
-            false,
-        ));
-        assert!(resident_maintenance_required(
-            7,
-            Some(7),
-            true,
-        ));
+        assert!(resident_maintenance_required(7, None, false,));
+        assert!(!resident_maintenance_required(7, Some(7), false,));
+        assert!(resident_maintenance_required(8, Some(7), false,));
+        assert!(resident_maintenance_required(7, Some(7), true,));
     }
 }

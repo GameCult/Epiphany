@@ -2626,6 +2626,8 @@ pub fn publish_epiphany_cultmesh_semantic_projection_health(
         ));
     }
     let observation = crate::observe_memory_semantic_projection(canonical_store, input)?;
+    let keyed_modeling_basis = input.obligation().partition == "modeling"
+        && input.obligation().source_commit_id.starts_with("sha256:");
     let entry = EpiphanyCultMeshSemanticProjectionHealthEntry {
         schema_version: EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION.to_string(),
         verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
@@ -2680,19 +2682,17 @@ pub fn publish_epiphany_cultmesh_semantic_projection_health(
             .transpose()?;
         if let Some(latest) = &latest {
             validate_semantic_projection_health(latest)?;
-            let latest_time = DateTime::parse_from_rfc3339(&latest.observed_source_at)?;
-            let entry_time = DateTime::parse_from_rfc3339(&entry.observed_source_at)?;
-            if latest.source_generation == entry.source_generation
-                && latest.obligation_id != entry.obligation_id
-            {
-                return Err(anyhow!(
-                    "semantic projection health generation has conflicting canonical obligations"
-                ));
-            }
-            if latest.source_generation > entry.source_generation
-                || (latest.source_generation == entry.source_generation && latest_time > entry_time)
-            {
-                return Ok(latest.clone());
+            if !keyed_modeling_basis {
+                if latest.source_generation == entry.source_generation
+                    && latest.obligation_id != entry.obligation_id
+                {
+                    return Err(anyhow!(
+                        "semantic projection health generation has conflicting canonical obligations"
+                    ));
+                }
+                if latest.source_generation > entry.source_generation {
+                    return Ok(latest.clone());
+                }
             }
         }
         let event = node.cache().prepare_entry(&event_key, &entry)?.0;
@@ -3422,7 +3422,7 @@ pub fn epiphany_cultmesh_role_review_event_from_summary_json(
         created_at_utc: created_at_utc.into(),
         private_state_exposed: false,
         notes: vec![
-            "CultMesh mirror of the latest coordinator role review event; thread-state acceptance receipts remain the review owner.".to_string(),
+            "CultMesh mirror of a coordinator role review; keyed Mind decisions and exact commit receipts remain the acceptance owners.".to_string(),
             "This mirror is for operator discovery/readback only and cannot accept, supersede, or relaunch a lane.".to_string(),
         ],
     };
@@ -10907,15 +10907,10 @@ mod tests {
         assert!(context.odin_advertisements.is_empty());
         assert!(context.eve_surface_states.is_empty());
         assert!(context.daemon_tool_capabilities.is_empty());
-        assert!(
-            context
-                .contract_summaries
-                .iter()
-                .any(|contract| {
-                    contract.authority == "readOnly"
-                        && contract.document_type == crate::DECISION_CONTEXT_TYPE
-                })
-        );
+        assert!(context.contract_summaries.iter().any(|contract| {
+            contract.authority == "readOnly"
+                && contract.document_type == crate::DECISION_CONTEXT_TYPE
+        }));
         assert!(
             context
                 .contract_summaries

@@ -1447,9 +1447,7 @@ mod tests {
                 "fixture",
             );
             native.reasoning_basis_id = Some(basis.basis_id.clone());
-            let provider = epiphany_openai_adapter::request_from_native(&native);
-            let context =
-                crate::EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?;
+            let context = crate::EpiphanyDecisionContext::new(&basis, native, Vec::new())?;
             put_runtime_document(runtime_store, &context.context_id, &context)?;
             context_ids.push(context.context_id.clone());
             put_runtime_document(
@@ -1625,8 +1623,7 @@ mod tests {
             "fixture",
         );
         native.reasoning_basis_id = Some(basis.basis_id.clone());
-        let provider = epiphany_openai_adapter::request_from_native(&native);
-        let context = crate::EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?;
+        let context = crate::EpiphanyDecisionContext::new(&basis, native, Vec::new())?;
         put_runtime_document(&runtime, &context.context_id, &context)?;
         document.decision_context_id = context.context_id;
 

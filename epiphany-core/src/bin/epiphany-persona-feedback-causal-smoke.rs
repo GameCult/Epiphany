@@ -76,11 +76,8 @@ fn main() -> Result<()> {
         {
             bail!("consideration lost classified source provenance");
         }
-        let job_id = launch_current_imagination_consideration_work(
-            &runtime_store,
-            &request.request_id,
-            AT,
-        )?;
+        let job_id =
+            launch_current_imagination_consideration_work(&runtime_store, &request.request_id, AT)?;
         let candidate = ImaginationConsiderationCandidate {
             schema_version: IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
             candidate_id: imagination_consideration_candidate_id_for_launch(

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::DateTime;
 #[cfg(test)]
 use chrono::Utc;
@@ -1016,10 +1016,12 @@ mod tests {
         let first = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
         let second = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
         assert_eq!(first, second);
-        assert!(first
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.starts_with("graph-")));
+        assert!(
+            first
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("graph-"))
+        );
     }
 
     #[test]
@@ -1217,24 +1219,32 @@ mod tests {
             envs.get("CARGO_HOME"),
             Some(&Some("cargo-home".to_string()))
         );
-        assert_eq!(args.iter().filter(|arg| *arg == "--bin").count(), 24);
+        assert_eq!(
+            args.iter().filter(|arg| *arg == "--bin").count(),
+            required.len()
+        );
         assert_eq!(args.iter().filter(|arg| *arg == "--package").count(), 1);
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--package", "epiphany-release-bundle"]));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--package", "epiphany-release-bundle"])
+        );
         assert!(!args.iter().any(|arg| arg == "epiphany-core"));
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--features", "epiphany-release-bundle/release-runtime"]));
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"]));
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--bin", "epiphany-mvp-status"]));
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--bin", "epiphany-state"]));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--features", "epiphany-release-bundle/release-runtime"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-mvp-status"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--bin", "epiphany-state"])
+        );
         assert!(!args.iter().any(|arg| arg == "--bins"));
     }
 
@@ -1414,13 +1424,15 @@ mod tests {
     fn witness_reader_refuses_tamper_and_inspector_refuses_wrong_runtime() {
         let (d, e) = fixture();
         let witness = Path::new(&e.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE);
-        assert!(inspect_epiphany_packaged_release_witness(
-            &witness,
-            d.path(),
-            "alien-runtime",
-            &e.source_commit_sha,
-        )
-        .is_err());
+        assert!(
+            inspect_epiphany_packaged_release_witness(
+                &witness,
+                d.path(),
+                "alien-runtime",
+                &e.source_commit_sha,
+            )
+            .is_err()
+        );
         fs::write(&witness, b"hostile witness").unwrap();
         assert!(read_epiphany_packaged_release_witness(&witness).is_err());
     }

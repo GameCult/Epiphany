@@ -17,12 +17,10 @@ use anyhow::anyhow;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::MODEL_ADAPTER_REQUEST_SCHEMA_ID;
-use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
-use epiphany_openai_adapter::OPENAI_ADAPTER_REQUEST_SCHEMA_ID;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
@@ -37,9 +35,8 @@ use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::fail_model_backed_worker_job;
 use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::load_worker_launch_request;
-use epiphany_openai_runtime::record_openai_events;
+use epiphany_openai_runtime::record_native_model_events;
 use epiphany_openai_runtime::run_model_turn;
-use epiphany_openai_runtime::run_openai_model_turn;
 use epiphany_openai_runtime::run_tool_followup_model_turn;
 use epiphany_openai_runtime::run_worker_launch_observed;
 use epiphany_openai_runtime::worker_model_session_id;
@@ -174,21 +171,10 @@ async fn main() -> Result<()> {
             let output_last_message_path = options.output_last_message_path.clone();
             let request = parse_model_turn_request_json(&request_text)
                 .with_context(|| format!("failed to parse {}", options.request_path.display()))?;
-            let (request_id, runtime_options, summary) = match request {
-                ModelTurnJsonRequest::Native(request) => {
-                    let runtime_options = options.clone().into_runtime_options_for_model(&request);
-                    let summary =
-                        run_model_turn(&options.provider, runtime_options.clone(), request.clone())
-                            .await?;
-                    (request.request_id, runtime_options, summary)
-                }
-                ModelTurnJsonRequest::OpenAi(request) => {
-                    let runtime_options = options.into_runtime_options(&request);
-                    let summary =
-                        run_openai_model_turn(runtime_options.clone(), request.clone()).await?;
-                    (request.request_id, runtime_options, summary)
-                }
-            };
+            let runtime_options = options.clone().into_runtime_options_for_model(&request);
+            let summary =
+                run_model_turn(&options.provider, runtime_options.clone(), request.clone()).await?;
+            let request_id = request.request_id;
             if let Some(path) = output_last_message_path {
                 let text =
                     assistant_text_from_model_events(&runtime_options.store_path, &request_id)?;
@@ -224,6 +210,7 @@ async fn main() -> Result<()> {
                         let result = fail_worker_and_openai_jobs(
                             &timeout_store,
                             &timeout_job_id,
+                            "runtime_timeout",
                             summary.clone(),
                             "Inspect provider/tool transport before relaunching the worker."
                                 .to_string(),
@@ -336,10 +323,6 @@ async fn main() -> Result<()> {
                 },
             )?;
             epiphany_openai_runtime::store_model_request(&runtime_options.store_path, &request)?;
-            epiphany_openai_runtime::store_openai_request(
-                &runtime_options.store_path,
-                &openai_request,
-            )?;
             let mut receipt = EpiphanyOpenAiModelReceipt::new(&request.request_id, &request.model);
             receipt.response_id = Some("smoke-response".to_string());
             receipt.transport = Some("smoke_no_network".to_string());
@@ -361,10 +344,10 @@ async fn main() -> Result<()> {
                     payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
                 },
             ];
-            let summary = record_openai_events(
+            let summary = record_native_model_events(
                 &runtime_options.store_path,
                 &runtime_options,
-                &openai_request,
+                &request,
                 &events,
             )?;
             print_json(&json!({
@@ -390,11 +373,6 @@ struct ModelTurnCliOptions {
     output_last_message_path: Option<PathBuf>,
 }
 
-enum ModelTurnJsonRequest {
-    Native(EpiphanyModelRequest),
-    OpenAi(EpiphanyOpenAiModelRequest),
-}
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NativeModelRequestJson {
@@ -402,21 +380,6 @@ struct NativeModelRequestJson {
     request_id: String,
     conversation_id: String,
     provider: String,
-    model: String,
-    instructions: String,
-    input: Vec<ModelInputItemJson>,
-    reasoning_effort: Option<String>,
-    reasoning_summary: Option<String>,
-    service_tier: Option<String>,
-    output_contract_id: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct OpenAiModelRequestJson {
-    schema_id: String,
-    request_id: String,
-    conversation_id: String,
     model: String,
     instructions: String,
     input: Vec<ModelInputItemJson>,
@@ -457,20 +420,9 @@ impl ModelInputItemJson {
             },
         }
     }
-
-    fn into_openai(self) -> EpiphanyOpenAiInputItem {
-        match self {
-            Self::UserText(item) => EpiphanyOpenAiInputItem::UserText { text: item.text },
-            Self::AssistantText(item) => EpiphanyOpenAiInputItem::AssistantText { text: item.text },
-            Self::ToolResult(item) => EpiphanyOpenAiInputItem::ToolResult {
-                call_id: item.call_id,
-                output: item.output,
-            },
-        }
-    }
 }
 
-fn parse_model_turn_request_json(text: &str) -> Result<ModelTurnJsonRequest> {
+fn parse_model_turn_request_json(text: &str) -> Result<EpiphanyModelRequest> {
     let value: serde_json::Value =
         serde_json::from_str(text).context("model-turn request is not valid JSON")?;
     let schema_id = value
@@ -502,31 +454,7 @@ fn parse_model_turn_request_json(text: &str) -> Result<ModelTurnJsonRequest> {
             typed.reasoning_summary = request.reasoning_summary;
             typed.service_tier = request.service_tier;
             typed.output_contract_id = request.output_contract_id;
-            Ok(ModelTurnJsonRequest::Native(typed))
-        }
-        OPENAI_ADAPTER_REQUEST_SCHEMA_ID => {
-            let request: OpenAiModelRequestJson = serde_json::from_value(value)
-                .context("model-turn provider request violates epiphany.openai_model_request.v0")?;
-            anyhow::ensure!(
-                request.schema_id == OPENAI_ADAPTER_REQUEST_SCHEMA_ID,
-                "OpenAI model request schema_id is invalid"
-            );
-            let mut typed = EpiphanyOpenAiModelRequest::new(
-                request.request_id,
-                request.conversation_id,
-                request.model,
-                request.instructions,
-            );
-            typed.input = request
-                .input
-                .into_iter()
-                .map(ModelInputItemJson::into_openai)
-                .collect();
-            typed.reasoning_effort = request.reasoning_effort;
-            typed.reasoning_summary = request.reasoning_summary;
-            typed.service_tier = request.service_tier;
-            typed.output_contract_id = request.output_contract_id;
-            Ok(ModelTurnJsonRequest::OpenAi(typed))
+            Ok(typed)
         }
         other => Err(anyhow!(
             "unsupported model-turn request schema_id {other:?}"
@@ -861,6 +789,7 @@ fn start_run_worker_timeout_watchdog(
         let _ = fail_worker_and_openai_jobs(
             &store_path,
             &job_id,
+            "runtime_timeout",
             summary.clone(),
             "Inspect provider/tool transport before relaunching the worker.".to_string(),
             pass_progress.terminal_request_id().as_deref(),
@@ -873,6 +802,7 @@ fn start_run_worker_timeout_watchdog(
 fn fail_worker_and_openai_jobs(
     store_path: &Path,
     job_id: &str,
+    failure_kind: &str,
     summary: String,
     next_safe_move: String,
     terminal_request_id: Option<&str>,
@@ -884,19 +814,13 @@ fn fail_worker_and_openai_jobs(
             store_path,
             job_id,
             request_id,
+            failure_kind,
             summary.clone(),
             next_safe_move,
         )?
     } else {
         fail_worker_job(store_path, job_id, summary.clone(), next_safe_move)?
     };
-    let openai_job_id = format!("openai-worker-{job_id}");
-    let _ = fail_worker_job_with_retry(
-        store_path,
-        &openai_job_id,
-        format!("{summary} Inner OpenAI transport job was sealed by the worker timeout."),
-        "Inspect provider stream/request observability before relaunching the worker.".to_string(),
-    );
     Ok(result)
 }
 
@@ -916,6 +840,7 @@ fn fail_worker_for_runtime_error(
     let result = fail_worker_and_openai_jobs(
         store_path,
         job_id,
+        "worker_runtime_error",
         summary.clone(),
         "Inspect provider/tool transport and runtime adapter errors before relaunching the worker."
             .to_string(),
@@ -946,25 +871,6 @@ fn seal_worker_runtime_result(
             pass_progress.terminal_request_id().as_deref(),
         ),
     }
-}
-
-fn fail_worker_job_with_retry(
-    store_path: &Path,
-    job_id: &str,
-    summary: String,
-    next_safe_move: String,
-) -> Result<()> {
-    let mut last_error = None;
-    for _ in 0..20 {
-        match fail_worker_job(store_path, job_id, summary.clone(), next_safe_move.clone()) {
-            Ok(_) => return Ok(()),
-            Err(err) => {
-                last_error = Some(err);
-                thread::sleep(Duration::from_millis(100));
-            }
-        }
-    }
-    Err(last_error.unwrap_or_else(|| anyhow!("failed to seal runtime job {job_id:?}")))
 }
 
 async fn run_worker_launch_with_tool_continuation(
@@ -1184,11 +1090,11 @@ fn fail_worker_for_tool_round_limit(
         store_path,
         &launch_request.job_id,
         current_request_id,
+        "tool_round_limit",
         summary.clone(),
         "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
             .to_string(),
     )?;
-    close_worker_model_session(store_path, &launch_request.job_id, &summary)?;
     Ok(json!({
         "status": "tool-round-limit",
         "store": store_path.display().to_string(),
@@ -1230,11 +1136,11 @@ fn fail_worker_for_repeated_tool_loop(
         store_path,
         &launch_request.job_id,
         current_request_id,
+        "repeated_tool_loop",
         summary.clone(),
         "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
             .to_string(),
     )?;
-    close_worker_model_session(store_path, &launch_request.job_id, &summary)?;
     Ok(json!({
         "status": "tool-loop-stalled",
         "store": store_path,
@@ -1279,18 +1185,6 @@ fn terminalize_unexecuted_tool_intents(
         epiphany_core::put_runtime_tool_execution_receipt(store_path, &receipt)?;
         cache.pull_all_backing_stores()?;
     }
-    Ok(())
-}
-
-fn close_worker_model_session(store_path: &Path, worker_job_id: &str, summary: &str) -> Result<()> {
-    epiphany_core::close_runtime_session(
-        store_path,
-        epiphany_core::RuntimeSpineSessionClosureOptions {
-            session_id: worker_model_session_id(worker_job_id),
-            completed_at: chrono::Utc::now().to_rfc3339(),
-            summary: summary.to_string(),
-        },
-    )?;
     Ok(())
 }
 
@@ -1343,6 +1237,51 @@ mod tests {
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
 
+    fn assert_typed_model_pass_failure(
+        store: &Path,
+        outer_job_id: &str,
+        request_id: &str,
+        failure_kind: &str,
+    ) -> Result<()> {
+        let failure = epiphany_core::model_pass_failure_for_request(store, request_id)?
+            .expect("typed model-pass failure");
+        assert_eq!(failure.failure_kind, failure_kind);
+        assert_eq!(failure.model_request_id, request_id);
+        let outer = runtime_job_snapshot(store, outer_job_id)?.expect("outer worker snapshot");
+        assert_eq!(
+            outer
+                .result
+                .expect("outer worker result")
+                .decision_context_id
+                .as_deref(),
+            Some(failure.decision_context_id.as_str())
+        );
+        let transport = runtime_job_snapshot(store, &failure.runtime_job_id)?
+            .expect("model transport snapshot");
+        assert!(matches!(
+            transport.job.status,
+            EpiphanyRuntimeJobStatus::Completed | EpiphanyRuntimeJobStatus::Failed
+        ));
+        assert!(
+            transport
+                .result
+                .expect("model transport result")
+                .decision_context_id
+                .is_none(),
+            "generic model transport cannot own decision authority"
+        );
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<epiphany_core::EpiphanyRuntimeSession>(&failure.runtime_session_id)?
+                .expect("model pass session")
+                .status,
+            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        );
+        Ok(())
+    }
+
     #[test]
     fn worker_cli_requires_activation_capability_before_runtime_path() -> Result<()> {
         assert!(
@@ -1380,9 +1319,6 @@ mod tests {
                 "reasoning_effort":"low"
             }"#,
         )?;
-        let ModelTurnJsonRequest::Native(request) = request else {
-            panic!("native schema selected provider request");
-        };
         assert_eq!(request.request_id, "request-json-native");
         assert_eq!(request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(request.input.len(), 1);
@@ -1391,8 +1327,8 @@ mod tests {
     }
 
     #[test]
-    fn model_turn_json_ingress_accepts_published_provider_object() -> Result<()> {
-        let request = parse_model_turn_request_json(
+    fn model_turn_json_ingress_refuses_caller_authored_provider_object() {
+        let error = parse_model_turn_request_json(
             r#"{
                 "schema_id":"epiphany.openai_model_request.v0",
                 "request_id":"request-json-provider",
@@ -1402,15 +1338,13 @@ mod tests {
                 "input":[{"ToolResult":{"call_id":"call-1","output":"awake"}}],
                 "output_contract_id":"contract-1"
             }"#,
-        )?;
-        let ModelTurnJsonRequest::OpenAi(request) = request else {
-            panic!("provider schema selected native request");
-        };
-        assert_eq!(request.request_id, "request-json-provider");
-        assert_eq!(request.output_contract_id.as_deref(), Some("contract-1"));
-        assert_eq!(request.input.len(), 1);
-        assert!(request.tools.is_empty());
-        Ok(())
+        )
+        .expect_err("provider requests must be derived internally from native requests");
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported model-turn request schema_id")
+        );
     }
 
     #[test]
@@ -1477,7 +1411,6 @@ mod tests {
         let basis = epiphany_core::worker_reasoning_basis(store, &launch)?;
         epiphany_core::put_reasoning_basis(store, &basis)?;
         model_request.reasoning_basis_id = Some(basis.basis_id);
-        let provider_request = epiphany_openai_adapter::request_from_native(&model_request);
         epiphany_core::open_runtime_model_execution(
             store,
             epiphany_core::RuntimeSpineSessionOptions {
@@ -1495,13 +1428,12 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &model_request,
-            &provider_request,
             &chrono::Utc::now().to_rfc3339(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, "gpt-test");
         receipt.response_id = Some(format!("response-{request_id}"));
         receipt.transport = Some("test".to_string());
-        record_openai_events(
+        record_native_model_events(
             store,
             &EpiphanyOpenAiRuntimeOptions {
                 store_path: store.to_path_buf(),
@@ -1512,7 +1444,7 @@ mod tests {
                 coordinator_note: "test".to_string(),
                 default_model: Some("gpt-test".to_string()),
             },
-            &provider_request,
+            &model_request,
             &[
                 EpiphanyOpenAiStreamEvent {
                     schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
@@ -1701,6 +1633,12 @@ mod tests {
                 )?
                 .is_some()
         );
+        assert_typed_model_pass_failure(
+            &store,
+            "worker-job-loop",
+            "request-3",
+            "repeated_tool_loop",
+        )?;
         Ok(())
     }
 
@@ -1783,7 +1721,6 @@ mod tests {
         );
         request.source_worker_job_id = Some("worker-job-runtime-error".into());
         request.reasoning_basis_id = Some(basis.basis_id);
-        let provider_request = epiphany_openai_adapter::request_from_native(&request);
         epiphany_core::open_runtime_model_execution(
             &store,
             epiphany_core::RuntimeSpineSessionOptions {
@@ -1801,7 +1738,6 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &request,
-            &provider_request,
             &now(),
         )?;
         let pass_progress = WorkerPassProgress::default();
@@ -1837,6 +1773,12 @@ mod tests {
                 .terminal_request_id,
             "request-runtime-error"
         );
+        assert_typed_model_pass_failure(
+            &store,
+            "worker-job-runtime-error",
+            "request-runtime-error",
+            "worker_runtime_error",
+        )?;
         Ok(())
     }
 
@@ -1947,6 +1889,12 @@ mod tests {
                 .status,
             epiphany_core::EpiphanyRuntimeSessionStatus::Completed
         );
+        assert_typed_model_pass_failure(
+            &store,
+            "worker-job-round-limit",
+            "request-limit",
+            "tool_round_limit",
+        )?;
         Ok(())
     }
 

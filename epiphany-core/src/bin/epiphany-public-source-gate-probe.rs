@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, bail};
 use epiphany_core::*;
 use epiphany_model_adapter::EpiphanyModelRequest;
-use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_tool_adapter::{
     EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
     tool_invocation_intent_key, tool_invocation_receipt_key,
@@ -159,12 +158,6 @@ fn prepare_authority_family(store: &Path) -> Result<EpiphanyToolInvocationIntent
         "Attempt one immutable public source read.",
     );
     model_request.source_worker_job_id = Some(WORKER_JOB_ID.into());
-    let provider_request = EpiphanyOpenAiModelRequest::new(
-        MODEL_REQUEST_ID,
-        "public-source-no-grant-conversation",
-        "gpt-probe",
-        "Attempt one immutable public source read.",
-    );
     open_runtime_model_execution(
         store,
         RuntimeSpineSessionOptions {
@@ -182,7 +175,6 @@ fn prepare_authority_family(store: &Path) -> Result<EpiphanyToolInvocationIntent
             artifact_refs: Vec::new(),
         },
         &model_request,
-        &provider_request,
         "2026-08-13T00:00:02Z",
     )?;
 

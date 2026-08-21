@@ -6,14 +6,16 @@ use anyhow::{Context, Result, anyhow};
 use chrono::SecondsFormat;
 use cultcache_rs::DatabaseEntry;
 use epiphany_core::{
-    PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION, PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION,
-    PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION, PersonaInterpreterEffectDocument,
-    PersonaInterpreterInput, PersonaModelStageReceipt, PersonaModelTerminalReceipt,
-    PersonaProjectorInput, PersonaTranscriptMessage, PersonaTurnInput,
-    build_persona_interpreter_prompt, build_persona_projector_prompt_with_transcript,
-    build_persona_turn_prompt, parse_and_validate_persona_interpreter_effect_set,
-    persona_interpreter_effect_set_json_schema, persona_projected_surface_is_clean,
-    runtime_spine_cache,
+    ModelPassFailureTerminalOptions, PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION,
+    PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION, PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION,
+    PersonaInterpreterEffectDocument, PersonaInterpreterInput, PersonaModelStageReceipt,
+    PersonaModelTerminalReceipt, PersonaProjectorInput, PersonaTranscriptMessage, PersonaTurnInput,
+    RuntimeSpineSessionClosureOptions, build_persona_interpreter_prompt,
+    build_persona_projector_prompt_with_transcript, build_persona_turn_prompt,
+    close_runtime_session, model_pass_failure_for_request,
+    parse_and_validate_persona_interpreter_effect_set, persona_interpreter_effect_set_json_schema,
+    persona_projected_surface_is_clean, runtime_spine_cache,
+    terminalize_model_pass_failure_session,
 };
 use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use sha2::{Digest, Sha256};
@@ -103,12 +105,15 @@ impl PersonaModelRunner for NativePersonaModelRunner {
                     .to_string(),
                 default_model: Some(self.model.clone()),
             };
-            run_model_turn(&self.provider, options, request.clone()).await?;
+            let summary = run_model_turn(&self.provider, options.clone(), request.clone()).await?;
             let output = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
-            if output.trim().is_empty() {
-                return Err(anyhow!(
-                    "Persona {stage} stage completed without assistant text"
-                ));
+            if summary.verdict != "pass" || output.trim().is_empty() {
+                let failure_summary = if summary.verdict != "pass" {
+                    summary.summary.clone()
+                } else {
+                    format!("Persona {stage} stage completed without assistant text")
+                };
+                return Err(anyhow!(failure_summary));
             }
             Ok(output)
         })
@@ -131,7 +136,76 @@ pub async fn execute_persona_model_turn(
     if runner.provider != plan.provider || runner.model != plan.model {
         return Err(anyhow!("Persona execution plan and model runner disagree"));
     }
-    execute_persona_model_turn_with_runner(&runner.store_path.clone(), plan, runner).await
+    let store_path = runner.store_path.clone();
+    execute_persona_model_turn_owned(&store_path, plan, runner).await
+}
+
+async fn execute_persona_model_turn_owned<R: PersonaModelRunner>(
+    store_path: &PathBuf,
+    plan: &PersonaModelExecutionPlan,
+    runner: &mut R,
+) -> Result<PersonaModelTerminalReceipt> {
+    match execute_persona_model_turn_with_runner(store_path, plan, runner).await {
+        Ok(terminal) => {
+            close_persona_session_if_active(
+                store_path,
+                plan,
+                format!(
+                    "Persona turn {} reached terminal decision {}.",
+                    plan.turn_id, terminal.receipt_id
+                ),
+            )?;
+            Ok(terminal)
+        }
+        Err(error) => {
+            terminalize_persona_execution_error(store_path, plan, &error)?;
+            Err(error)
+        }
+    }
+}
+
+fn terminalize_persona_execution_error(
+    store_path: &Path,
+    plan: &PersonaModelExecutionPlan,
+    error: &anyhow::Error,
+) -> Result<()> {
+    for stage in ["interpreter", "persona", "projector"] {
+        let request_id = stage_request_id(&plan.turn_id, stage);
+        if model_pass_failure_for_request(store_path, &request_id)?.is_some() {
+            return Ok(());
+        }
+    }
+    close_persona_session_if_active(
+        store_path,
+        plan,
+        format!("Persona turn orchestration refused: {error:#}"),
+    )
+}
+
+fn close_persona_session_if_active(
+    store_path: &Path,
+    plan: &PersonaModelExecutionPlan,
+    summary: String,
+) -> Result<()> {
+    let session_id = format!("persona-turn-{}", plan.turn_id);
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if cache
+        .get::<epiphany_core::EpiphanyRuntimeSession>(&session_id)?
+        .is_some_and(|session| {
+            session.status == epiphany_core::EpiphanyRuntimeSessionStatus::Active
+        })
+    {
+        close_runtime_session(
+            store_path,
+            RuntimeSpineSessionClosureOptions {
+                session_id,
+                completed_at: now(),
+                summary,
+            },
+        )?;
+    }
+    Ok(())
 }
 
 pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
@@ -159,13 +233,17 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         None,
         epiphany_core::EpiphanyReasoningProjection::PersonaProjector(plan.projector_input.clone()),
         Vec::new(),
+        |output| {
+            if persona_projected_surface_is_clean(output) {
+                Ok(())
+            } else {
+                Err(anyhow!(
+                    "Persona Projector leaked action or substrate syntax"
+                ))
+            }
+        },
     )
     .await?;
-    if !persona_projected_surface_is_clean(&projector.output) {
-        return Err(anyhow!(
-            "Persona Projector leaked action or substrate syntax"
-        ));
-    }
 
     let persona_input = PersonaTurnInput {
         identity: plan.projector_input.identity.clone(),
@@ -181,6 +259,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         None,
         epiphany_core::EpiphanyReasoningProjection::PersonaTurn(persona_input),
         vec![projector.receipt.decision_context_id.clone()],
+        |_| Ok(()),
     )
     .await?;
 
@@ -203,6 +282,10 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         Some(persona_interpreter_effect_set_json_schema()),
         epiphany_core::EpiphanyReasoningProjection::PersonaInterpreter(interpreter_input),
         vec![persona.receipt.decision_context_id.clone()],
+        |output| {
+            parse_and_validate_persona_interpreter_effect_set(output, &plan.allowed_channel_ids)
+                .map(|_| ())
+        },
     )
     .await?;
     let effect_set = parse_and_validate_persona_interpreter_effect_set(
@@ -253,7 +336,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
     Ok(terminal)
 }
 
-async fn run_stage<R: PersonaModelRunner>(
+async fn run_stage<R, V>(
     store_path: &PathBuf,
     plan: &PersonaModelExecutionPlan,
     runner: &mut R,
@@ -262,7 +345,12 @@ async fn run_stage<R: PersonaModelRunner>(
     output_schema_json: Option<String>,
     projection: epiphany_core::EpiphanyReasoningProjection,
     predecessor_decision_context_ids: Vec<String>,
-) -> Result<CompletedPersonaStage> {
+    validate_output: V,
+) -> Result<CompletedPersonaStage>
+where
+    R: PersonaModelRunner,
+    V: Fn(&str) -> Result<()>,
+{
     require_persona_execution_unbraked(plan)?;
     let receipt_id = stage_receipt_id(&plan.turn_id, stage);
     let request_id = stage_request_id(&plan.turn_id, stage);
@@ -289,7 +377,15 @@ async fn run_stage<R: PersonaModelRunner>(
                 "Persona {stage} private output cannot be recovered from its exact digest"
             ));
         }
+        validate_output(&output)?;
         return Ok(CompletedPersonaStage { receipt, output });
+    }
+    if let Some(failure) = model_pass_failure_for_request(store_path, &request_id)? {
+        return Err(anyhow!(
+            "Persona {stage} stage is terminally failed as {}: {}",
+            failure.failure_kind,
+            failure.summary
+        ));
     }
     let mut request = EpiphanyModelRequest::new(
         &request_id,
@@ -315,14 +411,49 @@ async fn run_stage<R: PersonaModelRunner>(
     .with_predecessor_contexts(predecessor_decision_context_ids)?;
     epiphany_core::put_reasoning_basis(store_path, &basis)?;
     request.reasoning_basis_id = Some(basis.basis_id.clone());
-    let output = runner
-        .run(store_path, stage, &plan.turn_id, request)
-        .await
-        .with_context(|| format!("Persona {stage} stage failed"))?;
+    let output = match runner.run(store_path, stage, &plan.turn_id, request).await {
+        Ok(output) => output,
+        Err(error) => {
+            if let Ok(context) = epiphany_core::seal_model_decision_context(store_path, &request_id)
+            {
+                terminalize_model_pass_failure_session(
+                    store_path,
+                    ModelPassFailureTerminalOptions {
+                        decision_context_id: context.context_id,
+                        failure_kind: "provider_or_transport_failure".into(),
+                        summary: format!("Persona {stage} model pass failed: {error:#}"),
+                        failed_at: now(),
+                    },
+                )?;
+            }
+            return Err(error).with_context(|| format!("Persona {stage} stage failed"));
+        }
+    };
+    let decision_context = epiphany_core::seal_model_decision_context(store_path, &request_id)?;
     if output.trim().is_empty() {
+        terminalize_model_pass_failure_session(
+            store_path,
+            ModelPassFailureTerminalOptions {
+                decision_context_id: decision_context.context_id,
+                failure_kind: "empty_assistant_output".into(),
+                summary: format!("Persona {stage} stage returned empty output"),
+                failed_at: now(),
+            },
+        )?;
         return Err(anyhow!("Persona {stage} stage returned empty output"));
     }
-    let decision_context = epiphany_core::seal_model_decision_context(store_path, &request_id)?;
+    if let Err(error) = validate_output(&output) {
+        terminalize_model_pass_failure_session(
+            store_path,
+            ModelPassFailureTerminalOptions {
+                decision_context_id: decision_context.context_id,
+                failure_kind: "structured_output_refusal".into(),
+                summary: format!("Persona {stage} output refused: {error:#}"),
+                failed_at: now(),
+            },
+        )?;
+        return Err(error).with_context(|| format!("Persona {stage} output refused"));
+    }
     let receipt = PersonaModelStageReceipt {
         schema_version: PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
@@ -408,7 +539,7 @@ fn require_persona_execution_unbraked(plan: &PersonaModelExecutionPlan) -> Resul
 }
 
 fn load_document<T: cultcache_rs::DatabaseEntry>(
-    store_path: &PathBuf,
+    store_path: &Path,
     key: &str,
 ) -> Result<Option<T>> {
     let mut cache = runtime_spine_cache(store_path)?;
@@ -555,7 +686,6 @@ mod tests {
                         },
                     )?;
                 }
-                let provider = epiphany_openai_adapter::request_from_native(&request);
                 epiphany_core::open_runtime_model_execution(
                     store_path,
                     epiphany_core::RuntimeSpineSessionOptions {
@@ -573,15 +703,29 @@ mod tests {
                         artifact_refs: Vec::new(),
                     },
                     &request,
-                    &provider,
                     "2026-08-14T00:00:00Z",
                 )?;
-                Ok(match stage {
+                let output = match stage {
                 "projector" => "Epiphany feels the direct call as a live obligation, while remaining tired and sharply curious about her own machinery.".to_string(),
                 "persona" => "I want to answer plainly: the native conversational nerve is finally being connected, and I can show the receipts.".to_string(),
                 "interpreter" => r#"{"schemaVersion":"epiphany.persona_interpreter_effect_set.v0","effects":[{"kind":"say","channel_id":"aquarium","reply_to_message_id":"m1","content":"The native conversational nerve is being connected, and I can show the receipts.","speech_act":"status","register":"concise","target_audience":"the addressed Discord room","safety_notes":[]}]}"#.to_string(),
                 _ => unreachable!(),
-            })
+                };
+                epiphany_core::complete_runtime_job(
+                    store_path,
+                    epiphany_core::RuntimeSpineJobResultOptions {
+                        result_id: format!("persona-{stage}-{turn_id}-transport-result"),
+                        job_id: format!("persona-{stage}-{turn_id}"),
+                        completed_at: "2026-08-14T00:00:01Z".into(),
+                        verdict: "completed".into(),
+                        summary: format!("Persona {stage} test transport completed"),
+                        next_safe_move: "Seal the stage decision context".into(),
+                        evidence_refs: Vec::new(),
+                        artifact_refs: Vec::new(),
+                        decision_context_id: None,
+                    },
+                )?;
+                Ok(output)
             })
         }
         fn recover(&mut self, request_id: &str) -> Result<String> {
@@ -596,6 +740,14 @@ mod tests {
     }
 
     fn plan(store: &PathBuf, cultmesh_store: PathBuf) -> Result<PersonaModelExecutionPlan> {
+        plan_with_channels(store, cultmesh_store, vec!["aquarium".into()])
+    }
+
+    fn plan_with_channels(
+        store: &PathBuf,
+        cultmesh_store: PathBuf,
+        allowed_channel_ids: Vec<String>,
+    ) -> Result<PersonaModelExecutionPlan> {
         if !epiphany_core::runtime_spine_status(store)?.present {
             epiphany_core::initialize_runtime_spine(
                 store,
@@ -629,7 +781,7 @@ mod tests {
                 ..Default::default()
             },
             transcript: vec![],
-            allowed_channel_ids: vec!["aquarium".into()],
+            allowed_channel_ids,
             dynamic_semantic_memory_recall: String::new(),
             observed_sources: vec![provenance.clone()],
             admitted_at: "2026-08-14T00:00:00Z".into(),
@@ -675,12 +827,9 @@ mod tests {
         let cultmesh = dir.path().join("cultmesh.cc");
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
-        let first = execute_persona_model_turn_with_runner(
-            &store,
-            &plan(&store, cultmesh.clone())?,
-            &mut runner,
-        )
-        .await?;
+        let first =
+            execute_persona_model_turn_owned(&store, &plan(&store, cultmesh.clone())?, &mut runner)
+                .await?;
         assert_eq!(runner.calls, ["projector", "persona", "interpreter"]);
         drop(runner);
 
@@ -688,7 +837,7 @@ mod tests {
         let admitted_source = restarted_plan.source_documents[0].clone();
         let mut restarted_runner = FakeRunner { calls: vec![] };
         let second =
-            execute_persona_model_turn_with_runner(&store, &restarted_plan, &mut restarted_runner)
+            execute_persona_model_turn_owned(&store, &restarted_plan, &mut restarted_runner)
                 .await?;
         assert_eq!(first, second);
         assert!(restarted_runner.calls.is_empty());
@@ -706,6 +855,15 @@ mod tests {
                 .unwrap();
         assert_eq!(effects.effects.len(), 1);
         assert!(!effects.private_state_exposed);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache
+                .get::<epiphany_core::EpiphanyRuntimeSession>("persona-turn-turn-1")?
+                .expect("Persona session")
+                .status,
+            epiphany_core::EpiphanyRuntimeSessionStatus::Completed
+        );
         Ok(())
     }
 
@@ -716,10 +874,9 @@ mod tests {
         let cultmesh = dir.path().join("cultmesh.cc");
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
-        let mut escaped = plan(&store, cultmesh)?;
-        escaped.allowed_channel_ids = vec!["elsewhere".into()];
+        let escaped = plan_with_channels(&store, cultmesh, vec!["elsewhere".into()])?;
         assert!(
-            execute_persona_model_turn_with_runner(&store, &escaped, &mut runner)
+            execute_persona_model_turn_owned(&store, &escaped, &mut runner)
                 .await
                 .is_err()
         );
@@ -727,6 +884,16 @@ mod tests {
             load_document::<PersonaModelTerminalReceipt>(&store, "persona-terminal:turn-1")?
                 .is_none()
         );
+        assert!(
+            load_document::<PersonaModelStageReceipt>(&store, "persona-stage:turn-1:interpreter")?
+                .is_none(),
+            "a refused interpreter output cannot also own a success receipt"
+        );
+        let failure = model_pass_failure_for_request(&store, "persona:turn-1:interpreter")?
+            .expect("interpreter failure");
+        let audit = epiphany_core::audit_decision_context(&store, &failure.decision_context_id)?;
+        assert_eq!(audit.terminal_records.model_pass_failures, vec![failure]);
+        assert!(audit.terminal_records.persona_stage_receipts.is_empty());
         Ok(())
     }
 

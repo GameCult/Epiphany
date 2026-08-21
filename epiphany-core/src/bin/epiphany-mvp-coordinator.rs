@@ -1490,13 +1490,16 @@ fn intake_operator_objective(
     thread_id: &str,
     objective: &str,
 ) -> Result<epiphany_core::UserObjectiveIntakeApplied> {
-    epiphany_core::intake_user_objective(runtime_store, epiphany_core::UserObjectiveIntakeInput {
-        thread_id: thread_id.to_string(),
-        objective: objective.to_string(),
-        source_actor: "operator".to_string(),
-        source_ref: "cli://epiphany-mvp-coordinator".to_string(),
-        submitted_at: now(),
-    })
+    epiphany_core::intake_user_objective(
+        runtime_store,
+        epiphany_core::UserObjectiveIntakeInput {
+            thread_id: thread_id.to_string(),
+            objective: objective.to_string(),
+            source_actor: "operator".to_string(),
+            source_ref: "cli://epiphany-mvp-coordinator".to_string(),
+            submitted_at: now(),
+        },
+    )
 }
 
 fn assert_local_verse_brake_released(
@@ -1784,9 +1787,7 @@ fn reorient_result_auto_acceptable(result: &Value) -> bool {
         && !finding["itemError"].is_string()
 }
 
-fn launch_reorient(
-    runtime_store: &Path,
-) -> Result<Value> {
+fn launch_reorient(runtime_store: &Path) -> Result<Value> {
     let requested_at = now();
     let request = epiphany_core::request_current_reorientation(runtime_store, &requested_at)?;
     let job_id = epiphany_core::launch_current_reorientation_work(runtime_store, &requested_at)?;
@@ -2314,7 +2315,10 @@ mod tests {
             "launch_current_frontier_research_work",
             "launch_current_frontier_verification_work",
         ] {
-            assert!(production.contains(required), "missing keyed owner {required:?}");
+            assert!(
+                production.contains(required),
+                "missing keyed owner {required:?}"
+            );
         }
         for forbidden in [
             "fn launch_role(",

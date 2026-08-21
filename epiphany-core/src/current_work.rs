@@ -717,71 +717,95 @@ fn current_proposal_modeling_work(
     cache: &CultCache,
 ) -> Result<Option<EpiphanyProposalModelingWorkProjection>> {
     let mut requests = cache.get_all::<RepoFrontierProposalModelingRequest>()?;
-    requests.sort_by(|left, right| {
-        left.selected_at
-            .cmp(&right.selected_at)
-            .then_with(|| left.request_id.cmp(&right.request_id))
-    });
+    requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     let bindings = cache.get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?;
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
-    for request in requests {
+    'requests: for request in requests {
         crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&request)?;
-        let mut request_bindings = bindings
+        let request_bindings = bindings
             .iter()
             .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
             .collect::<Vec<_>>();
-        request_bindings.sort_by(|left, right| {
-            left.launched_at
-                .cmp(&right.launched_at)
-                .then_with(|| left.job_id.cmp(&right.job_id))
-        });
-        let Some(binding) = request_bindings.last() else {
+        if request_bindings.is_empty() {
             return Ok(Some(EpiphanyProposalModelingWorkProjection {
                 request,
                 action: EpiphanyAgentPassContinuationAction::Launch,
                 job_id: None,
             }));
-        };
-        let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
-        if let Some(result) = result.as_ref() {
-            if result.proposal_modeling_request_id.as_deref() != Some(request.request_id.as_str()) {
-                return Err(anyhow!(
-                    "proposal Modeling launch result crossed request authority"
-                ));
+        }
+        let mut live_job_ids = Vec::new();
+        let mut review_job_ids = Vec::new();
+        let mut admitted = false;
+        for binding in request_bindings {
+            let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
+            if let Some(result) = result.as_ref() {
+                if result.proposal_modeling_request_id.as_deref()
+                    != Some(request.request_id.as_str())
+                {
+                    return Err(anyhow!(
+                        "proposal Modeling launch result crossed request authority"
+                    ));
+                }
+                if receipts.iter().any(|receipt| {
+                    receipt.invariant_owner == "Modeling.proposal_frontier"
+                        && matches!(
+                            &receipt.authority,
+                            crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                                decision_context_id
+                            } if decision_context_id == &result.decision_context_id
+                        )
+                }) {
+                    admitted = true;
+                    continue;
+                }
             }
-            if receipts.iter().any(|receipt| {
-                receipt.invariant_owner == "Modeling.proposal_frontier"
-                    && matches!(
-                        &receipt.authority,
-                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
-                            decision_context_id
-                        } if decision_context_id == &result.decision_context_id
-                    )
-            }) {
-                continue;
+            let job = cache
+                .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
+                .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
+            match job.status {
+                crate::EpiphanyRuntimeJobStatus::Failed
+                | crate::EpiphanyRuntimeJobStatus::Cancelled => {}
+                crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
+                    crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
+                        cache,
+                        result.as_ref().expect("checked terminal result"),
+                    )?;
+                    review_job_ids.push(binding.job_id.clone());
+                }
+                _ => live_job_ids.push(binding.job_id.clone()),
             }
         }
-        let job = cache
-            .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
-            .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
-        let action = match job.status {
-            crate::EpiphanyRuntimeJobStatus::Failed
-            | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyAgentPassContinuationAction::Launch
+        if review_job_ids.len() > 1 || live_job_ids.len() > 1 {
+            return Err(anyhow!(
+                "proposal Modeling request has split current attempt authority"
+            ));
+        }
+        if admitted {
+            if !review_job_ids.is_empty() || !live_job_ids.is_empty() {
+                return Err(anyhow!(
+                    "admitted proposal Modeling request retains live attempt authority"
+                ));
             }
-            crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
-                crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
-                    cache,
-                    result.as_ref().expect("checked terminal result"),
-                )?;
-                EpiphanyAgentPassContinuationAction::Review
-            }
-            _ => EpiphanyAgentPassContinuationAction::Wait,
-        };
+            continue 'requests;
+        }
+        if let Some(job_id) = review_job_ids.pop() {
+            return Ok(Some(EpiphanyProposalModelingWorkProjection {
+                request,
+                action: EpiphanyAgentPassContinuationAction::Review,
+                job_id: Some(job_id),
+            }));
+        }
+        if let Some(job_id) = live_job_ids.pop() {
+            return Ok(Some(EpiphanyProposalModelingWorkProjection {
+                request,
+                action: EpiphanyAgentPassContinuationAction::Wait,
+                job_id: Some(job_id),
+            }));
+        }
         return Ok(Some(EpiphanyProposalModelingWorkProjection {
             request,
-            action,
-            job_id: Some(binding.job_id.clone()),
+            action: EpiphanyAgentPassContinuationAction::Launch,
+            job_id: None,
         }));
     }
     Ok(None)
@@ -3407,9 +3431,7 @@ mod tests {
         );
         native.reasoning_basis_id = Some(reasoning_basis.basis_id.clone());
         native.source_worker_job_id = Some(launch.job_id.clone());
-        let provider = epiphany_openai_adapter::request_from_native(&native);
-        let context =
-            crate::EpiphanyDecisionContext::new(&reasoning_basis, native, provider, Vec::new())?;
+        let context = crate::EpiphanyDecisionContext::new(&reasoning_basis, native, Vec::new())?;
         cache.put(&context.context_id, &context)?;
         let result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
@@ -3635,11 +3657,9 @@ mod tests {
         );
         proposal_native.reasoning_basis_id = Some(proposal_reasoning_basis.basis_id.clone());
         proposal_native.source_worker_job_id = Some(proposal_launch.job_id.clone());
-        let proposal_provider = epiphany_openai_adapter::request_from_native(&proposal_native);
         let proposal_context = crate::EpiphanyDecisionContext::new(
             &proposal_reasoning_basis,
             proposal_native,
-            proposal_provider,
             Vec::new(),
         )?;
         final_cache.put(&proposal_context.context_id, &proposal_context)?;
@@ -3911,13 +3931,8 @@ mod tests {
             "interpret",
         );
         persona_native.reasoning_basis_id = Some(persona_basis.basis_id.clone());
-        let persona_provider = epiphany_openai_adapter::request_from_native(&persona_native);
-        let persona_context = crate::EpiphanyDecisionContext::new(
-            &persona_basis,
-            persona_native,
-            persona_provider,
-            Vec::new(),
-        )?;
+        let persona_context =
+            crate::EpiphanyDecisionContext::new(&persona_basis, persona_native, Vec::new())?;
         accepted_cache.put(&persona_context.context_id, &persona_context)?;
         let persona_effect = crate::PersonaInterpreterEffectDocument {
             schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
@@ -4017,8 +4032,6 @@ mod tests {
         );
         verification_native.reasoning_basis_id = Some(verification_basis.basis_id.clone());
         verification_native.source_worker_job_id = Some(verification_job_id.clone());
-        let verification_provider =
-            epiphany_openai_adapter::request_from_native(&verification_native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -4036,13 +4049,11 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &verification_native,
-            &verification_provider,
             "2026-08-17T00:00:14.750Z",
         )?;
         let verification_context = crate::EpiphanyDecisionContext::new(
             &verification_basis,
             verification_native,
-            verification_provider,
             Vec::new(),
         )?;
         crate::put_decision_context(&store, &verification_context)?;
@@ -4338,13 +4349,8 @@ mod tests {
         );
         verdict_native.reasoning_basis_id = Some(verdict_basis.basis_id.clone());
         verdict_native.source_worker_job_id = Some(verdict_job_id.clone());
-        let verdict_provider = epiphany_openai_adapter::request_from_native(&verdict_native);
-        let verdict_context = crate::EpiphanyDecisionContext::new(
-            &verdict_basis,
-            verdict_native,
-            verdict_provider,
-            Vec::new(),
-        )?;
+        let verdict_context =
+            crate::EpiphanyDecisionContext::new(&verdict_basis, verdict_native, Vec::new())?;
         verdict_cache.put(&verdict_context.context_id, &verdict_context)?;
 
         // A separate typed mutation may extend another semantic identity after
@@ -4775,7 +4781,6 @@ mod tests {
         planning_native.output_schema_json = Some(serde_json::to_string(
             &crate::epiphany_frontier_planning_output_schema(),
         )?);
-        let planning_provider = epiphany_openai_adapter::request_from_native(&planning_native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -4793,15 +4798,10 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &planning_native,
-            &planning_provider,
             "2026-08-17T00:00:21.750Z",
         )?;
-        let planning_context = crate::EpiphanyDecisionContext::new(
-            &planning_basis,
-            planning_native,
-            planning_provider,
-            Vec::new(),
-        )?;
+        let planning_context =
+            crate::EpiphanyDecisionContext::new(&planning_basis, planning_native, Vec::new())?;
         crate::put_decision_context(&store, &planning_context)?;
         let mut candidate = crate::RepoFrontierPlanCandidate {
             schema_version: crate::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
@@ -4925,7 +4925,6 @@ mod tests {
         mind_native.output_schema_json = Some(serde_json::to_string(
             &crate::epiphany_frontier_plan_mind_output_schema(),
         )?);
-        let mind_provider = epiphany_openai_adapter::request_from_native(&mind_native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -4943,15 +4942,10 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &mind_native,
-            &mind_provider,
             "2026-08-17T00:00:22.250Z",
         )?;
-        let mind_context = crate::EpiphanyDecisionContext::new(
-            &mind_basis,
-            mind_native,
-            mind_provider,
-            Vec::new(),
-        )?;
+        let mind_context =
+            crate::EpiphanyDecisionContext::new(&mind_basis, mind_native, Vec::new())?;
         crate::put_decision_context(&store, &mind_context)?;
         let mind_decision = crate::RepoFrontierPlanMindDecision {
             mind_request_id: mind_request.request_id.clone(),
@@ -5160,13 +5154,8 @@ mod tests {
         );
         research_native.reasoning_basis_id = Some(research_basis.basis_id.clone());
         research_native.source_worker_job_id = Some(research_job.clone());
-        let research_provider = epiphany_openai_adapter::request_from_native(&research_native);
-        let research_context = crate::EpiphanyDecisionContext::new(
-            &research_basis,
-            research_native,
-            research_provider,
-            Vec::new(),
-        )?;
+        let research_context =
+            crate::EpiphanyDecisionContext::new(&research_basis, research_native, Vec::new())?;
         research_cache.put(&research_context.context_id, &research_context)?;
         let stale_research_store = temp.path().join("stale-research-output.cc");
         std::fs::copy(&store, &stale_research_store)?;

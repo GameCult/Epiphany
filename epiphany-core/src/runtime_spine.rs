@@ -1003,6 +1003,14 @@ pub struct RuntimeSpineSessionClosureOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModelPassFailureTerminalOptions {
+    pub decision_context_id: String,
+    pub failure_kind: String,
+    pub summary: String,
+    pub failed_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSpineEventOptions {
     pub event_id: String,
     pub occurred_at: String,
@@ -1102,6 +1110,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
     cache.register_entry_type::<crate::EpiphanyReasoningBasis>()?;
     cache.register_entry_type::<crate::EpiphanyDecisionContext>()?;
+    cache.register_entry_type::<crate::EpiphanyModelPassFailure>()?;
     cache.register_entry_type::<crate::EpiphanyMindCommitReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeToolExecutionBinding>()?;
     cache.register_entry_type::<EpiphanyArchivedRuntimeSession>()?;
@@ -1518,6 +1527,252 @@ pub fn close_runtime_session(
     Ok(session)
 }
 
+/// Atomically makes one failed model pass auditable and closes the exact
+/// runtime session that carried it. The sealed decision context is the owner;
+/// provider events and assistant deltas are not required for replay.
+pub fn terminalize_model_pass_failure_session(
+    store_path: impl AsRef<Path>,
+    options: ModelPassFailureTerminalOptions,
+) -> Result<crate::EpiphanyModelPassFailure> {
+    for (value, label) in [
+        (&options.decision_context_id, "decision context id"),
+        (&options.failure_kind, "failure kind"),
+        (&options.summary, "failure summary"),
+        (&options.failed_at, "failure time"),
+    ] {
+        validate_non_empty(value, label)?;
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let context = cache
+        .get::<crate::EpiphanyDecisionContext>(&options.decision_context_id)?
+        .ok_or_else(|| anyhow!("model pass failure lost its decision context"))?;
+    let basis = cache
+        .get::<crate::EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("model pass failure lost its reasoning basis"))?;
+    let binding = validate_runtime_model_execution_binding(&cache, &context.terminal_request_id)?;
+    if binding.session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID {
+        return Err(anyhow!(
+            "model pass failure cannot close the runtime root session"
+        ));
+    }
+    let failure = crate::EpiphanyModelPassFailure::new(
+        &basis,
+        &context,
+        binding.session_id.clone(),
+        binding.job_id.clone(),
+        options.failure_kind.clone(),
+        options.summary.clone(),
+        options.failed_at.clone(),
+    )?;
+    if let Some(existing) = cache.get::<crate::EpiphanyModelPassFailure>(&failure.failure_id)? {
+        existing.validate(&basis, &context)?;
+        if existing != failure {
+            return Err(anyhow!("model pass failure identity collision"));
+        }
+        let session = cache
+            .get::<EpiphanyRuntimeSession>(&binding.session_id)?
+            .ok_or_else(|| anyhow!("model pass failure lost its runtime session"))?;
+        if session.status != EpiphanyRuntimeSessionStatus::Completed {
+            return Err(anyhow!(
+                "model pass failure exists without terminal runtime session"
+            ));
+        }
+        return Ok(existing);
+    }
+    let session_envelope = cache
+        .get_envelope::<EpiphanyRuntimeSession>(&binding.session_id)?
+        .ok_or_else(|| anyhow!("model pass failure runtime session is absent"))?;
+    let mut session = cache
+        .get::<EpiphanyRuntimeSession>(&binding.session_id)?
+        .ok_or_else(|| anyhow!("model pass failure runtime session is absent"))?;
+    if session.status != EpiphanyRuntimeSessionStatus::Active {
+        return Err(anyhow!("model pass failure runtime session is not active"));
+    }
+    let model_job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(&binding.job_id)?
+        .ok_or_else(|| anyhow!("model pass failure runtime job is absent"))?;
+    let mut model_job = cache
+        .get::<EpiphanyRuntimeJob>(&binding.job_id)?
+        .ok_or_else(|| anyhow!("model pass failure runtime job is absent"))?;
+    if model_job.session_id != binding.session_id {
+        return Err(anyhow!(
+            "model pass failure runtime job is outside its exact session"
+        ));
+    }
+    let model_job_is_live = matches!(
+        model_job.status,
+        EpiphanyRuntimeJobStatus::Queued
+            | EpiphanyRuntimeJobStatus::Running
+            | EpiphanyRuntimeJobStatus::WaitingForReview
+    );
+    let model_job_results = cache
+        .get_all::<EpiphanyRuntimeJobResult>()?
+        .into_iter()
+        .filter(|result| result.job_id == binding.job_id)
+        .collect::<Vec<_>>();
+    if model_job_is_live && !model_job_results.is_empty() {
+        return Err(anyhow!("live model pass job already has a terminal result"));
+    }
+    if !model_job_is_live
+        && (model_job_results.len() != 1 || model_job_results[0].decision_context_id.is_some())
+    {
+        return Err(anyhow!(
+            "terminal model transport job lost its non-authoritative result"
+        ));
+    }
+    let open_job_ids = cache
+        .get_all::<EpiphanyRuntimeJob>()?
+        .into_iter()
+        .filter(|job| {
+            job.session_id == binding.session_id
+                && (!model_job_is_live || job.job_id != binding.job_id)
+                && matches!(
+                    job.status,
+                    EpiphanyRuntimeJobStatus::Queued
+                        | EpiphanyRuntimeJobStatus::Running
+                        | EpiphanyRuntimeJobStatus::WaitingForReview
+                )
+        })
+        .map(|job| job.job_id)
+        .collect::<Vec<_>>();
+    if !open_job_ids.is_empty() {
+        return Err(anyhow!(
+            "model pass failure session still has open jobs: {}",
+            open_job_ids.join(", ")
+        ));
+    }
+    let event_id = format!("event-session-model-pass-failed-{}", failure.failure_id);
+    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
+        return Err(anyhow!(
+            "model pass failure event exists without its terminal record"
+        ));
+    }
+    session.status = EpiphanyRuntimeSessionStatus::Completed;
+    session.updated_at = options.failed_at.clone();
+    session.coordinator_note = options.summary.clone();
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id,
+        occurred_at: options.failed_at.clone(),
+        event_type: "model-pass.failed".to_string(),
+        source: "model-pass-terminal".to_string(),
+        session_id: Some(binding.session_id.clone()),
+        job_id: Some(binding.job_id.clone()),
+        summary: options.summary.clone(),
+        metadata: BTreeMap::from([
+            (
+                "decisionContextId".to_string(),
+                failure.decision_context_id.clone(),
+            ),
+            ("failureId".to_string(), failure.failure_id.clone()),
+        ]),
+    };
+    let mut expected = vec![session_envelope];
+    let mut replacements = vec![
+        cache.prepare_entry(&failure.failure_id, &failure)?.0,
+        cache.prepare_entry(&session.session_id, &session)?.0,
+        cache.prepare_entry(&event.event_id, &event)?.0,
+    ];
+    if model_job_is_live {
+        let completion_event_id = format!("event-job-completed-{}", binding.job_id);
+        if cache
+            .get::<EpiphanyRuntimeEvent>(&completion_event_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "live model pass job already has a completion event"
+            ));
+        }
+        model_job.status = EpiphanyRuntimeJobStatus::Failed;
+        model_job.updated_at = options.failed_at.clone();
+        model_job.summary = options.summary.clone();
+        let model_result = EpiphanyRuntimeJobResult {
+            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+            result_id: format!("result-model-pass-failure-{}", failure.failure_id),
+            job_id: binding.job_id.clone(),
+            session_id: binding.session_id.clone(),
+            role: model_job.role.clone(),
+            verdict: "failed".to_string(),
+            summary: options.summary.clone(),
+            completed_at: options.failed_at.clone(),
+            next_safe_move:
+                "Inspect the sealed decision context and typed model-pass failure before retrying."
+                    .to_string(),
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            metadata: BTreeMap::new(),
+            decision_context_id: None,
+        };
+        let completion_event = EpiphanyRuntimeEvent {
+            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+            event_id: completion_event_id,
+            occurred_at: options.failed_at.clone(),
+            event_type: "job.completed".to_string(),
+            source: "model-pass-terminal".to_string(),
+            session_id: Some(binding.session_id.clone()),
+            job_id: Some(binding.job_id.clone()),
+            summary: "Model transport job closed by its typed pass failure.".to_string(),
+            metadata: BTreeMap::from([("resultId".to_string(), model_result.result_id.clone())]),
+        };
+        expected.push(model_job_envelope);
+        replacements.push(cache.prepare_entry(&model_job.job_id, &model_job)?.0);
+        replacements.push(
+            cache
+                .prepare_entry(&model_result.result_id, &model_result)?
+                .0,
+        );
+        replacements.push(
+            cache
+                .prepare_entry(&completion_event.event_id, &completion_event)?
+                .0,
+        );
+    }
+    if !runtime_spine_backing_store(store_path)?.compare_and_swap_batch(&expected, replacements)? {
+        return terminalize_model_pass_failure_session(store_path, options);
+    }
+    Ok(failure)
+}
+
+pub fn model_pass_failure_for_request(
+    store_path: impl AsRef<Path>,
+    model_request_id: &str,
+) -> Result<Option<crate::EpiphanyModelPassFailure>> {
+    validate_non_empty(model_request_id, "model request id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut matches = cache
+        .get_all::<crate::EpiphanyModelPassFailure>()?
+        .into_iter()
+        .filter(|failure| failure.model_request_id == model_request_id);
+    let failure = matches.next();
+    if matches.next().is_some() {
+        return Err(anyhow!(
+            "model request has multiple terminal failure records"
+        ));
+    }
+    let Some(failure) = failure else {
+        return Ok(None);
+    };
+    let context = cache
+        .get::<crate::EpiphanyDecisionContext>(&failure.decision_context_id)?
+        .ok_or_else(|| anyhow!("model pass failure lost its decision context"))?;
+    let basis = cache
+        .get::<crate::EpiphanyReasoningBasis>(&failure.reasoning_basis_id)?
+        .ok_or_else(|| anyhow!("model pass failure lost its reasoning basis"))?;
+    failure.validate(&basis, &context)?;
+    let binding = validate_runtime_model_execution_binding(&cache, &failure.model_request_id)?;
+    if failure.runtime_session_id != binding.session_id || failure.runtime_job_id != binding.job_id
+    {
+        return Err(anyhow!(
+            "model pass failure disagrees with its exact runtime binding"
+        ));
+    }
+    Ok(Some(failure))
+}
+
 pub fn repair_runtime_root_session_after_invalid_completion(
     store_path: impl AsRef<Path>,
     repaired_at: &str,
@@ -1670,7 +1925,6 @@ pub fn open_runtime_model_execution(
     session_options: RuntimeSpineSessionOptions,
     job_options: RuntimeSpineJobOptions,
     model_request: &EpiphanyModelRequest,
-    provider_request: &EpiphanyOpenAiModelRequest,
     bound_at: &str,
 ) -> Result<EpiphanyRuntimeModelExecutionBinding> {
     validate_non_empty(&session_options.session_id, "model execution session id")?;
@@ -1692,11 +1946,7 @@ pub fn open_runtime_model_execution(
     validate_non_empty(bound_at, "model execution binding time")?;
     chrono::DateTime::parse_from_rfc3339(bound_at)
         .map_err(|error| anyhow!("model execution binding time is invalid: {error}"))?;
-    if provider_request != &epiphany_openai_adapter::request_from_native(model_request) {
-        return Err(anyhow!(
-            "native and provider model requests do not describe one execution"
-        ));
-    }
+    let provider_request = epiphany_openai_adapter::request_from_native(model_request);
 
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
@@ -1879,7 +2129,7 @@ pub fn open_runtime_model_execution(
             .prepare_entry(&model_request.request_id, model_request)?
             .0,
         cache
-            .prepare_entry(&provider_request.request_id, provider_request)?
+            .prepare_entry(&provider_request.request_id, &provider_request)?
             .0,
     ];
     replacements.extend(source_worker_envelopes);
@@ -2058,7 +2308,9 @@ pub(crate) fn validate_runtime_model_execution_binding(
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its native request"))?;
     let provider = cache
         .get::<EpiphanyOpenAiModelRequest>(request_id)?
-        .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its provider request"))?;
+        .ok_or_else(|| {
+            anyhow!("model execution binding {request_id:?} lost its provider request")
+        })?;
     let session = cache
         .get::<EpiphanyRuntimeSession>(&binding.session_id)?
         .ok_or_else(|| anyhow!("model execution binding {request_id:?} lost its session"))?;
@@ -2081,9 +2333,10 @@ pub(crate) fn validate_runtime_model_execution_binding(
         ));
     }
     if let Some(worker_job_id) = binding.source_worker_job_id.as_deref() {
-        let basis_id = binding.reasoning_basis_id.as_deref().ok_or_else(|| {
-            anyhow!("decision-bearing model execution lost its reasoning basis")
-        })?;
+        let basis_id = binding
+            .reasoning_basis_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("decision-bearing model execution lost its reasoning basis"))?;
         let basis = cache
             .get::<crate::EpiphanyReasoningBasis>(basis_id)?
             .ok_or_else(|| anyhow!("model execution binding lost its reasoning basis"))?;
@@ -6469,73 +6722,128 @@ fn keyed_repo_model_basis_after_writes(
 pub fn runtime_modeling_semantic_projection_input(
     store_path: impl AsRef<Path>,
 ) -> Result<crate::MemorySemanticProjectionInput> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let binding = require_runtime_swarm_binding(&cache)?;
-    let view = crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?;
-    let basis = view.reasoning_basis();
-    basis.validate_against_cache(&cache)?;
-    // The semantic subsystem still consumes its historical projection DTO.  It
-    // is now a derived carrier only: keyed Mind documents are the authority,
-    // and the projection has no reusable global revision.
-    let mut snapshot = view.memory_context_projection();
-    snapshot.model_revision = 1;
-    snapshot.model_hash = crate::memory_graph_model_hash(&snapshot)?;
-    let model_hash = crate::memory_graph_model_hash(&snapshot)?;
-    let canonical_source_id = format!("epiphany.runtime/{}/repo-model", binding.runtime_id);
-    let matches = cache
-        .get_all::<crate::MemorySemanticProjectionObligation>()?
-        .into_iter()
-        .filter(|obligation| {
-            obligation.swarm_id == binding.swarm_id
-                && obligation.partition == "modeling"
-                && obligation.canonical_source_id == canonical_source_id
-                && obligation.graph_id == snapshot.graph_id
-                && obligation.source_commit_id == basis.projection_digest
-                && obligation.source_generation == 1
-                && obligation.source_model_hash == model_hash
-        })
-        .collect::<Vec<_>>();
-    if matches.len() != 1 {
-        return Err(anyhow!(
-            "Modeling projection requires exactly one obligation for current RepoModel"
-        ));
+    let store_path = store_path.as_ref();
+    // Projection work is cache physiology, not a Mind commit companion. A
+    // singleton companion would make otherwise-disjoint RepoModel commits
+    // contend. Reconstruct the exact current keyed basis on every pulse and
+    // insert its content-addressed work item under the same envelope CAS used
+    // by the projector. Concurrent inserts can create an older work item, but
+    // cannot make it current; the next pulse derives the newly assembled view.
+    for _ in 0..8 {
+        let mut cache = runtime_spine_cache(store_path)?;
+        cache.pull_all_backing_stores()?;
+        let binding = require_runtime_swarm_binding(&cache)?;
+        let view = crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?;
+        if view.identity.runtime_id != binding.runtime_id
+            || view.identity.swarm_id != binding.swarm_id
+        {
+            return Err(anyhow!(
+                "RepoModel semantic basis crossed its runtime swarm binding"
+            ));
+        }
+        let basis = view.reasoning_basis();
+        basis.validate_against_cache(&cache)?;
+        let mut snapshot = view.memory_context_projection();
+        // This is a compatibility-shaped projector DTO, never a causal head.
+        // Keyed document versions and their commit receipts own the input.
+        snapshot.model_revision = 1;
+        snapshot.model_hash = crate::memory_graph_model_hash(&snapshot)?;
+
+        let mut authority_envelopes = keyed_repo_model_basis_envelopes(&cache, &basis)?;
+        let receipts = repo_model_basis_commit_receipts(&cache, &basis)?;
+        if receipts.is_empty() {
+            return Err(anyhow!(
+                "RepoModel semantic basis has no Mind commit receipts"
+            ));
+        }
+        for receipt in &receipts {
+            authority_envelopes.push(
+                cache
+                    .get_envelope::<crate::EpiphanyMindCommitReceipt>(&receipt.receipt_id)?
+                    .ok_or_else(|| anyhow!("RepoModel semantic basis receipt disappeared"))?,
+            );
+        }
+        authority_envelopes.push(
+            cache
+                .get_envelope::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)?
+                .ok_or_else(|| anyhow!("Modeling projection lost its swarm binding"))?,
+        );
+        authority_envelopes
+            .sort_by(|left, right| (&left.r#type, &left.key).cmp(&(&right.r#type, &right.key)));
+        authority_envelopes
+            .dedup_by(|left, right| left.r#type == right.r#type && left.key == right.key);
+
+        let obligation =
+            crate::repo_model_documents::derive_repo_model_semantic_projection_obligation(
+                &view,
+                // Modeling cache work is content-addressed by the complete
+                // keyed basis. Wall-clock receipt order is not causal state.
+                "1970-01-01T00:00:00Z",
+            )?;
+        if let Some(persisted) =
+            cache.get::<crate::MemorySemanticProjectionObligation>(&obligation.obligation_id)?
+        {
+            if persisted != obligation {
+                return Err(anyhow!("Modeling projection obligation identity collision"));
+            }
+            return Ok(crate::MemorySemanticProjectionInput {
+                snapshot,
+                authority: crate::memory_graph::MemorySemanticProjectionAuthoritySnapshot {
+                    head: crate::MemorySemanticProjectionSourceHead {
+                        swarm_id: obligation.swarm_id.clone(),
+                        partition: obligation.partition.clone(),
+                        canonical_source_id: obligation.canonical_source_id.clone(),
+                        source_commit_id: obligation.source_commit_id.clone(),
+                        graph_id: obligation.graph_id.clone(),
+                        source_generation: obligation.source_generation,
+                        source_model_hash: obligation.source_model_hash.clone(),
+                        canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+                    },
+                    envelopes: authority_envelopes,
+                },
+                obligation,
+            });
+        }
+
+        let mut replacements = authority_envelopes.clone();
+        replacements.push(
+            cache
+                .prepare_entry(&obligation.obligation_id, &obligation)?
+                .0,
+        );
+        if runtime_spine_backing_store(store_path)?
+            .compare_and_swap_batch(&authority_envelopes, replacements)?
+        {
+            continue;
+        }
     }
-    let obligation = matches.into_iter().next().expect("one obligation");
-    let expected = crate::repo_model_documents::derive_repo_model_semantic_projection_obligation(
-        &view,
-        &obligation.created_at,
-    )?;
-    if obligation != expected {
-        return Err(anyhow!(
-            "Modeling projection obligation does not match canonical RepoModel"
-        ));
+    Err(anyhow!(
+        "RepoModel semantic work could not settle under concurrent Mind mutation"
+    ))
+}
+
+fn repo_model_basis_commit_receipts(
+    cache: &CultCache,
+    basis: &crate::EpiphanyRepoModelBasis,
+) -> Result<Vec<crate::EpiphanyMindCommitReceipt>> {
+    basis.validate_against_cache(cache)?;
+    let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    let mut owners = BTreeMap::<String, crate::EpiphanyMindCommitReceipt>::new();
+    for source in &basis.source_documents {
+        let owner = receipts
+            .iter()
+            .filter(|receipt| receipt.writes.iter().any(|write| write == source))
+            .min_by(|left, right| left.receipt_id.cmp(&right.receipt_id))
+            .ok_or_else(|| {
+                anyhow!(
+                    "RepoModel document {}:{} has no exact Mind commit receipt",
+                    source.document_type,
+                    source.document_key
+                )
+            })?;
+        owners.insert(owner.receipt_id.clone(), owner.clone());
     }
-    let mut authority_envelopes = keyed_repo_model_basis_envelopes(&cache, &basis)?;
-    authority_envelopes.push(
-        cache
-            .get_envelope::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)?
-            .ok_or_else(|| anyhow!("Modeling projection lost its swarm binding"))?,
-    );
-    authority_envelopes
-        .sort_by(|left, right| (&left.r#type, &left.key).cmp(&(&right.r#type, &right.key)));
-    Ok(crate::MemorySemanticProjectionInput {
-        snapshot,
-        authority: crate::memory_graph::MemorySemanticProjectionAuthoritySnapshot {
-            head: crate::MemorySemanticProjectionSourceHead {
-                swarm_id: obligation.swarm_id.clone(),
-                partition: obligation.partition.clone(),
-                canonical_source_id: obligation.canonical_source_id.clone(),
-                source_commit_id: obligation.source_commit_id.clone(),
-                graph_id: obligation.graph_id.clone(),
-                source_generation: obligation.source_generation,
-                source_model_hash: obligation.source_model_hash.clone(),
-                canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
-            },
-            envelopes: authority_envelopes,
-        },
-        obligation,
-    })
+    Ok(owners.into_values().collect())
 }
 
 pub fn select_repo_frontier_work_proposal_for_modeling(
@@ -8340,11 +8648,7 @@ fn next_repo_frontier_research_work(
             }
         })
         .collect::<Result<Vec<_>>>()?;
-    existing_uncovered.sort_by(|left, right| {
-        left.requested_at
-            .cmp(&right.requested_at)
-            .then_with(|| left.request_id.cmp(&right.request_id))
-    });
+    existing_uncovered.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     if let Some(request) = existing_uncovered.into_iter().next() {
         return Ok(Some(NextRepoFrontierResearchWork::Existing(request)));
     }

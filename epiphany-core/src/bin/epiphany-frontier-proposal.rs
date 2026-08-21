@@ -8,24 +8,27 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 fn main() -> Result<()> {
     let args = Args::parse(std::env::args().skip(1))?;
-    let proposal = intake_user_repo_frontier_proposal(&args.store, RepoFrontierUserProposalInput {
-        proposal_id: args.required("--proposal-id")?,
-        source_actor: args.required("--source-actor")?,
-        source_ref: args.required("--source-ref")?,
-        repository: args.required("--repository")?,
-        workspace: args.required("--workspace")?,
-        thread_id: args.required("--thread-id")?,
-        runtime_id: args.required("--runtime-id")?,
-        title: args.required("--title")?,
-        body: args.required("--body")?,
-        desired_outcome: args.required("--desired-outcome")?,
-        constraints: args.constraints.clone(),
-        scope_hints: args.scope_hints.clone(),
-        evidence_refs: args.evidence_refs.clone(),
-        public_source_refs: args.public_source_refs.clone(),
-        proposed_at: args.required("--proposed-at")?,
-        private_state_included: false,
-    })?;
+    let proposal = intake_user_repo_frontier_proposal(
+        &args.store,
+        RepoFrontierUserProposalInput {
+            proposal_id: args.required("--proposal-id")?,
+            source_actor: args.required("--source-actor")?,
+            source_ref: args.required("--source-ref")?,
+            repository: args.required("--repository")?,
+            workspace: args.required("--workspace")?,
+            thread_id: args.required("--thread-id")?,
+            runtime_id: args.required("--runtime-id")?,
+            title: args.required("--title")?,
+            body: args.required("--body")?,
+            desired_outcome: args.required("--desired-outcome")?,
+            constraints: args.constraints.clone(),
+            scope_hints: args.scope_hints.clone(),
+            evidence_refs: args.evidence_refs.clone(),
+            public_source_refs: args.public_source_refs.clone(),
+            proposed_at: args.required("--proposed-at")?,
+            private_state_included: false,
+        },
+    )?;
     let selection = select_repo_frontier_work_proposal_for_modeling(
         &args.store,
         &proposal.proposal_id,

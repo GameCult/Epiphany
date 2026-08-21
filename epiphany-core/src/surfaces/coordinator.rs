@@ -2,10 +2,9 @@ use epiphany_core::{
     EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorAction,
     EpiphanyCoordinatorAutomationAction, EpiphanyCoordinatorCrrcRecommendation,
     EpiphanyCoordinatorDecision, EpiphanyCoordinatorInput, EpiphanyCoordinatorRoleId,
-    EpiphanyCoordinatorSceneAction, EpiphanyCoordinatorSourceSignals,
-    EpiphanyCoordinatorStatus, EpiphanyCoordinatorStatusInput, EpiphanyCrrcAction,
-    EpiphanyCrrcSceneAction, RepoFrontierPlanningLifecycleStage,
-    RepoFrontierResearchContinuationAction,
+    EpiphanyCoordinatorSceneAction, EpiphanyCoordinatorSourceSignals, EpiphanyCoordinatorStatus,
+    EpiphanyCoordinatorStatusInput, EpiphanyCrrcAction, EpiphanyCrrcSceneAction,
+    RepoFrontierPlanningLifecycleStage, RepoFrontierResearchContinuationAction,
 };
 
 pub fn crrc_scene_action_to_coordinator_scene_action(
@@ -14,19 +13,15 @@ pub fn crrc_scene_action_to_coordinator_scene_action(
     match action {
         EpiphanyCrrcSceneAction::Update => EpiphanyCoordinatorSceneAction::Update,
         EpiphanyCrrcSceneAction::Reorient => EpiphanyCoordinatorSceneAction::Reorient,
-        EpiphanyCrrcSceneAction::ReorientLaunch => {
-            EpiphanyCoordinatorSceneAction::ReorientLaunch
-        }
-        EpiphanyCrrcSceneAction::ReorientResult => {
-            EpiphanyCoordinatorSceneAction::ReorientResult
-        }
-        EpiphanyCrrcSceneAction::ReorientAccept => {
-            EpiphanyCoordinatorSceneAction::ReorientAccept
-        }
+        EpiphanyCrrcSceneAction::ReorientLaunch => EpiphanyCoordinatorSceneAction::ReorientLaunch,
+        EpiphanyCrrcSceneAction::ReorientResult => EpiphanyCoordinatorSceneAction::ReorientResult,
+        EpiphanyCrrcSceneAction::ReorientAccept => EpiphanyCoordinatorSceneAction::ReorientAccept,
     }
 }
 
-pub fn derive_coordinator_status(input: EpiphanyCoordinatorStatusInput) -> EpiphanyCoordinatorStatus {
+pub fn derive_coordinator_status(
+    input: EpiphanyCoordinatorStatusInput,
+) -> EpiphanyCoordinatorStatus {
     let source_signals = EpiphanyCoordinatorSourceSignals {
         pressure_level: input.pressure.level,
         should_prepare_compaction: input.pressure.should_prepare_compaction,
@@ -53,7 +48,9 @@ pub fn derive_coordinator_status(input: EpiphanyCoordinatorStatusInput) -> Epiph
     }
 }
 
-pub fn recommend_coordinator_action(input: EpiphanyCoordinatorInput) -> EpiphanyCoordinatorDecision {
+pub fn recommend_coordinator_action(
+    input: EpiphanyCoordinatorInput,
+) -> EpiphanyCoordinatorDecision {
     if !input.mind_present {
         return decision(
             EpiphanyCoordinatorAction::PrepareCheckpoint,
@@ -399,8 +396,7 @@ mod tests {
     #[test]
     fn exact_body_obligation_routes_modeling() {
         let mut input = input();
-        input.current_work.body_modeling_action =
-            Some(EpiphanyAgentPassContinuationAction::Launch);
+        input.current_work.body_modeling_action = Some(EpiphanyAgentPassContinuationAction::Launch);
         assert_eq!(
             recommend_coordinator_action(input).action,
             EpiphanyCoordinatorAction::LaunchModeling

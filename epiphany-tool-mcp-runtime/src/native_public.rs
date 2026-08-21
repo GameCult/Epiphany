@@ -37,7 +37,13 @@ async fn github_file(intent: &EpiphanyToolInvocationIntent, arguments: &Value) -
         .transpose()?
         .unwrap_or(32_768)
         .clamp(512, MAX_PUBLIC_SOURCE_BYTES as u64) as usize;
-    let url = format!("https://raw.githubusercontent.com/{}/{}/{}/{}", source.owner(), source.repository_name(), source.revision(), source.path());
+    let url = format!(
+        "https://raw.githubusercontent.com/{}/{}/{}/{}",
+        source.owner(),
+        source.repository_name(),
+        source.revision(),
+        source.path()
+    );
     let client = reqwest::Client::builder()
         .redirect(Policy::none())
         .no_proxy()
@@ -111,9 +117,33 @@ mod tests {
             "path": "openapi.yaml"
         });
         let revision = valid["revision"].as_str().unwrap();
-        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "docs/source_file.rs").is_ok());
-        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "../secret").is_err());
-        assert!(ImmutableGithubSource::from_components("openai", "openai-openapi", revision, "path with spaces").is_err());
+        assert!(
+            ImmutableGithubSource::from_components(
+                "openai",
+                "openai-openapi",
+                revision,
+                "docs/source_file.rs"
+            )
+            .is_ok()
+        );
+        assert!(
+            ImmutableGithubSource::from_components(
+                "openai",
+                "openai-openapi",
+                revision,
+                "../secret"
+            )
+            .is_err()
+        );
+        assert!(
+            ImmutableGithubSource::from_components(
+                "openai",
+                "openai-openapi",
+                revision,
+                "path with spaces"
+            )
+            .is_err()
+        );
     }
 
     #[tokio::test]

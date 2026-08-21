@@ -493,8 +493,7 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         value.validate()?;
         value.memory_id
     } else if envelope.r#type == EpiphanyMindPersonaPassInputDocument::TYPE {
-        let value: EpiphanyMindPersonaPassInputDocument =
-            rmp_serde::from_slice(&envelope.payload)?;
+        let value: EpiphanyMindPersonaPassInputDocument = rmp_serde::from_slice(&envelope.payload)?;
         value.validate()?;
         value.turn_id
     } else if envelope.r#type == EpiphanyMindVerificationAuditDocument::TYPE {

@@ -309,6 +309,14 @@ pub fn record_reorientation_pass_failure(
         .get::<crate::EpiphanyReasoningBasis>(&context.basis_id)?
         .ok_or_else(|| anyhow!("reorientation failure lost its reasoning basis"))?;
     context.validate(&basis)?;
+    let model_failure =
+        crate::model_pass_failure_for_request(store_path, &context.terminal_request_id)?
+            .ok_or_else(|| anyhow!("reorientation failure has no exact model-pass failure"))?;
+    if model_failure.decision_context_id != context.context_id {
+        return Err(anyhow!(
+            "reorientation failure crossed its model-pass failure context"
+        ));
+    }
     match basis.projection()? {
         crate::EpiphanyReasoningProjection::ReorientLaunch(projection)
             if projection.request == request => {}
@@ -351,6 +359,10 @@ pub fn record_reorientation_pass_failure(
             terminal.result_id.as_str(),
         ),
         (crate::EpiphanyDecisionContext::TYPE, decision_context_id),
+        (
+            crate::EpiphanyModelPassFailure::TYPE,
+            model_failure.failure_id.as_str(),
+        ),
     ] {
         strong_reads.push(
             snapshot
@@ -947,7 +959,6 @@ mod tests {
         native.output_schema_json = Some(serde_json::to_string(
             &crate::epiphany_reorient_launch_output_schema(),
         )?);
-        let provider = epiphany_openai_adapter::request_from_native(&native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -965,10 +976,9 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &native,
-            &provider,
             "2026-08-18T10:00:03Z",
         )?;
-        let context = crate::EpiphanyDecisionContext::new(&basis, native, provider, Vec::new())?;
+        let context = crate::EpiphanyDecisionContext::new(&basis, native, Vec::new())?;
         crate::put_decision_context(&store, &context)?;
         let process = crate::ProcessInstanceIdentity {
             process_id: 91,
@@ -1083,7 +1093,6 @@ mod tests {
         failed_native.output_schema_json = Some(serde_json::to_string(
             &crate::epiphany_reorient_launch_output_schema(),
         )?);
-        let failed_provider = epiphany_openai_adapter::request_from_native(&failed_native);
         crate::open_runtime_model_execution(
             &store,
             crate::RuntimeSpineSessionOptions {
@@ -1101,16 +1110,21 @@ mod tests {
                 artifact_refs: Vec::new(),
             },
             &failed_native,
-            &failed_provider,
             "2026-08-18T10:00:10Z",
         )?;
-        let failed_context = crate::EpiphanyDecisionContext::new(
-            &failed_basis,
-            failed_native,
-            failed_provider,
-            Vec::new(),
-        )?;
+        let failed_context =
+            crate::EpiphanyDecisionContext::new(&failed_basis, failed_native, Vec::new())?;
         crate::put_decision_context(&store, &failed_context)?;
+        let model_failure = crate::terminalize_model_pass_failure_session(
+            &store,
+            crate::ModelPassFailureTerminalOptions {
+                decision_context_id: failed_context.context_id.clone(),
+                failure_kind: "provider_or_transport_failure".into(),
+                summary: "Provider failed after the terminal request was sealed.".into(),
+                failed_at: "2026-08-18T10:00:13Z".into(),
+            },
+        )?;
+        assert_eq!(model_failure.decision_context_id, failed_context.context_id);
         let failed_process = crate::ProcessInstanceIdentity {
             process_id: 92,
             creation_token: 18,
@@ -1137,7 +1151,7 @@ mod tests {
             crate::RuntimeSpineJobResultOptions {
                 result_id: format!("runtime-result-{failed_job}"),
                 job_id: failed_job.clone(),
-                completed_at: "2026-08-18T10:00:13Z".into(),
+                completed_at: "2026-08-18T10:00:14Z".into(),
                 verdict: "failed".into(),
                 summary: "Provider failed after the terminal request was sealed.".into(),
                 next_safe_move: "Review the typed failure, then retry.".into(),

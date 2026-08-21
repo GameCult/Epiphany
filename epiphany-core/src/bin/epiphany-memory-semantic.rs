@@ -3,8 +3,8 @@ use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
     MemorySemanticProjectionInput, SemanticPartition, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
     WorkspaceCoveragePolicy, WorkspaceProjectionIdentity, agent_memory_semantic_projection_input,
-    load_memory_semantic_projection_readiness,
-    observe_repository_readiness, publish_epiphany_cultmesh_semantic_projection_health,
+    load_memory_semantic_projection_readiness, observe_repository_readiness,
+    publish_epiphany_cultmesh_semantic_projection_health,
     runtime_modeling_semantic_projection_input, semantic_memory_context,
 };
 use std::env;
@@ -191,14 +191,10 @@ impl Options {
             ));
         }
         if options.partition == SemanticPartition::Mind && options.runtime_store.is_some() {
-            return Err(usage_error(
-                "Mind projection requires --agent-store",
-            ));
+            return Err(usage_error("Mind projection requires --agent-store"));
         }
         if options.partition == SemanticPartition::Modeling && options.agent_store.is_some() {
-            return Err(usage_error(
-                "Modeling projection requires --runtime-store",
-            ));
+            return Err(usage_error("Modeling projection requires --runtime-store"));
         }
         Ok(options)
     }

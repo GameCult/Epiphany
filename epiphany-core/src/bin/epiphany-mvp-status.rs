@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
-    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorStatus,
-    EpiphanyCoordinatorStatusInput, EpiphanyCrrcAction, EpiphanyCrrcRecommendation,
-    EpiphanyCrrcResultStatus, EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection,
-    EpiphanyJobsInput, EpiphanyReorientAction, EpiphanyRoleBoardInput, EpiphanyRoleBoardJob,
+    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorStatus, EpiphanyCoordinatorStatusInput,
+    EpiphanyCrrcAction, EpiphanyCrrcRecommendation, EpiphanyCrrcResultStatus,
+    EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection, EpiphanyJobsInput,
+    EpiphanyReorientAction, EpiphanyRoleBoardInput, EpiphanyRoleBoardJob,
     EpiphanyRoleBoardJobStatus, EpiphanyRoleResultRoleId, EpiphanyRuntimeJobStatus,
     EpiphanySceneInput, EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycleStage,
     derive_jobs, derive_planning_view, derive_pressure_view, derive_role_board, derive_scene,
@@ -11,7 +11,10 @@ use epiphany_core::{
 };
 use epiphany_self_policy::derive_coordinator_status;
 use serde_json::{Value, json};
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 const DEFAULT_COORDINATOR_STORE: &str = "state/runtime-spine.msgpack";
 const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
@@ -32,8 +35,11 @@ fn main() -> Result<()> {
             fs::create_dir_all(parent)
                 .with_context(|| format!("failed to create {}", parent.display()))?;
         }
-        fs::write(result, format!("{}\n", serde_json::to_string_pretty(&status)?))
-            .with_context(|| format!("failed to write {}", result.display()))?;
+        fs::write(
+            result,
+            format!("{}\n", serde_json::to_string_pretty(&status)?),
+        )
+        .with_context(|| format!("failed to write {}", result.display()))?;
     }
     if args.json {
         println!("{}", serde_json::to_string_pretty(&status)?);
@@ -114,8 +120,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
 
     let mind = if store_path.exists() {
         Some(
-            epiphany_core::assemble_mind_view(&store_path)
-                .with_context(|| format!("failed to assemble keyed Mind {}", store_path.display()))?,
+            epiphany_core::assemble_mind_view(&store_path).with_context(|| {
+                format!("failed to assemble keyed Mind {}", store_path.display())
+            })?,
         )
     } else {
         None
@@ -157,7 +164,9 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         reorientation_work_present: reorientation_work.is_some(),
     });
     let planning = derive_planning_view(mind.as_ref());
-    let jobs = derive_jobs(EpiphanyJobsInput { mind: mind.as_ref() });
+    let jobs = derive_jobs(EpiphanyJobsInput {
+        mind: mind.as_ref(),
+    });
     let role_jobs = jobs
         .iter()
         .map(|job| EpiphanyRoleBoardJob {
@@ -497,11 +506,21 @@ pub fn render_status(status: &Value) -> String {
     let current = &status["currentWork"];
     let mut lines = vec![
         "Epiphany Status".to_string(),
-        format!("Mind: {}", if read["mindPresent"].as_bool() == Some(true) { "ready" } else { "missing" }),
+        format!(
+            "Mind: {}",
+            if read["mindPresent"].as_bool() == Some(true) {
+                "ready"
+            } else {
+                "missing"
+            }
+        ),
         format!("Projection: {}", maybe(&read["projectionDigest"], "none")),
         format!("Coordinator: {}", maybe(&coordinator["action"], "none")),
         format!("Reason: {}", maybe(&coordinator["reason"], "none")),
-        format!("Hands ready: {}", current["handsFrontierReady"].as_bool().unwrap_or(false)),
+        format!(
+            "Hands ready: {}",
+            current["handsFrontierReady"].as_bool().unwrap_or(false)
+        ),
         String::new(),
         "Role lanes".to_string(),
     ];
@@ -545,7 +564,10 @@ fn truncate_json_text(value: Value) -> Value {
         return sanitize_for_operator(value);
     };
     let mut chars = text.chars();
-    let truncated = chars.by_ref().take(MAX_OPERATOR_TEXT_CHARS).collect::<String>();
+    let truncated = chars
+        .by_ref()
+        .take(MAX_OPERATOR_TEXT_CHARS)
+        .collect::<String>();
     if chars.next().is_some() {
         Value::String(format!("{truncated}…"))
     } else {
