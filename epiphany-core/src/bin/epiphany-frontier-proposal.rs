@@ -121,13 +121,18 @@ impl Args {
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    const ABSOLUTE_STORE: &str = "C:/state/runtime.cc";
+    #[cfg(not(windows))]
+    const ABSOLUTE_STORE: &str = "/tmp/epiphany-frontier-proposal-test-runtime.cc";
+
     #[test]
     fn proposal_cli_keeps_repeated_typed_lists_and_forbids_private_state() {
         let args = Args::parse(
             [
                 "intake-select",
                 "--store",
-                "C:/state/runtime.cc",
+                ABSOLUTE_STORE,
                 "--constraint",
                 "one",
                 "--constraint",
@@ -165,7 +170,7 @@ mod tests {
                 [
                     "intake-select",
                     "--store",
-                    "C:/state/runtime.cc",
+                    ABSOLUTE_STORE,
                     "--grant-hands",
                     "yes",
                 ]
