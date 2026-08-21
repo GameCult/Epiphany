@@ -782,6 +782,7 @@ fn audit_decision_context_from_cache(
     cache: &CultCache,
     context: &EpiphanyDecisionContext,
 ) -> Result<Option<EpiphanyDecisionAuditProjection>> {
+    let context_id = context.context_id.as_str();
     let basis = cache
         .get::<EpiphanyReasoningBasis>(&context.basis_id)?
         .ok_or_else(|| anyhow!("decision audit context lost its reasoning basis"))?;
