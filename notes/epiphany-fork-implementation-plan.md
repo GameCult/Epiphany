@@ -399,9 +399,9 @@ Cut in this order:
    concurrency/retention suites and core `496/496` pass. The complete native
    workspace/all-target suite also passes; the only ignored test is the
    explicitly live immutable-GitHub proof.
-24. **Build/run retention is bounded:** the current package path is native on
-   F: with one shared Cargo target/cache and one exact run root. Any future
-   containerized run must use exact run labels and remove disposable
+24. **Build/run retention is bounded:** Idunn on upgraded Yggdrasil owns the
+   source-triggered compile/test/package/deploy path. Starfire does not run a
+   parallel release build. Any containerized run must use exact run labels and remove disposable
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
    names the invariant they preserve.

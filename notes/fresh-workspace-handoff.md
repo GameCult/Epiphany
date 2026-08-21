@@ -10,7 +10,8 @@ Current worktree: canonical documentation and evidence reconciliation only
 The five-day shakedown and Model Atlas operational Gate 1 are paused. Do not
 touch historical c011/proof volumes, reuse partial Gate roots, release
 autonomous scheduling, register operational topology in `gamecult-ops`, race
-the separate Yggdrasil deployment task, or call the organism deployment-ready.
+Idunn's Yggdrasil CI/CD task with local compiler work, or call the organism
+deployment-ready.
 
 Epiphany is a supervised engineering alpha. Historical live proofs remain
 valid evidence, but current source has advanced beyond the last packaged c011
@@ -266,10 +267,11 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Commit, push, and package the fully native-accepted source from F: using the
-   shared native Cargo target and one exact run root.
-2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against that
-   package: concurrent Persona/repository work, Body -> Modeling -> Mind,
+1. Observe Idunn on upgraded Yggdrasil consume pushed source `f5edfc9d`. Require
+   exact compile, test, package, deployment, and service-health receipts. Do not
+   run a competing release build on Starfire.
+2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
+   Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
    transcript-independent decision inspection, and process restart/re-entry
    with identical obligations and no resurrection.
@@ -286,9 +288,9 @@ A stopped build container or cloned source volume owns no durable proof.
 - Historical accepted live release: source `465af24d`, c011 package SHA-256
   `089e0005`; it is not the current source body.
 - The old Yggdrasil capacity measurement is obsolete. The upgraded host is the
-  intended swarm body; its current deployment truth belongs to the separate
-  deployment task. This source pass builds natively on F: and makes no claim
-  about Yggdrasil readiness.
+  intended swarm body and CI/CD machine. Idunn owns source-change compilation,
+  testing, release construction, deployment, and daemon survival there; its
+  current deployment truth belongs to the separate deployment task.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.

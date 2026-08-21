@@ -49,6 +49,11 @@ lifecycle. The persisted Epiphany brake survives that recovery and continues to
 block cognition/consequence ingress. Treating the target brake as a deployer
 prerequisite reverses the owner and creates an unrecoverable cycle.
 
+Idunn's CI/CD loop also owns the source-change path on upgraded Yggdrasil:
+observe pushed commit, compile, test, construct the exact release, admit/deploy
+it, and publish service-health receipts. Starfire is an operator/source body;
+it does not run a parallel release build when Idunn owns the same change.
+
 ## Canonical Mind
 
 The runtime Mind `.cc` is the sole decision-bearing store. Other `.cc` files
@@ -314,19 +319,21 @@ Accepted at the `bb823c54` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. run the fresh exact-package capstone over a new store, including concurrent
+1. receive Idunn's exact Yggdrasil compile/test/package/deployment receipts for
+   pushed source `f5edfc9d`;
+2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,
    concurrency, refusal, and re-entry matrix is accepted;
-2. only then restart Model Atlas Gate 1 from a new
+3. only then restart Model Atlas Gate 1 from a new
    external root.
 
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
 Yggdrasil capacity/topology is obsolete; the upgraded host is the intended
-swarm body, with deployment preparation owned by a separate task. This source
-pass neither mutates that host nor treats its deployment state as capstone
-evidence. Operational topology registration and autonomous scheduling remain
-forbidden until their owning gates pass.
+swarm and CI/CD body, with Idunn deployment preparation owned by a separate
+task. This source pass neither mutates that host nor treats an unreceipted
+deployment as capstone evidence. Operational topology registration and
+autonomous scheduling remain forbidden until their owning gates pass.
 
 ## Primary source anchors
 
