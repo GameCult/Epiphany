@@ -58,29 +58,35 @@ earned OpenAI-compatible authentication or model-transport capability.
 
 ## Active Campaign
 
-### 0. Unify Canonical State Transactions
+### 0. Federate Decision-Auditable Mind
 
-Status: complete. `coordinator_state_transaction.rs` is the sole production
-writer of `THREAD_STATE_KEY`; ordinary updates, launches, and Mind acceptance
-share it, raw storage writers are deleted, and negative source guards prevent a
-second owner.
+Status: source-complete; exact-package capstone open. The persisted thread head,
+global revision transaction, aggregate RepoModel, generic Mind gateway, and
+dual readers are deleted. Concrete invariant owners submit exact-envelope
+`MindMutation` plans; CultCache batch CAS merges disjoint identities and refuses
+same-identity or changed-strong-read conflicts without partial writes.
 
-- Define one transaction owner for canonical state revision changes.
-- Make ordinary update, launch, and Mind-witness acceptance call that owner.
-- Preserve operation-specific atomic companions: launch runtime envelopes and
-  acceptance Mind witnesses must commit in the same cache transaction.
-- Replace misleading `runtime_spine_store` state writes with an explicit
-  unified store contract or genuinely separate stores with a typed transaction
-  coordinator; do not rely on path aliasing by convention.
-- Demote raw `thread_state_store` writers to crate-private substrate helpers.
+- Preserve the sealed reasoning basis, exact final native/provider request,
+  governed tool observations, structured terminal decision/failure, and Mind
+  commit receipt.
+- Keep family requests and admission owners concrete; share only pure identity,
+  continuation, binding-validation, and CAS invariants.
+- Derive work from unresolved typed obligations. Events, lanes, timestamps,
+  thread provenance, and aggregate view digests remain projections only.
+- Assemble RepoModel and semantic work from complete keyed document sets.
+  Fence namespace phantoms at the operation snapshot; do not invent a global
+  head to make set membership convenient.
 
 Exit evidence:
 
-- one named primitive owns `THREAD_STATE_KEY` writes;
-- negative source tests reject direct canonical-state writes elsewhere;
-- ordinary update, launch, and acceptance transaction tests pass against the
-  chosen explicit store contract;
-- `EpiphanyCoordinatorService` path names match real ownership.
+- concurrent Persona, Hands, Modeling, and Verification writes to disjoint
+  identities all commit;
+- same-key conflict, changed strong reads, and exact replay follow the declared
+  merge law;
+- every model-backed success or failure can be audited to its exact sealed
+  projection without transcript retention;
+- source guards reject persisted thread state, aggregate RepoModel authority,
+  caller-authored provider storage, and generic Mind mutation mouths.
 
 ### 1. Repair Modeling
 
@@ -224,6 +230,29 @@ records, and Mind commit receipts. Worker attempt archival retains the typed
 result family instead of reducing it to IDs and a digest. Runtime schema v2
 refuses the superseded writable archive shape; there is no reader or migrator.
 
+Exact `553f79d9` closes the provider-schema ownership wound exposed by the
+packaged capstone. One shared Responses dialect compiler now serves role and
+Persona passes: it removes provider-illegal conditional structure, preserves
+supported standard-model constraints, compiles UUID formats into enforced
+patterns, and leaves the full native schema as the only admission contract.
+The failed package roots remain immutable evidence; no role-specific output
+exception was added.
+
+Exact `a8f3c1f0` closes the next packaged falsification at the RepoModel seed
+owner. Repository bootstrap had passed immutable Git source identity where the
+keyed model contract required the authenticated runtime Body binding. The
+bootstrap now derives that value from the admitted Body observation, while the
+RepoModel initializer independently validates the complete route before any
+envelope is written. A hostile seed refuses byte-identically; no migration or
+fallback identity exists.
+
+Exact `bb823c54` closes the two wounds found by that native replay. One
+shared model-pass terminal owner atomically binds a typed failure to its sealed
+decision context and closes the exact Persona session. Modeling semantic work
+is derived from the complete exact keyed RepoModel document-version set plus
+the Mind commit receipts that own those versions; it is content-addressed cache
+physiology outside Mind mutation CAS, not a singleton projection head.
+
 Cut in this order:
 
 1. **Landed at `79346523`:** replace the aggregate-shaped role reasoning input with one sealed typed
@@ -336,8 +365,48 @@ Cut in this order:
    post-Research boundaries. Build the exact clean-source package and run the
    fresh-store capstone. Only then restart Model Atlas Gate 1 from a new
    external root.
+21. **Provider schema ownership landed at `553f79d9`:** one shared Responses
+   dialect compiler serves role and Persona passes. Unsupported conditional
+   fragments and `uniqueItems` leave provider cargo; supported standard-model
+   constraints remain; literal-only variants receive explicit types; UUID
+   formats lower to lexical patterns. Full native decoding remains the only
+   terminal-decision admission boundary. Three failed packaged roots are
+   retained as falsification evidence rather than hidden by a family prompt
+   patch.
+22. **RepoModel seed ownership landed at `a8f3c1f0`:** the authenticated
+   runtime Body route, not Git source identity or caller convention, owns the
+   keyed model's Body binding. Bootstrap derives it from the admitted
+   observation and initialization reauthenticates it before writing. The exact
+   `553f79d9` package proved concurrent Persona plus terminal Modeling cognition,
+   then correctly exposed the bad seed during admission. Rebuild and replay the
+   capstone from exact `a8f3c1f0`; do not transplant the prior decision.
+23. **Terminality, provider-authorship, and semantic-work cut landed at `bb823c54`:**
+   a provider or contract failure seals one `EpiphanyModelPassFailure`; its
+   sealed context, not caller arguments, identifies and atomically closes the
+   exact model transport job/session. Role, reorient, and Persona failures share
+   this owner, while generic transport results carry no decision authority.
+   Provider requests are derived internally from native requests at execution
+   opening, event recording, and context sealing; the public caller-authored
+   provider store is deleted. Reorientation failure admission requires the
+   same canonical model-pass failure rather than a generic failed worker result
+   plus context. Restart cannot silently infer again. Modeling
+   semantic projection work is regenerated from exact keyed document versions
+   and their owning Mind commit receipts. Disjoint Mind commits never replace
+   a shared semantic head. Each semantic operation reconstructs the complete
+   current keyed basis from its opening snapshot and uses a full-snapshot fence
+   where namespace phantoms matter; stale work is identified by exact basis
+   identity rather than aggregate revision or timestamp order. Focused
+   concurrency/retention suites and core `496/496` pass. The complete native
+   workspace/all-target suite also passes; the only ignored test is the
+   explicitly live immutable-GitHub proof.
+24. **Build/run retention is bounded:** the current package path is native on
+   F: with one shared Cargo target/cache and one exact run root. Any future
+   containerized run must use exact run labels and remove disposable
+   containers, copied-source volumes, and writable roots at terminal
+   settlement. Accepted proof stores remain only when this plan or the handoff
+   names the invariant they preserve.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
-touch Yggdrasil, reuse historical/partial Gate roots, or treat semantic
-readiness as coordinator acceptance.
+race the separate Yggdrasil deployment task, reuse historical/partial Gate
+roots, or treat semantic readiness as coordinator acceptance.

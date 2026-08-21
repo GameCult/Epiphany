@@ -1,15 +1,16 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-18
+Updated: 2026-08-21
 Branch: `codex/epiphany-shakedown-live`
-Latest implementation cut: `d3300bba`
+Latest committed implementation cut: `bb823c54`
+Current worktree: canonical documentation and evidence reconciliation only
 
 ## Orientation
 
 The five-day shakedown and Model Atlas operational Gate 1 are paused. Do not
 touch historical c011/proof volumes, reuse partial Gate roots, release
-autonomous scheduling, register operational topology in `gamecult-ops`, build
-on Yggdrasil, or call the organism deployment-ready.
+autonomous scheduling, register operational topology in `gamecult-ops`, race
+the separate Yggdrasil deployment task, or call the organism deployment-ready.
 
 Epiphany is a supervised engineering alpha. Historical live proofs remain
 valid evidence, but current source has advanced beyond the last packaged c011
@@ -90,6 +91,50 @@ The global thread-state authority is gone.
   Worker archival now retains the complete typed role/generic result family;
   the digest-only archive shape is deleted. Runtime schema v2 refuses the
   prior writable archive epoch.
+- `553f79d9` makes the OpenAI Responses schema projector one explicit dialect
+  compiler shared by every model pass. It types literal-only schemas, removes
+  parent-relative and unsupported conditional validation from provider cargo,
+  preserves supported type-specific constraints, and lowers decision-bearing
+  UUID formats to exact lexical patterns. The full native schema remains the
+  Mind-admission contract; no provider projection can weaken native decoding.
+  This cut was forced by three preserved packaged falsifications: untyped
+  literal/parent refinements, rejected `uniqueItems`, and an invalid UUID after
+  over-stripping provider guidance. No role-specific prompt/schema exception
+  survives.
+- `a8f3c1f0` repairs the Body identity seam exposed only after the first fully
+  typed packaged Modeling decision. Bootstrap had supplied Git source identity
+  to the keyed RepoModel's Body-binding field. Bootstrap now uses the admitted
+  `RepositoryBodyObservationBasis`, and RepoModel initialization independently
+  refuses any seed that disagrees with the authenticated runtime Body route
+  before writing a single envelope. The negative test proves the entire store
+  remains byte-identical.
+- Exact `bb823c54` closes the model-pass failure seam exposed by the native
+  capstone. `EpiphanyModelPassFailure` is one shared typed terminal record over
+  the sealed basis/context for role, reorient, and Persona cognition. The
+  terminal owner derives the exact transport session/job from that context,
+  atomically closes a still-live transport job plus the exact model session,
+  and prevents generic transport failure from impersonating decision authority.
+  Restart reuses the terminal record instead of inferring again. Persona success
+  closes the session only after the effect document and terminal receipt are
+  durable.
+- Reorientation failure admission now requires that same exact
+  `EpiphanyModelPassFailure`. A generic failed worker result plus a plausible
+  context can no longer manufacture a Continuity decision.
+- Provider request authorship is also cut at the owner. Runtime execution and
+  decision sealing both derive the provider request internally from the exact
+  native request. Public model-turn ingress accepts only native requests;
+  caller-authored provider requests refuse before opening model authority, and
+  no public provider-request storage function survives.
+- Exact `bb823c54` also closes the bootstrap-only semantic work seam.
+  Modeling projection work is derived on each pulse from the complete exact
+  keyed RepoModel document-version set and the Mind commit receipts that own
+  those versions. The cache work item is content-addressed and stays outside
+  Mind mutation CAS, so unrelated graph commits remain concurrent. Older work
+  cannot suppress a newly assembled basis. Each projector operation validates
+  the complete current keyed namespace from its opening snapshot, and
+  acquisition uses full-snapshot CAS so a concurrent disjoint insert cannot
+  hide as a phantom. Modeling retention uses exact basis identity rather than
+  synthetic aggregate generation or timestamp order.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -97,12 +142,17 @@ provenance; they do not own identity, currentness, or conflict.
 
 Verification at this boundary:
 
+- `cargo test --workspace --all-targets --locked -- --test-threads=1` passes natively;
 - every Epiphany core target compiles;
-- core library `493/493`;
-- OpenAI runtime library `24/24`;
+- core library `496/496`;
+- OpenAI runtime library `25/25`;
+- OpenAI Codex spine `12/12`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`;
 - Persona service `1/1`.
+- tool runtime `14/14`, with only the explicitly live immutable-GitHub test
+  ignored;
+- release construction `21/21`.
 
 ## Canonical machine now
 
@@ -146,8 +196,9 @@ Transcripts, SSE frames, reasoning deltas, and intermediate prose are optional
 and non-authoritative. A retained decision must remain auditable after deleting
 them.
 
-Model opening already requires the sealed basis for worker passes and derives
-the provider request from the native request. Structured role/reorient results,
+Model opening requires the sealed basis for worker passes and derives the
+provider request internally from the native request; callers cannot supply a
+second provider-shaped truth. Structured role/reorient results,
 the three Persona stages, and retained worker/session/Persona authority already
 bind and preserve exact decision contexts. Concrete Body, Proposal,
 frontier-verdict Modeling, Research, Verification, Planning/PlanMind, and
@@ -176,23 +227,57 @@ old-epoch refusal, deterministic current-work re-entry, and Persona replay
 without input reformulation or inference. This is source acceptance, not yet a
 package/live claim.
 
-An exact clean `d26a99d5` Linux baseline package completed successfully with 27
-binaries and release witness
-`sha256-55346d97207d5a847317e654256f91378f5d5ee7cac62093539c70413f9d57a3`.
-That proves the isolated package machinery and warmed cache, not the final
-capstone: the exact final package must be rebuilt from `f8412b69` or its
-document-only successor.
+Exact clean packages at `55fb4cf8`, `edd664db`, and `1e01c339` preserved the
+three provider-boundary falsifications above. Exact clean `553f79d9` then
+packaged 27 Linux binaries as release
+`sha256-e6c19d2b231a73023772f1162b15dac63bd4c7957a7a1cea82a86c8d75f35ac9`
+with witness
+`sha256-fbee2857c558bde47f4b422b59fe675362fd1955388b084b3d44a188f8a6c82a`.
+Its fresh capstone completed concurrent three-stage Persona cognition and a
+terminal Body-Modeling decision after five governed source-tool rounds. Review
+then refused before Mind mutation because the seeded RepoModel carried Git
+source identity instead of the authenticated Body binding. That failed root is
+preserved and is not replay input.
+
+Exact clean `a8f3c1f0` now packages natively on Windows as 27 binaries, release
+`sha256-19d40048f46355486e66c2abc766abb277122c552cb121a9161e6e95a471be46`,
+witness
+`sha256-ee8bf0574b5e7d489adc47f6dca491fe5224c8b3e61b3d2fd8c2e67c36d5f903`,
+with `privateStateExposed=false`. Its fresh store projected `launchModeling`
+directly from the Body obligation and launched Persona plus Modeling
+concurrently. Both provider calls then failed because this task token cannot
+reach `chatgpt.com`; no positive decision was fabricated.
+
+That failure found a real architecture gap. Modeling already sealed a typed,
+transcript-free failure context, but Persona left its session active. The
+Exact `bb823c54` repairs the shared owner. A native negative replay produced
+basis `reasoning-basis-sha256:d31179fe...`, context
+`decision-context-sha256:a89ba921...`, and model-pass failure `dd058f3f...`;
+the Persona session is `Completed`, `transcriptRequired=false`, and restart
+left runtime SHA-256 `C7723AD7...` plus heartbeat SHA-256 `2996AAA8...`
+byte-identical. Its 2.09 MB temporary replay root is
+`.epiphany-run/native-model-failure-20260818-a`; evidence is distilled and the
+temporary root owns no continuing proof.
+
+Docker shakedown hygiene remains an operator invariant, but this migration and
+its package are native-only. Future containerized runs must use one shared warm
+cache set, exact run labels, bounded exported evidence, and terminal cleanup.
+A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Build one exact clean-source package from `f8412b69` or its document-only
-   successor without adding a shipped proof-only binary.
+1. Commit, push, and package the fully native-accepted source from F: using the
+   shared native Cargo target and one exact run root.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against that
    package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
    transcript-independent decision inspection, and process restart/re-entry
    with identical obligations and no resurrection.
-3. Only then resume Model Atlas Gate 1 from a new external root.
+3. Before that capstone, expose a bounded packaged decision-context listing for
+   operator audit and establish a fresh canonical Persona mouth receipt anchor.
+   Do not transplant the old proof anchor or ship a generic test harness.
+4. Only then resume Model Atlas Gate 1 from a new external root. Yggdrasil
+   deployment preparation remains owned by the separate deployment task.
 
 ## Operational state that matters
 
@@ -200,14 +285,19 @@ document-only successor.
   `255` on 2026-08-11. Their named volumes are quiescent historical evidence.
 - Historical accepted live release: source `465af24d`, c011 package SHA-256
   `089e0005`; it is not the current source body.
-- Starfire remains the cognition/build host. Yggdrasil remains the small public
-  crossing body and never builds.
+- The old Yggdrasil capacity measurement is obsolete. The upgraded host is the
+  intended swarm body; its current deployment truth belongs to the separate
+  deployment task. This source pass builds natively on F: and makes no claim
+  about Yggdrasil readiness.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.
 - Model Atlas code and isolated proofs remain accepted. Signed Gate 1 sight,
   brake freeze, autonomous cascade, partition exercise, and endurance remain
   open.
+- GitHub's August 2026 service incidents were external provider downtime. They
+  do not count as Epiphany source-identity or grant failures; successful lookup
+  and denial-before-network remain separately required evidence.
 
 ## Git/worktree caution
 

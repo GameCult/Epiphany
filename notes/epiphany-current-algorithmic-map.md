@@ -1,7 +1,8 @@
 # Epiphany current algorithmic map
 
-Updated: 2026-08-18
-Latest implementation cut: `d3300bba` on `codex/epiphany-shakedown-live`
+Updated: 2026-08-21
+Latest committed implementation cut: `bb823c54` on `codex/epiphany-shakedown-live`
+Current worktree cut: canonical documentation and evidence reconciliation only
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -30,6 +31,8 @@ interface authority.
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | current-work projections, Resident pressure, and exact runtime receipts | one prioritized recommendation and read-only operator views | Coordinator presence is derived; no mutable coordinator head exists. |
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
+| OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
+| model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/event in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |
 | Eyes | explicit external-evidence obligation plus governed source receipts | typed evidence packet and Mind observations | Eyes gathers outside evidence; it does not gate Modeling over the Body. |
 | Modeling | Body basis, keyed RepoModel view, verified consequences, and explicit proposals | typed graph/frontier mutations | Modeling processes the Body directly and owns no external-source permission. |
@@ -37,6 +40,14 @@ interface authority.
 | Soul | exact consequence and invariant/evidence obligations | verification audit or refusal | Work is not true merely because it ran. |
 | Persona | unread typed social/relationship state plus exact Persona projection | typed effects, speech intent, and consequence receipts | Persona work cannot block unrelated Hands or Modeling documents. |
 | CultMesh/Eve | typed provider-owned documents and deterministic views | private/local/public projections | Visibility and rendering never create authority. |
+
+External lifecycle boundary: Idunn remains available when Epiphany is missing,
+failed, or braked. Epiphany's swarm brake is an input only to an Idunn
+transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,
+self-bootstrap, observation, same-release recovery, or another target's
+lifecycle. The persisted Epiphany brake survives that recovery and continues to
+block cognition/consequence ingress. Treating the target brake as a deployer
+prerequisite reverses the owner and creates an unrecoverable cycle.
 
 ## Canonical Mind
 
@@ -113,6 +124,36 @@ planning patch is gone. Exact `1c9aafd8` seals one decision context before model
 frontier-Planning failure terminalization and binds both the typed faculty
 failure and generic job result to it. Shared runtime validators own the
 store-backed model/tool refusal matrix used by both execution and sealing.
+Exact `553f79d9` gives every role and Persona pass one shared Responses dialect
+compiler. The provider sees a closed, generation-useful subset; native typed
+decoding still sees the full schema and alone decides whether a terminal
+decision can enter Mind. Provider success therefore cannot launder malformed
+semantic output.
+
+Exact `a8f3c1f0` makes the authenticated runtime Body route own initial
+RepoModel binding. Bootstrap derives the keyed model identity from the admitted
+Body observation instead of confusing Git source identity with Body-store
+identity, and `initialize_keyed_repo_model` independently refuses a seed whose
+runtime, swarm, workspace, or Body-binding digest disagrees with the live
+route. The refusal is whole-store byte-identical. Later Modeling decisions
+remain bound to their exact observation version and are never rebased.
+
+Exact `bb823c54` adds one shared failure terminal owner after a native
+provider refusal exposed split Persona closure. The failure cites the sealed
+basis/context and exact model request; runtime derives the exact transport
+binding from that context and atomically closes a still-live transport job plus
+the exact model session. Role, reorient, and Persona failures use that same
+owner; a generic transport result remains physiological and carries no decision
+context. Persona re-entry first consults the typed failure, so failure cannot
+resurrect inference. Successful Persona turns close only after their effect
+document and terminal receipt exist. Runtime execution opening and context
+sealing both derive provider requests internally from native requests; the
+caller-authored provider-request entrance is deleted. A native negative replay
+proves transcript-free audit plus byte-identical runtime/heartbeat restart.
+Reorientation's family admission additionally requires the exact canonical
+model-pass failure; a generic failed worker result plus context cannot mint a
+Continuity failure decision. Exact failure replay includes the terminal time,
+and audit/lookup revalidate the failure against its runtime model binding.
 
 ## Concurrent Mind mutation
 
@@ -134,6 +175,14 @@ Merge law:
 Collection members therefore remain separate CultCache identities. Shared
 vectors and mutable global heads are forbidden because they manufacture false
 conflict between Persona, Hands, Modeling, and Verification.
+
+The semantic projector applies the same doctrine to derived cache work. Before
+acquisition, completion, retention, or retirement, it reconstructs the complete
+current Modeling basis from the opening snapshot and requires the supplied
+content-addressed obligation to match. Acquisition is full-snapshot CAS, so a
+concurrent keyed insert is fenced even though none of the older source
+envelopes changed. Semantic cache generations and times remain diagnostic
+cargo; they do not establish direction or currentness.
 
 ## State-driven work
 
@@ -205,6 +254,16 @@ Semantic vector projection is derived cache work. Readiness is based on exact
 projection obligations and receipts; semantic cache state never admits Mind or
 routes an agent pass.
 
+For Modeling, each projector pulse assembles the complete current keyed
+RepoModel view, authenticates every exact document version through the Mind
+commit receipt that owns it, and derives a content-addressed projection work
+item from that basis. The work item is not written inside a Mind mutation:
+doing so would recreate a singleton conflict domain across disjoint graph
+commits. An older bootstrap or concurrent work item remains harmless cache
+history and cannot suppress the newly assembled basis. Modeling retention uses
+exact basis identity, not the graph-shaped projector DTO's synthetic revision;
+that DTO is compatibility-shaped cache cargo only.
+
 ## External and social facts
 
 - Repository Body bytes enter through typed observations and exact digests.
@@ -231,14 +290,16 @@ same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted through `f8412b69`:
+Accepted at the `bb823c54` source boundary:
 
 - every Epiphany core target compiles;
-- core library `493/493`;
-- OpenAI runtime library `24/24`;
+- core library `496/496`;
+- OpenAI runtime library `25/25`;
 - model-runtime binary `10/10`;
 - OpenAI-runtime binary `10/10`.
 - Persona service `1/1`.
+- tool runtime `14/14`, with the explicitly live immutable-GitHub test ignored.
+- release construction `21/21`.
 - all core targets compile; generic role-patch source guards pass.
 - authenticated Persona re-entry refuses naked typed input, performs no
   external observation or model call, and preserves the exact three-stage
@@ -260,9 +321,12 @@ Open before Model Atlas Gate 1 resumes:
 2. only then restart Model Atlas Gate 1 from a new
    external root.
 
-Historical c011 and partial Gate roots remain read-only. Yggdrasil remains a
-public crossing body, not a build host. Operational topology registration and
-autonomous scheduling remain forbidden until the capstone passes.
+Historical c011 and partial Gate roots remain read-only. The pre-upgrade
+Yggdrasil capacity/topology is obsolete; the upgraded host is the intended
+swarm body, with deployment preparation owned by a separate task. This source
+pass neither mutates that host nor treats its deployment state as capstone
+evidence. Operational topology registration and autonomous scheduling remain
+forbidden until their owning gates pass.
 
 ## Primary source anchors
 
