@@ -225,7 +225,30 @@ rendering only; it never writes Mind or reconstructs prompts from live state.
 Exact source `5f66d6c9` adds `list-decisions` to the same runtime. It
 deterministically lists only contexts with a complete validated terminal audit
 chain; sealed nonterminal contexts remain physiology and are omitted. This
-source is pushed but is not package evidence until Idunn receipts it.
+surface and its portable-test repairs through exact `ebc0ffe4` have now passed
+Idunn's full Yggdrasil workspace gate and are sealed in the exact Linux package
+described below.
+
+Idunn compiled and tested exact source
+`ebc0ffe4f341154d1902f9afe86f0a87f150179c` on upgraded Yggdrasil. The gate
+recorded 133 successful test summaries, including core `499/499`, under test
+receipt SHA-256
+`38c36ebe12e662602d6eccbbdc520de19bff801fec90af0eec2a345306a567d8`.
+It sealed 27 immutable root-owned binaries as release
+`sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`
+with witness SHA-256
+`4d8350fac61f90d32a2b8067731308ec3e3672a42804db29c680b0fc68ab9adc`
+and `privateStateExposed=false`.
+
+The exact Idunn request ending `2026-08-21T20:17:11.821Z` then refused before
+publication because Yggdrasil lacks the Bifrost organizational-operator
+runtime identity and its VoidBot, bridge-group, private-state, anchor, and
+configuration substrate. The deployment brake is engaged; Epiphany units are
+inactive and disabled; `app/current` still names recovery source `267a0257`;
+no `deployment.env`, runtime publication, or signed-health admission exists.
+Resident Self's two Codex credential files are also absent behind that first
+gate. This is a clean infrastructure blocker, not package acceptance or a
+license to bootstrap another organ from the Epiphany lane.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -271,13 +294,12 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Receive the Yggdrasil deployment task's installation of Idunn's missing
-   Epiphany source-change CI/CD loop. Current Idunn is active with zero
-   restarts, but `/srv/build/Epiphany`, the Epiphany target, and the deployment
-   receipt are absent; the old runbook still requires manual Bifrost
-   authorization of `refs/heads/main`. Once repaired, require exact compile,
-   test, package, deployment, and service-health receipts for source
-   `5f66d6c9`. Do not run a competing release build on Starfire.
+1. Have the Bifrost/VoidBot infrastructure owner install the missing
+   organizational-operator substrate, then provision Epiphany's Codex
+   credentials through their single owner. Reissue the exact Idunn deployment
+   for the already tested and sealed `ebc0ffe4` package and require publication,
+   runtime start, and signed-health receipts. Do not run a competing release
+   build on Starfire and do not let the Epiphany lane bootstrap another organ.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
    Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
@@ -286,8 +308,9 @@ A stopped build container or cloned source volume owns no durable proof.
 3. Establish a fresh canonical Persona mouth receipt anchor before the Persona
    consequence leg. Do not transplant the old proof anchor or ship a generic
    test harness.
-4. Only then resume Model Atlas Gate 1 from a new external root. Yggdrasil
-   deployment preparation remains owned by the separate deployment task.
+4. Only then resume Model Atlas Gate 1 from a new external root. Idunn remains
+   the sole deployment owner; Bifrost/VoidBot bootstrap belongs to its own
+   infrastructure authority.
 
 ## Operational state that matters
 
@@ -299,9 +322,11 @@ A stopped build container or cloned source volume owns no durable proof.
   intended swarm body and CI/CD machine. Idunn owns source-change compilation,
   testing, release construction, deployment, and daemon survival there; its
   current deployment truth belongs to the separate deployment task.
-- Read-only inspection on 2026-08-21 found Idunn active and independent, but no
-  Epiphany checkout, target, or deployment receipt. This is a missing CI/CD
-  installation, not a reason to fall back to Starfire compilation.
+- Idunn is active and independent at exact source `745e0109`; its Epiphany
+  source-change target is installed. Exact `ebc0ffe4` passed the full workspace
+  gate and sealed successfully on Yggdrasil. Publication stopped safely at the
+  missing Bifrost operator substrate; this is not a reason to fall back to
+  Starfire compilation.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.

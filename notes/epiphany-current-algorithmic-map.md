@@ -317,17 +317,20 @@ Accepted at the `bb823c54` source boundary:
 - exact source `5f66d6c9` adds `epiphany-model-runtime list-decisions`, a
   deterministic read-only index of contexts whose terminal audit chain already
   validates. It omits sealed nonterminal pass physiology and cannot author or
-  admit state. Idunn's Yggdrasil receipt for this source remains open.
+  admit state. Portable-test repairs through exact `ebc0ffe4` passed Idunn's
+  Yggdrasil workspace gate and are sealed in the exact 27-binary package
+  `sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`.
 - runtime schema v2 refuses the prior digest-only worker archive epoch without
   mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. receive the Yggdrasil deployment task's installation receipt for Idunn's
-   missing Epiphany source-change CI/CD loop, then Idunn's exact compile/test/
-   package/deployment receipts for pushed source `5f66d6c9`; current Idunn is
-   healthy but has no Epiphany checkout, target, or deployment receipt, and the
-   old runbook still describes manual `refs/heads/main` authorization;
+1. provision Yggdrasil's missing Bifrost organizational-operator substrate
+   through its owning infrastructure lane, then provision Epiphany's Codex
+   credentials through their single owner and reissue Idunn deployment of the
+   already tested/sealed `ebc0ffe4` package. Require runtime publication and
+   signed health; the current exact request refused before mutation and left
+   Epiphany inactive on recovery source `267a0257`;
 2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,
@@ -336,10 +339,11 @@ Open before Model Atlas Gate 1 resumes:
    external root.
 
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
-Yggdrasil capacity/topology is obsolete; the upgraded host is the intended
-swarm and CI/CD body, with Idunn deployment preparation owned by a separate
-task. This source pass neither mutates that host nor treats an unreceipted
-deployment as capstone evidence. Operational topology registration and
+Yggdrasil's old capacity/topology is obsolete; the upgraded 16-vCPU host is the
+intended swarm and CI/CD body. Idunn owns the installed Epiphany source-change
+path and sealed the package, but the absent Bifrost operator substrate still
+blocks publication. The package is not capstone or service-health evidence.
+Operational topology registration and
 autonomous scheduling remain forbidden until their owning gates pass.
 
 ## Primary source anchors

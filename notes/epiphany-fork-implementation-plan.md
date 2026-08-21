@@ -404,17 +404,18 @@ Cut in this order:
    parallel release build. Any containerized run must use exact run labels and remove disposable
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
-   names the invariant they preserve. Read-only inspection on 2026-08-21 found
-   that this intended Epiphany CI/CD target is not installed: Idunn itself is
-   healthy, but no Epiphany checkout, target, or deployment receipt exists and
-   the old ops runbook still describes manual `refs/heads/main` authorization.
-   The Yggdrasil deployment task owns that missing installation; Starfire is
-   not its fallback.
+   names the invariant they preserve. The Epiphany target is now installed and
+   exact source `ebc0ffe4` passed Idunn's full Yggdrasil workspace gate, then
+   sealed 27 binaries as release
+   `sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`.
+   Publication refused before mutation because the Bifrost organizational-
+   operator substrate is absent. Starfire is not a fallback.
 25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists
-   nothing, and omits nonterminal pass physiology. Idunn's exact build/test/
-   package receipt remains the acceptance boundary for this source.
+   nothing, and omits nonterminal pass physiology. That surface is now inside
+   the accepted Idunn-built `ebc0ffe4` package; runtime publication and signed
+   health remain blocked by infrastructure authority outside Epiphany.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
