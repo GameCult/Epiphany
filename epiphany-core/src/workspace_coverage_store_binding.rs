@@ -768,7 +768,13 @@ mod tests {
             &binding,
             NOW,
         )?)?;
-        assert!(open_workspace_coverage_authority(&fixture.runtime_store).is_err());
+        drop(store);
+        assert_eq!(
+            open_workspace_coverage_authority(&fixture.runtime_store)
+                .unwrap_err()
+                .to_string(),
+            "workspace coverage store binding disagrees with runtime route"
+        );
         Ok(())
     }
 

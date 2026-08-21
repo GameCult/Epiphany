@@ -3715,13 +3715,14 @@ mod tests {
     #[test]
     fn exact_batch_readback_rejects_vector_substitution() -> Result<()> {
         let (repo, _state, runtime, basis) = coverage_fixture()?;
-        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
-        let planned = acquisition
+        let body = RepositoryBodyReadSession::open(&runtime, &basis)?;
+        let prepared = prepare_workspace_coverage_projection(&body, "provider", "model", 3)?;
+        let planned = prepared
             .plan
             .planned_points
             .first()
             .ok_or_else(|| anyhow!("fixture produced no planned points"))?;
-        let payload = payload_for(&acquisition.obligation, &acquisition.plan, planned);
+        let payload = payload_for(&prepared.obligation, &prepared.plan, planned);
         let expected_vector = vec![0.25_f32; 3];
         let point_bindings = vec![WorkspaceCoveragePointBinding {
             point_id: planned.point_id.clone(),
