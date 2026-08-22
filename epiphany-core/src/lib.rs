@@ -41,7 +41,6 @@ mod resident_readiness;
 mod resident_self;
 mod runtime_spine;
 mod runtime_store_backend;
-mod runtime_store_migration;
 mod runtime_worker_attempt;
 mod semantic_backend;
 mod semantic_projector_service;
@@ -733,8 +732,6 @@ pub use memory_graph::SemanticLifecycle;
 pub use memory_graph::SemanticPartition;
 pub use memory_graph::SemanticProjectionCandidate;
 pub use memory_graph::SemanticProjectionDocument;
-#[cfg(feature = "semantic-recovery-smoke")]
-pub use memory_graph::SemanticRecoverySmokeInspection;
 pub use memory_graph::SemanticVectorIndex;
 pub use memory_graph::SemanticVisibility;
 pub use memory_graph::authorize_memory_semantic_physical_retirements;
@@ -745,8 +742,6 @@ pub use memory_graph::derive_memory_semantic_projection_health;
 pub use memory_graph::derive_memory_semantic_projection_obligation;
 pub use memory_graph::derive_semantic_projection;
 pub use memory_graph::execute_memory_semantic_physical_retirement;
-#[cfg(feature = "semantic-recovery-smoke")]
-pub use memory_graph::inspect_memory_semantic_recovery_for_smoke;
 pub use memory_graph::lifecycle_allowed_for_profile;
 pub use memory_graph::load_memory_semantic_projection_readiness;
 pub use memory_graph::load_memory_semantic_projection_success;
@@ -1051,10 +1046,6 @@ pub use runtime_spine::terminalize_model_pass_failure_session;
 pub use runtime_spine::validate_hands_action_authority;
 pub use runtime_spine::write_runtime_hello_frame;
 pub use runtime_spine::write_runtime_schema_catalog_json;
-pub use runtime_store_migration::{
-    RUNTIME_STORE_MIGRATION_RECEIPT_SCHEMA_VERSION, RUNTIME_STORE_MIGRATION_RECEIPT_TYPE,
-    RuntimeStoreMigrationReceipt, migrate_runtime_store_to_redb,
-};
 pub use runtime_worker_attempt::{RuntimeTypedRequestRef, WorkerProcessStatus};
 pub use semantic_projector_service::SemanticProjectorServiceBody;
 pub use semantic_projector_service::SemanticProjectorServicePulse;

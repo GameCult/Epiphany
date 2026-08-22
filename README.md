@@ -241,26 +241,13 @@ Read that before touching the machine. It contains the operating law, re-entry
 rites, and enough anti-Jenga doctrine to keep the next clever patch from
 becoming tomorrow's cleanup sermon.
 
-## Run Locally
+## Operator Surfaces
 
-The current local operator wrapper is:
-
-```powershell
-.\tools\epiphany_local_run.ps1
-```
-
-Useful modes:
-
-```powershell
-.\tools\epiphany_local_run.ps1 -Mode status
-.\tools\epiphany_local_run.ps1 -Mode plan
-.\tools\epiphany_local_run.ps1 -Mode smoke
-.\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
-.\tools\epiphany_local_run.ps1 -Mode mvp -PersonaInput "Wake the local swarm and report."
-```
-
-`status`, `plan`, and `smoke` are operator-safe and do not spend model calls.
-`run` and `mvp` can use the retained OpenAI/Codex model transport.
+Eve/CultMesh projections are the normal human interface. Repository surgery
+uses the narrow native binaries owned by the packaged runtime; there is no
+umbrella script that assembles a second local control plane. For direct Mind
+inspection during development, use the shared-target `epiphany-state` command
+documented in [AGENTS.md](AGENTS.md).
 
 ## License
 

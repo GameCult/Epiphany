@@ -18,9 +18,10 @@ machine smaller and the canonical map explicitly reopens that lane.
   388 MiB build-script output. Several individual test harnesses were
   500--700 MiB.
 - `epiphany-core` declared 75 binary targets. The root release bundle declared
-  another 26 targets, many by pointing at the same source files. The first cut
-  reduces core to 30 binaries with zero duplicate owners and removes 19,252 net
-  non-vendor lines.
+  another 26 targets, many by pointing at the same source files. Exact
+  `1d5a1f17` reduced core to 30 binaries with zero duplicate owners and removed
+  19,252 net non-vendor lines. The current cut reduces core again to its one
+  explicit maintenance binary and the package to 25 owned runtime binaries.
 
 The storage failure is evidence of source-shape failure. Build-profile flags
 and janitors may reduce the symptom but cannot substitute for deleting code.
@@ -50,16 +51,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. Map `agent_memory` and every `state/agents.msgpack` consumer against keyed
+1. Map `agent_memory` and every remaining aggregate consumer against keyed
    Mind. Delete memories, social state, migrations, projections, and tests whose
    only purpose is to preserve the parallel aggregate.
-2. Delete `runtime_store_migration` and its tests unless a live fresh-epoch path
-   proves an owner; the approved migration explicitly has no writable migrator.
-3. Map the local PowerShell operator wrapper and its direct Persona/operator
-   binaries against Eve, Bifrost, and the packaged runtime. Delete the parallel
-   control plane rather than repairing its modes.
-4. Continue classifying remaining smoke/fixture/benchmark executables. A test
-   must falsify a named live invariant; compilation or a green mirror assertion
-   is not enough.
+2. Done: delete `runtime_store_migration`, its receipt registration, and its
+   test. The approved migration has no writable migrator.
+3. Done: delete the local PowerShell operator wrapper, direct Persona/operator
+   binaries, shipped `verse-query` control plane, and orphan Rider integration.
+4. Done: reduce `epiphany-core` from 30 binary targets to the one native
+   compaction helper. Runtime executables belong to the release bundle.
 5. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

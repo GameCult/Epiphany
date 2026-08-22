@@ -441,7 +441,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 The Ox17 deployment lane is paused. Yggdrasil exposed 96 GiB of dead native
 Cargo targets after interrupted full-workspace builds; exact cleanup returned
-the builder target root to 4 KiB. The first causal source cut is verified:
+the builder target root to 4 KiB. Exact `1d5a1f17` landed the first causal cut:
 
 - 21 duplicate core/release binary declarations are gone; each production
   entrypoint has one Cargo owner;
@@ -455,11 +455,19 @@ the builder target root to 4 KiB. The first causal source cut is verified:
 - core library tests remain 494/494 and Hands remains 5/5 under the sole release
   package owner.
 
-Next, map and cut the surviving legacy `agent_memory` aggregate,
-`runtime_store_migration` library/tests, and the local PowerShell operator
-control plane. Tests survive only when they falsify a named live invariant.
-Do not run a full-workspace compile, package, deployment, or Ox root until the
-subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+The second verified cut is not yet committed. It deletes the
+`runtime_store_migration` module/test, all 29 remaining unshipped core
+executables, the shipped `epiphany-verse-query` parallel control plane, the
+local PowerShell launcher, and its orphan Rider bridge. `epiphany-core` now
+owns only `epiphany-prepare-compaction`; the release bundle owns 25 runtime
+executables. Focused core, supervisor, and release-construction tests pass
+493/493, 32/32, and 21/21.
+
+Next, split the few live Persona/heartbeat inputs from `agent_memory`, then
+delete its aggregate identity, generation, SoA, migration/repair, and generic
+selfPatch authorities with the tests that preserve them. Do not run a
+full-workspace compile, package, deployment, or Ox root until the subtraction
+audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

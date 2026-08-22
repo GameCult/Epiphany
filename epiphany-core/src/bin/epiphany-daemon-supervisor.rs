@@ -209,28 +209,6 @@ fn dispatch(args: Args) -> Result<()> {
             managed_service_reconcile(args)
         }
         "service-runbook" | "runbook-service" => service_runbook(args),
-        "repo-work-service-audit"
-        | "repo-work-service-readiness"
-        | "repo-work-queue-runner-audit" => repo_work_service_audit(args),
-        "cluster-service-runbook" | "cluster-daemon-runbook" => cluster_daemon_runbook(args),
-        "cluster-service-install-plan"
-        | "cluster-daemon-install-plan"
-        | "cluster-service-install-execute" => refuse_false_windows_scm_authority(),
-        "cluster-windows-service-audit"
-        | "cluster-service-audit"
-        | "cluster-service-readiness"
-        | "cluster-windows-service-start"
-        | "cluster-service-start"
-        | "cluster-windows-service-stop"
-        | "cluster-service-stop" => refuse_false_windows_scm_authority(),
-        "cluster-windows-service-execution-readiness"
-        | "cluster-service-execution-readiness"
-        | "cluster-windows-service-execution-runbook"
-        | "cluster-service-execution-runbook"
-        | "cluster-windows-service-execution-audit"
-        | "cluster-service-execution-audit" => refuse_false_windows_scm_authority(),
-        "cluster-windows-service-execution-audit-smoke"
-        | "cluster-service-execution-audit-smoke" => refuse_false_windows_scm_authority(),
         "service-install-plan" | "service-install-execute" => refuse_false_windows_scm_authority(),
         "windows-service-execution-readiness"
         | "service-execution-readiness"
@@ -256,7 +234,7 @@ fn dispatch(args: Args) -> Result<()> {
         "policy" | "write-policy" => write_policy(args),
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, repo-work-service-audit, cluster-service-runbook, policy, or semantic-recover"
+            "unknown command {other:?}; use reconcile, tick, serve, managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, policy, or semantic-recover"
         ),
     }
 }
@@ -2014,25 +1992,6 @@ fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
 }
 
 fn packaged_role_command_path(args: &Args, role: &str) -> Result<PathBuf> {
-    #[cfg(feature = "workspace-coverage-recovery-smoke")]
-    if args.release_id.is_none()
-        && std::env::var_os("EPIPHANY_WORKSPACE_COVERAGE_SMOKE_DIAGNOSTICS").is_some()
-    {
-        let file_name = match role {
-            "semantic-projector" if cfg!(windows) => "epiphany-memory-semantic-projector.exe",
-            "semantic-projector" => "epiphany-memory-semantic-projector",
-            "workspace-coverage-projector" if cfg!(windows) => {
-                "epiphany-workspace-coverage-projector.exe"
-            }
-            "workspace-coverage-projector" => "epiphany-workspace-coverage-projector",
-            _ => anyhow::bail!("unknown smoke-only packaged role {role}"),
-        };
-        let path = env::current_exe()?.with_file_name(file_name);
-        if !path.is_file() {
-            anyhow::bail!("smoke-only sibling is absent: {}", path.display());
-        }
-        return Ok(path);
-    }
     let (release, _) = pinned_packaged_release(args, true)?;
     epiphany_packaged_release_binary_path(&release, role)
 }
@@ -3142,270 +3101,6 @@ fn service_runbook(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn repo_work_service_audit(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let started_at = Utc::now();
-    let receipts =
-        load_epiphany_cultmesh_daemon_service_lifecycle_receipts(&args.store, &args.runtime_id)?;
-    let service_receipts = receipts
-        .iter()
-        .filter(|receipt| receipt.service_id == args.service_id)
-        .collect::<Vec<_>>();
-    let plan = latest_service_lifecycle_receipt(&service_receipts, "install-plan");
-    let runbook = latest_service_lifecycle_receipt(&service_receipts, "runbook");
-    let launch = latest_service_lifecycle_receipt(&service_receipts, "launch");
-
-    let mut missing_checks = Vec::new();
-    let mut failed_checks = Vec::new();
-
-    let plan_status = receipt_status_or_missing(plan);
-    if plan.is_none() {
-        missing_checks.push("install-plan".to_string());
-    } else if plan_status != "planned" {
-        failed_checks.push(format!("install-plan status {plan_status}"));
-    }
-
-    let runbook_status = receipt_status_or_missing(runbook);
-    if runbook.is_none() {
-        missing_checks.push("runbook".to_string());
-    } else if runbook_status != "written" {
-        failed_checks.push(format!("runbook status {runbook_status}"));
-    }
-    let runbook_ref = runbook
-        .map(|receipt| receipt.operator_artifact_ref.as_str())
-        .unwrap_or("none");
-    let runbook_artifact_status = service_artifact_status(runbook_ref);
-    let runbook_sha256 = local_file_sha256(runbook_ref).unwrap_or_else(|| "none".to_string());
-    if runbook.is_some() && runbook_artifact_status != "present" {
-        failed_checks.push(format!("runbook artifact {runbook_artifact_status}"));
-    }
-
-    let launch_status = receipt_status_or_missing(launch);
-    let launch_exit_code = launch.and_then(|receipt| receipt.exit_code);
-    if launch.is_none() {
-        missing_checks.push("launch".to_string());
-    } else {
-        if launch_status != "completed" {
-            failed_checks.push(format!("launch status {launch_status}"));
-        }
-        if launch_exit_code != Some(0) {
-            failed_checks.push(format!(
-                "launch exit code {}",
-                launch_exit_code
-                    .map(|code| code.to_string())
-                    .unwrap_or_else(|| "none".to_string())
-            ));
-        }
-    }
-
-    let private_state_exposed = service_receipts
-        .iter()
-        .any(|receipt| receipt.private_state_exposed);
-    if private_state_exposed {
-        failed_checks.push("private state exposed".to_string());
-    }
-
-    let status = if missing_checks.is_empty() && failed_checks.is_empty() {
-        "complete"
-    } else {
-        "incomplete"
-    };
-    let next_safe_move = if missing_checks.iter().any(|check| check == "install-plan")
-        || failed_checks
-            .iter()
-            .any(|check| check.starts_with("install-plan "))
-    {
-        "tools/epiphany_local_run.ps1 -Mode repo-work-service-plan"
-    } else if missing_checks.iter().any(|check| check == "runbook")
-        || failed_checks
-            .iter()
-            .any(|check| check.starts_with("runbook "))
-    {
-        "tools/epiphany_local_run.ps1 -Mode repo-work-service-runbook"
-    } else if missing_checks.iter().any(|check| check == "launch")
-        || failed_checks
-            .iter()
-            .any(|check| check.starts_with("launch "))
-    {
-        "tools/epiphany_local_run.ps1 -Mode repo-work-service-launch"
-    } else {
-        "continue repo-swarm MVP planner/interpreter hardening"
-    };
-
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "repo-work-service-audit",
-        status,
-        "repo-work-service-audit".to_string(),
-        vec![
-            format!("plan={plan_status}"),
-            format!("runbook={runbook_status}"),
-            format!("runbookArtifact={runbook_artifact_status}"),
-            format!("launch={launch_status}"),
-            format!(
-                "launchExitCode={}",
-                launch_exit_code
-                    .map(|code| code.to_string())
-                    .unwrap_or_else(|| "none".to_string())
-            ),
-            format!("missing={}", missing_checks.len()),
-            format!("failed={}", failed_checks.len()),
-        ],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service://{}/repo-work-service-audit",
-            sanitize_id(&args.service_id)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.repo_work_service_audit.v0",
-            "status": status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "schedulerId": written.scheduler_id,
-            "receiptId": written.receipt_id,
-            "planStatus": plan_status,
-            "runbookStatus": runbook_status,
-            "runbookArtifactStatus": runbook_artifact_status,
-            "runbookArtifactRef": runbook_ref,
-            "runbookSha256": runbook_sha256,
-            "launchStatus": launch_status,
-            "launchExitCode": launch_exit_code,
-            "missingChecks": missing_checks,
-            "failedChecks": failed_checks,
-            "lifecycleOwner": "Idunn",
-            "hostedBody": "repo-work",
-            "mutatesServiceManager": false,
-            "requiresElevatedAuthority": false,
-            "privateStateExposed": private_state_exposed,
-            "nextSafeMove": next_safe_move,
-        }))?
-    );
-    Ok(())
-}
-
-fn latest_service_lifecycle_receipt<'a>(
-    receipts: &'a [&EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
-    action: &str,
-) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
-    receipts
-        .iter()
-        .copied()
-        .filter(|receipt| receipt.action == action)
-        .max_by_key(|receipt| {
-            receipt
-                .completed_at_utc
-                .as_deref()
-                .unwrap_or(&receipt.started_at_utc)
-        })
-}
-
-fn receipt_status_or_missing(
-    receipt: Option<&EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
-) -> String {
-    receipt
-        .map(|receipt| receipt.status.clone())
-        .unwrap_or_else(|| "missing".to_string())
-}
-
-fn service_artifact_status(artifact_ref: &str) -> &'static str {
-    if artifact_ref.trim().is_empty() || artifact_ref == "none" {
-        return "none";
-    }
-    let path = Path::new(artifact_ref);
-    if path.is_file() {
-        return "present";
-    }
-    if artifact_ref.contains("://") {
-        return "external-ref";
-    }
-    "missing"
-}
-
-fn cluster_daemon_runbook(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let command_path = cluster_daemon_command_path(&args)?;
-    let daemon_rows = cluster_daemon_runbook_rows(&args, &context)?;
-    let runbook_path = service_runbook_path(&args);
-    if let Some(parent) = runbook_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    fs::write(
-        &runbook_path,
-        cluster_daemon_runbook_content(&args, &command_path, &daemon_rows),
-    )
-    .with_context(|| format!("failed to write {}", runbook_path.display()))?;
-    let artifact_ref = runbook_path.display().to_string();
-    let service_args = daemon_rows
-        .iter()
-        .flat_map(|row| {
-            let mut values = vec![format!("daemon={}", row.daemon_id)];
-            values.extend(row.args.clone());
-            values
-        })
-        .collect::<Vec<_>>();
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-runbook",
-        "written",
-        command_path.display().to_string(),
-        service_args,
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "written",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "daemonSelector": written.daemon_selector,
-            "daemonCount": daemon_rows.len(),
-            "runbookPath": artifact_ref,
-            "command": written.command,
-            "daemons": daemon_rows.iter().map(|row| json!({
-                "daemonId": row.daemon_id,
-                "clusterId": row.cluster_id,
-                "displayName": row.display_name,
-                "observedStatus": row.observed_status,
-                "args": row.args,
-                "privateStateExposed": false,
-            })).collect::<Vec<_>>(),
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
 fn local_file_sha256(path: &str) -> Option<String> {
     if path.trim().is_empty() || path == "none" {
         return None;
@@ -3951,20 +3646,6 @@ fn service_command_path(args: &Args) -> Result<PathBuf> {
     env::current_exe().context("failed to resolve current supervisor executable")
 }
 
-fn cluster_daemon_command_path(args: &Args) -> Result<PathBuf> {
-    if let Some(command) = args.service_command.as_ref() {
-        return Ok(command.clone());
-    }
-    let daemon_binary = if cfg!(windows) {
-        "epiphany-cluster-daemon.exe"
-    } else {
-        "epiphany-cluster-daemon"
-    };
-    env::current_exe()
-        .map(|path| path.with_file_name(daemon_binary))
-        .context("failed to resolve cluster daemon executable")
-}
-
 fn service_serve_args(args: &Args) -> Vec<String> {
     if !args.service_args.is_empty() {
         return args.service_args.clone();
@@ -4000,29 +3681,6 @@ fn service_serve_args(args: &Args) -> Vec<String> {
     service_args
 }
 
-fn cluster_daemon_serve_args(args: &Args, daemon_id: &str) -> Vec<String> {
-    let mut service_args = vec![
-        "serve".to_string(),
-        "--store".to_string(),
-        args.store.display().to_string(),
-        "--runtime-id".to_string(),
-        args.runtime_id.clone(),
-        "--daemon-id".to_string(),
-        daemon_id.to_string(),
-        "--interval-seconds".to_string(),
-        args.loop_interval_seconds.to_string(),
-        "--max-iterations".to_string(),
-        args.max_iterations.to_string(),
-        "--note".to_string(),
-        "Cluster daemon service runbook heartbeat.".to_string(),
-    ];
-    if let Some(reason) = &args.reason {
-        service_args.push("--note".to_string());
-        service_args.push(reason.clone());
-    }
-    service_args
-}
-
 fn service_runbook_path(args: &Args) -> PathBuf {
     if let Some(path) = args.runbook_path.as_ref() {
         return path.clone();
@@ -4030,44 +3688,6 @@ fn service_runbook_path(args: &Args) -> PathBuf {
     PathBuf::from(".epiphany-run")
         .join("daemon-services")
         .join(format!("{}.ps1", sanitize_id(&args.service_id)))
-}
-
-fn cluster_daemon_runbook_rows(
-    args: &Args,
-    context: &EpiphanyLocalVerseContext,
-) -> Result<Vec<ClusterDaemonRunbookRow>> {
-    let requested_daemon = args.daemon_id.as_str();
-    let mut rows = Vec::new();
-    for cluster in &context.cluster_topology {
-        if requested_daemon != "*" && cluster.daemon_id != requested_daemon {
-            continue;
-        }
-        let observed_status = context
-            .daemon_statuses
-            .iter()
-            .find(|status| status.daemon_id == cluster.daemon_id)
-            .map(|status| status.status.clone())
-            .with_context(|| {
-                format!(
-                    "local Verse has topology for {} but no daemon status row",
-                    cluster.daemon_id
-                )
-            })?;
-        rows.push(ClusterDaemonRunbookRow {
-            daemon_id: cluster.daemon_id.clone(),
-            cluster_id: cluster.cluster_id.clone(),
-            display_name: cluster.display_name.clone(),
-            observed_status,
-            args: cluster_daemon_serve_args(args, &cluster.daemon_id),
-        });
-    }
-    if rows.is_empty() {
-        anyhow::bail!(
-            "local Verse has no cluster daemon topology rows matching {:?}",
-            requested_daemon
-        );
-    }
-    Ok(rows)
 }
 
 fn service_runbook_content(
@@ -4105,58 +3725,8 @@ fn service_runbook_content(
     )
 }
 
-fn cluster_daemon_runbook_content(
-    args: &Args,
-    command_path: &std::path::Path,
-    daemon_rows: &[ClusterDaemonRunbookRow],
-) -> String {
-    let cwd = args
-        .cwd
-        .as_ref()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| ".".to_string());
-    let mut lines = vec![
-        "# Epiphany cluster daemon service runbook".to_string(),
-        "# Generated by epiphany-daemon-supervisor cluster-service-runbook.".to_string(),
-        "# The typed lifecycle receipt is the witness; this script is an operator artifact."
-            .to_string(),
-        "$ErrorActionPreference = 'Stop'".to_string(),
-        format!(
-            "$command = {}",
-            quote_powershell(&command_path.display().to_string())
-        ),
-        format!("$workingDirectory = {}", quote_powershell(&cwd)),
-        "$processes = @()".to_string(),
-    ];
-    for row in daemon_rows {
-        let quoted_args = row
-            .args
-            .iter()
-            .map(|arg| quote_powershell(arg))
-            .collect::<Vec<_>>()
-            .join(", ");
-        lines.push(format!("# {} / {}", row.display_name, row.daemon_id));
-        lines.push(format!("$arguments = @({quoted_args})"));
-        lines.push("$processes += Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $workingDirectory -WindowStyle Hidden -PassThru".to_string());
-    }
-    lines.push(format!(
-        "\"started cluster-daemon-count=$($processes.Count) service={} scheduler={}\"",
-        args.service_id, args.scheduler_id
-    ));
-    lines.push(String::new());
-    lines.join("\n")
-}
-
 fn quote_powershell(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
-}
-
-struct ClusterDaemonRunbookRow {
-    daemon_id: String,
-    cluster_id: String,
-    display_name: String,
-    observed_status: String,
-    args: Vec<String>,
 }
 
 fn service_lifecycle_receipt(
@@ -4312,10 +3882,6 @@ fn assert_swarm_brake_allows_scheduler_tick(context: &EpiphanyLocalVerseContext)
         );
     }
     Ok(())
-}
-
-fn assert_swarm_brake_allows_service_lifecycle(context: &EpiphanyLocalVerseContext) -> Result<()> {
-    assert_swarm_brake_allows_service_lifecycle_entry(context.swarm_brake.as_ref())
 }
 
 fn assert_swarm_brake_allows_service_lifecycle_entry(
@@ -4664,7 +4230,6 @@ mod semantic_projector_authority_tests {
             "managed_service_task_install",
             "managed_service_task_operation",
             "service_runbook",
-            "repo_work_service_audit",
         ] {
             let marker = format!("fn {function}(");
             let start = source.find(&marker).unwrap();
@@ -5047,10 +4612,6 @@ mod semantic_projector_authority_tests {
             "service-start",
             "service-stop",
             "service-execution-audit",
-            "cluster-service-install-execute",
-            "cluster-service-start",
-            "cluster-service-stop",
-            "cluster-service-execution-audit",
         ] {
             let dispatch = source
                 .find(&format!("\"{command}\""))
@@ -5664,30 +5225,6 @@ impl Args {
                     | "service-desired-state-reconcile"
                     | "service-runbook"
                     | "runbook-service"
-                    | "repo-work-service-audit"
-                    | "repo-work-service-readiness"
-                    | "repo-work-queue-runner-audit"
-                    | "cluster-service-runbook"
-                    | "cluster-daemon-runbook"
-                    | "cluster-windows-service-install"
-                    | "cluster-service-install-plan"
-                    | "cluster-service-install-execute"
-                    | "cluster-daemon-install-plan"
-                    | "cluster-windows-service-audit"
-                    | "cluster-service-audit"
-                    | "cluster-service-readiness"
-                    | "cluster-windows-service-start"
-                    | "cluster-service-start"
-                    | "cluster-windows-service-stop"
-                    | "cluster-service-stop"
-                    | "cluster-windows-service-execution-readiness"
-                    | "cluster-service-execution-readiness"
-                    | "cluster-windows-service-execution-runbook"
-                    | "cluster-service-execution-runbook"
-                    | "cluster-windows-service-execution-audit"
-                    | "cluster-service-execution-audit"
-                    | "cluster-windows-service-execution-audit-smoke"
-                    | "cluster-service-execution-audit-smoke"
                     | "windows-service-install"
                     | "service-install-windows"
                     | "service-install-plan"

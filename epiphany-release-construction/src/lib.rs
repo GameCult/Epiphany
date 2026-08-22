@@ -103,7 +103,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             file_name("epiphany-atlas-impact-ingress"),
         ),
         ("semantic-query", file_name("epiphany-memory-semantic")),
-        ("verse-query", file_name("epiphany-verse-query")),
         ("repository-body", file_name("epiphany-repository-body")),
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
@@ -630,7 +629,6 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         }
         "atlas-impact-ingress" => Ok(("epiphany-core", "epiphany-atlas-impact-ingress")),
         "semantic-query" => Ok(("epiphany-core", "epiphany-memory-semantic")),
-        "verse-query" => Ok(("epiphany-core", "epiphany-verse-query")),
         "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
         "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
         "swarm" => Ok(("epiphany-core", "epiphany-swarm")),

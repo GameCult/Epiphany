@@ -22,13 +22,8 @@ developer's damp recollection.
   companion custom-label fields.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
-- [canonical-agent-state-schema.md](./canonical-agent-state-schema.md):
-  human-facing explanation of Epiphany's lean work-organ state and Persona split.
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md):
   full Persona-family glossary plus current Epiphany work-organ lattice receipts.
-- [organ-state-profiles.md](./organ-state-profiles.md):
-  explicit split between lean Epiphany work-organ state and portable Persona
-  state.
 - [agent-utterance-state-schema.md](./agent-utterance-state-schema.md):
   derived speech-conditioning subset for Weks, Aquarium, and other utterance
   surfaces; it carries identity, trait vectors, mood, and activation without

@@ -216,9 +216,6 @@ node --test web/model-atlas-conformance.test.mjs
 node --test packages/eve-contracts/test/contracts.test.mjs
 ```
 
-`cargo check --workspace --all-targets --all-features` still reaches the older
-feature-gated `epiphany-workspace-coverage-recovery-smoke`, which imports
-`current_workspace_coverage_recovery_target` and
-`WorkspaceCoverageRecoveryTarget`; those symbols were already absent before
-this slice. Do not restore them as an Atlas compatibility shim. The ordinary
-all-target workspace and all Atlas-bearing targets compile.
+Atlas verification belongs to the owning library and packaged runtime tests.
+The old feature-gated recovery smoke executable and its smoke-only authority
+exports have been deleted.

@@ -482,9 +482,10 @@ does not invent that grant.
 
 ### Provider-Status Ownership Cut
 
-`epiphany-cluster-daemon` is the legitimate production writer of its typed
-heartbeat/status. Idunn records stale observation, command execution, restart,
-and awaiting-provider-heartbeat in scheduler/poke/recovery state without
+Each packaged provider daemon is the sole writer of its typed heartbeat/status.
+There is no generic cluster daemon that may synthesize another provider's
+liveness. Idunn records stale observation, command execution, restart, and
+awaiting-provider-heartbeat in scheduler/poke/recovery state without
 rewriting provider status, operator action, or heartbeat time. A restarted
 provider becomes ready only when that provider publishes a newer authentic
 heartbeat; synthetic provider writers remain confined to test/quarantine
@@ -531,8 +532,8 @@ CultMesh health sight is landed.
   operator repair commands cannot create obligations, claims, attempts,
   receipts, readiness, or semantic-query admission.
 - Shared paths: `epiphany-memory-semantic health` is the sole explicit
-  publication pulse, and `epiphany-verse-query semantic-health` only lowers the
-  latest mirrors. Index execution emits its canonical receipt without calling
+  publication pulse; Eve/CultMesh consumers lower its latest mirrors without a
+  second operator command plane. Index execution emits its canonical receipt without calling
   the sight publisher, so a mirror failure cannot redefine execution success.
 - Cut line: there is no mirror-to-canonical import, mirror-to-Qdrant query, or
   mirror-to-readiness edge. A stale sealed input is refused instead of being

@@ -1087,7 +1087,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     crate::mind_documents::register_mind_document_types(&mut cache)?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
-    cache.register_entry_type::<crate::RuntimeStoreMigrationReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
     cache.register_entry_type::<crate::AtlasSurfaceOfferWriteIntent>()?;
     cache.register_entry_type::<crate::AtlasDependencyClaimWriteIntent>()?;

@@ -58,8 +58,6 @@ HandsActionIntent
 `epiphany-core::hands_gateway` owns the typed document bodies and constructors.
 `epiphany-core::runtime_spine` can persist and reread the intent, review, patch,
 command, and commit receipts from the runtime-spine CultCache store.
-`epiphany-hands-action-smoke` proves the compact chain without executing shell
-commands, editing files, or creating a real commit.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
 `epiphany-mvp-coordinator` now turns `continueImplementation` into a persisted
@@ -69,14 +67,7 @@ the operator step.
 `record-patch`, `record-command`, and `record-commit` load the stored
 intent/review, reject mismatches, require an approved review, enforce allowed
 operations, and keep patch/commit changed paths inside the requested scope.
-`record-pass --gate-summary <coordinator-summary.json>` consumes the
-coordinator artifact and emits patch, command, and commit receipts in one
-post-implementation call.
-`epiphany-mvp-coordinator-smoke` now proves the deterministic chain from
-simulated `continueImplementation` through gate emission to `record-pass`
-receipts.
-
-This is still a gate and receipt artery, not full action execution. The next
-live-action cut must call the recorder from the implementation turn or local
-wrapper after real edits/checks/commit and before Soul/Mind call the result
-accepted.
+Focused `epiphany-hands-action` tests prove that the live packaged recorder
+refuses wrong authority, scope escape, and substituted consequence cargo. The
+separate main-only smoke executables were deleted; they were compiled by Cargo
+but did not participate in the Rust test harness.
