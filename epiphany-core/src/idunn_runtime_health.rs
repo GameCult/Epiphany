@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, anyhow, bail};
-use cultcache_rs::DatabaseEntry;
 use cultnet_rs::{
     CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
     CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
-    GameCultProviderHealthIdentity, IdunnSignedDaemonHealthPurpose, IdunnSignedDaemonHealthRecord,
-    ServiceIdentitySigner, encode_cultnet_message_to_vec,
+    GameCultProviderHealthIdentity, IDUNN_SIGNED_DAEMON_HEALTH_SCHEMA,
+    IdunnSignedDaemonHealthPurpose, IdunnSignedDaemonHealthRecord, ServiceIdentitySigner,
+    encode_cultnet_message_to_vec,
 };
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, UdpSocket};
@@ -149,7 +149,7 @@ pub fn publish_idunn_daemon_health_rudp(
             signed.daemon_id, signed.publisher_incarnation_id, signed.publisher_sequence
         ),
         document: CultNetRawDocumentRecord {
-            schema_id: IdunnSignedDaemonHealthRecord::TYPE.into(),
+            schema_id: IDUNN_SIGNED_DAEMON_HEALTH_SCHEMA.into(),
             record_key: signed.daemon_id.clone(),
             stored_at: chrono::DateTime::from_timestamp_millis(
                 signed.observed_at_unix_millis.try_into()?,
@@ -492,7 +492,8 @@ mod tests {
         let CultNetMessage::DocumentPutRaw { document, .. } = server.join().unwrap() else {
             panic!("wrong message")
         };
-        assert_eq!(document.schema_id, IdunnSignedDaemonHealthRecord::TYPE);
+        assert_eq!(document.schema_id, IDUNN_SIGNED_DAEMON_HEALTH_SCHEMA);
+        assert_eq!(document.schema_id, record.schema_version);
         assert_eq!(
             document.source_role.as_deref(),
             Some("daemon-health-publisher")
