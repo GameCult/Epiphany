@@ -220,10 +220,12 @@ Gate preflight exposed the aggregate ownership defect; the aggregate has now
 been structurally removed. Decision-context admission, retention,
 writable-epoch refusal, keyed graph/Verification concurrency, concrete
 Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
-restart/re-entry are accepted. Exact source `6b44b4d3` is now deployed,
+restart/re-entry are accepted. Exact source `470d4cb5` is deployed,
 OpenRouter `stealth/ox-alpha` credential readiness is proven, and generic
-signed health is admitted. The remaining gate is the fresh exact-package
-positive decision capstone, which requires explicit operator resumption.
+signed health is admitted. Ox9 and Ox10 were deliberate isolated resumptions,
+and both falsified routing seams without contaminating production Mind. Exact
+`d48f69b7` repairs the Body retry identity exposed by Ox10; deploy it through
+Idunn, then run a new isolated capstone. Model Atlas Gate 1 remains paused.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
@@ -407,9 +409,9 @@ Cut in this order:
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
    names the invariant they preserve. Exact source
-   `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` passed Idunn's serialized
+   `470d4cb5b46f94a5490a479dba19604828e1b5d1` passed Idunn's native serialized
    Yggdrasil workspace gate, then sealed 26 binaries plus witness as release
-   `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+   `sha256-ce4a287ebb915ff9410dd04e022285d82998e0bf4c9acb3b04a44db661aea90c`.
    It is deployed, authenticated-health admitted, and deliberately braked.
    Transient Epiphany containers, volumes, package roots, and the per-run test
    target are absent. The unused Discord/Bifrost/VoidBot operator bridge is
@@ -418,7 +420,7 @@ Cut in this order:
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists
    nothing, and omits nonterminal pass physiology. That surface is now inside
-   the admitted Idunn-built `6b44b4d3` package.
+   the admitted Idunn-built `470d4cb5` package.
 26. **Explicit OpenRouter/Ox transport is live at `6b44b4d3`:** exact
    `ab321b34` makes provider selection typed and keeps the native request
    canonical; the provider request is internally derived and retained in the
@@ -427,14 +429,27 @@ Cut in this order:
    daemon-health schema. Idunn exact `8ddf8140` validates the canonical generic
    health record; gamecult-ops `a9e9f79`/`0c0dbd1` bind validation to the root
    trust store and inspect systemd credentials in the target mount namespace.
-   No Ox-backed Mind decision has been produced while the shakedown is paused.
+   Ox decisions produced in isolated capstone roots are durable audit evidence,
+   not production authority or capstone acceptance.
 27. **Future Epiphany builds are native at gamecult-ops `89f0d78`:** the
-   admitted `6b44b4d3` release was built in disposable Yggdrasil containers,
-   then all transient containers, volumes, copied package roots, and its
-   per-run test target were removed. The installed Idunn actuator now invokes
+   earlier disposable Yggdrasil builders and their volumes were removed. The
+   admitted `470d4cb5` release was built natively. The installed Idunn actuator invokes
    fixed Rust `1.95.0` directly as `epiphany-builder`; Docker, image, and CID
    authority are absent. This does not manufacture a reason to rebuild the
    already admitted body while cognition is paused.
+28. **Current typed state owns routing at `470d4cb5`:** coordinator receipts,
+   historical terminal slots, timestamps, and role-lane state are audit/display
+   cargo only. Concrete family owners materialize unresolved obligations, one
+   pure current-work projection schedules them, and Resident Self pressure is
+   content-addressed to that projection plus its recommended action. Ox9 is the
+   preserved falsification that forced the deletion.
+29. **Body retry identity is normalized at `d48f69b7`:** Body Modeling no
+   longer splits launch-only semantic work from a sibling action field. One
+   family projection owns the exact work, continuation action, and latest job
+   identity through Launch/Wait/Review. Failure therefore changes state and
+   produces one fresh deterministic grant; unchanged failure replay remains
+   idempotent. Ox10 is sealed failed evidence, not resumable state. Deploy this
+   exact build-affecting source through Idunn and run a new isolated capstone.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

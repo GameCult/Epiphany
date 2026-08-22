@@ -2,8 +2,8 @@
 
 Updated: 2026-08-22
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `6b44b4d3`
-Current worktree: canonical documentation and evidence reconciliation only
+Latest committed implementation cut: `d48f69b7`
+Current worktree: Ox10 documentation and evidence reconciliation
 
 ## Orientation
 
@@ -13,31 +13,34 @@ autonomous scheduling, register operational topology in `gamecult-ops`, race
 Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
-Epiphany is a supervised engineering alpha. Its current OpenRouter/Ox body is
-deployed, signed-health admitted, and deliberately braked. Historical live
-proofs remain evidence; they do not authorize the current capstone or Gate 1.
+Epiphany is a supervised engineering alpha. Exact source `470d4cb5` is the
+current deployed OpenRouter/Ox body, signed-health admitted and deliberately
+braked. Exact `d48f69b7` is the next build-affecting source and is not deployed
+yet. Historical live proofs remain evidence; they do not authorize the next
+capstone or Gate 1.
 
 ## Current live deployment
 
-- Epiphany source: `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b`.
-- Release: `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+- Epiphany source: `470d4cb5b46f94a5490a479dba19604828e1b5d1`.
+- Release: `sha256-ce4a287ebb915ff9410dd04e022285d82998e0bf4c9acb3b04a44db661aea90c`.
 - Release witness file SHA-256:
-  `36e70441aa27010436d4f9dbc5d6b591758f8299d77c415d1d1803d35a9fff31`.
+  `7e3f2240f082145997715eec30aa434c28539eb541f1a9f47973774abd05881a`.
 - Full-workspace test receipt SHA-256:
-  `c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`.
+  `c6594f0a857c77ca3280864231930fa62c928f76cb807c89f321fde21ed14b66`.
 - Model provider: OpenRouter `stealth/ox-alpha`, selected explicitly and
   injected through the root-owned systemd credential boundary.
 - `epiphany.service`, `epiphany-heartbeat.service`, and
   `epiphany-swarm.service` are active with zero restarts. Resident Self reports
   `braked`; both the swarm brake and Idunn deployment brake are engaged.
-- Idunn source `8ddf81400bfc0f51309cd37f8f196403fc5dbb79` is provenance-exact and
+- Idunn source `8b972715c47731f2418d0c423cb0dd2076940bd7` is provenance-exact and
   admits Epiphany through the shared authenticated daemon-health contract.
-- gamecult-ops `89f0d7892b3646374ccdf4cef6c1dd19f41c7da6` removes Docker from
+- gamecult-ops `b47f9084` removes Docker from
   Epiphany's future Idunn compile/package actuator. Native Rust `1.95.0` is
-  installed under `epiphany-builder`; the exact installed actuator SHA-256 is
-  `c4e922b3ae2c01347ec2c581e52adb5757a2203ef92d8983412ea220de6688a1`.
-- No Ox inference has been run. The open proof is the fresh-store positive
-  decision capstone, not deployment or credential readiness.
+  installed under `epiphany-builder`; current source-change builds are native.
+- Ox9 and Ox10 ran only in isolated fresh capstone roots. Neither is acceptance:
+  Ox9 exposed coordinator-receipt resurrection; Ox10 exposed Body retry
+  starvation after strict malformed-output refusal. No public consequence was
+  emitted.
 
 ## What just landed
 
@@ -158,6 +161,12 @@ The global thread-state authority is gone.
   acquisition uses full-snapshot CAS so a concurrent disjoint insert cannot
   hide as a phantom. Modeling retention uses exact basis identity rather than
   synthetic aggregate generation or timestamp order.
+- Exact `470d4cb5` removes historical coordinator receipts from behavioral
+  routing. Family admission owners materialize typed obligations, and one pure
+  current-work projection is now the scheduler input. Exact `d48f69b7`
+  completes that generalization for retry: Body Modeling's semantic work,
+  action, and last job are one projection instead of split fields, so a failed
+  attempt changes exact pressure identity without counters or event authority.
 
 There is no compatibility aggregate, dual reader, bootstrap thread, or
 migrator. Thread identifiers may survive only as immutable pass-creation
@@ -267,15 +276,15 @@ Self read-only physiology while the swarm brake is engaged. Exact `6b44b4d3`
 publishes the shared Idunn signed-health wire schema.
 
 Idunn compiled, tested, packaged, deployed, and health-admitted exact current
-source `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` on upgraded Yggdrasil. The
+source `470d4cb5b46f94a5490a479dba19604828e1b5d1` natively on upgraded Yggdrasil. The
 full workspace gate passed under test receipt SHA-256
-`c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`.
+`c6594f0a857c77ca3280864231930fa62c928f76cb807c89f321fde21ed14b66`.
 Idunn sealed 26 immutable root-owned binaries plus `release-witness.ccmp` as
-release `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`;
+release `sha256-ce4a287ebb915ff9410dd04e022285d82998e0bf4c9acb3b04a44db661aea90c`;
 the witness file SHA-256 is
-`36e70441aa27010436d4f9dbc5d6b591758f8299d77c415d1d1803d35a9fff31`.
+`7e3f2240f082145997715eec30aa434c28539eb541f1a9f47973774abd05881a`.
 The successful request is
-`manual:redeploy:yggdrasil-epiphany:manual:redeploy:yggdrasil-epiphany:2026-08-22T07:53:37.096Z`.
+`manual:redeploy:yggdrasil-epiphany:manual:redeploy:yggdrasil-epiphany:2026-08-22T14:12:07.167Z`.
 `epiphany-operator-command` remains absent.
 
 The provider boundary exposed two deployment ownership defects rather than
@@ -283,9 +292,19 @@ earning provider-specific compensators. Idunn's validator now consumes its
 canonical authenticated daemon-health record; the root actuator supplies the
 exact trust store. Runtime credential readiness is inspected inside Resident
 Self's systemd mount namespace, where `LoadCredential` actually exists. These
-cuts are live at Idunn `8ddf8140` and gamecult-ops `a9e9f79`/`0c0dbd1`.
+cuts are live at Idunn `8b972715` and gamecult-ops through `b47f9084`.
 No transient Epiphany container, named volume, package root, or per-run test
 root remains.
+
+The bounded redeploy request helper opens an exact, expiring brake grant and
+immediately returns after waking Idunn; it does not own terminal observation or
+brake closure. During the `470d4cb5` transaction the operator poll reached a
+successful terminal receipt before re-engaging the brake. Exact release
+binding refused contemporaneous stale Odin/Ghostlight requests, so no unrelated
+target mutated, but the released record briefly survived transaction closure.
+Future operator transactions must treat terminal observation plus explicit
+`deployment-brake-engage` as their final step. Idunn cannot possess the private
+operator identity used to close its own mutation authority.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -324,29 +343,43 @@ byte-identical. Its 2.09 MB temporary replay root is
 `.epiphany-run/native-model-failure-20260818-a`; evidence is distilled and the
 temporary root owns no continuing proof.
 
-The admitted `6b44b4d3` release was compiled in disposable Docker builders on
-Yggdrasil before the native-build instruction was reconciled. All of their
-containers, volumes, copied package roots, and per-run test target were removed.
-gamecult-ops `89f0d78` makes the next Idunn Epiphany compile/package path native
-Rust `1.95.0` under `epiphany-builder`; the live actuator contains no Docker
-path. A build container or cloned source volume owns no durable proof.
+The admitted `470d4cb5` release was compiled and packaged natively on
+Yggdrasil with Rust `1.95.0` under `epiphany-builder`. The live Idunn actuator
+contains no Docker path. A build container or cloned source volume owns no
+durable proof.
+
+Ox9 proved typed Persona and Modeling decisions, then exposed that historical
+coordinator receipts could resurrect stale direction. Exact `470d4cb5` cut
+that authority and made Resident Self consume only current unresolved typed
+state. Ox10 proved the replacement route: Body launched Modeling directly with
+no Eyes result, while Persona ran concurrently. Modeling sealed its exact
+basis/context and failed closed because Ox emitted duplicate `tension` cargo;
+no Mind commit occurred. Three Persona projector attempts independently timed
+out opening the provider stream and each terminalized as typed failure.
+
+Ox10 then exposed one remaining asymmetry. Body Modeling projected its semantic
+work and continuation action in separate fields and omitted the failed job from
+the current-work digest. The unresolved obligation remained launchable, but
+Resident Self correctly refused to mint the same pressure identity twice.
+Exact `d48f69b7` deletes that split shape. One Body current-work value now owns
+the semantic obligation, action, and last exact job, as every other pass family
+already did. A failed attempt changes projection identity and earns one fresh
+grant; identical replay remains idempotent. Focused current-work, coordinator,
+role-board, and release-status tests pass locally. The cut awaits Idunn.
 
 ## Immediate next action
 
-1. Keep the swarm and deployment brakes engaged until the operator explicitly
-   resumes the paused shakedown. Deployment success does not authorize model
-   inference.
-2. On that resumption, run the fresh-store Decision-Auditable Concurrent Mind
-   capstone against exact source `6b44b4d3` using OpenRouter
-   `stealth/ox-alpha`: concurrent Persona/repository work, Body -> Modeling -> Mind,
-   explicit Eyes evidence where required, Hands -> Verification -> Mind,
-   `list-decisions` plus exact `audit-decision`, and process restart/re-entry
-   with identical obligations and no resurrection.
-3. Establish a fresh canonical Persona mouth receipt anchor before the Persona
-   consequence leg. Do not transplant the old proof anchor or ship a generic
-   test harness.
-4. Only then resume Model Atlas Gate 1 from a new external root. Idunn remains
-   the sole deployment owner.
+1. Push `d48f69b7` plus this documentation/evidence cut.
+2. Let Idunn natively compile, test, package, and deploy the newest exact
+   build-affecting source. Verify package provenance, signed health, unit
+   restarts, then explicitly re-engage the deployment brake after the typed
+   terminal receipt; the request helper does not perform that closure.
+3. Run a new isolated OpenRouter `stealth/ox-alpha` capstone: concurrent
+   Persona/repository work, Body -> Modeling -> Mind without Eyes, Eyes only
+   for an explicit external-evidence obligation, Hands -> Verification ->
+   Mind, `list-decisions` plus exact `audit-decision`, and restart/re-entry.
+4. Never resume Ox10 or transplant its decisions. Only after the new capstone
+   passes may Model Atlas Gate 1 restart from a new external root.
 
 ## Operational state that matters
 
@@ -359,17 +392,17 @@ path. A build container or cloned source volume owns no durable proof.
   testing, release construction, deployment, and daemon survival there; its
   current deployment truth belongs to Idunn's typed deployment receipts.
 - Idunn is active, provenance-exact, and independent at installed source
-  `8ddf81400bfc0f51309cd37f8f196403fc5dbb79`. Exact Epiphany source
-  `6b44b4d3` is deployed and authenticated-health admitted; Starfire remains
+  `8b972715c47731f2418d0c423cb0dd2076940bd7`. Exact Epiphany source
+  `470d4cb5` is deployed and authenticated-health admitted; Starfire remains
   outside the compilation path.
 - Epiphany's three physiology units are active with zero restarts. OpenRouter
   `stealth/ox-alpha` credential readiness is proven inside Resident Self's
-  mount namespace. The organism remains braked and has produced no Ox-backed
-  Mind decision.
+  mount namespace. The production organism remains braked. Ox decisions exist
+  only in isolated failed capstone roots and do not authorize production state.
 - Bifrost public crossing remains active on Yggdrasil and publishes typed
   readiness. Its current Idunn observation is diagnostic-only rather than a
-  lifecycle-authenticated admission. A completed public Persona consequence
-  remains an open capstone leg.
+  lifecycle-authenticated admission. The next private capstone must prove
+  Persona effects and exact context without emitting public speech.
 - Model Atlas code and isolated proofs remain accepted. Signed Gate 1 sight,
   brake freeze, autonomous cascade, partition exercise, and endurance remain
   open.

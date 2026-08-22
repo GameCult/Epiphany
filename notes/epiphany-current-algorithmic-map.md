@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-22
-Latest committed implementation cut: `6b44b4d3` on `codex/epiphany-shakedown-live`
-Current worktree cut: canonical documentation and evidence reconciliation only
+Latest committed implementation cut: `d48f69b7` on `codex/epiphany-shakedown-live`
+Current worktree cut: Ox10 documentation and evidence reconciliation
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -235,6 +235,17 @@ flowchart TD
 Eyes may create evidence that creates Modeling work. Eyes acceptance never
 suppresses or authorizes ordinary Body Modeling.
 
+Each unresolved pass-family projection includes the semantic obligation, its
+continuation action, and the last exact runtime job identity when one exists.
+Those fields form one current-work identity. Body Modeling no longer stores
+`bodyModelingAction` beside a launch-only work value. Its one
+`EpiphanyBodyModelingCurrentWorkProjection` remains visible through Launch,
+Wait, and Review and binds the latest job. A failed or cancelled attempt
+therefore changes the projection digest and permits one fresh Resident Self
+pressure/grant; replaying the unchanged failed state remains idempotent. No
+retry counter, timestamp comparison, coordinator receipt, or event acquires
+scheduling authority.
+
 ## Runtime and attempt lifecycle
 
 These are distinct authorities and must not be collapsed into one state enum:
@@ -303,7 +314,7 @@ same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted through the live `6b44b4d3` source boundary:
+Accepted through the local `d48f69b7` source boundary:
 
 - every Epiphany core target compiles;
 - core library `496/496`;
@@ -318,7 +329,9 @@ Accepted through the live `6b44b4d3` source boundary:
   external observation or model call, and preserves the exact three-stage
   decision chain;
 - reopened current-work projection is identical and byte-for-byte read-only at
-  Launch, Wait, completed, and post-Research boundaries.
+  Launch, Wait, Review, completed, and post-Research boundaries; a failed Body
+  attempt changes exact identity, receives one fresh grant, and identical
+  failure replay cannot mint another pressure.
 - `epiphany-model-runtime audit-decision` reconstructs an exact terminal pass
   from typed durable records only; the query is byte-for-byte read-only and
   remains complete after live worker result retirement.
@@ -330,11 +343,11 @@ Accepted through the live `6b44b4d3` source boundary:
   preserving the native request as the only canonical request. Exact
   `c1a6034f` keeps read-only physiology alive under the brake; exact `6b44b4d3`
   emits Idunn's shared signed-health schema.
-- exact source `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` passed Idunn's serialized
+- exact source `470d4cb5b46f94a5490a479dba19604828e1b5d1` passed Idunn's native serialized
   Yggdrasil workspace gate under test receipt SHA-256
-  `c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`
+  `c6594f0a857c77ca3280864231930fa62c928f76cb807c89f321fde21ed14b66`
   and is deployed as 26 binaries plus witness in release
-  `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+  `sha256-ce4a287ebb915ff9410dd04e022285d82998e0bf4c9acb3b04a44db661aea90c`.
 - the supervisor, heartbeat, and Resident Self units are active with zero
   restarts, the body is authenticated-health admitted by Idunn, and the swarm
   and deployment brakes are engaged.
@@ -343,15 +356,25 @@ Accepted through the live `6b44b4d3` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. keep the admitted body braked until explicit operator resumption; successful
-   deployment and credential readiness do not authorize cognition;
+1. deploy exact build-affecting source `d48f69b7` through Idunn's native
+   compile/test/package path, verify signed health, and restore the deployment
+   brake after the transaction;
 2. run the fresh exact-package capstone over a new store with OpenRouter
-   `stealth/ox-alpha`, including concurrent
-   Persona/repository work, complete decision inspection without transcripts,
-   and process restart/re-entry. The equivalent source-level ownership,
-   concurrency, refusal, and re-entry matrix is accepted;
+   `stealth/ox-alpha`, concurrent Persona and repository work, Body direct to
+   Modeling without Eyes, Hands through Verification, exact context audit,
+   and restart/re-entry;
 3. only then restart Model Atlas Gate 1 from a new
    external root.
+
+Ox10 is preserved failed evidence under
+`/var/lib/gamecult/epiphany/capstones/ox10-470d4cb5`. It proved the direct
+Body route and exact failure sealing, then failed closed when Ox emitted a
+duplicate `tension` field and three Persona projector connections timed out.
+The malformed Modeling result made no Mind commit. The run also falsified the
+old Body retry projection: its failed job was omitted from current-work
+identity, so Resident Self saw no new pressure under the old schema. The run is
+braked, all transient units are inactive, and it must not be resumed or used
+as accepted capstone state.
 
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
 Yggdrasil's old capacity/topology is obsolete; the upgraded 16-vCPU host is the
