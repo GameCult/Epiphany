@@ -233,19 +233,26 @@ impl EpiphanyCodexOpenAiTransport {
 pub struct EpiphanyOpenRouterTransport {
     api_key: String,
     base_url: String,
+    request_timeout: Option<Duration>,
 }
 
 impl EpiphanyOpenRouterTransport {
-    pub fn new(api_key: impl Into<String>) -> Result<Self> {
+    pub fn new(api_key: impl Into<String>, request_timeout: Option<Duration>) -> Result<Self> {
         let api_key = api_key.into();
         if api_key.trim().is_empty() || api_key.trim() != api_key {
             return Err(anyhow::anyhow!(
                 "OpenRouter API key must be a non-empty trimmed credential"
             ));
         }
+        if request_timeout.is_some_and(|timeout| timeout.is_zero()) {
+            return Err(anyhow::anyhow!(
+                "OpenRouter request timeout must be positive when present"
+            ));
+        }
         Ok(Self {
             api_key,
             base_url: OPENROUTER_API_BASE_URL.to_string(),
+            request_timeout,
         })
     }
 
@@ -270,7 +277,7 @@ impl EpiphanyOpenRouterTransport {
         outbound
             .headers
             .insert(http::header::AUTHORIZATION, authorization);
-        outbound.timeout = Some(Duration::from_secs(90));
+        outbound.timeout = self.request_timeout;
         let transport = ReqwestTransport::new(build_reqwest_client());
         let response = transport
             .execute(outbound)
@@ -1549,6 +1556,16 @@ mod tests {
         assert_eq!(status.default_model.as_deref(), Some("stealth/ox-alpha"));
         assert!(!status.supports_websockets);
         assert!(!status.codex_transport_attached);
+    }
+
+    #[test]
+    fn openrouter_whole_request_timeout_is_explicit() -> Result<()> {
+        let bounded = EpiphanyOpenRouterTransport::new("test-key", Some(Duration::from_secs(90)))?;
+        assert_eq!(bounded.request_timeout, Some(Duration::from_secs(90)));
+        let outer_budget_owned = EpiphanyOpenRouterTransport::new("test-key", None)?;
+        assert_eq!(outer_budget_owned.request_timeout, None);
+        assert!(EpiphanyOpenRouterTransport::new("test-key", Some(Duration::ZERO)).is_err());
+        Ok(())
     }
 
     #[test]

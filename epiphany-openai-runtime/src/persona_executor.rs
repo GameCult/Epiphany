@@ -106,6 +106,7 @@ impl PersonaModelRunner for NativePersonaModelRunner {
                 coordinator_note: "Native Persona model executor; transport owns inference only."
                     .to_string(),
                 default_model: Some(self.model.clone()),
+                request_timeout: Some(crate::DEFAULT_PROVIDER_REQUEST_TIMEOUT),
             };
             let summary = run_model_turn(&self.provider, options.clone(), request.clone()).await?;
             let output = assistant_text_from_model_events(&self.store_path, &request.request_id)?;

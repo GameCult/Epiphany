@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -61,6 +62,7 @@ mod persona_executor;
 pub use persona_executor::*;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
+pub const DEFAULT_PROVIDER_REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
 pub const OPENROUTER_MODEL_PROVIDER: &str = "openrouter";
@@ -101,6 +103,9 @@ pub struct EpiphanyOpenAiRuntimeOptions {
     pub objective: String,
     pub coordinator_note: String,
     pub default_model: Option<String>,
+    /// Whole-request transport bound. Worker passes set this to `None` when
+    /// their outer typed runtime budget is the sole deadline owner.
+    pub request_timeout: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -126,6 +131,7 @@ pub struct EpiphanyWorkerRuntimeOptions {
     pub provider: String,
     pub job_id: String,
     pub model: String,
+    pub request_timeout: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -260,7 +266,7 @@ async fn run_openai_model_turn_bound(
                     ),
                 },
             )?;
-            let transport = EpiphanyOpenRouterTransport::new(credential)?;
+            let transport = EpiphanyOpenRouterTransport::new(credential, options.request_timeout)?;
             let events = collect_transport_events(
                 transport.collect_model_events_with_frame_observer(
                     request.clone(),
@@ -462,6 +468,7 @@ where
         coordinator_note: "Native worker runtime route; Codex is auth/model transport only."
             .to_string(),
         default_model: Some(options.model),
+        request_timeout: options.request_timeout,
     };
     on_model_request(&model_request.request_id);
     let openai_summary = run_model_turn(
@@ -1315,6 +1322,7 @@ pub fn default_options(
         coordinator_note: "Native OpenAI runtime route; Codex is auth/model transport only."
             .to_string(),
         default_model: Some(request.model.clone()),
+        request_timeout: Some(DEFAULT_PROVIDER_REQUEST_TIMEOUT),
     }
 }
 

@@ -21,6 +21,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
@@ -916,6 +917,7 @@ async fn run_worker_launch_with_tool_continuation(
     options: RunWorkerCliOptions,
     pass_progress: WorkerPassProgress,
 ) -> Result<serde_json::Value> {
+    let request_timeout = provider_request_timeout(options.max_runtime_seconds);
     let tool_adapter_bin = options
         .tool_adapter_bin
         .clone()
@@ -964,6 +966,7 @@ async fn run_worker_launch_with_tool_continuation(
         coordinator_note: "Native worker runtime route; Codex is auth/model transport only."
             .to_string(),
         default_model: Some(options.model.clone()),
+        request_timeout,
     };
     let mut current_request_id = initial_request.request_id.clone();
     pass_progress.note_model_request(&current_request_id);
@@ -1380,6 +1383,15 @@ mod tests {
     }
 
     #[test]
+    fn typed_worker_budget_is_the_only_whole_request_deadline() {
+        assert_eq!(
+            provider_request_timeout(None),
+            Some(DEFAULT_PROVIDER_REQUEST_TIMEOUT)
+        );
+        assert_eq!(provider_request_timeout(Some(600)), None);
+    }
+
+    #[test]
     fn model_turn_json_ingress_accepts_published_native_object() -> Result<()> {
         let request = parse_model_turn_request_json(
             r#"{
@@ -1518,6 +1530,7 @@ mod tests {
                 objective: format!("Run model execution for {worker_job_id}."),
                 coordinator_note: "test".to_string(),
                 default_model: Some("gpt-test".to_string()),
+                request_timeout: Some(DEFAULT_PROVIDER_REQUEST_TIMEOUT),
             },
             &model_request,
             &[
@@ -2010,6 +2023,7 @@ async fn run_worker_options(
     if options.auto_tools {
         run_worker_launch_with_tool_continuation(options, pass_progress).await
     } else {
+        let request_timeout = provider_request_timeout(options.max_runtime_seconds);
         Ok(serde_json::to_value(
             run_worker_launch_observed(
                 EpiphanyWorkerRuntimeOptions {
@@ -2019,12 +2033,19 @@ async fn run_worker_options(
                     provider: options.provider,
                     job_id: options.job_id,
                     model: options.model,
+                    request_timeout,
                 },
                 |request_id| pass_progress.note_model_request(request_id),
             )
             .await?,
         )?)
     }
+}
+
+fn provider_request_timeout(max_runtime_seconds: Option<u64>) -> Option<Duration> {
+    max_runtime_seconds
+        .is_none()
+        .then_some(DEFAULT_PROVIDER_REQUEST_TIMEOUT)
 }
 
 fn run_tool_adapter(
