@@ -365,15 +365,29 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     claim,
                     objective,
                 )?;
+                let source_ref = format!("resident-self-grant://{}", claim.grant_id);
+                let intake = intake_operator_objective(
+                    &runtime_store,
+                    &thread_id,
+                    objective,
+                    &source_ref,
+                )?;
                 startup_events.push(json!({
                     "type": "residentObjectiveBinding",
                     "threadId": thread_id,
                     "grantId": claim.grant_id,
                     "preparationId": preparation_id,
-                    "canonicalObjectiveChanged": false,
+                    "mindProjectionDigest": intake.mind.projection_digest,
+                    "commitReceiptId": intake.commit_receipt.receipt_id,
+                    "canonicalObjectiveChanged": intake.changed,
                 }));
             } else {
-                let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
+                let intake = intake_operator_objective(
+                    &runtime_store,
+                    &thread_id,
+                    objective,
+                    "cli://epiphany-mvp-coordinator",
+                )?;
                 startup_events.push(json!({
                     "type": "operatorObjectiveIntake",
                     "threadId": thread_id,
@@ -1516,6 +1530,7 @@ fn intake_operator_objective(
     runtime_store: &Path,
     thread_id: &str,
     objective: &str,
+    source_ref: &str,
 ) -> Result<epiphany_core::UserObjectiveIntakeApplied> {
     epiphany_core::intake_user_objective(
         runtime_store,
@@ -1523,7 +1538,7 @@ fn intake_operator_objective(
             thread_id: thread_id.to_string(),
             objective: objective.to_string(),
             source_actor: "operator".to_string(),
-            source_ref: "cli://epiphany-mvp-coordinator".to_string(),
+            source_ref: source_ref.to_string(),
             submitted_at: now(),
         },
     )
@@ -2388,11 +2403,21 @@ mod tests {
             },
         )?;
 
-        let first = intake_operator_objective(&store, "thread-1", "Map the machine")?;
+        let first = intake_operator_objective(
+            &store,
+            "thread-1",
+            "Map the machine",
+            "cli://epiphany-mvp-coordinator",
+        )?;
         assert!(first.changed);
         assert_eq!(first.mind.objective.as_deref(), Some("Map the machine"));
 
-        let repeated = intake_operator_objective(&store, "thread-1", " Map the machine ")?;
+        let repeated = intake_operator_objective(
+            &store,
+            "thread-1",
+            " Map the machine ",
+            "cli://epiphany-mvp-coordinator",
+        )?;
         assert!(!repeated.changed);
         assert_eq!(
             repeated.mind.projection_digest,
@@ -2400,9 +2425,52 @@ mod tests {
         );
         assert_eq!(repeated.commit_receipt, first.commit_receipt);
 
-        let error = intake_operator_objective(&store, "thread-1", "Replace the machine")
-            .expect_err("objective replacement must require a typed adoption flow");
+        let error = intake_operator_objective(
+            &store,
+            "thread-1",
+            "Replace the machine",
+            "cli://epiphany-mvp-coordinator",
+        )
+        .expect_err("objective replacement must require a typed adoption flow");
         assert!(error.to_string().contains("refusing to replace"));
+        Ok(())
+    }
+
+    #[test]
+    fn resident_operator_objective_uses_the_authenticated_grant_as_provenance() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        epiphany_core::initialize_runtime_spine(
+            &store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "resident-objective-intake-bin".into(),
+                display_name: "Resident objective intake bin".into(),
+                created_at: "2026-08-22T00:00:00Z".into(),
+            },
+        )?;
+
+        let applied = intake_operator_objective(
+            &store,
+            "resident-thread",
+            "Keep the objective in Mind",
+            "resident-self-grant://grant-1",
+        )?;
+        assert!(applied.changed);
+        assert_eq!(
+            applied.intake.source_ref,
+            "resident-self-grant://grant-1"
+        );
+        assert_eq!(
+            applied.mind.objective.as_deref(),
+            Some("Keep the objective in Mind")
+        );
+        assert!(
+            applied
+                .commit_receipt
+                .writes
+                .iter()
+                .any(|write| write.document_key == epiphany_core::MIND_OBJECTIVE_KEY)
+        );
         Ok(())
     }
 
