@@ -7,20 +7,20 @@ use epiphany_core::{
     ResidentSelfState, acknowledge_resident_self_launch, acquire_resident_process_singleton,
     authenticate_resident_self_policy, bind_runtime_repository_domain,
     bridge_admitted_persona_feedback_to_heartbeat, capture_process_instance,
-    coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
-    import_bifrost_persona_feedback_deliveries, ingest_resident_self_current_work_pressure,
-    live_resident_self_typed_request_ids, load_epiphany_cultmesh_swarm_brake,
-    load_resident_self_state, materialize_resident_self_domain_obligations,
-    observe_process_instance, pending_resident_self_acks, prepare_resident_self_launch,
-    publish_resident_provider_readiness, reap_exited_child_process, resident_cognitive_runtime_id,
-    resident_prepared_launch_thread_id, resident_self_child_claim,
-    resident_self_local_provider_status, retain_completed_runtime_sessions,
-    retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
-    retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
-    runtime_worker_process_claims, settle_resident_self_exited_coordinator,
-    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
-    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt_binding,
-    validate_resident_self_store_separation,
+    coordinator_run_receipts, derive_resident_cognition_readiness,
+    enqueue_resident_self_pressure_idempotent, import_bifrost_persona_feedback_deliveries,
+    ingest_resident_self_current_work_pressure, live_resident_self_typed_request_ids,
+    load_epiphany_cultmesh_swarm_brake, load_resident_self_state,
+    materialize_resident_self_domain_obligations, observe_process_instance,
+    pending_resident_self_acks, prepare_resident_self_launch, publish_resident_provider_readiness,
+    reap_exited_child_process, resident_cognitive_runtime_id, resident_prepared_launch_thread_id,
+    resident_self_child_claim, resident_self_local_provider_status,
+    retain_completed_runtime_sessions, retain_coordinator_run_receipts,
+    retain_failed_runtime_worker_attempts, retain_fulfilled_runtime_worker_attempts,
+    retain_resident_self_lifecycles, runtime_worker_process_claims,
+    settle_resident_self_exited_coordinator, settle_resident_self_receipt_free_dead_coordinator,
+    terminate_process_instance, validate_persona_feedback_store_separation,
+    validate_resident_self_coordinator_receipt_binding, validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
     require_resident_git("git")?;
     let _singleton = acquire_resident_process_singleton("resident-self", &args.state_store)?;
     if let Some(pressure) = args.pressure.as_ref() {
-        enqueue_resident_self_pressure(&args.state_store, pressure)?;
+        enqueue_resident_self_pressure_idempotent(&args.state_store, pressure)?;
     }
     let mut state = load_resident_self_state(&args.state_store)?;
     let mut ports = NativePorts::new(&args.policy)?;

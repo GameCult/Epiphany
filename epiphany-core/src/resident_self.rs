@@ -1118,7 +1118,7 @@ pub fn enqueue_resident_self_atlas_impact_pressure(
     )
 }
 
-fn enqueue_resident_self_pressure_idempotent(
+pub fn enqueue_resident_self_pressure_idempotent(
     path: &Path,
     pressure: &ResidentSelfPressure,
 ) -> Result<bool> {
@@ -2999,6 +2999,51 @@ pub fn load_resident_self_state(path: &Path) -> Result<ResidentSelfState> {
     Ok(state_cache(path)?
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
         .unwrap_or_default())
+}
+
+#[cfg(test)]
+mod pressure_replay_tests {
+    use super::*;
+
+    fn pressure(created_at_millis: u64, objective: &str) -> ResidentSelfPressure {
+        ResidentSelfPressure {
+            schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: "operator-pressure-stable".into(),
+            kind: "operator-objective".into(),
+            provenance_ref: "cli://epiphany-swarm/operator-objective".into(),
+            objective: objective.into(),
+            created_at_millis,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        }
+    }
+
+    #[test]
+    fn configured_operator_pressure_replay_preserves_the_first_document() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("resident.cc");
+        let original = pressure(10, "Inspect the Body");
+        assert!(enqueue_resident_self_pressure_idempotent(
+            &store, &original
+        )?);
+        assert!(!enqueue_resident_self_pressure_idempotent(
+            &store,
+            &pressure(20, "Inspect the Body"),
+        )?);
+        assert_eq!(
+            state_cache(&store)?.get::<ResidentSelfPressure>(&original.pressure_id)?,
+            Some(original)
+        );
+        assert!(
+            enqueue_resident_self_pressure_idempotent(
+                &store,
+                &pressure(30, "Rewrite the authority"),
+            )
+            .is_err()
+        );
+        Ok(())
+    }
 }
 
 #[cfg(test)]
