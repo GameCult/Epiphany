@@ -3993,11 +3993,7 @@ mod tests {
         let agents = temp.path().join("agents.cc");
         let body_store = temp.path().join("body.cc");
         epiphany_core::ensure_agent_memory_swarm_identity(&agents, "swarm-test")?;
-        epiphany_core::bind_runtime_to_agent_memory_swarm(
-            &store,
-            &agents,
-            "2026-08-08T00:00:00Z",
-        )?;
+        epiphany_core::bind_runtime_to_agent_memory_swarm(&store, &agents, "2026-08-08T00:00:00Z")?;
         epiphany_core::bind_repository_body(&repo, &body_store, &store, "workspace-test")?;
         let body_basis = epiphany_core::observe_runtime_repository_body_basis(&store)?;
         let frontier_item = epiphany_core::RepoFrontierItem {
