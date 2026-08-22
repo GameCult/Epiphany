@@ -493,6 +493,15 @@ enum CommandKind {
     Status,
 }
 
+fn validate_command_turn_bound(command: CommandKind, max_steps: u64) -> Result<()> {
+    if matches!(command, CommandKind::Serve) && max_steps != 1 {
+        return Err(anyhow!(
+            "resident serve requires --max-steps 1 because each state-driven continuation owns exactly one coordinator step"
+        ));
+    }
+    Ok(())
+}
+
 struct Args {
     command: CommandKind,
     state_store: PathBuf,
@@ -589,6 +598,7 @@ impl Args {
                 .cloned()
                 .ok_or_else(|| anyhow!("missing --release-witness-sha256"))?,
         };
+        validate_command_turn_bound(command, policy.max_steps)?;
         let pressure = objective.map(|objective| ResidentSelfPressure {
             schema_version: epiphany_core::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
             pressure_id: value
@@ -780,6 +790,14 @@ fn resident_self_brake_engaged(
 #[cfg(test)]
 mod brake_tests {
     use super::*;
+
+    #[test]
+    fn resident_serve_refuses_a_multi_step_coordinator_policy_at_startup() {
+        assert!(validate_command_turn_bound(CommandKind::Serve, 4).is_err());
+        assert!(validate_command_turn_bound(CommandKind::Serve, 1).is_ok());
+        assert!(validate_command_turn_bound(CommandKind::Once, 4).is_ok());
+        assert!(validate_command_turn_bound(CommandKind::Status, 4).is_ok());
+    }
 
     #[test]
     fn resident_body_preflight_refuses_missing_git_before_serve() {

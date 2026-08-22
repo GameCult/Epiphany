@@ -895,14 +895,13 @@ fn validate_decision_terminal_records(
     records: &EpiphanyDecisionTerminalRecords,
 ) -> Result<()> {
     let context_id = context.context_id.as_str();
-    if records
-        .role_worker_results
+    let terminal_role_id = role_terminal_semantic_role(basis)?;
+    if records.role_worker_results.iter().any(|record| {
+        record.job_id != basis.pass_id || terminal_role_id.as_deref() != Some(&record.role_id)
+    }) || records
+        .reorient_worker_results
         .iter()
-        .any(|record| record.job_id != basis.pass_id || record.role_id != basis.organ_id)
-        || records
-            .reorient_worker_results
-            .iter()
-            .any(|record| record.job_id != basis.pass_id)
+        .any(|record| record.job_id != basis.pass_id)
         || records
             .runtime_job_results
             .iter()
@@ -993,6 +992,15 @@ fn validate_decision_terminal_records(
         }
     }
     Ok(())
+}
+
+fn role_terminal_semantic_role(basis: &EpiphanyReasoningBasis) -> Result<Option<String>> {
+    Ok(match basis.projection()? {
+        EpiphanyReasoningProjection::RolePass(projection) => {
+            Some(projection.authority.role_id)
+        }
+        _ => None,
+    })
 }
 
 pub fn worker_reasoning_basis(
@@ -1986,6 +1994,30 @@ mod tests {
         let mut substituted = context.clone();
         substituted.native_request_msgpack.push(0xff);
         assert!(substituted.validate(&reasoning_basis).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn role_terminal_identity_uses_the_sealed_semantic_role_not_the_runtime_owner_label()
+    -> Result<()> {
+        let canonical = basis()?;
+        let projection = canonical.projection()?;
+        let owner_labeled = EpiphanyReasoningBasis::new(
+            &canonical.pass_id,
+            crate::EPIPHANY_MODELING_OWNER_ROLE,
+            &canonical.projection_policy_id,
+            canonical.source_documents.clone(),
+            projection,
+        )?;
+
+        assert_eq!(
+            role_terminal_semantic_role(&owner_labeled)?.as_deref(),
+            Some("Modeling")
+        );
+        assert_ne!(
+            role_terminal_semantic_role(&owner_labeled)?.as_deref(),
+            Some(crate::EPIPHANY_MODELING_OWNER_ROLE)
+        );
         Ok(())
     }
 
