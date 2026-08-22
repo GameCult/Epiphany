@@ -19,8 +19,7 @@ pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
-    pub body_modeling: Option<EpiphanyBodyModelingWorkProjection>,
-    pub body_modeling_action: Option<EpiphanyAgentPassContinuationAction>,
+    pub body_modeling: Option<EpiphanyBodyModelingCurrentWorkProjection>,
     pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
     pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
@@ -97,6 +96,14 @@ pub struct EpiphanyBodyModelingWorkProjection {
     pub runtime_id: String,
     pub body_basis: RepositoryBodyObservationBasis,
     pub repo_model_basis: EpiphanyRepoModelBasis,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyBodyModelingCurrentWorkProjection {
+    pub work: EpiphanyBodyModelingWorkProjection,
+    pub action: EpiphanyAgentPassContinuationAction,
+    pub job_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -331,7 +338,7 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     let mind = crate::assemble_mind_view(store_path)?;
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let (body_modeling, body_modeling_action) = match (
+    let body_modeling = match (
         mind.repository_body_observation.clone(),
         mind.repo_model.as_ref(),
     ) {
@@ -347,16 +354,18 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
             )?;
             match unresolved {
                 Some(work) => {
-                    let action = body_modeling_continuation_action(&cache, &work.work_id)?;
-                    (
-                        (action == EpiphanyAgentPassContinuationAction::Launch).then_some(work),
-                        Some(action),
-                    )
+                    let (action, job_id) =
+                        body_modeling_continuation_action(&cache, &work.work_id)?;
+                    Some(EpiphanyBodyModelingCurrentWorkProjection {
+                        work,
+                        action,
+                        job_id,
+                    })
                 }
-                None => (None, None),
+                None => None,
             }
         }
-        (None, None) | (Some(_), None) => (None, None),
+        (None, None) | (Some(_), None) => None,
         (None, Some(_)) => {
             return Err(anyhow!(
                 "current work has a RepoModel but no admitted repository Body observation"
@@ -375,7 +384,6 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     Ok(EpiphanyCurrentWorkProjection {
         mind_projection_digest: mind.projection_digest,
         body_modeling,
-        body_modeling_action,
         research_continuation_action: crate::runtime_repo_frontier_research_lifecycle(store_path)?
             .continuation_action(),
         frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
@@ -691,7 +699,7 @@ fn current_frontier_verdict_modeling_work(
 fn body_modeling_continuation_action(
     cache: &CultCache,
     work_id: &str,
-) -> Result<EpiphanyAgentPassContinuationAction> {
+) -> Result<(EpiphanyAgentPassContinuationAction, Option<String>)> {
     let mut bindings = cache
         .get_all::<EpiphanyBodyModelingLaunchBinding>()?
         .into_iter()
@@ -699,12 +707,12 @@ fn body_modeling_continuation_action(
         .collect::<Vec<_>>();
     bindings.sort_by_key(|binding| binding.attempt_ordinal);
     let Some(binding) = bindings.last() else {
-        return Ok(EpiphanyAgentPassContinuationAction::Launch);
+        return Ok((EpiphanyAgentPassContinuationAction::Launch, None));
     };
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
-    Ok(match job.status {
+    let action = match job.status {
         crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
             EpiphanyAgentPassContinuationAction::Launch
         }
@@ -719,7 +727,8 @@ fn body_modeling_continuation_action(
             }
         }
         _ => EpiphanyAgentPassContinuationAction::Wait,
-    })
+    };
+    Ok((action, Some(binding.job_id.clone())))
 }
 
 fn current_proposal_modeling_work(
@@ -845,34 +854,16 @@ pub fn body_modeling_continuation_action_for_job(
     {
         return Ok(None);
     }
-    Ok(Some(body_modeling_continuation_action(
-        &cache,
-        &binding.work_id,
-    )?))
+    Ok(Some(
+        body_modeling_continuation_action(&cache, &binding.work_id)?.0,
+    ))
 }
 
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
-    let store_path = store_path.as_ref();
-    if crate::project_current_work(store_path)?.body_modeling_action
-        != Some(EpiphanyAgentPassContinuationAction::Review)
-    {
-        return Ok(None);
-    }
-    current_body_modeling_job_id(store_path)
-}
-
-pub fn current_body_modeling_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
-    let store_path = store_path.as_ref();
-    let mut cache = crate::runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let work = current_body_modeling_work(store_path)?;
-    let mut bindings = cache
-        .get_all::<EpiphanyBodyModelingLaunchBinding>()?
-        .into_iter()
-        .filter(|binding| binding.work_id == work.work_id)
-        .collect::<Vec<_>>();
-    bindings.sort_by_key(|binding| binding.attempt_ordinal);
-    Ok(bindings.last().map(|binding| binding.job_id.clone()))
+    Ok(crate::project_current_work(store_path)?
+        .body_modeling
+        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.job_id))
 }
 
 pub fn proposal_modeling_continuation_action_for_job(
@@ -2654,7 +2645,7 @@ pub fn launch_current_body_modeling_work(
         cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
     )?
     .is_none()
-        || body_modeling_continuation_action(&cache, &work.work_id)?
+        || body_modeling_continuation_action(&cache, &work.work_id)?.0
             != EpiphanyAgentPassContinuationAction::Launch
     {
         return Err(anyhow!("Mind has no launchable Body Modeling work"));
@@ -3355,10 +3346,13 @@ mod tests {
         assert_eq!(projected_work.body_basis, body);
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let current_work = project_current_work(&store)?;
-        assert_eq!(current_work.body_modeling, Some(projected_work.clone()));
         assert_eq!(
-            current_work.body_modeling_action,
-            Some(EpiphanyAgentPassContinuationAction::Launch)
+            current_work.body_modeling,
+            Some(EpiphanyBodyModelingCurrentWorkProjection {
+                work: projected_work.clone(),
+                action: EpiphanyAgentPassContinuationAction::Launch,
+                job_id: None,
+            })
         );
         assert_eq!(
             current_work.mind_projection_digest,
@@ -3369,11 +3363,15 @@ mod tests {
             .body_modeling
             .as_mut()
             .expect("fixture has Body Modeling work")
+            .work
             .work_id
             .push_str("-distinct-request");
         assert_eq!(
-            distinct_launch.body_modeling_action,
-            current_work.body_modeling_action
+            distinct_launch
+                .body_modeling
+                .as_ref()
+                .map(|work| work.action),
+            current_work.body_modeling.as_ref().map(|work| work.action)
         );
         assert_ne!(
             distinct_launch.projection_digest()?,
@@ -3418,10 +3416,15 @@ mod tests {
         assert_eq!(scheduled.work_id, projected_work.work_id);
         assert_eq!(scheduled.attempt_ordinal, 0);
         let scheduled_work = project_current_work(&store)?;
-        assert!(scheduled_work.body_modeling.is_none());
         assert_eq!(
-            scheduled_work.body_modeling_action,
-            Some(EpiphanyAgentPassContinuationAction::Wait)
+            scheduled_work
+                .body_modeling
+                .as_ref()
+                .map(|work| (work.action, work.job_id.as_deref())),
+            Some((
+                EpiphanyAgentPassContinuationAction::Wait,
+                Some("body-scheduled-job")
+            ))
         );
         let resident_policy = crate::ResidentSelfPolicy {
             workspace: temp.path().join("workspace"),
@@ -3491,8 +3494,65 @@ mod tests {
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
+        let mut failed_job = cache
+            .get::<crate::EpiphanyRuntimeJob>("body-scheduled-job")?
+            .expect("scheduled Body job exists");
+        failed_job.status = crate::EpiphanyRuntimeJobStatus::Failed;
+        failed_job.updated_at = "2026-08-17T00:00:03Z".into();
+        cache.put(&failed_job.job_id, &failed_job)?;
+        let retry_work = project_current_work(&store)?;
+        assert_eq!(
+            retry_work
+                .body_modeling
+                .as_ref()
+                .map(|work| (work.action, work.job_id.as_deref())),
+            Some((
+                EpiphanyAgentPassContinuationAction::Launch,
+                Some("body-scheduled-job")
+            ))
+        );
+        assert_ne!(
+            retry_work.projection_digest()?,
+            current_work.projection_digest()?,
+            "a failed Body attempt must change exact current-work identity before retry"
+        );
+        assert!(crate::ingest_resident_self_current_work_pressure(
+            &resident_store,
+            &store,
+            4,
+        )?);
+        assert!(
+            !crate::ingest_resident_self_current_work_pressure(&resident_store, &store, 5)?,
+            "unchanged failed-attempt state must remain idempotent"
+        );
+        let retry_grant = crate::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "current-work-retry-schedule",
+            "current-work-retry-action",
+            6,
+        )?
+        .expect("failed Body attempt must receive a fresh exact-state grant");
+        assert_eq!(
+            retry_grant.provenance_ref,
+            format!(
+                "{}{}{}",
+                crate::RESIDENT_SELF_CURRENT_WORK_PROVENANCE_PREFIX,
+                retry_work.projection_digest()?,
+                "/launchModeling"
+            )
+        );
+        let retried = launch_current_body_modeling_work(
+            &store,
+            EpiphanyBodyModelingLaunchOptions {
+                job_id: "body-retry-job".into(),
+                created_at: "2026-08-17T00:00:04Z".into(),
+            },
+        )?;
+        assert_eq!(retried.attempt_ordinal, 1);
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
         let launch = cache
-            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-retry-job")?
             .unwrap();
         crate::reset_repository_body_read_counters();
         let reasoning_basis = crate::worker_reasoning_basis(&store, &launch)?;
@@ -3565,7 +3625,10 @@ mod tests {
         job.updated_at = "2026-08-17T00:00:04Z".into();
         cache.put(&job.job_id, &job)?;
         assert_eq!(
-            project_current_work(&store)?.body_modeling_action,
+            project_current_work(&store)?
+                .body_modeling
+                .as_ref()
+                .map(|work| work.action),
             Some(EpiphanyAgentPassContinuationAction::Review)
         );
         assert_eq!(
@@ -3582,7 +3645,6 @@ mod tests {
         );
         let completed_work = project_current_work(&store)?;
         assert!(completed_work.body_modeling.is_none());
-        assert!(completed_work.body_modeling_action.is_none());
         assert!(crate::resident_self::resident_self_current_work_action(&store)?.is_none());
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         assert_current_work_reentry_is_read_only(&store, &completed_work)?;
@@ -5479,7 +5541,7 @@ mod tests {
         assert_eq!(packet.decision_context_id, research_context.context_id);
         let after_research = project_current_work(&store)?;
         assert!(after_research.research_continuation_action.is_none());
-        assert!(after_research.body_modeling_action.is_none());
+        assert!(after_research.body_modeling.is_none());
         assert!(after_research.proposal_modeling.is_none());
         assert!(after_research.frontier_verdict_modeling.is_none());
         assert_current_work_reentry_is_read_only(&store, &after_research)?;

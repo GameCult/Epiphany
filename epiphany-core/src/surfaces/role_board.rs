@@ -85,7 +85,11 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
         .proposal_modeling
         .as_ref()
         .map(|work| work.action)
-        .or(input.current_work.body_modeling_action)
+        .or(input
+            .current_work
+            .body_modeling
+            .as_ref()
+            .map(|work| work.action))
         .or(input
             .current_work
             .frontier_verdict_modeling

@@ -67,16 +67,17 @@ pub fn coordinator_automation_action(
 mod tests {
     use super::*;
     use epiphany_core::{
-        EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorCrrcRecommendation,
-        EpiphanyCoordinatorInput, EpiphanyCrrcAction, RepoFrontierPlanningLifecycleStage,
-        RepoFrontierResearchContinuationAction, recommend_coordinator_action,
+        EpiphanyAgentPassContinuationAction, EpiphanyBodyModelingCurrentWorkProjection,
+        EpiphanyBodyModelingWorkProjection, EpiphanyCoordinatorCrrcRecommendation,
+        EpiphanyCoordinatorInput, EpiphanyCrrcAction, EpiphanyRepoModelBasis,
+        RepoFrontierPlanningLifecycleStage, RepoFrontierResearchContinuationAction,
+        RepositoryBodyObservationBasis, recommend_coordinator_action,
     };
 
     fn current_work() -> epiphany_core::EpiphanyCurrentWorkProjection {
         epiphany_core::EpiphanyCurrentWorkProjection {
             mind_projection_digest: "sha256:mind".into(),
             body_modeling: None,
-            body_modeling_action: None,
             research_continuation_action: None,
             frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Terminal,
             proposal_modeling: None,
@@ -112,7 +113,31 @@ mod tests {
     #[test]
     fn exact_body_obligation_routes_modeling() {
         let mut input = input();
-        input.current_work.body_modeling_action = Some(EpiphanyAgentPassContinuationAction::Launch);
+        input.current_work.body_modeling = Some(EpiphanyBodyModelingCurrentWorkProjection {
+            work: EpiphanyBodyModelingWorkProjection {
+                work_id: "body-work".into(),
+                runtime_id: "runtime".into(),
+                body_basis: RepositoryBodyObservationBasis {
+                    schema_version: "body-basis".into(),
+                    workspace_id: "workspace".into(),
+                    swarm_id: "swarm".into(),
+                    runtime_id: "runtime".into(),
+                    scope: "git_worktree".into(),
+                    body_binding_sha256: "sha256:body".into(),
+                    observation_id: "observation".into(),
+                    generation: 1,
+                    manifest_root_sha256: "sha256:manifest".into(),
+                    scan_started_at: "2026-08-22T00:00:00Z".into(),
+                    scan_finished_at: "2026-08-22T00:00:01Z".into(),
+                },
+                repo_model_basis: EpiphanyRepoModelBasis {
+                    projection_digest: "sha256:model".into(),
+                    source_documents: Vec::new(),
+                },
+            },
+            action: EpiphanyAgentPassContinuationAction::Launch,
+            job_id: None,
+        });
         assert_eq!(
             recommend_coordinator_action(input).action,
             EpiphanyCoordinatorAction::LaunchModeling

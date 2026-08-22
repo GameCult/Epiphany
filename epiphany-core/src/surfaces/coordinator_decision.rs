@@ -58,8 +58,8 @@ pub fn recommend_coordinator_action(
     if let Some(work) = input.current_work.proposal_modeling.as_ref() {
         return modeling_decision(work.action, "proposal Modeling");
     }
-    if let Some(action) = input.current_work.body_modeling_action {
-        return modeling_decision(action, "Body Modeling");
+    if let Some(work) = input.current_work.body_modeling.as_ref() {
+        return modeling_decision(work.action, "Body Modeling");
     }
     if let Some(work) = input.current_work.frontier_verdict_modeling.as_ref() {
         return modeling_decision(work.action, "frontier-verdict Modeling");

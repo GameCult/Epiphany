@@ -210,16 +210,15 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         .map(|_| epiphany_core::runtime_latest_repo_frontier_relinquishment(&store_path))
         .transpose()?
         .flatten();
-    let body_job_id = if current_work.body_modeling_action.is_some() {
-        epiphany_core::current_body_modeling_job_id(&store_path)?
-    } else {
-        None
-    };
+    let body_job_id = current_work
+        .body_modeling
+        .as_ref()
+        .and_then(|work| work.job_id.as_deref());
     let modeling_job_id = current_work
         .proposal_modeling
         .as_ref()
         .and_then(|work| work.job_id.as_deref())
-        .or(body_job_id.as_deref())
+        .or(body_job_id)
         .or(current_work
             .frontier_verdict_modeling
             .as_ref()
@@ -322,7 +321,6 @@ fn empty_current_work() -> EpiphanyCurrentWorkProjection {
     EpiphanyCurrentWorkProjection {
         mind_projection_digest: String::new(),
         body_modeling: None,
-        body_modeling_action: None,
         research_continuation_action: None,
         frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
         proposal_modeling: None,
