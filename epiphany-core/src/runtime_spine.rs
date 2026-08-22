@@ -36,8 +36,6 @@ use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION,
-    REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT,
-    REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION,
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION, REPO_FRONTIER_PLAN_DECISION_CONTRACT,
@@ -59,10 +57,9 @@ use crate::repo_model_gateway::{
     REPO_MODEL_CLAIM_CHALLENGE_CONTRACT, REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT, RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION, RepoFrontierAutonomousProposalBinding,
-    RepoFrontierExecutionAmendmentReceipt, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
-    RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
-    RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
-    RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
+    RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
+    RepoFrontierPlanCandidate, RepoFrontierPlanDecision, RepoFrontierPlanDecisionReceipt,
+    RepoFrontierPlanMindDecision, RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
     RepoFrontierPlanningCandidateEligibility, RepoFrontierPlanningEligibility,
     RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
@@ -7578,129 +7575,6 @@ pub fn commit_repo_frontier_plan_decision(
 
 enum FrontierPlanDecisionSource<'a> {
     MindWorker(&'a str),
-    Operator(&'a crate::RepoFrontierPlanOperatorReview),
-}
-
-/// Read-only, bounded identities for candidates already routed to canonical
-/// Mind review. Invalid, stale, or terminal candidates are not projected.
-pub fn pending_repo_frontier_plan_reviews(
-    runtime_store: impl AsRef<Path>,
-    limit: usize,
-) -> Result<Vec<crate::RepoFrontierPlanReviewSummary>> {
-    if limit == 0 || limit > 25 {
-        return Err(anyhow!(
-            "Mind review projection limit must be within 1..=25"
-        ));
-    }
-    let mut cache = runtime_spine_cache(runtime_store.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    let terminal = cache
-        .get_all::<RepoFrontierPlanDecisionReceipt>()?
-        .into_iter()
-        .map(|receipt| receipt.planning_request_id)
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut summaries = Vec::new();
-    for request in cache.get_all::<RepoFrontierPlanMindRequest>()? {
-        let Ok((planning, candidate)) = validate_repo_frontier_plan_mind_request(&cache, &request)
-        else {
-            continue;
-        };
-        if terminal.contains(&planning.request_id) {
-            continue;
-        }
-        summaries.push(crate::RepoFrontierPlanReviewSummary {
-            mind_request_id: request.request_id,
-            candidate_id: candidate.candidate_id,
-            candidate_sha256: request.candidate_sha256,
-            model_projection_digest: planning.model_projection_digest,
-            model_source_documents: planning.model_source_documents,
-            frontier_item_id: planning.frontier_item_id,
-            requested_at: request.requested_at,
-        });
-    }
-    summaries.sort_by(|a, b| {
-        a.requested_at
-            .cmp(&b.requested_at)
-            .then_with(|| a.mind_request_id.cmp(&b.mind_request_id))
-    });
-    summaries.truncate(limit);
-    Ok(summaries)
-}
-
-/// Canonical Mind commit path for an authenticated operator's exact review
-/// request. The operator selects a disposition; Mind revalidates the complete
-/// immutable candidate and current model before performing the same atomic
-/// terminal transition used by a Mind worker.
-pub fn commit_operator_repo_frontier_plan_review(
-    runtime_store: impl AsRef<Path>,
-    review: &crate::RepoFrontierPlanOperatorReview,
-) -> Result<RepoFrontierPlanDecisionReceipt> {
-    commit_repo_frontier_plan_decision_inner(
-        runtime_store,
-        FrontierPlanDecisionSource::Operator(review),
-        None,
-    )
-}
-
-/// Classifies only operator-visible precondition refusal. Store corruption,
-/// decoding failure, and I/O remain errors and must never be fossilized as a
-/// terminal Refused command result.
-pub fn operator_repo_frontier_plan_review_is_current(
-    runtime_store: impl AsRef<Path>,
-    review: &crate::RepoFrontierPlanOperatorReview,
-) -> Result<bool> {
-    let mut cache = runtime_spine_cache(runtime_store.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    let Some(request) = cache.get::<RepoFrontierPlanMindRequest>(&review.mind_request_id)? else {
-        return Ok(false);
-    };
-    let (planning, candidate) =
-        validate_repo_frontier_plan_mind_request_identity(&cache, &request)?;
-    if review.candidate_id != candidate.candidate_id
-        || review.candidate_sha256 != request.candidate_sha256
-        || review.expected_model_projection_digest != planning.model_projection_digest
-        || review.expected_model_source_documents != planning.model_source_documents
-    {
-        return Ok(false);
-    }
-    let terminal = cache
-        .get_all::<RepoFrontierPlanDecisionReceipt>()?
-        .into_iter()
-        .filter(|receipt| receipt.planning_request_id == planning.request_id)
-        .collect::<Vec<_>>();
-    if !terminal.is_empty() {
-        if terminal.len() != 1 {
-            return Err(anyhow!(
-                "Mind review candidate has multiple terminal decisions"
-            ));
-        }
-        let receipt = &terminal[0];
-        return Ok(receipt.decision == review.decision
-            && receipt.candidate_id == review.candidate_id
-            && receipt.candidate_sha256 == review.candidate_sha256
-            && receipt.model_projection_digest == review.expected_model_projection_digest
-            && receipt.model_source_documents == review.expected_model_source_documents
-            && receipt.decision_source.as_ref()
-                == Some(
-                    &crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
-                        command_id: review.command_id.clone(),
-                        admission_id: review.admission_id.clone(),
-                        packet_sha256: review.packet_sha256.clone(),
-                        source_actor_id: review.source_actor_id.clone(),
-                    },
-                ));
-    }
-    if require_keyed_repo_model_basis(
-        &cache,
-        &planning.model_projection_digest,
-        &planning.model_source_documents,
-    )
-    .is_err()
-    {
-        return Ok(false);
-    }
-    validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &planning)?;
-    Ok(true)
 }
 
 fn commit_repo_frontier_plan_decision_inner(
@@ -7711,69 +7585,33 @@ fn commit_repo_frontier_plan_decision_inner(
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
-    let (
-        mind_request_id,
-        decision,
-        rationale,
-        decided_at,
-        decision_source,
-        decision_context_id,
-        operator_provenance,
-    ) = match source {
-        FrontierPlanDecisionSource::MindWorker(result_id) => {
-            let result = cache
-                .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
-                .into_iter()
-                .find(|result| result.result_id == result_id)
-                .ok_or_else(|| anyhow!("frontier plan decision lost its Mind result"))?;
-            let typed = result
-                .frontier_plan_mind_decision()?
-                .ok_or_else(|| anyhow!("frontier plan decision requires a typed Mind decision"))?;
-            (
-                result
-                    .frontier_plan_mind_request_id
-                    .clone()
-                    .ok_or_else(|| anyhow!("Mind result lacks its plan request echo"))?,
-                typed.decision,
-                typed.rationale,
-                typed.decided_at,
-                crate::RepoFrontierPlanDecisionSource::MindWorker {
-                    result_id: result.result_id,
-                    job_id: result.job_id,
-                },
-                Some(result.decision_context_id),
-                None,
-            )
-        }
-        FrontierPlanDecisionSource::Operator(review) => {
-            let admitted = cache
-                .get::<crate::LocalAdmittedOperatorCommand>(&review.command_id)?
-                .ok_or_else(|| anyhow!("operator review lost its admitted command"))?;
-            if admitted.admission_id != review.admission_id
-                || admitted.packet_sha256 != review.packet_sha256
-                || admitted.source_actor_id != review.source_actor_id
-            {
-                return Err(anyhow!("operator review provenance mismatch"));
+    let (mind_request_id, decision, rationale, decided_at, decision_source, decision_context_id) =
+        match source {
+            FrontierPlanDecisionSource::MindWorker(result_id) => {
+                let result = cache
+                    .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+                    .into_iter()
+                    .find(|result| result.result_id == result_id)
+                    .ok_or_else(|| anyhow!("frontier plan decision lost its Mind result"))?;
+                let typed = result.frontier_plan_mind_decision()?.ok_or_else(|| {
+                    anyhow!("frontier plan decision requires a typed Mind decision")
+                })?;
+                (
+                    result
+                        .frontier_plan_mind_request_id
+                        .clone()
+                        .ok_or_else(|| anyhow!("Mind result lacks its plan request echo"))?,
+                    typed.decision,
+                    typed.rationale,
+                    typed.decided_at,
+                    crate::RepoFrontierPlanDecisionSource::MindWorker {
+                        result_id: result.result_id,
+                        job_id: result.job_id,
+                    },
+                    Some(result.decision_context_id),
+                )
             }
-            let provenance = cache
-                .get_envelope::<crate::LocalAdmittedOperatorCommand>(&review.command_id)?
-                .ok_or_else(|| anyhow!("operator review provenance envelope disappeared"))?;
-            (
-                review.mind_request_id.clone(),
-                review.decision,
-                format!("Authenticated operator requested {:?}.", review.decision).to_lowercase(),
-                review.decided_at.clone(),
-                crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
-                    command_id: review.command_id.clone(),
-                    admission_id: review.admission_id.clone(),
-                    packet_sha256: review.packet_sha256.clone(),
-                    source_actor_id: review.source_actor_id.clone(),
-                },
-                None,
-                Some(provenance),
-            )
-        }
-    };
+        };
     chrono::DateTime::parse_from_rfc3339(&decided_at)
         .map_err(|_| anyhow!("frontier plan decision time must be RFC3339"))?;
     let mind_request = cache
@@ -7781,17 +7619,6 @@ fn commit_repo_frontier_plan_decision_inner(
         .ok_or_else(|| anyhow!("frontier plan decision requires its typed Mind request"))?;
     let (planning, candidate) =
         validate_repo_frontier_plan_mind_request_identity(&cache, &mind_request)?;
-    if let FrontierPlanDecisionSource::Operator(review) = source {
-        if review.candidate_id != candidate.candidate_id
-            || review.candidate_sha256 != mind_request.candidate_sha256
-            || review.expected_model_projection_digest != planning.model_projection_digest
-            || review.expected_model_source_documents != planning.model_source_documents
-        {
-            return Err(anyhow!(
-                "operator review does not bind the exact keyed model"
-            ));
-        }
-    }
     let candidate_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&candidate)?));
     let decision_id = format!(
         "repo-frontier-plan-decision-{:x}",
@@ -7858,13 +7685,12 @@ fn commit_repo_frontier_plan_decision_inner(
     {
         strong_reads.push(envelope);
     }
-    if let crate::RepoFrontierPlanDecisionSource::MindWorker { job_id, .. } = &decision_source {
-        strong_reads.push(
-            cache
-                .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
-                .ok_or_else(|| anyhow!("frontier plan decision lost its Mind result envelope"))?,
-        );
-    }
+    let crate::RepoFrontierPlanDecisionSource::MindWorker { job_id, .. } = &decision_source;
+    strong_reads.push(
+        cache
+            .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
+            .ok_or_else(|| anyhow!("frontier plan decision lost its Mind result envelope"))?,
+    );
     let mut writes = Vec::new();
     if decision == RepoFrontierPlanDecision::Adopt {
         let item = cache
@@ -7887,7 +7713,6 @@ fn commit_repo_frontier_plan_decision_inner(
             stop_conditions: candidate.stop_conditions.clone(),
             rollback_steps: candidate.rollback_steps.clone(),
             commit_message: candidate.commit_message.clone(),
-            execution_amendment: None,
         });
         writes.push(
             cache
@@ -7908,26 +7733,16 @@ fn commit_repo_frontier_plan_decision_inner(
     if let Some(pre_cas) = pre_cas {
         pre_cas();
     }
-    let outcome = if let Some(context_id) = decision_context_id {
-        crate::commit_mind_mutation(
-            runtime_store,
-            &context_id,
-            "Mind.repo_frontier_plan_decision",
-            strong_reads,
-            writes,
-            &decided_at,
-        )?
-    } else {
-        crate::commit_operator_mind_mutation(
-            runtime_store,
-            operator_provenance
-                .ok_or_else(|| anyhow!("operator plan decision lacks provenance"))?,
-            "Mind.repo_frontier_plan_decision",
-            strong_reads,
-            writes,
-            &decided_at,
-        )?
-    };
+    let context_id = decision_context_id
+        .ok_or_else(|| anyhow!("Mind plan decision lacks its decision context"))?;
+    let outcome = crate::commit_mind_mutation(
+        runtime_store,
+        &context_id,
+        "Mind.repo_frontier_plan_decision",
+        strong_reads,
+        writes,
+        &decided_at,
+    )?;
     match outcome {
         crate::EpiphanyMindCommitOutcome::Committed(_) => Ok(receipt),
         crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
@@ -9903,124 +9718,6 @@ fn worker_result_has_keyed_mind_commit(
         }))
 }
 
-/// Mind-owned repair for a route whose immutable adopted plan cannot bind the
-/// already-observed consequence. The original plan and route remain intact;
-/// only an authenticated, single-use execution amendment enters RepoModel.
-pub fn amend_repo_frontier_execution(
-    store_path: impl AsRef<Path>,
-    amendment: crate::RepoFrontierExecutionAmendment,
-) -> Result<RepoFrontierExecutionAmendmentReceipt> {
-    let store_path = store_path.as_ref();
-    chrono::DateTime::parse_from_rfc3339(&amendment.amended_at)
-        .map_err(|_| anyhow!("execution amendment amended_at must be RFC3339"))?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    if let Some(existing) =
-        cache.get::<RepoFrontierExecutionAmendmentReceipt>(&amendment.amendment_id)?
-    {
-        return Ok(existing);
-    }
-    let route = cache
-        .get::<RepoFrontierRoute>(&amendment.replaces_route_id)?
-        .ok_or_else(|| anyhow!("execution amendment requires the exact route"))?;
-    let provenance = cache
-        .get_envelope::<crate::LocalAdmittedOperatorCommand>(&amendment.command_id)?
-        .ok_or_else(|| anyhow!("execution amendment lost its admitted operator command"))?;
-    let admitted = cache
-        .get::<crate::LocalAdmittedOperatorCommand>(&amendment.command_id)?
-        .ok_or_else(|| anyhow!("execution amendment lost operator provenance"))?;
-    if admitted.admission_id != amendment.admission_id
-        || admitted.packet_sha256 != amendment.packet_sha256
-        || admitted.source_actor_id != amendment.source_actor_id
-    {
-        return Err(anyhow!("execution amendment operator provenance mismatch"));
-    }
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: route.model_projection_digest.clone(),
-        source_documents: route.model_source_documents.clone(),
-    };
-    let view =
-        require_keyed_repo_model_basis(&cache, &basis.projection_digest, &basis.source_documents)?;
-    let mut item = view
-        .frontier
-        .into_iter()
-        .find(|item| item.id == route.frontier_item_id)
-        .ok_or_else(|| anyhow!("execution amendment frontier disappeared"))?;
-    let previous_frontier_item_hash = repo_frontier_item_hash(&item)?;
-    if previous_frontier_item_hash != route.frontier_item_hash {
-        return Err(anyhow!("execution amendment route is stale"));
-    }
-    let plan = item
-        .adopted_plan
-        .as_mut()
-        .ok_or_else(|| anyhow!("execution amendment requires an adopted plan"))?;
-    if plan.execution_amendment.is_some() {
-        return Err(anyhow!(
-            "execution amendment cannot replace another amendment"
-        ));
-    }
-    plan.execution_amendment = Some(amendment.clone());
-    let proposal = crate::EpiphanyRepoModelMutationProposal::new(
-        format!(
-            "repo-frontier-execution-amendment-{}",
-            amendment.amendment_id
-        ),
-        amendment.command_id.clone(),
-        amendment.amendment_id.clone(),
-        vec![
-            amendment.admission_id.clone(),
-            amendment.packet_sha256.clone(),
-        ],
-        crate::load_current_runtime_repository_body_basis(store_path)?,
-        vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
-    )?;
-    let mutation = crate::plan_repo_model_mutation(store_path, &proposal)?;
-    let admitted_basis = keyed_repo_model_basis_after_writes(&basis, &mutation.writes)?;
-    let receipt = RepoFrontierExecutionAmendmentReceipt {
-        schema_version: REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION.into(),
-        receipt_id: amendment.amendment_id.clone(),
-        amendment_id: amendment.amendment_id.clone(),
-        replaced_route_id: route.route_id,
-        frontier_item_id: route.frontier_item_id,
-        previous_frontier_item_hash,
-        previous_model_projection_digest: basis.projection_digest,
-        previous_model_source_documents: basis.source_documents,
-        admitted_model_projection_digest: admitted_basis.projection_digest,
-        admitted_model_source_documents: admitted_basis.source_documents,
-        source_actor_id: amendment.source_actor_id,
-        command_id: amendment.command_id,
-        admission_id: amendment.admission_id,
-        packet_sha256: amendment.packet_sha256,
-        replacement_action: amendment.action,
-        replacement_command: amendment.command,
-        rationale: amendment.rationale,
-        amended_at: amendment.amended_at.clone(),
-        contract: REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT.into(),
-    };
-    let mut writes = mutation.writes;
-    writes.push(cache.prepare_entry(&receipt.receipt_id, &receipt)?.0);
-    match crate::commit_operator_mind_mutation(
-        store_path,
-        provenance,
-        "Mind.repo_frontier_execution_amendment",
-        mutation.strong_reads,
-        writes,
-        &amendment.amended_at,
-    )? {
-        crate::EpiphanyMindCommitOutcome::Committed(_) => Ok(receipt),
-        crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
-            let mut reloaded = runtime_spine_cache(store_path)?;
-            reloaded.pull_all_backing_stores()?;
-            match reloaded.get::<RepoFrontierExecutionAmendmentReceipt>(&receipt.receipt_id)? {
-                Some(existing) if existing == receipt => Ok(existing),
-                _ => Err(anyhow!(
-                    "execution amendment lost its exact keyed-model CAS"
-                )),
-            }
-        }
-    }
-}
-
 pub(crate) fn validate_repo_frontier_verification_request_intrinsic(
     request: &RepoFrontierVerificationRequest,
 ) -> Result<crate::RepoFrontierItem> {
@@ -10347,15 +10044,6 @@ pub fn runtime_repo_frontier_plan_decision(
         .get_all::<RepoFrontierPlanDecisionReceipt>()?
         .into_iter()
         .find(|receipt| receipt.decision_id == decision_id))
-}
-
-pub fn runtime_repo_frontier_execution_amendment(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<RepoFrontierExecutionAmendmentReceipt>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoFrontierExecutionAmendmentReceipt>(receipt_id)
 }
 
 pub fn runtime_latest_repo_frontier_relinquishment(

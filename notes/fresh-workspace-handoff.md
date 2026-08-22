@@ -240,15 +240,15 @@ with witness SHA-256
 `4d8350fac61f90d32a2b8067731308ec3e3672a42804db29c680b0fc68ab9adc`
 and `privateStateExposed=false`.
 
-The exact Idunn request ending `2026-08-21T20:17:11.821Z` then refused before
-publication because Yggdrasil lacks the Bifrost organizational-operator
-runtime identity and its VoidBot, bridge-group, private-state, anchor, and
-configuration substrate. The deployment brake is engaged; Epiphany units are
-inactive and disabled; `app/current` still names recovery source `267a0257`;
-no `deployment.env`, runtime publication, or signed-health admission exists.
-Resident Self's two Codex credential files are also absent behind that first
-gate. This is a clean infrastructure blocker, not package acceptance or a
-license to bootstrap another organ from the Epiphany lane.
+The exact Idunn request ending `2026-08-21T20:17:11.821Z` refused before
+publication or mutation. The Discord/Bifrost/VoidBot operator control plane
+that imposed that gate is now deleted across Epiphany, Bifrost, VoidBot, and
+gamecult-ops. The deployment brake remains engaged; Epiphany units are inactive
+and disabled; `app/current` still names recovery source `267a0257`; no
+`deployment.env`, runtime publication, or signed-health admission exists.
+Resident Self's two Codex credential files remain the legitimate deployment
+input blocker. The prior package predates this cut and cannot be promoted as
+current source.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -294,12 +294,11 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Have the Bifrost/VoidBot infrastructure owner install the missing
-   organizational-operator substrate, then provision Epiphany's Codex
-   credentials through their single owner. Reissue the exact Idunn deployment
-   for the already tested and sealed `ebc0ffe4` package and require publication,
-   runtime start, and signed-health receipts. Do not run a competing release
-   build on Starfire and do not let the Epiphany lane bootstrap another organ.
+1. Provision Epiphany's Codex credentials through their single owner. Let Idunn
+   build and deploy the source containing the operator-bridge deletion, then
+   require publication, runtime start, and signed-health receipts. Do not run a
+   competing release build on Starfire and do not let the Epiphany lane
+   bootstrap another organ.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
    Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
@@ -309,8 +308,7 @@ A stopped build container or cloned source volume owns no durable proof.
    consequence leg. Do not transplant the old proof anchor or ship a generic
    test harness.
 4. Only then resume Model Atlas Gate 1 from a new external root. Idunn remains
-   the sole deployment owner; Bifrost/VoidBot bootstrap belongs to its own
-   infrastructure authority.
+   the sole deployment owner.
 
 ## Operational state that matters
 
@@ -321,12 +319,12 @@ A stopped build container or cloned source volume owns no durable proof.
 - The old Yggdrasil capacity measurement is obsolete. The upgraded host is the
   intended swarm body and CI/CD machine. Idunn owns source-change compilation,
   testing, release construction, deployment, and daemon survival there; its
-  current deployment truth belongs to the separate deployment task.
+  current deployment truth belongs to Idunn's typed deployment receipts.
 - Idunn is active and independent at exact source `745e0109`; its Epiphany
   source-change target is installed. Exact `ebc0ffe4` passed the full workspace
-  gate and sealed successfully on Yggdrasil. Publication stopped safely at the
-  missing Bifrost operator substrate; this is not a reason to fall back to
-  Starfire compilation.
+  gate and sealed successfully on Yggdrasil. Publication stopped safely before
+  mutation. That package is superseded by this source cut and is not a reason
+  to fall back to Starfire compilation.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.

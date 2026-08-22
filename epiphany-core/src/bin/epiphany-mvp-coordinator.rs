@@ -1669,7 +1669,6 @@ fn record_hands_implementation_gate(
         "plannedCommand": route.adopted_plan.as_ref().map(|plan| plan.effective_command()),
         "originalPlannedAction": route.adopted_plan.as_ref().map(|plan| plan.action.as_str()),
         "originalPlannedCommand": route.adopted_plan.as_ref().map(|plan| plan.command.as_str()),
-        "executionAmendmentId": route.adopted_plan.as_ref().and_then(|plan| plan.execution_amendment.as_ref()).map(|amendment| amendment.amendment_id.as_str()),
         "plannedChecks": route.adopted_plan.as_ref().map(|plan| plan.checks.as_slice()),
         "plannedStopConditions": route.adopted_plan.as_ref().map(|plan| plan.stop_conditions.as_slice()),
         "plannedRollbackSteps": route.adopted_plan.as_ref().map(|plan| plan.rollback_steps.as_slice()),

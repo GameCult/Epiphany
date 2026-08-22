@@ -4248,7 +4248,7 @@ pub fn default_epiphany_cultmesh_swarm_brake(
 }
 
 /// The single runtime brake identity shared by deployment, resident readiness,
-/// and authenticated operator commands. A caller identity is provenance, not
+/// and local typed control surfaces. A caller identity is provenance, not
 /// brake ownership, and must not be substituted into either constant.
 pub const EPIPHANY_CANONICAL_SWARM_BRAKE_ID: &str = "epiphany/swarm-brake";
 pub const EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER: &str = "epiphany.swarm-brake";

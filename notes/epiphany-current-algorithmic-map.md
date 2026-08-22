@@ -325,12 +325,11 @@ Accepted at the `bb823c54` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. provision Yggdrasil's missing Bifrost organizational-operator substrate
-   through its owning infrastructure lane, then provision Epiphany's Codex
-   credentials through their single owner and reissue Idunn deployment of the
-   already tested/sealed `ebc0ffe4` package. Require runtime publication and
-   signed health; the current exact request refused before mutation and left
-   Epiphany inactive on recovery source `267a0257`;
+1. provision Epiphany's Codex credentials through their single owner, then let
+   Idunn build and deploy the source containing the operator-bridge deletion.
+   Require runtime publication and signed health; the prior exact request
+   refused before mutation and left Epiphany inactive on recovery source
+   `267a0257`;
 2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,
@@ -341,8 +340,9 @@ Open before Model Atlas Gate 1 resumes:
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
 Yggdrasil's old capacity/topology is obsolete; the upgraded 16-vCPU host is the
 intended swarm and CI/CD body. Idunn owns the installed Epiphany source-change
-path and sealed the package, but the absent Bifrost operator substrate still
-blocks publication. The package is not capstone or service-health evidence.
+path. The former Discord/Bifrost/VoidBot operator bridge and its deployment
+gate are deleted; Bifrost remains Persona and governed-consequence transport.
+The prior package is not capstone or service-health evidence.
 Operational topology registration and
 autonomous scheduling remain forbidden until their owning gates pass.
 

@@ -27,7 +27,6 @@ pub use epiphany_state_model::EpiphanyMemoryPatchCandidate;
 pub use epiphany_state_model::EpiphanyMemoryProfile;
 pub use epiphany_state_model::EpiphanyMemorySummary;
 pub use epiphany_state_model::RepoFrontierAdoptedPlan;
-pub use epiphany_state_model::RepoFrontierExecutionAmendment;
 pub use epiphany_state_model::RepoFrontierItem;
 pub use epiphany_state_model::RepoFrontierStatus;
 

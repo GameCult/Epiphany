@@ -98,20 +98,8 @@ name = "epiphany-memory-semantic-projector"
 path = "src/bin/epiphany-memory-semantic-projector.rs"
 
 [[bin]]
-name = "epiphany-frontier-execution"
-path = "src/bin/epiphany-frontier-execution.rs"
-
-[[bin]]
 name = "epiphany-mvp-coordinator-smoke"
 path = "src/bin/epiphany-mvp-coordinator-smoke.rs"
-
-[[bin]]
-name = "epiphany-operator-command"
-path = "src/bin/epiphany-operator-command.rs"
-
-[[bin]]
-name = "epiphany-operator-command-fixture"
-path = "src/bin/epiphany-operator-command-fixture.rs"
 
 [[bin]]
 name = "epiphany-operator-run"

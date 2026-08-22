@@ -930,7 +930,6 @@ mod tests {
                 stop_conditions: vec!["A check fails.".into()],
                 rollback_steps: vec!["Revert the fixture change.".into()],
                 commit_message: "Exercise exact Hands authority".into(),
-                execution_amendment: None,
             }),
             status: RepoFrontierStatus::Active,
             ..Default::default()

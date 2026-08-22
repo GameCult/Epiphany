@@ -408,14 +408,15 @@ Cut in this order:
    exact source `ebc0ffe4` passed Idunn's full Yggdrasil workspace gate, then
    sealed 27 binaries as release
    `sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`.
-   Publication refused before mutation because the Bifrost organizational-
-   operator substrate is absent. Starfire is not a fallback.
+   Publication refused before mutation. The unused Discord/Bifrost/VoidBot
+   operator bridge that caused that gate is now deleted; Starfire is not a
+   fallback.
 25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists
    nothing, and omits nonterminal pass physiology. That surface is now inside
-   the accepted Idunn-built `ebc0ffe4` package; runtime publication and signed
-   health remain blocked by infrastructure authority outside Epiphany.
+   the accepted Idunn-built `ebc0ffe4` package. The next Idunn-built source
+   must replace it before runtime publication and signed health can be claimed.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

@@ -474,7 +474,7 @@ does not invent that grant.
   liveness, timestamps, and latest error are observation/cache state only.
 - Idunn command exit is not provider heartbeat, semantic readiness, or proof
   that a restarted child initialized successfully.
-- The health mirror, Self, operator commands, CultMesh, Eve, and Gjallar cannot
+- The health mirror, Self, local operator projections, CultMesh, Eve, and Gjallar cannot
   create obligations, attempts, receipts, canonical state, or readiness.
 - Arbitrary peers cannot invoke recovery with free-form claim and reason
   strings. Production recovery requires store-authenticated typed Idunn

@@ -57,7 +57,6 @@ writer or scheduler in this path.
 - VoidBot may not write Epiphany conversation obligations or select Persona
   turns.
 - Resident Self feedback pressure may not impersonate addressed conversation.
-- The operator-command path may not become ordinary chat ingress.
 - Heartbeat may not delete a mention merely because it selected a turn.
 - Model output may not mutate Mind or claim delivery directly.
 - The Discord mouth may not synthesize Persona speech.

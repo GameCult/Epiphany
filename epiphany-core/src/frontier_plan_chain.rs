@@ -15,14 +15,6 @@ pub fn validate_frontier_plan_decision_chain(
         Some(crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }) => {
             !result_id.trim().is_empty() && !job_id.trim().is_empty()
         }
-        Some(crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
-            command_id,
-            admission_id,
-            packet_sha256,
-            source_actor_id,
-        }) => [command_id, admission_id, packet_sha256, source_actor_id]
-            .into_iter()
-            .all(|value| !value.trim().is_empty()),
         None => false,
     };
     let decision_basis = crate::EpiphanyRepoModelBasis {

@@ -756,41 +756,16 @@ pub struct RepoFrontierAdoptedPlan {
     #[ts(type = "Array<string>")]
     pub rollback_steps: Vec<String>,
     pub commit_message: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "RepoFrontierExecutionAmendment | null")]
-    pub execution_amendment: Option<RepoFrontierExecutionAmendment>,
 }
 
 impl RepoFrontierAdoptedPlan {
     pub fn effective_action(&self) -> &str {
-        self.execution_amendment
-            .as_ref()
-            .map_or(self.action.as_str(), |amendment| amendment.action.as_str())
+        self.action.as_str()
     }
 
     pub fn effective_command(&self) -> &str {
-        self.execution_amendment
-            .as_ref()
-            .map_or(self.command.as_str(), |amendment| {
-                amendment.command.as_str()
-            })
+        self.command.as_str()
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct RepoFrontierExecutionAmendment {
-    pub amendment_id: String,
-    pub replaces_route_id: String,
-    pub source_actor_id: String,
-    pub command_id: String,
-    pub admission_id: String,
-    pub packet_sha256: String,
-    pub previous_action_sha256: String,
-    pub previous_command_sha256: String,
-    pub action: String,
-    pub command: String,
-    pub rationale: String,
-    pub amended_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

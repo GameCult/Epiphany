@@ -49,10 +49,6 @@ pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_relinquishment_receipt.v0";
 pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT: &str =
     "epiphany.repo_frontier_relinquishment.v0";
-pub const REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_frontier_execution_amendment_receipt.v0";
-pub const REPO_FRONTIER_EXECUTION_AMENDMENT_RECEIPT_CONTRACT: &str =
-    "epiphany.repo_frontier_execution_amendment.v0";
 pub const REPO_FRONTIER_MODELING_REQUEST_TYPE: &str =
     "epiphany.modeling.repo_frontier_verdict_request";
 pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
@@ -729,47 +725,7 @@ pub struct RepoFrontierPlanDecisionReceipt {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RepoFrontierPlanDecisionSource {
-    MindWorker {
-        result_id: String,
-        job_id: String,
-    },
-    AuthenticatedOperatorReview {
-        command_id: String,
-        admission_id: String,
-        packet_sha256: String,
-        source_actor_id: String,
-    },
-}
-
-/// Operator-safe identity projection of one current Mind review candidate.
-/// Proposal text, commands, paths, and private state deliberately remain in
-/// the canonical runtime store owned by Mind.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RepoFrontierPlanReviewSummary {
-    pub mind_request_id: String,
-    pub candidate_id: String,
-    pub candidate_sha256: String,
-    pub model_projection_digest: String,
-    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    pub frontier_item_id: String,
-    pub requested_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RepoFrontierPlanOperatorReview {
-    pub command_id: String,
-    pub admission_id: String,
-    pub packet_sha256: String,
-    pub source_actor_id: String,
-    pub mind_request_id: String,
-    pub candidate_id: String,
-    pub candidate_sha256: String,
-    pub expected_model_projection_digest: String,
-    pub expected_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    pub decision: RepoFrontierPlanDecision,
-    pub decided_at: String,
+    MindWorker { result_id: String, job_id: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -944,51 +900,5 @@ pub struct RepoFrontierRelinquishmentReceipt {
     #[cultcache(key = 9)]
     pub relinquished_at: String,
     #[cultcache(key = 10)]
-    pub contract: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.mind.repo_frontier_execution_amendment_receipt",
-    schema = "RepoFrontierExecutionAmendmentReceipt"
-)]
-pub struct RepoFrontierExecutionAmendmentReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub amendment_id: String,
-    #[cultcache(key = 3)]
-    pub replaced_route_id: String,
-    #[cultcache(key = 4)]
-    pub frontier_item_id: String,
-    #[cultcache(key = 5)]
-    pub previous_frontier_item_hash: String,
-    #[cultcache(key = 6)]
-    pub previous_model_projection_digest: String,
-    #[cultcache(key = 7)]
-    pub previous_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 8)]
-    pub admitted_model_projection_digest: String,
-    #[cultcache(key = 9)]
-    pub admitted_model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 10)]
-    pub source_actor_id: String,
-    #[cultcache(key = 11)]
-    pub command_id: String,
-    #[cultcache(key = 12)]
-    pub admission_id: String,
-    #[cultcache(key = 13)]
-    pub packet_sha256: String,
-    #[cultcache(key = 14)]
-    pub replacement_action: String,
-    #[cultcache(key = 15)]
-    pub replacement_command: String,
-    #[cultcache(key = 16)]
-    pub rationale: String,
-    #[cultcache(key = 17)]
-    pub amended_at: String,
-    #[cultcache(key = 18)]
     pub contract: String,
 }

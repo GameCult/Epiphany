@@ -20,8 +20,6 @@ mod imagination_consideration;
 mod memory_graph;
 mod mind_contracts;
 mod mind_documents;
-mod operator_command;
-mod operator_command_service;
 mod organ_dependencies;
 mod packaged_release;
 mod persona_conversation;
@@ -724,7 +722,6 @@ pub use memory_graph::MemorySemanticProjectorPulseOutcome;
 pub use memory_graph::MemorySemanticProjectorPulseStatus;
 pub use memory_graph::MemorySemanticProjectorRecoveryAuthorization;
 pub use memory_graph::RepoFrontierAdoptedPlan;
-pub use memory_graph::RepoFrontierExecutionAmendment;
 pub use memory_graph::RepoFrontierItem;
 pub use memory_graph::RepoFrontierStatus;
 pub use memory_graph::SEMANTIC_PROJECTION_SCHEMA_VERSION;
@@ -776,27 +773,6 @@ pub use memory_graph::validate_memory_semantic_projection_obligation;
 pub use mind_contracts::MindCultNetContract;
 pub use mind_contracts::default_mind_cultnet_contracts;
 pub use mind_documents::*;
-pub use operator_command::{
-    BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION, BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE,
-    BifrostOperatorCommandAdmission, LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
-    LocalAdmittedOperatorCommand, OPERATOR_COMMAND_RESULT_SCHEMA_VERSION, OperatorCapability,
-    OperatorCommand, OperatorCommandPacket, OperatorCommandPolicy, OperatorCommandResult,
-    OperatorCommandResultDisposition, admit_and_execute_bifrost_operator_command,
-    operator_command_admission_signing_payload, operator_command_admission_signing_purpose,
-    operator_command_packet_sha256,
-};
-pub use operator_command_service::{
-    EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
-    EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE, EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
-    EpiphanyOperatorCommandResultReceipt, EpiphanyOperatorCommandServiceHealth,
-    EpiphanyOperatorCommandWireResult, EpiphanyOperatorStatusProviderV2, EpiphanyOperatorStatusV2,
-    OperatorCommandInteropFixtureManifest, OperatorCommandServiceConfig,
-    OperatorCommandServiceHealthConfig, OperatorCommandServiceReadiness,
-    OperatorStatusProviderHealthConfig, authenticate_operator_command_service_health,
-    execute_operator_command_admission, operator_command_result_receipt_signing_payload,
-    operator_command_result_receipt_signing_purpose, read_operator_command_trust_anchor,
-    serve_operator_command_rudp, write_operator_command_interop_fixture,
-};
 pub use organ_dependencies::EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION;
 pub use organ_dependencies::EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION;
 pub use organ_dependencies::EPIPHANY_STANDING_ORGANS;
@@ -964,7 +940,6 @@ pub use runtime_spine::RuntimeSpineSessionOptions;
 pub use runtime_spine::RuntimeTypedFulfillmentEvidence;
 pub use runtime_spine::abandon_unactivated_runtime_worker_process;
 pub use runtime_spine::activate_runtime_worker_process;
-pub use runtime_spine::amend_repo_frontier_execution;
 pub use runtime_spine::append_runtime_event;
 pub use runtime_spine::archive_completed_coordinator_session;
 pub use runtime_spine::archive_completed_model_session;
@@ -975,7 +950,6 @@ pub use runtime_spine::bind_runtime_to_agent_memory_swarm;
 pub use runtime_spine::canonical_repo_frontier_plan_candidate_id;
 pub use runtime_spine::claim_runtime_worker_process;
 pub use runtime_spine::close_runtime_session;
-pub use runtime_spine::commit_operator_repo_frontier_plan_review;
 pub use runtime_spine::commit_repo_frontier_modeling_request;
 pub use runtime_spine::commit_repo_frontier_plan_decision;
 pub use runtime_spine::commit_repo_frontier_plan_mind_request;
@@ -994,8 +968,6 @@ pub use runtime_spine::model_pass_failure_for_request;
 pub use runtime_spine::open_coordinator_run;
 pub use runtime_spine::open_runtime_model_execution;
 pub use runtime_spine::open_runtime_spine_heartbeat_job;
-pub use runtime_spine::operator_repo_frontier_plan_review_is_current;
-pub use runtime_spine::pending_repo_frontier_plan_reviews;
 pub use runtime_spine::prepare_runtime_spine_heartbeat_job;
 pub use runtime_spine::promote_autonomous_direction_options_for_modeling;
 pub use runtime_spine::put_coordinator_run_receipt;
@@ -1047,7 +1019,6 @@ pub use runtime_spine::runtime_latest_repo_frontier_relinquishment;
 pub use runtime_spine::runtime_modeling_semantic_projection_input;
 pub use runtime_spine::runtime_registered_document_types;
 pub use runtime_spine::runtime_reorient_worker_result;
-pub use runtime_spine::runtime_repo_frontier_execution_amendment;
 pub use runtime_spine::runtime_repo_frontier_plan_decision;
 pub use runtime_spine::runtime_repo_frontier_planning_eligibility;
 pub use runtime_spine::runtime_repo_frontier_planning_lifecycle;
