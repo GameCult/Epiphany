@@ -471,6 +471,36 @@ Cut in this order:
    frontier dependencies are distinct in the output contract. Mind/runtime and
    proposal-context epochs cut to v3/v4/v2, so Ox12 is historical evidence and
    a new fresh-store capstone is mandatory.
+32. **Persona owns one outer turn deadline at `3b958a83`:** packaged Ox13
+   proved the admission-refusal lifecycle, then four exact Persona projector
+   failures exposed a separate 90-second timeout hidden inside the shared
+   provider transport. Persona service now accepts one explicit
+   `--turn-timeout-seconds` budget, defaults it to 600 seconds, wraps the whole
+   native pass once, and lowers provider transport with no independent request
+   timer. The shared transport error no longer impersonates an OpenAI-direct
+   path when OpenRouter owns the request. Ox13 is historical; later fresh roots
+   use a non-restarting Persona unit so provider failure counts remain exact.
+33. **Proposal semantics stay inside admission at `8812945e`:** proposal
+   current-work does not grow a second rules tribunal for model-authored graph
+   operations. The existing family mutation planner and generic RepoModel
+   validator remain the semantic owners; refusal is durable typed state and a
+   fresh pass receives the exact prior refusal.
+34. **Historical direction proof is not current-work authority at `749d977e`:**
+   a completed admitted-direction decision remains valid evidence for the
+   proposal it created even when later disjoint RepoModel documents change.
+   Current work is still projected from unresolved typed obligations, not from
+   an aggregate model freshness comparison. Ox16 proved this cut in package
+   reality before exposing the separate path-scope fault.
+35. **Repository consequence authority is explicit at `5b799b12`:** the old
+   `source_scope` name conflated evidence provenance with future write
+   authority. The hard cut replaces it with `repository_scope`, names the
+   adopted Hands narrowing `authorized_paths`, and makes generic RepoModel
+   validation own canonical sorted repository-relative paths. Unresolved Eyes,
+   Imagination, or Hands frontiers without a valid ceiling refuse atomically.
+   Prompt schemas state that not-yet-created outputs belong in the ceiling and
+   inspected evidence does not. Mind/runtime/RepoModel epochs advance to
+   v4/v5/v2 with no compatibility reader. Ox16 is historical; Ox17 starts from
+   a fresh store and exact package.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

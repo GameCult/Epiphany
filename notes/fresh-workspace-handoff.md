@@ -1,9 +1,9 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-22
+Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `e046a4d1`
-Current worktree: replayable admission-refusal documentation and evidence reconciliation
+Latest committed implementation cut: `5b799b12`
+Current worktree: Ox16 scope-authority reconciliation and Ox17 preparation
 
 ## Orientation
 
@@ -13,11 +13,10 @@ autonomous scheduling, register operational topology in `gamecult-ops`, race
 Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
-Epiphany is a supervised engineering alpha. Exact source `d2ca6630` is the
-current deployed OpenRouter/Ox body, signed-health admitted and deliberately
-braked. Exact `9b9b5c85` is the next build-affecting source and is not deployed
-yet. Historical live proofs remain evidence; they do not authorize the next
-capstone or Gate 1.
+Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
+production symlink body and is inactive. Exact `5b799b12` is the current
+build-affecting source. Historical live proofs remain evidence; they do not
+authorize the next capstone or Gate 1.
 
 ## Current live deployment
 
@@ -30,8 +29,9 @@ capstone or Gate 1.
 - Model provider: OpenRouter `stealth/ox-alpha`, selected explicitly and
   injected through the root-owned systemd credential boundary.
 - `epiphany.service`, `epiphany-heartbeat.service`, and
-  `epiphany-swarm.service` are active with zero restarts. Resident Self reports
-  `braked`; both the swarm brake and Idunn deployment brake are engaged.
+  `epiphany-swarm.service` are inactive with zero restarts after the hard epoch
+  refusal rollback. The d2ca stores and swarm brake remain historical
+  production state; no newer package is admitted there.
 - Idunn source `8b972715c47731f2418d0c423cb0dd2076940bd7` is provenance-exact and
   admits Epiphany through the shared authenticated daemon-health contract.
 - gamecult-ops `b47f9084` removes Docker from
@@ -389,19 +389,66 @@ epochs v3/v4/v2; old writable stores are refused. Ox12 is therefore historical
 evidence and must not resume. Local core `491/491`, coordinator `12/12`, status
 `2/2`, swarm `10/10`, and all core targets pass.
 
+Exact `85061129` then passed Idunn's full Yggdrasil workspace gate and sealed
+release `sha256-238a7911650c406c67b710b19642451c1b1e7bdbe66e9dc7605e46e098a780dd`.
+Private fresh-store Ox13 proved the new refusal lifecycle in package reality:
+Body Modeling launched without Eyes and admitted, Imagination completed, and a
+structurally valid proposal result wrote a typed admission-refusal commit before
+attempt 1 completed with corrected semantics. Transcript-free exact audit is
+retained under the Ox13 root. Persona concurrently exposed an independent
+deadline-owner defect: its provider transport hardcoded 90 seconds while worker
+passes used one outer 600-second budget. A stop race let systemd begin four
+typed projector failures rather than the live-observed three; none committed
+Mind or public speech. Ox13 is sealed, inactive, and must never resume.
+
+Exact `3b958a83` gives Persona one explicit outer
+`--turn-timeout-seconds` budget, defaults it to 600 seconds, removes the inner
+provider request timer, and makes the shared error provider-neutral. The
+focused provider/runtime suites pass: provider spine `17/17`, runtime library
+`26/26`, model-runtime binaries `13/13` each, and Persona service `1/1`.
+
+Ox15 is sealed historical fresh-store evidence. It proved Persona no longer
+dies at the old inner transport timeout, then exposed a separate proposal
+currentness fault. Exact `8812945e` keeps proposal semantics inside the family
+admission owner, and exact `749d977e` makes a completed historical direction
+decision valid evidence for its proposal across later disjoint RepoModel
+changes without turning an aggregate model revision back into authority.
+
+Exact `749d977e` passed Idunn's Yggdrasil gate under test receipt SHA-256
+`39229d8a526a7af7e7b29cec28d27b07f89ba5f5792658947e3d1d039b9449c4`
+and sealed package
+`sha256-5d9bc25612dd46511620671ccd5113f3b5e0e3c060c85e97dcdc199f9126a230`.
+Private fresh-store Ox16 launched direct Body Modeling without Eyes while all
+three Persona stages ran concurrently. Body and proposal admission survived
+later disjoint RepoModel changes. No public delivery succeeded. Planning then
+remained unavailable because the active Imagination frontier used inspected
+evidence paths as its supposed future write scope, omitted `OX-CAPSTONE.md`,
+and was unordered. Dependent proposal pressure began to form, so Ox16 was
+braked and sealed before the forest grew. No Hands consequence or capstone
+marker exists; Ox16 must never resume.
+
+Exact `5b799b12` is the hard architectural cut from that evidence. It deletes
+`source_scope`/`sourceScope`, makes `repository_scope` the canonical sorted
+repository-relative ceiling for future Planning/Hands consequences, and names
+the adopted route narrowing `authorized_paths`. Generic RepoModel validation
+owns the intrinsic path law and refuses an invalid routed frontier atomically
+before any graph document is written. Inspected files and evidence remain in
+their existing typed audit cargo. Mind/runtime/RepoModel epochs advance to
+v4/v5/v2. Local acceptance is core `494/494`, OpenAI runtime `26/26`,
+coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
+
 ## Immediate next action
 
-1. Let Idunn natively compile, test, and seal exact `e046a4d1` only after no
-   other target helper is active. The current Idunn helper design lacks one
-   host-wide deployment-transaction mutex; do not confuse exact rollback with
-   safe cross-target transaction ownership.
-2. Run the exact package from a new private fresh-store Ox root. Stop after
+1. Let Idunn compile, test, and seal exact `5b799b12` without touching another
+   target or moving the historical production store.
+2. Run that exact package from private fresh-store Ox17. Stop after
    three provider failures total. Prove direct Body Modeling without Eyes,
    refusal-to-retry if exercised, Hands -> Verification -> Mind,
    `list-decisions` plus exact `audit-decision`, and restart/re-entry without
    public speech.
-3. Never resume Ox10 or Ox12 or transplant their decisions. Only after the new
-   capstone passes may Model Atlas Gate 1 restart from a new external root.
+3. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16 or transplant their decisions.
+   Only after Ox17 passes may Model Atlas Gate 1 restart from a new external
+   root.
 
 ## Operational state that matters
 

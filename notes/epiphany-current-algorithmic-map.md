@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
-Updated: 2026-08-22
-Latest committed implementation cut: `e046a4d1` on `codex/epiphany-shakedown-live`
-Current worktree cut: replayable admission-refusal documentation and evidence reconciliation
+Updated: 2026-08-23
+Latest committed implementation cut: `5b799b12` on `codex/epiphany-shakedown-live`
+Current worktree cut: Ox16 scope-authority reconciliation and Ox17 preparation
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -42,7 +42,7 @@ interface authority.
 | Modeling | Body basis, keyed RepoModel view, verified consequences, and explicit proposals | typed graph/frontier mutations | Modeling processes the Body directly and owns no external-source permission. |
 | Hands | adopted route/plan plus exact capability receipts | typed consequences | A claimed intention is not a consequence. |
 | Soul | exact consequence and invariant/evidence obligations | verification audit or refusal | Work is not true merely because it ran. |
-| Persona | unread typed social/relationship state plus exact Persona projection | typed effects, speech intent, and consequence receipts | Persona work cannot block unrelated Hands or Modeling documents. |
+| Persona | unread typed social/relationship state plus exact Persona projection and one explicit service turn budget | typed effects, speech intent, consequence receipts, or exact typed failure | Persona owns its outer pass deadline; provider transport owns no competing timeout policy, and Persona work cannot block unrelated Hands or Modeling documents. |
 | CultMesh/Eve | typed provider-owned documents and deterministic views | private/local/public projections | Visibility and rendering never create authority. |
 
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
@@ -117,6 +117,14 @@ intent/receipt versions actually supplied to the pass.
 Provider credentials remain deployment-substrate inputs. Yggdrasil injects the
 OpenRouter key through systemd `LoadCredential`; readiness is checked inside
 Resident Self's mount namespace. The key is neither prompt cargo nor Mind state.
+
+Persona and worker passes use the same provider boundary but keep family-owned
+execution budgets. Workers already wrap the complete typed pass in their outer
+budget and therefore lower provider transport with no independent request
+timeout. Exact `3b958a83` gives Persona the same ownership shape through its
+explicit `--turn-timeout-seconds` service input, defaulting to 600 seconds. The
+inner provider transport receives no second timer. Provider-specific error text
+is also removed from the shared transport failure surface.
 
 Structured decisions are authoritative; token streams and assistant deltas are
 optional retention. A model-backed failure is also a typed terminal decision
@@ -319,17 +327,14 @@ same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted through the local `e046a4d1` source boundary:
+Accepted through the local `5b799b12` source boundary:
 
-- every Epiphany core target compiles;
-- core library `491/491`;
-- OpenAI runtime library `25/25`;
-- model-runtime binary `10/10`;
-- OpenAI-runtime binary `10/10`.
-- Persona service `1/1`.
-- tool runtime `14/14`, with the explicitly live immutable-GitHub test ignored.
-- release construction `21/21`.
-- all core targets compile; generic role-patch source guards pass.
+- core library `494/494`;
+- OpenAI runtime library `26/26`;
+- model-runtime binary `13/13`;
+- coordinator binary `12/12`;
+- swarm binary `10/10`;
+- core and OpenAI runtime libraries compile natively through the shared target.
 - authenticated Persona re-entry refuses naked typed input, performs no
   external observation or model call, and preserves the exact three-stage
   decision chain;
@@ -346,6 +351,11 @@ Accepted through the local `e046a4d1` source boundary:
 - proposal retry receives the ordered exact prior refusals. Claim/node
   identities cannot masquerade as frontier dependency identities in the output
   contract. Successful model transport remains distinct from Mind admission;
+- `repository_scope` is now the explicit sorted repository-relative ceiling for
+  future Planning and Hands consequences. Inspected files and evidence sources
+  remain separate audit cargo. The shared RepoModel validator refuses invalid
+  routed scope before any keyed graph document is written; Hands receives only
+  the adopted narrowing as `authorized_paths`;
 - `epiphany-model-runtime audit-decision` reconstructs an exact terminal pass
   from typed durable records only; the query is byte-for-byte read-only and
   remains complete after live worker result retirement.
@@ -367,16 +377,15 @@ Accepted through the local `e046a4d1` source boundary:
   and remains a sealed immutable package. A foreign-target helper interrupted
   candidate deployment; exact rollback restored d2ca and prevented false
   admission. Production units are inactive and deployment.env is absent;
-- Mind epoch v3 and runtime spine v4 refuse prior writable stores without
-  mutation.
+- Mind epoch v4, runtime spine v5, and RepoModel epoch v2 refuse prior writable
+  stores without mutation or a dual-read path.
+- Persona production source has one outer turn deadline, no hidden provider
+  request deadline, and focused provider/runtime suites pass.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. compile, test, and seal exact build-affecting source `e046a4d1` through
-   Idunn only when no other target helper is active. Idunn needs a host-wide
-   deployment-transaction mutex before cross-target production promotion is
-   considered safe;
-2. use that exact package in a new private fresh-store Ox root; stop after three
+1. let Idunn compile, test, and seal exact build-affecting source `5b799b12`;
+2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context
    audit, and restart/re-entry without public speech;
@@ -403,6 +412,49 @@ RepoModel claims with frontier dependencies, so mutation admission correctly
 refused the absent dependency and changed no graph document. Exact `e046a4d1`
 makes that refusal durable and retryable. Its epoch cut means Ox12 remains
 inactive and must never be resumed.
+
+Ox13 is historical evidence under
+`/var/lib/gamecult/epiphany/capstones/ox13-85061129`. Exact `85061129` passed
+Idunn's full Yggdrasil gate, then the fresh root launched Persona concurrently
+with direct Body Modeling and no Eyes result. Body Modeling and Imagination
+admitted. Proposal Modeling attempt 0 completed but repeated the claim/frontier
+dependency mistake; exact `e046a4d1` wrote a typed admission-refusal document
+plus commit receipt and minted attempt 1, which then completed with corrected
+semantics. The transcript-free audit for attempt 0 is retained at
+`proofs/proposal-attempt-0-audit.json`, SHA-256
+`b8346c676a0aedadc9004620a28479a2dddd63a3bca487a952177e8aee6ba36a`.
+Persona exposed a separate split timeout owner: its provider transport still
+hardcoded 90 seconds while workers used one outer 600-second budget. A stop
+race allowed four exact projector failures, all context-bound and carrying no
+Mind commit. No Hands mutation or public speech occurred. Ox13 is braked,
+inactive, and must not resume. Later fresh roots run Persona without a systemd
+restart loop so provider failure counts remain exact.
+
+Ox15 is historical fresh-store evidence for the Persona deadline cut. Persona
+no longer failed at the old inner transport timer, but the repository lane
+exposed a stale-currentness mistake in proposal handling. That fault was cut by
+making historical proposal direction proof independent of later disjoint
+RepoModel changes. Ox15 is sealed and must not resume.
+
+Ox16 is historical evidence under
+`/var/lib/gamecult/epiphany/capstones/ox16-749d977e`. Exact `749d977e` launched
+direct Body Modeling without Eyes while Persona's projector/persona/interpreter
+stages ran concurrently; no public delivery succeeded. Body and proposal
+decisions survived later disjoint RepoModel changes as intended. Planning then
+remained structurally unavailable because the admitted active Imagination
+frontier carried inspected evidence paths as its supposed future path scope,
+omitted the requested `OX-CAPSTONE.md` output, and was not lexicographically
+canonical. The root frontier's `sourceScopeValid=false` generated dependent
+proposal pressure, so the run was braked and sealed before a proposal forest
+could grow. No Hands consequence or capstone marker exists. Exact decision
+audit retained the typed Body result and context without consulting a
+transcript. Ox16 must never resume.
+
+Exact `5b799b12` makes the Ox16 diagnosis a hard schema cut rather than prompt
+penance: `source_scope`/`sourceScope` are deleted, `repository_scope` owns the
+future repository consequence ceiling, `authorized_paths` is the adopted Hands
+narrowing, and the graph validator owns canonical scope admission. Mind/runtime/
+RepoModel epochs advance to v4/v5/v2.
 
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
 Yggdrasil's old capacity/topology is obsolete; the upgraded 16-vCPU host is the
