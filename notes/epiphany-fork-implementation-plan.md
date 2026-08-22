@@ -220,12 +220,14 @@ Gate preflight exposed the aggregate ownership defect; the aggregate has now
 been structurally removed. Decision-context admission, retention,
 writable-epoch refusal, keyed graph/Verification concurrency, concrete
 Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
-restart/re-entry are accepted. Exact source `470d4cb5` is deployed,
+restart/re-entry are accepted. Exact source `d2ca6630` is deployed,
 OpenRouter `stealth/ox-alpha` credential readiness is proven, and generic
 signed health is admitted. Ox9 and Ox10 were deliberate isolated resumptions,
-and both falsified routing seams without contaminating production Mind. Exact
-`d48f69b7` repairs the Body retry identity exposed by Ox10; deploy it through
-Idunn, then run a new isolated capstone. Model Atlas Gate 1 remains paused.
+and both falsified routing seams without contaminating production Mind. Ox12
+then proved the d2ca Body/dead-worker repairs and exposed proposal retry aliasing
+after a typed OpenRouter failure. Exact `9b9b5c85` generalizes attempt identity
+across current-work families; deploy it through Idunn, then resume frozen
+private Ox12. Model Atlas Gate 1 remains paused.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
@@ -448,8 +450,17 @@ Cut in this order:
    family projection owns the exact work, continuation action, and latest job
    identity through Launch/Wait/Review. Failure therefore changes state and
    produces one fresh deterministic grant; unchanged failure replay remains
-   idempotent. Ox10 is sealed failed evidence, not resumable state. Deploy this
-   exact build-affecting source through Idunn and run a new isolated capstone.
+   idempotent. Ox10 is sealed failed evidence, not resumable state.
+30. **Attempt identity is generalized at `9b9b5c85`:** Body, proposal and
+   frontier-verdict Modeling, Verification, consideration,
+   admitted-direction consideration, and Reorientation carry one shared typed
+   attempt projection. Research and two-stage Planning retain their full exact
+   lifecycle projections in current-work instead of lossy action/stage fields.
+   Proposal attempt ordinals are canonical and contiguous; older nonterminal
+   attempts refuse. The Ox12-shaped test proves one failed attempt changes
+   Resident pressure exactly once and the next launch becomes attempt 1. Exact
+   `d2ca6630` is live; deploy this cut through Idunn before resuming frozen
+   private Ox12.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
