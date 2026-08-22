@@ -2722,6 +2722,22 @@ mod tests {
     use sha2::{Digest, Sha256};
     use tempfile::tempdir;
 
+    fn run_git(repo: &std::path::Path, args: &[&str]) -> Result<()> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args(args)
+            .output()?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "git {:?} failed: {}",
+                args,
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        Ok(())
+    }
+
     fn test_reasoning_basis(
         launch: &EpiphanyRuntimeWorkerLaunchRequest,
     ) -> Result<epiphany_core::EpiphanyReasoningBasis> {
@@ -3958,19 +3974,6 @@ mod tests {
     fn completes_worker_job_from_model_json_without_codex_worker_runtime() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        let body_basis = epiphany_core::RepositoryBodyObservationBasis {
-            schema_version: epiphany_core::BODY_SCHEMA_VERSION.to_string(),
-            workspace_id: "workspace-test".to_string(),
-            swarm_id: "swarm-test".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            scope: "whole_repository".to_string(),
-            body_binding_sha256: "body-binding".to_string(),
-            observation_id: "workspace-test:1".to_string(),
-            generation: 1,
-            manifest_root_sha256: "manifest-root".to_string(),
-            scan_started_at: "2026-07-13T00:00:00Z".to_string(),
-            scan_finished_at: "2026-07-13T00:00:01Z".to_string(),
-        };
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -3979,6 +3982,24 @@ mod tests {
                 created_at: "2026-08-08T00:00:00Z".into(),
             },
         )?;
+        let repo = temp.path().join("workspace");
+        std::fs::create_dir(&repo)?;
+        run_git(&repo, &["init"])?;
+        run_git(&repo, &["config", "user.email", "body@example.invalid"])?;
+        run_git(&repo, &["config", "user.name", "Body Test"])?;
+        std::fs::write(repo.join("src.txt"), "authenticated Body")?;
+        run_git(&repo, &["add", "."])?;
+        run_git(&repo, &["commit", "-m", "seed"])?;
+        let agents = temp.path().join("agents.cc");
+        let body_store = temp.path().join("body.cc");
+        epiphany_core::ensure_agent_memory_swarm_identity(&agents, "swarm-test")?;
+        epiphany_core::bind_runtime_to_agent_memory_swarm(
+            &store,
+            &agents,
+            "2026-08-08T00:00:00Z",
+        )?;
+        epiphany_core::bind_repository_body(&repo, &body_store, &store, "workspace-test")?;
+        let body_basis = epiphany_core::observe_runtime_repository_body_basis(&store)?;
         let frontier_item = epiphany_core::RepoFrontierItem {
             id: "frontier-1".to_string(),
             migration_body: "runtime".to_string(),
@@ -4172,49 +4193,6 @@ mod tests {
                 created_at: now(),
             },
         )?;
-        let source_observation = epiphany_core::RepositoryBodyObservation {
-            schema_version: body_basis.schema_version.clone(),
-            observation_id: body_basis.observation_id.clone(),
-            workspace_id: body_basis.workspace_id.clone(),
-            swarm_id: body_basis.swarm_id.clone(),
-            runtime_id: body_basis.runtime_id.clone(),
-            scope: body_basis.scope.clone(),
-            generation: body_basis.generation,
-            git_top_level: "C:/fixture".into(),
-            object_format: "sha1".into(),
-            head_oid: None,
-            tree_oid: "tree".into(),
-            core_ignorecase: true,
-            core_symlinks: false,
-            sparse_checkout: false,
-            sparse_checkout_cone: false,
-            submodule_limitation: "gitlinks-only".into(),
-            scan_started_at: body_basis.scan_started_at.clone(),
-            scan_finished_at: body_basis.scan_finished_at.clone(),
-            first_tree_oid: "tree".into(),
-            second_tree_oid: "tree".into(),
-            two_scan_outcome: "stable".into(),
-            global_excludes_policy: "disabled".into(),
-            manifest_root_sha256: body_basis.manifest_root_sha256.clone(),
-            manifest_entry_count: 0,
-        };
-        let source_envelope = cultcache_rs::CultCacheEnvelope {
-            key: body_basis.observation_id.clone(),
-            r#type: epiphany_core::BODY_OBSERVATION_TYPE.into(),
-            payload: rmp_serde::to_vec_named(&source_observation)?,
-            stored_at: body_basis.scan_finished_at.clone(),
-            schema_id: Some(epiphany_core::BODY_OBSERVATION_TYPE.into()),
-        };
-        let admitted_body = epiphany_core::EpiphanyMindRepositoryBodyObservationDocument {
-            basis: body_basis.clone(),
-            source_observation: epiphany_core::EpiphanyMindDocumentVersion::from_envelope(
-                "epiphany-repository-body",
-                &source_envelope,
-            )?,
-        };
-        admitted_body.validate()?;
-        let mut mind = epiphany_core::runtime_spine_cache(&store)?;
-        mind.put(&body_basis.observation_id, &admitted_body)?;
         let launch_request = load_worker_launch_request(&store, "worker-job-1")?;
         let reasoning_basis = epiphany_core::worker_reasoning_basis(&store, &launch_request)?;
         epiphany_core::put_reasoning_basis(&store, &reasoning_basis)?;
@@ -4296,6 +4274,17 @@ mod tests {
                 .expect("sealed frontier verdict authority")
                 .frontier_item,
             frontier_item
+        );
+        let sealed_body = sealed_projection
+            .modeling_body
+            .as_ref()
+            .expect("Modeling must receive its authenticated Body projection");
+        assert_eq!(sealed_body.basis, body_basis);
+        assert!(
+            sealed_body
+                .manifest_entries
+                .iter()
+                .any(|entry| entry.path == "src.txt")
         );
         assert!(
             model_request
