@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-22
-Latest committed implementation cut: `9b9b5c85` on `codex/epiphany-shakedown-live`
-Current worktree cut: Ox12 documentation and evidence reconciliation
+Latest committed implementation cut: `e046a4d1` on `codex/epiphany-shakedown-live`
+Current worktree cut: replayable admission-refusal documentation and evidence reconciliation
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -319,7 +319,7 @@ same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted through the local `9b9b5c85` source boundary:
+Accepted through the local `e046a4d1` source boundary:
 
 - every Epiphany core target compiles;
 - core library `491/491`;
@@ -338,6 +338,14 @@ Accepted through the local `9b9b5c85` source boundary:
   and proposal attempts change exact identity, receive one fresh grant, and
   identical failure replay cannot mint another pressure. Proposal retry then
   advances to the canonical next attempt.
+- a structurally valid model result whose family mutation is semantically
+  refused writes one exact typed admission-refusal document and commit receipt,
+  changes no RepoModel graph document, and schedules a fresh attempt. Body,
+  proposal, frontier-verdict Modeling, and frontier Verification share this
+  refusal lifecycle without sharing semantic mutation ownership;
+- proposal retry receives the ordered exact prior refusals. Claim/node
+  identities cannot masquerade as frontier dependency identities in the output
+  contract. Successful model transport remains distinct from Mind admission;
 - `epiphany-model-runtime audit-decision` reconstructs an exact terminal pass
   from typed durable records only; the query is byte-for-byte read-only and
   remains complete after live worker result retirement.
@@ -354,21 +362,24 @@ Accepted through the local `9b9b5c85` source boundary:
   `de0fc6b360ce03493b13208d917dc8349801f03364617d966152c85846c47482`
   and is deployed as 26 binaries plus witness in release
   `sha256-46407552b4a0937f63d2b7f2bd09a1dacb89d671a6e3807c97209159541aef06`.
-- the supervisor, heartbeat, and Resident Self units are active with zero
-  restarts, the body is authenticated-health admitted by Idunn, and the swarm
-  and deployment brakes are engaged.
-- runtime schema v2 refuses the prior digest-only worker archive epoch without
+- source `9b9b5c85` separately passed Idunn's native Yggdrasil gate under exact
+  test receipt SHA-256 `6c6a71359f8c31297419665d2872f6982a89f84e197d71fc5b36a7fc86216093`
+  and remains a sealed immutable package. A foreign-target helper interrupted
+  candidate deployment; exact rollback restored d2ca and prevented false
+  admission. Production units are inactive and deployment.env is absent;
+- Mind epoch v3 and runtime spine v4 refuse prior writable stores without
   mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. deploy exact build-affecting source `9b9b5c85` through Idunn's native
-   compile/test/package path, verify signed health, and restore the deployment
-   brake after the transaction;
-2. publish that exact witness into the frozen private Ox12 local Verse and
-   resume its typed state; stop after three provider failures total, and prove
-   proposal retry, Hands through Verification, exact context audit, and
-   restart/re-entry without public speech;
+1. compile, test, and seal exact build-affecting source `e046a4d1` through
+   Idunn only when no other target helper is active. Idunn needs a host-wide
+   deployment-transaction mutex before cross-target production promotion is
+   considered safe;
+2. use that exact package in a new private fresh-store Ox root; stop after three
+   provider failures total, and prove direct Body Modeling, typed
+   refusal-to-retry if exercised, Hands through Verification, exact context
+   audit, and restart/re-entry without public speech;
 3. only then restart Model Atlas Gate 1 from a new
    external root.
 
@@ -382,15 +393,16 @@ identity, so Resident Self saw no new pressure under the old schema. The run is
 braked, all transient units are inactive, and it must not be resumed or used
 as accepted capstone state.
 
-Ox12 is frozen evidence under
+Ox12 is historical evidence under
 `/var/lib/gamecult/epiphany/capstones/ox12-84a7dec1`. Exact `d2ca6630`
 successfully recovered an orphaned worker, ran direct Body Modeling without
 Eyes, admitted the Body decision, and completed admitted-direction Imagination.
-Proposal Modeling then sealed a typed failure when OpenRouter returned neither
-text nor tool calls. The unresolved request remained launchable, but its
-terminal attempt identity was discarded and the Resident pressure aliased the
-already-consumed pre-attempt projection. Exact `9b9b5c85` is the source repair;
-Ox12 remains inactive until that exact package is admitted.
+After one typed empty-provider failure, exact `9b9b5c85` launched canonical
+attempt 1 and OpenRouter returned a structured result. That result confused
+RepoModel claims with frontier dependencies, so mutation admission correctly
+refused the absent dependency and changed no graph document. Exact `e046a4d1`
+makes that refusal durable and retryable. Its epoch cut means Ox12 remains
+inactive and must never be resumed.
 
 Historical c011 and partial Gate roots remain read-only. The pre-upgrade
 Yggdrasil's old capacity/topology is obsolete; the upgraded 16-vCPU host is the

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-22
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `9b9b5c85`
-Current worktree: Ox12 documentation and evidence reconciliation
+Latest committed implementation cut: `e046a4d1`
+Current worktree: replayable admission-refusal documentation and evidence reconciliation
 
 ## Orientation
 
@@ -367,38 +367,41 @@ Exact `d48f69b7` deletes that Body split shape. Exact `d2ca6630` adds restart-sa
 resident objectives and durable recovery for a dead runtime worker, and is the
 current admitted Yggdrasil body.
 
-Private Ox12 then proved the repaired Body path in package reality: Body
-Modeling launched directly without Eyes, completed, and admitted; the
-admitted-direction Imagination pass also completed. Proposal Modeling then
-failed closed because OpenRouter returned neither text nor tool calls. Its
-typed request remained unresolved, but proposal current-work discarded the
-failed job ID and aliased the already-consumed launch pressure. The capstone is
-frozen under `/var/lib/gamecult/epiphany/capstones/ox12-84a7dec1`; transient
-units are inactive and it emitted no public consequence.
+Private Ox12 proved the repaired Body path in package reality: Body Modeling
+launched directly without Eyes, completed, and admitted; admitted-direction
+Imagination also completed. Under exact `9b9b5c85`, OpenRouter then completed
+proposal Modeling attempt 1 with a structured result. The result put RepoModel
+node/claim identities in `dependency_item_ids`, whose contract is frontier
+identity. The mutation planner correctly refused the absent frontier dependency
+and changed no graph state.
 
-Exact `9b9b5c85` cuts the repeated defect at the shared owner. All simple model
-passes now carry one `EpiphanyAgentPassAttemptProjection`; Research and the
-two-stage Planning workflow retain their complete exact lifecycles inside the
-current-work digest. Proposal attempts are canonical and contiguous. The
-Ox12-shaped regression proves failure of attempt 0 mints one fresh pressure,
-unchanged replay mints none, and attempt 1 becomes canonical. Local core
-`491/491`, coordinator `12/12`, status `2/2`, swarm `10/10`, and all core
-targets pass. This source awaits Idunn deployment.
+That correct semantic refusal exposed a generalized lifecycle gap: model
+transport success remained terminal while its failed Mind admission was not a
+durable routing input. Exact `e046a4d1` adds one typed
+`EpiphanyAgentPassAdmissionRefusal` Mind document for Body, proposal, and
+frontier-verdict Modeling plus frontier Verification. The refusal binds exact
+request, job, result, decision context, invariant owner, refusal kind, reason,
+and commit. Current-work derives a fresh attempt from it; proposal retry carries
+the ordered prior refusals. A successful model result remains truthful and is
+not rewritten as a failed worker job. Output contracts now distinguish claim
+targets from frontier dependencies. Mind/runtime/proposal context cut to
+epochs v3/v4/v2; old writable stores are refused. Ox12 is therefore historical
+evidence and must not resume. Local core `491/491`, coordinator `12/12`, status
+`2/2`, swarm `10/10`, and all core targets pass.
 
 ## Immediate next action
 
-1. Push `9b9b5c85` plus this documentation/evidence cut.
-2. Let Idunn natively compile, test, package, and deploy the newest exact
-   build-affecting source. Verify package provenance, signed health, unit
-   restarts, then explicitly re-engage the deployment brake after the typed
-   terminal receipt; the request helper does not perform that closure.
-3. Publish the exact admitted witness into Ox12's private local Verse and resume
-   its existing typed state. Stop after three OpenRouter provider failures
-   total. Prove proposal retry, Hands -> Verification -> Mind,
+1. Let Idunn natively compile, test, and seal exact `e046a4d1` only after no
+   other target helper is active. The current Idunn helper design lacks one
+   host-wide deployment-transaction mutex; do not confuse exact rollback with
+   safe cross-target transaction ownership.
+2. Run the exact package from a new private fresh-store Ox root. Stop after
+   three provider failures total. Prove direct Body Modeling without Eyes,
+   refusal-to-retry if exercised, Hands -> Verification -> Mind,
    `list-decisions` plus exact `audit-decision`, and restart/re-entry without
    public speech.
-4. Never resume Ox10 or transplant its decisions. Only after Ox12
-   passes may Model Atlas Gate 1 restart from a new external root.
+3. Never resume Ox10 or Ox12 or transplant their decisions. Only after the new
+   capstone passes may Model Atlas Gate 1 restart from a new external root.
 
 ## Operational state that matters
 
@@ -412,9 +415,16 @@ targets pass. This source awaits Idunn deployment.
   current deployment truth belongs to Idunn's typed deployment receipts.
 - Idunn is active, provenance-exact, and independent at installed source
   `8b972715c47731f2418d0c423cb0dd2076940bd7`. Exact Epiphany source
-  `d2ca6630` is deployed and authenticated-health admitted; Starfire remains
-  outside the compilation path.
-- Epiphany's three physiology units are active with zero restarts. OpenRouter
+  `d2ca6630` remains the current symlink target; Starfire remains outside the
+  compilation path. Production Epiphany units are inactive after exact
+  rollback and `deployment.env` is absent. Idunn has zero restarts.
+- Exact `9b9b5c85` passed Idunn's native gate under receipt SHA-256
+  `6c6a71359f8c31297419665d2872f6982a89f84e197d71fc5b36a7fc86216093`
+  and remains sealed as release `sha256-30a910785a380224bbdbd56a7b742c8d058fa70cb72dab3562e3907903e0d191`.
+  A foreign-target helper restarted Idunn during its candidate transaction;
+  exact rollback prevented false admission but exposed the missing cross-target
+  transaction mutex.
+- OpenRouter
   `stealth/ox-alpha` credential readiness is proven inside Resident Self's
   mount namespace. The production organism remains braked. Ox decisions exist
   only in isolated failed capstone roots and do not authorize production state.

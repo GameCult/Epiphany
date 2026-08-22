@@ -221,13 +221,15 @@ been structurally removed. Decision-context admission, retention,
 writable-epoch refusal, keyed graph/Verification concurrency, concrete
 Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
 restart/re-entry are accepted. Exact source `d2ca6630` is deployed,
-OpenRouter `stealth/ox-alpha` credential readiness is proven, and generic
-signed health is admitted. Ox9 and Ox10 were deliberate isolated resumptions,
-and both falsified routing seams without contaminating production Mind. Ox12
-then proved the d2ca Body/dead-worker repairs and exposed proposal retry aliasing
-after a typed OpenRouter failure. Exact `9b9b5c85` generalizes attempt identity
-across current-work families; deploy it through Idunn, then resume frozen
-private Ox12. Model Atlas Gate 1 remains paused.
+OpenRouter `stealth/ox-alpha` credential readiness is proven. Ox9 and Ox10 were
+deliberate isolated resumptions, and both falsified routing seams without
+contaminating production Mind. Ox12 proved the d2ca Body/dead-worker repairs,
+then exact `9b9b5c85` proved canonical proposal retry and exposed a structured
+mutation refusal that was not durable routing state. Exact `e046a4d1` makes
+family admission refusal typed, replayable, and retryable, and cuts writable
+Mind/runtime epochs to v3/v4. Build it through Idunn and use a new private
+fresh-store Ox root; historical Ox12 cannot be resumed. Model Atlas Gate 1
+remains paused.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
@@ -459,8 +461,16 @@ Cut in this order:
    Proposal attempt ordinals are canonical and contiguous; older nonterminal
    attempts refuse. The Ox12-shaped test proves one failed attempt changes
    Resident pressure exactly once and the next launch becomes attempt 1. Exact
-   `d2ca6630` is live; deploy this cut through Idunn before resuming frozen
-   private Ox12.
+   `d2ca6630` remains the admitted production source.
+31. **Agent admission refusal is replayable at `e046a4d1`:** Body, proposal,
+   and frontier-verdict Modeling plus frontier Verification write one exact
+   typed refusal and commit receipt when semantic mutation or a strong-read CAS
+   refuses a structured terminal result. The result remains truthful model
+   transport evidence; current-work excludes it from fulfillment and launches
+   a fresh attempt carrying the prior refusal. RepoModel claim targets and
+   frontier dependencies are distinct in the output contract. Mind/runtime and
+   proposal-context epochs cut to v3/v4/v2, so Ox12 is historical evidence and
+   a new fresh-store capstone is mandatory.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
