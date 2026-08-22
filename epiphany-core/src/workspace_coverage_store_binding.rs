@@ -196,8 +196,7 @@ pub fn bind_runtime_workspace_coverage_store(
         }
     }
     store.validate_path_identity()?;
-    drop(store);
-    let authority = open_workspace_coverage_authority(runtime_store)?;
+    let authority = assemble_workspace_coverage_authority(runtime_store, store)?;
     let route = authority.runtime_coverage_route.clone();
     drop(authority);
     Ok(route)
@@ -224,6 +223,17 @@ pub fn open_workspace_coverage_authority(
     runtime_store: impl AsRef<Path>,
 ) -> Result<WorkspaceCoverageAuthority> {
     let runtime_store = runtime_store.as_ref();
+    let runtime_route = raw_runtime_route(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no workspace coverage-store binding"))?;
+    let path = PathBuf::from(&runtime_route.projection_store_path);
+    let store = OwnedRedbMessagePackBackingStore::new(&path)?;
+    assemble_workspace_coverage_authority(runtime_store, store)
+}
+
+fn assemble_workspace_coverage_authority(
+    runtime_store: &Path,
+    store: OwnedRedbMessagePackBackingStore,
+) -> Result<WorkspaceCoverageAuthority> {
     let (body_route, body_route_envelope, body, body_envelope) =
         load_body_authority(runtime_store)?;
     let runtime_entries = SingleFileMessagePackBackingStore::new(runtime_store).pull_all()?;
@@ -235,8 +245,10 @@ pub fn open_workspace_coverage_authority(
     .cloned()
     .ok_or_else(|| anyhow!("runtime has no workspace coverage-store binding"))?;
     let runtime_route: RuntimeWorkspaceCoverageStoreBinding = decode(&runtime_envelope)?;
-    let path = PathBuf::from(&runtime_route.projection_store_path);
-    let store = OwnedRedbMessagePackBackingStore::new(&path)?;
+    require_same_path(
+        store.path(),
+        Path::new(&runtime_route.projection_store_path),
+    )?;
     require_canonical_existing_outside(store.path(), &body)?;
     store.validate_path_identity()?;
     validate_runtime_route(
