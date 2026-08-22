@@ -1,4 +1,5 @@
 mod coordinator_contract;
+mod coordinator_decision;
 mod crrc;
 mod jobs;
 mod planning;
@@ -12,6 +13,7 @@ mod view;
 mod worker_launch;
 
 pub use coordinator_contract::*;
+pub use coordinator_decision::recommend_coordinator_action;
 pub use crrc::EpiphanyCrrcAction;
 pub use crrc::EpiphanyCrrcInput;
 pub use crrc::EpiphanyCrrcRecommendation;

@@ -8,12 +8,12 @@ use epiphany_core::{
     authenticate_resident_self_policy, bind_runtime_repository_domain,
     bridge_admitted_persona_feedback_to_heartbeat, capture_process_instance,
     coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
-    import_bifrost_persona_feedback_deliveries,
-    ingest_resident_self_coordinator_continuation_pressure, ingest_resident_self_domain_pressure,
+    import_bifrost_persona_feedback_deliveries, ingest_resident_self_current_work_pressure,
     live_resident_self_typed_request_ids, load_epiphany_cultmesh_swarm_brake,
-    load_resident_self_state, observe_process_instance, pending_resident_self_acks,
-    prepare_resident_self_launch, publish_resident_provider_readiness, reap_exited_child_process,
-    resident_cognitive_runtime_id, resident_prepared_launch_thread_id, resident_self_child_claim,
+    load_resident_self_state, materialize_resident_self_domain_obligations,
+    observe_process_instance, pending_resident_self_acks, prepare_resident_self_launch,
+    publish_resident_provider_readiness, reap_exited_child_process, resident_cognitive_runtime_id,
+    resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, retain_completed_runtime_sessions,
     retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
     retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
@@ -331,8 +331,7 @@ fn cycle(
             &args.feedback_target_repository,
             &Utc::now().to_rfc3339(),
         )?;
-        ingest_resident_self_domain_pressure(
-            &args.state_store,
+        materialize_resident_self_domain_obligations(
             &args.policy.runtime_store,
             &args.persona_feedback_store,
             &cognitive_runtime_id,
@@ -340,7 +339,7 @@ fn cycle(
             &args.policy.workspace.display().to_string(),
             now,
         )?;
-        ingest_resident_self_coordinator_continuation_pressure(
+        ingest_resident_self_current_work_pressure(
             &args.state_store,
             &args.policy.runtime_store,
             now,

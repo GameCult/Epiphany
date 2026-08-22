@@ -1181,6 +1181,7 @@ pub use surfaces::epiphany_view_needs_reorientation_inputs;
 pub use surfaces::epiphany_view_needs_runtime_store;
 pub use surfaces::interpret_runtime_reorient_worker_result;
 pub use surfaces::interpret_runtime_role_worker_result;
+pub use surfaces::recommend_coordinator_action;
 pub use surfaces::recommend_crrc_action;
 pub use surfaces::render_role_board_note;
 pub use surfaces::review_role_self_patch_document;

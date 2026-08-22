@@ -33,6 +33,15 @@ pub struct EpiphanyCurrentWorkProjection {
     pub hands_frontier_ready: bool,
 }
 
+impl EpiphanyCurrentWorkProjection {
+    pub fn projection_digest(&self) -> Result<String> {
+        Ok(format!(
+            "sha256:{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(self)?)
+        ))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EpiphanyAgentPassContinuationAction {
@@ -3355,18 +3364,50 @@ mod tests {
             current_work.mind_projection_digest,
             crate::assemble_mind_view(&store)?.projection_digest
         );
-        assert_eq!(crate::repository_body_read_counters(), (0, 0));
-        assert_current_work_reentry_is_read_only(&store, &current_work)?;
-        let resident_pressure = crate::resident_self_body_modeling_pressure(&store, 1)?
-            .expect("unresolved Body work must create Resident Self pressure");
+        let mut distinct_launch = current_work.clone();
+        distinct_launch
+            .body_modeling
+            .as_mut()
+            .expect("fixture has Body Modeling work")
+            .work_id
+            .push_str("-distinct-request");
         assert_eq!(
-            resident_pressure.provenance_ref,
+            distinct_launch.body_modeling_action,
+            current_work.body_modeling_action
+        );
+        assert_ne!(
+            distinct_launch.projection_digest()?,
+            current_work.projection_digest()?,
+            "distinct exact work cannot alias merely because its route action matches"
+        );
+        let resident_store = temp.path().join("resident-self.cc");
+        assert!(crate::ingest_resident_self_current_work_pressure(
+            &resident_store,
+            &store,
+            1,
+        )?);
+        let current_work_grant = crate::heartbeat_issue_resident_self_grant(
+            &resident_store,
+            "current-work-schedule",
+            "current-work-action",
+            2,
+        )?
+        .expect("the exact current-work projection should receive one grant");
+        assert_eq!(
+            current_work_grant.pressure_kind,
+            crate::RESIDENT_SELF_CURRENT_WORK_PRESSURE_KIND
+        );
+        assert_eq!(
+            current_work_grant.provenance_ref,
             format!(
-                "{}{}",
-                crate::RESIDENT_SELF_BODY_MODELING_PROVENANCE_PREFIX,
-                projected_work.work_id
+                "{}{}{}",
+                crate::RESIDENT_SELF_CURRENT_WORK_PROVENANCE_PREFIX,
+                current_work.projection_digest()?,
+                "/launchModeling"
             )
         );
+        assert_eq!(crate::repository_body_read_counters(), (0, 0));
+        assert_current_work_reentry_is_read_only(&store, &current_work)?;
         let scheduled = launch_current_body_modeling_work(
             &store,
             EpiphanyBodyModelingLaunchOptions {
@@ -3382,8 +3423,41 @@ mod tests {
             scheduled_work.body_modeling_action,
             Some(EpiphanyAgentPassContinuationAction::Wait)
         );
+        let resident_policy = crate::ResidentSelfPolicy {
+            workspace: temp.path().join("workspace"),
+            coordinator_bin: temp.path().join("epiphany-mvp-coordinator"),
+            model_runtime_bin: temp.path().join("epiphany-model-runtime"),
+            tool_adapter_bin: temp.path().join("epiphany-tool-mcp-runtime"),
+            runtime_store: store.clone(),
+            local_verse_store: temp.path().join("local-verse.cc"),
+            agent_memory_store: temp.path().join("mind.cc"),
+            artifact_root: temp.path().join("artifacts"),
+            codex_home: temp.path().join("codex-home"),
+            mcp_config: temp.path().join("mcp.toml"),
+            model_provider: "openrouter".into(),
+            model: "stealth/ox-alpha".into(),
+            provider_credential_path: None,
+            max_steps: 4,
+            turn_timeout_seconds: 600,
+            cooldown_seconds: 10,
+            idle_sleep_seconds: 2,
+            failure_backoff_seconds: 30,
+            release_commit: "release-commit".into(),
+            release_manifest_digest: "sha256:release-manifest".into(),
+            release_store: temp.path().join("release.cc"),
+            release_runtime_id: "runtime".into(),
+            release_id: "release-id".into(),
+            release_witness_sha256: "sha256:release-witness".into(),
+        };
+        assert!(
+            crate::prepare_resident_self_launch(&resident_store, &resident_policy, 3)?.is_none(),
+            "a grant derived from the prior Mind projection must not launch"
+        );
+        assert!(crate::pending_resident_self_grant(&resident_store)?.is_none());
+        let supersession_acks = crate::pending_resident_self_acks(&resident_store)?;
+        assert_eq!(supersession_acks.len(), 1);
+        assert_eq!(supersession_acks[0].terminal_status, "superseded");
         assert_current_work_reentry_is_read_only(&store, &scheduled_work)?;
-        assert!(crate::resident_self_body_modeling_pressure(&store, 2)?.is_none());
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
         scheduled_cache.pull_all_backing_stores()?;
         assert!(
@@ -3494,35 +3568,10 @@ mod tests {
             project_current_work(&store)?.body_modeling_action,
             Some(EpiphanyAgentPassContinuationAction::Review)
         );
-        let continuation = crate::EpiphanyCoordinatorRunReceipt {
-            schema_version: crate::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.into(),
-            receipt_id: "body-continuation".into(),
-            session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
-            thread_id: "transport-thread".into(),
-            mode: "execute".into(),
-            status: "planned".into(),
-            final_action: "waitForModelingResult".into(),
-            final_reason: None,
-            step_count: 1,
-            created_at: "2026-08-17T00:00:04Z".into(),
-            model_provider: None,
-            runtime_store: store.display().to_string(),
-            artifact_refs: Vec::new(),
-            sealed_artifact_refs: Vec::new(),
-            metadata: Default::default(),
-            resident_grant_id: None,
-            resident_launch_digest: None,
-            resident_policy_digest: None,
-            resident_argv_digest: None,
-            resident_objective_digest: None,
-            resident_release_commit: None,
-            resident_release_manifest_digest: None,
-            resident_executable_digest: None,
-            final_runtime_job_id: Some(result.job_id.clone()),
-        };
         assert_eq!(
-            crate::resident_self::resident_self_safe_continuation_action(&store, &continuation)?,
-            Some("reviewModelingResult".into())
+            crate::resident_self::resident_self_current_work_action(&store)?
+                .map(|(_, action)| action),
+            Some("reviewModelingResult".into()),
         );
         let receipt = accept_body_modeling_result(&store, &result.job_id, "2026-08-17T00:00:05Z")?;
         assert_eq!(
@@ -3534,10 +3583,7 @@ mod tests {
         let completed_work = project_current_work(&store)?;
         assert!(completed_work.body_modeling.is_none());
         assert!(completed_work.body_modeling_action.is_none());
-        assert!(
-            crate::resident_self::resident_self_safe_continuation_action(&store, &continuation)?
-                .is_none()
-        );
+        assert!(crate::resident_self::resident_self_current_work_action(&store)?.is_none());
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         assert_current_work_reentry_is_read_only(&store, &completed_work)?;
 

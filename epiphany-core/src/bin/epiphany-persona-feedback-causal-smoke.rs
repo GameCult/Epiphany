@@ -16,7 +16,6 @@ fn main() -> Result<()> {
     let args = arguments()?;
     let feedback_store = path(&args, "--persona-feedback-store")?;
     let runtime_store = path(&args, "--runtime-store")?;
-    let resident_store = path(&args, "--resident-store")?;
     let forbidden = [
         "--mind-store",
         "--release-store",
@@ -47,8 +46,7 @@ fn main() -> Result<()> {
     }
 
     bind_runtime_repository_domain(&runtime_store, "GameCult/Epiphany", "2026-07-18T00:00:00Z")?;
-    let inserted = ingest_resident_self_domain_pressure(
-        &resident_store,
+    let materialized = materialize_resident_self_domain_obligations(
         &runtime_store,
         &feedback_store,
         "epiphany-yggdrasil",
@@ -56,8 +54,8 @@ fn main() -> Result<()> {
         runtime_store.parent().unwrap().to_str().unwrap(),
         1_752_796_800_000,
     )?;
-    if inserted < admitted.len() {
-        bail!("resident Self did not ingest every admitted feedback item");
+    if materialized < admitted.len() {
+        bail!("resident Self did not materialize every admitted feedback obligation");
     }
     for feedback in admitted {
         let request = commit_imagination_consideration_request(
