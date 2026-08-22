@@ -2768,6 +2768,7 @@ mod tests {
                 epiphany_core::EpiphanyRoleReasoningProjection {
                     authority: document.into(),
                     mind,
+                    modeling_body: None,
                 },
             ),
         )
