@@ -3420,8 +3420,20 @@ mod tests {
         let launch = cache
             .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
             .unwrap();
+        crate::reset_repository_body_read_counters();
         let reasoning_basis = crate::worker_reasoning_basis(&store, &launch)?;
         crate::put_reasoning_basis(&store, &reasoning_basis)?;
+        let (basis_body_store_loads, basis_body_file_reads) =
+            crate::repository_body_read_counters();
+        assert!(
+            basis_body_store_loads > 0,
+            "Modeling basis sealing must authenticate its persisted Body projection"
+        );
+        assert_eq!(
+            basis_body_file_reads, 0,
+            "basis sealing consumes the typed manifest, not live worktree bytes"
+        );
+        crate::reset_repository_body_read_counters();
         let mut native = epiphany_model_adapter::EpiphanyModelRequest::new(
             "body-request",
             "body-conversation",
