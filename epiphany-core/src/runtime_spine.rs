@@ -157,7 +157,7 @@ pub const COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_SCHEMA_VERSION: &str =
     "epiphany.coordinator_run_receipt_retention_head.v0";
 pub const COORDINATOR_RUN_RECEIPT_RETENTION_HEAD_KEY: &str = "coordinator-run-receipt-retention";
 pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
-pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v0";
+pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v1";
 pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_MODEL_RECEIPT_TYPE: &str = "epiphany.openai_model_receipt.v0";
 pub const MODEL_ADAPTER_STATUS_TYPE: &str = "epiphany.model_adapter_status.v0";
@@ -170,7 +170,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v2";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v3";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -189,7 +189,7 @@ pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
 pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
-pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
+pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v1";
 pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.openai_model_receipt.v0";
 pub const MODEL_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.model_adapter_status.v0";
@@ -2751,8 +2751,7 @@ where
             .ok_or_else(|| anyhow!("archived model execution lost provider request"))?;
         if native_request.request_id != *request_id
             || provider_request.request_id != *request_id
-            || native_request.conversation_id != provider_request.conversation_id
-            || native_request.model != provider_request.model
+            || provider_request != epiphany_openai_adapter::request_from_native(&native_request)
         {
             return Err(anyhow!(
                 "archived model execution request family is inconsistent"
@@ -13985,6 +13984,40 @@ pub(crate) mod tests {
         assert_eq!(
             runtime_spine_backing_store(&archive_v0_store)?.pull_all()?,
             archive_v0_before
+        );
+
+        let responses_only_store = temp.path().join("responses-only-runtime.cc");
+        let mut responses_only = CultCache::new();
+        responses_only.register_entry_type::<crate::EpiphanyMindIdentity>()?;
+        responses_only.register_entry_type::<EpiphanyRuntimeIdentity>()?;
+        responses_only
+            .add_generic_backing_store(runtime_spine_backing_store(&responses_only_store)?);
+        responses_only.put(
+            crate::MIND_SCHEMA_EPOCH,
+            &crate::EpiphanyMindIdentity {
+                schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
+                runtime_id: "responses-only-runtime".into(),
+            },
+        )?;
+        responses_only.put(
+            RUNTIME_IDENTITY_KEY,
+            &EpiphanyRuntimeIdentity {
+                schema_version: "epiphany.runtime_spine.v2".into(),
+                runtime_id: "responses-only-runtime".into(),
+                display_name: "Responses-only runtime".into(),
+                runtime_kind: "epiphany.native".into(),
+                created_at: "2026-08-22T00:00:00Z".into(),
+                updated_at: "2026-08-22T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+        let responses_only_before =
+            runtime_spine_backing_store(&responses_only_store)?.pull_all()?;
+        assert!(runtime_spine_cache(&responses_only_store).is_err());
+        assert_eq!(
+            runtime_spine_backing_store(&responses_only_store)?.pull_all()?,
+            responses_only_before
         );
         Ok(())
     }

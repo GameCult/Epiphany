@@ -38,10 +38,13 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::EpiphanyOpenRouterTransport;
 use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
+use epiphany_openai_codex_spine::OPENROUTER_SPINE_ADAPTER_ID;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
+use epiphany_openai_codex_spine::status_from_static_api_key;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -60,6 +63,29 @@ pub use persona_executor::*;
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
+pub const OPENROUTER_MODEL_PROVIDER: &str = "openrouter";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EpiphanyProviderProfile {
+    OpenAiCodex,
+    OpenRouter,
+}
+
+impl EpiphanyProviderProfile {
+    fn parse(provider: &str) -> Result<Self> {
+        match provider {
+            "openai-codex" | "openai" => Ok(Self::OpenAiCodex),
+            OPENROUTER_MODEL_PROVIDER => Ok(Self::OpenRouter),
+            _ => Err(anyhow!(
+                "unsupported model runtime provider {provider:?}; current providers: openai-codex, openrouter"
+            )),
+        }
+    }
+
+    fn streaming_supported(self) -> bool {
+        matches!(self, Self::OpenAiCodex)
+    }
+}
 
 pub fn worker_model_session_id(worker_job_id: &str) -> String {
     format!("openai-worker-session-{worker_job_id}")
@@ -69,6 +95,7 @@ pub fn worker_model_session_id(worker_job_id: &str) -> String {
 pub struct EpiphanyOpenAiRuntimeOptions {
     pub store_path: PathBuf,
     pub codex_home: PathBuf,
+    pub provider_credential_path: Option<PathBuf>,
     pub session_id: String,
     pub job_id: String,
     pub objective: String,
@@ -95,6 +122,7 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
 pub struct EpiphanyWorkerRuntimeOptions {
     pub store_path: PathBuf,
     pub codex_home: PathBuf,
+    pub provider_credential_path: Option<PathBuf>,
     pub provider: String,
     pub job_id: String,
     pub model: String,
@@ -123,7 +151,8 @@ async fn run_openai_model_turn_bound(
     request: EpiphanyOpenAiModelRequest,
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     ensure_openai_runtime_ready(&options)?;
-    let auth_manager = auth_manager(options.codex_home.clone());
+    let provider = model_request.provider.clone();
+    let profile = EpiphanyProviderProfile::parse(&provider)?;
     open_runtime_model_execution(
         &options.store_path,
         RuntimeSpineSessionOptions {
@@ -176,75 +205,158 @@ async fn run_openai_model_turn_bound(
         },
     )?;
 
-    let status = status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
-    store_openai_status(&options.store_path, &status)?;
-    store_model_status(&options.store_path, &status, DEFAULT_MODEL_PROVIDER)?;
-    append_runtime_event(
-        &options.store_path,
-        RuntimeSpineEventOptions {
-            event_id: format!("event-openai-transport-ready-{}", options.job_id),
-            occurred_at: now(),
-            event_type: "openai.model_turn.transport_ready".to_string(),
-            source: OPENAI_RUNTIME_SOURCE.to_string(),
-            session_id: Some(options.session_id.clone()),
-            job_id: Some(options.job_id.clone()),
-            summary: format!(
-                "Codex/OpenAI transport ready for request {} with auth mode {:?}; opening Responses stream.",
-                request.request_id, status.auth_mode
-            ),
-        },
-    )?;
-
-    let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
-    let store_path_for_frames = options.store_path.clone();
-    let session_id_for_frames = options.session_id.clone();
-    let job_id_for_frames = options.job_id.clone();
-    let mut observed_frame_count = 0u64;
-    let events = match transport
-        .collect_model_events_with_frame_observer(request.clone(), move |observation| {
-            observed_frame_count += 1;
-            if should_record_frame_observation(observed_frame_count, &observation) {
-                let mut summary = format!(
-                    "Observed Responses SSE frame {} kind={} recognized={}.",
-                    observation.frame_sequence, observation.kind, observation.recognized
-                );
-                if let Some(preview) = observation.delta_preview.as_deref() {
-                    summary.push_str(" deltaPreview=");
-                    summary.push_str(preview);
-                }
-                let _ = append_runtime_event(
-                    &store_path_for_frames,
-                    RuntimeSpineEventOptions {
-                        event_id: format!(
-                            "event-openai-stream-frame-{}-{}",
-                            job_id_for_frames, observation.frame_sequence
-                        ),
-                        occurred_at: now(),
-                        event_type: "openai.model_turn.stream_frame".to_string(),
-                        source: OPENAI_RUNTIME_SOURCE.to_string(),
-                        session_id: Some(session_id_for_frames.clone()),
-                        job_id: Some(job_id_for_frames.clone()),
-                        summary,
-                    },
-                );
-            }
-        })
-        .await
-    {
-        Ok(events) => events,
-        Err(err) => {
-            let failure = EpiphanyOpenAiStreamEvent {
-                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
-                request_id: request.request_id.clone(),
-                sequence: 0,
-                payload: EpiphanyOpenAiStreamPayload::Failed {
-                    message: err.to_string(),
+    let (status, events) = match profile {
+        EpiphanyProviderProfile::OpenAiCodex => {
+            let auth_manager = auth_manager(options.codex_home.clone());
+            let status =
+                status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
+            append_runtime_event(
+                &options.store_path,
+                RuntimeSpineEventOptions {
+                    event_id: format!("event-openai-transport-ready-{}", options.job_id),
+                    occurred_at: now(),
+                    event_type: "openai.model_turn.transport_ready".to_string(),
+                    source: OPENAI_RUNTIME_SOURCE.to_string(),
+                    session_id: Some(options.session_id.clone()),
+                    job_id: Some(options.job_id.clone()),
+                    summary: format!(
+                        "Codex/OpenAI Responses transport ready for request {} with auth mode {:?}.",
+                        request.request_id, status.auth_mode
+                    ),
                 },
-            };
-            vec![failure]
+            )?;
+            let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
+            let events = collect_transport_events(
+                transport.collect_model_events_with_frame_observer(
+                    request.clone(),
+                    frame_observer(&options),
+                ),
+                &request,
+            )
+            .await;
+            (status, events)
+        }
+        EpiphanyProviderProfile::OpenRouter => {
+            let credential = read_static_provider_credential(
+                options.provider_credential_path.as_deref(),
+                OPENROUTER_MODEL_PROVIDER,
+            )?;
+            let status = status_from_static_api_key(
+                OPENROUTER_SPINE_ADAPTER_ID,
+                options.default_model.clone(),
+            );
+            append_runtime_event(
+                &options.store_path,
+                RuntimeSpineEventOptions {
+                    event_id: format!("event-openrouter-transport-ready-{}", options.job_id),
+                    occurred_at: now(),
+                    event_type: "openrouter.model_turn.transport_ready".to_string(),
+                    source: OPENAI_RUNTIME_SOURCE.to_string(),
+                    session_id: Some(options.session_id.clone()),
+                    job_id: Some(options.job_id.clone()),
+                    summary: format!(
+                        "OpenRouter Chat Completions transport ready for request {} with a dedicated file credential.",
+                        request.request_id
+                    ),
+                },
+            )?;
+            let transport = EpiphanyOpenRouterTransport::new(credential)?;
+            let events = collect_transport_events(
+                transport.collect_model_events_with_frame_observer(
+                    request.clone(),
+                    frame_observer(&options),
+                ),
+                &request,
+            )
+            .await;
+            (status, events)
         }
     };
-    record_openai_events(&options.store_path, &options, &request, &events)
+    store_openai_status(&options.store_path, &status)?;
+    store_model_status(
+        &options.store_path,
+        &status,
+        &provider,
+        profile.streaming_supported(),
+        true,
+    )?;
+    record_openai_events(&options.store_path, &options, &request, &provider, &events)
+}
+
+fn frame_observer(
+    options: &EpiphanyOpenAiRuntimeOptions,
+) -> impl FnMut(EpiphanyResponsesFrameObservation) + use<> {
+    let store_path = options.store_path.clone();
+    let session_id = options.session_id.clone();
+    let job_id = options.job_id.clone();
+    let mut observed_frame_count = 0u64;
+    move |observation| {
+        observed_frame_count += 1;
+        if should_record_frame_observation(observed_frame_count, &observation) {
+            let mut summary = format!(
+                "Observed provider frame {} kind={} recognized={}.",
+                observation.frame_sequence, observation.kind, observation.recognized
+            );
+            if let Some(preview) = observation.delta_preview.as_deref() {
+                summary.push_str(" deltaPreview=");
+                summary.push_str(preview);
+            }
+            let _ = append_runtime_event(
+                &store_path,
+                RuntimeSpineEventOptions {
+                    event_id: format!(
+                        "event-model-stream-frame-{}-{}",
+                        job_id, observation.frame_sequence
+                    ),
+                    occurred_at: now(),
+                    event_type: "model.turn.stream_frame".to_string(),
+                    source: OPENAI_RUNTIME_SOURCE.to_string(),
+                    session_id: Some(session_id.clone()),
+                    job_id: Some(job_id.clone()),
+                    summary,
+                },
+            );
+        }
+    }
+}
+
+async fn collect_transport_events<F>(
+    future: F,
+    request: &EpiphanyOpenAiModelRequest,
+) -> Vec<EpiphanyOpenAiStreamEvent>
+where
+    F: std::future::Future<Output = Result<Vec<EpiphanyOpenAiStreamEvent>>>,
+{
+    match future.await {
+        Ok(events) => events,
+        Err(err) => vec![EpiphanyOpenAiStreamEvent {
+            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: request.request_id.clone(),
+            sequence: 0,
+            payload: EpiphanyOpenAiStreamPayload::Failed {
+                message: err.to_string(),
+            },
+        }],
+    }
+}
+
+fn read_static_provider_credential(path: Option<&Path>, provider: &str) -> Result<String> {
+    let path = path.ok_or_else(|| {
+        anyhow!("model provider {provider:?} requires an explicit credential file")
+    })?;
+    let raw = std::fs::read_to_string(path).with_context(|| {
+        format!(
+            "failed to read {provider} credential file {}",
+            path.display()
+        )
+    })?;
+    let credential = raw.trim();
+    if credential.is_empty() || raw.trim_matches(['\r', '\n']) != credential {
+        return Err(anyhow!(
+            "model provider {provider:?} credential file is empty or contains surrounding whitespace"
+        ));
+    }
+    Ok(credential.to_string())
 }
 
 fn should_record_frame_observation(
@@ -281,7 +393,7 @@ pub async fn run_model_turn(
     options: EpiphanyOpenAiRuntimeOptions,
     request: EpiphanyModelRequest,
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
-    require_openai_provider(provider)?;
+    EpiphanyProviderProfile::parse(provider)?;
     if !provider_matches_request(provider, &request.provider) {
         return Err(anyhow!(
             "model request provider {:?} does not match selected provider {:?}",
@@ -299,7 +411,7 @@ pub async fn run_tool_followup_model_turn(
     original_request_id: &str,
     followup_request_id: &str,
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
-    require_openai_provider(provider)?;
+    EpiphanyProviderProfile::parse(provider)?;
     let request = build_tool_followup_model_request(
         &options.store_path,
         original_request_id,
@@ -340,6 +452,7 @@ where
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home,
+        provider_credential_path: options.provider_credential_path,
         session_id: worker_model_session_id(&launch_request.job_id),
         job_id: format!("openai-worker-{}", launch_request.job_id),
         objective: format!(
@@ -397,11 +510,12 @@ fn record_openai_events(
     store_path: impl AsRef<Path>,
     options: &EpiphanyOpenAiRuntimeOptions,
     request: &EpiphanyOpenAiModelRequest,
+    provider: &str,
     events: &[EpiphanyOpenAiStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
     let events = compact_openai_events_for_storage(events);
-    let tool_intents = tool_invocation_intents_from_openai_events(DEFAULT_MODEL_PROVIDER, &events);
+    let tool_intents = tool_invocation_intents_from_openai_events(provider, &events);
     for intent in &tool_intents {
         put_runtime_tool_execution_intent(
             store_path,
@@ -417,7 +531,7 @@ fn record_openai_events(
         let mut cache = runtime_spine_cache(store_path)?;
         cache.pull_all_backing_stores()?;
         for event in &events {
-            let model_event = model_event_from_openai_event(DEFAULT_MODEL_PROVIDER, event);
+            let model_event = model_event_from_openai_event(provider, event);
             cache.put(
                 model_event_key(&model_event.request_id, model_event.sequence),
                 &model_event,
@@ -524,7 +638,13 @@ pub fn record_native_model_events(
     events: &[EpiphanyOpenAiStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let provider_request = epiphany_openai_adapter::request_from_native(request);
-    record_openai_events(store_path, options, &provider_request, events)
+    record_openai_events(
+        store_path,
+        options,
+        &provider_request,
+        &request.provider,
+        events,
+    )
 }
 
 fn compact_openai_events_for_storage(
@@ -933,6 +1053,8 @@ pub fn store_model_status(
     store_path: impl AsRef<Path>,
     status: &EpiphanyOpenAiAdapterStatus,
     provider: &str,
+    streaming_supported: bool,
+    provider_transport_attached: bool,
 ) -> Result<()> {
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -941,8 +1063,8 @@ pub fn store_model_status(
         adapter_id: status.adapter_id.clone(),
         provider: provider.to_string(),
         default_model: status.default_model.clone(),
-        streaming_supported: true,
-        provider_transport_attached: status.codex_transport_attached,
+        streaming_supported,
+        provider_transport_attached,
     };
     cache.put(status.adapter_id.clone(), &status)?;
     Ok(())
@@ -1186,6 +1308,7 @@ pub fn default_options(
     EpiphanyOpenAiRuntimeOptions {
         store_path,
         codex_home,
+        provider_credential_path: None,
         session_id: format!("openai-session-{}", request.conversation_id),
         job_id: format!("openai-job-{}", request.request_id),
         objective: format!("Run typed OpenAI model request {}", request.request_id),
@@ -1531,15 +1654,6 @@ fn arguments_are_invocation_ready(arguments: &str) -> bool {
         serde_json::from_str::<serde_json::Value>(trimmed),
         Ok(serde_json::Value::Object(_))
     )
-}
-
-fn require_openai_provider(provider: &str) -> Result<()> {
-    if matches!(provider, "openai-codex" | "openai") {
-        return Ok(());
-    }
-    Err(anyhow!(
-        "unsupported model runtime provider {provider:?}; current providers: openai-codex"
-    ))
 }
 
 fn provider_matches_request(selected: &str, requested: &str) -> bool {
@@ -3807,7 +3921,8 @@ mod tests {
             payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
         }];
 
-        let summary = record_openai_events(&store, &options, &request, &events)?;
+        let summary =
+            record_openai_events(&store, &options, &request, DEFAULT_MODEL_PROVIDER, &events)?;
 
         assert_eq!(summary.verdict, "pass");
         assert_eq!(assistant_text_from_openai_events(&store, "req-1")?, "");
@@ -4548,7 +4663,8 @@ mod tests {
                 payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
             },
         ];
-        let summary = record_openai_events(&store, &options, &request, &events)?;
+        let summary =
+            record_openai_events(&store, &options, &request, DEFAULT_MODEL_PROVIDER, &events)?;
         let intent_id = summary
             .tool_intent_ids
             .first()

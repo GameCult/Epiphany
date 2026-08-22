@@ -311,11 +311,12 @@ async fn main() -> Result<()> {
             });
             let openai_request =
                 epiphany_openai_runtime::openai_request_from_model_request(&request);
-            let runtime_options = default_options(
+            let mut runtime_options = default_options(
                 options.store_path.clone(),
                 options.codex_home,
                 &openai_request,
             );
+            runtime_options.provider_credential_path = options.provider_credential_path;
             ensure_openai_runtime_ready(&runtime_options)?;
             epiphany_core::ensure_runtime_session(
                 &runtime_options.store_path,
@@ -381,6 +382,7 @@ struct ModelTurnCliOptions {
     provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
     request_path: PathBuf,
     session_id: Option<String>,
     job_id: Option<String>,
@@ -492,6 +494,7 @@ impl ModelTurnCliOptions {
         request: &EpiphanyOpenAiModelRequest,
     ) -> EpiphanyOpenAiRuntimeOptions {
         let mut options = default_options(self.store_path, self.codex_home, request);
+        options.provider_credential_path = self.provider_credential_path;
         if let Some(session_id) = self.session_id {
             options.session_id = session_id;
         }
@@ -512,6 +515,7 @@ struct SmokeCliOptions {
     provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -519,6 +523,7 @@ struct RunWorkerCliOptions {
     provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
     mcp_config: Option<PathBuf>,
     job_id: String,
     model: String,
@@ -542,6 +547,7 @@ struct ToolFollowupTurnCliOptions {
     provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
     request_id: String,
     followup_request_id: String,
     session_id: Option<String>,
@@ -558,6 +564,7 @@ impl ToolFollowupTurnCliOptions {
     ) -> EpiphanyOpenAiRuntimeOptions {
         let openai_request = epiphany_openai_runtime::openai_request_from_model_request(request);
         let mut options = default_options(self.store_path, self.codex_home, &openai_request);
+        options.provider_credential_path = self.provider_credential_path;
         if let Some(session_id) = self.session_id {
             options.session_id = session_id;
         }
@@ -578,6 +585,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
+    let mut provider_credential_path = None;
     let mut request_path = None;
     let mut session_id = None;
     let mut job_id = None;
@@ -590,6 +598,12 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--provider-credential" => {
+                provider_credential_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--provider-credential",
+                )?))
+            }
             "--request" => request_path = Some(PathBuf::from(next_value(&mut iter, "--request")?)),
             "--session-id" => session_id = Some(next_value(&mut iter, "--session-id")?),
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
@@ -608,6 +622,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
         provider,
         store_path,
         codex_home,
+        provider_credential_path,
         request_path: request_path.context("model-turn requires --request")?,
         session_id,
         job_id,
@@ -621,6 +636,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
+    let mut provider_credential_path = None;
     let mut mcp_config = None;
     let mut job_id = None;
     let mut model = default_worker_model();
@@ -637,6 +653,12 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--provider-credential" => {
+                provider_credential_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--provider-credential",
+                )?))
+            }
             "--mcp-config" => {
                 mcp_config = Some(PathBuf::from(next_value(&mut iter, "--mcp-config")?))
             }
@@ -666,6 +688,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         provider,
         store_path,
         codex_home,
+        provider_credential_path,
         mcp_config,
         job_id: job_id.context("run-worker requires --job-id")?,
         model,
@@ -931,6 +954,7 @@ async fn run_worker_launch_with_tool_continuation(
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
         codex_home: options.codex_home.clone(),
+        provider_credential_path: options.provider_credential_path.clone(),
         session_id: worker_model_session_id(&launch_request.job_id),
         job_id: format!("openai-worker-{}", launch_request.job_id),
         objective: format!(
@@ -1331,6 +1355,31 @@ mod tests {
     }
 
     #[test]
+    fn worker_cli_binds_openrouter_model_and_credential_explicitly() -> Result<()> {
+        let options = parse_run_worker_options(vec![
+            "--provider".into(),
+            "openrouter".into(),
+            "--provider-credential".into(),
+            "/run/credentials/epiphany/openrouter-api-key".into(),
+            "--model".into(),
+            "stealth/ox-alpha".into(),
+            "--job-id".into(),
+            "job-ox".into(),
+            "--activation-token-sha256".into(),
+            "b".repeat(64),
+        ])?;
+
+        require_supported_provider(&options.provider)?;
+        assert_eq!(options.provider, "openrouter");
+        assert_eq!(options.model, "stealth/ox-alpha");
+        assert_eq!(
+            options.provider_credential_path.as_deref(),
+            Some(Path::new("/run/credentials/epiphany/openrouter-api-key"))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn model_turn_json_ingress_accepts_published_native_object() -> Result<()> {
         let request = parse_model_turn_request_json(
             r#"{
@@ -1355,7 +1404,7 @@ mod tests {
     fn model_turn_json_ingress_refuses_caller_authored_provider_object() {
         let error = parse_model_turn_request_json(
             r#"{
-                "schema_id":"epiphany.openai_model_request.v0",
+                "schema_id":"epiphany.openai_model_request.v1",
                 "request_id":"request-json-provider",
                 "conversation_id":"conversation-json-provider",
                 "model":"gpt-test",
@@ -1463,6 +1512,7 @@ mod tests {
             &EpiphanyOpenAiRuntimeOptions {
                 store_path: store.to_path_buf(),
                 codex_home: PathBuf::from(".codex"),
+                provider_credential_path: None,
                 session_id,
                 job_id,
                 objective: format!("Run model execution for {worker_job_id}."),
@@ -1965,6 +2015,7 @@ async fn run_worker_options(
                 EpiphanyWorkerRuntimeOptions {
                     store_path: options.store_path,
                     codex_home: options.codex_home,
+                    provider_credential_path: options.provider_credential_path,
                     provider: options.provider,
                     job_id: options.job_id,
                     model: options.model,
@@ -2017,6 +2068,7 @@ fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTur
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
+    let mut provider_credential_path = None;
     let mut request_id = None;
     let mut followup_request_id = None;
     let mut session_id = None;
@@ -2030,6 +2082,12 @@ fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTur
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--provider-credential" => {
+                provider_credential_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--provider-credential",
+                )?))
+            }
             "--request-id" => request_id = Some(next_value(&mut iter, "--request-id")?),
             "--followup-request-id" => {
                 followup_request_id = Some(next_value(&mut iter, "--followup-request-id")?)
@@ -2051,6 +2109,7 @@ fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTur
         provider,
         store_path,
         codex_home,
+        provider_credential_path,
         request_id: request_id.context("tool-followup-turn requires --request-id")?,
         followup_request_id: followup_request_id
             .unwrap_or_else(|| format!("tool-followup-{}", Uuid::new_v4())),
@@ -2069,12 +2128,19 @@ fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
         Uuid::new_v4()
     ));
     let mut codex_home = default_codex_home()?;
+    let mut provider_credential_path = None;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--provider-credential" => {
+                provider_credential_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--provider-credential",
+                )?))
+            }
             other => return Err(anyhow!("unknown smoke argument: {other}")),
         }
     }
@@ -2082,15 +2148,16 @@ fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
         provider,
         store_path,
         codex_home,
+        provider_credential_path,
     })
 }
 
 fn require_supported_provider(provider: &str) -> Result<()> {
-    if matches!(provider, "openai-codex" | "openai") {
+    if matches!(provider, "openai-codex" | "openai" | "openrouter") {
         return Ok(());
     }
     Err(anyhow!(
-        "unsupported model runtime provider {provider:?}; current providers: openai-codex"
+        "unsupported model runtime provider {provider:?}; current providers: openai-codex, openrouter"
     ))
 }
 
@@ -2109,5 +2176,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <list-decisions|audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <list-decisions|audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }

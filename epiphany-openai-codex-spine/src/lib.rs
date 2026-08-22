@@ -16,6 +16,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_adapter::EpiphanyOpenAiWireDialect;
 use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
 use epiphany_openai_auth_spine::AuthCredentialsStoreMode;
 use epiphany_openai_auth_spine::AuthManager;
@@ -30,12 +31,15 @@ use sha2::Sha256;
 
 const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
+const OPENROUTER_API_BASE_URL: &str = "https://openrouter.ai/api/v1";
 // Keep provider silence shorter than Epiphany worker watchdogs so the runtime can
 // write a typed stream failure instead of being killed with no model evidence.
 const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 const RESPONSES_CALL_ID_MAX_BYTES: usize = 64;
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
+pub const OPENROUTER_SPINE_ADAPTER_ID: &str = "openrouter-chat-completions-spine";
+pub const OPENROUTER_TERMINAL_TOOL_NAME: &str = "epiphany_submit_typed_result";
 
 pub fn default_codex_home() -> Result<std::path::PathBuf> {
     if let Ok(path) = std::env::var("CODEX_HOME") {
@@ -97,6 +101,22 @@ pub fn status_from_codex_auth(
         default_model,
         supports_websockets,
         codex_transport_attached: true,
+    }
+}
+
+pub fn status_from_static_api_key(
+    adapter_id: &str,
+    default_model: Option<String>,
+) -> EpiphanyOpenAiAdapterStatus {
+    EpiphanyOpenAiAdapterStatus {
+        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
+        adapter_id: adapter_id.to_string(),
+        auth_mode: EpiphanyOpenAiAuthMode::ApiKey,
+        account_id: None,
+        plan_type: None,
+        default_model,
+        supports_websockets: false,
+        codex_transport_attached: false,
     }
 }
 
@@ -208,9 +228,351 @@ impl EpiphanyCodexOpenAiTransport {
     }
 }
 
+/// OpenRouter owns a distinct credential and wire dialect. It is intentionally
+/// not routed through Codex auth or the Responses transport.
+pub struct EpiphanyOpenRouterTransport {
+    api_key: String,
+    base_url: String,
+}
+
+impl EpiphanyOpenRouterTransport {
+    pub fn new(api_key: impl Into<String>) -> Result<Self> {
+        let api_key = api_key.into();
+        if api_key.trim().is_empty() || api_key.trim() != api_key {
+            return Err(anyhow::anyhow!(
+                "OpenRouter API key must be a non-empty trimmed credential"
+            ));
+        }
+        Ok(Self {
+            api_key,
+            base_url: OPENROUTER_API_BASE_URL.to_string(),
+        })
+    }
+
+    pub async fn collect_model_events(
+        &self,
+        request: EpiphanyOpenAiModelRequest,
+    ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+        self.collect_model_events_with_frame_observer(request, |_| {})
+            .await
+    }
+
+    pub async fn collect_model_events_with_frame_observer(
+        &self,
+        request: EpiphanyOpenAiModelRequest,
+        mut observe_frame: impl FnMut(EpiphanyResponsesFrameObservation),
+    ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let body = chat_completions_body_from_epiphany(&request)?;
+        let mut outbound = Request::new(http::Method::POST, url).with_json(&body);
+        let mut authorization = format!("Bearer {}", self.api_key).parse::<http::HeaderValue>()?;
+        authorization.set_sensitive(true);
+        outbound
+            .headers
+            .insert(http::header::AUTHORIZATION, authorization);
+        outbound.timeout = Some(Duration::from_secs(90));
+        let transport = ReqwestTransport::new(build_reqwest_client());
+        let response = transport
+            .execute(outbound)
+            .await
+            .map_err(transport_error_to_anyhow)?;
+        observe_frame(EpiphanyResponsesFrameObservation {
+            frame_sequence: 1,
+            kind: "chat.completion".to_string(),
+            recognized: true,
+            delta_preview: None,
+        });
+        let response: OpenRouterChatCompletionResponse = serde_json::from_slice(&response.body)
+            .context("OpenRouter returned an invalid Chat Completions response")?;
+        openrouter_events_from_chat_completion(&request, response)
+    }
+}
+
+pub fn chat_completions_body_from_epiphany(
+    request: &EpiphanyOpenAiModelRequest,
+) -> Result<serde_json::Value> {
+    if request.provider_id != "openrouter"
+        || request.wire_dialect != EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool
+    {
+        return Err(anyhow::anyhow!(
+            "OpenRouter transport requires its exact provider identity and Chat Completions dialect"
+        ));
+    }
+    let has_tool_result = request
+        .input
+        .iter()
+        .any(|item| matches!(item, EpiphanyOpenAiInputItem::ToolResult { .. }));
+    let output_schema = request
+        .output_schema_json
+        .as_deref()
+        .map(strict_provider_schema)
+        .transpose()?;
+    let include_terminal_tool =
+        output_schema.is_some() && (request.tools.is_empty() || has_tool_result);
+    if request
+        .tools
+        .iter()
+        .any(|tool| tool.name == OPENROUTER_TERMINAL_TOOL_NAME)
+    {
+        return Err(anyhow::anyhow!(
+            "native tool name collides with the OpenRouter terminal decision tool"
+        ));
+    }
+
+    let mut messages = vec![serde_json::json!({
+        "role": "system",
+        "content": request.instructions,
+    })];
+    for item in &request.input {
+        messages.push(match item {
+            EpiphanyOpenAiInputItem::UserText { text } => serde_json::json!({
+                "role": "user",
+                "content": text,
+            }),
+            EpiphanyOpenAiInputItem::AssistantText { text } => serde_json::json!({
+                "role": "assistant",
+                "content": text,
+            }),
+            EpiphanyOpenAiInputItem::ToolCall {
+                call_id,
+                name,
+                arguments,
+            } => serde_json::json!({
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": name, "arguments": arguments},
+                }],
+            }),
+            EpiphanyOpenAiInputItem::ToolResult { call_id, output } => serde_json::json!({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": output,
+            }),
+        });
+    }
+
+    let mut tools = request
+        .tools
+        .iter()
+        .map(|tool| {
+            let parameters = strict_provider_schema(&tool.parameters_json)?;
+            Ok(serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "strict": true,
+                    "parameters": parameters,
+                },
+            }))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if let Some(schema) = output_schema {
+        if include_terminal_tool {
+            tools.push(serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": OPENROUTER_TERMINAL_TOOL_NAME,
+                    "description": "Submit the final typed Epiphany decision. Call this only when the pass is complete.",
+                    "strict": true,
+                    "parameters": schema,
+                },
+            }));
+        }
+    }
+
+    let mut body = serde_json::json!({
+        "model": request.model,
+        "messages": messages,
+        "stream": false,
+        "parallel_tool_calls": false,
+    });
+    if !tools.is_empty() {
+        body["tools"] = serde_json::Value::Array(tools);
+        body["tool_choice"] = serde_json::Value::String(
+            if include_terminal_tool || (!request.tools.is_empty() && !has_tool_result) {
+                "required"
+            } else {
+                "auto"
+            }
+            .to_string(),
+        );
+    }
+    if let Some(effort) = request.reasoning_effort.as_deref() {
+        body["reasoning"] = serde_json::json!({"effort": effort});
+    }
+    Ok(body)
+}
+
+fn strict_provider_schema(schema_json: &str) -> Result<serde_json::Value> {
+    let mut schema: serde_json::Value = serde_json::from_str(schema_json)
+        .context("provider tool parameters are not valid JSON Schema")?;
+    project_strict_responses_schema(&mut schema)?;
+    Ok(schema)
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatCompletionResponse {
+    id: Option<String>,
+    model: Option<String>,
+    choices: Vec<OpenRouterChatChoice>,
+    usage: Option<OpenRouterChatUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatChoice {
+    message: OpenRouterChatMessage,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatMessage {
+    content: Option<String>,
+    #[serde(default)]
+    reasoning: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<OpenRouterChatToolCall>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatToolCall {
+    id: String,
+    function: OpenRouterChatFunctionCall,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatFunctionCall {
+    name: String,
+    arguments: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterChatUsage {
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
+    completion_tokens_details: Option<OpenRouterCompletionTokenDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterCompletionTokenDetails {
+    reasoning_tokens: Option<u64>,
+}
+
+fn openrouter_events_from_chat_completion(
+    request: &EpiphanyOpenAiModelRequest,
+    response: OpenRouterChatCompletionResponse,
+) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+    let choice = response
+        .choices
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("OpenRouter response contained no completion choice"))?;
+    let mut events = Vec::new();
+    if let Some(reasoning) = choice.message.reasoning.filter(|value| !value.is_empty()) {
+        push_openrouter_event(
+            &mut events,
+            &request.request_id,
+            EpiphanyOpenAiStreamPayload::ReasoningDelta { text: reasoning },
+        );
+    }
+    let terminal_calls = choice
+        .message
+        .tool_calls
+        .iter()
+        .filter(|call| call.function.name == OPENROUTER_TERMINAL_TOOL_NAME)
+        .collect::<Vec<_>>();
+    if !terminal_calls.is_empty() {
+        if terminal_calls.len() != 1 || choice.message.tool_calls.len() != 1 {
+            return Err(anyhow::anyhow!(
+                "OpenRouter mixed the terminal decision tool with another tool call"
+            ));
+        }
+        let arguments = &terminal_calls[0].function.arguments;
+        if !matches!(
+            serde_json::from_str::<serde_json::Value>(arguments),
+            Ok(serde_json::Value::Object(_))
+        ) {
+            return Err(anyhow::anyhow!(
+                "OpenRouter terminal decision tool returned non-object arguments"
+            ));
+        }
+        push_openrouter_event(
+            &mut events,
+            &request.request_id,
+            EpiphanyOpenAiStreamPayload::TextDelta {
+                text: arguments.clone(),
+            },
+        );
+    } else {
+        if let Some(content) = choice.message.content.filter(|value| !value.is_empty()) {
+            push_openrouter_event(
+                &mut events,
+                &request.request_id,
+                EpiphanyOpenAiStreamPayload::TextDelta { text: content },
+            );
+        }
+        for call in choice.message.tool_calls {
+            push_openrouter_event(
+                &mut events,
+                &request.request_id,
+                EpiphanyOpenAiStreamPayload::ToolCall {
+                    call_id: call.id,
+                    name: call.function.name,
+                    arguments: call.function.arguments,
+                },
+            );
+        }
+    }
+    if events.is_empty() {
+        return Err(anyhow::anyhow!(
+            "OpenRouter response contained neither text nor tool calls"
+        ));
+    }
+    let usage = response.usage;
+    let mut receipt = EpiphanyOpenAiModelReceipt::new(
+        &request.request_id,
+        response.model.unwrap_or_else(|| request.model.clone()),
+    );
+    receipt.response_id = response.id;
+    receipt.input_tokens = usage.as_ref().and_then(|item| item.prompt_tokens);
+    receipt.output_tokens = usage.as_ref().and_then(|item| item.completion_tokens);
+    receipt.reasoning_output_tokens = usage
+        .as_ref()
+        .and_then(|item| item.completion_tokens_details.as_ref())
+        .and_then(|item| item.reasoning_tokens);
+    receipt.transport = Some("openrouter-chat-completions".to_string());
+    push_openrouter_event(
+        &mut events,
+        &request.request_id,
+        EpiphanyOpenAiStreamPayload::Completed { receipt },
+    );
+    Ok(events)
+}
+
+fn push_openrouter_event(
+    events: &mut Vec<EpiphanyOpenAiStreamEvent>,
+    request_id: &str,
+    payload: EpiphanyOpenAiStreamPayload,
+) {
+    events.push(EpiphanyOpenAiStreamEvent {
+        schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+        request_id: request_id.to_string(),
+        sequence: events.len() as u64,
+        payload,
+    });
+}
+
 pub fn responses_body_from_epiphany(
     request: EpiphanyOpenAiModelRequest,
 ) -> Result<serde_json::Value> {
+    if !matches!(request.provider_id.as_str(), "openai-codex" | "openai")
+        || request.wire_dialect != EpiphanyOpenAiWireDialect::Responses
+    {
+        return Err(anyhow::anyhow!(
+            "Responses transport requires an OpenAI provider identity and Responses dialect"
+        ));
+    }
     let requires_initial_tool = !request.tools.is_empty()
         && !request
             .input
@@ -1138,6 +1500,22 @@ fn auth_mode_from_codex_auth(auth: Option<&CodexAuth>) -> EpiphanyOpenAiAuthMode
 mod tests {
     use super::*;
 
+    fn openrouter_request(
+        request_id: &str,
+        conversation_id: &str,
+        instructions: &str,
+    ) -> EpiphanyOpenAiModelRequest {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            request_id,
+            conversation_id,
+            "stealth/ox-alpha",
+            instructions,
+        );
+        request.provider_id = "openrouter".to_string();
+        request.wire_dialect = EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool;
+        request
+    }
+
     #[test]
     fn api_key_auth_maps_to_typed_adapter_status() {
         let auth = CodexAuth::from_api_key("test-key");
@@ -1157,6 +1535,161 @@ mod tests {
         assert_eq!(status.auth_mode, EpiphanyOpenAiAuthMode::Unknown);
         assert_eq!(status.account_id, None);
         assert!(!status.supports_websockets);
+    }
+
+    #[test]
+    fn static_openrouter_status_does_not_claim_codex_transport() {
+        let status = status_from_static_api_key(
+            OPENROUTER_SPINE_ADAPTER_ID,
+            Some("stealth/ox-alpha".to_string()),
+        );
+
+        assert_eq!(status.adapter_id, OPENROUTER_SPINE_ADAPTER_ID);
+        assert_eq!(status.auth_mode, EpiphanyOpenAiAuthMode::ApiKey);
+        assert_eq!(status.default_model.as_deref(), Some("stealth/ox-alpha"));
+        assert!(!status.supports_websockets);
+        assert!(!status.codex_transport_attached);
+    }
+
+    #[test]
+    fn openrouter_terminal_tool_owns_typed_output_instead_of_response_format() {
+        let mut request = openrouter_request(
+            "req-terminal",
+            "conversation-terminal",
+            "Return the typed result.",
+        );
+        request.input.push(EpiphanyOpenAiInputItem::UserText {
+            text: "Decide.".to_string(),
+        });
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {"status": {"type": "string", "enum": ["ok"]}},
+                "required": ["status"]
+            })
+            .to_string(),
+        );
+
+        let body = chat_completions_body_from_epiphany(&request).expect("request should map");
+
+        assert!(body.get("response_format").is_none());
+        assert_eq!(body["tool_choice"], "required");
+        assert_eq!(body["tools"].as_array().expect("tools").len(), 1);
+        assert_eq!(
+            body["tools"][0]["function"]["name"],
+            OPENROUTER_TERMINAL_TOOL_NAME
+        );
+        assert_eq!(
+            body["tools"][0]["function"]["parameters"]["properties"]["status"]["enum"][0],
+            "ok"
+        );
+    }
+
+    #[test]
+    fn openrouter_requires_source_sight_before_exposing_terminal_decision() {
+        let mut request =
+            openrouter_request("req-tools", "conversation-tools", "Inspect, then decide.");
+        request.input.push(EpiphanyOpenAiInputItem::UserText {
+            text: "Inspect the source.".to_string(),
+        });
+        request
+            .tools
+            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+                name: "mcp__epiphany_source__read_file".to_string(),
+                description: "Read a file.".to_string(),
+                parameters_json: serde_json::json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"]
+                })
+                .to_string(),
+            });
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {"status": {"type": "string"}},
+                "required": ["status"]
+            })
+            .to_string(),
+        );
+
+        let initial = chat_completions_body_from_epiphany(&request).expect("initial request");
+        assert_eq!(initial["tool_choice"], "required");
+        assert_eq!(initial["tools"].as_array().expect("tools").len(), 1);
+        assert_eq!(
+            initial["tools"][0]["function"]["name"],
+            "mcp__epiphany_source__read_file"
+        );
+
+        request.input.push(EpiphanyOpenAiInputItem::ToolCall {
+            call_id: "call-1".to_string(),
+            name: "mcp__epiphany_source__read_file".to_string(),
+            arguments: r#"{"path":"README.md"}"#.to_string(),
+        });
+        request.input.push(EpiphanyOpenAiInputItem::ToolResult {
+            call_id: "call-1".to_string(),
+            output: r#"{"ok":true}"#.to_string(),
+        });
+        let followup = chat_completions_body_from_epiphany(&request).expect("followup request");
+        assert_eq!(followup["tool_choice"], "required");
+        assert_eq!(followup["tools"].as_array().expect("tools").len(), 2);
+        assert_eq!(
+            followup["tools"][1]["function"]["name"],
+            OPENROUTER_TERMINAL_TOOL_NAME
+        );
+        assert_eq!(followup["messages"][2]["tool_calls"][0]["id"], "call-1");
+        assert_eq!(followup["messages"][3]["tool_call_id"], "call-1");
+    }
+
+    #[test]
+    fn openrouter_terminal_call_becomes_exact_assistant_json() {
+        let request = openrouter_request(
+            "req-terminal-events",
+            "conversation-terminal-events",
+            "Return the typed result.",
+        );
+        let response = OpenRouterChatCompletionResponse {
+            id: Some("generation-1".to_string()),
+            model: Some("stealth/ox-alpha".to_string()),
+            choices: vec![OpenRouterChatChoice {
+                message: OpenRouterChatMessage {
+                    content: None,
+                    reasoning: None,
+                    tool_calls: vec![OpenRouterChatToolCall {
+                        id: "call-terminal".to_string(),
+                        function: OpenRouterChatFunctionCall {
+                            name: OPENROUTER_TERMINAL_TOOL_NAME.to_string(),
+                            arguments: r#"{"status":"ok"}"#.to_string(),
+                        },
+                    }],
+                },
+            }],
+            usage: Some(OpenRouterChatUsage {
+                prompt_tokens: Some(12),
+                completion_tokens: Some(3),
+                completion_tokens_details: Some(OpenRouterCompletionTokenDetails {
+                    reasoning_tokens: Some(1),
+                }),
+            }),
+        };
+
+        let events = openrouter_events_from_chat_completion(&request, response)
+            .expect("response should normalize");
+        assert!(matches!(
+            &events[0].payload,
+            EpiphanyOpenAiStreamPayload::TextDelta { text }
+                if text == r#"{"status":"ok"}"#
+        ));
+        assert!(matches!(
+            &events[1].payload,
+            EpiphanyOpenAiStreamPayload::Completed { receipt }
+                if receipt.transport.as_deref() == Some("openrouter-chat-completions")
+                    && receipt.input_tokens == Some(12)
+                    && receipt.reasoning_output_tokens == Some(1)
+        ));
     }
 
     #[test]

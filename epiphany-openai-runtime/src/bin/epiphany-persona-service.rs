@@ -102,6 +102,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
     let mut runner = NativePersonaModelRunner {
         store_path: options.runtime_store.clone(),
         codex_home: options.codex_home.clone(),
+        provider_credential_path: options.provider_credential_path.clone(),
         provider: options.provider.clone(),
         model: options.model.clone(),
     };
@@ -304,6 +305,7 @@ struct Options {
     agent_store: PathBuf,
     cultmesh_store: PathBuf,
     codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
     runtime_id: String,
     provider: String,
     model: String,
@@ -350,6 +352,7 @@ impl Options {
             agent_store: path("--agent-store")?,
             cultmesh_store: path("--cultmesh-store")?,
             codex_home: path("--codex-home")?,
+            provider_credential_path: values.get("--provider-credential").map(PathBuf::from),
             _repo_root: path("--repo-root")?,
             mouth_request_store: path("--mouth-request-store")?,
             mouth_receipt_store: path("--mouth-receipt-store")?,
@@ -443,6 +446,7 @@ mod tests {
             agent_store: absent.join("agent.cc"),
             cultmesh_store: absent.join("cultmesh.cc"),
             codex_home: absent.join("codex-home"),
+            provider_credential_path: None,
             runtime_id: "persona-reentry".into(),
             provider: "test".into(),
             model: "test-model".into(),

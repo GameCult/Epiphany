@@ -18,11 +18,11 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 pub const REASONING_BASIS_SCHEMA_VERSION: &str = "epiphany.reasoning_basis.v1";
-pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v1";
+pub const DECISION_CONTEXT_SCHEMA_VERSION: &str = "epiphany.decision_context.v2";
 pub const MODEL_PASS_FAILURE_SCHEMA_VERSION: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.mind_commit_receipt.v1";
 pub const REASONING_BASIS_TYPE: &str = "epiphany.reasoning_basis.v1";
-pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v1";
+pub const DECISION_CONTEXT_TYPE: &str = "epiphany.decision_context.v2";
 pub const MODEL_PASS_FAILURE_TYPE: &str = "epiphany.model_pass_failure.v1";
 pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
 pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
@@ -349,7 +349,7 @@ pub struct EpiphanyDecisionToolObservation {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.decision_context.v1",
+    type = "epiphany.decision_context.v2",
     schema = "EpiphanyDecisionContext"
 )]
 pub struct EpiphanyDecisionContext {
@@ -1970,6 +1970,8 @@ mod tests {
             previous_response_id: None,
             tools: Vec::new(),
             output_schema_json: None,
+            provider_id: native.provider.clone(),
+            wire_dialect: epiphany_openai_adapter::EpiphanyOpenAiWireDialect::Responses,
         };
         (native, provider)
     }
@@ -2084,6 +2086,42 @@ mod tests {
                 vec![EpiphanyDecisionToolObservation { intent, receipt }],
             )
             .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn decision_context_seals_openrouter_identity_and_terminal_tool_dialect() -> Result<()> {
+        let reasoning_basis = basis()?;
+        let mut native = EpiphanyModelRequest::new(
+            "request-openrouter",
+            "conversation-openrouter",
+            "openrouter",
+            "stealth/ox-alpha",
+            "decide",
+        );
+        native.reasoning_basis_id = Some(reasoning_basis.basis_id.clone());
+        native.output_contract_id = Some("epiphany.test.output.v0".into());
+        native.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {"status": {"type": "string"}},
+                "required": ["status"]
+            })
+            .to_string(),
+        );
+
+        let context = EpiphanyDecisionContext::new(&reasoning_basis, native.clone(), Vec::new())?;
+        let provider = context.provider_request()?;
+        assert_eq!(provider.provider_id, "openrouter");
+        assert_eq!(
+            provider.wire_dialect,
+            epiphany_openai_adapter::EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool
+        );
+        assert_eq!(
+            provider,
+            epiphany_openai_adapter::request_from_native(&native)
         );
         Ok(())
     }

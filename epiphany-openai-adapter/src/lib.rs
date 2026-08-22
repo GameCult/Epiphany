@@ -3,7 +3,7 @@ use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const OPENAI_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.openai_model_request.v0";
+pub const OPENAI_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.openai_model_request.v1";
 pub const OPENAI_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.openai_model_receipt.v0";
 pub const OPENAI_ADAPTER_STATUS_SCHEMA_ID: &str = "epiphany.openai_adapter_status.v0";
@@ -14,6 +14,12 @@ pub enum EpiphanyOpenAiAuthMode {
     ApiKey,
     ExternalBearer,
     Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EpiphanyOpenAiWireDialect {
+    Responses,
+    ChatCompletionsTerminalTool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -42,7 +48,7 @@ pub struct EpiphanyOpenAiAdapterStatus {
 
 #[derive(Debug, Clone, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.openai_model_request.v0",
+    type = "epiphany.openai_model_request.v1",
     schema = "EpiphanyOpenAiModelRequest"
 )]
 pub struct EpiphanyOpenAiModelRequest {
@@ -72,6 +78,10 @@ pub struct EpiphanyOpenAiModelRequest {
     pub tools: Vec<EpiphanyOpenAiToolDefinition>,
     #[cultcache(key = 12, default)]
     pub output_schema_json: Option<String>,
+    #[cultcache(key = 13)]
+    pub provider_id: String,
+    #[cultcache(key = 14)]
+    pub wire_dialect: EpiphanyOpenAiWireDialect,
 }
 
 impl EpiphanyOpenAiModelRequest {
@@ -95,6 +105,8 @@ impl EpiphanyOpenAiModelRequest {
             previous_response_id: None,
             tools: Vec::new(),
             output_schema_json: None,
+            provider_id: "openai-codex".to_string(),
+            wire_dialect: EpiphanyOpenAiWireDialect::Responses,
         }
     }
 }
@@ -125,6 +137,12 @@ pub fn request_from_native(request: &EpiphanyModelRequest) -> EpiphanyOpenAiMode
             })
             .collect(),
         output_schema_json: request.output_schema_json.clone(),
+        provider_id: request.provider.clone(),
+        wire_dialect: if request.provider == "openrouter" {
+            EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool
+        } else {
+            EpiphanyOpenAiWireDialect::Responses
+        },
     }
 }
 
@@ -253,5 +271,39 @@ impl EpiphanyOpenAiModelReceipt {
             reasoning_output_tokens: None,
             transport: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_provider_identity_selects_one_exact_wire_dialect() {
+        let openai = EpiphanyModelRequest::new(
+            "openai-request",
+            "conversation",
+            "openai-codex",
+            "gpt-test",
+            "decide",
+        );
+        let openrouter = EpiphanyModelRequest::new(
+            "openrouter-request",
+            "conversation",
+            "openrouter",
+            "stealth/ox-alpha",
+            "decide",
+        );
+
+        let openai = request_from_native(&openai);
+        let openrouter = request_from_native(&openrouter);
+        assert_eq!(openai.provider_id, "openai-codex");
+        assert_eq!(openai.wire_dialect, EpiphanyOpenAiWireDialect::Responses);
+        assert_eq!(openrouter.provider_id, "openrouter");
+        assert_eq!(
+            openrouter.wire_dialect,
+            EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool
+        );
+        assert_ne!(openai.schema_id, "epiphany.openai_model_request.v0");
     }
 }

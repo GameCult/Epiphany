@@ -563,6 +563,11 @@ impl Args {
                 .get("--model-provider")
                 .cloned()
                 .ok_or_else(|| anyhow!("missing --model-provider"))?,
+            model: value
+                .get("--model")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --model"))?,
+            provider_credential_path: value.get("--provider-credential").map(PathBuf::from),
             max_steps: u64v("--max-steps", 4)?,
             turn_timeout_seconds: u64v("--turn-timeout-seconds", 600)?,
             cooldown_seconds: u64v("--cooldown-seconds", 60)?,
@@ -831,6 +836,8 @@ mod brake_tests {
             codex_home: shared.join("codex-home"),
             mcp_config: shared.join("mcp.toml"),
             model_provider: "test".into(),
+            model: "test-model".into(),
+            provider_credential_path: None,
             max_steps: 1,
             turn_timeout_seconds: 1,
             cooldown_seconds: 1,

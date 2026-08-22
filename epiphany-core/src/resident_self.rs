@@ -295,6 +295,8 @@ pub struct ResidentSelfPolicy {
     pub codex_home: PathBuf,
     pub mcp_config: PathBuf,
     pub model_provider: String,
+    pub model: String,
+    pub provider_credential_path: Option<PathBuf>,
     pub max_steps: u64,
     pub turn_timeout_seconds: u64,
     pub cooldown_seconds: u64,
@@ -330,7 +332,16 @@ impl ResidentSelfPolicy {
                 ));
             }
         }
+        if let Some(path) = self.provider_credential_path.as_ref()
+            && !path.is_absolute()
+        {
+            return Err(anyhow!(
+                "resident Self provider credential path must be absolute: {}",
+                path.display()
+            ));
+        }
         if self.model_provider.trim().is_empty()
+            || self.model.trim().is_empty()
             || self.max_steps == 0
             || self.turn_timeout_seconds == 0
         {
@@ -645,6 +656,8 @@ pub fn coordinator_argv(
         policy.tool_adapter_bin.display().to_string(),
         "--model-provider".into(),
         policy.model_provider.clone(),
+        "--model".into(),
+        policy.model.clone(),
         "--runtime-id".into(),
         runtime_id.into(),
         "--thread-id".into(),
@@ -670,6 +683,9 @@ pub fn coordinator_argv(
         "--max-runtime-seconds".into(),
         policy.turn_timeout_seconds.to_string(),
     ];
+    if let Some(path) = policy.provider_credential_path.as_ref() {
+        argv.extend(["--provider-credential".into(), path.display().to_string()]);
+    }
     let ResidentSelfWake::Explicit { objective } = wake;
     argv.extend(["--objective".into(), objective.clone()]);
     argv

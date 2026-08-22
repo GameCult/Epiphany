@@ -328,7 +328,7 @@ pub fn resident_self_local_provider_status(
 ) -> &'static str {
     if validate_resident_self_store_separation(resident_store, policy).is_err()
         || !directory_ready(&policy.workspace)
-        || !codex_credentials_ready(&policy.codex_home)
+        || !model_provider_credential_ready(policy)
     {
         return "warming";
     }
@@ -482,9 +482,12 @@ pub fn derive_resident_cognition_readiness(
     if !workspace_ready {
         reasons.push("workspace is absent, inaccessible, or read-only".into());
     }
-    let credential_ready = codex_credentials_ready(&request.policy.codex_home);
+    let credential_ready = model_provider_credential_ready(&request.policy);
     if !credential_ready {
-        reasons.push("Codex credential material is unavailable".into());
+        reasons.push(format!(
+            "model-provider credential material is unavailable for {}",
+            request.policy.model_provider
+        ));
     }
     let ready = release_authenticated
         && physical_stores_separate
@@ -792,6 +795,20 @@ fn directory_ready(path: &Path) -> bool {
 
 fn codex_credentials_ready(codex_home: &Path) -> bool {
     directory_ready(codex_home) && credential_file_ready(&codex_home.join("auth.json"))
+}
+
+fn model_provider_credential_ready(policy: &ResidentSelfPolicy) -> bool {
+    match policy.model_provider.as_str() {
+        "openai-codex" | "openai" => codex_credentials_ready(&policy.codex_home),
+        "openrouter" => policy
+            .provider_credential_path
+            .as_deref()
+            .is_some_and(|path| {
+                fs::metadata(path).is_ok_and(|metadata| metadata.is_file())
+                    && fs::File::open(path).is_ok()
+            }),
+        _ => false,
+    }
 }
 
 #[cfg(any(unix, test))]
@@ -1129,6 +1146,8 @@ mod tests {
             codex_home: shared.join("codex-home"),
             mcp_config: shared.join("mcp.toml"),
             model_provider: "test".into(),
+            model: "test-model".into(),
+            provider_credential_path: None,
             max_steps: 1,
             turn_timeout_seconds: 1,
             cooldown_seconds: 1,

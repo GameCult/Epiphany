@@ -71,6 +71,8 @@ struct Args {
     model_runtime_bin: PathBuf,
     tool_adapter_bin: PathBuf,
     model_provider: String,
+    model: String,
+    provider_credential_path: Option<PathBuf>,
     thread_id: Option<String>,
     objective: Option<String>,
     cwd: PathBuf,
@@ -107,6 +109,8 @@ impl Args {
             model_runtime_bin: PathBuf::from(DEFAULT_MODEL_RUNTIME_BIN),
             tool_adapter_bin: PathBuf::from(DEFAULT_TOOL_ADAPTER_BIN),
             model_provider: "openai-codex".to_string(),
+            model: "gpt-5.4".to_string(),
+            provider_credential_path: None,
             thread_id: None,
             objective: None,
             cwd: root.clone(),
@@ -152,6 +156,11 @@ impl Args {
                 }
                 "--model-provider" => {
                     parsed.model_provider = take_string(&mut args, "--model-provider")?;
+                }
+                "--model" => parsed.model = take_string(&mut args, "--model")?,
+                "--provider-credential" => {
+                    parsed.provider_credential_path =
+                        Some(take_path(&mut args, "--provider-credential")?)
                 }
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
                 "--objective" => parsed.objective = Some(take_string(&mut args, "--objective")?),
@@ -393,6 +402,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &model_runtime_bin,
                 &tool_adapter_bin,
                 &args.model_provider,
+                &args.model,
+                args.provider_credential_path.as_deref(),
                 &runtime_store,
                 &codex_home,
                 &mcp_config,
@@ -434,6 +445,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &model_runtime_bin,
                 &tool_adapter_bin,
                 &args.model_provider,
+                &args.model,
+                args.provider_credential_path.as_deref(),
                 &runtime_store,
                 &codex_home,
                 &mcp_config,
@@ -487,6 +500,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &model_runtime_bin,
                 &tool_adapter_bin,
                 &args.model_provider,
+                &args.model,
+                args.provider_credential_path.as_deref(),
                 &runtime_store,
                 &codex_home,
                 &mcp_config,
@@ -639,6 +654,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -688,6 +705,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -1009,6 +1028,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -1051,6 +1072,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -1171,6 +1194,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -1240,6 +1265,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &model_runtime_bin,
                         &tool_adapter_bin,
                         &args.model_provider,
+                        &args.model,
+                        args.provider_credential_path.as_deref(),
                         &runtime_store,
                         &codex_home,
                         &mcp_config,
@@ -1816,6 +1843,8 @@ fn launch_worker_runtime_detached(
     model_runtime_bin: &Path,
     tool_adapter_bin: &Path,
     model_provider: &str,
+    model: &str,
+    provider_credential_path: Option<&Path>,
     runtime_store: &Path,
     codex_home: &Path,
     mcp_config: &Path,
@@ -1843,6 +1872,8 @@ fn launch_worker_runtime_detached(
         .arg("run-worker")
         .arg("--provider")
         .arg(model_provider)
+        .arg("--model")
+        .arg(model)
         .arg("--store")
         .arg(runtime_store)
         .arg("--codex-home")
@@ -1855,6 +1886,9 @@ fn launch_worker_runtime_detached(
         .arg(&activation_token_sha256)
         .arg("--max-runtime-seconds")
         .arg(max_runtime_seconds.to_string());
+    if let Some(path) = provider_credential_path {
+        command.arg("--provider-credential").arg(path);
+    }
     if auto_tools {
         command
             .arg("--auto-tools")
@@ -2223,6 +2257,8 @@ mod tests {
             model_runtime_bin: current_exe.clone(),
             tool_adapter_bin: current_exe,
             model_provider: "test".to_string(),
+            model: "test-model".to_string(),
+            provider_credential_path: None,
             thread_id: Some("error-terminalization".to_string()),
             objective: Some("Exercise the coordinator error boundary.".to_string()),
             cwd: cwd.clone(),

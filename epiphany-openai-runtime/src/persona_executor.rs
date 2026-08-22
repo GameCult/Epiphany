@@ -67,6 +67,7 @@ impl PersonaModelExecutionPlan {
 pub struct NativePersonaModelRunner {
     pub store_path: PathBuf,
     pub codex_home: PathBuf,
+    pub provider_credential_path: Option<PathBuf>,
     pub provider: String,
     pub model: String,
 }
@@ -98,6 +99,7 @@ impl PersonaModelRunner for NativePersonaModelRunner {
             let options = EpiphanyOpenAiRuntimeOptions {
                 store_path: self.store_path.clone(),
                 codex_home: self.codex_home.clone(),
+                provider_credential_path: self.provider_credential_path.clone(),
                 session_id: format!("persona-turn-{turn_id}"),
                 job_id: format!("persona-{stage}-{turn_id}"),
                 objective: format!("Run Persona {stage} stage for {turn_id}"),
