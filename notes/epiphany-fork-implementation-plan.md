@@ -428,6 +428,13 @@ Cut in this order:
    health record; gamecult-ops `a9e9f79`/`0c0dbd1` bind validation to the root
    trust store and inspect systemd credentials in the target mount namespace.
    No Ox-backed Mind decision has been produced while the shakedown is paused.
+27. **Future Epiphany builds are native at gamecult-ops `89f0d78`:** the
+   admitted `6b44b4d3` release was built in disposable Yggdrasil containers,
+   then all transient containers, volumes, copied package roots, and its
+   per-run test target were removed. The installed Idunn actuator now invokes
+   fixed Rust `1.95.0` directly as `epiphany-builder`; Docker, image, and CID
+   authority are absent. This does not manufacture a reason to rebuild the
+   already admitted body while cognition is paused.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

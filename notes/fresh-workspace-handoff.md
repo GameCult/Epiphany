@@ -32,6 +32,10 @@ proofs remain evidence; they do not authorize the current capstone or Gate 1.
   `braked`; both the swarm brake and Idunn deployment brake are engaged.
 - Idunn source `8ddf81400bfc0f51309cd37f8f196403fc5dbb79` is provenance-exact and
   admits Epiphany through the shared authenticated daemon-health contract.
+- gamecult-ops `89f0d7892b3646374ccdf4cef6c1dd19f41c7da6` removes Docker from
+  Epiphany's future Idunn compile/package actuator. Native Rust `1.95.0` is
+  installed under `epiphany-builder`; the exact installed actuator SHA-256 is
+  `c4e922b3ae2c01347ec2c581e52adb5757a2203ef92d8983412ea220de6688a1`.
 - No Ox inference has been run. The open proof is the fresh-store positive
   decision capstone, not deployment or credential readiness.
 
@@ -320,10 +324,12 @@ byte-identical. Its 2.09 MB temporary replay root is
 `.epiphany-run/native-model-failure-20260818-a`; evidence is distilled and the
 temporary root owns no continuing proof.
 
-Docker shakedown hygiene remains an operator invariant, but this migration and
-its package are native-only. Future containerized runs must use one shared warm
-cache set, exact run labels, bounded exported evidence, and terminal cleanup.
-A stopped build container or cloned source volume owns no durable proof.
+The admitted `6b44b4d3` release was compiled in disposable Docker builders on
+Yggdrasil before the native-build instruction was reconciled. All of their
+containers, volumes, copied package roots, and per-run test target were removed.
+gamecult-ops `89f0d78` makes the next Idunn Epiphany compile/package path native
+Rust `1.95.0` under `epiphany-builder`; the live actuator contains no Docker
+path. A build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 

@@ -50,7 +50,7 @@ current_status:
   latest_phase: Exact ab321b34 adds one decision-auditable OpenRouter transport without giving provider selection Mind authority. Exact c1a6034f keeps read-only supervisor, heartbeat, and resident-Self physiology alive while the swarm brake is engaged, and exact 6b44b4d3 publishes generic signed health under Idunn's shared wire schema. Idunn exact 8ddf8140 generalizes deployment validation over canonical authenticated daemon health. gamecult-ops exact a9e9f79/0c0dbd1 binds that proof to Idunn's root trust store and inspects systemd credentials inside Resident Self's mount namespace. The current exact source is deployed and signed-health admitted; Gate 1 remains paused behind the fresh-store capstone and deliberate operator wake.
   operational_state:
     local_worktree: source_head_6b44b4d3_pushed_yggdrasil_deployed_signed_health_admitted_braked_docs_reconciled
-    docker_engine_access: starfire_compiler_retired_12_stopped_epiphany_build_containers_and_10_compiler_volumes_removed_8_94_gib_reclaimed_no_current_source_build
+    docker_engine_access: starfire_compiler_retired_all_yggdrasil_epiphany_transient_containers_volumes_package_roots_and_per_run_test_target_removed_future_idunn_epiphany_builds_native_rust_1_95_0_via_gamecult_ops_89f0d78
     operator_wireguard: restored
     starfire_persona_permit_firewall: persistent_exact_gamecult_ops_6ee08a4
     yggdrasil: upgraded_16_vcpu_62_gib_2_tib_intended_swarm_and_cicd_host
