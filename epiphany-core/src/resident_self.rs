@@ -670,8 +670,6 @@ pub fn coordinator_argv(
         policy.mcp_config.display().to_string(),
         "--artifact-dir".into(),
         artifact_dir.display().to_string(),
-        "--agent-memory-dir".into(),
-        policy.agent_memory_store.display().to_string(),
         "--runtime-store".into(),
         policy.runtime_store.display().to_string(),
         "--local-verse-store".into(),
@@ -3312,6 +3310,58 @@ pub fn load_resident_self_state(path: &Path) -> Result<ResidentSelfState> {
     Ok(state_cache(path)?
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
         .unwrap_or_default())
+}
+
+#[cfg(test)]
+mod coordinator_launch_contract_tests {
+    use super::*;
+
+    #[test]
+    fn coordinator_argv_uses_only_coordinator_owned_state_inputs() {
+        let policy = ResidentSelfPolicy {
+            workspace: PathBuf::from("/epiphany/workspace"),
+            coordinator_bin: PathBuf::from("/epiphany/bin/epiphany-mvp-coordinator"),
+            model_runtime_bin: PathBuf::from("/epiphany/bin/epiphany-model-runtime"),
+            tool_adapter_bin: PathBuf::from("/epiphany/bin/epiphany-tool-mcp-runtime"),
+            runtime_store: PathBuf::from("/epiphany/state/runtime.cc"),
+            local_verse_store: PathBuf::from("/epiphany/state/local-verse.cc"),
+            agent_memory_store: PathBuf::from("/epiphany/state/mind.cc"),
+            artifact_root: PathBuf::from("/epiphany/artifacts"),
+            codex_home: PathBuf::from("/epiphany/codex-home"),
+            mcp_config: PathBuf::from("/epiphany/mcp.toml"),
+            model_provider: "openrouter".into(),
+            model: "stealth/ox-alpha".into(),
+            provider_credential_path: None,
+            max_steps: 4,
+            turn_timeout_seconds: 600,
+            cooldown_seconds: 10,
+            idle_sleep_seconds: 2,
+            failure_backoff_seconds: 30,
+            release_commit: "release-commit".into(),
+            release_manifest_digest: "sha256:release-manifest".into(),
+            release_store: PathBuf::from("/epiphany/state/local-verse.cc"),
+            release_runtime_id: "epiphany-runtime".into(),
+            release_id: "release-id".into(),
+            release_witness_sha256: "sha256:release-witness".into(),
+        };
+        let argv = coordinator_argv(
+            &policy,
+            "epiphany-runtime",
+            "resident-turn",
+            None,
+            &ResidentSelfWake::Explicit {
+                objective: "Inspect the Body".into(),
+            },
+        );
+
+        assert!(!argv.iter().any(|argument| argument == "--agent-memory-dir"));
+        assert!(argv.windows(2).any(|pair| {
+            pair == [
+                "--runtime-store",
+                policy.runtime_store.to_str().expect("UTF-8 test path"),
+            ]
+        }));
+    }
 }
 
 #[cfg(test)]
