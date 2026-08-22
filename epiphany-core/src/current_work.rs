@@ -2404,6 +2404,20 @@ pub fn accept_proposal_modeling_result(
     if evidence.job_id != job_id || evidence.result_id != result.result_id {
         return Err(anyhow!("proposal Modeling fulfillment identity mismatch"));
     }
+    if let Err(error) =
+        crate::runtime_spine::validate_proposal_modeling_worker_admission(&cache, &result)
+    {
+        return record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::ProposalModeling,
+            request_id,
+            "Modeling.proposal_frontier",
+            EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused,
+            &error.to_string(),
+            accepted_at,
+        );
+    }
     let proposal = result
         .repo_model_mutation_proposal()?
         .ok_or_else(|| anyhow!("proposal Modeling result has no semantic mutation proposal"))?;
@@ -4388,7 +4402,7 @@ mod tests {
                     recommended_next_organ: "Imagination".into(),
                     dependency_item_ids: vec!["body-node".into()],
                     status: RepoFrontierStatus::Active,
-                    evidence_refs: vec![proposal.proposal_id.clone()],
+                    evidence_refs: vec!["body-node".into()],
                     ..Default::default()
                 },
             }],
@@ -4501,7 +4515,11 @@ mod tests {
             refusal.refusal_kind,
             EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused
         );
-        assert!(refusal.reason.contains("dependency is absent"));
+        assert!(
+            refusal
+                .reason
+                .contains("not one safe proposal-citing routeable frontier")
+        );
         assert_eq!(
             refusal_commit.invariant_owner,
             "Modeling.proposal_frontier.refusal"

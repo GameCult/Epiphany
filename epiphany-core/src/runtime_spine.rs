@@ -5812,10 +5812,15 @@ pub struct RuntimeTypedFulfillmentEvidence {
     pub request_id: String,
 }
 
-pub(crate) fn validate_proposal_modeling_worker_fulfillment(
+struct ValidatedProposalModelingWorkerFulfillment {
+    proposal: RepoFrontierWorkProposal,
+    mutation_operations: Vec<crate::EpiphanyRepoModelMutationOperation>,
+}
+
+fn validated_proposal_modeling_worker_fulfillment(
     cache: &CultCache,
     result: &EpiphanyRuntimeRoleWorkerResult,
-) -> Result<()> {
+) -> Result<ValidatedProposalModelingWorkerFulfillment> {
     let request_id = result
         .proposal_modeling_request_id
         .as_deref()
@@ -5996,6 +6001,27 @@ pub(crate) fn validate_proposal_modeling_worker_fulfillment(
             mismatches.join(", ")
         ));
     }
+    Ok(ValidatedProposalModelingWorkerFulfillment {
+        proposal,
+        mutation_operations,
+    })
+}
+
+pub(crate) fn validate_proposal_modeling_worker_fulfillment(
+    cache: &CultCache,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<()> {
+    validated_proposal_modeling_worker_fulfillment(cache, result)?;
+    Ok(())
+}
+
+pub(crate) fn validate_proposal_modeling_worker_admission(
+    cache: &CultCache,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<()> {
+    let validated = validated_proposal_modeling_worker_fulfillment(cache, result)?;
+    let proposal = validated.proposal;
+    let mutation_operations = validated.mutation_operations;
     let upserts = mutation_operations
         .iter()
         .filter_map(|operation| match operation {
