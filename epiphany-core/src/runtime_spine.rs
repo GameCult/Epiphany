@@ -6323,7 +6323,7 @@ fn validate_autonomous_proposal_origin_binding(
     let worker_launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&binding.direction_worker_job_id)?
         .ok_or_else(|| anyhow!("autonomous proposal binding lost its Imagination worker launch"))?;
-    crate::validate_current_admitted_model_direction_consideration_request(cache, &request)?;
+    crate::validate_admitted_model_direction_consideration_request(&request)?;
     crate::validate_admitted_model_direction_consideration_result(&request, &result)?;
     let result_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&result)?));
     let worker_result_sha256 = format!(

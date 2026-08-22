@@ -149,26 +149,40 @@ pub fn validate_current_request(
     cache: &cultcache_rs::CultCache,
     request: &AdmittedModelDirectionConsiderationRequest,
 ) -> Result<()> {
-    validate_request_shape(request)?;
-    if request_is_superseded(cache, request)? {
+    validate_request(request)?;
+    if (crate::EpiphanyRepoModelBasis {
+        projection_digest: request.model_projection_digest.clone(),
+        source_documents: request.model_source_documents.clone(),
+    })
+    .validate_against_cache(cache)
+    .is_err()
+    {
         bail!("model direction consideration request is stale");
+    }
+    Ok(())
+}
+
+pub fn validate_request(request: &AdmittedModelDirectionConsiderationRequest) -> Result<()> {
+    if request.schema_version != REQUEST_SCHEMA
+        || request.contract != REQUEST_CONTRACT
+        || request.private_state_included
+        || request.request_id.trim().is_empty()
+        || request.runtime_id.trim().is_empty()
+        || request.thread_id.trim().is_empty()
+        || request
+            .previous_terminal_result_id
+            .as_ref()
+            .is_some_and(|value| value.trim().is_empty())
+        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+    {
+        bail!("invalid model direction consideration request");
     }
     crate::EpiphanyRepoModelBasis {
         projection_digest: request.model_projection_digest.clone(),
         source_documents: request.model_source_documents.clone(),
     }
-    .validate_against_cache(cache)?;
-    Ok(())
-}
-
-fn validate_request_shape(request: &AdmittedModelDirectionConsiderationRequest) -> Result<()> {
-    if request.schema_version != REQUEST_SCHEMA
-        || request.contract != REQUEST_CONTRACT
-        || request.private_state_included
-        || request.request_id.trim().is_empty()
-    {
-        bail!("invalid model direction consideration request");
-    }
+    .validate()
+    .map_err(|_| anyhow!("invalid model direction consideration request"))?;
     Ok(())
 }
 
@@ -176,7 +190,7 @@ pub fn request_is_superseded(
     cache: &cultcache_rs::CultCache,
     request: &AdmittedModelDirectionConsiderationRequest,
 ) -> Result<bool> {
-    validate_request_shape(request)?;
+    validate_request(request)?;
     Ok(crate::EpiphanyRepoModelBasis {
         projection_digest: request.model_projection_digest.clone(),
         source_documents: request.model_source_documents.clone(),
@@ -245,7 +259,7 @@ mod tests {
             document_key: crate::REPO_MODEL_IDENTITY_KEY.into(),
             schema_id: Some("EpiphanyRepoModelIdentityDocument".into()),
             payload_msgpack: vec![1],
-            payload_sha256: format!("{:x}", Sha256::digest([1])),
+            payload_sha256: format!("sha256:{:x}", Sha256::digest([1])),
         }];
         crate::EpiphanyRepoModelBasis {
             projection_digest: format!(
@@ -307,6 +321,21 @@ mod tests {
             })
             .collect();
         assert!(validate_result(&request, &result).is_err());
+    }
+
+    #[test]
+    fn intrinsic_request_validation_does_not_claim_current_repo_model_authority() {
+        let request = request();
+        assert!(validate_request(&request).is_ok());
+        assert!(validate_current_request(&cultcache_rs::CultCache::new(), &request).is_err());
+
+        let mut substituted = request.clone();
+        substituted.model_source_documents[0].payload_msgpack = vec![2];
+        assert!(validate_request(&substituted).is_err());
+
+        let mut malformed = request;
+        malformed.requested_at = "not-a-time".into();
+        assert!(validate_request(&malformed).is_err());
     }
 
     #[test]
