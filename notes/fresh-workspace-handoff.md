@@ -1,8 +1,8 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-21
+Updated: 2026-08-22
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `bb823c54`
+Latest committed implementation cut: `6b44b4d3`
 Current worktree: canonical documentation and evidence reconciliation only
 
 ## Orientation
@@ -10,12 +10,30 @@ Current worktree: canonical documentation and evidence reconciliation only
 The five-day shakedown and Model Atlas operational Gate 1 are paused. Do not
 touch historical c011/proof volumes, reuse partial Gate roots, release
 autonomous scheduling, register operational topology in `gamecult-ops`, race
-Idunn's Yggdrasil CI/CD task with local compiler work, or call the organism
-deployment-ready.
+Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
+cognition without an explicit operator resumption.
 
-Epiphany is a supervised engineering alpha. Historical live proofs remain
-valid evidence, but current source has advanced beyond the last packaged c011
-body.
+Epiphany is a supervised engineering alpha. Its current OpenRouter/Ox body is
+deployed, signed-health admitted, and deliberately braked. Historical live
+proofs remain evidence; they do not authorize the current capstone or Gate 1.
+
+## Current live deployment
+
+- Epiphany source: `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b`.
+- Release: `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+- Release witness file SHA-256:
+  `36e70441aa27010436d4f9dbc5d6b591758f8299d77c415d1d1803d35a9fff31`.
+- Full-workspace test receipt SHA-256:
+  `c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`.
+- Model provider: OpenRouter `stealth/ox-alpha`, selected explicitly and
+  injected through the root-owned systemd credential boundary.
+- `epiphany.service`, `epiphany-heartbeat.service`, and
+  `epiphany-swarm.service` are active with zero restarts. Resident Self reports
+  `braked`; both the swarm brake and Idunn deployment brake are engaged.
+- Idunn source `8ddf81400bfc0f51309cd37f8f196403fc5dbb79` is provenance-exact and
+  admits Epiphany through the shared authenticated daemon-health contract.
+- No Ox inference has been run. The open proof is the fresh-store positive
+  decision capstone, not deployment or credential readiness.
 
 ## What just landed
 
@@ -236,25 +254,34 @@ tools, Persona transport, and governed consequence receipts remain. The
 standalone Discord command daemon, bridge admission worker, operator Mind
 writers, deployment gate, unit, and readiness claims do not.
 
-Idunn compiled and tested exact current source
-`52824453e1d0d0150b35bd4c179f16156544be0d` on upgraded Yggdrasil. Exact
-`52824453` unifies workspace-coverage authority assembly; gamecult-ops exact
-`90a62c2` runs the stateful test suite serially while compilation remains
-parallel. The full workspace gate passed under test receipt SHA-256
-`e23aa1f478dd7b0da179ef2def91b9595b19b5866d6c54b48e65dd6a7939f219`.
-Idunn sealed 26 immutable root-owned binaries plus `release-witness.ccmp` as
-release `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`;
-the witness file SHA-256 is
-`5ca155a8e10744a54f16b7e7fcc7390b5008e0c7b78e601fb02290738e6b025a`.
-`epiphany-operator-command` is absent.
+Exact `ab321b34` introduces one explicit, decision-auditable model-provider
+boundary. The native request remains canonical; provider selection lowers it
+internally into the exact OpenAI or OpenRouter request recorded in the decision
+context. Exact `547404fa` projects public provider identity without exposing
+credentials. Exact `c1a6034f` preserves supervisor, heartbeat, and Resident
+Self read-only physiology while the swarm brake is engaged. Exact `6b44b4d3`
+publishes the shared Idunn signed-health wire schema.
 
-The exact Idunn request ending `2026-08-22T04:45:54.424Z` refused before the
-outage boundary because Resident Self's canonical `codex-auth.json` and
-`codex-config.toml` are absent. The deployment brake is engaged; Epiphany units
-are inactive and disabled; `app/current` still names recovery source
-`267a0257`; no `deployment.env`, runtime publication, or signed-health
-admission exists. Idunn is provenance-exact/live with `NRestarts=0`. No
-transient Epiphany container, named volume, package root, or test root remains.
+Idunn compiled, tested, packaged, deployed, and health-admitted exact current
+source `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` on upgraded Yggdrasil. The
+full workspace gate passed under test receipt SHA-256
+`c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`.
+Idunn sealed 26 immutable root-owned binaries plus `release-witness.ccmp` as
+release `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`;
+the witness file SHA-256 is
+`36e70441aa27010436d4f9dbc5d6b591758f8299d77c415d1d1803d35a9fff31`.
+The successful request is
+`manual:redeploy:yggdrasil-epiphany:manual:redeploy:yggdrasil-epiphany:2026-08-22T07:53:37.096Z`.
+`epiphany-operator-command` remains absent.
+
+The provider boundary exposed two deployment ownership defects rather than
+earning provider-specific compensators. Idunn's validator now consumes its
+canonical authenticated daemon-health record; the root actuator supplies the
+exact trust store. Runtime credential readiness is inspected inside Resident
+Self's systemd mount namespace, where `LoadCredential` actually exists. These
+cuts are live at Idunn `8ddf8140` and gamecult-ops `a9e9f79`/`0c0dbd1`.
+No transient Epiphany container, named volume, package root, or per-run test
+root remains.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -300,13 +327,12 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Provision Epiphany's `codex-auth.json` and `codex-config.toml` through their
-   single credential owner. Submit exact source `52824453e1d0d0150b35bd4c179f16156544be0d`
-   through Idunn, reuse its sealed test/package result, and require publication,
-   runtime start, and signed-health receipts. Do not compile on Starfire and do
-   not let the Epiphany lane bootstrap another organ.
-2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
-   Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
+1. Keep the swarm and deployment brakes engaged until the operator explicitly
+   resumes the paused shakedown. Deployment success does not authorize model
+   inference.
+2. On that resumption, run the fresh-store Decision-Auditable Concurrent Mind
+   capstone against exact source `6b44b4d3` using OpenRouter
+   `stealth/ox-alpha`: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
    `list-decisions` plus exact `audit-decision`, and process restart/re-entry
    with identical obligations and no resurrection.
@@ -327,13 +353,17 @@ A stopped build container or cloned source volume owns no durable proof.
   testing, release construction, deployment, and daemon survival there; its
   current deployment truth belongs to Idunn's typed deployment receipts.
 - Idunn is active, provenance-exact, and independent at installed source
-  `2a5cb3e0`; its Epiphany target is installed. Exact `52824453` passed the full
-  workspace gate and sealed successfully on Yggdrasil. Publication stopped
-  safely before mutation. This current package is reusable after credential
-  provisioning and is not a reason to fall back to Starfire compilation.
-- Bifrost public crossing remains active on Yggdrasil. A completed public
-  Persona consequence is still unproven because the Yggdrasil Discord
-  credential is absent.
+  `8ddf81400bfc0f51309cd37f8f196403fc5dbb79`. Exact Epiphany source
+  `6b44b4d3` is deployed and authenticated-health admitted; Starfire remains
+  outside the compilation path.
+- Epiphany's three physiology units are active with zero restarts. OpenRouter
+  `stealth/ox-alpha` credential readiness is proven inside Resident Self's
+  mount namespace. The organism remains braked and has produced no Ox-backed
+  Mind decision.
+- Bifrost public crossing remains active on Yggdrasil and publishes typed
+  readiness. Its current Idunn observation is diagnostic-only rather than a
+  lifecycle-authenticated admission. A completed public Persona consequence
+  remains an open capstone leg.
 - Model Atlas code and isolated proofs remain accepted. Signed Gate 1 sight,
   brake freeze, autonomous cascade, partition exercise, and endurance remain
   open.

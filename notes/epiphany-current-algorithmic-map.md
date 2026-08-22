@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
-Updated: 2026-08-21
-Latest committed implementation cut: `bb823c54` on `codex/epiphany-shakedown-live`
+Updated: 2026-08-22
+Latest committed implementation cut: `6b44b4d3` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical documentation and evidence reconciliation only
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -17,8 +17,11 @@ question without consulting a transcript:
 > when it produced this decision?
 
 CultCache is the decision-bearing substrate. CultNet/CultMesh carry typed
-projections and crossings. Codex-derived code remains only for earned OpenAI
-authentication/model transport; it owns no Epiphany Mind, scheduler, route, or
+projections and crossings. The model-provider boundary explicitly selects a
+typed provider dialect and internally derives the exact provider request from
+the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
+Codex-derived code remains only where an OpenAI provider needs its earned
+authentication or transport. Neither owns Epiphany Mind, scheduler, route, or
 interface authority.
 
 ## Canonical authority map
@@ -31,6 +34,7 @@ interface authority.
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | current-work projections, Resident pressure, and exact runtime receipts | one prioritized recommendation and read-only operator views | Coordinator presence is derived; no mutable coordinator head exists. |
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
+| model-provider boundary | sealed native model request plus explicit provider configuration and injected credential | exact internally derived provider request and transport result | Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
 | model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/event in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |
@@ -109,6 +113,10 @@ typed reasoning-projection variant.
 The terminal context contains the exact basis ID, exact final native request,
 the exact internally derived provider request, and ordered governed tool
 intent/receipt versions actually supplied to the pass.
+
+Provider credentials remain deployment-substrate inputs. Yggdrasil injects the
+OpenRouter key through systemd `LoadCredential`; readiness is checked inside
+Resident Self's mount namespace. The key is neither prompt cargo nor Mind state.
 
 Structured decisions are authoritative; token streams and assistant deltas are
 optional retention. A model-backed failure is also a typed terminal decision
@@ -295,7 +303,7 @@ same durable records before and after archival.
 
 ## Verification and open gates
 
-Accepted at the `bb823c54` source boundary:
+Accepted through the live `6b44b4d3` source boundary:
 
 - every Epiphany core target compiles;
 - core library `496/496`;
@@ -317,21 +325,28 @@ Accepted at the `bb823c54` source boundary:
 - exact source `5f66d6c9` adds `epiphany-model-runtime list-decisions`, a
   deterministic read-only index of contexts whose terminal audit chain already
   validates. It omits sealed nonterminal pass physiology and cannot author or
-  admit state. The current operator-plane deletion and authority-assembly cut
-  through exact `52824453` passed Idunn's serialized Yggdrasil workspace gate
-  and is sealed as 26 binaries plus witness in release
-  `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`.
+  admit state.
+- exact `ab321b34` adds explicit OpenAI/OpenRouter transport lowering while
+  preserving the native request as the only canonical request. Exact
+  `c1a6034f` keeps read-only physiology alive under the brake; exact `6b44b4d3`
+  emits Idunn's shared signed-health schema.
+- exact source `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` passed Idunn's serialized
+  Yggdrasil workspace gate under test receipt SHA-256
+  `c04244fb986b749e4a20439320ef0790d4c7e437c0d9939420dcee5e085c16e5`
+  and is deployed as 26 binaries plus witness in release
+  `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+- the supervisor, heartbeat, and Resident Self units are active with zero
+  restarts, the body is authenticated-health admitted by Idunn, and the swarm
+  and deployment brakes are engaged.
 - runtime schema v2 refuses the prior digest-only worker archive epoch without
   mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
-1. provision Epiphany's Codex credentials through their single owner, then let
-   Idunn publish exact source `52824453e1d0d0150b35bd4c179f16156544be0d`
-   from its sealed package. Require runtime publication and signed health; the
-   exact request ending `2026-08-22T04:45:54.424Z` refused before the outage
-   boundary and left Epiphany inactive on recovery source `267a0257`;
-2. run the fresh exact-package capstone over a new store, including concurrent
+1. keep the admitted body braked until explicit operator resumption; successful
+   deployment and credential readiness do not authorize cognition;
+2. run the fresh exact-package capstone over a new store with OpenRouter
+   `stealth/ox-alpha`, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,
    concurrency, refusal, and re-entry matrix is accepted;

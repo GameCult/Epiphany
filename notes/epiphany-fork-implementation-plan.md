@@ -220,8 +220,10 @@ Gate preflight exposed the aggregate ownership defect; the aggregate has now
 been structurally removed. Decision-context admission, retention,
 writable-epoch refusal, keyed graph/Verification concurrency, concrete
 Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
-restart/re-entry are accepted. The remaining gate is the fresh exact-package
-capstone.
+restart/re-entry are accepted. Exact source `6b44b4d3` is now deployed,
+OpenRouter `stealth/ox-alpha` credential readiness is proven, and generic
+signed health is admitted. The remaining gate is the fresh exact-package
+positive decision capstone, which requires explicit operator resumption.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
@@ -404,19 +406,28 @@ Cut in this order:
    parallel release build. Any containerized run must use exact run labels and remove disposable
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
-   names the invariant they preserve. The Epiphany target is now installed and
-   exact source `52824453e1d0d0150b35bd4c179f16156544be0d` passed Idunn's
-   serialized Yggdrasil workspace gate, then sealed 26 binaries plus witness as
-   release `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`.
-   Publication refused before the outage boundary because the canonical Codex
-   credentials are absent. The unused Discord/Bifrost/VoidBot operator bridge
-   is deleted across source and deployment; Starfire is not a fallback.
+   names the invariant they preserve. Exact source
+   `6b44b4d39b4867ae392c54e52bd2daf1207a7c7b` passed Idunn's serialized
+   Yggdrasil workspace gate, then sealed 26 binaries plus witness as release
+   `sha256-db5033abd5b3bf8eeccb40b5cf8d030da5434cc71e4ef48d090ba6a561dc5ecf`.
+   It is deployed, authenticated-health admitted, and deliberately braked.
+   Transient Epiphany containers, volumes, package roots, and the per-run test
+   target are absent. The unused Discord/Bifrost/VoidBot operator bridge is
+   deleted across source and deployment; Starfire is not a fallback.
 25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists
    nothing, and omits nonterminal pass physiology. That surface is now inside
-   the accepted Idunn-built `52824453` package. Runtime publication and signed
-   health remain blocked only by canonical credential provisioning.
+   the admitted Idunn-built `6b44b4d3` package.
+26. **Explicit OpenRouter/Ox transport is live at `6b44b4d3`:** exact
+   `ab321b34` makes provider selection typed and keeps the native request
+   canonical; the provider request is internally derived and retained in the
+   decision context. Exact `c1a6034f` preserves read-only physiology while the
+   swarm brake is engaged. Exact `6b44b4d3` publishes Idunn's shared signed
+   daemon-health schema. Idunn exact `8ddf8140` validates the canonical generic
+   health record; gamecult-ops `a9e9f79`/`0c0dbd1` bind validation to the root
+   trust store and inspect systemd credentials in the target mount namespace.
+   No Ox-backed Mind decision has been produced while the shakedown is paused.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
