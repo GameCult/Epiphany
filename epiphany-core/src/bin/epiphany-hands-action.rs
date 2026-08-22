@@ -821,7 +821,7 @@ mod tests {
     fn refuses_command_when_review_does_not_allow_operation() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime-spine.msgpack");
-        seed_gate_with_operations(&store, vec![".".to_string()], vec!["patch".to_string()])?;
+        seed_gate_with_operations(&store, vec!["src".to_string()], vec!["patch".to_string()])?;
 
         let result = record_command(
             &store,
