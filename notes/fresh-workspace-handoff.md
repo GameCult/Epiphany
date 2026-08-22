@@ -439,16 +439,27 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-1. Let Idunn compile, test, and seal exact `5b799b12` without touching another
-   target or moving the historical production store.
-2. Run that exact package from private fresh-store Ox17. Stop after
-   three provider failures total. Prove direct Body Modeling without Eyes,
-   refusal-to-retry if exercised, Hands -> Verification -> Mind,
-   `list-decisions` plus exact `audit-decision`, and restart/re-entry without
-   public speech.
-3. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16 or transplant their decisions.
-   Only after Ox17 passes may Model Atlas Gate 1 restart from a new external
-   root.
+The Ox17 deployment lane is paused. Yggdrasil exposed 96 GiB of dead native
+Cargo targets after interrupted full-workspace builds; exact cleanup returned
+the builder target root to 4 KiB. The first causal source cut is verified:
+
+- 21 duplicate core/release binary declarations are gone; each production
+  entrypoint has one Cargo owner;
+- 19 generic repo-request smoke executables are gone because Cargo compiled
+  them but their `main()` assertions were not tests;
+- the runtime-store migrator CLI and the unshipped repo-personality birth
+  subsystem, parallel `agents.msgpack` initialization, schemas, prompts, and
+  stale contract plans are gone;
+- the non-vendor diff removes 19,252 net lines and reduces `epiphany-core` from
+  75 to 30 binary targets;
+- core library tests remain 494/494 and Hands remains 5/5 under the sole release
+  package owner.
+
+Next, map and cut the surviving legacy `agent_memory` aggregate,
+`runtime_store_migration` library/tests, and the local PowerShell operator
+control plane. Tests survive only when they falsify a named live invariant.
+Do not run a full-workspace compile, package, deployment, or Ox root until the
+subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

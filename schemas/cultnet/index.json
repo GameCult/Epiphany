@@ -544,28 +544,6 @@
       "path": "epiphany.surface.void-memory.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-initialization.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_initialization_surface.v0",
-      "documentType": "epiphany.surface.repo_initialization",
-      "title": "Epiphany repo-initialization",
-      "path": "epiphany.surface.repo-initialization.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-birth-runner.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_birth_runner_surface.v0",
-      "documentType": "epiphany.surface.repo_birth_runner",
-      "title": "Epiphany repo-birth-runner",
-      "path": "epiphany.surface.repo-birth-runner.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session_intent.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -764,28 +742,6 @@
       "path": "epiphany.repo_startup_intent.v0.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_initialization_accept_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_initialization_accept_intent.v0",
-      "documentType": "epiphany.repo_initialization_accept_intent.v0",
-      "title": "epiphany repo_initialization_accept_intent v0",
-      "path": "epiphany.repo_initialization_accept_intent.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_birth_run_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_birth_run_intent.v0",
-      "documentType": "epiphany.repo_birth_run_intent.v0",
-      "title": "epiphany repo_birth_run_intent v0",
-      "path": "epiphany.repo_birth_run_intent.v0.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.rider_status_intent.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -927,39 +883,6 @@
       "documentType": "epiphany.persona_other_request.v0",
       "title": "Epiphany Persona Other-Surface Crossing Request",
       "path": "epiphany.persona_other_request.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-personality-artifacts.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_personality_artifacts.v0",
-      "documentType": "epiphany.repo_personality_artifacts.v0",
-      "title": "Epiphany Repo Personality Artifacts",
-      "path": "epiphany.repo-personality-artifacts.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-initialization-record.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_initialization_record.v0",
-      "documentType": "epiphany.repo_initialization_record",
-      "title": "Epiphany Repo Initialization Record",
-      "path": "epiphany.repo-initialization-record.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-birth-runner.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.repo_birth_runner.v0",
-      "documentType": "epiphany.repo_birth_runner.v0",
-      "title": "Epiphany Repo Birth Runner Summary",
-      "path": "epiphany.repo-birth-runner.schema.json"
     }
   ]
 }

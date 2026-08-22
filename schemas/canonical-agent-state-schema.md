@@ -142,13 +142,9 @@ Normal reviewed `selfPatch` writes may mutate only:
 
 They must not rewrite canonical trait bundles directly.
 
-Canonical trait bundles currently change through two sanctioned paths:
-
-1. initial role-shell provisioning
-2. repo-personality birth-time seeding through `accept-init`
-
-That birth-time route is documented in
-[repo-personality-birth-projection.md](./repo-personality-birth-projection.md).
+Canonical trait bundles are provisioned with the role shell. Later Persona
+memory and social-state changes enter as typed keyed Mind mutations with exact
+decision context; a startup classifier cannot rewrite them.
 
 Persona state is expected to evolve through richer event, relationship,
 appraisal, affect, and distillation flows. The current narrow `selfPatch`
@@ -206,4 +202,3 @@ current world model.
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md)
 - [organ-state-profiles.md](./organ-state-profiles.md)
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md)
-- [repo-personality-birth-projection.md](./repo-personality-birth-projection.md)

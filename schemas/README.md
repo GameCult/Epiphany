@@ -33,9 +33,6 @@ developer's damp recollection.
   derived speech-conditioning subset for Weks, Aquarium, and other utterance
   surfaces; it carries identity, trait vectors, mood, and activation without
   memory records.
-- [repo-personality-birth-projection.md](./repo-personality-birth-projection.md):
-  deterministic birth-time path from repo terrain to newborn trait lattice and
-  heartbeat seeds.
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md):
   typed initiative and routine-state contract for the swarm heartbeat organ.
 - [cultnet/README.md](./cultnet/README.md):
@@ -49,7 +46,6 @@ The living implementation is in code:
 
 - [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs)
 - [heartbeat_state.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/heartbeat_state.rs)
-- [epiphany-repo-personality.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/bin/epiphany-repo-personality.rs)
 
 The rule is simple:
 
@@ -64,7 +60,6 @@ When changing any of the following, update this folder in the same pass:
 - canonical organ-state or Persona family names
 - standing role trait names
 - heartbeat store shape or pacing semantics
-- repo-personality birth-time projection math or routing
 - schema version identifiers
 
 If a change lands in code without a matching receipt here, assume the machine

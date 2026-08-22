@@ -916,10 +916,6 @@ pub struct EpiphanyRolePromptConfig {
     #[allow(dead_code)]
     pub research: String,
     #[allow(dead_code)]
-    pub repo_personality: String,
-    #[allow(dead_code)]
-    pub repo_memory: String,
-    #[allow(dead_code)]
     pub persona: String,
 }
 
@@ -1123,11 +1119,6 @@ mod tests {
             ("roles.modeling", prompts.roles.modeling.as_str()),
             ("roles.verification", prompts.roles.verification.as_str()),
             ("roles.research", prompts.roles.research.as_str()),
-            (
-                "roles.repo_personality",
-                prompts.roles.repo_personality.as_str(),
-            ),
-            ("roles.repo_memory", prompts.roles.repo_memory.as_str()),
             ("roles.persona", prompts.roles.persona.as_str()),
             (
                 "implementation.continue_template",

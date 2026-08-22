@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -56,10 +56,6 @@ param(
     [int]$RepoSwarmMaxIterations = 8,
     [string]$RepoSwarmUntil = "blocked-or-published",
     [string]$RepoWorkItem = "persona-intake-local",
-    [string]$RepoLivefireExpectedPath = "README.md",
-    [string]$RepoLivefireExpectedFamily = "repo.status_section",
-    [string]$RepoLivefireExpectedGate = "awaiting-publication",
-    [string]$RepoLivefireExpectedBlocker = "bifrost-publication-missing",
     [string]$RepoWorkPublicProofOutput = "",
     [string]$RepoWorkRuntimeId = "repo-swarm-local",
     [string]$RepoWorkPublicProof = "",
@@ -280,7 +276,6 @@ $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $verseQueryExe = Join-Path $TargetDir "debug\epiphany-verse-query.exe"
 $daemonSurvivalRehearsalExe = Join-Path $TargetDir "debug\epiphany-daemon-survival-rehearsal-smoke.exe"
-$repoLivefireClosureSmokeExe = Join-Path $TargetDir "debug\epiphany-repo-livefire-closure-smoke.exe"
 $swarmExe = Join-Path $TargetDir "debug\epiphany-swarm.exe"
 $repoWorkExe = Join-Path $TargetDir "debug\epiphany-work.exe"
 $daemonSupervisorExe = Join-Path $TargetDir "debug\epiphany-daemon-supervisor.exe"
@@ -339,7 +334,6 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-verse-query",
             "--bin", "epiphany-daemon-survival-rehearsal-smoke",
-            "--bin", "epiphany-repo-livefire-closure-smoke",
             "--bin", "epiphany-swarm",
             "--bin", "epiphany-work",
             "--bin", "epiphany-daemon-supervisor",
@@ -382,10 +376,6 @@ $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQ
 if ($Mode -eq "daemon-survival-rehearsal") {
     $requiredBinaries += @($daemonSurvivalRehearsalExe)
 }
-if ($Mode -eq "repo-livefire-closure") {
-    $requiredBinaries += @($repoLivefireClosureSmokeExe)
-}
-
 function Format-ServiceExecutionFailedChecks {
     param([object]$Rows)
 
@@ -472,7 +462,7 @@ function Assert-SwarmBrakeAllowsLiveRun {
     }
 }
 
-if (@("plan", "run", "mvp", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-livefire-closure", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall") -contains $Mode) {
+if (@("plan", "run", "mvp", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall") -contains $Mode) {
     if (-not (Test-Path -LiteralPath $verseQueryExe)) {
         throw "required binary not found for swarm brake preflight: $verseQueryExe"
     }
@@ -571,7 +561,7 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory")
+$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory")
 $usesCompactOperatorContext = $compactOperatorContextModes -contains $Mode
 $shouldReadLocalVerse = $Mode -ne "smoke" -and -not $usesCompactOperatorContext
 if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
@@ -984,24 +974,6 @@ if ($Mode -eq "daemon-survival-rehearsal") {
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
         -StderrPath (Join-Path $artifactRoot "daemon-survival-rehearsal.stderr.log")
-}
-
-if ($Mode -eq "repo-livefire-closure") {
-    $resultPath = Join-Path $artifactRoot "repo-livefire-closure.stdout.json"
-    Invoke-Checked `
-        -Label "verify repo live-fire closure proof" `
-        -FilePath $repoLivefireClosureSmokeExe `
-        -Arguments @(
-            "--workspace", $Workspace,
-            "--item", $RepoWorkItem,
-            "--expected-path", $RepoLivefireExpectedPath,
-            "--expected-family", $RepoLivefireExpectedFamily,
-            "--expected-gate", $RepoLivefireExpectedGate,
-            "--expected-blocker", $RepoLivefireExpectedBlocker
-        ) `
-        -WorkingDirectory $Root `
-        -StdoutPath $resultPath `
-        -StderrPath (Join-Path $artifactRoot "repo-livefire-closure.stderr.log")
 }
 
 if ($Mode -eq "receipt-directory") {
@@ -1822,12 +1794,6 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Metrics request: status=$($result.status), item=$($result.item), branch=$($result.sourceBranch), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "daemon-survival-rehearsal") {
             Write-Host "Daemon survival rehearsal: status=$($result.status), daemon=$($result.daemonId), scheduler=$($result.schedulerId), policy=$($result.policyStatus), serve=$($result.serveStatus), iterations=$($result.serveIterations), schedulerReceipt=$($result.schedulerReceiptId), serviceManagerMutated=$($result.serviceManagerMutated), elevated=$($result.requiresElevatedAuthority), privateStateExposed=$($result.privateStateExposed), smokeDir=$($result.smokeDir)"
-        } elseif ($Mode -eq "repo-livefire-closure") {
-            $changedPaths = "none"
-            if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {
-                $changedPaths = ($result.changedPaths -join ",")
-            }
-            Write-Host "Repo live-fire closure: status=$($result.status), item=$($result.item), branch=$($result.branch), commit=$($result.commitSha), family=$($result.safeActionFamily), paths=$changedPaths, gate=$($result.currentGate), blocker=$($result.blocker), publicationGate=$($result.publicationGate), soul=$($result.soulVerdict), mindCommit=$($result.mindStateCommitReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"

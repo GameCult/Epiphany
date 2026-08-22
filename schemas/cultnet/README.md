@@ -32,13 +32,12 @@ server object deserves to be duplicated into a second baroque schema maze.
   `epiphany.agent_utterance_state.v0` for speech-conditioning without memory
   payloads.
 - `epiphany.surface.*`: operator-safe projections for scene, freshness,
-  context, graph query, coordinator, roles, jobs, Persona/Persona, Rider, Unity, repo
-  initialization, and related live surfaces.
+  context, graph query, roles, jobs, Persona, Rider, Unity, and related live
+  surfaces.
 - `*.intent.v0`: control documents Aquarium, a Discord bridge, a voice surface,
   or another trusted coordinator can submit through CultNet.
 - receipt/artifact schemas such as `epiphany.swarm-control-receipt`,
-  `epiphany.persona-bubble`, `epiphany.character-turn-packet`, and
-  `epiphany.repo-birth-runner`.
+  `epiphany.persona-bubble`, and `epiphany.character-turn-packet`.
 
 ## Publication Path
 

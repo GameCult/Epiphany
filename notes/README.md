@@ -14,9 +14,6 @@ contract docs.
 - `codex-auth-spine-inventory.md`: retained Codex auth/model transport keeper list.
 - `epiphany-fork-implementation-plan.md`: current campaign plan.
 - `epiphany-safety-architecture.md`: capability, autonomy, and governance boundaries.
-- `epiphany-repo-swarm-mvp-contract.md`: repo-swarm autonomy contract and
-  migration plan from current front doors to an MVP that can run Epiphany swarms
-  for repositories.
 
 ## Contract Maps
 
@@ -32,9 +29,7 @@ contract docs.
 
 - `epiphany-memory-graph-unified-plan.md`
 - `epiphany-cultmesh-dreaming-roadmap.md`
-- `epiphany-swarm-readiness-plan.md`
 - `perfect-machine-audit-roadmap.md`
-- `repo-personality-projection-layer-plan.md`
 - `voidbot-routine-adoption-plan.md`
 
 ## Archive
