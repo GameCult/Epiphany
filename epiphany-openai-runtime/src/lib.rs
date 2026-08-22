@@ -2777,6 +2777,7 @@ mod tests {
             verification_audits: Vec::new(),
             reorientation_decisions: Vec::new(),
             reorientation_failures: Vec::new(),
+            agent_pass_admission_refusals: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
             planning: Default::default(),
@@ -3014,6 +3015,7 @@ mod tests {
             private_state_included: false,
             model_projection_digest: "model-projection-41".into(),
             model_source_documents: Vec::new(),
+            prior_admission_refusals: Vec::new(),
         };
         let ingress = RoleWorkerResultIngress {
             role_id: Some("modeling".into()),
@@ -3230,6 +3232,7 @@ mod tests {
             private_state_included: false,
             model_projection_digest: "model-projection-41".into(),
             model_source_documents: Vec::new(),
+            prior_admission_refusals: Vec::new(),
         };
         let document =
             EpiphanyWorkerLaunchDocument::Role(epiphany_core::EpiphanyRoleWorkerLaunchDocument {
