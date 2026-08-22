@@ -197,8 +197,10 @@ pub fn bind_runtime_workspace_coverage_store(
     }
     store.validate_path_identity()?;
     drop(store);
-    open_workspace_coverage_authority(runtime_store)
-        .map(|authority| authority.runtime_coverage_route)
+    let authority = open_workspace_coverage_authority(runtime_store)?;
+    let route = authority.runtime_coverage_route.clone();
+    drop(authority);
+    Ok(route)
 }
 
 pub fn runtime_workspace_coverage_store_binding(
