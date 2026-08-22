@@ -934,16 +934,21 @@ fn managed_service_serve(args: Args) -> Result<()> {
             .context("aggregate runtime health sequence exhausted")?;
         let policies =
             load_epiphany_cultmesh_managed_service_policies(&args.store, args.runtime_id.clone())?;
-        for policy in &policies {
-            let mut service_args = args.clone();
-            service_args.service_id = policy.service_id.clone();
-            managed_service_reconcile(service_args)?;
+        let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+        let lifecycle_braked = swarm_brake_blocks_service_lifecycle_entry(brake.as_ref());
+        if !lifecycle_braked {
+            for policy in &policies {
+                let mut service_args = args.clone();
+                service_args.service_id = policy.service_id.clone();
+                managed_service_reconcile(service_args)?;
+            }
         }
         publish_managed_service_iteration_health(
             &args,
             &release,
             &release_witness_sha256,
             &policies,
+            lifecycle_braked,
             &health_publisher_incarnation,
             iteration,
             health_signer.as_ref(),
@@ -952,10 +957,11 @@ fn managed_service_serve(args: Args) -> Result<()> {
             "{}",
             serde_json::to_string_pretty(&json!({
                 "schemaVersion": "epiphany.cultmesh.managed_service_scheduler_pulse.v0",
-                "status": "completed",
+                "status": if lifecycle_braked { "braked" } else { "completed" },
                 "owner": "Idunn",
                 "iteration": iteration,
                 "policyCount": policies.len(),
+                "reconciledPolicyCount": if lifecycle_braked { 0 } else { policies.len() },
                 "privateStateExposed": false,
             }))?
         );
@@ -969,11 +975,25 @@ fn managed_service_serve(args: Args) -> Result<()> {
     Ok(())
 }
 
+const REQUIRED_MANAGED_HEALTH_SERVICES: [&str; 2] = [
+    SEMANTIC_PROJECTOR_SERVICE_ID,
+    WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+];
+
+fn required_managed_health_services(lifecycle_braked: bool) -> &'static [&'static str] {
+    if lifecycle_braked {
+        &[]
+    } else {
+        &REQUIRED_MANAGED_HEALTH_SERVICES
+    }
+}
+
 fn publish_managed_service_iteration_health(
     args: &Args,
     release: &EpiphanyPackagedReleaseEntry,
     authenticated_release_witness_sha256: &str,
     policies: &[EpiphanyCultMeshManagedServicePolicyEntry],
+    lifecycle_braked: bool,
     publisher_incarnation_id: &str,
     publisher_sequence: u64,
     health_signer: Option<&ServiceIdentitySigner<GameCultProviderHealthIdentity>>,
@@ -986,10 +1006,7 @@ fn publish_managed_service_iteration_health(
     ) else {
         return;
     };
-    let required = [
-        SEMANTIC_PROJECTOR_SERVICE_ID,
-        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
-    ];
+    let required = required_managed_health_services(lifecycle_braked);
     let mut expected = required.len();
     let mut terminal_current = 0_usize;
     let mut warming = 0_usize;
@@ -1014,7 +1031,7 @@ fn publish_managed_service_iteration_health(
         contradictions
             .push("resident health requires both heartbeat and Self provider stores".into());
     }
-    for service_id in required {
+    for &service_id in required {
         let Some(policy) = policies
             .iter()
             .find(|policy| policy.service_id == service_id)
@@ -2133,6 +2150,8 @@ fn managed_service_read(args: Args) -> Result<()> {
 }
 
 fn managed_service_reconcile(mut args: Args) -> Result<()> {
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let pinned_release = if args.release_id.is_some() {
         Some(pinned_packaged_release(&args, true)?.0)
     } else {
@@ -4302,18 +4321,9 @@ fn assert_swarm_brake_allows_service_lifecycle(context: &EpiphanyLocalVerseConte
 fn assert_swarm_brake_allows_service_lifecycle_entry(
     brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
 ) -> Result<()> {
-    let Some(brake) = brake else {
-        return Ok(());
-    };
-    if brake.status != "engaged" {
-        return Ok(());
-    }
-    let scope_matches = matches!(brake.scope.as_str(), "swarm" | "all");
-    let surface_matches = brake.protected_surfaces.is_empty()
-        || brake.protected_surfaces.iter().any(|surface| {
-            surface == "daemon.lifecycle_poke" || surface == "daemon.*" || surface == "*"
-        });
-    if scope_matches && surface_matches {
+    if let Some(brake) = brake
+        && swarm_brake_blocks_service_lifecycle_entry(Some(brake))
+    {
         anyhow::bail!(
             "local Verse swarm brake engaged; refusing daemon supervisor service lifecycle action; scope={}; protected={}; reason={}",
             brake.scope,
@@ -4322,6 +4332,19 @@ fn assert_swarm_brake_allows_service_lifecycle_entry(
         );
     }
     Ok(())
+}
+
+fn swarm_brake_blocks_service_lifecycle_entry(
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
+) -> bool {
+    brake.is_some_and(|brake| {
+        brake.status == "engaged"
+            && matches!(brake.scope.as_str(), "swarm" | "all")
+            && (brake.protected_surfaces.is_empty()
+                || brake.protected_surfaces.iter().any(|surface| {
+                    surface == "daemon.lifecycle_poke" || surface == "daemon.*" || surface == "*"
+                }))
+    })
 }
 
 fn sanitize_id(raw: &str) -> String {
@@ -4435,10 +4458,50 @@ mod service_lifecycle_brake_authority_tests {
             "daemon.tool_invocation",
         ]);
         assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&cognitive)).is_ok());
+        assert!(!swarm_brake_blocks_service_lifecycle_entry(Some(
+            &cognitive
+        )));
+        assert_eq!(required_managed_health_services(false).len(), 2);
         for surface in ["daemon.lifecycle_poke", "daemon.*", "*"] {
             let lifecycle = brake(&[surface]);
             assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&lifecycle)).is_err());
+            assert!(swarm_brake_blocks_service_lifecycle_entry(Some(&lifecycle)));
+            assert!(required_managed_health_services(true).is_empty());
         }
+    }
+
+    #[test]
+    fn supervisor_physiology_survives_the_lifecycle_brake_without_reconciliation() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn managed_service_serve(").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        let brake = body.find("load_epiphany_cultmesh_swarm_brake").unwrap();
+        let guard = body.find("if !lifecycle_braked").unwrap();
+        let reconcile = body.find("managed_service_reconcile").unwrap();
+        let health = body
+            .find("publish_managed_service_iteration_health")
+            .unwrap();
+        assert!(brake < guard && guard < reconcile && reconcile < health);
+        assert!(body.contains("\"reconciledPolicyCount\""));
+    }
+
+    #[test]
+    fn direct_managed_reconcile_checks_the_brake_before_any_lifecycle_mutation() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn managed_service_reconcile(").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        let brake = body.find("load_epiphany_cultmesh_swarm_brake").unwrap();
+        let gate = body
+            .find("assert_swarm_brake_allows_service_lifecycle_entry")
+            .unwrap();
+        let policy = body
+            .find("load_epiphany_cultmesh_managed_service_policy")
+            .unwrap();
+        assert!(brake < gate && gate < policy);
     }
 
     #[test]
