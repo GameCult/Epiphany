@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use chrono::SecondsFormat;
@@ -70,6 +71,7 @@ pub struct NativePersonaModelRunner {
     pub provider_credential_path: Option<PathBuf>,
     pub provider: String,
     pub model: String,
+    pub turn_timeout: Duration,
 }
 
 pub trait PersonaModelRunner {
@@ -106,9 +108,21 @@ impl PersonaModelRunner for NativePersonaModelRunner {
                 coordinator_note: "Native Persona model executor; transport owns inference only."
                     .to_string(),
                 default_model: Some(self.model.clone()),
-                request_timeout: Some(crate::DEFAULT_PROVIDER_REQUEST_TIMEOUT),
+                // Persona owns one outer typed turn budget. A second transport
+                // timer would give timeout policy two conflicting owners.
+                request_timeout: None,
             };
-            let summary = run_model_turn(&self.provider, options.clone(), request.clone()).await?;
+            let summary = tokio::time::timeout(
+                self.turn_timeout,
+                run_model_turn(&self.provider, options.clone(), request.clone()),
+            )
+            .await
+            .map_err(|_| {
+                anyhow!(
+                    "Persona {stage} stage exceeded its {} second outer turn budget",
+                    self.turn_timeout.as_secs()
+                )
+            })??;
             let output = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
             if summary.verdict != "pass" || output.trim().is_empty() {
                 let failure_summary = if summary.verdict != "pass" {
@@ -665,6 +679,20 @@ mod tests {
     use super::*;
     use epiphany_core::PersonaIdentity;
     use tempfile::tempdir;
+
+    #[test]
+    fn native_persona_runner_has_one_outer_turn_deadline() {
+        let source = include_str!("persona_executor.rs");
+        let production = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production code");
+        assert!(production.contains("tokio::time::timeout("));
+        assert!(production.contains("request_timeout: None"));
+        assert!(
+            !production.contains("request_timeout: Some(crate::DEFAULT_PROVIDER_REQUEST_TIMEOUT)")
+        );
+    }
 
     struct FakeRunner {
         calls: Vec<String>,

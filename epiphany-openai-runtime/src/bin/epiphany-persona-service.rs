@@ -105,6 +105,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
         provider_credential_path: options.provider_credential_path.clone(),
         provider: options.provider.clone(),
         model: options.model.clone(),
+        turn_timeout: Duration::from_secs(options.turn_timeout_seconds),
     };
     let model_terminal = match execute_persona_model_turn(&plan, &mut runner).await {
         Ok(receipt) => receipt,
@@ -321,6 +322,7 @@ struct Options {
     mouth_rudp: SocketAddr,
     mouth_timeout_ms: u64,
     retained_terminal_conversations: usize,
+    turn_timeout_seconds: u64,
     poll_ms: u64,
     once: bool,
 }
@@ -369,6 +371,13 @@ impl Options {
                 "256",
             )
             .parse()?,
+            turn_timeout_seconds: {
+                let seconds = value(&values, "--turn-timeout-seconds", "600").parse()?;
+                if seconds == 0 {
+                    return Err(anyhow!("--turn-timeout-seconds must be greater than zero"));
+                }
+                seconds
+            },
             runtime_id: value(&values, "--runtime-id", "epiphany-local"),
             provider: value(&values, "--provider", "openai-codex"),
             model: value(&values, "--model", "gpt-5.4"),
@@ -462,6 +471,7 @@ mod tests {
             mouth_rudp: "127.0.0.1:1".parse()?,
             mouth_timeout_ms: 1,
             retained_terminal_conversations: 1,
+            turn_timeout_seconds: 600,
             poll_ms: 1,
             once: true,
         };

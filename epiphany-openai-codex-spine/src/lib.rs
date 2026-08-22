@@ -1473,7 +1473,7 @@ fn response_error_message(response: Option<&Value>) -> String {
 }
 
 fn transport_error_to_anyhow(err: TransportError) -> anyhow::Error {
-    anyhow::anyhow!("failed to open direct Responses stream: {err}")
+    anyhow::anyhow!("failed to open provider transport: {err}")
 }
 
 fn auth_mode_from_manager(
