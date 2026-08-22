@@ -28,7 +28,7 @@ pub const MIND_COMMIT_RECEIPT_TYPE: &str = "epiphany.mind_commit_receipt.v1";
 pub const DECISION_AUDIT_PROJECTION_SCHEMA_VERSION: &str = "epiphany.decision_audit_projection.v1";
 pub const DECISION_AUDIT_INDEX_SCHEMA_VERSION: &str = "epiphany.decision_audit_index.v1";
 pub const WORKER_REASONING_PROJECTION_POLICY: &str =
-    "epiphany.reasoning_projection.worker_launch.v2";
+    "epiphany.reasoning_projection.worker_launch.v3";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EpiphanyRolePassAuthorityProjection {
@@ -154,6 +154,7 @@ impl From<crate::EpiphanyMindView> for EpiphanyMindPromptProjection {
 pub struct EpiphanyRoleReasoningProjection {
     pub authority: EpiphanyRolePassAuthorityProjection,
     pub mind: EpiphanyMindPromptProjection,
+    pub modeling_body: Option<crate::RepositoryBodyReasoningProjection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -996,9 +997,7 @@ fn validate_decision_terminal_records(
 
 fn role_terminal_semantic_role(basis: &EpiphanyReasoningBasis) -> Result<Option<String>> {
     Ok(match basis.projection()? {
-        EpiphanyReasoningProjection::RolePass(projection) => {
-            Some(projection.authority.role_id)
-        }
+        EpiphanyReasoningProjection::RolePass(projection) => Some(projection.authority.role_id),
         _ => None,
     })
 }
@@ -1017,11 +1016,26 @@ pub fn worker_reasoning_basis(
         EpiphanyWorkerLaunchDocument::Role(document) => {
             let mind = crate::assemble_mind_view(store_path)?;
             let source_documents = mind.source_documents.clone();
+            let authority: EpiphanyRolePassAuthorityProjection = document.into();
+            let modeling_body = if authority.role_id.eq_ignore_ascii_case("modeling") {
+                Some(crate::load_repository_body_reasoning_projection(
+                    store_path,
+                    authority
+                        .repository_body_observation_basis
+                        .as_ref()
+                        .ok_or_else(|| {
+                            anyhow!("Modeling reasoning launch has no repository Body basis")
+                        })?,
+                )?)
+            } else {
+                None
+            };
             (
                 source_documents,
                 EpiphanyReasoningProjection::RolePass(EpiphanyRoleReasoningProjection {
-                    authority: document.into(),
+                    authority,
                     mind: mind.into(),
+                    modeling_body,
                 }),
             )
         }
@@ -1109,6 +1123,22 @@ pub fn put_reasoning_basis(
                 return Err(anyhow!("role reasoning basis cites a non-role launch"));
             };
             let current_mind = crate::assemble_mind_view(store_path)?;
+            let current_modeling_body = if projection
+                .authority
+                .role_id
+                .eq_ignore_ascii_case("modeling")
+            {
+                Some(crate::load_repository_body_reasoning_projection(
+                    store_path,
+                    projection
+                        .authority
+                        .repository_body_observation_basis
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("Modeling reasoning basis has no Body basis"))?,
+                )?)
+            } else {
+                None
+            };
             let modeling_body_mismatch = projection
                 .authority
                 .role_id
@@ -1117,6 +1147,7 @@ pub fn put_reasoning_basis(
                     != current_mind.repository_body_observation;
             if projection.authority != document.into()
                 || projection.mind != current_mind.clone().into()
+                || projection.modeling_body != current_modeling_body
                 || basis.source_documents != current_mind.source_documents
                 || modeling_body_mismatch
             {
@@ -1846,8 +1877,8 @@ mod tests {
     fn role_document() -> EpiphanyRoleWorkerLaunchDocument {
         EpiphanyRoleWorkerLaunchDocument {
             thread_id: "creation-thread".into(),
-            role_id: "Modeling".into(),
-            objective: Some("Map the Body".into()),
+            role_id: "Imagination".into(),
+            objective: Some("Propose one future".into()),
             dynamic_prompt_context: Some("typed projection".into()),
             repository_body_observation_basis: None,
             proposal_modeling_context: None,
@@ -1879,16 +1910,16 @@ mod tests {
         Ok(EpiphanyRuntimeWorkerLaunchRequest {
             schema_version: crate::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
             job_id: "pass-1".into(),
-            binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
-            role: "Modeling".into(),
-            authority_scope: "epiphany.role.modeling".into(),
-            instruction: "Map the Body".into(),
+            binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: "Imagination".into(),
+            authority_scope: "epiphany.role.imagination".into(),
+            instruction: "Propose one future".into(),
             output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
             document_kind: "role".into(),
             launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
             metadata: Default::default(),
             organ_launch_contract: crate::default_launch_organ_contract(
-                "epiphany.role.modeling",
+                "epiphany.role.imagination",
                 "role",
                 crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
             ),
@@ -1904,7 +1935,10 @@ mod tests {
     }
 
     fn basis() -> Result<EpiphanyReasoningBasis> {
-        let authority = EpiphanyRolePassAuthorityProjection::from(role_document());
+        let mut document = role_document();
+        document.role_id = "Modeling".into();
+        document.objective = Some("Map the Body".into());
+        let authority = EpiphanyRolePassAuthorityProjection::from(document);
         let payload_msgpack = rmp_serde::to_vec_named(&crate::EpiphanyMindIdentity {
             schema_epoch: crate::MIND_SCHEMA_EPOCH.into(),
             runtime_id: "test-runtime".into(),
@@ -1938,6 +1972,7 @@ mod tests {
                 repository_body_observation: None,
                 repo_model: None,
             },
+            modeling_body: None,
         });
         EpiphanyReasoningBasis::new(
             "pass-1",
@@ -2581,9 +2616,9 @@ mod tests {
             result_id: "worker-result-1".into(),
             job_id: "pass-1".into(),
             session_id: "session-1".into(),
-            role: "Modeling".into(),
+            role: "Imagination".into(),
             verdict: "completed".into(),
-            summary: "Structured Modeling decision".into(),
+            summary: "Structured Imagination decision".into(),
             completed_at: "2026-08-14T00:00:03Z".into(),
             next_safe_move: "Inspect the durable decision context".into(),
             evidence_refs: Vec::new(),

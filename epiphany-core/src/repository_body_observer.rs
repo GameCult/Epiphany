@@ -109,6 +109,27 @@ pub struct RepositoryBodyObservationBasis {
     pub scan_finished_at: String,
 }
 
+/// Exact authenticated Repository Body state sealed into Modeling reasoning.
+///
+/// The compact basis identifies the admitted generation. Modeling additionally
+/// needs the actual Git identity and complete manifest so it can reason from
+/// its Body without laundering internal inspection through Eyes.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryBodyReasoningProjection {
+    pub basis: RepositoryBodyObservationBasis,
+    pub source_identity_type: String,
+    pub source_identity_key: String,
+    pub source_identity_sha256: String,
+    pub git_top_level: String,
+    pub object_format: String,
+    pub head_oid: Option<String>,
+    pub tree_oid: String,
+    pub two_scan_outcome: String,
+    pub manifest_entry_count: u64,
+    pub manifest_entries: Vec<RepositoryBodyManifestEntry>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.repository_body.observation",
@@ -484,6 +505,41 @@ pub fn load_current_runtime_repository_body_basis(
         manifest_root_sha256: observation.manifest_root_sha256,
         scan_started_at: observation.scan_started_at,
         scan_finished_at: observation.scan_finished_at,
+    })
+}
+
+pub fn load_repository_body_reasoning_projection(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+) -> Result<RepositoryBodyReasoningProjection> {
+    validate_repository_body_observation_basis(runtime_store, basis)?;
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let binding: RepositoryBodyBinding = decode(
+        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
+    )?;
+    let historical_head = RepositoryBodyHead {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: basis.workspace_id.clone(),
+        generation: basis.generation,
+        observation_id: basis.observation_id.clone(),
+        manifest_root_sha256: basis.manifest_root_sha256.clone(),
+    };
+    let (observation, manifest) = validate_body_chain(&entries, &binding, &historical_head)?;
+    Ok(RepositoryBodyReasoningProjection {
+        basis: basis.clone(),
+        source_identity_type: binding.source_identity_type,
+        source_identity_key: binding.source_identity_key,
+        source_identity_sha256: binding.source_identity_sha256,
+        git_top_level: binding.git_top_level,
+        object_format: binding.object_format,
+        head_oid: observation.head_oid,
+        tree_oid: observation.tree_oid,
+        two_scan_outcome: observation.two_scan_outcome,
+        manifest_entry_count: observation.manifest_entry_count,
+        manifest_entries: manifest.entries,
     })
 }
 
@@ -1686,6 +1742,47 @@ mod tests {
             _ => bail!("expected delete"),
         };
         assert_ne!(b.tree_oid, c.tree_oid);
+        Ok(())
+    }
+
+    #[test]
+    fn reasoning_projection_carries_the_exact_authenticated_body_manifest() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(d.path(), state.path(), "workspace", "runtime", "swarm")?;
+        write(&d.path().join("tracked.txt"), "one")?;
+        run(d.path(), &["add", "."])?;
+        run(d.path(), &["commit", "-m", "seed"])?;
+
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        let projection = load_repository_body_reasoning_projection(&runtime, &basis)?;
+        let (binding, _) = load_repository_body_status(&store)?.expect("Body status");
+
+        assert_eq!(projection.basis, basis);
+        assert_eq!(
+            projection.source_identity_type,
+            binding.source_identity_type
+        );
+        assert_eq!(projection.source_identity_key, binding.source_identity_key);
+        assert_eq!(
+            projection.source_identity_sha256,
+            binding.source_identity_sha256
+        );
+        assert_eq!(projection.git_top_level, binding.git_top_level);
+        assert_eq!(projection.object_format, binding.object_format);
+        assert!(projection.head_oid.is_some());
+        assert!(!projection.tree_oid.is_empty());
+        assert_eq!(projection.two_scan_outcome, "stable_equal");
+        assert_eq!(
+            projection.manifest_entry_count as usize,
+            projection.manifest_entries.len()
+        );
+        assert!(
+            projection
+                .manifest_entries
+                .iter()
+                .any(|entry| entry.path == "tracked.txt")
+        );
         Ok(())
     }
     #[test]
