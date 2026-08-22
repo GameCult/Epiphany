@@ -4800,12 +4800,125 @@ pub fn abandon_unactivated_runtime_worker_process(
     }
 }
 
-pub(crate) fn terminalize_runtime_worker_process_death(
+fn terminal_worker_request_id(cache: &CultCache, worker_job_id: &str) -> Result<Option<String>> {
+    let bindings = cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .into_iter()
+        .filter(|binding| binding.source_worker_job_id.as_deref() == Some(worker_job_id))
+        .map(|binding| {
+            let validated = validate_runtime_model_execution_binding(cache, &binding.request_id)?;
+            let job = cache
+                .get::<EpiphanyRuntimeJob>(&validated.job_id)?
+                .ok_or_else(|| anyhow!("worker model execution lost its runtime job"))?;
+            let request = cache
+                .get::<EpiphanyModelRequest>(&validated.request_id)?
+                .ok_or_else(|| anyhow!("worker model execution lost its native request"))?;
+            Ok((validated, job, request))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if bindings.is_empty() {
+        return Ok(None);
+    }
+
+    let live = bindings
+        .iter()
+        .filter(|(_, job, _)| {
+            matches!(
+                job.status,
+                EpiphanyRuntimeJobStatus::Queued
+                    | EpiphanyRuntimeJobStatus::Running
+                    | EpiphanyRuntimeJobStatus::WaitingForReview
+            )
+        })
+        .collect::<Vec<_>>();
+    if live.len() > 1 {
+        return Err(anyhow!(
+            "worker attempt has multiple live model request authorities"
+        ));
+    }
+    if let Some((binding, _, _)) = live.first() {
+        return Ok(Some(binding.request_id.clone()));
+    }
+
+    // Tool continuations are self-contained requests whose ordered input is a
+    // strict extension of the request that preceded them. This finds the
+    // unique terminal request from request bytes, without granting timestamps
+    // or provider event order causal authority.
+    let terminal = bindings
+        .iter()
+        .filter(|(_, _, candidate)| {
+            bindings.iter().all(|(_, _, other)| {
+                candidate.request_id == other.request_id
+                    || (candidate.input.len() > other.input.len()
+                        && candidate.input.starts_with(&other.input))
+            })
+        })
+        .collect::<Vec<_>>();
+    match terminal.as_slice() {
+        [(binding, _, _)] => Ok(Some(binding.request_id.clone())),
+        [] => Err(anyhow!(
+            "worker model request family has no unique terminal self-contained request"
+        )),
+        _ => Err(anyhow!(
+            "worker model request family has multiple terminal request authorities"
+        )),
+    }
+}
+
+fn complete_persisted_worker_outcome(
+    store_path: &Path,
+    job_id: &str,
+    completed_at: &str,
+) -> Result<Option<EpiphanyRuntimeJobResult>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?;
+    let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?;
+    match (role, reorient) {
+        (Some(_), Some(_)) => Err(anyhow!(
+            "worker attempt has both role and reorientation terminal outcomes"
+        )),
+        (Some(result), None) => complete_runtime_job(
+            store_path,
+            RuntimeSpineJobResultOptions {
+                result_id: result.result_id,
+                job_id: job_id.to_string(),
+                completed_at: completed_at.to_string(),
+                verdict: result.verdict,
+                summary: result.summary,
+                next_safe_move: result.next_safe_move,
+                evidence_refs: result.evidence_ids,
+                artifact_refs: result.artifact_refs,
+                decision_context_id: Some(result.decision_context_id),
+            },
+        )
+        .map(Some),
+        (None, Some(result)) => complete_runtime_job(
+            store_path,
+            RuntimeSpineJobResultOptions {
+                result_id: result.result_id,
+                job_id: job_id.to_string(),
+                completed_at: completed_at.to_string(),
+                verdict: result.mode,
+                summary: result.summary,
+                next_safe_move: result.next_safe_move,
+                evidence_refs: result.evidence_ids,
+                artifact_refs: result.artifact_refs,
+                decision_context_id: Some(result.decision_context_id),
+            },
+        )
+        .map(Some),
+        (None, None) => Ok(None),
+    }
+}
+
+fn commit_runtime_worker_process_death(
     store_path: impl AsRef<Path>,
     job_id: &str,
     terminal_authority_id: &str,
     terminal_at: &str,
-) -> Result<EpiphanyRuntimeWorkerProcessClaim> {
+    decision_context_id: Option<&str>,
+) -> Result<EpiphanyRuntimeJobResult> {
     let store_path = store_path.as_ref();
     validate_non_empty(terminal_authority_id, "worker death terminal authority")?;
     chrono::DateTime::parse_from_rfc3339(terminal_at)
@@ -4820,7 +4933,22 @@ pub(crate) fn terminalize_runtime_worker_process_death(
     if status == WorkerProcessStatus::TerminalDeath
         && current.terminal_authority_id.as_deref() == Some(terminal_authority_id)
     {
-        return Ok(current);
+        let result_id = format!("result-worker-death-{job_id}");
+        let result = cache
+            .get::<EpiphanyRuntimeJobResult>(&result_id)?
+            .ok_or_else(|| anyhow!("worker death claim lost its terminal job result"))?;
+        let job = cache
+            .get::<EpiphanyRuntimeJob>(job_id)?
+            .ok_or_else(|| anyhow!("worker death claim lost its runtime job"))?;
+        if job.status != EpiphanyRuntimeJobStatus::Failed
+            || result.job_id != job_id
+            || result.decision_context_id.as_deref() != decision_context_id
+        {
+            return Err(anyhow!(
+                "worker death replay found split terminal authority"
+            ));
+        }
+        return Ok(result);
     }
     if !status.is_live() {
         return Err(anyhow!(
@@ -4830,9 +4958,36 @@ pub(crate) fn terminalize_runtime_worker_process_death(
     if cache
         .get::<EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .is_some()
+        || cache
+            .get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?
+            .is_some()
     {
-        return Err(anyhow!("worker death recovery races a terminal result"));
+        return Err(anyhow!("worker death recovery races a terminal outcome"));
     }
+    let mut job = cache
+        .get::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("worker death recovery requires its runtime job"))?;
+    if !matches!(
+        job.status,
+        EpiphanyRuntimeJobStatus::Queued
+            | EpiphanyRuntimeJobStatus::Running
+            | EpiphanyRuntimeJobStatus::WaitingForReview
+    ) {
+        return Err(anyhow!(
+            "worker death recovery found a terminal runtime job"
+        ));
+    }
+    let existing_results = cache
+        .get_all::<EpiphanyRuntimeJobResult>()?
+        .into_iter()
+        .filter(|result| result.job_id == job_id)
+        .collect::<Vec<_>>();
+    if !existing_results.is_empty() {
+        return Err(anyhow!("live worker death recovery found a job result"));
+    }
+    let job_envelope = cache
+        .get_envelope::<EpiphanyRuntimeJob>(job_id)?
+        .ok_or_else(|| anyhow!("worker death recovery lost its job envelope"))?;
     let current_envelope = cache
         .get_envelope::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)?
         .ok_or_else(|| anyhow!("worker death recovery lost its claim envelope"))?;
@@ -4840,16 +4995,146 @@ pub(crate) fn terminalize_runtime_worker_process_death(
     next.status = WorkerProcessStatus::TerminalDeath.as_str().into();
     next.terminal_at = Some(terminal_at.into());
     next.terminal_authority_id = Some(terminal_authority_id.into());
-    let next_envelope = cache.prepare_entry(&claim_id, &next)?.0;
-    if SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&[current_envelope], vec![next_envelope])?
+    let summary = "Runtime Continuity proved the exact worker process terminal before a structured outcome was admitted.".to_string();
+    job.status = EpiphanyRuntimeJobStatus::Failed;
+    job.updated_at = terminal_at.to_string();
+    job.summary = summary.clone();
+    let result = EpiphanyRuntimeJobResult {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        result_id: format!("result-worker-death-{job_id}"),
+        job_id: job_id.to_string(),
+        session_id: job.session_id.clone(),
+        role: job.role.clone(),
+        verdict: "failed".to_string(),
+        summary: summary.clone(),
+        completed_at: terminal_at.to_string(),
+        next_safe_move: "Derive a fresh attempt from current typed work; never rebase the abandoned model output.".to_string(),
+        evidence_refs: Vec::new(),
+        artifact_refs: Vec::new(),
+        metadata: BTreeMap::new(),
+        decision_context_id: decision_context_id.map(str::to_string),
+    };
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-job-completed-{job_id}"),
+        occurred_at: terminal_at.to_string(),
+        event_type: "job.completed".to_string(),
+        source: "runtime-continuity".to_string(),
+        session_id: Some(job.session_id.clone()),
+        job_id: Some(job_id.to_string()),
+        summary,
+        metadata: BTreeMap::from([("resultId".to_string(), result.result_id.clone())]),
+    };
+    if cache
+        .get::<EpiphanyRuntimeEvent>(&event.event_id)?
+        .is_some()
+        || cache
+            .get::<EpiphanyRuntimeJobResult>(&result.result_id)?
+            .is_some()
     {
-        Ok(next)
-    } else {
-        Err(anyhow!(
-            "worker death recovery lost its exact claim snapshot"
-        ))
+        return Err(anyhow!("worker death terminal identities already exist"));
     }
+    let mut expected = vec![current_envelope, job_envelope];
+    let mut unchanged_strong_reads = Vec::new();
+    if let Some(context_id) = decision_context_id {
+        let context = cache
+            .get::<crate::EpiphanyDecisionContext>(context_id)?
+            .ok_or_else(|| anyhow!("model-backed worker death lost its decision context"))?;
+        if context.native_request()?.source_worker_job_id.as_deref() != Some(job_id) {
+            return Err(anyhow!(
+                "worker death decision context belongs to another worker"
+            ));
+        }
+        let failures = cache
+            .get_all::<crate::EpiphanyModelPassFailure>()?
+            .into_iter()
+            .filter(|failure| {
+                failure.decision_context_id == context_id && failure.pass_id == job_id
+            })
+            .collect::<Vec<_>>();
+        if failures.len() != 1 {
+            return Err(anyhow!(
+                "model-backed worker death requires one exact typed pass failure"
+            ));
+        }
+        let context_envelope = cache
+            .get_envelope::<crate::EpiphanyDecisionContext>(context_id)?
+            .ok_or_else(|| anyhow!("worker death lost its context envelope"))?;
+        let failure_envelope = cache
+            .get_envelope::<crate::EpiphanyModelPassFailure>(&failures[0].failure_id)?
+            .ok_or_else(|| anyhow!("worker death lost its pass-failure envelope"))?;
+        expected.extend([context_envelope.clone(), failure_envelope.clone()]);
+        unchanged_strong_reads.extend([context_envelope, failure_envelope]);
+    } else if cache
+        .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
+        .iter()
+        .any(|binding| binding.source_worker_job_id.as_deref() == Some(job_id))
+    {
+        return Err(anyhow!(
+            "model-backed worker death cannot terminalize without its exact context"
+        ));
+    }
+    let mut writes = vec![
+        cache.prepare_entry(&claim_id, &next)?.0,
+        cache.prepare_entry(job_id, &job)?.0,
+        cache.prepare_entry(&result.result_id, &result)?.0,
+        cache.prepare_entry(&event.event_id, &event)?.0,
+    ];
+    writes.extend(unchanged_strong_reads);
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, writes)?
+    {
+        return commit_runtime_worker_process_death(
+            store_path,
+            job_id,
+            terminal_authority_id,
+            terminal_at,
+            decision_context_id,
+        );
+    }
+    Ok(result)
+}
+
+pub(crate) fn terminalize_dead_runtime_worker_attempt(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    terminal_authority_id: &str,
+    terminal_at: &str,
+) -> Result<EpiphanyRuntimeJobResult> {
+    let store_path = store_path.as_ref();
+    if let Some(result) = complete_persisted_worker_outcome(store_path, job_id, terminal_at)? {
+        return Ok(result);
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let terminal_request_id = terminal_worker_request_id(&cache, job_id)?;
+    drop(cache);
+    let decision_context_id = if let Some(request_id) = terminal_request_id {
+        if let Some(failure) = model_pass_failure_for_request(store_path, &request_id)? {
+            Some(failure.decision_context_id)
+        } else {
+            let context = crate::seal_model_decision_context(store_path, &request_id)?;
+            let failure = terminalize_model_pass_failure_session(
+                store_path,
+                ModelPassFailureTerminalOptions {
+                    decision_context_id: context.context_id,
+                    failure_kind: "worker_process_death".to_string(),
+                    summary: "Runtime Continuity proved the exact model worker process terminal before a structured outcome was admitted.".to_string(),
+                    failed_at: terminal_at.to_string(),
+                },
+            )?;
+            Some(failure.decision_context_id)
+        }
+    } else {
+        None
+    };
+    commit_runtime_worker_process_death(
+        store_path,
+        job_id,
+        terminal_authority_id,
+        terminal_at,
+        decision_context_id.as_deref(),
+    )
 }
 
 pub fn put_runtime_role_worker_result(
@@ -12340,11 +12625,19 @@ pub fn complete_runtime_job(
                     .cloned()
                     .ok_or_else(|| anyhow!("runtime worker completion lost its claim envelope"))?;
                 let mut terminal = claim;
-                if let Some(reorient) =
-                    cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
+                let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?;
+                let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?;
+                if role.is_some() && reorient.is_some() {
+                    return Err(anyhow!(
+                        "runtime worker job has both role and reorientation terminal outcomes"
+                    ));
+                }
+                if let Some(terminal_result_id) = role
+                    .map(|result| result.result_id)
+                    .or_else(|| reorient.map(|result| result.result_id))
                 {
                     terminal.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
-                    terminal.terminal_authority_id = Some(reorient.result_id);
+                    terminal.terminal_authority_id = Some(terminal_result_id);
                 } else {
                     terminal.status = crate::WorkerProcessStatus::TerminalFailure.as_str().into();
                     terminal.terminal_authority_id = Some(result.result_id.clone());

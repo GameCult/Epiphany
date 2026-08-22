@@ -13,14 +13,15 @@ use epiphany_core::{
     load_epiphany_cultmesh_swarm_brake, load_resident_self_state,
     materialize_resident_self_domain_obligations, observe_process_instance,
     pending_resident_self_acks, prepare_resident_self_launch, publish_resident_provider_readiness,
-    reap_exited_child_process, resident_cognitive_runtime_id, resident_prepared_launch_thread_id,
-    resident_self_child_claim, resident_self_local_provider_status,
-    retain_completed_runtime_sessions, retain_coordinator_run_receipts,
-    retain_failed_runtime_worker_attempts, retain_fulfilled_runtime_worker_attempts,
-    retain_resident_self_lifecycles, runtime_worker_process_claims,
-    settle_resident_self_exited_coordinator, settle_resident_self_receipt_free_dead_coordinator,
-    terminate_process_instance, validate_persona_feedback_store_separation,
-    validate_resident_self_coordinator_receipt_binding, validate_resident_self_store_separation,
+    reap_exited_child_process, recover_dead_runtime_worker_attempts, resident_cognitive_runtime_id,
+    resident_prepared_launch_thread_id, resident_self_child_claim,
+    resident_self_local_provider_status, retain_completed_runtime_sessions,
+    retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
+    retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
+    runtime_worker_process_claims, settle_resident_self_exited_coordinator,
+    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
+    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt_binding,
+    validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -305,6 +306,7 @@ fn cycle(
 ) -> Result<ResidentSelfOutcome> {
     ports.reap_adopted_worker_children()?;
     let now = Utc::now().timestamp_millis().max(0) as u64;
+    recover_dead_runtime_worker_attempts(&args.policy.runtime_store, now)?;
     let brake_engaged = ports.brake_engaged()?;
     let cognitive_runtime_id = ports.cognitive_runtime_id().to_string();
     run_feedback_import_if_released(brake_engaged || shutdown_requested, || {

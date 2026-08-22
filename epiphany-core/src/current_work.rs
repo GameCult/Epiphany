@@ -3494,12 +3494,82 @@ mod tests {
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        let mut failed_job = cache
-            .get::<crate::EpiphanyRuntimeJob>("body-scheduled-job")?
-            .expect("scheduled Body job exists");
-        failed_job.status = crate::EpiphanyRuntimeJobStatus::Failed;
-        failed_job.updated_at = "2026-08-17T00:00:03Z".into();
-        cache.put(&failed_job.job_id, &failed_job)?;
+        let failed_launch = cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>("body-scheduled-job")?
+            .expect("scheduled Body launch exists");
+        drop(cache);
+        let failed_basis = crate::worker_reasoning_basis(&store, &failed_launch)?;
+        crate::put_reasoning_basis(&store, &failed_basis)?;
+        let mut failed_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "body-failed-request",
+            "body-failed-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        failed_native.reasoning_basis_id = Some(failed_basis.basis_id.clone());
+        failed_native.source_worker_job_id = Some(failed_launch.job_id.clone());
+        crate::open_runtime_model_execution(
+            &store,
+            crate::RuntimeSpineSessionOptions {
+                session_id: "body-failed-model-session".into(),
+                objective: "Model the exact Body projection.".into(),
+                created_at: "2026-08-17T00:00:02.100Z".into(),
+                coordinator_note: "Test dead worker audit context.".into(),
+            },
+            crate::RuntimeSpineJobOptions {
+                job_id: "body-failed-model-job".into(),
+                session_id: "body-failed-model-session".into(),
+                role: "openai-model".into(),
+                created_at: "2026-08-17T00:00:02.100Z".into(),
+                summary: "Bound Body inference.".into(),
+                artifact_refs: Vec::new(),
+            },
+            &failed_native,
+            "2026-08-17T00:00:02.100Z",
+        )?;
+        let failed_process = crate::ProcessInstanceIdentity {
+            process_id: u32::MAX,
+            creation_token: 7,
+            created_at_rfc3339: Some("2026-08-17T00:00:02.200Z".into()),
+            executable_path: "body-failed-worker".into(),
+        };
+        let failed_activation = "body-failed-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &failed_launch.job_id,
+            &failed_process,
+            &format!("{:x}", Sha256::digest(failed_activation.as_bytes())),
+            "2026-08-17T00:00:02.200Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &failed_launch.job_id,
+            &failed_process,
+            failed_activation,
+            "2026-08-17T00:00:02.300Z",
+        )?;
+        assert_eq!(
+            crate::recover_dead_runtime_worker_attempts(&store, 1_871_270_403_000)?,
+            1
+        );
+        let mut death_cache = crate::runtime_spine_cache(&store)?;
+        death_cache.pull_all_backing_stores()?;
+        let death = death_cache
+            .get::<crate::EpiphanyRuntimeJobResult>("result-worker-death-body-scheduled-job")?
+            .expect("worker death emits its terminal runtime result");
+        assert_eq!(death.verdict, "failed");
+        let death_context = death
+            .decision_context_id
+            .as_deref()
+            .expect("model-backed death preserves its decision context");
+        assert!(crate::audit_decision_context(&store, death_context).is_ok());
+        assert_eq!(
+            crate::runtime_worker_process_claim(&store, &failed_launch.job_id)?
+                .expect("dead worker claim remains auditable")
+                .status,
+            crate::WorkerProcessStatus::TerminalDeath.as_str()
+        );
         let retry_work = project_current_work(&store)?;
         assert_eq!(
             retry_work
@@ -3879,6 +3949,12 @@ mod tests {
                 decision_context_id: Some(proposal_context.context_id.clone()),
             },
         )?;
+        assert_eq!(
+            crate::runtime_worker_process_claim(&store, &proposal_launch.job_id)?
+                .expect("structured Modeling result terminalizes its process claim")
+                .status,
+            crate::WorkerProcessStatus::TerminalResult.as_str()
+        );
         assert_eq!(
             project_current_work(&store)?
                 .proposal_modeling

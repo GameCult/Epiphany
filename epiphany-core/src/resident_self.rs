@@ -1640,7 +1640,7 @@ pub fn recover_dead_resident_typed_worker(
                 chrono::DateTime::<chrono::Utc>::from_timestamp_millis(recovered_at_millis as i64)
                     .ok_or_else(|| anyhow!("typed worker death timestamp is out of range"))?
                     .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-            crate::runtime_spine::terminalize_runtime_worker_process_death(
+            crate::runtime_spine::terminalize_dead_runtime_worker_attempt(
                 runtime_store,
                 &launch.job_id,
                 &format!("worker-death-recovery-{}", launch.job_id),
@@ -1649,6 +1649,50 @@ pub fn recover_dead_resident_typed_worker(
             Ok(true)
         }
     }
+}
+
+/// Reconciles worker physiology against durable attempt state without relying
+/// on a still-live coordinator grant. Exact alive processes remain owners;
+/// inaccessible identities fail closed; exact death either admits an already
+/// sealed structured outcome or terminalizes the attempt as a typed failure.
+pub fn recover_dead_runtime_worker_attempts(
+    runtime_store: &Path,
+    recovered_at_millis: u64,
+) -> Result<usize> {
+    let recovered_at =
+        chrono::DateTime::<chrono::Utc>::from_timestamp_millis(recovered_at_millis as i64)
+            .ok_or_else(|| anyhow!("worker recovery timestamp is out of range"))?
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let mut recovered = 0;
+    for claim in crate::runtime_worker_process_claims(runtime_store)? {
+        let status = crate::WorkerProcessStatus::parse(&claim.status)?;
+        if !status.is_live() {
+            continue;
+        }
+        let identity = crate::ProcessInstanceIdentity {
+            process_id: claim.process_id,
+            creation_token: claim.process_creation_token,
+            created_at_rfc3339: None,
+            executable_path: PathBuf::from(&claim.process_executable_path),
+        };
+        match crate::observe_process_instance(&identity) {
+            crate::ProcessInstanceObservation::ExactAlive
+            | crate::ProcessInstanceObservation::Inaccessible
+            | crate::ProcessInstanceObservation::Indeterminate { .. } => {}
+            crate::ProcessInstanceObservation::ExactExited { .. }
+            | crate::ProcessInstanceObservation::Missing
+            | crate::ProcessInstanceObservation::Replaced { .. } => {
+                crate::runtime_spine::terminalize_dead_runtime_worker_attempt(
+                    runtime_store,
+                    &claim.job_id,
+                    &format!("worker-death-recovery-{}", claim.job_id),
+                    &recovered_at,
+                )?;
+                recovered += 1;
+            }
+        }
+    }
+    Ok(recovered)
 }
 
 pub fn resident_self_grant_has_typed_request(
