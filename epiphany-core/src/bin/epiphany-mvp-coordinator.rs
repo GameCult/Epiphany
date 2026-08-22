@@ -817,14 +817,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             steps.push(step);
                             break;
                         }
-                        let accepted = epiphany_core::accept_frontier_verification_result(
+                        let admission = epiphany_core::accept_frontier_verification_result(
                             &runtime_store,
                             &job_id,
                             &now(),
                         )?;
                         push_event(
                             &mut step,
-                            json!({"type": "frontierVerificationAccept", "roleId": role_id, "commit": accepted}),
+                            json!({"type": "frontierVerificationAdmission", "roleId": role_id, "outcome": admission}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;
@@ -854,14 +854,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             steps.push(step);
                             break;
                         }
-                        let accepted = epiphany_core::accept_proposal_modeling_result(
+                        let admission = epiphany_core::accept_proposal_modeling_result(
                             &runtime_store,
                             &job_id,
                             &now(),
                         )?;
                         push_event(
                             &mut step,
-                            json!({"type": "proposalModelingAccept", "roleId": role_id, "commit": accepted}),
+                            json!({"type": "proposalModelingAdmission", "roleId": role_id, "outcome": admission}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;
@@ -891,14 +891,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             steps.push(step);
                             break;
                         }
-                        let accepted = epiphany_core::accept_body_modeling_result(
+                        let admission = epiphany_core::accept_body_modeling_result(
                             &runtime_store,
                             &job_id,
                             &now(),
                         )?;
                         push_event(
                             &mut step,
-                            json!({"type": "bodyModelingAccept", "roleId": role_id, "commit": accepted}),
+                            json!({"type": "bodyModelingAdmission", "roleId": role_id, "outcome": admission}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;
@@ -932,14 +932,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                             steps.push(step);
                             break;
                         }
-                        let accepted = epiphany_core::accept_frontier_verdict_modeling_result(
+                        let admission = epiphany_core::accept_frontier_verdict_modeling_result(
                             &runtime_store,
                             &job_id,
                             &now(),
                         )?;
                         push_event(
                             &mut step,
-                            json!({"type": "frontierVerdictModelingAccept", "roleId": role_id, "commit": accepted}),
+                            json!({"type": "frontierVerdictModelingAdmission", "roleId": role_id, "outcome": admission}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;

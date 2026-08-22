@@ -170,7 +170,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v3";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v4";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -5870,6 +5870,13 @@ pub(crate) fn validate_proposal_modeling_worker_fulfillment(
         &proposal.evidence_refs,
         &proposal.public_source_refs,
     )?;
+    let attempt_ordinal =
+        crate::current_work::proposal_modeling_attempt_ordinal(request_id, &result.job_id)?;
+    let prior_admission_refusals = crate::current_work::proposal_modeling_prior_admission_refusals(
+        cache,
+        request_id,
+        attempt_ordinal,
+    )?;
     let projection_matches_authenticated_request = projection.is_some_and(|projection| {
         let expected = crate::RepoFrontierProposalModelingContextProjection {
             schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
@@ -5894,6 +5901,7 @@ pub(crate) fn validate_proposal_modeling_worker_fulfillment(
             private_state_included: proposal.private_state_included,
             model_projection_digest: projection.model_projection_digest.clone(),
             model_source_documents: projection.model_source_documents.clone(),
+            prior_admission_refusals: prior_admission_refusals.clone(),
         };
         projection == &expected
     });
@@ -6046,11 +6054,28 @@ pub fn runtime_typed_request_fulfillment(
     validate_non_empty(request_id, "typed fulfillment request id")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let admission_refusals = cache
+        .get_all::<crate::EpiphanyAgentPassAdmissionRefusal>()?
+        .into_iter()
+        .map(|refusal| {
+            refusal.validate()?;
+            Ok(refusal)
+        })
+        .collect::<Result<Vec<_>>>()?;
     let archived_matches = cache
         .get_all::<EpiphanyArchivedRuntimeWorkerAttempt>()?
         .into_iter()
         .filter(|attempt| {
-            attempt.request_id == request_id && attempt.fulfilled_result_id().is_some()
+            attempt.request_id == request_id
+                && attempt.fulfilled_result_id().is_some()
+                && !admission_refusals.iter().any(|refusal| {
+                    refusal.pass_family.request_kind() == request.kind()
+                        && refusal.request_id == request_id
+                        && refusal.job_id == attempt.job_id
+                        && attempt.fulfilled_result_id() == Some(refusal.result_id.as_str())
+                        && attempt.decision_context_id()
+                            == Some(refusal.decision_context_id.as_str())
+                })
         })
         .collect::<Vec<_>>();
     if archived_matches.len() > 1 {
@@ -6107,7 +6132,16 @@ pub fn runtime_typed_request_fulfillment(
     let matches = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
         .into_iter()
-        .filter(|result| request.matches_result(result))
+        .filter(|result| {
+            request.matches_result(result)
+                && !admission_refusals.iter().any(|refusal| {
+                    refusal.pass_family.request_kind() == request.kind()
+                        && refusal.request_id == request_id
+                        && refusal.job_id == result.job_id
+                        && refusal.result_id == result.result_id
+                        && refusal.decision_context_id == result.decision_context_id
+                })
+        })
         .collect::<Vec<_>>();
     if matches.is_empty() {
         return Ok(None);

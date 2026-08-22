@@ -429,6 +429,7 @@ mod tests {
             verification_audits: Vec::new(),
             reorientation_decisions: Vec::new(),
             reorientation_failures: Vec::new(),
+            agent_pass_admission_refusals: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
             planning: EpiphanyPlanningState::default(),
@@ -449,10 +450,8 @@ mod tests {
             Some(true)
         );
         assert_eq!(scene.invariant_status_counts[0].count, 2);
-        assert!(
-            scene
-                .available_actions
-                .contains(&EpiphanySceneAction::ReorientResult)
-        );
+        assert!(scene
+            .available_actions
+            .contains(&EpiphanySceneAction::ReorientResult));
     }
 }

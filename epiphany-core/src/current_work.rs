@@ -16,6 +16,35 @@ pub const BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.body_modeling_decision.v1";
 pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.body_modeling_launch.v1";
+pub const AGENT_PASS_ADMISSION_REFUSAL_SCHEMA_VERSION: &str =
+    "epiphany.mind.agent_pass_admission_refusal.v1";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EpiphanyAgentPassFamily {
+    BodyModeling,
+    ProposalModeling,
+    FrontierVerdictModeling,
+    FrontierVerification,
+}
+
+impl EpiphanyAgentPassFamily {
+    pub fn request_kind(self) -> &'static str {
+        match self {
+            Self::BodyModeling => "body-modeling",
+            Self::ProposalModeling => "proposal-modeling",
+            Self::FrontierVerdictModeling => "frontier-verdict-modeling",
+            Self::FrontierVerification => "frontier-verification",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EpiphanyAgentPassAdmissionRefusalKind {
+    RepoModelMutationRefused,
+    StrongReadConflict,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +85,68 @@ pub enum EpiphanyAgentPassContinuationAction {
 pub struct EpiphanyAgentPassAttemptProjection {
     pub action: EpiphanyAgentPassContinuationAction,
     pub job_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.agent_pass_admission_refusal.v1",
+    schema = "EpiphanyAgentPassAdmissionRefusal"
+)]
+pub struct EpiphanyAgentPassAdmissionRefusal {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub refusal_id: String,
+    #[cultcache(key = 2)]
+    pub pass_family: EpiphanyAgentPassFamily,
+    #[cultcache(key = 3)]
+    pub request_id: String,
+    #[cultcache(key = 4)]
+    pub job_id: String,
+    #[cultcache(key = 5)]
+    pub result_id: String,
+    #[cultcache(key = 6)]
+    pub decision_context_id: String,
+    #[cultcache(key = 7)]
+    pub invariant_owner: String,
+    #[cultcache(key = 8)]
+    pub refusal_kind: EpiphanyAgentPassAdmissionRefusalKind,
+    #[cultcache(key = 9)]
+    pub reason: String,
+    #[cultcache(key = 10)]
+    pub refused_at: String,
+}
+
+impl EpiphanyAgentPassAdmissionRefusal {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != AGENT_PASS_ADMISSION_REFUSAL_SCHEMA_VERSION
+            || self.refusal_id != format!("agent-pass-admission-refusal-{}", self.job_id)
+            || [
+                self.request_id.as_str(),
+                self.job_id.as_str(),
+                self.result_id.as_str(),
+                self.decision_context_id.as_str(),
+                self.invariant_owner.as_str(),
+                self.reason.as_str(),
+            ]
+            .into_iter()
+            .any(str::is_empty)
+            || chrono::DateTime::parse_from_rfc3339(&self.refused_at).is_err()
+        {
+            return Err(anyhow!("agent-pass admission refusal is invalid"));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EpiphanyAgentPassAdmissionOutcome {
+    Committed(crate::EpiphanyMindCommitReceipt),
+    Refused {
+        refusal: EpiphanyAgentPassAdmissionRefusal,
+        commit: crate::EpiphanyMindCommitReceipt,
+    },
 }
 
 impl EpiphanyAgentPassAttemptProjection {
@@ -283,6 +374,7 @@ impl EpiphanyBodyModelingDecisionReceipt {
 pub(crate) fn register_current_work_types(cache: &mut CultCache) -> Result<()> {
     cache.register_entry_type::<EpiphanyBodyModelingDecisionReceipt>()?;
     cache.register_entry_type::<EpiphanyBodyModelingLaunchBinding>()?;
+    cache.register_entry_type::<EpiphanyAgentPassAdmissionRefusal>()?;
     Ok(())
 }
 
@@ -553,6 +645,7 @@ fn current_verification_work(
     requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     for request in requests {
         crate::runtime_spine::validate_repo_frontier_verification_request_intrinsic(&request)?;
         let mut request_launches = launches
@@ -607,7 +700,23 @@ fn current_verification_work(
             .ok_or_else(|| anyhow!("frontier Verification launch lost its runtime job"))?;
         let retry_allowed =
             crate::runtime_spine::verification_frontier_is_current(cache, &request)?;
-        let mut attempt = EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some());
+        let admission_refused = result.as_ref().is_some_and(|result| {
+            admission_refusals.iter().any(|refusal| {
+                refusal.pass_family == EpiphanyAgentPassFamily::FrontierVerification
+                    && refusal.request_id == request.request_id
+                    && refusal.job_id == launch.job_id
+                    && refusal.result_id == result.result_id
+                    && refusal.decision_context_id == result.decision_context_id
+            })
+        });
+        let mut attempt = if admission_refused {
+            EpiphanyAgentPassAttemptProjection::with(
+                EpiphanyAgentPassContinuationAction::Launch,
+                Some(job.job_id.clone()),
+            )
+        } else {
+            EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some())
+        };
         if attempt.action == EpiphanyAgentPassContinuationAction::Launch && !retry_allowed {
             attempt.action = EpiphanyAgentPassContinuationAction::Wait;
         }
@@ -635,6 +744,7 @@ fn current_frontier_verdict_modeling_work(
     requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     for request in requests {
         let mut request_launches = launches
             .iter()
@@ -684,9 +794,26 @@ fn current_frontier_verdict_modeling_work(
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its runtime job"))?;
+        let admission_refused = result.as_ref().is_some_and(|result| {
+            admission_refusals.iter().any(|refusal| {
+                refusal.pass_family == EpiphanyAgentPassFamily::FrontierVerdictModeling
+                    && refusal.request_id == request.request_id
+                    && refusal.job_id == launch.job_id
+                    && refusal.result_id == result.result_id
+                    && refusal.decision_context_id == result.decision_context_id
+            })
+        });
+        let attempt = if admission_refused {
+            EpiphanyAgentPassAttemptProjection::with(
+                EpiphanyAgentPassContinuationAction::Launch,
+                Some(job.job_id.clone()),
+            )
+        } else {
+            EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some())
+        };
         return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
             request,
-            attempt: EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some()),
+            attempt,
         }));
     }
     Ok(None)
@@ -708,15 +835,30 @@ fn body_modeling_attempt(
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
-    let reviewable = cache
-        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
-        .is_some();
+    let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
+    let reviewable = result.is_some();
+    let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
+    let admission_refused = result.as_ref().is_some_and(|result| {
+        admission_refusals.iter().any(|refusal| {
+            refusal.pass_family == EpiphanyAgentPassFamily::BodyModeling
+                && refusal.request_id == work_id
+                && refusal.job_id == binding.job_id
+                && refusal.result_id == result.result_id
+                && refusal.decision_context_id == result.decision_context_id
+        })
+    });
+    if admission_refused {
+        return Ok(EpiphanyAgentPassAttemptProjection::with(
+            EpiphanyAgentPassContinuationAction::Launch,
+            Some(binding.job_id.clone()),
+        ));
+    }
     Ok(EpiphanyAgentPassAttemptProjection::from_job(
         &job, reviewable,
     ))
 }
 
-fn proposal_modeling_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+pub(crate) fn proposal_modeling_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
     let prefix = format!("proposal-modeling-{request_id}-attempt-");
     job_id
         .strip_prefix(&prefix)
@@ -732,6 +874,7 @@ fn current_proposal_modeling_work(
     requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
     let bindings = cache.get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?;
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
+    let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     'requests: for request in requests {
         crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&request)?;
         let mut request_bindings = bindings
@@ -793,6 +936,15 @@ fn current_proposal_modeling_work(
             let job = cache
                 .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
                 .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
+            let admission_refused = admission_refusals.iter().any(|refusal| {
+                refusal.pass_family == EpiphanyAgentPassFamily::ProposalModeling
+                    && refusal.request_id == request.request_id
+                    && refusal.job_id == binding.job_id
+                    && result.as_ref().is_some_and(|result| {
+                        refusal.result_id == result.result_id
+                            && refusal.decision_context_id == result.decision_context_id
+                    })
+            });
             if result.is_some() {
                 crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
                     cache,
@@ -805,6 +957,7 @@ fn current_proposal_modeling_work(
                     crate::EpiphanyRuntimeJobStatus::Failed
                         | crate::EpiphanyRuntimeJobStatus::Cancelled
                 )
+                && !admission_refused
             {
                 return Err(anyhow!(
                     "proposal Modeling request has split current attempt authority"
@@ -824,9 +977,26 @@ fn current_proposal_modeling_work(
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&latest.job_id)?
             .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
+        let admission_refused = result.as_ref().is_some_and(|result| {
+            admission_refusals.iter().any(|refusal| {
+                refusal.pass_family == EpiphanyAgentPassFamily::ProposalModeling
+                    && refusal.request_id == request.request_id
+                    && refusal.job_id == latest.job_id
+                    && refusal.result_id == result.result_id
+                    && refusal.decision_context_id == result.decision_context_id
+            })
+        });
+        let attempt = if admission_refused {
+            EpiphanyAgentPassAttemptProjection::with(
+                EpiphanyAgentPassContinuationAction::Launch,
+                Some(job.job_id.clone()),
+            )
+        } else {
+            EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some())
+        };
         return Ok(Some(EpiphanyProposalModelingWorkProjection {
             request,
-            attempt: EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some()),
+            attempt,
         }));
     }
     Ok(None)
@@ -1841,7 +2011,7 @@ pub fn accept_frontier_verification_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
     accepted_at: &str,
-) -> Result<crate::EpiphanyMindCommitReceipt> {
+) -> Result<EpiphanyAgentPassAdmissionOutcome> {
     let store_path = store_path.as_ref();
     chrono::DateTime::parse_from_rfc3339(accepted_at)
         .map_err(|_| anyhow!("frontier Verification acceptance time is invalid"))?;
@@ -1893,7 +2063,7 @@ pub fn accept_frontier_verification_result(
                     "frontier Verification replay does not preserve its exact accepted decision"
                 ));
             }
-            return Ok(receipt);
+            return Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt));
         }
     }
     if current_frontier_verification_review_job_id(store_path)?.as_deref() != Some(job_id) {
@@ -1937,9 +2107,16 @@ pub fn accept_frontier_verification_result(
         ));
     }
     if !crate::runtime_spine::verification_frontier_is_current(&cache, &request)? {
-        return Err(anyhow!(
-            "frontier Verification decision remains recorded but its strong frontier changed; a fresh pass is required"
-        ));
+        return record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::FrontierVerification,
+            &request.request_id,
+            "Soul.verification",
+            EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+            "frontier Verification decision remains recorded but its strong frontier changed; a fresh pass is required",
+            accepted_at,
+        );
     }
     let mut evidence_ids = result.evidence_ids.clone();
     evidence_ids.sort();
@@ -2061,12 +2238,23 @@ pub fn accept_frontier_verification_result(
         companions,
         accepted_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => {
+            Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt))
+        }
         crate::EpiphanyMindCommitOutcome::Conflict {
             document_identities,
-        } => Err(anyhow!(
-            "frontier Verification admission lost exact keyed reads: {document_identities:?}"
-        )),
+        } => record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::FrontierVerification,
+            &request.request_id,
+            "Soul.verification",
+            EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+            &format!(
+                "frontier Verification admission lost exact keyed reads: {document_identities:?}"
+            ),
+            accepted_at,
+        ),
     }
 }
 
@@ -2074,7 +2262,7 @@ pub fn accept_body_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
     accepted_at: &str,
-) -> Result<crate::EpiphanyMindCommitReceipt> {
+) -> Result<EpiphanyAgentPassAdmissionOutcome> {
     let store_path = store_path.as_ref();
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -2093,6 +2281,21 @@ pub fn accept_body_modeling_result(
     {
         return Err(anyhow!("result is not baseline Body Modeling authority"));
     }
+    let body_basis = result
+        .repository_body_observation_basis
+        .clone()
+        .ok_or_else(|| anyhow!("Body Modeling result has no Body observation basis"))?;
+    let context = cache
+        .get::<crate::EpiphanyDecisionContext>(&result.decision_context_id)?
+        .ok_or_else(|| anyhow!("Body Modeling result has no decision context"))?;
+    let reasoning_basis = cache
+        .get::<crate::EpiphanyReasoningBasis>(&context.basis_id)?
+        .ok_or_else(|| anyhow!("Body Modeling result lost its reasoning basis"))?;
+    let work = EpiphanyBodyModelingWorkProjection::derive(
+        body_basis.runtime_id.clone(),
+        body_basis,
+        crate::reasoning_repo_model_basis(&reasoning_basis)?,
+    )?;
     let proposal = result.repo_model_mutation_proposal()?;
     if proposal.is_none()
         && !matches!(
@@ -2112,7 +2315,21 @@ pub fn accept_body_modeling_result(
                 "Body Modeling mutation proposal identity is not runtime-owned"
             ));
         }
-        let plan = crate::plan_repo_model_mutation(store_path, proposal)?;
+        let plan = match crate::plan_repo_model_mutation(store_path, proposal) {
+            Ok(plan) => plan,
+            Err(error) => {
+                return record_agent_pass_admission_refusal(
+                    store_path,
+                    &result,
+                    EpiphanyAgentPassFamily::BodyModeling,
+                    &work.work_id,
+                    "Modeling.body_projection",
+                    EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused,
+                    &error.to_string(),
+                    accepted_at,
+                );
+            }
+        };
         strong_reads = plan.strong_reads;
         writes = plan.writes;
     }
@@ -2135,12 +2352,21 @@ pub fn accept_body_modeling_result(
         writes,
         accepted_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => {
+            Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt))
+        }
         crate::EpiphanyMindCommitOutcome::Conflict {
             document_identities,
-        } => Err(anyhow!(
-            "Body Modeling admission lost exact keyed reads: {document_identities:?}"
-        )),
+        } => record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::BodyModeling,
+            &work.work_id,
+            "Modeling.body_projection",
+            EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+            &format!("Body Modeling admission lost exact keyed reads: {document_identities:?}"),
+            accepted_at,
+        ),
     }
 }
 
@@ -2148,7 +2374,7 @@ pub fn accept_proposal_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
     accepted_at: &str,
-) -> Result<crate::EpiphanyMindCommitReceipt> {
+) -> Result<EpiphanyAgentPassAdmissionOutcome> {
     let store_path = store_path.as_ref();
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -2186,7 +2412,21 @@ pub fn accept_proposal_modeling_result(
             "proposal Modeling mutation proposal identity is not runtime-owned"
         ));
     }
-    let plan = crate::plan_repo_model_mutation(store_path, &proposal)?;
+    let plan = match crate::plan_repo_model_mutation(store_path, &proposal) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return record_agent_pass_admission_refusal(
+                store_path,
+                &result,
+                EpiphanyAgentPassFamily::ProposalModeling,
+                request_id,
+                "Modeling.proposal_frontier",
+                EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused,
+                &error.to_string(),
+                accepted_at,
+            );
+        }
+    };
     match crate::commit_mind_mutation(
         store_path,
         &result.decision_context_id,
@@ -2195,11 +2435,130 @@ pub fn accept_proposal_modeling_result(
         plan.writes,
         accepted_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => {
+            Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt))
+        }
+        crate::EpiphanyMindCommitOutcome::Conflict {
+            document_identities,
+        } => record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::ProposalModeling,
+            request_id,
+            "Modeling.proposal_frontier",
+            EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+            &format!("proposal Modeling admission lost exact keyed reads: {document_identities:?}"),
+            accepted_at,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_agent_pass_admission_refusal(
+    store_path: &Path,
+    result: &crate::EpiphanyRuntimeRoleWorkerResult,
+    pass_family: EpiphanyAgentPassFamily,
+    request_id: &str,
+    invariant_owner: &str,
+    refusal_kind: EpiphanyAgentPassAdmissionRefusalKind,
+    reason: &str,
+    refused_at: &str,
+) -> Result<EpiphanyAgentPassAdmissionOutcome> {
+    let mut cache = crate::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let refusal_id = format!("agent-pass-admission-refusal-{}", result.job_id);
+    if let Some(existing) = cache.get::<EpiphanyAgentPassAdmissionRefusal>(&refusal_id)? {
+        existing.validate()?;
+        if existing.pass_family != pass_family
+            || existing.request_id != request_id
+            || existing.result_id != result.result_id
+            || existing.decision_context_id != result.decision_context_id
+            || existing.invariant_owner != invariant_owner
+            || existing.refusal_kind != refusal_kind
+            || existing.reason != reason
+        {
+            return Err(anyhow!("agent-pass admission refusal identity collision"));
+        }
+        let envelope = cache
+            .get_envelope::<EpiphanyAgentPassAdmissionRefusal>(&refusal_id)?
+            .ok_or_else(|| anyhow!("agent-pass admission refusal lost its envelope"))?;
+        let version = EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &envelope)?;
+        let commit = cache
+            .get_all::<crate::EpiphanyMindCommitReceipt>()?
+            .into_iter()
+            .find(|receipt| {
+                receipt.invariant_owner == format!("{invariant_owner}.refusal")
+                    && receipt.writes.contains(&version)
+                    && matches!(
+                        &receipt.authority,
+                        crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
+                            decision_context_id
+                        } if decision_context_id == &result.decision_context_id
+                    )
+            })
+            .ok_or_else(|| anyhow!("agent-pass admission refusal lost its commit receipt"))?;
+        return Ok(EpiphanyAgentPassAdmissionOutcome::Refused {
+            refusal: existing,
+            commit,
+        });
+    }
+    if chrono::DateTime::parse_from_rfc3339(refused_at).is_err() {
+        return Err(anyhow!("agent-pass admission refusal time is invalid"));
+    }
+    let job_envelope = cache
+        .get_envelope::<crate::EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("agent-pass admission refusal lost its runtime job"))?;
+    let job = cache
+        .get::<crate::EpiphanyRuntimeJob>(&result.job_id)?
+        .ok_or_else(|| anyhow!("agent-pass admission refusal lost its runtime job"))?;
+    if job.status != crate::EpiphanyRuntimeJobStatus::Completed {
+        return Err(anyhow!(
+            "agent-pass admission refusal requires a completed structured result"
+        ));
+    }
+    let result_envelope = cache
+        .get_envelope::<crate::EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+        .ok_or_else(|| anyhow!("agent-pass admission refusal lost its typed result"))?;
+    if cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+        .as_ref()
+        != Some(result)
+    {
+        return Err(anyhow!(
+            "agent-pass admission refusal result was substituted"
+        ));
+    }
+    let refusal = EpiphanyAgentPassAdmissionRefusal {
+        schema_version: AGENT_PASS_ADMISSION_REFUSAL_SCHEMA_VERSION.into(),
+        refusal_id,
+        pass_family,
+        request_id: request_id.into(),
+        job_id: result.job_id.clone(),
+        result_id: result.result_id.clone(),
+        decision_context_id: result.decision_context_id.clone(),
+        invariant_owner: invariant_owner.into(),
+        refusal_kind,
+        reason: reason.into(),
+        refused_at: refused_at.into(),
+    };
+    refusal.validate()?;
+    let refusal_envelope =
+        crate::mind_documents::prepare_mind_document(&cache, &refusal.refusal_id, &refusal)?;
+    match crate::commit_mind_mutation(
+        store_path,
+        &result.decision_context_id,
+        &format!("{invariant_owner}.refusal"),
+        vec![job_envelope, result_envelope],
+        vec![refusal_envelope],
+        refused_at,
+    )? {
+        crate::EpiphanyMindCommitOutcome::Committed(commit) => {
+            Ok(EpiphanyAgentPassAdmissionOutcome::Refused { refusal, commit })
+        }
         crate::EpiphanyMindCommitOutcome::Conflict {
             document_identities,
         } => Err(anyhow!(
-            "proposal Modeling admission lost exact keyed reads: {document_identities:?}"
+            "agent-pass admission refusal lost exact keyed reads: {document_identities:?}"
         )),
     }
 }
@@ -2208,22 +2567,44 @@ pub fn accept_frontier_verdict_modeling_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
     accepted_at: &str,
-) -> Result<crate::EpiphanyMindCommitReceipt> {
+) -> Result<EpiphanyAgentPassAdmissionOutcome> {
     let store_path = store_path.as_ref();
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    let current = current_frontier_verdict_modeling_work(&cache)?
-        .filter(|work| {
-            work.attempt.action == EpiphanyAgentPassContinuationAction::Review
-                && work.attempt.job_id.as_deref() == Some(job_id)
-        })
-        .ok_or_else(|| anyhow!("frontier verdict Modeling result is not current review work"))?;
     let result = cache
         .get::<crate::EpiphanyRuntimeRoleWorkerResult>(job_id)?
         .ok_or_else(|| anyhow!("frontier verdict Modeling acceptance lost its typed result"))?;
+    let request_id = result
+        .repo_frontier_modeling_request_id
+        .as_deref()
+        .ok_or_else(|| anyhow!("result is not frontier verdict Modeling authority"))?;
+    let current = match current_frontier_verdict_modeling_work(&cache) {
+        Ok(Some(work))
+            if work.attempt.action == EpiphanyAgentPassContinuationAction::Review
+                && work.attempt.job_id.as_deref() == Some(job_id) =>
+        {
+            work
+        }
+        Ok(_) => {
+            return Err(anyhow!(
+                "frontier verdict Modeling result is not current review work"
+            ));
+        }
+        Err(error) => {
+            return record_agent_pass_admission_refusal(
+                store_path,
+                &result,
+                EpiphanyAgentPassFamily::FrontierVerdictModeling,
+                request_id,
+                "Modeling.frontier_verdict",
+                EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+                &error.to_string(),
+                accepted_at,
+            );
+        }
+    };
     if !result.role_id.eq_ignore_ascii_case("modeling")
-        || result.repo_frontier_modeling_request_id.as_deref()
-            != Some(current.request.request_id.as_str())
+        || request_id != current.request.request_id
         || result.proposal_modeling_request_id.is_some()
     {
         return Err(anyhow!(
@@ -2238,7 +2619,21 @@ pub fn accept_frontier_verdict_modeling_result(
             "frontier verdict Modeling mutation proposal identity is not runtime-owned"
         ));
     }
-    let plan = crate::plan_repo_model_mutation(store_path, &proposal)?;
+    let plan = match crate::plan_repo_model_mutation(store_path, &proposal) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return record_agent_pass_admission_refusal(
+                store_path,
+                &result,
+                EpiphanyAgentPassFamily::FrontierVerdictModeling,
+                &current.request.request_id,
+                "Modeling.frontier_verdict",
+                EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused,
+                &error.to_string(),
+                accepted_at,
+            );
+        }
+    };
     let expected_frontier_version = current
         .request
         .model_source_documents
@@ -2275,12 +2670,23 @@ pub fn accept_frontier_verdict_modeling_result(
         plan.writes,
         accepted_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(receipt) => Ok(receipt),
+        crate::EpiphanyMindCommitOutcome::Committed(receipt) => {
+            Ok(EpiphanyAgentPassAdmissionOutcome::Committed(receipt))
+        }
         crate::EpiphanyMindCommitOutcome::Conflict {
             document_identities,
-        } => Err(anyhow!(
-            "frontier verdict Modeling admission lost exact keyed reads: {document_identities:?}"
-        )),
+        } => record_agent_pass_admission_refusal(
+            store_path,
+            &result,
+            EpiphanyAgentPassFamily::FrontierVerdictModeling,
+            &current.request.request_id,
+            "Modeling.frontier_verdict",
+            EpiphanyAgentPassAdmissionRefusalKind::StrongReadConflict,
+            &format!(
+                "frontier verdict Modeling admission lost exact keyed reads: {document_identities:?}"
+            ),
+            accepted_at,
+        ),
     }
 }
 
@@ -2824,7 +3230,6 @@ pub fn launch_current_proposal_modeling_work(
         .repo_model
         .as_ref()
         .ok_or_else(|| anyhow!("proposal Modeling launch requires keyed RepoModel state"))?;
-    let proposal_context = build_proposal_modeling_context_projection(&request, &proposal, model)?;
     let attempt_ordinal = cache
         .get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?
         .into_iter()
@@ -2838,6 +3243,14 @@ pub fn launch_current_proposal_modeling_work(
                     && attempt.request_id == request.request_id
             })
             .count();
+    let prior_admission_refusals =
+        proposal_modeling_prior_admission_refusals(&cache, &request.request_id, attempt_ordinal)?;
+    let proposal_context = build_proposal_modeling_context_projection(
+        &request,
+        &proposal,
+        model,
+        prior_admission_refusals.clone(),
+    )?;
     let job_id = format!(
         "proposal-modeling-{}-attempt-{attempt_ordinal}",
         request.request_id
@@ -2951,6 +3364,12 @@ pub fn launch_current_proposal_modeling_work(
             .find(|value| value.r#type == document_type && value.key == document_key)
             .ok_or_else(|| anyhow!("proposal Modeling launch lost a strong source"))?;
         expected.push(envelope.clone());
+    }
+    for refusal in &prior_admission_refusals {
+        let envelope = cache
+            .get_envelope::<EpiphanyAgentPassAdmissionRefusal>(&refusal.refusal_id)?
+            .ok_or_else(|| anyhow!("proposal Modeling launch lost a refusal source"))?;
+        expected.push(envelope);
     }
     commit_current_work_launch(
         store_path,
@@ -3121,6 +3540,7 @@ fn build_proposal_modeling_context_projection(
     request: &crate::RepoFrontierProposalModelingRequest,
     proposal: &crate::RepoFrontierWorkProposal,
     model: &crate::EpiphanyRepoModelView,
+    prior_admission_refusals: Vec<EpiphanyAgentPassAdmissionRefusal>,
 ) -> Result<crate::RepoFrontierProposalModelingContextProjection> {
     Ok(crate::RepoFrontierProposalModelingContextProjection {
         schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION.into(),
@@ -3145,7 +3565,33 @@ fn build_proposal_modeling_context_projection(
         private_state_included: proposal.private_state_included,
         model_projection_digest: model.projection_digest.clone(),
         model_source_documents: model.source_documents.clone(),
+        prior_admission_refusals,
     })
+}
+
+pub(crate) fn proposal_modeling_prior_admission_refusals(
+    cache: &CultCache,
+    request_id: &str,
+    before_attempt_ordinal: usize,
+) -> Result<Vec<EpiphanyAgentPassAdmissionRefusal>> {
+    let mut refusals = cache
+        .get_all::<EpiphanyAgentPassAdmissionRefusal>()?
+        .into_iter()
+        .filter(|refusal| {
+            refusal.pass_family == EpiphanyAgentPassFamily::ProposalModeling
+                && refusal.request_id == request_id
+        })
+        .map(|refusal| {
+            refusal.validate()?;
+            Ok((
+                proposal_modeling_attempt_ordinal(request_id, &refusal.job_id)?,
+                refusal,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    refusals.retain(|(ordinal, _)| *ordinal < before_attempt_ordinal);
+    refusals.sort_by_key(|(ordinal, _)| *ordinal);
+    Ok(refusals.into_iter().map(|(_, refusal)| refusal).collect())
 }
 
 fn resolve_body_modeling_work(
@@ -3711,7 +4157,11 @@ mod tests {
                 .map(|(_, action)| action),
             Some("reviewModelingResult".into()),
         );
-        let receipt = accept_body_modeling_result(&store, &result.job_id, "2026-08-17T00:00:05Z")?;
+        let EpiphanyAgentPassAdmissionOutcome::Committed(receipt) =
+            accept_body_modeling_result(&store, &result.job_id, "2026-08-17T00:00:05Z")?
+        else {
+            panic!("valid Body Modeling result must commit")
+        };
         assert_eq!(
             receipt.authority,
             crate::EpiphanyMindCommitAuthority::ModelDecisionContext {
@@ -3936,6 +4386,7 @@ mod tests {
                     target_claim_ids: vec!["body-node".into()],
                     source_scope: vec!["epiphany-core/src".into()],
                     recommended_next_organ: "Imagination".into(),
+                    dependency_item_ids: vec!["body-node".into()],
                     status: RepoFrontierStatus::Active,
                     evidence_refs: vec![proposal.proposal_id.clone()],
                     ..Default::default()
@@ -4030,11 +4481,160 @@ mod tests {
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
-        let proposal_commit = accept_proposal_modeling_result(
+        let proposal_outcome = accept_proposal_modeling_result(
             &store,
             &proposal_launch.job_id,
             "2026-08-17T00:00:13Z",
         )?;
+        let EpiphanyAgentPassAdmissionOutcome::Refused {
+            refusal,
+            commit: refusal_commit,
+        } = proposal_outcome
+        else {
+            panic!("invalid proposal Modeling result must be refused")
+        };
+        assert_eq!(
+            refusal.pass_family,
+            EpiphanyAgentPassFamily::ProposalModeling
+        );
+        assert_eq!(
+            refusal.refusal_kind,
+            EpiphanyAgentPassAdmissionRefusalKind::RepoModelMutationRefused
+        );
+        assert!(refusal.reason.contains("dependency is absent"));
+        assert_eq!(
+            refusal_commit.invariant_owner,
+            "Modeling.proposal_frontier.refusal"
+        );
+        let refused_work = project_current_work(&store)?
+            .proposal_modeling
+            .expect("refused proposal remains a fresh current obligation");
+        assert_eq!(
+            refused_work.attempt.action,
+            EpiphanyAgentPassContinuationAction::Launch
+        );
+        assert_eq!(
+            refused_work.attempt.job_id.as_deref(),
+            Some(proposal_launch.job_id.as_str())
+        );
+
+        let proposal_launch = launch_current_proposal_modeling_work(
+            &store,
+            EpiphanyProposalModelingLaunchOptions {
+                created_at: "2026-08-17T00:00:13.100Z".into(),
+            },
+        )?;
+        assert_eq!(
+            proposal_launch.job_id,
+            format!("proposal-modeling-{}-attempt-2", request.request_id)
+        );
+        let mut retry_cache = crate::runtime_spine_cache(&store)?;
+        retry_cache.pull_all_backing_stores()?;
+        let retry_launch = retry_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_launch.job_id)?
+            .expect("refused proposal retry launch");
+        let crate::EpiphanyWorkerLaunchDocument::Role(retry_document) =
+            retry_launch.launch_document()?
+        else {
+            panic!("proposal Modeling retry must be a role pass")
+        };
+        let retry_projection = retry_document
+            .proposal_modeling_context
+            .expect("proposal Modeling retry has its typed context");
+        assert_eq!(retry_projection.prior_admission_refusals, vec![refusal]);
+        let retry_basis = crate::worker_reasoning_basis(&store, &retry_launch)?;
+        crate::put_reasoning_basis(&store, &retry_basis)?;
+        let mut retry_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "proposal-retry-request",
+            "proposal-retry-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        retry_native.reasoning_basis_id = Some(retry_basis.basis_id.clone());
+        retry_native.source_worker_job_id = Some(proposal_launch.job_id.clone());
+        let retry_context =
+            crate::EpiphanyDecisionContext::new(&retry_basis, retry_native, Vec::new())?;
+        retry_cache.put(&retry_context.context_id, &retry_context)?;
+        let valid_mutation = crate::EpiphanyRepoModelMutationProposal::new(
+            format!("repo-model-mutation-proposal-{}", proposal_launch.job_id),
+            request.request_id.clone(),
+            "proposal-result-retry",
+            vec![proposal.proposal_id.clone()],
+            body.clone(),
+            vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: RepoFrontierItem {
+                    id: "proposal-frontier".into(),
+                    migration_body: "epiphany".into(),
+                    question: "Should this proposal advance?".into(),
+                    gap: "The proposal needs an adopted plan.".into(),
+                    target_claim_ids: vec!["body-node".into()],
+                    source_scope: vec!["epiphany-core/src".into()],
+                    recommended_next_organ: "Imagination".into(),
+                    status: RepoFrontierStatus::Active,
+                    evidence_refs: vec![proposal.proposal_id.clone()],
+                    ..Default::default()
+                },
+            }],
+        )?;
+        let mut proposal_result = proposal_result;
+        proposal_result.result_id = "proposal-result-retry".into();
+        proposal_result.job_id = proposal_launch.job_id.clone();
+        proposal_result.repo_model_mutation_proposal_msgpack =
+            Some(rmp_serde::to_vec_named(&valid_mutation)?);
+        proposal_result.decision_context_id = retry_context.context_id.clone();
+        let retry_process = crate::ProcessInstanceIdentity {
+            process_id: 43,
+            creation_token: 8,
+            created_at_rfc3339: Some("2026-08-17T00:00:13.200Z".into()),
+            executable_path: "proposal-retry-worker".into(),
+        };
+        let retry_activation = "proposal-retry-activation";
+        crate::claim_runtime_worker_process(
+            &store,
+            &proposal_launch.job_id,
+            &retry_process,
+            &format!("{:x}", Sha256::digest(retry_activation.as_bytes())),
+            "2026-08-17T00:00:13.200Z",
+        )?;
+        crate::activate_runtime_worker_process(
+            &store,
+            &proposal_launch.job_id,
+            &retry_process,
+            retry_activation,
+            "2026-08-17T00:00:13.300Z",
+        )?;
+        crate::put_runtime_role_worker_result(&store, &proposal_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-{}", proposal_launch.job_id),
+                job_id: proposal_launch.job_id.clone(),
+                completed_at: "2026-08-17T00:00:13.400Z".into(),
+                verdict: proposal_result.verdict.clone(),
+                summary: proposal_result.summary.clone(),
+                next_safe_move: proposal_result.next_safe_move.clone(),
+                evidence_refs: proposal_result.evidence_ids.clone(),
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(retry_context.context_id),
+            },
+        )?;
+        assert_eq!(
+            project_current_work(&store)?
+                .proposal_modeling
+                .expect("corrected proposal awaits admission")
+                .attempt
+                .action,
+            EpiphanyAgentPassContinuationAction::Review
+        );
+        let proposal_outcome = accept_proposal_modeling_result(
+            &store,
+            &proposal_launch.job_id,
+            "2026-08-17T00:00:14Z",
+        )?;
+        let EpiphanyAgentPassAdmissionOutcome::Committed(proposal_commit) = proposal_outcome else {
+            panic!("corrected proposal Modeling result must commit")
+        };
         assert_eq!(
             proposal_commit.invariant_owner,
             "Modeling.proposal_frontier"
@@ -4445,19 +5045,19 @@ mod tests {
             )?,
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
-        verification_conflict_cache.pull_all_backing_stores()?;
-        let conflict_before = verification_conflict_cache.snapshot_envelopes();
-        let conflict_error = accept_frontier_verification_result(
+        let conflict_model_before = crate::assemble_repo_model_view(&verification_conflict_store)?;
+        let conflict_outcome = accept_frontier_verification_result(
             &verification_conflict_store,
             &verification_job_id,
             "2026-08-17T00:00:16Z",
-        )
-        .expect_err("stale exact frontier must block Verification admission");
-        assert!(conflict_error.to_string().contains("frontier"));
-        verification_conflict_cache.pull_all_backing_stores()?;
+        )?;
+        assert!(matches!(
+            conflict_outcome,
+            EpiphanyAgentPassAdmissionOutcome::Refused { .. }
+        ));
         assert_eq!(
-            verification_conflict_cache.snapshot_envelopes(),
-            conflict_before
+            crate::assemble_repo_model_view(&verification_conflict_store)?,
+            conflict_model_before
         );
 
         // An unrelated keyed graph write after inference must not stale this
@@ -4524,14 +5124,22 @@ mod tests {
             modeling_outcome?,
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
-        let verification_commit = verification_commit?;
+        let EpiphanyAgentPassAdmissionOutcome::Committed(verification_commit) =
+            verification_commit?
+        else {
+            panic!("disjoint Verification admission must commit")
+        };
         assert_eq!(verification_commit.invariant_owner, "Soul.verification");
         assert!(project_current_work(&store)?.verification.is_none());
-        let replayed_verification_commit = accept_frontier_verification_result(
-            &store,
-            &verification_job_id,
-            "2026-08-17T00:00:16Z",
-        )?;
+        let EpiphanyAgentPassAdmissionOutcome::Committed(replayed_verification_commit) =
+            accept_frontier_verification_result(
+                &store,
+                &verification_job_id,
+                "2026-08-17T00:00:16Z",
+            )?
+        else {
+            panic!("accepted Verification replay must remain committed")
+        };
         assert_eq!(replayed_verification_commit, verification_commit);
         accepted_cache.pull_all_backing_stores()?;
         let verdict = accepted_cache
@@ -4801,26 +5409,30 @@ mod tests {
             )?,
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
-        let mut conflict_before = crate::runtime_spine_cache(&conflict_store)?;
-        conflict_before.pull_all_backing_stores()?;
-        let conflict_before = conflict_before.snapshot_envelopes();
-        assert!(
+        let conflict_model_before = crate::assemble_repo_model_view(&conflict_store)?;
+        assert!(matches!(
             accept_frontier_verdict_modeling_result(
                 &conflict_store,
                 &verdict_job_id,
                 "2026-08-17T00:00:21Z",
-            )
-            .is_err()
+            )?,
+            EpiphanyAgentPassAdmissionOutcome::Refused { .. }
+        ));
+        assert_eq!(
+            crate::assemble_repo_model_view(&conflict_store)?,
+            conflict_model_before,
+            "refusal must not partially apply a stale RepoModel mutation"
         );
-        let mut conflict_after = crate::runtime_spine_cache(&conflict_store)?;
-        conflict_after.pull_all_backing_stores()?;
-        assert_eq!(conflict_after.snapshot_envelopes(), conflict_before);
 
-        let verdict_commit = accept_frontier_verdict_modeling_result(
-            &store,
-            &verdict_job_id,
-            "2026-08-17T00:00:21Z",
-        )?;
+        let EpiphanyAgentPassAdmissionOutcome::Committed(verdict_commit) =
+            accept_frontier_verdict_modeling_result(
+                &store,
+                &verdict_job_id,
+                "2026-08-17T00:00:21Z",
+            )?
+        else {
+            panic!("current frontier verdict must commit")
+        };
         assert_eq!(verdict_commit.invariant_owner, "Modeling.frontier_verdict");
         assert!(
             project_current_work(&store)?

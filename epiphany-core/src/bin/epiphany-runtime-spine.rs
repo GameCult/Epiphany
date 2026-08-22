@@ -2,9 +2,11 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::EpiphanyCoordinatorRunReceipt;
 use epiphany_core::EpiphanyRuntimeEvent;
 use epiphany_core::EpiphanyRuntimeJob;
 use epiphany_core::EpiphanyRuntimeJobResult;
+use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeSession;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
@@ -184,6 +186,52 @@ fn main() -> Result<()> {
                 );
             }
         }
+        Command::ListCoordinatorRuns => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut receipts = cache.get_all::<EpiphanyCoordinatorRunReceipt>()?;
+            receipts.sort_by(|left, right| {
+                left.created_at
+                    .cmp(&right.created_at)
+                    .then_with(|| left.receipt_id.cmp(&right.receipt_id))
+            });
+            println!("coordinator runs");
+            for receipt in receipts {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}\t{}",
+                    receipt.created_at,
+                    receipt.receipt_id,
+                    receipt.thread_id,
+                    receipt.status,
+                    receipt.final_action,
+                    receipt
+                        .final_reason
+                        .as_deref()
+                        .unwrap_or("no-reason")
+                        .replace(['\r', '\n', '\t'], " ")
+                );
+            }
+        }
+        Command::ListRepoModelProposals => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut results = cache.get_all::<EpiphanyRuntimeRoleWorkerResult>()?;
+            results.sort_by(|left, right| left.job_id.cmp(&right.job_id));
+            println!("RepoModel mutation proposals");
+            for result in results {
+                let Some(proposal) = result.repo_model_mutation_proposal()? else {
+                    continue;
+                };
+                let operations = proposal.operations()?;
+                println!(
+                    "{}\t{}\t{}\t{}",
+                    result.job_id,
+                    proposal.proposal_id,
+                    result.decision_context_id,
+                    serde_json::to_string(&operations)?
+                );
+            }
+        }
         Command::OpenSession {
             session_id,
             objective,
@@ -334,6 +382,8 @@ enum Command {
     ListSessions,
     ListModelRequests,
     ListEvents,
+    ListCoordinatorRuns,
+    ListRepoModelProposals,
     OpenSession {
         session_id: String,
         objective: String,
@@ -425,6 +475,8 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
         "list-sessions" => Ok(Command::ListSessions),
         "list-model-requests" => Ok(Command::ListModelRequests),
         "list-events" => Ok(Command::ListEvents),
+        "list-coordinator-runs" => Ok(Command::ListCoordinatorRuns),
+        "list-repo-model-proposals" => Ok(Command::ListRepoModelProposals),
         "open-session" => {
             let mut session_id = format!("session-{}", Uuid::new_v4());
             let mut objective = String::new();
@@ -709,7 +761,7 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|open-session|close-session|repair-root-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|repair-root-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
 }
 
 fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {

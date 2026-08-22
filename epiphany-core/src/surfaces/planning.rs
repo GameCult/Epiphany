@@ -133,6 +133,7 @@ mod tests {
             verification_audits: Vec::new(),
             reorientation_decisions: Vec::new(),
             reorientation_failures: Vec::new(),
+            agent_pass_admission_refusals: Vec::new(),
             investigation_checkpoint: None,
             mode: None,
             planning: EpiphanyPlanningState {

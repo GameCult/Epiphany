@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache};
 
-pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v2";
+pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v3";
 pub const MIND_OBJECTIVE_KEY: &str = "objective";
 pub const MIND_FOCUS_KEY: &str = "focus";
 pub const MIND_MODE_KEY: &str = "mode";
@@ -354,6 +354,7 @@ pub struct EpiphanyMindView {
     pub verification_audits: Vec<EpiphanyMindVerificationAuditDocument>,
     pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
     pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
+    pub agent_pass_admission_refusals: Vec<crate::EpiphanyAgentPassAdmissionRefusal>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub mode: Option<EpiphanyModeState>,
     pub planning: EpiphanyPlanningState,
@@ -450,6 +451,11 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
         )?;
         value.validate(&work)?;
         value.work_id
+    } else if envelope.r#type == crate::EpiphanyAgentPassAdmissionRefusal::TYPE {
+        let value: crate::EpiphanyAgentPassAdmissionRefusal =
+            rmp_serde::from_slice(&envelope.payload)?;
+        value.validate()?;
+        value.refusal_id
     } else if envelope.r#type == EpiphanyMindIdentity::TYPE {
         let value: EpiphanyMindIdentity = rmp_serde::from_slice(&envelope.payload)?;
         if value.schema_epoch != MIND_SCHEMA_EPOCH || value.runtime_id.trim().is_empty() {
@@ -587,6 +593,11 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         cache.get_all::<crate::EpiphanyMindReorientationDecisionDocument>()?;
     let mut reorientation_failures =
         cache.get_all::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
+    let mut agent_pass_admission_refusals =
+        cache.get_all::<crate::EpiphanyAgentPassAdmissionRefusal>()?;
+    for refusal in &agent_pass_admission_refusals {
+        refusal.validate()?;
+    }
     let checkpoints =
         values::<EpiphanyMindInvestigationCheckpointDocument, _>(&cache, |value| value.value)?;
     let mut captures =
@@ -630,6 +641,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     verification_audits.sort_by(|left, right| left.audit_id.cmp(&right.audit_id));
     reorientation_decisions.sort_by(|left, right| left.decision_id.cmp(&right.decision_id));
     reorientation_failures.sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
+    agent_pass_admission_refusals.sort_by(|left, right| left.refusal_id.cmp(&right.refusal_id));
     captures.sort_by(|left, right| left.id.cmp(&right.id));
     backlog_items.sort_by(|left, right| left.id.cmp(&right.id));
     roadmap_streams.sort_by(|left, right| left.id.cmp(&right.id));
@@ -674,6 +686,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         verification_audits,
         reorientation_decisions,
         reorientation_failures,
+        agent_pass_admission_refusals,
         investigation_checkpoint,
         mode,
         planning: EpiphanyPlanningState {
@@ -714,6 +727,7 @@ fn canonical_mind_versions(
                     | EpiphanyMindVerificationAuditDocument::TYPE
                     | crate::EpiphanyMindReorientationDecisionDocument::TYPE
                     | crate::EpiphanyMindReorientationPassFailureDocument::TYPE
+                    | crate::EpiphanyAgentPassAdmissionRefusal::TYPE
                     | EpiphanyMindInvestigationCheckpointDocument::TYPE
                     | EpiphanyMindPlanningCaptureDocument::TYPE
                     | EpiphanyMindBacklogItemDocument::TYPE

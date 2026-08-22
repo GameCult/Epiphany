@@ -15,9 +15,9 @@ use serde::Serialize;
 pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v4";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_proposal_modeling_context.v1";
+    "epiphany.worker.repo_frontier_proposal_modeling_context.v2";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_proposal_modeling_context.v1";
+    "epiphany.repo_frontier_proposal_modeling_context.v2";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_planning_context.v2";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
@@ -209,6 +209,7 @@ pub struct RepoFrontierProposalModelingContextProjection {
     pub private_state_included: bool,
     pub model_projection_digest: String,
     pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
+    pub prior_admission_refusals: Vec<crate::EpiphanyAgentPassAdmissionRefusal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

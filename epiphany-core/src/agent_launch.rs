@@ -71,10 +71,19 @@ fn repo_frontier_item_output_schema() -> serde_json::Value {
             "migration_body": {"type": "string", "minLength": 1},
             "question": {"type": "string", "minLength": 1},
             "gap": {"type": "string", "minLength": 1},
-            "target_claim_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "target_claim_ids": {
+                "type": "array",
+                "minItems": 1,
+                "description": "RepoModel node identities whose claims this frontier item changes or resolves.",
+                "items": {"type": "string", "minLength": 1}
+            },
             "source_scope": {"type": "array", "items": {"type": "string"}},
             "recommended_next_organ": {"type": "string", "minLength": 1},
-            "dependency_item_ids": {"type": "array", "items": {"type": "string"}},
+            "dependency_item_ids": {
+                "type": "array",
+                "description": "RepoModel frontier-item identities that must resolve first. Never put node or claim identities here.",
+                "items": {"type": "string", "minLength": 1}
+            },
             "status": {"type": "string", "enum": ["proposed", "active", "blocked", "resolved", "retired", "superseded"]},
             "evidence_refs": {"type": "array", "items": {"type": "string"}}
         }
