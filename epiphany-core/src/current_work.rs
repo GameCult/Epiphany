@@ -6,9 +6,11 @@ use std::path::Path;
 
 use crate::{
     EpiphanyMindDocumentVersion, EpiphanyRepoModelBasis, RepoFrontierPlanningLifecycleStage,
-    RepoFrontierProposalModelingRequest, RepoFrontierResearchContinuationAction,
-    RepositoryBodyObservationBasis,
+    RepoFrontierProposalModelingRequest, RepositoryBodyObservationBasis,
 };
+
+#[cfg(test)]
+use crate::RepoFrontierResearchContinuationAction;
 
 pub const BODY_MODELING_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.body_modeling_decision.v1";
@@ -20,8 +22,8 @@ pub const BODY_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
     pub body_modeling: Option<EpiphanyBodyModelingCurrentWorkProjection>,
-    pub research_continuation_action: Option<RepoFrontierResearchContinuationAction>,
-    pub frontier_planning_stage: RepoFrontierPlanningLifecycleStage,
+    pub research: crate::RepoFrontierResearchLifecycle,
+    pub frontier_planning: crate::RepoFrontierPlanningLifecycle,
     pub proposal_modeling: Option<EpiphanyProposalModelingWorkProjection>,
     pub frontier_verdict_modeling: Option<EpiphanyFrontierVerdictModelingWorkProjection>,
     pub verification: Option<EpiphanyVerificationWorkProjection>,
@@ -51,42 +53,76 @@ pub enum EpiphanyAgentPassContinuationAction {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EpiphanyProposalModelingWorkProjection {
-    pub request: RepoFrontierProposalModelingRequest,
+pub struct EpiphanyAgentPassAttemptProjection {
     pub action: EpiphanyAgentPassContinuationAction,
     pub job_id: Option<String>,
+}
+
+impl EpiphanyAgentPassAttemptProjection {
+    pub(crate) fn unattempted() -> Self {
+        Self::with(EpiphanyAgentPassContinuationAction::Launch, None)
+    }
+
+    pub(crate) fn with(
+        action: EpiphanyAgentPassContinuationAction,
+        job_id: Option<String>,
+    ) -> Self {
+        Self { action, job_id }
+    }
+
+    fn from_job(job: &crate::EpiphanyRuntimeJob, completed_is_reviewable: bool) -> Self {
+        let action = match job.status {
+            crate::EpiphanyRuntimeJobStatus::Failed
+            | crate::EpiphanyRuntimeJobStatus::Cancelled => {
+                EpiphanyAgentPassContinuationAction::Launch
+            }
+            crate::EpiphanyRuntimeJobStatus::Completed if completed_is_reviewable => {
+                EpiphanyAgentPassContinuationAction::Review
+            }
+            _ => EpiphanyAgentPassContinuationAction::Wait,
+        };
+        Self::with(action, Some(job.job_id.clone()))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyProposalModelingWorkProjection {
+    pub request: RepoFrontierProposalModelingRequest,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyFrontierVerdictModelingWorkProjection {
     pub request: crate::RepoFrontierModelingRequest,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyVerificationWorkProjection {
     pub request: crate::RepoFrontierVerificationRequest,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyImaginationConsiderationWorkProjection {
     pub request: crate::ImaginationConsiderationRequest,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyAdmittedModelDirectionConsiderationWorkProjection {
     pub request: crate::AdmittedModelDirectionConsiderationRequest,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,8 +138,8 @@ pub struct EpiphanyBodyModelingWorkProjection {
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyBodyModelingCurrentWorkProjection {
     pub work: EpiphanyBodyModelingWorkProjection,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: EpiphanyAgentPassAttemptProjection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -353,15 +389,10 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
                 cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
             )?;
             match unresolved {
-                Some(work) => {
-                    let (action, job_id) =
-                        body_modeling_continuation_action(&cache, &work.work_id)?;
-                    Some(EpiphanyBodyModelingCurrentWorkProjection {
-                        work,
-                        action,
-                        job_id,
-                    })
-                }
+                Some(work) => Some(EpiphanyBodyModelingCurrentWorkProjection {
+                    attempt: body_modeling_attempt(&cache, &work.work_id)?,
+                    work,
+                }),
                 None => None,
             }
         }
@@ -384,9 +415,8 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     Ok(EpiphanyCurrentWorkProjection {
         mind_projection_digest: mind.projection_digest,
         body_modeling,
-        research_continuation_action: crate::runtime_repo_frontier_research_lifecycle(store_path)?
-            .continuation_action(),
-        frontier_planning_stage: crate::runtime_repo_frontier_planning_lifecycle(store_path)?.stage,
+        research: crate::runtime_repo_frontier_research_lifecycle(store_path)?,
+        frontier_planning: crate::runtime_repo_frontier_planning_lifecycle(store_path)?,
         proposal_modeling: current_proposal_modeling_work(&cache)?,
         frontier_verdict_modeling: current_frontier_verdict_modeling_work(&cache)?,
         verification: current_verification_work(&cache)?,
@@ -397,23 +427,17 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
     })
 }
 
-fn consideration_attempt_action(
+fn consideration_attempt(
     cache: &CultCache,
     job_ids: &[String],
-) -> Result<(EpiphanyAgentPassContinuationAction, Option<String>)> {
+) -> Result<EpiphanyAgentPassAttemptProjection> {
     let Some(job_id) = job_ids.last() else {
-        return Ok((EpiphanyAgentPassContinuationAction::Launch, None));
+        return Ok(EpiphanyAgentPassAttemptProjection::unattempted());
     };
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(job_id)?
         .ok_or_else(|| anyhow!("consideration launch lost its runtime job"))?;
-    let action = match job.status {
-        crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-            EpiphanyAgentPassContinuationAction::Launch
-        }
-        _ => EpiphanyAgentPassContinuationAction::Wait,
-    };
-    Ok((action, Some(job_id.clone())))
+    Ok(EpiphanyAgentPassAttemptProjection::from_job(&job, false))
 }
 
 fn consideration_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
@@ -460,12 +484,8 @@ fn current_imagination_consideration_work(
             .into_iter()
             .map(|(_, job_id)| job_id)
             .collect::<Vec<_>>();
-        let (action, job_id) = consideration_attempt_action(cache, &launches)?;
-        work.push(EpiphanyImaginationConsiderationWorkProjection {
-            request,
-            action,
-            job_id,
-        });
+        let attempt = consideration_attempt(cache, &launches)?;
+        work.push(EpiphanyImaginationConsiderationWorkProjection { request, attempt });
     }
     Ok(work)
 }
@@ -509,13 +529,9 @@ fn current_admitted_model_direction_consideration_work(
             .into_iter()
             .map(|(_, job_id)| job_id)
             .collect::<Vec<_>>();
-        let (action, job_id) = consideration_attempt_action(cache, &job_ids)?;
+        let attempt = consideration_attempt(cache, &job_ids)?;
         return Ok(Some(
-            EpiphanyAdmittedModelDirectionConsiderationWorkProjection {
-                request,
-                action,
-                job_id,
-            },
+            EpiphanyAdmittedModelDirectionConsiderationWorkProjection { request, attempt },
         ));
     }
     Ok(None)
@@ -572,8 +588,7 @@ fn current_verification_work(
             if crate::runtime_spine::verification_frontier_is_current(cache, &request)? {
                 return Ok(Some(EpiphanyVerificationWorkProjection {
                     request,
-                    action: EpiphanyAgentPassContinuationAction::Launch,
-                    job_id: None,
+                    attempt: EpiphanyAgentPassAttemptProjection::unattempted(),
                 }));
             }
             continue;
@@ -590,22 +605,15 @@ fn current_verification_work(
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("frontier Verification launch lost its runtime job"))?;
-        let action = match job.status {
-            crate::EpiphanyRuntimeJobStatus::Failed
-            | crate::EpiphanyRuntimeJobStatus::Cancelled
-                if crate::runtime_spine::verification_frontier_is_current(cache, &request)? =>
-            {
-                EpiphanyAgentPassContinuationAction::Launch
-            }
-            crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
-                EpiphanyAgentPassContinuationAction::Review
-            }
-            _ => EpiphanyAgentPassContinuationAction::Wait,
-        };
+        let retry_allowed =
+            crate::runtime_spine::verification_frontier_is_current(cache, &request)?;
+        let mut attempt = EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some());
+        if attempt.action == EpiphanyAgentPassContinuationAction::Launch && !retry_allowed {
+            attempt.action = EpiphanyAgentPassContinuationAction::Wait;
+        }
         return Ok(Some(EpiphanyVerificationWorkProjection {
             request,
-            action,
-            job_id: Some(launch.job_id.clone()),
+            attempt,
         }));
     }
     Ok(None)
@@ -661,8 +669,7 @@ fn current_frontier_verdict_modeling_work(
         let Some((_, launch)) = request_launches.last() else {
             return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
                 request,
-                action: EpiphanyAgentPassContinuationAction::Launch,
-                job_id: None,
+                attempt: EpiphanyAgentPassAttemptProjection::unattempted(),
             }));
         };
         let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
@@ -677,29 +684,18 @@ fn current_frontier_verdict_modeling_work(
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
             .ok_or_else(|| anyhow!("frontier verdict Modeling launch lost its runtime job"))?;
-        let action = match job.status {
-            crate::EpiphanyRuntimeJobStatus::Failed
-            | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-                EpiphanyAgentPassContinuationAction::Launch
-            }
-            crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
-                EpiphanyAgentPassContinuationAction::Review
-            }
-            _ => EpiphanyAgentPassContinuationAction::Wait,
-        };
         return Ok(Some(EpiphanyFrontierVerdictModelingWorkProjection {
             request,
-            action,
-            job_id: Some(launch.job_id.clone()),
+            attempt: EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some()),
         }));
     }
     Ok(None)
 }
 
-fn body_modeling_continuation_action(
+fn body_modeling_attempt(
     cache: &CultCache,
     work_id: &str,
-) -> Result<(EpiphanyAgentPassContinuationAction, Option<String>)> {
+) -> Result<EpiphanyAgentPassAttemptProjection> {
     let mut bindings = cache
         .get_all::<EpiphanyBodyModelingLaunchBinding>()?
         .into_iter()
@@ -707,28 +703,26 @@ fn body_modeling_continuation_action(
         .collect::<Vec<_>>();
     bindings.sort_by_key(|binding| binding.attempt_ordinal);
     let Some(binding) = bindings.last() else {
-        return Ok((EpiphanyAgentPassContinuationAction::Launch, None));
+        return Ok(EpiphanyAgentPassAttemptProjection::unattempted());
     };
     let job = cache
         .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
         .ok_or_else(|| anyhow!("Body Modeling launch binding lost its runtime job"))?;
-    let action = match job.status {
-        crate::EpiphanyRuntimeJobStatus::Failed | crate::EpiphanyRuntimeJobStatus::Cancelled => {
-            EpiphanyAgentPassContinuationAction::Launch
-        }
-        crate::EpiphanyRuntimeJobStatus::Completed => {
-            if cache
-                .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
-                .is_some()
-            {
-                EpiphanyAgentPassContinuationAction::Review
-            } else {
-                EpiphanyAgentPassContinuationAction::Wait
-            }
-        }
-        _ => EpiphanyAgentPassContinuationAction::Wait,
-    };
-    Ok((action, Some(binding.job_id.clone())))
+    let reviewable = cache
+        .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?
+        .is_some();
+    Ok(EpiphanyAgentPassAttemptProjection::from_job(
+        &job, reviewable,
+    ))
+}
+
+fn proposal_modeling_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("proposal-modeling-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("proposal Modeling job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("proposal Modeling attempt ordinal is invalid"))
 }
 
 fn current_proposal_modeling_work(
@@ -740,21 +734,36 @@ fn current_proposal_modeling_work(
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
     'requests: for request in requests {
         crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&request)?;
-        let request_bindings = bindings
+        let mut request_bindings = bindings
             .iter()
             .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
-            .collect::<Vec<_>>();
+            .map(|binding| {
+                Ok((
+                    proposal_modeling_attempt_ordinal(&request.request_id, &binding.job_id)?,
+                    binding,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        request_bindings.sort_by_key(|(ordinal, _)| *ordinal);
+        for (expected, (ordinal, _)) in request_bindings.iter().enumerate() {
+            if *ordinal != expected {
+                return Err(anyhow!(
+                    "proposal Modeling request has noncontiguous attempt identity"
+                ));
+            }
+        }
         if request_bindings.is_empty() {
             return Ok(Some(EpiphanyProposalModelingWorkProjection {
                 request,
-                action: EpiphanyAgentPassContinuationAction::Launch,
-                job_id: None,
+                attempt: EpiphanyAgentPassAttemptProjection::unattempted(),
             }));
         }
-        let mut live_job_ids = Vec::new();
-        let mut review_job_ids = Vec::new();
-        let mut admitted = false;
-        for binding in request_bindings {
+        let latest_ordinal = request_bindings
+            .last()
+            .expect("checked nonempty bindings")
+            .0;
+        let mut admitted_ordinal = None;
+        for (ordinal, binding) in &request_bindings {
             let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
             if let Some(result) = result.as_ref() {
                 if result.proposal_modeling_request_id.as_deref()
@@ -773,57 +782,51 @@ fn current_proposal_modeling_work(
                             } if decision_context_id == &result.decision_context_id
                         )
                 }) {
-                    admitted = true;
+                    if admitted_ordinal.replace(*ordinal).is_some() {
+                        return Err(anyhow!(
+                            "proposal Modeling request has multiple admitted attempts"
+                        ));
+                    }
                     continue;
                 }
             }
             let job = cache
                 .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
                 .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
-            match job.status {
-                crate::EpiphanyRuntimeJobStatus::Failed
-                | crate::EpiphanyRuntimeJobStatus::Cancelled => {}
-                crate::EpiphanyRuntimeJobStatus::Completed if result.is_some() => {
-                    crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
-                        cache,
-                        result.as_ref().expect("checked terminal result"),
-                    )?;
-                    review_job_ids.push(binding.job_id.clone());
-                }
-                _ => live_job_ids.push(binding.job_id.clone()),
+            if result.is_some() {
+                crate::runtime_spine::validate_proposal_modeling_worker_fulfillment(
+                    cache,
+                    result.as_ref().expect("checked terminal result"),
+                )?;
+            }
+            if *ordinal != latest_ordinal
+                && !matches!(
+                    job.status,
+                    crate::EpiphanyRuntimeJobStatus::Failed
+                        | crate::EpiphanyRuntimeJobStatus::Cancelled
+                )
+            {
+                return Err(anyhow!(
+                    "proposal Modeling request has split current attempt authority"
+                ));
             }
         }
-        if review_job_ids.len() > 1 || live_job_ids.len() > 1 {
-            return Err(anyhow!(
-                "proposal Modeling request has split current attempt authority"
-            ));
-        }
-        if admitted {
-            if !review_job_ids.is_empty() || !live_job_ids.is_empty() {
+        if let Some(ordinal) = admitted_ordinal {
+            if ordinal != latest_ordinal {
                 return Err(anyhow!(
-                    "admitted proposal Modeling request retains live attempt authority"
+                    "admitted proposal Modeling request retains later attempt authority"
                 ));
             }
             continue 'requests;
         }
-        if let Some(job_id) = review_job_ids.pop() {
-            return Ok(Some(EpiphanyProposalModelingWorkProjection {
-                request,
-                action: EpiphanyAgentPassContinuationAction::Review,
-                job_id: Some(job_id),
-            }));
-        }
-        if let Some(job_id) = live_job_ids.pop() {
-            return Ok(Some(EpiphanyProposalModelingWorkProjection {
-                request,
-                action: EpiphanyAgentPassContinuationAction::Wait,
-                job_id: Some(job_id),
-            }));
-        }
+        let (_, latest) = request_bindings.last().expect("checked nonempty bindings");
+        let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?;
+        let job = cache
+            .get::<crate::EpiphanyRuntimeJob>(&latest.job_id)?
+            .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
         return Ok(Some(EpiphanyProposalModelingWorkProjection {
             request,
-            action: EpiphanyAgentPassContinuationAction::Launch,
-            job_id: None,
+            attempt: EpiphanyAgentPassAttemptProjection::from_job(&job, result.is_some()),
         }));
     }
     Ok(None)
@@ -855,15 +858,15 @@ pub fn body_modeling_continuation_action_for_job(
         return Ok(None);
     }
     Ok(Some(
-        body_modeling_continuation_action(&cache, &binding.work_id)?.0,
+        body_modeling_attempt(&cache, &binding.work_id)?.action,
     ))
 }
 
 pub fn current_body_modeling_review_job_id(store_path: impl AsRef<Path>) -> Result<Option<String>> {
     Ok(crate::project_current_work(store_path)?
         .body_modeling
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.job_id))
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.attempt.job_id))
 }
 
 pub fn proposal_modeling_continuation_action_for_job(
@@ -872,8 +875,8 @@ pub fn proposal_modeling_continuation_action_for_job(
 ) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
-        .filter(|work| work.job_id.as_deref() == Some(job_id))
-        .map(|work| work.action))
+        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
+        .map(|work| work.attempt.action))
 }
 
 pub fn current_proposal_modeling_review_job_id(
@@ -881,8 +884,8 @@ pub fn current_proposal_modeling_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .proposal_modeling
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.job_id))
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.attempt.job_id))
 }
 
 pub fn frontier_verdict_modeling_continuation_action_for_job(
@@ -891,8 +894,8 @@ pub fn frontier_verdict_modeling_continuation_action_for_job(
 ) -> Result<Option<EpiphanyAgentPassContinuationAction>> {
     Ok(project_current_work(store_path)?
         .frontier_verdict_modeling
-        .filter(|work| work.job_id.as_deref() == Some(job_id))
-        .map(|work| work.action))
+        .filter(|work| work.attempt.job_id.as_deref() == Some(job_id))
+        .map(|work| work.attempt.action))
 }
 
 pub fn current_frontier_verdict_modeling_review_job_id(
@@ -900,8 +903,8 @@ pub fn current_frontier_verdict_modeling_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .frontier_verdict_modeling
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.job_id))
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.attempt.job_id))
 }
 
 pub fn current_frontier_research_review_job_id(
@@ -920,8 +923,8 @@ pub fn current_frontier_verification_review_job_id(
 ) -> Result<Option<String>> {
     Ok(project_current_work(store_path)?
         .verification
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Review)
-        .and_then(|work| work.job_id))
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Review)
+        .and_then(|work| work.attempt.job_id))
 }
 
 pub fn launch_current_frontier_planning_work(
@@ -1327,7 +1330,7 @@ pub fn launch_current_frontier_verification_work(
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let work = current_verification_work(&cache)?
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable frontier Verification work"))?;
     let request = work.request;
     let context = crate::runtime_spine::repo_frontier_verification_context(&cache, &request)?;
@@ -2211,8 +2214,8 @@ pub fn accept_frontier_verdict_modeling_result(
     cache.pull_all_backing_stores()?;
     let current = current_frontier_verdict_modeling_work(&cache)?
         .filter(|work| {
-            work.action == EpiphanyAgentPassContinuationAction::Review
-                && work.job_id.as_deref() == Some(job_id)
+            work.attempt.action == EpiphanyAgentPassContinuationAction::Review
+                && work.attempt.job_id.as_deref() == Some(job_id)
         })
         .ok_or_else(|| anyhow!("frontier verdict Modeling result is not current review work"))?;
     let result = cache
@@ -2380,7 +2383,7 @@ fn launch_consideration_work(
                     .into_iter()
                     .find(|work| work.request.request_id == request.request_id)
                     .ok_or_else(|| anyhow!("Persona feedback consideration is not current"))?;
-                if current.action != EpiphanyAgentPassContinuationAction::Launch {
+                if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
                     return Err(anyhow!("Persona feedback consideration is not launchable"));
                 }
                 let ordinal = cache
@@ -2406,7 +2409,7 @@ fn launch_consideration_work(
                     .ok_or_else(|| {
                         anyhow!("admitted model direction consideration is not current")
                     })?;
-                if current.action != EpiphanyAgentPassContinuationAction::Launch {
+                if current.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
                     return Err(anyhow!(
                         "admitted model direction consideration is not launchable"
                     ));
@@ -2645,7 +2648,7 @@ pub fn launch_current_body_modeling_work(
         cache.get::<EpiphanyBodyModelingDecisionReceipt>(&work.work_id)?,
     )?
     .is_none()
-        || body_modeling_continuation_action(&cache, &work.work_id)?.0
+        || body_modeling_attempt(&cache, &work.work_id)?.action
             != EpiphanyAgentPassContinuationAction::Launch
     {
         return Err(anyhow!("Mind has no launchable Body Modeling work"));
@@ -2792,7 +2795,7 @@ pub fn launch_current_proposal_modeling_work(
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let work = current_proposal_modeling_work(&cache)?
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable proposal Modeling work"))?;
     let request = work.request;
     let proposal = cache
@@ -2974,7 +2977,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
     let mut cache = crate::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let work = current_frontier_verdict_modeling_work(&cache)?
-        .filter(|work| work.action == EpiphanyAgentPassContinuationAction::Launch)
+        .filter(|work| work.attempt.action == EpiphanyAgentPassContinuationAction::Launch)
         .ok_or_else(|| anyhow!("Mind has no launchable frontier verdict Modeling work"))?;
     let request = work.request;
     let verdict = cache
@@ -3350,8 +3353,7 @@ mod tests {
             current_work.body_modeling,
             Some(EpiphanyBodyModelingCurrentWorkProjection {
                 work: projected_work.clone(),
-                action: EpiphanyAgentPassContinuationAction::Launch,
-                job_id: None,
+                attempt: EpiphanyAgentPassAttemptProjection::unattempted(),
             })
         );
         assert_eq!(
@@ -3370,8 +3372,11 @@ mod tests {
             distinct_launch
                 .body_modeling
                 .as_ref()
-                .map(|work| work.action),
-            current_work.body_modeling.as_ref().map(|work| work.action)
+                .map(|work| work.attempt.action),
+            current_work
+                .body_modeling
+                .as_ref()
+                .map(|work| work.attempt.action)
         );
         assert_ne!(
             distinct_launch.projection_digest()?,
@@ -3420,7 +3425,7 @@ mod tests {
             scheduled_work
                 .body_modeling
                 .as_ref()
-                .map(|work| (work.action, work.job_id.as_deref())),
+                .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
             Some((
                 EpiphanyAgentPassContinuationAction::Wait,
                 Some("body-scheduled-job")
@@ -3575,7 +3580,7 @@ mod tests {
             retry_work
                 .body_modeling
                 .as_ref()
-                .map(|work| (work.action, work.job_id.as_deref())),
+                .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
             Some((
                 EpiphanyAgentPassContinuationAction::Launch,
                 Some("body-scheduled-job")
@@ -3698,7 +3703,7 @@ mod tests {
             project_current_work(&store)?
                 .body_modeling
                 .as_ref()
-                .map(|work| work.action),
+                .map(|work| work.attempt.action),
             Some(EpiphanyAgentPassContinuationAction::Review)
         );
         assert_eq!(
@@ -3745,14 +3750,22 @@ mod tests {
             &proposal.proposal_id,
             "2026-08-17T00:00:07Z",
         )?;
-        let proposal_work = project_current_work(&store)?
+        let proposal_initial_projection = project_current_work(&store)?;
+        let proposal_work = proposal_initial_projection
             .proposal_modeling
+            .clone()
             .expect("selected proposal must become current work");
         assert_eq!(proposal_work.request, request);
         assert_eq!(
-            proposal_work.action,
+            proposal_work.attempt.action,
             EpiphanyAgentPassContinuationAction::Launch
         );
+        let proposal_resident_store = temp.path().join("proposal-resident-self.cc");
+        assert!(crate::ingest_resident_self_current_work_pressure(
+            &proposal_resident_store,
+            &store,
+            7,
+        )?);
         let racers = (0..2)
             .map(|_| {
                 let store = store.clone();
@@ -3793,6 +3806,7 @@ mod tests {
             project_current_work(&store)?
                 .proposal_modeling
                 .expect("launched proposal remains current")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Wait
         );
@@ -3805,6 +3819,59 @@ mod tests {
             )
             .is_err()
         );
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: format!("runtime-result-failed-{}", proposal_launch.job_id),
+                job_id: proposal_launch.job_id.clone(),
+                completed_at: "2026-08-17T00:00:09.100Z".into(),
+                verdict: "failed".into(),
+                summary: "provider returned no terminal decision".into(),
+                next_safe_move: "retry from the same exact obligation".into(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+                decision_context_id: None,
+            },
+        )?;
+        let proposal_retry_projection = project_current_work(&store)?;
+        assert_eq!(
+            proposal_retry_projection
+                .proposal_modeling
+                .as_ref()
+                .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
+            Some((
+                EpiphanyAgentPassContinuationAction::Launch,
+                Some(proposal_launch.job_id.as_str()),
+            ))
+        );
+        assert_ne!(
+            proposal_retry_projection.projection_digest()?,
+            proposal_initial_projection.projection_digest()?,
+            "a failed proposal attempt must change exact current-work identity before retry"
+        );
+        assert!(crate::ingest_resident_self_current_work_pressure(
+            &proposal_resident_store,
+            &store,
+            8,
+        )?);
+        assert!(
+            !crate::ingest_resident_self_current_work_pressure(
+                &proposal_resident_store,
+                &store,
+                9,
+            )?,
+            "unchanged proposal failure must remain idempotent"
+        );
+        let proposal_launch = launch_current_proposal_modeling_work(
+            &store,
+            EpiphanyProposalModelingLaunchOptions {
+                created_at: "2026-08-17T00:00:09.200Z".into(),
+            },
+        )?;
+        assert_eq!(
+            proposal_launch.job_id,
+            format!("proposal-modeling-{}-attempt-1", request.request_id)
+        );
         let mut final_cache = crate::runtime_spine_cache(&store)?;
         final_cache.pull_all_backing_stores()?;
         assert_eq!(
@@ -3813,7 +3880,7 @@ mod tests {
                 .into_iter()
                 .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
                 .count(),
-            1
+            2
         );
         assert!(
             final_cache
@@ -3959,6 +4026,7 @@ mod tests {
             project_current_work(&store)?
                 .proposal_modeling
                 .expect("terminal proposal remains current until admission")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
@@ -4188,6 +4256,7 @@ mod tests {
             project_current_work(&store)?
                 .verification
                 .expect("Hands commit creates exact Verification work")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Launch
         );
@@ -4331,6 +4400,7 @@ mod tests {
             project_current_work(&store)?
                 .verification
                 .expect("terminal Verification work awaits admission")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
@@ -4481,6 +4551,7 @@ mod tests {
             project_current_work(&store)?
                 .frontier_verdict_modeling
                 .expect("Soul verdict creates frontier Modeling work")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Launch
         );
@@ -4689,6 +4760,7 @@ mod tests {
             project_current_work(&store)?
                 .frontier_verdict_modeling
                 .expect("terminal verdict work awaits admission")
+                .attempt
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
@@ -5308,7 +5380,7 @@ mod tests {
             crate::EpiphanyMindCommitOutcome::Committed(_)
         ));
         assert_eq!(
-            project_current_work(&store)?.research_continuation_action,
+            project_current_work(&store)?.research.continuation_action(),
             Some(RepoFrontierResearchContinuationAction::LaunchResearch)
         );
         let research_job = launch_current_frontier_research_work(&store, "2026-08-17T00:00:23Z")?;
@@ -5336,7 +5408,7 @@ mod tests {
                 < research_request.model_source_documents.len()
         );
         assert_eq!(
-            project_current_work(&store)?.research_continuation_action,
+            project_current_work(&store)?.research.continuation_action(),
             None
         );
         let research_basis = crate::worker_reasoning_basis(&store, &research_launch)?;
@@ -5456,7 +5528,7 @@ mod tests {
             },
         )?;
         assert_eq!(
-            project_current_work(&store)?.research_continuation_action,
+            project_current_work(&store)?.research.continuation_action(),
             Some(RepoFrontierResearchContinuationAction::ReviewResearchResult)
         );
 
@@ -5616,7 +5688,7 @@ mod tests {
         assert_eq!(packet.research_request_id, research_request_id);
         assert_eq!(packet.decision_context_id, research_context.context_id);
         let after_research = project_current_work(&store)?;
-        assert!(after_research.research_continuation_action.is_none());
+        assert!(after_research.research.continuation_action().is_none());
         assert!(after_research.body_modeling.is_none());
         assert!(after_research.proposal_modeling.is_none());
         assert!(after_research.frontier_verdict_modeling.is_none());

@@ -5,9 +5,10 @@ use epiphany_core::{
     EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection, EpiphanyJobsInput,
     EpiphanyReorientAction, EpiphanyRoleBoardInput, EpiphanyRoleBoardJob,
     EpiphanyRoleBoardJobStatus, EpiphanyRoleResultRoleId, EpiphanyRuntimeJobStatus,
-    EpiphanySceneInput, EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycleStage,
-    derive_jobs, derive_planning_view, derive_pressure_view, derive_role_board, derive_scene,
-    runtime_job_snapshot,
+    EpiphanySceneInput, EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycle,
+    RepoFrontierPlanningLifecycleStage, RepoFrontierResearchLifecycle,
+    RepoFrontierResearchLifecycleStage, derive_jobs, derive_planning_view, derive_pressure_view,
+    derive_role_board, derive_scene, runtime_job_snapshot,
 };
 use epiphany_self_policy::derive_coordinator_status;
 use serde_json::{Value, json};
@@ -193,14 +194,10 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
 
-    let research_lifecycle = mind
-        .as_ref()
-        .map(|_| epiphany_core::runtime_repo_frontier_research_lifecycle(&store_path))
-        .transpose()?;
+    let research_lifecycle = mind.as_ref().map(|_| current_work.research.clone());
     let planning_lifecycle = mind
         .as_ref()
-        .map(|_| epiphany_core::runtime_repo_frontier_planning_lifecycle(&store_path))
-        .transpose()?;
+        .map(|_| current_work.frontier_planning.clone());
     let planning_eligibility = mind
         .as_ref()
         .map(|_| epiphany_core::runtime_repo_frontier_planning_eligibility(&store_path))
@@ -213,27 +210,27 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
     let body_job_id = current_work
         .body_modeling
         .as_ref()
-        .and_then(|work| work.job_id.as_deref());
+        .and_then(|work| work.attempt.job_id.as_deref());
     let modeling_job_id = current_work
         .proposal_modeling
         .as_ref()
-        .and_then(|work| work.job_id.as_deref())
+        .and_then(|work| work.attempt.job_id.as_deref())
         .or(body_job_id)
         .or(current_work
             .frontier_verdict_modeling
             .as_ref()
-            .and_then(|work| work.job_id.as_deref()));
+            .and_then(|work| work.attempt.job_id.as_deref()));
     let imagination_job_id = planning_lifecycle
         .as_ref()
         .and_then(|lifecycle| lifecycle.imagination_job_id.as_deref())
         .or(current_work
             .imagination_considerations
             .first()
-            .and_then(|work| work.job_id.as_deref()))
+            .and_then(|work| work.attempt.job_id.as_deref()))
         .or(current_work
             .admitted_model_direction_consideration
             .as_ref()
-            .and_then(|work| work.job_id.as_deref()));
+            .and_then(|work| work.attempt.job_id.as_deref()));
     let role_results = json!({
         "imagination": native_role_result(&store_path, imagination_job_id, EpiphanyRoleResultRoleId::Imagination),
         "research": native_role_result(
@@ -244,7 +241,7 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         "modeling": native_role_result(&store_path, modeling_job_id, EpiphanyRoleResultRoleId::Modeling),
         "verification": native_role_result(
             &store_path,
-            current_work.verification.as_ref().and_then(|work| work.job_id.as_deref()),
+            current_work.verification.as_ref().and_then(|work| work.attempt.job_id.as_deref()),
             EpiphanyRoleResultRoleId::Verification,
         ),
     });
@@ -321,8 +318,22 @@ fn empty_current_work() -> EpiphanyCurrentWorkProjection {
     EpiphanyCurrentWorkProjection {
         mind_projection_digest: String::new(),
         body_modeling: None,
-        research_continuation_action: None,
-        frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Unavailable,
+        research: RepoFrontierResearchLifecycle {
+            stage: RepoFrontierResearchLifecycleStage::Terminal,
+            frontier_item_id: None,
+            request_id: None,
+            worker_job_id: None,
+        },
+        frontier_planning: RepoFrontierPlanningLifecycle {
+            stage: RepoFrontierPlanningLifecycleStage::Unavailable,
+            planning_request_id: None,
+            imagination_job_id: None,
+            imagination_result_id: None,
+            mind_request_id: None,
+            mind_job_id: None,
+            mind_result_id: None,
+            decision_id: None,
+        },
         proposal_modeling: None,
         frontier_verdict_modeling: None,
         verification: None,
@@ -366,7 +377,7 @@ fn keyed_reorientation_result_status(
             EpiphanyCrrcResultStatus::MissingBinding
         });
     };
-    let Some(job_id) = work.job_id.as_deref() else {
+    let Some(job_id) = work.attempt.job_id.as_deref() else {
         return Ok(EpiphanyCrrcResultStatus::MissingBinding);
     };
     let snapshot = runtime_job_snapshot(runtime_store, job_id)?
@@ -393,7 +404,7 @@ fn keyed_reorientation_recommendation(
         reason: reason.into(),
     };
     if let Some(work) = work {
-        return match work.action {
+        return match work.attempt.action {
             EpiphanyAgentPassContinuationAction::Launch => build(
                 EpiphanyCrrcAction::LaunchReorientWorker,
                 Some(EpiphanyCrrcSceneAction::ReorientLaunch),
@@ -442,7 +453,7 @@ fn keyed_reorientation_result(
             .map(|decision| json!({"status": "accepted", "decision": decision}))
             .unwrap_or(Value::Null));
     };
-    let Some(job_id) = work.job_id.as_deref() else {
+    let Some(job_id) = work.attempt.job_id.as_deref() else {
         return Ok(json!({"status": "unlaunched", "requestId": work.request.request_id}));
     };
     let snapshot = runtime_job_snapshot(runtime_store, job_id)?

@@ -84,17 +84,17 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
         .current_work
         .proposal_modeling
         .as_ref()
-        .map(|work| work.action)
+        .map(|work| work.attempt.action)
         .or(input
             .current_work
             .body_modeling
             .as_ref()
-            .map(|work| work.action))
+            .map(|work| work.attempt.action))
         .or(input
             .current_work
             .frontier_verdict_modeling
             .as_ref()
-            .map(|work| work.action));
+            .map(|work| work.attempt.action));
     let imagination_action = consideration_action(&input.current_work);
 
     vec![
@@ -120,7 +120,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             "Imagination / Planning",
             "epiphany-imagination",
             planning_or_consideration_status(
-                input.current_work.frontier_planning_stage,
+                input.current_work.frontier_planning.stage,
                 imagination_action,
             ),
             "Status derives from exact planning and consideration obligations.",
@@ -131,12 +131,13 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             EpiphanyCoordinatorRoleId::Research,
             "Eyes / Research",
             "epiphany-eyes",
-            research_status(input.current_work.research_continuation_action),
+            research_status(input.current_work.research.continuation_action()),
             "Eyes runs only for an explicit external-evidence obligation.",
             "epiphany.eyes.current_work",
             input
                 .current_work
-                .research_continuation_action
+                .research
+                .continuation_action()
                 .map(|action| match action {
                     RepoFrontierResearchContinuationAction::LaunchResearch => {
                         EpiphanyCoordinatorSceneAction::RoleLaunch
@@ -164,7 +165,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .current_work
                     .verification
                     .as_ref()
-                    .map(|work| work.action),
+                    .map(|work| work.attempt.action),
             ),
             "Verification consumes exact Hands consequences and invariant obligations.",
             "epiphany.soul.current_work",
@@ -173,7 +174,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .current_work
                     .verification
                     .as_ref()
-                    .map(|work| work.action),
+                    .map(|work| work.attempt.action),
             ),
         ),
         lane(
@@ -185,7 +186,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .current_work
                     .reorientation
                     .as_ref()
-                    .map(|work| work.action),
+                    .map(|work| work.attempt.action),
             ),
             "Status derives from the exact keyed continuity obligation.",
             "epiphany.continuity.current_work",
@@ -194,7 +195,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .current_work
                     .reorientation
                     .as_ref()
-                    .map(|work| work.action),
+                    .map(|work| work.attempt.action),
             ),
         ),
     ]
@@ -205,11 +206,11 @@ fn consideration_action(
 ) -> Option<EpiphanyAgentPassContinuationAction> {
     work.imagination_considerations
         .first()
-        .map(|item| item.action)
+        .map(|item| item.attempt.action)
         .or(work
             .admitted_model_direction_consideration
             .as_ref()
-            .map(|item| item.action))
+            .map(|item| item.attempt.action))
 }
 
 fn continuation_status(

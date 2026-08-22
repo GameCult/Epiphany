@@ -366,12 +366,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     objective,
                 )?;
                 let source_ref = format!("resident-self-grant://{}", claim.grant_id);
-                let intake = intake_operator_objective(
-                    &runtime_store,
-                    &thread_id,
-                    objective,
-                    &source_ref,
-                )?;
+                let intake =
+                    intake_operator_objective(&runtime_store, &thread_id, objective, &source_ref)?;
                 startup_events.push(json!({
                     "type": "residentObjectiveBinding",
                     "threadId": thread_id,
@@ -496,7 +492,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             let current = epiphany_core::project_current_work(&runtime_store)?
                 .proposal_modeling
                 .filter(|work| {
-                    work.action == epiphany_core::EpiphanyAgentPassContinuationAction::Launch
+                    work.attempt.action
+                        == epiphany_core::EpiphanyAgentPassContinuationAction::Launch
                 })
                 .ok_or_else(|| anyhow!("proposal Modeling request is not launchable"))?;
             if current.request.request_id != request_id {
@@ -1148,7 +1145,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         let current = epiphany_core::project_current_work(&runtime_store)?
                             .proposal_modeling
                             .filter(|work| {
-                                work.action
+                                work.attempt.action
                                     == epiphany_core::EpiphanyAgentPassContinuationAction::Launch
                             })
                             .ok_or_else(|| anyhow!("proposal Modeling work is not launchable"))?;
@@ -1759,10 +1756,11 @@ fn accept_reorient(runtime_store: &Path) -> Result<Value> {
     let work = epiphany_core::project_current_work(runtime_store)?
         .reorientation
         .ok_or_else(|| anyhow!("Mind has no reviewable reorientation work"))?;
-    if work.action != epiphany_core::EpiphanyAgentPassContinuationAction::Review {
+    if work.attempt.action != epiphany_core::EpiphanyAgentPassContinuationAction::Review {
         return Err(anyhow!("reorientation work is not reviewable"));
     }
     let job_id = work
+        .attempt
         .job_id
         .ok_or_else(|| anyhow!("reorientation review lost its runtime job"))?;
     let snapshot = epiphany_core::runtime_job_snapshot(runtime_store, &job_id)?
@@ -1983,7 +1981,7 @@ fn read_reorient_result(runtime_store: &Path, _thread_id: &str) -> Result<Value>
             "note": "No keyed reorientation request is active."
         }));
     };
-    let Some(job_id) = work.job_id else {
+    let Some(job_id) = work.attempt.job_id else {
         return Ok(json!({
             "source": "native",
             "status": "pending",
@@ -2456,10 +2454,7 @@ mod tests {
             "resident-self-grant://grant-1",
         )?;
         assert!(applied.changed);
-        assert_eq!(
-            applied.intake.source_ref,
-            "resident-self-grant://grant-1"
-        );
+        assert_eq!(applied.intake.source_ref, "resident-self-grant://grant-1");
         assert_eq!(
             applied.mind.objective.as_deref(),
             Some("Keep the objective in Mind")

@@ -67,10 +67,11 @@ pub fn coordinator_automation_action(
 mod tests {
     use super::*;
     use epiphany_core::{
-        EpiphanyAgentPassContinuationAction, EpiphanyBodyModelingCurrentWorkProjection,
-        EpiphanyBodyModelingWorkProjection, EpiphanyCoordinatorCrrcRecommendation,
-        EpiphanyCoordinatorInput, EpiphanyCrrcAction, EpiphanyRepoModelBasis,
-        RepoFrontierPlanningLifecycleStage, RepoFrontierResearchContinuationAction,
+        EpiphanyAgentPassAttemptProjection, EpiphanyAgentPassContinuationAction,
+        EpiphanyBodyModelingCurrentWorkProjection, EpiphanyBodyModelingWorkProjection,
+        EpiphanyCoordinatorCrrcRecommendation, EpiphanyCoordinatorInput, EpiphanyCrrcAction,
+        EpiphanyRepoModelBasis, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
+        RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage,
         RepositoryBodyObservationBasis, recommend_coordinator_action,
     };
 
@@ -78,8 +79,22 @@ mod tests {
         epiphany_core::EpiphanyCurrentWorkProjection {
             mind_projection_digest: "sha256:mind".into(),
             body_modeling: None,
-            research_continuation_action: None,
-            frontier_planning_stage: RepoFrontierPlanningLifecycleStage::Terminal,
+            research: RepoFrontierResearchLifecycle {
+                stage: RepoFrontierResearchLifecycleStage::Terminal,
+                frontier_item_id: None,
+                request_id: None,
+                worker_job_id: None,
+            },
+            frontier_planning: RepoFrontierPlanningLifecycle {
+                stage: RepoFrontierPlanningLifecycleStage::Terminal,
+                planning_request_id: None,
+                imagination_job_id: None,
+                imagination_result_id: None,
+                mind_request_id: None,
+                mind_job_id: None,
+                mind_result_id: None,
+                decision_id: None,
+            },
             proposal_modeling: None,
             frontier_verdict_modeling: None,
             verification: None,
@@ -135,8 +150,10 @@ mod tests {
                     source_documents: Vec::new(),
                 },
             },
-            action: EpiphanyAgentPassContinuationAction::Launch,
-            job_id: None,
+            attempt: EpiphanyAgentPassAttemptProjection {
+                action: EpiphanyAgentPassContinuationAction::Launch,
+                job_id: None,
+            },
         });
         assert_eq!(
             recommend_coordinator_action(input).action,
@@ -147,8 +164,12 @@ mod tests {
     #[test]
     fn exact_eyes_obligation_routes_research() {
         let mut input = input();
-        input.current_work.research_continuation_action =
-            Some(RepoFrontierResearchContinuationAction::LaunchResearch);
+        input.current_work.research = RepoFrontierResearchLifecycle {
+            stage: RepoFrontierResearchLifecycleStage::LaunchReady,
+            frontier_item_id: Some("frontier".into()),
+            request_id: None,
+            worker_job_id: None,
+        };
         assert_eq!(
             recommend_coordinator_action(input).action,
             EpiphanyCoordinatorAction::LaunchResearch

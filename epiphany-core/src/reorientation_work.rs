@@ -127,8 +127,8 @@ pub struct EpiphanyMindReorientationPassFailureDocument {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyReorientationWorkProjection {
     pub request: EpiphanyReorientationRequest,
-    pub action: EpiphanyAgentPassContinuationAction,
-    pub job_id: Option<String>,
+    #[serde(flatten)]
+    pub attempt: crate::EpiphanyAgentPassAttemptProjection,
 }
 
 pub fn request_current_reorientation(
@@ -234,8 +234,7 @@ pub(crate) fn current_reorientation_work(
         let Some(binding) = bindings.last() else {
             return Ok(Some(EpiphanyReorientationWorkProjection {
                 request,
-                action: EpiphanyAgentPassContinuationAction::Launch,
-                job_id: None,
+                attempt: crate::EpiphanyAgentPassAttemptProjection::unattempted(),
             }));
         };
         let job = cache
@@ -268,8 +267,10 @@ pub(crate) fn current_reorientation_work(
         };
         return Ok(Some(EpiphanyReorientationWorkProjection {
             request,
-            action,
-            job_id: Some(binding.job_id.clone()),
+            attempt: crate::EpiphanyAgentPassAttemptProjection::with(
+                action,
+                Some(binding.job_id.clone()),
+            ),
         }));
     }
     Ok(None)
@@ -403,7 +404,7 @@ pub fn launch_current_reorientation_work(
     cache.pull_all_backing_stores()?;
     let work = current_reorientation_work(&cache)?
         .ok_or_else(|| anyhow!("Mind has no unresolved reorientation request"))?;
-    if work.action != EpiphanyAgentPassContinuationAction::Launch {
+    if work.attempt.action != EpiphanyAgentPassContinuationAction::Launch {
         return Err(anyhow!("reorientation request is not launchable"));
     }
     validate_reorientation_request_current(&cache, &work.request)?;
@@ -928,7 +929,7 @@ mod tests {
             crate::project_current_work(&store)?
                 .reorientation
                 .as_ref()
-                .map(|work| work.action),
+                .map(|work| work.attempt.action),
             Some(EpiphanyAgentPassContinuationAction::Launch)
         );
         let job_id = launch_current_reorientation_work(&store, "2026-08-18T10:00:02Z")?;
@@ -1164,7 +1165,7 @@ mod tests {
             crate::project_current_work(&store)?
                 .reorientation
                 .as_ref()
-                .map(|work| work.action),
+                .map(|work| work.attempt.action),
             Some(EpiphanyAgentPassContinuationAction::Review)
         );
         let failure_receipt = record_reorientation_pass_failure(&store, &failed_job)?;
@@ -1176,7 +1177,7 @@ mod tests {
             crate::project_current_work(&store)?
                 .reorientation
                 .as_ref()
-                .map(|work| work.action),
+                .map(|work| work.attempt.action),
             Some(EpiphanyAgentPassContinuationAction::Launch)
         );
         assert!(

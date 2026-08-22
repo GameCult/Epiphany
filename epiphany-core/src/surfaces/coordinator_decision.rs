@@ -20,7 +20,7 @@ pub fn recommend_coordinator_action(
 
     if let Some(work) = input.current_work.reorientation.as_ref() {
         return continuation_decision(
-            work.action,
+            work.attempt.action,
             EpiphanyCoordinatorAction::LaunchReorientWorker,
             EpiphanyCoordinatorAction::WaitForReorientWorker,
             EpiphanyCoordinatorAction::ReviewReorientResult,
@@ -51,22 +51,22 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if let Some(result) = planning_decision(input.current_work.frontier_planning_stage) {
+    if let Some(result) = planning_decision(input.current_work.frontier_planning.stage) {
         return result;
     }
 
     if let Some(work) = input.current_work.proposal_modeling.as_ref() {
-        return modeling_decision(work.action, "proposal Modeling");
+        return modeling_decision(work.attempt.action, "proposal Modeling");
     }
     if let Some(work) = input.current_work.body_modeling.as_ref() {
-        return modeling_decision(work.action, "Body Modeling");
+        return modeling_decision(work.attempt.action, "Body Modeling");
     }
     if let Some(work) = input.current_work.frontier_verdict_modeling.as_ref() {
-        return modeling_decision(work.action, "frontier-verdict Modeling");
+        return modeling_decision(work.attempt.action, "frontier-verdict Modeling");
     }
     if let Some(work) = input.current_work.verification.as_ref() {
         return continuation_decision(
-            work.action,
+            work.attempt.action,
             EpiphanyCoordinatorAction::LaunchVerification,
             EpiphanyCoordinatorAction::ReviewVerificationResult,
             EpiphanyCoordinatorAction::ReviewVerificationResult,
@@ -74,7 +74,7 @@ pub fn recommend_coordinator_action(
             "Verification",
         );
     }
-    if let Some(action) = input.current_work.research_continuation_action {
+    if let Some(action) = input.current_work.research.continuation_action() {
         return match action {
             RepoFrontierResearchContinuationAction::LaunchResearch => decision(
                 EpiphanyCoordinatorAction::LaunchResearch,
@@ -97,7 +97,7 @@ pub fn recommend_coordinator_action(
 
     if let Some(work) = input.current_work.imagination_considerations.first() {
         return continuation_decision(
-            work.action,
+            work.attempt.action,
             EpiphanyCoordinatorAction::LaunchImaginationConsideration,
             EpiphanyCoordinatorAction::WaitForImaginationConsideration,
             EpiphanyCoordinatorAction::WaitForImaginationConsideration,
@@ -111,7 +111,7 @@ pub fn recommend_coordinator_action(
         .as_ref()
     {
         return continuation_decision(
-            work.action,
+            work.attempt.action,
             EpiphanyCoordinatorAction::LaunchAdmittedModelDirectionConsideration,
             EpiphanyCoordinatorAction::WaitForAdmittedModelDirectionConsideration,
             EpiphanyCoordinatorAction::WaitForAdmittedModelDirectionConsideration,
