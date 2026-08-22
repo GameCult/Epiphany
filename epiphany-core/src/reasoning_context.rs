@@ -924,13 +924,13 @@ fn validate_decision_terminal_records(
             "decision audit terminal worker record does not belong to its reasoning pass"
         ));
     }
-    if records.model_pass_failures.len() > 1
-        || (!records.model_pass_failures.is_empty()
-            && records.len() != records.model_pass_failures.len())
-    {
+    if records.model_pass_failures.len() > 1 {
         return Err(anyhow!(
-            "decision audit context cannot be both successful and failed"
+            "decision audit context has multiple model-pass failure owners"
         ));
+    }
+    if !records.model_pass_failures.is_empty() {
+        validate_model_failure_companions(records)?;
     }
     for failure in &records.model_pass_failures {
         failure.validate(basis, context)?;
@@ -991,6 +991,63 @@ fn validate_decision_terminal_records(
                 "decision audit Persona conversation lost its exact effect document"
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_model_failure_companions(records: &EpiphanyDecisionTerminalRecords) -> Result<()> {
+    let role_result_is_failure_projection = |record: &crate::EpiphanyRuntimeRoleWorkerResult| {
+        matches!(
+            record.verdict.as_str(),
+            "failed" | "runtime-error" | "error"
+        ) && record
+            .item_error
+            .as_ref()
+            .is_some_and(|error| !error.trim().is_empty())
+            && record.research_decision_msgpack.is_none()
+            && record.self_patch_msgpack.is_none()
+            && record.repo_model_mutation_proposal_msgpack.is_none()
+            && record.frontier_plan_candidate_msgpack.is_none()
+            && record.frontier_plan_mind_decision_msgpack.is_none()
+            && record.imagination_consideration_candidate_msgpack.is_none()
+            && record
+                .admitted_model_direction_consideration_result_msgpack
+                .is_none()
+    };
+    let runtime_result_is_failure_projection = |record: &crate::EpiphanyRuntimeJobResult| {
+        matches!(
+            record.verdict.as_str(),
+            "failed" | "fail" | "runtime-error" | "error" | "blocked" | "cancelled" | "canceled"
+        )
+    };
+    let archived_attempt_is_failure = |record: &crate::EpiphanyArchivedRuntimeWorkerAttempt| {
+        crate::WorkerProcessStatus::parse(&record.terminal_process_status)
+            .map(|status| !status.is_fulfilled_terminal())
+            .unwrap_or(false)
+    };
+
+    if records
+        .role_worker_results
+        .iter()
+        .any(|record| !role_result_is_failure_projection(record))
+        || records
+            .runtime_job_results
+            .iter()
+            .any(|record| !runtime_result_is_failure_projection(record))
+        || records
+            .archived_worker_attempts
+            .iter()
+            .any(|record| !archived_attempt_is_failure(record))
+        || !records.reorient_worker_results.is_empty()
+        || !records.persona_stage_receipts.is_empty()
+        || !records.persona_effect_documents.is_empty()
+        || !records.persona_terminal_receipts.is_empty()
+        || !records.persona_conversation_receipts.is_empty()
+        || !records.reorientation_decisions.is_empty()
+    {
+        return Err(anyhow!(
+            "failed decision context contains a successful or decision-bearing terminal companion"
+        ));
     }
     Ok(())
 }
@@ -2433,6 +2490,77 @@ mod tests {
         assert_eq!(index.decisions[0].pass_id, reasoning_basis.pass_id);
         assert_eq!(index.decisions[0].organ_id, reasoning_basis.organ_id);
         assert_eq!(index.decisions[0].terminal_record_count, 1);
+
+        let failure_summary = "Provider refused before assistant output.".to_string();
+        let failure_role_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            result_id: format!("result-worker-{}", reasoning_basis.pass_id),
+            job_id: reasoning_basis.pass_id.clone(),
+            role_id: role_terminal_semantic_role(&reasoning_basis)?.expect("role pass"),
+            verdict: "runtime-error".into(),
+            summary: failure_summary.clone(),
+            next_safe_move: "Create a fresh work obligation and reasoning pass.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            research_decision_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: Some(failure_summary.clone()),
+            metadata: std::collections::BTreeMap::new(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
+            decision_context_id: context.context_id.clone(),
+        };
+        let failure_runtime_result = crate::EpiphanyRuntimeJobResult {
+            schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+            result_id: format!("result-runtime-{}", reasoning_basis.pass_id),
+            job_id: reasoning_basis.pass_id.clone(),
+            session_id: "failed-pass-session".into(),
+            role: reasoning_basis.organ_id.clone(),
+            verdict: "failed".into(),
+            summary: failure_summary,
+            completed_at: "2026-08-18T00:00:03Z".into(),
+            next_safe_move: "Create a fresh work obligation and reasoning pass.".into(),
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+            metadata: std::collections::BTreeMap::new(),
+            decision_context_id: Some(context.context_id.clone()),
+        };
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(&failure_role_result.job_id, &failure_role_result)?;
+        cache.put(&failure_runtime_result.result_id, &failure_runtime_result)?;
+        let audit = audit_decision_context(&store, &context.context_id)?;
+        assert_eq!(audit.terminal_records.role_worker_results.len(), 1);
+        assert_eq!(audit.terminal_records.runtime_job_results.len(), 1);
+        assert_eq!(audit.terminal_records.model_pass_failures.len(), 1);
+        assert_eq!(
+            list_auditable_decision_contexts(&store)?.decisions[0].terminal_record_count,
+            3
+        );
+        let mut false_success = failure_role_result.clone();
+        false_success.verdict = "completed".into();
+        cache.put(&false_success.job_id, &false_success)?;
+        assert!(audit_decision_context(&store, &context.context_id).is_err());
+        cache.put(&failure_role_result.job_id, &failure_role_result)?;
 
         let before = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
         let mut replay = options.clone();
