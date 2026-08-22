@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache, validate_memory_graph_snapshot};
 
-pub const REPO_MODEL_SCHEMA_EPOCH: &str = "epiphany.repo_model.epoch.v1";
+pub const REPO_MODEL_SCHEMA_EPOCH: &str = "epiphany.repo_model.epoch.v2";
 pub const REPO_MODEL_IDENTITY_KEY: &str = "repo-model";
 const HISTORICAL_AGGREGATE_REPO_MODEL_TYPE: &str = "epiphany.memory_graph";
 const HISTORICAL_AGGREGATE_REPO_MODEL_KEY: &str = "default";
@@ -1850,7 +1850,7 @@ mod tests {
             migration_body: "repo".into(),
             question: "What remains?".into(),
             target_claim_ids: vec![node.id.clone()],
-            source_scope: vec!["epiphany-core".into()],
+            repository_scope: vec!["epiphany-core".into()],
             recommended_next_organ: "Modeling".into(),
             status: RepoFrontierStatus::Active,
             ..Default::default()
@@ -1898,6 +1898,31 @@ mod tests {
         let replay = initialize_keyed_repo_model(&store, &seed, "2026-08-14T00:00:02Z")?;
         assert_eq!(first, replay);
         assert_eq!(first.claim_obligations[0].node_id, "node-seed");
+        let invalid_routed_frontier = make_proposal(
+            "invalid-routed-frontier",
+            &body,
+            vec![EpiphanyRepoModelMutationOperation::PutFrontier {
+                item: RepoFrontierItem {
+                    id: "frontier-invalid-route-scope".into(),
+                    migration_body: "Create OX-CAPSTONE.md".into(),
+                    question: "Can Planning authorize the intended output?".into(),
+                    gap: "The model confused inspected evidence with future path authority.".into(),
+                    target_claim_ids: vec!["node-seed".into()],
+                    repository_scope: vec!["notes/source.md".into(), "OX-CAPSTONE.md".into()],
+                    recommended_next_organ: "Imagination".into(),
+                    status: RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+            }],
+        )?;
+        let error = plan_repo_model_mutation(&store, &invalid_routed_frontier)
+            .expect_err("noncanonical routed scope must refuse before RepoModel writes");
+        assert!(error.to_string().contains("repository_scope"));
+        assert!(
+            runtime_spine_cache(&store)?
+                .get::<EpiphanyRepoModelFrontierDocument>("frontier-invalid-route-scope")?
+                .is_none()
+        );
         let mut cache = runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
         assert_eq!(

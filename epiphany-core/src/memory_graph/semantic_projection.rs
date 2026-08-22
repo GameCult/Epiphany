@@ -319,7 +319,7 @@ pub fn derive_semantic_projection(
             domain,
             EpiphanyMemoryProfile::RepoArchitecture,
             SemanticLifecycle::Frontier(item.status),
-            item.source_scope
+            item.repository_scope
                 .iter()
                 .chain(&item.evidence_refs)
                 .cloned()
@@ -563,6 +563,7 @@ mod tests {
                 migration_body: "finish projection".into(),
                 gap: "not wired".into(),
                 target_claim_ids: vec!["repo-node".into()],
+                repository_scope: vec!["epiphany-core".into()],
                 recommended_next_organ: "Hands".into(),
                 status: RepoFrontierStatus::Active,
                 ..Default::default()

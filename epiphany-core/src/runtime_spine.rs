@@ -170,7 +170,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v4";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v5";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -3797,7 +3797,7 @@ fn validate_repo_frontier_verdict_modeling_mutation(
         || item.migration_body != authority.frontier_item.migration_body
         || item.question != authority.frontier_item.question
         || item.target_claim_ids != authority.frontier_item.target_claim_ids
-        || item.source_scope != authority.frontier_item.source_scope
+        || item.repository_scope != authority.frontier_item.repository_scope
         || item.recommended_next_organ != authority.frontier_item.recommended_next_organ
         || item.adopted_plan != authority.frontier_item.adopted_plan
         || item.dependency_item_ids != authority.frontier_item.dependency_item_ids
@@ -6048,8 +6048,7 @@ pub(crate) fn validate_proposal_modeling_worker_admission(
             .evidence_refs
             .iter()
             .any(|id| id == &proposal.proposal_id)
-        || upserts[0].source_scope.is_empty()
-        || !safe_sorted_unique_paths(&upserts[0].source_scope)
+        || !crate::memory_graph::frontier_item_has_routeable_repository_scope(upserts[0])
         || upserts[0].public_source_refs
             != if upserts[0].recommended_next_organ == "Eyes" {
                 proposal.public_source_refs.clone()
@@ -7296,7 +7295,7 @@ pub fn select_and_commit_repo_frontier_planning_request(
         frontier_item_id: item.id.clone(),
         frontier_item_hash: item_hash,
         selected_organ: "Imagination".into(),
-        source_scope: item.source_scope.clone(),
+        repository_scope: item.repository_scope.clone(),
         requested_at: at.into(),
         contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
         runtime_id: identity.runtime_id,
@@ -7344,8 +7343,8 @@ fn validate_repo_frontier_planning_request(
         || request.frontier_item_id.trim().is_empty()
         || request.frontier_item_hash.trim().is_empty()
         || request.selected_organ != "Imagination"
-        || request.source_scope.is_empty()
-        || !safe_sorted_unique_paths(&request.source_scope)
+        || request.repository_scope.is_empty()
+        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&request.repository_scope)
         || request.frontier_authority_documents.is_empty()
         || request.frontier_authority_documents.iter().any(|document| {
             document.validate().is_err()
@@ -7420,7 +7419,7 @@ fn validate_repo_frontier_planning_request(
         || request.request_id != expected_request_id
         || request.frontier_item_id != item.id
         || request.frontier_item_hash != repo_frontier_item_hash(&item)?
-        || request.source_scope != item.source_scope
+        || request.repository_scope != item.repository_scope
     {
         return Err(anyhow!(
             "frontier planning request diverges from its sealed frontier authority"
@@ -7632,8 +7631,7 @@ fn imagination_frontier_item_is_actionable(
     };
     item.status == crate::RepoFrontierStatus::Active
         && item.recommended_next_organ == "Imagination"
-        && !item.source_scope.is_empty()
-        && safe_sorted_unique_paths(&item.source_scope)
+        && crate::memory_graph::frontier_item_has_routeable_repository_scope(item)
         && frontier_target_claims_unchallenged(item, challenges)
         && item.dependency_item_ids.iter().all(|id| terminal(id))
 }
@@ -7867,9 +7865,9 @@ fn validate_repo_frontier_plan_candidate_against_request(
     let item = validate_repo_frontier_planning_request(request)?;
     frontier_authority_envelopes(cache, &request.frontier_authority_documents)?;
     if repo_frontier_item_hash(&item)? != request.frontier_item_hash
-        || item.source_scope != request.source_scope
+        || item.repository_scope != request.repository_scope
         || !candidate.safe_paths.iter().all(|path| {
-            request.source_scope.iter().any(|scope| {
+            request.repository_scope.iter().any(|scope| {
                 path == scope
                     || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
             })
@@ -8104,7 +8102,7 @@ impl RepoFrontierPlanCandidate {
     fn selected_fields_invalid(&self) -> bool {
         self.candidate_id.trim().is_empty()
             || self.safe_paths.is_empty()
-            || !safe_sorted_unique_paths(&self.safe_paths)
+            || !crate::memory_graph::repo_paths_are_canonical_and_safe(&self.safe_paths)
             || self.action.trim().is_empty()
             || self.command.trim().is_empty()
             || self.checks.is_empty()
@@ -8134,9 +8132,9 @@ pub fn select_and_commit_repo_frontier_route(
     let challenges = current_repo_model_claim_challenges(&cache, &current, &basis)?;
     let item = actionable_hands_frontier_item(&current, &challenges)
         .ok_or_else(|| anyhow!("current repo model has no eligible Hands frontier route"))?;
-    if !safe_sorted_unique_paths(&item.source_scope) || item.source_scope.is_empty() {
+    if !crate::memory_graph::frontier_item_has_routeable_repository_scope(item) {
         return Err(anyhow!(
-            "Hands frontier route requires safe sorted source scope"
+            "Hands frontier route requires canonical repository scope"
         ));
     }
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&item)?));
@@ -8157,11 +8155,11 @@ pub fn select_and_commit_repo_frontier_route(
         question: item.question.clone(),
         gap: item.gap.clone(),
         target_claim_ids: item.target_claim_ids.clone(),
-        source_scope: item
+        authorized_paths: item
             .adopted_plan
             .as_ref()
             .map(|plan| plan.safe_paths.clone())
-            .unwrap_or_else(|| item.source_scope.clone()),
+            .unwrap_or_else(|| item.repository_scope.clone()),
         adopted_plan: item.adopted_plan.clone(),
         selected_at: at.to_string(),
         contract: REPO_FRONTIER_ROUTE_CONTRACT.to_string(),
@@ -8230,8 +8228,7 @@ fn frontier_item_is_actionable_for_organ(
     };
     item.status == crate::RepoFrontierStatus::Active
         && item.recommended_next_organ == organ
-        && !item.source_scope.is_empty()
-        && safe_sorted_unique_paths(&item.source_scope)
+        && crate::memory_graph::frontier_item_has_routeable_repository_scope(item)
         && (!require_unchallenged_targets || frontier_target_claims_unchallenged(item, challenges))
         && item.dependency_item_ids.iter().all(|dependency_id| {
             model
@@ -8384,8 +8381,8 @@ fn validate_repo_frontier_research_request(
         || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
         || request.frontier_item_id.is_empty()
         || request.frontier_item_hash.is_empty()
-        || request.source_scope.is_empty()
-        || !safe_sorted_unique_paths(&request.source_scope)
+        || request.repository_scope.is_empty()
+        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&request.repository_scope)
         || request.frontier_authority_documents.is_empty()
     {
         return Err(anyhow!("invalid frontier Research request"));
@@ -8434,7 +8431,7 @@ fn validate_repo_frontier_research_request(
         != expected_authority_ids
         || request.frontier_item_id != frontier.id
         || request.frontier_item_hash != repo_frontier_item_hash(&frontier)?
-        || request.source_scope != frontier.source_scope
+        || request.repository_scope != frontier.repository_scope
         || request.public_source_refs
             != crate::ImmutableGithubSource::canonicalize_set(
                 frontier.public_source_refs.iter().map(String::as_str),
@@ -8596,7 +8593,7 @@ fn repo_frontier_research_request_for_admitted_item(
         frontier_authority_documents,
         frontier_item_id: item.id.clone(),
         frontier_item_hash: item_hash,
-        source_scope: item.source_scope.clone(),
+        repository_scope: item.repository_scope.clone(),
         requested_at: requested_at.to_string(),
         runtime_id: runtime_id.to_string(),
         contract: REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT.to_string(),
@@ -8900,8 +8897,8 @@ fn repo_frontier_research_request_is_actionable(
 ) -> Result<bool> {
     if request.schema_version != REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION
         || request.contract != REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT
-        || request.source_scope.is_empty()
-        || !safe_sorted_unique_paths(&request.source_scope)
+        || request.repository_scope.is_empty()
+        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&request.repository_scope)
     {
         return Err(anyhow!("invalid frontier Research request"));
     }
@@ -8924,7 +8921,7 @@ pub fn runtime_has_actionable_imagination_frontier(
 
 /// Read-only Self signal explaining the exact canonical blockers on every
 /// active Imagination frontier. It derives from the same admitted RepoModel,
-/// current claim-challenge set, source-scope predicate, and dependency rule as
+/// current claim-challenge set, repository-scope predicate, and dependency rule as
 /// planning selection; it neither creates nor repairs authority.
 pub fn runtime_repo_frontier_planning_eligibility(
     runtime_store: impl AsRef<Path>,
@@ -8964,8 +8961,8 @@ pub fn runtime_repo_frontier_planning_eligibility(
         .map(|item| {
             let status_valid = item.status == crate::RepoFrontierStatus::Active;
             let recommended_next_organ_valid = item.recommended_next_organ == "Imagination";
-            let source_scope_valid =
-                !item.source_scope.is_empty() && safe_sorted_unique_paths(&item.source_scope);
+            let repository_scope_valid =
+                crate::memory_graph::frontier_item_has_routeable_repository_scope(item);
             let mut challenged_target_claim_ids = challenges
                 .iter()
                 .filter(|challenge| item.target_claim_ids.contains(&challenge.target_claim_id))
@@ -8992,12 +8989,12 @@ pub fn runtime_repo_frontier_planning_eligibility(
                 eligible: model_count == 1
                     && status_valid
                     && recommended_next_organ_valid
-                    && source_scope_valid
+                    && repository_scope_valid
                     && challenged_target_claim_ids.is_empty()
                     && unresolved_dependency_item_ids.is_empty(),
                 status_valid,
                 recommended_next_organ_valid,
-                source_scope_valid,
+                repository_scope_valid,
                 challenged_target_claim_ids,
                 unresolved_dependency_item_ids,
             }
@@ -9676,7 +9673,7 @@ fn validate_repo_frontier_hands_authority_chain(
         .get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted Substrate grant"))?;
     let within_scope = authority.requested_paths.iter().all(|path| {
-        route.source_scope.iter().any(|scope| {
+        route.authorized_paths.iter().any(|scope| {
             path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
         })
     });
@@ -9721,7 +9718,7 @@ fn validate_repo_frontier_hands_authority_chain(
         || route
             .adopted_plan
             .as_ref()
-            .is_some_and(|plan| route.source_scope != plan.safe_paths)
+            .is_some_and(|plan| route.authorized_paths != plan.safe_paths)
         || !adopted_plan_binding_is_exact
         || review.intent_id != intent.intent_id
         || review.decision != "approved"
@@ -9761,7 +9758,7 @@ pub fn put_repo_frontier_hands_authority(
     if authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
         || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
         || chrono::DateTime::parse_from_rfc3339(&authority.granted_at).is_err()
-        || !safe_sorted_unique_paths(&authority.requested_paths)
+        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&authority.requested_paths)
         || authority.requested_paths.is_empty()
     {
         return Err(anyhow!("invalid repo frontier Hands authority contract"));
@@ -9785,7 +9782,7 @@ pub fn put_repo_frontier_hands_authority(
             anyhow!("repo frontier Hands authority requires its persisted Substrate grant")
         })?;
     let within_scope = authority.requested_paths.iter().all(|path| {
-        route.source_scope.iter().any(|scope| {
+        route.authorized_paths.iter().any(|scope| {
             path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
         })
     });
@@ -9867,7 +9864,9 @@ pub fn relinquish_repo_frontier_hands_route(
     }
     chrono::DateTime::parse_from_rfc3339(&relinquished_at)
         .map_err(|_| anyhow!("Hands refusal timestamp must be RFC3339"))?;
-    if missing_required_paths.is_empty() || !safe_sorted_unique_paths(&missing_required_paths) {
+    if missing_required_paths.is_empty()
+        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&missing_required_paths)
+    {
         return Err(anyhow!(
             "Hands refusal paths must be non-empty and canonical"
         ));
@@ -9910,7 +9909,7 @@ pub fn relinquish_repo_frontier_hands_route(
         .get::<RepoFrontierRoute>(&authority.route_id)?
         .ok_or_else(|| anyhow!("Hands refusal lost its route"))?;
     if missing_required_paths.iter().all(|path| {
-        route.source_scope.iter().any(|scope| {
+        route.authorized_paths.iter().any(|scope| {
             path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
         })
     }) {
@@ -10632,17 +10631,6 @@ pub fn commit_repo_frontier_verification_request_for_chain(
     let request = derive_repo_frontier_verification_request_for_chain(&cache, chain, requested_at)?;
     put_repo_frontier_verification_request(store_path, &request)?;
     Ok(request)
-}
-
-fn safe_sorted_unique_paths(paths: &[String]) -> bool {
-    paths.windows(2).all(|pair| pair[0] < pair[1])
-        && paths.iter().all(|path| {
-            !path.is_empty()
-                && !Path::new(path).is_absolute()
-                && !Path::new(path)
-                    .components()
-                    .any(|part| matches!(part, std::path::Component::ParentDir))
-        })
 }
 
 fn validate_hands_consequence_grant(

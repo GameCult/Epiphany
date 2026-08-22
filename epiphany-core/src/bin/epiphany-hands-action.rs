@@ -914,7 +914,7 @@ mod tests {
             question: "Can Hands record the approved consequence?".into(),
             gap: "The CLI path needs its exact adopted route.".into(),
             target_claim_ids: vec![node.id.clone()],
-            source_scope: requested_paths.clone(),
+            repository_scope: requested_paths.clone(),
             recommended_next_organ: "Hands".into(),
             adopted_plan: Some(RepoFrontierAdoptedPlan {
                 planning_request_id: "hands-action-planning-request".into(),
@@ -1013,7 +1013,7 @@ mod tests {
                 hands_intent_id: intent.intent_id,
                 hands_review_id: review.review_id,
                 substrate_grant_receipt_id: grant.receipt_id,
-                requested_paths: route.source_scope,
+                requested_paths: route.authorized_paths,
                 granted_at: review.reviewed_at,
                 contract: epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.into(),
             },

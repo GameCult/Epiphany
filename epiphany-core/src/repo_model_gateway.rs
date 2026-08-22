@@ -7,13 +7,13 @@
 //! 2. Self selects exactly one eligible Imagination item and commits a
 //!    `RepoFrontierPlanningRequest`. Imagination returns a
 //!    `RepoFrontierPlanCandidate` whose safe paths may only narrow the item's
-//!    source scope.
+//!    repository scope.
 //! 3. Self commits a `RepoFrontierPlanMindRequest`. Mind alone adopts, refuses,
 //!    or holds the candidate through `RepoFrontierPlanDecisionReceipt`.
 //! 4. Only an adopted decision may be embedded in `RepoFrontierRoute` by
 //!    `runtime_spine::select_and_commit_repo_frontier_route`. Route selection
 //!    binds the current admitted model revision, admission receipt, frontier
-//!    hash, and source scope in one compare-and-swap operation.
+//!    hash, and repository scope in one compare-and-swap operation.
 //! 5. Hands remains powerless until the coordinator pairs that route with a
 //!    reviewed Hands intent, Substrate Gate receipt, and
 //!    `RepoFrontierHandsAuthority`. Hands receipts describe consequences; they
@@ -424,7 +424,7 @@ pub struct RepoFrontierPlanningRequest {
     #[cultcache(key = 6)]
     pub selected_organ: String,
     #[cultcache(key = 7)]
-    pub source_scope: Vec<String>,
+    pub repository_scope: Vec<String>,
     #[cultcache(key = 8)]
     pub requested_at: String,
     #[cultcache(key = 9)]
@@ -492,7 +492,7 @@ pub struct RepoFrontierResearchRequest {
     #[cultcache(key = 5)]
     pub frontier_item_hash: String,
     #[cultcache(key = 6)]
-    pub source_scope: Vec<String>,
+    pub repository_scope: Vec<String>,
     #[cultcache(key = 7)]
     pub requested_at: String,
     #[cultcache(key = 8)]
@@ -598,7 +598,7 @@ pub struct RepoFrontierPlanningCandidateEligibility {
     pub eligible: bool,
     pub status_valid: bool,
     pub recommended_next_organ_valid: bool,
-    pub source_scope_valid: bool,
+    pub repository_scope_valid: bool,
     pub challenged_target_claim_ids: Vec<String>,
     pub unresolved_dependency_item_ids: Vec<String>,
 }
@@ -830,7 +830,7 @@ pub struct RepoFrontierRoute {
     #[cultcache(key = 10)]
     pub target_claim_ids: Vec<String>,
     #[cultcache(key = 11)]
-    pub source_scope: Vec<String>,
+    pub authorized_paths: Vec<String>,
     #[cultcache(key = 12, default)]
     pub adopted_plan: Option<epiphany_state_model::RepoFrontierAdoptedPlan>,
     #[cultcache(key = 13)]

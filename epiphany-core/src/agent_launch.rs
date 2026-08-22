@@ -65,7 +65,11 @@ pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
 fn repo_frontier_item_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
-        "required": ["id", "migration_body", "question", "gap", "target_claim_ids", "recommended_next_organ", "status"],
+        "required": [
+            "id", "migration_body", "question", "gap", "target_claim_ids",
+            "repository_scope", "recommended_next_organ", "dependency_item_ids",
+            "status", "evidence_refs"
+        ],
         "properties": {
             "id": {"type": "string", "minLength": 1},
             "migration_body": {"type": "string", "minLength": 1},
@@ -77,7 +81,11 @@ fn repo_frontier_item_output_schema() -> serde_json::Value {
                 "description": "RepoModel node identities whose claims this frontier item changes or resolves.",
                 "items": {"type": "string", "minLength": 1}
             },
-            "source_scope": {"type": "array", "items": {"type": "string"}},
+            "repository_scope": {
+                "type": "array",
+                "description": "A strict lexicographically sorted, duplicate-free repository-relative path ceiling for this wound. Include every path downstream Planning may authorize Hands to change, including not-yet-created outputs. Do not list inspected or evidence files unless they are genuinely within the possible consequence scope; those facts belong in filesInspected, evidence_refs, and the sealed reasoning basis.",
+                "items": {"type": "string", "minLength": 1}
+            },
             "recommended_next_organ": {"type": "string", "minLength": 1},
             "dependency_item_ids": {
                 "type": "array",
@@ -661,7 +669,7 @@ pub fn epiphany_proposal_modeling_output_schema(
             "proposalFrontierDraft": {
                 "type": "object",
                 "required": [
-                    "migrationBody", "question", "gap", "targetClaimIds", "sourceScope",
+                    "migrationBody", "question", "gap", "targetClaimIds", "repositoryScope",
                     "recommendedNextOrgan", "dependencyItemIds", "evidenceRefs"
                 ],
                 "properties": {
@@ -669,9 +677,10 @@ pub fn epiphany_proposal_modeling_output_schema(
                     "question": {"type": "string", "minLength": 1},
                     "gap": {"type": "string", "minLength": 1},
                     "targetClaimIds": {"type": "array", "items": {"type": "string"}},
-                    "sourceScope": {
+                    "repositoryScope": {
                         "type": "array",
                         "minItems": 1,
+                        "description": "A strict lexicographically sorted, duplicate-free repository-relative path ceiling for this wound. Include intended outputs that downstream Planning may authorize Hands to change; do not substitute files inspected as evidence.",
                         "items": {"type": "string", "minLength": 1}
                     },
                     "recommendedNextOrgan": {"type": "string", "enum": recommended_organs},
@@ -727,7 +736,7 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
                 "safe_paths": {
                     "type": "array",
                     "minItems": 1,
-                    "description": "A strict lexicographically sorted, duplicate-free narrowing of the immutable planning context source_scope. Every path must equal one source_scope entry or be a descendant of one; never add an adjacent or otherwise unscoped path.",
+                    "description": "A strict lexicographically sorted, duplicate-free narrowing of the immutable planning context repository_scope. Every path must equal one repository_scope entry or be a descendant of one; never add an adjacent or otherwise unscoped path.",
                     "items": {"type": "string", "minLength": 1}
                 },
                 "action": {"type": "string", "minLength": 1},
@@ -1162,6 +1171,24 @@ mod tests {
     }
 
     #[test]
+    fn frontier_schema_separates_repository_authority_from_observed_sources() {
+        let schema = repo_frontier_item_output_schema();
+        let properties = schema["properties"]
+            .as_object()
+            .expect("frontier properties");
+        assert!(properties.contains_key("repository_scope"));
+        assert!(!properties.contains_key("source_scope"));
+        assert!(
+            properties["repository_scope"]["description"]
+                .as_str()
+                .is_some_and(|description| {
+                    description.contains("not-yet-created outputs")
+                        && description.contains("evidence files")
+                })
+        );
+    }
+
+    #[test]
     fn role_self_patch_schema_matches_canonical_numeric_memory_contract() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Verification);
         let self_patch = &schema["properties"]["selfPatch"];
@@ -1305,6 +1332,13 @@ mod tests {
         let draft = &schema["properties"]["proposalFrontierDraft"];
         let draft_properties = draft["properties"].as_object().expect("draft properties");
         let draft_required = draft["required"].as_array().expect("draft required");
+        assert!(draft_properties.contains_key("repositoryScope"));
+        assert!(!draft_properties.contains_key("sourceScope"));
+        assert!(
+            draft_properties["repositoryScope"]["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("intended outputs"))
+        );
         assert!(
             draft_properties
                 .keys()

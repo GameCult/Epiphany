@@ -45,7 +45,9 @@ pub use semantic_projection::*;
 pub use semantic_projector::*;
 pub use semantic_projector_pulse::*;
 pub use validation::EpiphanyMemoryGraphValidationError;
+pub(crate) use validation::frontier_item_has_routeable_repository_scope;
 pub use validation::lifecycle_allowed_for_profile;
+pub(crate) use validation::repo_paths_are_canonical_and_safe;
 pub use validation::validate_memory_graph_snapshot;
 
 pub(crate) fn push_unique(target: &mut Vec<String>, value: String) {

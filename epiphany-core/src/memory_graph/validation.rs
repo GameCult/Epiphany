@@ -8,6 +8,28 @@ use super::EpiphanyMemorySummary;
 use super::RepoFrontierStatus;
 use std::collections::{HashMap, HashSet};
 
+pub(crate) fn repo_paths_are_canonical_and_safe(paths: &[String]) -> bool {
+    paths.windows(2).all(|pair| pair[0] < pair[1])
+        && paths.iter().all(|path| {
+            !path.is_empty()
+                && !path.starts_with('/')
+                && !path.contains('\\')
+                && !path
+                    .split('/')
+                    .any(|component| component.is_empty() || matches!(component, "." | ".."))
+                && !path
+                    .split('/')
+                    .next()
+                    .is_some_and(|component| component.contains(':'))
+        })
+}
+
+pub(crate) fn frontier_item_has_routeable_repository_scope(
+    item: &epiphany_state_model::RepoFrontierItem,
+) -> bool {
+    !item.repository_scope.is_empty() && repo_paths_are_canonical_and_safe(&item.repository_scope)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyMemoryGraphValidationError {
     pub path: String,
@@ -118,6 +140,26 @@ pub fn validate_memory_graph_snapshot(
             "recommended next organ is required",
             &mut errors,
         );
+        if !item.repository_scope.is_empty()
+            && !repo_paths_are_canonical_and_safe(&item.repository_scope)
+        {
+            errors.push(EpiphanyMemoryGraphValidationError::new(
+                format!("{path}.repository_scope"),
+                "repository scope must be a strict sorted set of canonical repository-relative paths",
+            ));
+        }
+        if unresolved
+            && matches!(
+                item.recommended_next_organ.as_str(),
+                "Hands" | "Eyes" | "Imagination"
+            )
+            && !frontier_item_has_routeable_repository_scope(item)
+        {
+            errors.push(EpiphanyMemoryGraphValidationError::new(
+                format!("{path}.repository_scope"),
+                "an unresolved routed frontier requires a non-empty canonical repository scope",
+            ));
+        }
         if !item.public_source_refs.is_empty() {
             if item.recommended_next_organ != "Eyes" {
                 errors.push(EpiphanyMemoryGraphValidationError::new(
@@ -482,5 +524,28 @@ fn required(
 ) {
     if value.trim().is_empty() {
         errors.push(EpiphanyMemoryGraphValidationError::new(path, message));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repository_path_law_is_ordered_and_platform_independent() {
+        assert!(repo_paths_are_canonical_and_safe(&[
+            "OX-CAPSTONE.md".into(),
+            "epiphany-core/src/lib.rs".into(),
+        ]));
+        for invalid in [
+            vec!["notes/source.md".into(), "OX-CAPSTONE.md".into()],
+            vec!["../outside".into()],
+            vec!["epiphany-core\\src\\lib.rs".into()],
+            vec!["C:/outside".into()],
+            vec!["epiphany-core//src".into()],
+            vec!["epiphany-core/./src".into()],
+        ] {
+            assert!(!repo_paths_are_canonical_and_safe(&invalid));
+        }
     }
 }

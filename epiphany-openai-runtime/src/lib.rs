@@ -1774,7 +1774,7 @@ fn worker_output_contract_text(
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.frontier_planning_context.is_some() =>
         {
-            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanCandidate. Emit only the semantic plan content. Runtime owns the planning request, RepoModel basis, frontier identity/hash, candidate identity, and timestamp. frontierPlanCandidate.safe_paths may narrow but must never expand the immutable source_scope: every safe path must exactly equal a source_scope entry or be a descendant of one, in strict lexicographic order without duplicates. Do not include adjacent files merely because the plan would benefit from them; identify them as a stop condition instead. Do not emit generic Mind patches, selfPatch, or repoModelOperations."
+            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanCandidate. Emit only the semantic plan content. Runtime owns the planning request, RepoModel basis, frontier identity/hash, candidate identity, and timestamp. frontierPlanCandidate.safe_paths may narrow but must never expand the immutable repository_scope: every safe path must exactly equal a repository_scope entry or be a descendant of one, in strict lexicographic order without duplicates. Do not include adjacent files merely because the plan would benefit from them; identify them as a stop condition instead. Do not emit generic Mind patches, selfPatch, or repoModelOperations."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document
@@ -1799,7 +1799,7 @@ fn worker_output_contract_text(
             "Required Verification fields: roleId=verification, verdict, summary, nextSafeMove, filesInspected, evidenceIds, and risks. Audit only the exact typed request, route, and Hands receipts in the sealed projection. Runtime owns request and route identity; do not emit identity, generic Mind patches, repoModelOperations, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Research emits one researchDecision containing only its exact evidence, grounded observations, and optional investigation checkpoint. Modeling emits repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, receipts, or generic state patches. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, safe non-empty source_scope, and evidence_refs grounded in top-level evidenceIds. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Research emits one researchDecision containing only its exact evidence, grounded observations, and optional investigation checkpoint. Modeling emits repoModelOperations, an array of semantic keyed operations; use an empty array when no RepoModel mutation is proposed. Never emit proposal ids, model revisions or hashes, timestamps, strong reads, writes, receipts, or generic state patches. For ordinary Modeling, checkpoint-update-needed is a typed claim that the Body map contains a future design gap: encode exactly one PutFrontier operation with a new active, unadopted frontier, recommended_next_organ=Imagination, empty dependency_item_ids, a safe non-empty repository_scope, and evidence_refs grounded in top-level evidenceIds. repository_scope is the strict sorted repository-relative path ceiling that downstream Planning may authorize Hands to change; include intended outputs, including files that do not yet exist, and do not substitute filesInspected or evidence sources. checkpoint-ready may carry only local Atlas offer/claim transitions or an empty operation array; regather-needed requires an empty operation array. Neither may mutate frontier. nextSafeMove is display-only and never routes an organ. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1842,7 +1842,7 @@ struct ProposalFrontierDraftIngress {
     question: String,
     gap: String,
     target_claim_ids: Vec<String>,
-    source_scope: Vec<String>,
+    repository_scope: Vec<String>,
     recommended_next_organ: String,
     dependency_item_ids: Vec<String>,
     evidence_refs: Vec<String>,
@@ -2037,9 +2037,9 @@ fn role_worker_result_from_ingress(
                 let mut target_claim_ids = clean_string_vec(&draft.target_claim_ids);
                 target_claim_ids.sort();
                 target_claim_ids.dedup();
-                let mut source_scope = clean_string_vec(&draft.source_scope);
-                source_scope.sort();
-                source_scope.dedup();
+                let mut repository_scope = clean_string_vec(&draft.repository_scope);
+                repository_scope.sort();
+                repository_scope.dedup();
                 let mut dependency_item_ids = clean_string_vec(&draft.dependency_item_ids);
                 dependency_item_ids.sort();
                 dependency_item_ids.dedup();
@@ -2059,7 +2059,7 @@ fn role_worker_result_from_ingress(
                             question: draft.question.trim().to_string(),
                             gap: draft.gap.trim().to_string(),
                             target_claim_ids,
-                            source_scope,
+                            repository_scope,
                             recommended_next_organ: draft.recommended_next_organ.trim().to_string(),
                             adopted_plan: None,
                             dependency_item_ids,
@@ -3030,7 +3030,7 @@ mod tests {
                 question: "Does exact grant state own launchability?".into(),
                 gap: "Broader autonomous turnover remains open.".into(),
                 target_claim_ids: vec!["claim-grant-owned".into()],
-                source_scope: vec!["epiphany-core/src/resident_self.rs".into()],
+                repository_scope: vec!["epiphany-core/src/resident_self.rs".into()],
                 recommended_next_organ: "Eyes".into(),
                 dependency_item_ids: Vec::new(),
                 evidence_refs: vec!["tool:grant-lifecycle".into()],
@@ -3428,7 +3428,7 @@ mod tests {
             frontier_item_id: "frontier-1".into(),
             frontier_item_hash: "frontier-hash".into(),
             selected_organ: "Imagination".into(),
-            source_scope: vec!["src".into(), "tests".into()],
+            repository_scope: vec!["src".into(), "tests".into()],
             requested_at: "2026-07-15T09:59:00Z".into(),
             runtime_id: "runtime-1".into(),
         };
@@ -3774,7 +3774,7 @@ mod tests {
                 frontier_item_id: "frontier-1".into(),
                 frontier_item_hash: "frontier-hash-1".into(),
                 selected_organ: "Imagination".into(),
-                source_scope: vec!["epiphany-openai-runtime".into()],
+                repository_scope: vec!["epiphany-openai-runtime".into()],
                 requested_at: "2026-07-15T09:58:00Z".into(),
                 contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.into(),
                 runtime_id: "runtime-1".into(),
@@ -4013,7 +4013,7 @@ mod tests {
             question: "Did the verified consequence hold?".to_string(),
             gap: "Awaiting verdict incorporation.".to_string(),
             target_claim_ids: vec!["claim-1".to_string()],
-            source_scope: vec!["epiphany-core".to_string()],
+            repository_scope: vec!["epiphany-core".to_string()],
             recommended_next_organ: "Hands".to_string(),
             adopted_plan: None,
             dependency_item_ids: Vec::new(),
@@ -4054,7 +4054,7 @@ mod tests {
             question: frontier_item.question.clone(),
             gap: frontier_item.gap.clone(),
             target_claim_ids: frontier_item.target_claim_ids.clone(),
-            source_scope: frontier_item.source_scope.clone(),
+            authorized_paths: frontier_item.repository_scope.clone(),
             adopted_plan: frontier_item.adopted_plan.clone(),
             selected_at: "2026-08-08T00:00:00Z".into(),
             contract: epiphany_core::REPO_FRONTIER_ROUTE_CONTRACT.into(),

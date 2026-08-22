@@ -699,7 +699,10 @@ pub struct RepoFrontierItem {
     pub target_claim_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
-    pub source_scope: Vec<String>,
+    /// Canonical repository-relative path ceiling for this wound. This is the
+    /// scope that downstream Planning may narrow and Hands may eventually
+    /// change; inspected files and evidence provenance belong elsewhere.
+    pub repository_scope: Vec<String>,
     pub recommended_next_organ: String,
     /// The exact plan admitted by Mind for this frontier item. Imagination may
     /// propose this payload, but only the dedicated model transition may make
@@ -800,7 +803,7 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
             .frontier
             .iter()
             .filter(|item| item.status == RepoFrontierStatus::Active)
-            .flat_map(|item| item.source_scope.iter())
+            .flat_map(|item| item.repository_scope.iter())
             .map(|path| EpiphanyCodeRef {
                 path: path.into(),
                 start_line: None,

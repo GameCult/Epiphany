@@ -74,11 +74,11 @@ fn validate_current_frontier_route<'a>(
                 .map_err(|error| format!("failed to hash current frontier item: {error}"))?
         )
     );
-    let expected_source_scope = current_item
+    let expected_authorized_paths = current_item
         .adopted_plan
         .as_ref()
         .map(|plan| plan.safe_paths.as_slice())
-        .unwrap_or(current_item.source_scope.as_slice());
+        .unwrap_or(current_item.repository_scope.as_slice());
     if route.schema_version != crate::REPO_FRONTIER_ROUTE_SCHEMA_VERSION
         || route.contract != crate::REPO_FRONTIER_ROUTE_CONTRACT
         || route.next_organ != crate::RepoFrontierNextOrgan::Hands
@@ -87,7 +87,7 @@ fn validate_current_frontier_route<'a>(
         || route.question != current_item.question
         || route.gap != current_item.gap
         || route.target_claim_ids != current_item.target_claim_ids
-        || route.source_scope != expected_source_scope
+        || route.authorized_paths != expected_authorized_paths
         || route.adopted_plan != current_item.adopted_plan
         || current_item.status != crate::RepoFrontierStatus::Active
         || current_item.recommended_next_organ != "Hands"

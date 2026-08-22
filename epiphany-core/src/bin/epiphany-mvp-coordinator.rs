@@ -1611,7 +1611,7 @@ fn record_hands_implementation_gate(
     );
     let runtime_job_id = format!("hands-implementation-{suffix}");
     let grant_id = format!("substrate-grant-{runtime_job_id}");
-    let requested_paths = route.source_scope.clone();
+    let requested_paths = route.authorized_paths.clone();
 
     let substrate_grant = substrate_gate_coordinator_implementation_grant(
         grant_id.clone(),

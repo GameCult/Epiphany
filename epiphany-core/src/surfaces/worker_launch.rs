@@ -149,7 +149,7 @@ pub struct RepoFrontierResearchContextProjection {
     pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
     pub frontier_item_id: String,
     pub frontier_item_hash: String,
-    pub source_scope: Vec<String>,
+    pub repository_scope: Vec<String>,
     #[serde(default)]
     pub public_source_refs: Vec<String>,
     pub contract: String,
@@ -165,7 +165,7 @@ impl From<&crate::RepoFrontierResearchRequest> for RepoFrontierResearchContextPr
             frontier_authority_documents: request.frontier_authority_documents.clone(),
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
-            source_scope: request.source_scope.clone(),
+            repository_scope: request.repository_scope.clone(),
             public_source_refs: request.public_source_refs.clone(),
             contract: REPO_FRONTIER_RESEARCH_CONTEXT_CONTRACT.to_string(),
         }
@@ -224,7 +224,7 @@ pub struct RepoFrontierPlanningContextProjection {
     pub frontier_item_hash: String,
     pub selected_organ: String,
     #[serde(default)]
-    pub source_scope: Vec<String>,
+    pub repository_scope: Vec<String>,
     pub requested_at: String,
     pub runtime_id: String,
     pub frontier_authority_documents: Vec<crate::EpiphanyMindDocumentVersion>,
@@ -242,7 +242,7 @@ impl RepoFrontierPlanningContextProjection {
             frontier_item_id: request.frontier_item_id.clone(),
             frontier_item_hash: request.frontier_item_hash.clone(),
             selected_organ: request.selected_organ.clone(),
-            source_scope: request.source_scope.clone(),
+            repository_scope: request.repository_scope.clone(),
             requested_at: request.requested_at.clone(),
             runtime_id: request.runtime_id.clone(),
             frontier_authority_documents: request.frontier_authority_documents.clone(),
