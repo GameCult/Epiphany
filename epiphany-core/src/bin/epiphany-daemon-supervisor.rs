@@ -282,8 +282,9 @@ fn provider_health_identity_enroll(args: Args) -> Result<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.provider_health_identity_enrollment.v1",
+            "schemaVersion": "epiphany.provider_health_identity_enrollment.v2",
             "identityId": signer.entry().identity_id,
+            "publicKeyHex": lowercase_hex(&signer.entry().public_key),
             "privateStateExposed": false,
         }))?
     );
@@ -305,13 +306,28 @@ fn provider_health_identity_export(args: Args) -> Result<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.provider_health_identity_export.v1",
+            "schemaVersion": "epiphany.provider_health_identity_export.v2",
             "identityId": signer.entry().identity_id,
+            "publicKeyHex": lowercase_hex(&signer.entry().public_key),
             "publicAnchor": public,
             "privateStateExposed": false,
         }))?
     );
     Ok(())
+}
+
+fn lowercase_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod provider_health_identity_output_tests {
+    use super::lowercase_hex;
+
+    #[test]
+    fn public_identity_key_is_exact_lowercase_hex() {
+        assert_eq!(lowercase_hex(&[0x00, 0x7f, 0x80, 0xff]), "007f80ff");
+    }
 }
 
 fn refuse_false_windows_scm_authority() -> Result<()> {
