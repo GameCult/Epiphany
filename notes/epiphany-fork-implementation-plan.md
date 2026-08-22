@@ -405,18 +405,18 @@ Cut in this order:
    containers, copied-source volumes, and writable roots at terminal
    settlement. Accepted proof stores remain only when this plan or the handoff
    names the invariant they preserve. The Epiphany target is now installed and
-   exact source `ebc0ffe4` passed Idunn's full Yggdrasil workspace gate, then
-   sealed 27 binaries as release
-   `sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`.
-   Publication refused before mutation. The unused Discord/Bifrost/VoidBot
-   operator bridge that caused that gate is now deleted; Starfire is not a
-   fallback.
+   exact source `52824453e1d0d0150b35bd4c179f16156544be0d` passed Idunn's
+   serialized Yggdrasil workspace gate, then sealed 26 binaries plus witness as
+   release `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`.
+   Publication refused before the outage boundary because the canonical Codex
+   credentials are absent. The unused Discord/Bifrost/VoidBot operator bridge
+   is deleted across source and deployment; Starfire is not a fallback.
 25. **Decision discovery is read-only:** exact source `5f66d6c9` adds
    `list-decisions` beside `audit-decision` in the existing packaged model
    runtime. It lists only fully validated terminal decision contexts, persists
    nothing, and omits nonterminal pass physiology. That surface is now inside
-   the accepted Idunn-built `ebc0ffe4` package. The next Idunn-built source
-   must replace it before runtime publication and signed health can be claimed.
+   the accepted Idunn-built `52824453` package. Runtime publication and signed
+   health remain blocked only by canonical credential provisioning.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

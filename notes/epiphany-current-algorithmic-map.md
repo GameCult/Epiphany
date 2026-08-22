@@ -317,19 +317,20 @@ Accepted at the `bb823c54` source boundary:
 - exact source `5f66d6c9` adds `epiphany-model-runtime list-decisions`, a
   deterministic read-only index of contexts whose terminal audit chain already
   validates. It omits sealed nonterminal pass physiology and cannot author or
-  admit state. Portable-test repairs through exact `ebc0ffe4` passed Idunn's
-  Yggdrasil workspace gate and are sealed in the exact 27-binary package
-  `sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`.
+  admit state. The current operator-plane deletion and authority-assembly cut
+  through exact `52824453` passed Idunn's serialized Yggdrasil workspace gate
+  and is sealed as 26 binaries plus witness in release
+  `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`.
 - runtime schema v2 refuses the prior digest-only worker archive epoch without
   mutation.
 
 Open before Model Atlas Gate 1 resumes:
 
 1. provision Epiphany's Codex credentials through their single owner, then let
-   Idunn build and deploy the source containing the operator-bridge deletion.
-   Require runtime publication and signed health; the prior exact request
-   refused before mutation and left Epiphany inactive on recovery source
-   `267a0257`;
+   Idunn publish exact source `52824453e1d0d0150b35bd4c179f16156544be0d`
+   from its sealed package. Require runtime publication and signed health; the
+   exact request ending `2026-08-22T04:45:54.424Z` refused before the outage
+   boundary and left Epiphany inactive on recovery source `267a0257`;
 2. run the fresh exact-package capstone over a new store, including concurrent
    Persona/repository work, complete decision inspection without transcripts,
    and process restart/re-entry. The equivalent source-level ownership,

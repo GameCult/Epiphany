@@ -229,26 +229,32 @@ surface and its portable-test repairs through exact `ebc0ffe4` have now passed
 Idunn's full Yggdrasil workspace gate and are sealed in the exact Linux package
 described below.
 
-Idunn compiled and tested exact source
-`ebc0ffe4f341154d1902f9afe86f0a87f150179c` on upgraded Yggdrasil. The gate
-recorded 133 successful test summaries, including core `499/499`, under test
-receipt SHA-256
-`38c36ebe12e662602d6eccbbdc520de19bff801fec90af0eec2a345306a567d8`.
-It sealed 27 immutable root-owned binaries as release
-`sha256-bb76728653b8e2e872b4da47f917abe4233fd6d4ae1fd573c5971c7db3922a5c`
-with witness SHA-256
-`4d8350fac61f90d32a2b8067731308ec3e3672a42804db29c680b0fc68ab9adc`
-and `privateStateExposed=false`.
+The cross-repository operator-plane cut is complete: Epiphany `39adf3a4`,
+Bifrost `8b9ab65`, VoidBot `78763ea`, and gamecult-ops
+`ca09ba8`/`c44fb05`/`448e368`. Eve/CultMesh projections, local typed enginseer
+tools, Persona transport, and governed consequence receipts remain. The
+standalone Discord command daemon, bridge admission worker, operator Mind
+writers, deployment gate, unit, and readiness claims do not.
 
-The exact Idunn request ending `2026-08-21T20:17:11.821Z` refused before
-publication or mutation. The Discord/Bifrost/VoidBot operator control plane
-that imposed that gate is now deleted across Epiphany, Bifrost, VoidBot, and
-gamecult-ops. The deployment brake remains engaged; Epiphany units are inactive
-and disabled; `app/current` still names recovery source `267a0257`; no
-`deployment.env`, runtime publication, or signed-health admission exists.
-Resident Self's two Codex credential files remain the legitimate deployment
-input blocker. The prior package predates this cut and cannot be promoted as
-current source.
+Idunn compiled and tested exact current source
+`52824453e1d0d0150b35bd4c179f16156544be0d` on upgraded Yggdrasil. Exact
+`52824453` unifies workspace-coverage authority assembly; gamecult-ops exact
+`90a62c2` runs the stateful test suite serially while compilation remains
+parallel. The full workspace gate passed under test receipt SHA-256
+`e23aa1f478dd7b0da179ef2def91b9595b19b5866d6c54b48e65dd6a7939f219`.
+Idunn sealed 26 immutable root-owned binaries plus `release-witness.ccmp` as
+release `sha256-08abf0e42f562902763010de07f2c45c05b2197e610184f3f3535ad900646931`;
+the witness file SHA-256 is
+`5ca155a8e10744a54f16b7e7fcc7390b5008e0c7b78e601fb02290738e6b025a`.
+`epiphany-operator-command` is absent.
+
+The exact Idunn request ending `2026-08-22T04:45:54.424Z` refused before the
+outage boundary because Resident Self's canonical `codex-auth.json` and
+`codex-config.toml` are absent. The deployment brake is engaged; Epiphany units
+are inactive and disabled; `app/current` still names recovery source
+`267a0257`; no `deployment.env`, runtime publication, or signed-health
+admission exists. Idunn is provenance-exact/live with `NRestarts=0`. No
+transient Epiphany container, named volume, package root, or test root remains.
 
 Fresh source tests prove the retained chain, concurrent keyed commits,
 old-epoch refusal, deterministic current-work re-entry, and Persona replay
@@ -294,11 +300,11 @@ A stopped build container or cloned source volume owns no durable proof.
 
 ## Immediate next action
 
-1. Provision Epiphany's Codex credentials through their single owner. Let Idunn
-   build and deploy the source containing the operator-bridge deletion, then
-   require publication, runtime start, and signed-health receipts. Do not run a
-   competing release build on Starfire and do not let the Epiphany lane
-   bootstrap another organ.
+1. Provision Epiphany's `codex-auth.json` and `codex-config.toml` through their
+   single credential owner. Submit exact source `52824453e1d0d0150b35bd4c179f16156544be0d`
+   through Idunn, reuse its sealed test/package result, and require publication,
+   runtime start, and signed-health receipts. Do not compile on Starfire and do
+   not let the Epiphany lane bootstrap another organ.
 2. Run the fresh-store Decision-Auditable Concurrent Mind capstone against the
    Idunn-admitted package: concurrent Persona/repository work, Body -> Modeling -> Mind,
    explicit Eyes evidence where required, Hands -> Verification -> Mind,
@@ -320,11 +326,11 @@ A stopped build container or cloned source volume owns no durable proof.
   intended swarm body and CI/CD machine. Idunn owns source-change compilation,
   testing, release construction, deployment, and daemon survival there; its
   current deployment truth belongs to Idunn's typed deployment receipts.
-- Idunn is active and independent at exact source `745e0109`; its Epiphany
-  source-change target is installed. Exact `ebc0ffe4` passed the full workspace
-  gate and sealed successfully on Yggdrasil. Publication stopped safely before
-  mutation. That package is superseded by this source cut and is not a reason
-  to fall back to Starfire compilation.
+- Idunn is active, provenance-exact, and independent at installed source
+  `2a5cb3e0`; its Epiphany target is installed. Exact `52824453` passed the full
+  workspace gate and sealed successfully on Yggdrasil. Publication stopped
+  safely before mutation. This current package is reusable after credential
+  provisioning and is not a reason to fall back to Starfire compilation.
 - Bifrost public crossing remains active on Yggdrasil. A completed public
   Persona consequence is still unproven because the Yggdrasil Discord
   credential is absent.
