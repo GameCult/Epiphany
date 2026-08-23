@@ -631,6 +631,14 @@ and workspace-coverage projector writers. Their hostile-command, injected-
 argument, exact-policy, and policy-digest checks remain. This removes 28 lines;
 non-test core and the three focused reserved-policy tests pass.
 
+Exact `c977d149` deletes Epiphany's unused v0 Idunn deployment-receipt and
+aftercare-audit families. VoidBot, `gamecult-ops`, and the local Odin/Idunn body
+show that live authority is `gamecult.idunn.deployment_manifest.v3` plus signed
+daemon-health admission; nothing produces the Epiphany-local envelopes. They
+had no writer, test, or consumer beyond unused context slots and loaders. The
+cut removes 151 lines; non-test core, CultMesh 27/27, and prompt projection 1/1
+pass.
+
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the
 remaining daemon supervisor's

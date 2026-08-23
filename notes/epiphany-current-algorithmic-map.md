@@ -52,6 +52,13 @@ runtime and name the actual invariant: immutable poke identities, monotonic
 latest selection, and Bifrost intent/receipt/Hands-proof correlation. The two
 specialized projector policy writers are the only writers; no test-only generic
 writer recreates the forbidden generic policy path.
+
+Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
+Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
+admission. Cross-repository inspection found no producer for Epiphany's former
+v0 deployment and aftercare DTOs; Epiphany had no writer, test, or consumer for
+them. Those schemas, registry entries, context fields, loaders, and key helpers
+are deleted rather than advertising a crossing that never existed.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
