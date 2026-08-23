@@ -774,6 +774,12 @@ proofs; the source searches proved only that forbidden function names were not
 spelled in one file. Core checks cleanly and the retained OpenAI runtime suite
 passes 25/25.
 
+Exact `06f93f70` deletes the test-only OpenAI-to-native request mapper. Two
+retained runtime tests now construct the canonical native request first and
+derive the provider request through the production adapter. This removes sixty
+net lines and makes test ancestry obey the same one-way ownership rule as live
+inference; focused typed-storage and tool-followup tests pass.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Retain a test only
 when it reaches Epiphany validation, ownership, authentication, monotonicity,

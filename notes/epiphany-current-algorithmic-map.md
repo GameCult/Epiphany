@@ -90,6 +90,11 @@ lowering, typed ingress refusal, runtime-owned identity derivation, and Mind
 admission remain the behavioral owners; implementation spelling and duplicate
 schema field inspection do not.
 
+Exact `06f93f70` removes the test-only inverse OpenAI-to-native request mapper.
+Provider requests are derived internally from canonical native requests in
+tests as well as production; no fixture may manufacture native ancestry from a
+caller-authored provider document.
+
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
 supervisor and prompt projection. The former singleton CultMesh status row was
