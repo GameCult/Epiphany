@@ -51,11 +51,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. In progress: `agent_memory` migration/repair/lifecycle/trait-seed/SoA code
-   and its tests are gone. The CultMesh SoA mirror, timestamp-selected latest
-   head, and prompt injection are gone. Persona learned memory now comes from
-   exact keyed Mind Persona documents. Next cut the global Mind semantic
-   partition and heartbeat personality/rumination selfPatch consumers, then
+1. In progress: exact `360073a3` deletes the global Mind semantic corpus,
+   agent-memory graph profile, dual-store projector policy, two-source pulse
+   fairness, legacy semantic migrators, and tests that protected those dead
+   authorities. Modeling retrieval now has one exact keyed RepoModel basis,
+   one corpus, one collection, and one pulse input. Next cut heartbeat's
+   aggregate personality/rumination and generic `selfPatch` consumers, then
    delete the aggregate identity/generation store they preserve.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.

@@ -197,13 +197,16 @@ Collection members therefore remain separate CultCache identities. Shared
 vectors and mutable global heads are forbidden because they manufacture false
 conflict between Persona, Hands, Modeling, and Verification.
 
-The semantic projector applies the same doctrine to derived cache work. Before
-acquisition, completion, retention, or retirement, it reconstructs the complete
-current Modeling basis from the opening snapshot and requires the supplied
-content-addressed obligation to match. Acquisition is full-snapshot CAS, so a
-concurrent keyed insert is fenced even though none of the older source
-envelopes changed. Semantic cache generations and times remain diagnostic
-cargo; they do not establish direction or currentness.
+The semantic projector applies the same doctrine to derived cache work. It has
+one corpus: Modeling documents derived from live RepoArchitecture and
+RepoDataflow state. Persona memory and other Mind documents are not flattened
+into a second semantic graph. Before acquisition, completion, retention, or
+retirement, the projector reconstructs the complete current Modeling basis
+from the opening snapshot and requires the supplied content-addressed
+obligation to match. Acquisition is full-snapshot CAS, so a concurrent keyed
+insert is fenced even though none of the older source envelopes changed.
+Semantic cache generations and times remain diagnostic cargo; they do not
+establish direction or currentness.
 
 ## State-driven work
 

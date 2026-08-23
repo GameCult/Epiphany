@@ -472,11 +472,18 @@ documents participate in the exact projection digest and source set. Dead
 test-only alternate Resident Self and direct Continuity writers are also gone.
 The final core library passes 483/483 and Persona service re-entry passes 1/1.
 
-Next delete the global Mind semantic partition and heartbeat
-personality/rumination selfPatch consumers, then delete the aggregate
-agent-memory identity/generation store they alone preserve. Do not run a
-full-workspace compile, package, deployment, or Ox root until the subtraction
-audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+Exact `360073a3` collapses semantic projection to one Modeling corpus and
+removes 1,726 net lines. The global Mind semantic corpus, agent-memory graph
+profile, dual-store projector contract, multi-source fairness cursor, legacy
+semantic migrators, one-variant partition type, unused semantic traits, and
+their obsolete tests are gone. Modeling retrieval now derives only live
+RepoArchitecture/RepoDataflow documents from the complete exact keyed
+RepoModel basis. Native core check passes and the library suite passes 472/472.
+
+Next delete heartbeat personality/rumination `selfPatch` consumers, then the
+aggregate agent-memory identity/generation store they alone preserve. Do not
+run a full-workspace compile, package, deployment, or Ox root until the
+subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 
