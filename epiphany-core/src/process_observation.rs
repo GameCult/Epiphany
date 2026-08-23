@@ -36,23 +36,6 @@ pub enum ProcessInstanceObservation {
     Indeterminate { reason: String },
 }
 
-/// Compatibility projection for old operator displays.  It is deliberately
-/// incapable of calling access denial or PID absence "dead".
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EpiphanyProcessObservation {
-    Alive,
-    Missing,
-}
-
-impl EpiphanyProcessObservation {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Alive => "alive",
-            Self::Missing => "missing",
-        }
-    }
-}
-
 pub fn capture_process_instance(process_id: u32) -> Result<ProcessInstanceIdentity> {
     if process_id == 0 {
         bail!("process-instance identity requires a nonzero PID");
@@ -120,31 +103,13 @@ pub fn native_boot_identity() -> Option<String> {
     platform::boot_identity()
 }
 
-pub fn native_process_executable_path(process_id: u32) -> Result<Option<PathBuf>> {
-    match capture_process_instance(process_id) {
-        Ok(identity) => Ok(Some(identity.executable_path)),
-        Err(error) if platform::is_missing_error(&error) => Ok(None),
-        Err(error) => Err(error),
-    }
-}
-
-pub fn observe_native_process(process_id: u32) -> Result<EpiphanyProcessObservation> {
-    // This legacy API has no expected incarnation and therefore cannot prove
-    // termination. It remains useful only as a conservative liveness display.
-    match capture_process_instance(process_id) {
-        Ok(_) => Ok(EpiphanyProcessObservation::Alive),
-        Err(error) if platform::is_missing_error(&error) => Ok(EpiphanyProcessObservation::Missing),
-        Err(error) => Err(error),
-    }
-}
-
 #[cfg(windows)]
 mod platform {
     use super::*;
     use chrono::{DateTime, SecondsFormat, Utc};
     use std::os::windows::ffi::OsStringExt;
     use windows_sys::Win32::Foundation::{
-        CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, FILETIME,
+        CloseHandle, ERROR_ACCESS_DENIED, ERROR_NO_MORE_FILES, FILETIME,
         GetLastError, INVALID_HANDLE_VALUE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
     };
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -387,14 +352,6 @@ mod platform {
         (status >= 0 && information.boot_time > 0)
             .then(|| format!("windows-kernel-boot-filetime:{}", information.boot_time))
     }
-
-    pub(super) fn is_missing_error(error: &anyhow::Error) -> bool {
-        error.chain().any(|source| {
-            source.downcast_ref::<std::io::Error>().is_some_and(|e| {
-            matches!(e.raw_os_error(), Some(code) if code == ERROR_INVALID_PARAMETER as i32)
-        })
-        })
-    }
 }
 
 #[cfg(target_os = "linux")]
@@ -519,14 +476,6 @@ mod platform {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
     }
-
-    pub(super) fn is_missing_error(error: &anyhow::Error) -> bool {
-        error.chain().any(|source| {
-            source
-                .downcast_ref::<std::io::Error>()
-                .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
-        })
-    }
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
@@ -546,9 +495,6 @@ mod platform {
     }
     pub(super) fn boot_identity() -> Option<String> {
         None
-    }
-    pub(super) fn is_missing_error(_: &anyhow::Error) -> bool {
-        false
     }
 }
 
