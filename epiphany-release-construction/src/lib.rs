@@ -96,7 +96,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ("repository-body", file_name("epiphany-repository-body")),
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
-        ("runtime-spine", file_name("epiphany-runtime-spine")),
         (
             "persona-feedback-ingress",
             file_name("epiphany-persona-feedback-ingress"),

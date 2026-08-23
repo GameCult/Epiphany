@@ -1,9 +1,8 @@
 # CultNet Schemas
 
-This folder is Epiphany's published CultNet contract surface for Aquarium and
-other swarm-side observers. It contains the runtime state, operator-facing
-surface projections, control intents, and receipt/artifact payloads that the
-runtime-spine advertises over `cultnet.schema.v0`.
+This folder contains Epiphany's JSON Schema publication artifacts for typed
+CultNet boundaries. Typed Rust documents registered in CultCache remain the
+runtime authority; these files help foreign consumers inspect the wire shape.
 
 The product direction is project-native agency: clients should speak to a
 project or one of its Personas/Personas, then watch typed scheduling, memory, evidence, and
@@ -14,8 +13,7 @@ verbs.
 
 ## What Lives Here
 
-- `index.json`: local registration manifest loaded by
-  `epiphany-runtime-spine` when answering schema-catalog requests.
+- `index.json`: publication manifest for providers that expose these contracts.
 - `*.schema.json`: top-level JSON Schema receipts for payload/document shapes.
 
 The payload receipts are deliberately practical rather than religiously
@@ -40,12 +38,8 @@ inspection and actuation; a future Rider daemon will own Rider integration.
 
 ## Publication Path
 
-Generate a schema-catalog response with inline schema bodies:
-
-```powershell
-cargo run -p epiphany-release-bundle --bin epiphany-runtime-spine -- schema-catalog --output .epiphany-dogfood\runtime-spine\schema-catalog.json --include-schema-json true
-```
-
-The runtime-spine merges the builtin CultNet schema registry with this local
-index before answering the request, so consumers can discover both canonical
-wire contracts and Epiphany-local payload contracts from one place.
+The provider that owns a live CultMesh/CultNet surface owns its schema-catalog
+response. This directory supplies publication artifacts; it is not a second
+runtime registry and no standalone Epiphany catalog command impersonates a
+service. The native model preflight derives its accepted document types from
+the same CultCache registrations used to open the runtime Mind store.

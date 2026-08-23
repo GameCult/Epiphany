@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
             if !status.present {
                 return Err(anyhow!("runtime spine is absent at {}", store.display()));
             }
-            let registered_document_types = epiphany_core::runtime_registered_document_types();
+            let registered_document_types = epiphany_core::runtime_registered_document_types()?;
             let missing: Vec<String> = required_document_types
                 .iter()
                 .filter(|required| !registered_document_types.contains(required))

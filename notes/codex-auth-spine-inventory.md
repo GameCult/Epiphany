@@ -153,12 +153,11 @@ longer imports Codex `ResponsesApiRequest`, `ResponsesClient`,
 workflow. Its narrow direct imports preserve Codex-compatible auth identity
 without letting Codex own Epiphany request/state shape.
 
-The CultNet paperwork is now public too. `schemas/cultnet/` contains typed
-schemas for OpenAI adapter status, model request, stream event, and terminal
-receipt; `epiphany-runtime-spine` advertises those document types and mutation
-contracts in its hello/schema catalog. This is the contract bridge the native
-runtime should consume next. Do not add another JSON-RPC model endpoint and call
-it progress.
+`schemas/cultnet/` contains publication schemas for OpenAI adapter status,
+model request, stream event, and terminal receipt. Live providers own their
+CultMesh/CultNet catalogs. The native runtime accepts the document types
+registered by the actual CultCache runtime schema; there is no standalone
+hello/catalog CLI or hand-maintained mutation-contract mirror.
 
 The native runtime route is the operator and daemon edge.
 `epiphany-openai-adapter` documents
@@ -171,11 +170,10 @@ Codex-backed transport through the typed spine; its `smoke` command proves the
 CultCache route without touching the network. This is the first native caller
 for the advertised OpenAI CultNet contract.
 
-The heartbeat/specialist runtime job opener has been moved to
-`epiphany-core::open_runtime_spine_heartbeat_job`. Vendored Codex may still
-call it while the app-server compatibility route survives, but the
-initialize-runtime, ensure-session, and create-job sequence is now native
-runtime-spine machinery rather than Codex thread machinery.
+Heartbeat/specialist launches use the atomic
+`epiphany-core::prepare_runtime_spine_heartbeat_job` path. Initialization,
+session admission, job creation, and launch receipts are one prepared CultCache
+mutation rather than a caller-visible sequence.
 
 The heartbeat launch plan is native as well:
 `epiphany-core::plan_runtime_spine_heartbeat_launch` validates the launch

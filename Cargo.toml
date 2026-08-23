@@ -110,10 +110,6 @@ name = "epiphany-swarm"
 path = "epiphany-core/src/bin/epiphany-swarm.rs"
 
 [[bin]]
-name = "epiphany-runtime-spine"
-path = "epiphany-core/src/bin/epiphany-runtime-spine.rs"
-
-[[bin]]
 name = "epiphany-persona-feedback-ingress"
 path = "epiphany-core/src/bin/epiphany-persona-feedback-ingress.rs"
 

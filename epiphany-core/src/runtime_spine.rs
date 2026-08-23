@@ -6,11 +6,8 @@ use crate::agent_launch::{
     EPIPHANY_MODELING_ROLE_BINDING_ID,
 };
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
-use crate::continuity_gateway::*;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
-use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
-use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
@@ -54,15 +51,8 @@ use crate::runtime_store_backend::{
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
-use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
-use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use crate::substrate_gate::SubstrateGateRepoAccessGrantReceipt;
-use crate::{
-    DECISION_CONTEXT_SCHEMA_VERSION, DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
-    MIND_COMMIT_RECEIPT_TYPE, REASONING_BASIS_SCHEMA_VERSION, REASONING_BASIS_TYPE,
-};
 use crate::{RuntimeTypedRequestRef, WorkerProcessStatus};
 use anyhow::Context;
 use anyhow::Result;
@@ -71,17 +61,6 @@ use cultcache_rs::CacheBackingStore;
 use cultcache_rs::CultCache;
 use cultcache_rs::CultCacheEnvelope;
 use cultcache_rs::DatabaseEntry;
-use cultnet_rs::CultNetDocumentMutationContract;
-use cultnet_rs::CultNetDocumentOperation;
-use cultnet_rs::CultNetMessage;
-use cultnet_rs::CultNetMutationAuthority;
-use cultnet_rs::CultNetSchemaKind;
-use cultnet_rs::CultNetSchemaRegistration;
-use cultnet_rs::CultNetSchemaRegistry;
-use cultnet_rs::CultNetWireContract;
-use cultnet_rs::builtin_schema_registry;
-use cultnet_rs::encode_cultnet_message_to_vec;
-use cultnet_rs::encode_frame;
 use epiphany_model_adapter::EpiphanyModelAdapterStatus;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -104,7 +83,6 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -122,16 +100,6 @@ pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v0";
-pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
-pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v1";
-pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
-pub const OPENAI_MODEL_RECEIPT_TYPE: &str = "epiphany.openai_model_receipt.v0";
-pub const MODEL_ADAPTER_STATUS_TYPE: &str = "epiphany.model_adapter_status.v0";
-pub const MODEL_REQUEST_TYPE: &str = "epiphany.model_request.v0";
-pub const MODEL_STREAM_EVENT_TYPE: &str = "epiphany.model_stream_event.v0";
-pub const MODEL_RECEIPT_TYPE: &str = "epiphany.model_receipt.v0";
-pub const TOOL_INVOCATION_INTENT_TYPE: &str = "epiphany.tool_invocation_intent.v0";
-pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt.v0";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
@@ -153,40 +121,6 @@ pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
-pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
-pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v1";
-pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
-pub const OPENAI_MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.openai_model_receipt.v0";
-pub const MODEL_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.model_adapter_status.v0";
-pub const MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.model_request.v0";
-pub const MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.model_stream_event.v0";
-pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
-pub const TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_intent.v0";
-pub const TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_receipt.v0";
-pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct EpiphanyCultNetSchemaIndex {
-    schema_version: String,
-    schemas: Vec<EpiphanyCultNetSchemaIndexEntry>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct EpiphanyCultNetSchemaIndexEntry {
-    schema_id: String,
-    kind: CultNetSchemaKind,
-    wire_contracts: Vec<CultNetWireContract>,
-    #[serde(default)]
-    schema_version: Option<String>,
-    #[serde(default)]
-    document_type: Option<String>,
-    #[serde(default)]
-    title: Option<String>,
-    path: String,
-}
-
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
 pub struct EpiphanyRuntimeIdentity {
@@ -972,6 +906,12 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let backing_store = runtime_spine_backing_store(store_path)?;
     validate_runtime_store_epoch(&backing_store.pull_all()?)?;
+    let mut cache = runtime_spine_schema_cache()?;
+    cache.add_generic_backing_store(backing_store);
+    Ok(cache)
+}
+
+fn runtime_spine_schema_cache() -> Result<CultCache> {
     let mut cache = CultCache::new();
     crate::mind_documents::register_mind_document_types(&mut cache)?;
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
@@ -1054,7 +994,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::PersonaConversationStoreRetirementReceipt>()?;
     cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
     cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
-    cache.add_generic_backing_store(backing_store);
     Ok(cache)
 }
 
@@ -11441,6 +11380,11 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
             )
         })
         .count();
+    let supported_document_types = if identity.is_some() {
+        runtime_registered_document_types()?
+    } else {
+        Vec::new()
+    };
     Ok(EpiphanyRuntimeSpineStatus {
         store: store_path.display().to_string(),
         present: identity.is_some(),
@@ -11457,10 +11401,7 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
             .iter()
             .filter(|intent| !receipt_intent_ids.contains(intent.intent_id.as_str()))
             .count(),
-        supported_document_types: identity
-            .is_some()
-            .then(runtime_registered_document_types)
-            .unwrap_or_default(),
+        supported_document_types,
     })
 }
 
@@ -11513,125 +11454,8 @@ pub fn runtime_tool_invocation_statuses(
     Ok(statuses)
 }
 
-pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    let identity = require_identity(&cache)?;
-    let message = CultNetMessage::Hello {
-        runtime_id: identity.runtime_id,
-        runtime_kind: "epiphany.native".to_string(),
-        agent_id: Some("self".to_string()),
-        role: Some("coordinator".to_string()),
-        display_name: Some(identity.display_name),
-        supported_document_types: Some(runtime_registered_document_types()),
-        supported_mutation_contracts: Some(epiphany_mutation_contracts()),
-        supported_message_versions: Some(vec![
-            "cultnet.hello.v0".to_string(),
-            "cultnet.document_put.v0".to_string(),
-            "cultnet.snapshot_request.v0".to_string(),
-            "cultnet.snapshot_response.v0".to_string(),
-            "cultnet.schema_catalog_request.v0".to_string(),
-            "cultnet.schema_catalog_response.v0".to_string(),
-        ]),
-        transport_profiles: None,
-        supports_schema_catalog: Some(true),
-    };
-    let payload = encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?;
-    encode_frame(&payload)
-}
-
-pub fn write_runtime_hello_frame(
-    store_path: impl AsRef<Path>,
-    output_path: impl AsRef<Path>,
-) -> Result<usize> {
-    let output_path = output_path.as_ref();
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let frame = runtime_hello_frame(store_path)?;
-    fs::write(output_path, &frame)
-        .with_context(|| format!("failed to write {}", output_path.display()))?;
-    Ok(frame.len())
-}
-
-pub fn epiphany_schema_registry() -> Result<CultNetSchemaRegistry> {
-    let mut registry = builtin_schema_registry()?;
-    let schema_root = epiphany_schema_root();
-    let index_path = schema_root.join("index.json");
-    let raw_index = fs::read_to_string(&index_path)
-        .with_context(|| format!("failed to read {}", index_path.display()))?;
-    let index: EpiphanyCultNetSchemaIndex = serde_json::from_str(&raw_index)
-        .with_context(|| format!("failed to parse {}", index_path.display()))?;
-    if index.schema_version.trim().is_empty() {
-        return Err(anyhow!(
-            "CultNet schema index at {} is missing schemaVersion",
-            index_path.display()
-        ));
-    }
-
-    for entry in index.schemas {
-        let schema_path = schema_root.join(&entry.path);
-        let schema_json = fs::read_to_string(&schema_path)
-            .with_context(|| format!("failed to read {}", schema_path.display()))?;
-        registry.register(CultNetSchemaRegistration {
-            schema_id: entry.schema_id,
-            kind: entry.kind,
-            wire_contracts: entry.wire_contracts,
-            schema_version: entry.schema_version,
-            document_type: entry.document_type,
-            title: entry.title,
-            schema_json: Some(schema_json),
-        })?;
-    }
-
-    Ok(registry)
-}
-
-pub fn runtime_schema_catalog_response(
-    message_id: impl Into<String>,
-    include_schema_json: bool,
-    schema_ids: Option<Vec<String>>,
-    kinds: Option<Vec<CultNetSchemaKind>>,
-) -> Result<CultNetMessage> {
-    let registry = epiphany_schema_registry()?;
-    registry.create_catalog_response(&CultNetMessage::SchemaCatalogRequest {
-        message_id: message_id.into(),
-        include_schema_json: Some(include_schema_json),
-        schema_ids,
-        kinds,
-    })
-}
-
-pub fn write_runtime_schema_catalog_json(
-    output_path: impl AsRef<Path>,
-    include_schema_json: bool,
-) -> Result<usize> {
-    let output_path = output_path.as_ref();
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let response = runtime_schema_catalog_response(
-        "runtime-spine-schema-catalog".to_string(),
-        include_schema_json,
-        None,
-        None,
-    )?;
-    let body = serde_json::to_vec_pretty(&response)?;
-    fs::write(output_path, &body)
-        .with_context(|| format!("failed to write {}", output_path.display()))?;
-    Ok(body.len())
-}
-
-fn epiphany_schema_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("epiphany-core has no parent repo root")
-        .join(CULTNET_SCHEMA_INDEX_RELATIVE)
-        .parent()
-        .expect("cultnet schema index has no parent directory")
-        .to_path_buf()
+pub fn runtime_registered_document_types() -> Result<Vec<String>> {
+    Ok(runtime_spine_schema_cache()?.registered_entry_types())
 }
 
 fn require_identity(cache: &CultCache) -> Result<EpiphanyRuntimeIdentity> {
@@ -11665,651 +11489,6 @@ fn require_runtime_identity_not_archived(
         ));
     }
     Ok(())
-}
-
-pub fn runtime_registered_document_types() -> Vec<String> {
-    let mut document_types = Vec::new();
-    for contract in epiphany_mutation_contracts() {
-        if !document_types.contains(&contract.document_type) {
-            document_types.push(contract.document_type);
-        }
-    }
-    document_types
-}
-
-fn mutation_contract(
-    document_type: impl Into<String>,
-    payload_schema_version: impl Into<String>,
-    operations: Vec<CultNetDocumentOperation>,
-    authority: CultNetMutationAuthority,
-    intent_document_types: Vec<&str>,
-    receipt_document_types: Vec<&str>,
-    notes: Vec<&str>,
-) -> CultNetDocumentMutationContract {
-    CultNetDocumentMutationContract {
-        document_type: document_type.into(),
-        payload_schema_version: Some(payload_schema_version.into()),
-        operations,
-        authority,
-        intent_document_types: (!intent_document_types.is_empty()).then(|| {
-            intent_document_types
-                .into_iter()
-                .map(str::to_string)
-                .collect()
-        }),
-        receipt_document_types: (!receipt_document_types.is_empty()).then(|| {
-            receipt_document_types
-                .into_iter()
-                .map(str::to_string)
-                .collect()
-        }),
-        notes: (!notes.is_empty()).then(|| notes.into_iter().map(str::to_string).collect()),
-    }
-}
-
-fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
-    vec![
-        mutation_contract(
-            crate::EpiphanyRepoModelIdentityDocument::TYPE,
-            crate::EpiphanyRepoModelIdentityDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel identity is written only by the local Mind commit path."],
-        ),
-        mutation_contract(
-            crate::EpiphanyRepoModelDomainDocument::TYPE,
-            crate::EpiphanyRepoModelDomainDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel domains are written only by the local Mind commit path."],
-        ),
-        mutation_contract(
-            crate::EpiphanyRepoModelNodeDocument::TYPE,
-            crate::EpiphanyRepoModelNodeDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel nodes are written only by the local Mind commit path."],
-        ),
-        mutation_contract(
-            crate::EpiphanyRepoModelEdgeDocument::TYPE,
-            crate::EpiphanyRepoModelEdgeDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel edges are written only by the local Mind commit path."],
-        ),
-        mutation_contract(
-            crate::EpiphanyRepoModelFrontierDocument::TYPE,
-            crate::EpiphanyRepoModelFrontierDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel frontier items are written only by the local Mind commit path."],
-        ),
-        mutation_contract(
-            crate::EpiphanyRepoModelClaimObligationsDocument::TYPE,
-            crate::EpiphanyRepoModelClaimObligationsDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec!["Keyed RepoModel claim obligations are derived and committed by local Mind."],
-        ),
-        mutation_contract(
-            crate::AtlasSurfaceOffer::TYPE,
-            crate::AtlasSurfaceOffer::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![crate::ATLAS_SURFACE_OFFER_WRITE_INTENT_SCHEMA],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "Provider Modeling owns local surface offers through typed Atlas planners and Mind CAS.",
-            ],
-        ),
-        mutation_contract(
-            crate::AtlasDependencyClaim::TYPE,
-            crate::AtlasDependencyClaim::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![crate::ATLAS_DEPENDENCY_CLAIM_WRITE_INTENT_SCHEMA],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "Consumer Modeling owns local dependency claims through typed Atlas planners and Mind CAS.",
-            ],
-        ),
-        mutation_contract(
-            crate::AtlasDependencyVerification::TYPE,
-            crate::AtlasDependencyVerification::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![crate::ATLAS_DEPENDENCY_VERIFICATION_WRITE_INTENT_SCHEMA],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "Soul owns exact local claim/offer verification through its dedicated Atlas planner.",
-            ],
-        ),
-        mutation_contract(
-            crate::AtlasDependencyImpact::TYPE,
-            crate::AtlasDependencyImpact::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![crate::ATLAS_DEPENDENCY_IMPACT_WRITE_INTENT_SCHEMA],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "Consumer Self owns local dependency impacts through its dedicated Atlas planner.",
-            ],
-        ),
-        mutation_contract(
-            crate::USER_OBJECTIVE_INTAKE_TYPE,
-            crate::USER_OBJECTIVE_INTAKE_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![crate::USER_OBJECTIVE_INTAKE_TYPE],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "The human owns the initial objective assertion; Self atomically records it with the keyed Mind objective and a typed operator-provenance commit receipt.",
-                "Thread identity is provenance and does not own objective causality.",
-                "Objective replacement requires a separate reviewed adoption flow.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_IDENTITY_TYPE,
-            RUNTIME_SPINE_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Runtime identity is advertised by the coordinator, not remotely mutated."],
-        ),
-        mutation_contract(
-            RUNTIME_SESSION_TYPE,
-            RUNTIME_SPINE_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime sessions are lifecycle state opened and closed by exact local runtime owners.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_JOB_TYPE,
-            RUNTIME_SPINE_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime jobs are lifecycle receipts derived from admitted worker-launch requests.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_WORKER_LAUNCH_REQUEST_TYPE,
-            RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![RUNTIME_WORKER_LAUNCH_REQUEST_TYPE],
-            vec![RUNTIME_JOB_TYPE],
-            vec![
-                "Worker launch requests are typed task-intent documents; runtime jobs are lifecycle receipts, not the source of work intent.",
-                "Core/coordinator policy owns the launch yes/no; the Epiphany-Codex bridge translates between CultNet-shaped intent and Codex JSON only.",
-                "Codex-hosted executors may gather host facts and perform side effects after the verdict, with readable receipts.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_ROLE_WORKER_RESULT_TYPE,
-            RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Role worker results preserve the typed finding payload; generic runtime job results are lifecycle receipts.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_WORKER_PROCESS_CLAIM_TYPE,
-            RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "The worker claims its native process before model/tool work; the spawning coordinator alone presents the one-use activation preimage.",
-                "Terminal result and exact process death replace the same claim; absence and age are not terminal authority.",
-            ],
-        ),
-        mutation_contract(
-            ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE,
-            ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime spine atomically replaces one exact terminal typed worker family with this per-attempt tombstone only after resident liveness clears.",
-                "A terminal-result tombstone preserves authenticated fulfillment identity; it does not own producer semantic companions or Mind admission.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_REORIENT_WORKER_RESULT_TYPE,
-            RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Reorient worker results preserve continuity findings separately from generic runtime lifecycle receipts.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_JOB_RESULT_TYPE,
-            RUNTIME_SPINE_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Job results are evidence records; review and acceptance are separate typed flows.",
-            ],
-        ),
-        mutation_contract(
-            REASONING_BASIS_TYPE,
-            REASONING_BASIS_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "A sealed reasoning basis preserves the exact typed Mind documents and closed projection supplied to one model pass.",
-                "It is immutable decision evidence, not a generic state mutation intent.",
-            ],
-        ),
-        mutation_contract(
-            DECISION_CONTEXT_TYPE,
-            DECISION_CONTEXT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "A sealed decision context binds the reasoning basis to the exact terminal native request, internally derived provider request, and governed tool observations supplied.",
-                "It is audit evidence; concrete invariant owners decide which exact documents a structured outcome may mutate.",
-            ],
-        ),
-        mutation_contract(
-            MIND_COMMIT_RECEIPT_TYPE,
-            MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "A Mind commit receipt proves that one named invariant owner atomically checked exact strong reads and wrote exact typed documents.",
-                "CultNet exposes the receipt read-only and cannot impersonate the commit owner.",
-            ],
-        ),
-        mutation_contract(
-            SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
-            SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["A Substrate Gate grant receipt scopes a permitted repo touch."],
-        ),
-        mutation_contract(
-            EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
-            EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Source lookup receipts prove what was searched or inspected under a Substrate Gate grant.",
-            ],
-        ),
-        mutation_contract(
-            EYES_EVIDENCE_PACKET_TYPE,
-            EYES_EVIDENCE_PACKET_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Evidence packets carry provenance, uncertainty, and source refs for the other organs.",
-            ],
-        ),
-        mutation_contract(
-            HANDS_ACTION_INTENT_TYPE,
-            HANDS_ACTION_INTENT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![HANDS_ACTION_INTENT_TYPE],
-            vec![
-                HANDS_ACTION_REVIEW_TYPE,
-                HANDS_COMMAND_RECEIPT_TYPE,
-                HANDS_PATCH_RECEIPT_TYPE,
-                HANDS_COMMIT_RECEIPT_TYPE,
-                HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
-            ],
-            vec![
-                "Hands is the action organ: commands, patches, commits, and rollbacks enter as bounded action intents.",
-                "Substrate Gate grants substrate access before Hands mutates; Soul verifies consequences after.",
-            ],
-        ),
-        mutation_contract(
-            HANDS_ACTION_REVIEW_TYPE,
-            HANDS_ACTION_REVIEW_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Hands reviews explain allowed, refused, sequenced, or delegated action."],
-        ),
-        mutation_contract(
-            HANDS_COMMAND_RECEIPT_TYPE,
-            HANDS_COMMAND_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Command receipts prove what command ran and under which Substrate Gate grant."],
-        ),
-        mutation_contract(
-            HANDS_PATCH_RECEIPT_TYPE,
-            HANDS_PATCH_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Patch receipts prove file mutations and the scoped grant that permitted them."],
-        ),
-        mutation_contract(
-            HANDS_COMMIT_RECEIPT_TYPE,
-            HANDS_COMMIT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Commit receipts preserve repository consequences after verification."],
-        ),
-        mutation_contract(
-            HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
-            HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Hands refusal receipts preserve why an action intent was denied."],
-        ),
-        mutation_contract(
-            crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_TYPE,
-            crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Mind relinquishment receipts prove that an exact Hands refusal retired route authority without a repository consequence.",
-            ],
-        ),
-        mutation_contract(
-            SOUL_VERDICT_RECEIPT_TYPE,
-            SOUL_VERDICT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Verdict receipts are proof of sanctity or proof of failure."],
-        ),
-        mutation_contract(
-            CONTINUITY_RECOVERY_RECEIPT_TYPE,
-            CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Recovery receipts explain what survived and what must be regathered."],
-        ),
-        mutation_contract(
-            COORDINATOR_RUN_RECEIPT_TYPE,
-            COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::Coordinator,
-            vec![],
-            vec![],
-            vec![
-                "Coordinator run receipts are typed summaries of local plan/run decisions; artifact JSON is display evidence, not the only durable account.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_MODEL_EXECUTION_BINDING_TYPE,
-            RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime spine atomically binds one native/provider model request pair to its owning session and job before transport begins.",
-                "Retention must reject unbound model rows rather than infer ownership from request names or conversation ids.",
-            ],
-        ),
-        mutation_contract(
-            RUNTIME_TOOL_EXECUTION_BINDING_TYPE,
-            RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime spine atomically binds a tool intent to its session and job before the tool runtime may execute it.",
-                "Model-derived tool intents must inherit the exact owning model execution; direct intents require explicit runtime ownership.",
-            ],
-        ),
-        mutation_contract(
-            ARCHIVED_RUNTIME_SESSION_TYPE,
-            ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Runtime spine alone archives an exact completed model-session generation under a full snapshot fence.",
-                "The tombstone preserves retired identities and digest evidence, blocks ID reuse, and cannot satisfy execution authority.",
-            ],
-        ),
-        mutation_contract(
-            MODEL_ADAPTER_STATUS_TYPE,
-            MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Model adapter status is provider-neutral; OpenAI/Codex is one current provider behind this boundary.",
-            ],
-        ),
-        mutation_contract(
-            MODEL_REQUEST_TYPE,
-            MODEL_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![MODEL_REQUEST_TYPE],
-            vec![MODEL_STREAM_EVENT_TYPE, MODEL_RECEIPT_TYPE],
-            vec![
-                "Model turns enter through typed provider-neutral Epiphany request documents and return typed stream events/receipts.",
-                "Provider adapters may authenticate and transport; they must not own Epiphany state, prompt authority, or scheduling.",
-            ],
-        ),
-        mutation_contract(
-            MODEL_STREAM_EVENT_TYPE,
-            MODEL_STREAM_EVENT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Model stream events are receipts from a typed model request."],
-        ),
-        mutation_contract(
-            MODEL_RECEIPT_TYPE,
-            MODEL_RECEIPT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Terminal model receipts carry provider response id, usage, and transport evidence.",
-            ],
-        ),
-        mutation_contract(
-            TOOL_INVOCATION_INTENT_TYPE,
-            TOOL_INVOCATION_INTENT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![TOOL_INVOCATION_INTENT_TYPE],
-            vec![TOOL_INVOCATION_RECEIPT_TYPE],
-            vec![
-                "Tool calls enter Epiphany as typed invocation intents; MCP JSON remains protocol-edge cargo.",
-            ],
-        ),
-        mutation_contract(
-            TOOL_INVOCATION_RECEIPT_TYPE,
-            TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Tool invocation receipts seal parsed results, errors, and raw-result artifact refs before scheduler or state admission.",
-            ],
-        ),
-        mutation_contract(
-            OPENAI_ADAPTER_STATUS_TYPE,
-            OPENAI_ADAPTER_STATUS_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "OpenAI adapter status is provider-specific evidence behind the model adapter boundary.",
-            ],
-        ),
-        mutation_contract(
-            OPENAI_MODEL_REQUEST_TYPE,
-            OPENAI_MODEL_REQUEST_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![OPENAI_MODEL_STREAM_EVENT_TYPE, OPENAI_MODEL_RECEIPT_TYPE],
-            vec![
-                "OpenAI model requests are adapter projection evidence, not the provider-neutral request authority.",
-            ],
-        ),
-        mutation_contract(
-            OPENAI_MODEL_STREAM_EVENT_TYPE,
-            OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "OpenAI stream events are provider-specific receipts mirrored from model stream events.",
-            ],
-        ),
-        mutation_contract(
-            OPENAI_MODEL_RECEIPT_TYPE,
-            OPENAI_MODEL_RECEIPT_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::ReceiptWatch],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "OpenAI terminal receipts are provider-specific evidence behind the model receipt.",
-            ],
-        ),
-        mutation_contract(
-            STATE_LEDGER_STORE_TYPE,
-            STATE_LEDGER_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "The ledger is inspected as durable memory; writes are mediated by role-specific state flows.",
-            ],
-        ),
-    ]
 }
 
 fn validate_non_empty(value: &str, field: &str) -> Result<()> {
@@ -12395,27 +11574,6 @@ pub(crate) mod tests {
         }
         let body_store = store.with_extension(format!("{workspace_id}.body.cc"));
         crate::bind_repository_body(&repo, &body_store, store, workspace_id)?;
-        Ok(())
-    }
-
-    #[test]
-    fn runtime_registry_has_no_aggregate_repo_model_authority() -> Result<()> {
-        let registered = runtime_registered_document_types();
-        assert!(
-            !registered
-                .iter()
-                .any(|kind| kind == "epiphany.memory_graph")
-        );
-        assert!(
-            !registered
-                .iter()
-                .any(|kind| kind.contains("repo_model_admission"))
-        );
-        assert!(
-            registered
-                .iter()
-                .any(|kind| kind == crate::EpiphanyRepoModelIdentityDocument::TYPE)
-        );
         Ok(())
     }
 
