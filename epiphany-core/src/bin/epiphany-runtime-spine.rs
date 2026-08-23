@@ -3,7 +3,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
 use epiphany_core::EpiphanyCoordinatorRunReceipt;
-use epiphany_core::EpiphanyRuntimeEvent;
 use epiphany_core::EpiphanyRuntimeJob;
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
@@ -74,7 +73,6 @@ fn main() -> Result<()> {
             );
             println!("jobs: {} open: {}", status.jobs, status.open_jobs);
             println!("job results: {}", status.job_results);
-            println!("events: {}", status.events);
             println!(
                 "actionable frontiers: Hands={} Eyes={}",
                 runtime_has_actionable_hands_frontier(&args.store)?,
@@ -159,27 +157,6 @@ fn main() -> Result<()> {
                         tool_names.as_str()
                     },
                     request.output_contract_id.as_deref().unwrap_or("none")
-                );
-            }
-        }
-        Command::ListEvents => {
-            let mut cache = runtime_spine_cache(&args.store)?;
-            cache.pull_all_backing_stores()?;
-            let mut events = cache.get_all::<EpiphanyRuntimeEvent>()?;
-            events.sort_by(|left, right| {
-                left.occurred_at
-                    .cmp(&right.occurred_at)
-                    .then_with(|| left.event_id.cmp(&right.event_id))
-            });
-            println!("runtime events");
-            for event in events {
-                println!(
-                    "{}\t{}\t{}\t{}\t{}",
-                    event.occurred_at,
-                    event.event_type,
-                    event.job_id.as_deref().unwrap_or("no-job"),
-                    event.source,
-                    event.summary.replace(['\r', '\n', '\t'], " ")
                 );
             }
         }
@@ -348,7 +325,6 @@ enum Command {
     ListJobs,
     ListSessions,
     ListModelRequests,
-    ListEvents,
     ListCoordinatorRuns,
     ListRepoModelProposals,
     OpenSession {
@@ -430,7 +406,6 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
         "list-jobs" => Ok(Command::ListJobs),
         "list-sessions" => Ok(Command::ListSessions),
         "list-model-requests" => Ok(Command::ListModelRequests),
-        "list-events" => Ok(Command::ListEvents),
         "list-coordinator-runs" => Ok(Command::ListCoordinatorRuns),
         "list-repo-model-proposals" => Ok(Command::ListRepoModelProposals),
         "open-session" => {
@@ -657,7 +632,7 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|open-job|complete-job|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|open-job|complete-job|hello-frame|schema-catalog>"
 }
 
 fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {

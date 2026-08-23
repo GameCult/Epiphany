@@ -336,7 +336,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             now(),
         ),
     )?;
-    let (runtime_session, runtime_event) = open_coordinator_run(
+    let runtime_session = open_coordinator_run(
         &runtime_store,
         &runtime_session_id,
         &thread_id,
@@ -349,7 +349,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "store": runtime_store,
         "runtimeId": runtime_identity.runtime_id,
         "sessionId": runtime_session.session_id,
-        "eventId": runtime_event.event_id,
     }));
     let run_result = (|| -> Result<Value> {
         let mut startup_proposal_modeling_job_id = None;
@@ -2301,22 +2300,6 @@ mod tests {
         assert_eq!(receipts.len(), 1);
         assert_eq!(receipts[0].status, "failed");
         assert_eq!(receipts[0].session_id, session.session_id);
-        let events = cache
-            .get_all::<epiphany_core::EpiphanyRuntimeEvent>()?
-            .into_iter()
-            .filter(|event| event.session_id.as_deref() == Some(session.session_id.as_str()))
-            .collect::<Vec<_>>();
-        assert_eq!(events.len(), 2);
-        assert!(
-            events
-                .iter()
-                .any(|event| event.event_type == "coordinator.started")
-        );
-        assert!(
-            events
-                .iter()
-                .any(|event| event.event_type == "session.completed")
-        );
         Ok(())
     }
 
