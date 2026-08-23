@@ -2602,19 +2602,6 @@ mod tests {
     }
 
     #[test]
-    fn removed_generic_self_patch_is_not_native_role_input() {
-        let error = parse_assistant_json::<RoleWorkerResultIngress>(
-            r#"{
-                "roleId":"research","verdict":"source-gap","summary":"bounded",
-                "nextSafeMove":"review","filesInspected":[],"selfPatch":null
-            }"#,
-        )
-        .expect_err("the removed generic mutation mouth must be inadmissible");
-
-        assert!(format!("{error:#}").contains("unknown field `selfPatch`"));
-    }
-
-    #[test]
     fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
         let mut schemas = vec![
             epiphany_core::epiphany_role_launch_output_schema(

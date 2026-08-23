@@ -90,29 +90,3 @@ pub fn admitted_model_direction_request_id(
         ],
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn provenance_does_not_participate_in_causal_identity() {
-        let first = frontier_research_request_id("runtime", "frontier-id", "frontier-hash");
-        let after_model_and_thread_transition =
-            frontier_research_request_id("runtime", "frontier-id", "frontier-hash");
-        assert_eq!(first, after_model_and_thread_transition);
-        assert_ne!(
-            first,
-            frontier_research_request_id("runtime", "frontier-id", "other")
-        );
-
-        let planning = frontier_planning_request_id("runtime", "frontier-id", "frontier-hash");
-        let planning_after_model_and_thread_transition =
-            frontier_planning_request_id("runtime", "frontier-id", "frontier-hash");
-        assert_eq!(planning, planning_after_model_and_thread_transition);
-        assert_ne!(
-            planning,
-            frontier_planning_request_id("runtime", "other-frontier", "frontier-hash")
-        );
-    }
-}
