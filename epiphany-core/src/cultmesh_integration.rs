@@ -6651,159 +6651,6 @@ pub fn load_epiphany_cultmesh_cluster_topology(
     Ok(topology)
 }
 
-#[cfg(test)]
-fn epiphany_cultmesh_odin_advertisement_templates() -> Vec<EpiphanyCultMeshOdinAdvertisementEntry> {
-    epiphany_cultmesh_cluster_topology()
-        .into_iter()
-        .map(|cluster| EpiphanyCultMeshOdinAdvertisementEntry {
-            schema_version: EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION.to_string(),
-            advertisement_id: format!("odin.advertisement.{}", cluster.cluster_id),
-            cluster_id: cluster.cluster_id.clone(),
-            advertised_verse_id: cluster.private_verse_id.clone(),
-            body_domain: cluster.body_domain.clone(),
-            body_kind: cluster.body_kind.clone(),
-            daemon_surface_id: cluster.daemon_surface_id.clone(),
-            eve_surface_id: cluster.eve_surface_id.clone(),
-            public_summary: format!(
-                "{} exposes an operator-safe Eve surface for compact CultMesh collaboration discovery.",
-                cluster.display_name
-            ),
-            advertised_document_types: vec![
-                EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE.to_string(),
-                EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
-                EPIPHANY_CULTMESH_VERSE_POLICY_TYPE.to_string(),
-            ],
-            trust_boundary:
-                "Odin discovery metadata is operator-safe; private Verse payloads stay behind the cluster boundary."
-                    .to_string(),
-            private_state_exposed: false,
-            notes: vec![
-                "This advertisement is discovery metadata, not membership in the private Verse.".to_string(),
-                "Peers may use the Eve surface hint to request collaboration through CultMesh contracts.".to_string(),
-                "Mind and Substrate Gate still review adoption, state mutation, and repo access.".to_string(),
-            ],
-        })
-        .collect()
-}
-
-#[cfg(test)]
-fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
-    epiphany_cultmesh_cluster_topology()
-        .into_iter()
-        .map(|cluster| {
-            let mut exposed_document_types = vec![
-                EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
-                EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE.to_string(),
-                EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_TYPE.to_string(),
-            ];
-            if cluster.role_id == "hands" {
-                exposed_document_types.push(
-                    EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE.to_string(),
-                );
-                exposed_document_types.push(
-                    EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE.to_string(),
-                );
-                exposed_document_types
-                    .push(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_TYPE.to_string());
-            }
-            EpiphanyCultMeshEveSurfaceStateEntry {
-                schema_version: EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION.to_string(),
-                surface_id: cluster.eve_surface_id.clone(),
-                cluster_id: cluster.cluster_id.clone(),
-                daemon_id: cluster.daemon_id.clone(),
-                body_domain: cluster.body_domain.clone(),
-                tui_title: format!("{} / {}", cluster.display_name, cluster.body_domain),
-                tui_rows: vec![
-                    format!("cluster {}", cluster.cluster_id),
-                    format!("body {}", cluster.body_domain),
-                    format!("daemon {}", cluster.daemon_id),
-                    format!("private {}", cluster.private_verse_id),
-                    "presentation surface only; private Verse payloads are sealed".to_string(),
-                ],
-                exposed_document_types,
-                supported_actions: vec![
-                    "inspectCompactSurface".to_string(),
-                    "watchTypedReceipts".to_string(),
-                ],
-                private_state_exposed: false,
-                notes: vec![
-                    "Eve surface state is compact operator-safe TUI/API state owned by the cluster daemon.".to_string(),
-                    "Odin may advertise this surface id, but it must not synthesize the surface contents.".to_string(),
-                    "Rows are agent-friendly hints, not private Verse state dumps.".to_string(),
-                ],
-            }
-        })
-        .collect()
-}
-
-#[cfg(test)]
-fn validate_eve_surface_state(surface: &EpiphanyCultMeshEveSurfaceStateEntry) -> Result<()> {
-    if surface.private_state_exposed {
-        return Err(anyhow!("Eve surface states must not expose private state"));
-    }
-    if !surface.surface_id.starts_with("eve://") {
-        return Err(anyhow!("Eve surface states require an eve:// surface id"));
-    }
-    if surface.tui_rows.is_empty() {
-        return Err(anyhow!("Eve surface states require compact TUI rows"));
-    }
-    if surface.exposed_document_types.is_empty() {
-        return Err(anyhow!(
-            "Eve surface states require exposed document type hints"
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-pub fn epiphany_cultmesh_daemon_statuses(
-    last_heartbeat_utc: impl Into<String>,
-) -> Vec<EpiphanyCultMeshDaemonStatusEntry> {
-    let last_heartbeat_utc = last_heartbeat_utc.into();
-    epiphany_cultmesh_cluster_topology()
-        .into_iter()
-        .map(|cluster| EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-            daemon_id: cluster.daemon_id.clone(),
-            cluster_id: cluster.cluster_id.clone(),
-            body_domain: cluster.body_domain.clone(),
-            daemon_surface_id: cluster.daemon_surface_id.clone(),
-            eve_surface_id: cluster.eve_surface_id.clone(),
-            status: "ready".to_string(),
-            last_heartbeat_utc: last_heartbeat_utc.clone(),
-            supported_actions: vec![
-                "inspectStatus".to_string(),
-                "pokeDaemon".to_string(),
-                "watchHeartbeat".to_string(),
-                "submitTypedToolIntent".to_string(),
-            ],
-            operator_action: "none".to_string(),
-            private_state_exposed: false,
-            notes: vec![
-                "Daemon status is operator-safe liveness telemetry for the deployed cluster body.".to_string(),
-                "A down daemon should be poked through typed operator/daemon action receipts, not by private Verse rummaging.".to_string(),
-                "This status may name surfaces and actions but must not expose worker thoughts or private state.".to_string(),
-            ],
-        })
-        .collect()
-}
-
-#[cfg(test)]
-pub fn write_epiphany_cultmesh_daemon_statuses(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    last_heartbeat_utc: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshDaemonStatusEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for status in epiphany_cultmesh_daemon_statuses(last_heartbeat_utc) {
-        validate_daemon_status(&status)?;
-        written.push(node.put(status.daemon_id.clone(), &status)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
 pub fn write_epiphany_cultmesh_daemon_status(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -7097,79 +6944,7 @@ fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<
 }
 
 #[cfg(test)]
-fn epiphany_cultmesh_daemon_tool_capability_templates()
--> Vec<EpiphanyCultMeshDaemonToolCapabilityEntry> {
-    let mut capabilities = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-            &cluster,
-            "status",
-            "readStatus",
-            EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE,
-            "epiphany.cultmesh.tool_status_receipt",
-            "none",
-        ));
-    }
-    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-        &epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
-            .expect("self cluster topology exists"),
-        "service-health",
-        "readServiceLifecycleStatus",
-        "epiphany.cultmesh.daemon_service_lifecycle_query",
-        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE,
-        "daemon.service_lifecycle",
-    ));
-    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-        &epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
-            .expect("self cluster topology exists"),
-        "service-policy-directory",
-        "readServicePolicyDirectory",
-        "epiphany.cultmesh.daemon_restart_policy_directory_query",
-        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE,
-        "daemon.service_lifecycle",
-    ));
-    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-        &epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
-            .expect("self cluster topology exists"),
-        "swarm-online-runbook",
-        "prepareSwarmOnlineRunbook",
-        "epiphany.cultmesh.daemon_service_online_runbook_request",
-        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE,
-        "daemon.service_lifecycle",
-    ));
-    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-        &epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == "epiphany.cluster.hands")
-            .expect("hands cluster topology exists"),
-        "repo-action",
-        "submitHandsActionIntent",
-        "epiphany.hands.action_intent",
-        "epiphany.hands.action_review",
-        "hands",
-    ));
-    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-        &epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == "epiphany.cluster.soul")
-            .expect("soul cluster topology exists"),
-        "verify",
-        "submitVerificationRequest",
-        "epiphany.soul.verification_request",
-        "epiphany.soul.verdict_receipt",
-        "soul",
-    ));
-    capabilities
-}
-
-#[cfg(test)]
-fn epiphany_cultmesh_daemon_tool_capability(
+fn legacy_daemon_capability(
     cluster: &EpiphanyCultMeshClusterTopologyEntry,
     tool_slug: &str,
     operation: &str,
@@ -7191,14 +6966,7 @@ fn epiphany_cultmesh_daemon_tool_capability(
         requires_receipt: true,
         authority_gate: authority_gate.to_string(),
         private_state_exposed: false,
-        notes: vec![
-            format!(
-                "CultMesh advertises this daemon-hosted tool as {EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE}."
-            ),
-            "Every agent in the local CultMesh network may discover this tool at any time.".to_string(),
-            "Availability is global; execution still flows through the named typed contract and receipt gate.".to_string(),
-            "The tool advertisement must not expose private Verse payloads.".to_string(),
-        ],
+        notes: Vec::new(),
     }
 }
 
@@ -7214,22 +6982,56 @@ pub(crate) fn write_legacy_provider_fixture(
         .into_iter()
         .find(|cluster| cluster.daemon_id == daemon_id)
         .context("legacy fixture daemon has no topology")?;
-    let advertisement = epiphany_cultmesh_odin_advertisement_templates()
-        .into_iter()
-        .find(|row| row.cluster_id == cluster.cluster_id)
-        .context("legacy fixture has no advertisement")?;
-    let surface = epiphany_cultmesh_eve_surface_templates()
-        .into_iter()
-        .find(|row| row.cluster_id == cluster.cluster_id)
-        .context("legacy fixture has no surface")?;
+    let advertisement = EpiphanyCultMeshOdinAdvertisementEntry {
+        schema_version: EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION.to_string(),
+        advertisement_id: format!("odin.advertisement.{}", cluster.cluster_id),
+        cluster_id: cluster.cluster_id.clone(),
+        advertised_verse_id: cluster.private_verse_id.clone(),
+        body_domain: cluster.body_domain.clone(),
+        body_kind: cluster.body_kind.clone(),
+        daemon_surface_id: cluster.daemon_surface_id.clone(),
+        eve_surface_id: cluster.eve_surface_id.clone(),
+        public_summary: "retired provider fixture".to_string(),
+        advertised_document_types: vec![EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string()],
+        trust_boundary: "retired provider fixture".to_string(),
+        private_state_exposed: false,
+        notes: Vec::new(),
+    };
+    let surface = EpiphanyCultMeshEveSurfaceStateEntry {
+        schema_version: EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION.to_string(),
+        surface_id: cluster.eve_surface_id.clone(),
+        cluster_id: cluster.cluster_id.clone(),
+        daemon_id: cluster.daemon_id.clone(),
+        body_domain: cluster.body_domain.clone(),
+        tui_title: "retired provider fixture".to_string(),
+        tui_rows: vec!["retired provider fixture".to_string()],
+        exposed_document_types: vec![EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string()],
+        supported_actions: Vec::new(),
+        private_state_exposed: false,
+        notes: Vec::new(),
+    };
+    let status = legacy_daemon_capability(
+        &cluster,
+        "status",
+        "readStatus",
+        EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE,
+        "epiphany.cultmesh.tool_status_receipt",
+        "none",
+    );
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.put(advertisement.advertisement_id.clone(), &advertisement)?;
     node.put(surface.surface_id.clone(), &surface)?;
-    for capability in epiphany_cultmesh_daemon_tool_capability_templates()
-        .into_iter()
-        .filter(|row| row.host_daemon_id == daemon_id)
-    {
-        node.put(capability.capability_id.clone(), &capability)?;
+    node.put(status.capability_id.clone(), &status)?;
+    if cluster.cluster_id == "epiphany.cluster.hands" {
+        let repo_action = legacy_daemon_capability(
+            &cluster,
+            "repo-action",
+            "submitHandsActionIntent",
+            "epiphany.hands.action_intent",
+            "epiphany.hands.action_review",
+            "hands",
+        );
+        node.put(repo_action.capability_id.clone(), &repo_action)?;
     }
     node.flush()?;
     Ok(())
@@ -7508,6 +7310,27 @@ mod tests {
     use cultcache_rs::CacheBackingStore;
     use cultcache_rs::CultCacheEnvelope;
     use pretty_assertions::assert_eq;
+
+    fn test_daemon_status(daemon_id: &str) -> EpiphanyCultMeshDaemonStatusEntry {
+        let cluster = epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .find(|cluster| cluster.daemon_id == daemon_id)
+            .expect("test daemon has declared topology");
+        EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+            daemon_id: cluster.daemon_id,
+            cluster_id: cluster.cluster_id,
+            body_domain: cluster.body_domain,
+            daemon_surface_id: cluster.daemon_surface_id,
+            eve_surface_id: cluster.eve_surface_id,
+            status: "ready".to_string(),
+            last_heartbeat_utc: "2026-06-17T00:00:00Z".to_string(),
+            supported_actions: vec!["pokeDaemon".to_string()],
+            operator_action: "none".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
 
     #[test]
     fn explicit_migration_removes_only_retired_operator_status_documents() -> Result<()> {
@@ -8236,13 +8059,6 @@ mod tests {
             .is_err()
         );
 
-        Ok(())
-    }
-
-    fn publish_all_test_provider_state(store: &Path) -> Result<()> {
-        for cluster in epiphany_cultmesh_cluster_topology() {
-            write_legacy_provider_fixture(store, "epiphany-test", &cluster.daemon_id)?;
-        }
         Ok(())
     }
 
@@ -9320,39 +9136,6 @@ mod tests {
     }
 
     #[test]
-    fn odin_advertisements_expose_eve_metadata_without_private_state() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-odin-advertisements.ccmp");
-        publish_all_test_provider_state(&store)?;
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
-            "odin.advertisement.epiphany.cluster.persona",
-        )?;
-
-        assert_eq!(persona.cluster_id, "epiphany.cluster.persona");
-        assert_eq!(
-            persona.advertised_verse_id,
-            "epiphany.cluster.persona.private"
-        );
-        assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
-        assert!(!persona.private_state_exposed);
-        assert!(
-            persona
-                .advertised_document_types
-                .iter()
-                .any(|document_type| document_type == EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE)
-        );
-        assert!(
-            persona
-                .notes
-                .iter()
-                .any(|note| note.contains("discovery metadata"))
-        );
-        Ok(())
-    }
-
-    #[test]
     fn legacy_provider_rows_are_not_live_discovery_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-surface-states.ccmp");
@@ -9361,80 +9144,13 @@ mod tests {
             "epiphany-test",
             "repo:C:/fixture/Epiphany",
         )?;
-        publish_all_test_provider_state(&store)?;
+        write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-hands")?;
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert!(context.odin_advertisements.is_empty());
         assert!(context.eve_surface_states.is_empty());
         assert!(context.daemon_tool_capabilities.is_empty());
         assert!(load_epiphany_cultmesh_eve_surface_directory(&store, "epiphany-test")?.is_empty());
         assert!(load_epiphany_cultmesh_daemon_tool_directory(&store, "epiphany-test")?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn eve_surface_state_refuses_private_state_exposure() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-eve-surface-private.ccmp");
-        let mut surface = epiphany_cultmesh_eve_surface_templates()
-            .into_iter()
-            .find(|surface| surface.surface_id == "eve://epiphany/persona")
-            .expect("persona surface exists");
-        surface.private_state_exposed = true;
-
-        let mut node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let error = validate_eve_surface_state(&surface)
-            .expect_err("private Eve surface states must be refused");
-        assert!(error.to_string().contains("private state"));
-        surface.private_state_exposed = false;
-        node.put(surface.surface_id.clone(), &surface)?;
-        node.flush()?;
-        Ok(())
-    }
-
-    #[test]
-    fn daemon_statuses_cover_every_cluster_without_private_state() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-daemon-statuses.ccmp");
-        write_epiphany_cultmesh_cluster_topology(
-            &store,
-            "epiphany-test",
-            "repo:C:/fixture/Epiphany",
-        )?;
-        let statuses = write_epiphany_cultmesh_daemon_statuses(
-            &store,
-            "epiphany-test",
-            "2026-06-17T00:00:00Z",
-        )?;
-
-        assert_eq!(statuses.len(), epiphany_cultmesh_cluster_topology().len());
-        let hands = statuses
-            .iter()
-            .find(|status| status.daemon_id == "epiphany-daemon-hands")
-            .expect("Hands daemon status exists");
-        assert_eq!(hands.cluster_id, "epiphany.cluster.hands");
-        assert_eq!(hands.status, "ready");
-        assert!(!hands.private_state_exposed);
-        assert!(
-            hands
-                .supported_actions
-                .iter()
-                .any(|action| action == "pokeDaemon")
-        );
-        assert!(
-            hands
-                .supported_actions
-                .iter()
-                .any(|action| action == "watchHeartbeat")
-        );
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context.daemon_statuses.len(),
-            context.cluster_topology.len()
-        );
-        assert!(context.daemon_statuses.iter().all(|status| {
-            !status.private_state_exposed && !status.last_heartbeat_utc.is_empty()
-        }));
         Ok(())
     }
 
@@ -9451,10 +9167,7 @@ mod tests {
         assert_eq!(topology.len(), 7);
         assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
 
-        let observed = epiphany_cultmesh_daemon_statuses("2026-07-15T00:00:00Z")
-            .into_iter()
-            .next()
-            .expect("declared topology has a matching daemon status fixture");
+        let observed = test_daemon_status("epiphany-daemon-self");
         let observed_daemon_id = observed.daemon_id.clone();
         write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", observed)?;
 
@@ -9505,15 +9218,8 @@ mod tests {
     fn exact_daemon_status_loader_reads_only_the_requested_envelope() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-status.ccmp");
-        let statuses = write_epiphany_cultmesh_daemon_statuses(
-            &store,
-            "epiphany-test",
-            "2026-06-17T00:00:00Z",
-        )?;
-        let expected = statuses
-            .into_iter()
-            .find(|status| status.daemon_id == "epiphany-daemon-hands")
-            .expect("Hands daemon status exists");
+        let expected = test_daemon_status("epiphany-daemon-hands");
+        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", expected.clone())?;
 
         assert_eq!(
             load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,
@@ -9532,10 +9238,7 @@ mod tests {
 
     #[test]
     fn daemon_status_refuses_private_state_exposure() -> Result<()> {
-        let mut status = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
-            .into_iter()
-            .find(|status| status.daemon_id == "epiphany-daemon-persona")
-            .expect("Persona daemon status exists");
+        let mut status = test_daemon_status("epiphany-daemon-persona");
         status.private_state_exposed = true;
 
         let error =
@@ -9548,11 +9251,8 @@ mod tests {
     fn daemon_poke_intent_and_receipt_round_trip() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-poke.ccmp");
-        write_epiphany_cultmesh_daemon_statuses(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
-        let hands = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
-            .into_iter()
-            .find(|status| status.daemon_id == "epiphany-daemon-hands")
-            .expect("Hands daemon status exists");
+        let hands = test_daemon_status("epiphany-daemon-hands");
+        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", hands.clone())?;
         let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
             "daemon-poke-intent-test",
             "epiphany.Self",
@@ -9637,10 +9337,7 @@ mod tests {
 
     #[test]
     fn daemon_poke_refuses_private_state_and_wrong_action() -> Result<()> {
-        let hands = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
-            .into_iter()
-            .find(|status| status.daemon_id == "epiphany-daemon-hands")
-            .expect("Hands daemon status exists");
+        let hands = test_daemon_status("epiphany-daemon-hands");
         let mut intent = epiphany_cultmesh_daemon_poke_intent_from_status(
             "daemon-poke-intent-private-test",
             "epiphany.Self",
@@ -9929,103 +9626,6 @@ mod tests {
     }
 
     #[test]
-    fn daemon_tool_capabilities_make_every_local_tool_available_to_all_agents() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-daemon-tools.ccmp");
-        publish_all_test_provider_state(&store)?;
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let persona_status = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-            "epiphany.cluster.persona.tool.status",
-        )?;
-        let self_service_health = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-            "epiphany.cluster.self.tool.service-health",
-        )?;
-        let self_service_policy_directory = node
-            .get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-                "epiphany.cluster.self.tool.service-policy-directory",
-            )?;
-        let self_swarm_online_runbook = node
-            .get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-                "epiphany.cluster.self.tool.swarm-online-runbook",
-            )?;
-        let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-            "epiphany.cluster.hands.tool.repo-action",
-        )?;
-        let soul_verify = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
-            "epiphany.cluster.soul.tool.verify",
-        )?;
-
-        for capability in [
-            persona_status.clone(),
-            self_service_health.clone(),
-            self_service_policy_directory.clone(),
-            self_swarm_online_runbook.clone(),
-            hands_action.clone(),
-            soul_verify.clone(),
-        ] {
-            assert!(capability.available_to_all_agents);
-            assert!(capability.requires_receipt);
-            assert!(!capability.private_state_exposed);
-            assert!(capability.eve_surface_id.starts_with("eve://epiphany/"));
-        }
-        assert_eq!(hands_action.authority_gate, "hands");
-        assert_eq!(soul_verify.authority_gate, "soul");
-        assert_eq!(persona_status.authority_gate, "none");
-        assert_eq!(
-            self_service_health.authority_gate,
-            "daemon.service_lifecycle"
-        );
-        assert_eq!(
-            self_service_health.input_contract_type,
-            "epiphany.cultmesh.daemon_service_lifecycle_query"
-        );
-        assert_eq!(
-            self_service_health.receipt_contract_type,
-            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
-        );
-        assert_eq!(
-            self_service_policy_directory.authority_gate,
-            "daemon.service_lifecycle"
-        );
-        assert_eq!(
-            self_service_policy_directory.operation,
-            "readServicePolicyDirectory"
-        );
-        assert_eq!(
-            self_service_policy_directory.input_contract_type,
-            "epiphany.cultmesh.daemon_restart_policy_directory_query"
-        );
-        assert_eq!(
-            self_service_policy_directory.receipt_contract_type,
-            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
-        );
-        assert_eq!(
-            self_swarm_online_runbook.authority_gate,
-            "daemon.service_lifecycle"
-        );
-        assert_eq!(
-            self_swarm_online_runbook.operation,
-            "prepareSwarmOnlineRunbook"
-        );
-        assert_eq!(
-            self_swarm_online_runbook.input_contract_type,
-            "epiphany.cultmesh.daemon_service_online_runbook_request"
-        );
-        assert_eq!(
-            self_swarm_online_runbook.receipt_contract_type,
-            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
-        );
-        assert!(
-            hands_action
-                .notes
-                .iter()
-                .any(|note| note.contains("Every agent in the local CultMesh network"))
-        );
-        Ok(())
-    }
-
-    #[test]
     fn daemon_tool_invocation_intent_and_receipt_round_trip_for_any_agent() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tool-invocation.ccmp");
@@ -10090,10 +9690,18 @@ mod tests {
         let store = temp
             .path()
             .join("epiphany-daemon-tool-private-refusal.ccmp");
-        let capability = epiphany_cultmesh_daemon_tool_capability_templates()
+        let persona = epiphany_cultmesh_cluster_topology()
             .into_iter()
-            .find(|capability| capability.capability_id == "epiphany.cluster.persona.tool.status")
-            .expect("persona status capability exists");
+            .find(|cluster| cluster.cluster_id == "epiphany.cluster.persona")
+            .expect("persona topology exists");
+        let capability = legacy_daemon_capability(
+            &persona,
+            "status",
+            "readStatus",
+            EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE,
+            "epiphany.cultmesh.tool_status_receipt",
+            "none",
+        );
         let mut intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
             "daemon-tool-private-test",
             "epiphany.Self",
