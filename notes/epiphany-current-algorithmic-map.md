@@ -23,6 +23,11 @@ from those contracts and no parallel CultMesh contract documents are persisted.
 The fixed three-Verse trust policy and public-room directory are also direct
 local Verse projections; they are not written into CultCache as counterfeit
 mutable state.
+
+CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
+Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
+tool directory. Native runtime and keyed Mind receipts remain the owners; old
+stores containing the deleted envelope types refuse at the schema boundary.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;

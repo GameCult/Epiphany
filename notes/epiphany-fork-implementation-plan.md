@@ -56,6 +56,9 @@ earned OpenAI-compatible authentication or model-transport capability.
   summaries derive directly from their CultNet owners; CultMesh persists no
   parallel contract directory. Fixed Verse and public-room policy project
   directly into the local context rather than occupying mutable store rows.
+- Native runtime and keyed Mind receipts project without JSON-to-CultMesh
+  shadows. Unauthenticated pre-provider Odin/Eve/tool rows and their retirement
+  migrators are outside the live schema.
 - Complete removal of the Epiphany Codex app-server compatibility surface and
   `epiphany-codex-bridge`.
 

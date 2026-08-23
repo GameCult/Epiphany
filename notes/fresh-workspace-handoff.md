@@ -572,10 +572,21 @@ writer APIs, and two literal-copy tests are gone; `EpiphanyLocalVerseContext`
 projects the fixed policy tables directly. This removes 130 net lines and the
 focused CultMesh suite remains clean at 49/49.
 
-Next cut dead JSON-to-CultMesh mirror families that have no production writer
-or consumer beyond their own tests, and remove any surviving legacy migration
-command that contradicts the fresh-store hard cut. Preserve cluster topology
-until its runtime-bound Body-domain owner is explicit. Separately split the
+Exact `4ed3a6e0` deletes nine dead CultMesh document families: the JSON-derived
+operator snapshot, coordinator receipt, Hands gate, and role-review event;
+unauthenticated Odin advertisement, Eve surface, daemon capability, daemon-tool
+intent, and daemon-tool receipt. Their DTOs, registries, parsers, validators,
+writers, latest slots, prompt branches, exports, fixtures, and ten tests are
+gone. The provider-row retirement path and the daemon supervisor's retired
+operator-status migration command are also gone. The hard cut removes 2,398 net
+lines. Non-test core check, CultMesh 39/39, prompt projection 1/1, and daemon
+supervisor 10/10 pass.
+
+Next audit the remaining round-trip tests for duplicated CultCache derive
+coverage: retain tests only when they prove Epiphany validation, monotonicity,
+authentication, conflict behavior, projection, or an authority boundary.
+Preserve cluster topology until its runtime-bound Body-domain owner is
+explicit. Separately split the
 4.7-kiloline daemon supervisor's
 launch/reconcile authority before claiming sequencing coverage. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
