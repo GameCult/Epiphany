@@ -1,20 +1,9 @@
 use crate::EpiphanyReorientFindingInterpretation;
 use cultcache_rs::DatabaseEntry;
 
-pub const CONTINUITY_PACKET_TYPE: &str = "epiphany.continuity.packet";
-pub const CONTINUITY_COMPACTION_CHECKPOINT_TYPE: &str = "epiphany.continuity.compaction_checkpoint";
 pub const CONTINUITY_RECOVERY_RECEIPT_TYPE: &str = "epiphany.continuity.recovery_receipt";
-pub const CONTINUITY_STALE_TURN_REPAIR_TYPE: &str = "epiphany.continuity.stale_turn_repair";
-pub const CONTINUITY_REFUSAL_RECEIPT_TYPE: &str = "epiphany.continuity.refusal_receipt";
-pub const CONTINUITY_PACKET_SCHEMA_VERSION: &str = "epiphany.continuity.packet.v0";
-pub const CONTINUITY_COMPACTION_CHECKPOINT_SCHEMA_VERSION: &str =
-    "epiphany.continuity.compaction_checkpoint.v0";
 pub const CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.continuity.recovery_receipt.v0";
-pub const CONTINUITY_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
-    "epiphany.continuity.stale_turn_repair.v0";
-pub const CONTINUITY_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.continuity.refusal_receipt.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(

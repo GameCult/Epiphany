@@ -13602,39 +13602,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            CONTINUITY_PACKET_TYPE,
-            CONTINUITY_PACKET_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![CONTINUITY_PACKET_TYPE],
-            vec![
-                CONTINUITY_COMPACTION_CHECKPOINT_TYPE,
-                CONTINUITY_RECOVERY_RECEIPT_TYPE,
-                CONTINUITY_STALE_TURN_REPAIR_TYPE,
-                CONTINUITY_REFUSAL_RECEIPT_TYPE,
-            ],
-            vec![
-                "Continuity is deterministic protocol machinery: compaction, recovery, stale-turn repair, and handoff packets enter here.",
-                "Continuity preserves survival across rupture; Mind admits durable state.",
-            ],
-        ),
-        mutation_contract(
-            CONTINUITY_COMPACTION_CHECKPOINT_TYPE,
-            CONTINUITY_COMPACTION_CHECKPOINT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Compaction checkpoints preserve hot context before rupture."],
-        ),
-        mutation_contract(
             CONTINUITY_RECOVERY_RECEIPT_TYPE,
             CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION,
             vec![
@@ -13645,34 +13612,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Recovery receipts explain what survived and what must be regathered."],
-        ),
-        mutation_contract(
-            CONTINUITY_STALE_TURN_REPAIR_TYPE,
-            CONTINUITY_STALE_TURN_REPAIR_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Stale-turn repair receipts close abandoned work without pretending it completed.",
-            ],
-        ),
-        mutation_contract(
-            CONTINUITY_REFUSAL_RECEIPT_TYPE,
-            CONTINUITY_REFUSAL_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Continuity refusal receipts preserve why a continuity packet could not be trusted.",
-            ],
         ),
         mutation_contract(
             RUNTIME_EVENT_TYPE,
