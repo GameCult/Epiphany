@@ -83,12 +83,15 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 11. Done: delete three redundant helper-spelling/cache-policy tests and the
    single-use Git argument helper while retaining source-cache recovery,
    cache-separation, tool-loop transition, and terminal-failure proofs.
-12. Next: collapse the generic public host-identity verifier into its sole
-   Bifrost feedback-admission consumer if CultNet wire compatibility is exact.
-   Preserve exact
+12. Done: collapse the generic public host-identity verifier into Bifrost
+   feedback admission. CultNet owns the shared public shapes; exact legacy
+   domains and anchor bytes remain compatible; generic aliases, exports, and
+   setup fixtures are gone.
+13. Next: audit the remaining eleven executables by real lifecycle/privilege
+   consumer, beginning with the Persona Discord permit process. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-13. Run focused tests after each cut. Only after source subtraction stabilizes
+14. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `f3360248` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `a276d0f4` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -197,6 +197,14 @@ Epiphany retains only the typed public anchor and purpose/payload/identity-bound
 Ed25519 verifier required at feedback admission. Tests use a deterministic
 test-only signer; production code cannot create, open, rotate, or export the
 provider's trust root.
+
+Exact `a276d0f4` removes the residual generic identity abstraction as well.
+CultNet's shared public anchor/signature shapes are decoded directly by the
+Bifrost Persona-feedback admission owner, which privately preserves the exact
+legacy-compatible identity and signature domains. The generic module, public
+aliases/verifier, enrollment/export fixtures, and callerless public signing
+helpers are gone. Anchor assurance/provenance fields remain serialized because
+they are part of Bifrost's existing wire format; they do not own admission.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

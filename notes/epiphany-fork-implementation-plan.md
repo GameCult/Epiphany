@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`f3360248`. The current sequence has deleted the semantic-memory/workspace-coverage
+`a276d0f4`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -248,9 +248,11 @@ admission remains; the coordinator reports `awaitingHandsExecutor` until a real
 actuator owns execution and observed consequences. Exact `f3360248` deletes
 three redundant helper-spelling/cache-policy tests while retaining the actual
 source-cache recovery, cache-separation, tool-loop transition, and terminal
-failure proofs. Next collapse the generic public host-identity verifier into
-its sole Bifrost feedback-admission consumer if CultNet wire compatibility is
-exact.
+failure proofs. Exact `a276d0f4` then collapses the generic public host-identity
+verifier into Bifrost feedback admission while preserving the exact existing
+wire shape and cryptographic domains. Next audit the remaining eleven
+executables by real lifecycle/privilege consumer, beginning with the Persona
+Discord permit process.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its

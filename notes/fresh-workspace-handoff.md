@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `f3360248`
+Latest committed implementation cut: `a276d0f4`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,16 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `a276d0f4` collapses the generic public `host_identity` module into its
+sole production consumer, Bifrost Persona-feedback admission. CultNet now owns
+the shared public trust-anchor/signature shapes; the admission owner privately
+preserves the exact existing identity/signature domains and wire-compatible
+anchor schema. Generic verifier, anchor/signature aliases, enrollment/export
+test APIs, and four callerless public feedback-signing/admission helpers are
+gone: 144 net deletions. Epiphany still owns no Bifrost private key. Core and
+swarm compile, and all seven authenticated feedback, substitution, disclosure,
+recovery, and read-only import tests pass.
 
 Exact `f3360248` deletes three tests with no distinct behavioral claim and the
 single-use helper one of them existed to inspect: a release-cache filename
