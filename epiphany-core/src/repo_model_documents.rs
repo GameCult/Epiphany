@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot,
-    EpiphanyMemoryLifecycleReceipt, EpiphanyMemoryNode, EpiphanyMemorySummary, RepoFrontierItem,
+    EpiphanyMemoryNode, EpiphanyMemorySummary, RepoFrontierItem,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -91,13 +91,6 @@ repo_document!(
     "EpiphanyRepoModelFrontierDocument",
     RepoFrontierItem
 );
-repo_document!(
-    EpiphanyRepoModelLifecycleReceiptDocument,
-    "epiphany.mind.repo_model.lifecycle_receipt.v1",
-    "EpiphanyRepoModelLifecycleReceiptDocument",
-    EpiphanyMemoryLifecycleReceipt
-);
-
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.mind.repo_model.claim_obligations.v2",
@@ -122,7 +115,6 @@ pub struct EpiphanyRepoModelView {
     pub edges: Vec<EpiphanyMemoryEdge>,
     pub summaries: Vec<EpiphanyMemorySummary>,
     pub frontier: Vec<RepoFrontierItem>,
-    pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
     pub claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
     pub surface_offers: Vec<crate::AtlasSurfaceOffer>,
     pub dependency_claims: Vec<crate::AtlasDependencyClaim>,
@@ -151,7 +143,6 @@ impl EpiphanyRepoModelView {
             nodes: self.nodes.clone(),
             edges: self.edges.clone(),
             summaries: self.summaries.clone(),
-            lifecycle_receipts: self.lifecycle_receipts.clone(),
             frontier: self.frontier.clone(),
         }
     }
@@ -252,7 +243,6 @@ pub struct EpiphanyRepoModelSeedDocuments {
     pub edges: Vec<EpiphanyMemoryEdge>,
     pub summaries: Vec<EpiphanyMemorySummary>,
     pub frontier: Vec<RepoFrontierItem>,
-    pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -301,9 +291,6 @@ impl EpiphanyRepoModelSeed {
         documents
             .frontier
             .sort_by(|left, right| left.id.cmp(&right.id));
-        documents
-            .lifecycle_receipts
-            .sort_by(|left, right| left.id.cmp(&right.id));
         let seed = Self {
             schema_version: REPO_MODEL_SEED_SCHEMA_VERSION.into(),
             seed_id: seed_id.into(),
@@ -351,7 +338,6 @@ impl EpiphanyRepoModelSeed {
             documents.edges,
             documents.summaries,
             documents.frontier,
-            documents.lifecycle_receipts,
             obligations,
         )
     }
@@ -490,7 +476,6 @@ pub(crate) fn register_repo_model_document_types(cache: &mut CultCache) -> Resul
     cache.register_entry_type::<EpiphanyRepoModelEdgeDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelSummaryDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelFrontierDocument>()?;
-    cache.register_entry_type::<EpiphanyRepoModelLifecycleReceiptDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelClaimObligationsDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelMutationProposal>()?;
     cache.register_entry_type::<EpiphanyRepoModelSeed>()?;
@@ -599,16 +584,6 @@ pub fn initialize_keyed_repo_model(
                 .0,
         );
     }
-    for value in &documents.lifecycle_receipts {
-        writes.push(
-            cache
-                .prepare_entry(
-                    &value.id,
-                    &EpiphanyRepoModelLifecycleReceiptDocument::new(value)?,
-                )?
-                .0,
-        );
-    }
     for obligation in obligations {
         writes.push(cache.prepare_entry(&obligation.node_id, &obligation)?.0);
     }
@@ -645,7 +620,6 @@ fn repo_model_view_matches_seed(
         && view.edges == documents.edges
         && view.summaries == documents.summaries
         && view.frontier == documents.frontier
-        && view.lifecycle_receipts == documents.lifecycle_receipts
         && view.claim_obligations
             == claim_obligations_for_frontier(&documents.nodes, &documents.frontier))
 }
@@ -685,10 +659,6 @@ pub(crate) fn repo_model_write_key(envelope: &CultCacheEnvelope) -> Result<Optio
             .id
     } else if envelope.r#type == EpiphanyRepoModelFrontierDocument::TYPE {
         rmp_serde::from_slice::<EpiphanyRepoModelFrontierDocument>(&envelope.payload)?
-            .value()?
-            .id
-    } else if envelope.r#type == EpiphanyRepoModelLifecycleReceiptDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyRepoModelLifecycleReceiptDocument>(&envelope.payload)?
             .value()?
             .id
     } else if envelope.r#type == EpiphanyRepoModelClaimObligationsDocument::TYPE {
@@ -1259,7 +1229,6 @@ pub fn plan_repo_model_mutation(
         edges.values().cloned().collect(),
         summaries.values().cloned().collect(),
         frontier.values().cloned().collect(),
-        view.lifecycle_receipts,
         obligations.values().cloned().collect(),
     )?;
     Ok(EpiphanyRepoModelMutationPlan {
@@ -1529,8 +1498,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         values::<EpiphanyRepoModelSummaryDocument, _>(&cache, |entry| entry.value())?;
     let mut frontier =
         values::<EpiphanyRepoModelFrontierDocument, _>(&cache, |entry| entry.value())?;
-    let mut lifecycle_receipts =
-        values::<EpiphanyRepoModelLifecycleReceiptDocument, _>(&cache, |entry| entry.value())?;
     let mut claim_obligations = cache.get_all::<EpiphanyRepoModelClaimObligationsDocument>()?;
     let mut surface_offers = cache.get_all::<crate::AtlasSurfaceOffer>()?;
     let mut dependency_claims = cache.get_all::<crate::AtlasDependencyClaim>()?;
@@ -1541,7 +1508,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     edges.sort_by(|left, right| left.id.cmp(&right.id));
     summaries.sort_by(|left, right| left.id.cmp(&right.id));
     frontier.sort_by(|left, right| left.id.cmp(&right.id));
-    lifecycle_receipts.sort_by(|left, right| left.id.cmp(&right.id));
     claim_obligations.sort_by(|left, right| left.node_id.cmp(&right.node_id));
     surface_offers.sort_by_key(|offer| offer.surface_id);
     dependency_claims.sort_by_key(|claim| claim.claim_id);
@@ -1577,7 +1543,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         edges.clone(),
         summaries.clone(),
         frontier.clone(),
-        lifecycle_receipts.clone(),
         claim_obligations.clone(),
     )?;
     let challenges = cache.get_all::<crate::RepoModelClaimChallenge>()?;
@@ -1634,7 +1599,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         edges,
         summaries,
         frontier,
-        lifecycle_receipts,
         claim_obligations,
         surface_offers,
         dependency_claims,
@@ -1650,7 +1614,6 @@ where
     cache.get_all::<T>()?.into_iter().map(take).collect()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn validate_repo_model_parts(
     identity: &EpiphanyRepoModelIdentityDocument,
     domains: Vec<EpiphanyMemoryDomain>,
@@ -1658,7 +1621,6 @@ fn validate_repo_model_parts(
     edges: Vec<EpiphanyMemoryEdge>,
     summaries: Vec<EpiphanyMemorySummary>,
     frontier: Vec<RepoFrontierItem>,
-    lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
     claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
 ) -> Result<()> {
     let validation = EpiphanyMemoryGraphSnapshot {
@@ -1667,7 +1629,6 @@ fn validate_repo_model_parts(
         nodes,
         edges,
         summaries,
-        lifecycle_receipts,
         frontier,
         ..Default::default()
     };
@@ -1838,7 +1799,6 @@ mod tests {
                 edges: Vec::new(),
                 summaries: Vec::new(),
                 frontier: vec![frontier],
-                lifecycle_receipts: Vec::new(),
             },
         )?;
         let before_invalid_seed = runtime_spine_cache(&store)?.snapshot_envelopes();
@@ -1854,7 +1814,6 @@ mod tests {
                 edges: Vec::new(),
                 summaries: Vec::new(),
                 frontier: Vec::new(),
-                lifecycle_receipts: Vec::new(),
             },
         )?;
         assert!(
@@ -1925,7 +1884,6 @@ mod tests {
                 edges: Vec::new(),
                 summaries: Vec::new(),
                 frontier: Vec::new(),
-                lifecycle_receipts: Vec::new(),
             },
         )?;
         assert!(initialize_keyed_repo_model(&store, &divergent, "2026-08-14T00:00:03Z").is_err());
@@ -2230,7 +2188,6 @@ mod tests {
                     edges: Vec::new(),
                     summaries: Vec::new(),
                     frontier: Vec::new(),
-                    lifecycle_receipts: Vec::new(),
                 },
             )?,
             "2026-08-18T00:00:01Z",

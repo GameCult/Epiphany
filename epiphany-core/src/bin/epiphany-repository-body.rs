@@ -84,7 +84,6 @@ fn main() -> Result<()> {
                     edges: Vec::new(),
                     summaries: Vec::new(),
                     frontier: Vec::new(),
-                    lifecycle_receipts: Vec::new(),
                 },
             )?;
             initialize_keyed_repo_model(&runtime_store, &seed, &at)?;

@@ -661,9 +661,6 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[ts(type = "Array<EpiphanyMemorySummary>")]
     pub summaries: Vec<EpiphanyMemorySummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryLifecycleReceipt>")]
-    pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<RepoFrontierItem>")]
     pub frontier: Vec<RepoFrontierItem>,
 }
@@ -956,25 +953,6 @@ pub struct EpiphanyMemorySummary {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub known_omissions: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryLifecycleReceipt {
-    pub id: String,
-    pub operation: String,
-    pub status: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub edge_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub reason: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub created_at: Option<String>,
 }
 
 

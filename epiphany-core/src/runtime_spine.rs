@@ -11919,17 +11919,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Keyed RepoModel frontier items are written only by the local Mind commit path."],
         ),
         mutation_contract(
-            crate::EpiphanyRepoModelLifecycleReceiptDocument::TYPE,
-            crate::EpiphanyRepoModelLifecycleReceiptDocument::SCHEMA_NAME,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![crate::EpiphanyMindCommitReceipt::TYPE],
-            vec![
-                "Keyed RepoModel lifecycle receipts are written only by the local Mind commit path.",
-            ],
-        ),
-        mutation_contract(
             crate::EpiphanyRepoModelClaimObligationsDocument::TYPE,
             crate::EpiphanyRepoModelClaimObligationsDocument::SCHEMA_NAME,
             vec![CultNetDocumentOperation::Snapshot],

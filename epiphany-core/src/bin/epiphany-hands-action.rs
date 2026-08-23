@@ -797,7 +797,6 @@ mod tests {
                     edges: Vec::new(),
                     summaries: Vec::new(),
                     frontier: vec![frontier],
-                    lifecycle_receipts: Vec::new(),
                 },
             )?,
             "2026-06-02T00:00:00.900Z",

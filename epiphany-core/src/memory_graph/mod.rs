@@ -5,7 +5,6 @@ pub use epiphany_state_model::EpiphanyMemoryEdge;
 pub use epiphany_state_model::EpiphanyMemoryEdgeKind;
 pub use epiphany_state_model::EpiphanyMemoryGraphSnapshot;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
-pub use epiphany_state_model::EpiphanyMemoryLifecycleReceipt;
 pub use epiphany_state_model::EpiphanyMemoryNode;
 pub use epiphany_state_model::EpiphanyMemoryNodeKind;
 pub use epiphany_state_model::EpiphanyMemorySummary;

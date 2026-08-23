@@ -164,7 +164,6 @@ pub use imagination_consideration::{
 pub use memory_graph::EpiphanyMemoryEdgeKind;
 pub use memory_graph::EpiphanyMemoryGraphSnapshot;
 pub use memory_graph::EpiphanyMemoryGraphValidationError;
-pub use memory_graph::EpiphanyMemoryLifecycleReceipt;
 pub use memory_graph::EpiphanyMemoryNodeKind;
 pub use memory_graph::RepoFrontierAdoptedPlan;
 pub use memory_graph::RepoFrontierItem;
