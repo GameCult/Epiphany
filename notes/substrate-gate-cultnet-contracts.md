@@ -14,15 +14,17 @@ Substrate Gate decides the scoped access to the repo.
 - Outputs: Substrate Gate access reviews, access grant receipts, access refusal
   receipts, repo snapshot receipts, and repo mutation receipts.
 - Derived state: retrieved snippets, search hits, index manifests, diffs, build
-  logs, Unity/Rider bridge artifacts, and source maps are evidence projections,
-  not permission to touch more substrate.
+  logs, provider-owned editor receipts, and source maps are evidence
+  projections, not permission to touch more substrate. Brokkr owns Unity editor
+  capabilities through CultMesh/Eve; a future Rider daemon owns Rider
+  capabilities through the same provider boundary.
 - Forbidden writers/readers: Hands, Eyes, Persona, public Verse ingress, raw worker
   launches, compatibility JSON-RPC routes, and bridge tools must not directly
   read, index, execute against, or mutate the repo without a scoped Substrate
   Gate grant.
 - Shared path: source reads, semantic indexing, file edits, command execution,
-  and editor/runtime bridge operations should all be expressible as
-  Substrate-Gate-scoped repo access requests with receipts.
+  and requests to provider-owned editor/runtime capabilities should all be
+  expressible as Substrate-Gate-scoped repo access requests with receipts.
 - Deletion line: worker launch `authority_scope` is not repo access authority.
   It may describe role/task scope, but the Substrate Gate must grant substrate
   access.

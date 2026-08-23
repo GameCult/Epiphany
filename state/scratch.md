@@ -58,7 +58,9 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.
 3. Done: delete the local PowerShell operator wrapper, direct Persona/operator
-   binaries, shipped `verse-query` control plane, and orphan Rider integration.
+   binaries, shipped `verse-query` control plane, and all Epiphany-owned
+   Rider/Unity integration. Brokkr owns Unity through CultMesh/Eve; a future
+   Rider daemon owns Rider.
 4. Done: reduce `epiphany-core` from 30 binary targets to the one native
    compaction helper. Runtime executables belong to the release bundle.
 5. In progress: delete tests that inspect spelling, duplicate constructors, or

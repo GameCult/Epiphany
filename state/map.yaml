@@ -23,6 +23,7 @@ architecture:
     bifrost: Owns governed external transport and its signed receipts.
     idunn: Owns source-change CI/CD observation, compilation, testing, release construction, deployment, and daemon survival.
     cultmesh: Projects typed state without becoming its owner.
+    brokkr: Owns Unity editor inspection and actuation; Epiphany consumes its typed CultMesh/Eve capabilities and receipts.
     model_provider: Owns explicit provider selection and exact provider lowering; OpenRouter/Ox is the admitted Yggdrasil provider, while Codex-derived transport remains an optional OpenAI boundary rather than Epiphany authority.
     codex: Retained only where an OpenAI provider needs its earned authentication or transport capability.
 
@@ -32,6 +33,7 @@ invariants:
   - Persona speech and external consequences require explicit typed authority and signed receipts.
   - Bifrost owns external transport; Idunn owns deployment actuation; neither may impersonate Epiphany cognition.
   - CultMesh and Eve are projections, never owners of project truth.
+  - Editor integration is provider-owned. Epiphany carries no Rider or Unity command organ; Brokkr owns Unity, and a future Rider daemon owns Rider.
   - Native model requests are canonical. Provider requests are derived internally through the selected typed provider dialect; credentials are injected by the deployment substrate and never become Mind authority.
   - Nobody owns a shared dependency edge; providers own offers, consumers own claims, Soul owns exact verification evidence, and the Atlas projector owns only deterministic derivation.
   - Atlas may wake local Modeling or Soul through consumer Self, but it never grants Hands authority or writes a foreign repository Mind.

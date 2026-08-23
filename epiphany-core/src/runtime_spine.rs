@@ -13153,15 +13153,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
         mutation_contract(
             RUNTIME_SESSION_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
             vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
+                "Runtime sessions are lifecycle state opened and closed by exact local runtime owners.",
             ],
-            CultNetMutationAuthority::Coordinator,
-            vec!["epiphany.runtime.session_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec!["Sessions change through coordinator-reviewed typed intents."],
         ),
         mutation_contract(
             RUNTIME_JOB_TYPE,

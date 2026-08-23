@@ -153,6 +153,7 @@ interface authority.
 | Hands | adopted route/plan plus exact capability receipts | typed consequences | A claimed intention is not a consequence. |
 | Soul | exact consequence and invariant/evidence obligations | verification audit or refusal | Work is not true merely because it ran. |
 | Persona | unread typed social/relationship state plus exact Persona projection and one explicit service turn budget | typed effects, speech intent, consequence receipts, or exact typed failure | Persona owns its outer pass deadline; provider transport owns no competing timeout policy, and Persona work cannot block unrelated Hands or Modeling documents. |
+| Brokkr / editor providers | provider-owned editor capability documents and exact receipts | typed CultMesh/Eve observations and governed actuation results | Epiphany does not own Unity or Rider bridges. Brokkr owns Unity; a future Rider daemon owns Rider. |
 | CultMesh/Eve | typed provider-owned documents and deterministic views | private/local/public projections | Visibility and rendering never create authority. |
 
 External lifecycle boundary: Idunn remains available when Epiphany is missing,

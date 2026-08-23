@@ -29,20 +29,21 @@ server object deserves to be duplicated into a second baroque schema maze.
   result, and event documents.
 - keyed Mind documents and `epiphany.state-ledger`: durable typed state and
   exact decision/commit receipts the runtime lives on.
-- `epiphany.surface.*`: operator-safe projections for scene, freshness,
-  context, graph query, roles, jobs, Persona, Rider, Unity, and related live
-  surfaces.
-- `*.intent.v0`: control documents Aquarium, a Discord bridge, a voice surface,
-  or another trusted coordinator can submit through CultNet.
-- receipt/artifact schemas such as `epiphany.swarm-control-receipt` and
-  `epiphany.persona-bubble`.
+- model, tool, and provider-boundary contracts used by the native runtime.
+- `gamecult.persona_state.v0` and `epiphany.work_organ_state.v0`: portable
+  state contracts whose owners may live outside this repository.
+
+The catalog publishes contracts the executable body actually produces or
+consumes. Editor capabilities are provider-owned CultMesh/Eve surfaces, not
+Epiphany-owned Rider or Unity command families. Brokkr owns Unity editor
+inspection and actuation; a future Rider daemon will own Rider integration.
 
 ## Publication Path
 
 Generate a schema-catalog response with inline schema bodies:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-runtime-spine -- schema-catalog --output .epiphany-dogfood\runtime-spine\schema-catalog.json --include-schema-json true
+cargo run -p epiphany-release-bundle --bin epiphany-runtime-spine -- schema-catalog --output .epiphany-dogfood\runtime-spine\schema-catalog.json --include-schema-json true
 ```
 
 The runtime-spine merges the builtin CultNet schema registry with this local

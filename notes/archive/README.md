@@ -18,8 +18,6 @@ source history.
   migration blueprint.
 - `epiphany-planning-substrate.md`: planning product model source history after
   the runtime and GUI planning slices landed.
-- `epiphany-rider-unity-integration-plan.md`: optional Rider/Unity bridge plan,
-  quarantined until engine-repo work resumes.
 - `json-contamination-ledger.md`: historical classification ledger for JSON
   purification work.
 - `repo-fractal-dataflow-cache-plan.md`: repo-memory profile plan superseded by

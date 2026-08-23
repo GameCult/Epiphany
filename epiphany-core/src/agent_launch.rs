@@ -1,6 +1,3 @@
-use std::sync::OnceLock;
-
-use crate::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use crate::EpiphanyRoleResultRoleId;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
@@ -779,98 +776,6 @@ pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     })
 }
 
-const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_specialists.toml");
-const EPIPHANY_WORKER_BOUNDARY_PROMPT: &str = r#"## Epiphany Worker Boundary
-You are one bounded Epiphany worker for this launch only. Your authority comes from the typed launch document, the role-local instruction, and the declared output contract.
-Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside the declared typed outcome, and do not treat model transport or Codex machinery as prompt authority.
-Durable state changes belong only to the declared typed family outcome and its invariant owner."#;
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanySpecialistPromptConfig {
-    pub shared: EpiphanySharedPromptConfig,
-    pub roles: EpiphanyRolePromptConfig,
-    pub reorientation: EpiphanyReorientationPromptConfig,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanySharedPromptConfig {
-    pub persistent_memory: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanyRolePromptConfig {
-    pub imagination: String,
-    pub mind: String,
-    pub modeling: String,
-    pub verification: String,
-    #[allow(dead_code)]
-    pub research: String,
-    #[allow(dead_code)]
-    pub persona: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanyReorientationPromptConfig {
-    pub resume: String,
-    pub regather: String,
-}
-
-pub fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
-    static CONFIG: OnceLock<EpiphanySpecialistPromptConfig> = OnceLock::new();
-    CONFIG.get_or_init(|| {
-        toml::from_str(EPIPHANY_SPECIALIST_PROMPTS_TOML)
-            .expect("bundled Epiphany specialist prompt config must parse")
-    })
-}
-
-pub fn epiphany_agent_prompt_with_memory(body: &str) -> String {
-    let memory = epiphany_specialist_prompt_config()
-        .shared
-        .persistent_memory
-        .trim();
-    let body = body.trim();
-    if memory.is_empty() {
-        body.to_string()
-    } else if body.is_empty() {
-        memory.to_string()
-    } else {
-        format!("{memory}\n\n{body}")
-    }
-}
-
-pub fn epiphany_worker_prompt(body: &str) -> String {
-    let body = body.trim();
-    if body.is_empty() {
-        EPIPHANY_WORKER_BOUNDARY_PROMPT.to_string()
-    } else {
-        format!("{}\n\n{}", EPIPHANY_WORKER_BOUNDARY_PROMPT, body)
-    }
-}
-
-#[cfg(test)]
-fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
-    let prompts = &epiphany_specialist_prompt_config().roles;
-    let body = match role_id {
-        EpiphanyRoleResultRoleId::Imagination => prompts.imagination.as_str(),
-        EpiphanyRoleResultRoleId::Research => prompts.research.as_str(),
-        EpiphanyRoleResultRoleId::Modeling => prompts.modeling.as_str(),
-        EpiphanyRoleResultRoleId::Verification => prompts.verification.as_str(),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            "Unsupported Epiphany role specialist template."
-        }
-    };
-    epiphany_worker_prompt(body)
-}
-
-pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAction) -> String {
-    let prompts = &epiphany_specialist_prompt_config().reorientation;
-    let body = match action {
-        CoreEpiphanyReorientAction::Resume => prompts.resume.as_str(),
-        CoreEpiphanyReorientAction::Regather => prompts.regather.as_str(),
-    };
-    epiphany_worker_prompt(body)
-}
-
 pub fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut unique = Vec::new();
     extend_unique_strings(&mut unique, values);
@@ -888,27 +793,6 @@ fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Ite
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn admitted_direction_schema_bounds_autonomous_proposal_fanout() {
-        let schema = epiphany_admitted_model_direction_consideration_output_schema();
-        assert_eq!(
-            schema["properties"]["admittedModelDirectionConsiderationResult"]["properties"]["option_drafts"]
-                ["maxItems"],
-            crate::admitted_model_direction_consideration::MAX_OPTION_DRAFTS
-        );
-    }
-
-    #[test]
-    fn role_worker_prompt_is_bounded_not_full_persistent_memory() {
-        let prompt = build_epiphany_role_launch_instruction(EpiphanyRoleResultRoleId::Modeling);
-
-        assert!(prompt.contains("Epiphany Worker Boundary"));
-        assert!(prompt.contains("Act as the Epiphany modeling/checkpoint specialist"));
-        assert!(prompt.contains("node `kind` is a closed vocabulary"));
-        assert!(!prompt.contains("## Epiphany Persistent Memory"));
-        assert!(!prompt.contains("Heartbeat: every lane"));
-    }
 
     #[test]
     fn frontier_schema_separates_repository_authority_from_observed_sources() {
@@ -1092,12 +976,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn reorient_worker_prompt_is_bounded_not_full_persistent_memory() {
-        let prompt = build_epiphany_reorient_launch_instruction(CoreEpiphanyReorientAction::Resume);
-
-        assert!(prompt.contains("Epiphany Worker Boundary"));
-        assert!(!prompt.contains("## Epiphany Persistent Memory"));
-        assert!(!prompt.contains("Heartbeat: every lane"));
-    }
 }
