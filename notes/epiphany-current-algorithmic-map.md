@@ -110,6 +110,13 @@ provider-owned documents instead of publishing a substitute protocol. The two
 specialized projector policy writers remain the only writers for their actual
 local service policies; no test-only generic writer recreates that path.
 
+Hands does not advertise a pull-request receipt it cannot produce. Exact
+`11d99de1` deletes `HandsPrReceipt`, its registration, dead test-only writer,
+read path, relinquishment check, exports, and contract claims. Local Hands
+authority ends at exact patch, command, and commit consequences. A real remote
+publication result enters as provider/Bifrost-owned evidence rather than an
+Epiphany-authored facsimile.
+
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
 admission. Cross-repository inspection found no producer for Epiphany's former

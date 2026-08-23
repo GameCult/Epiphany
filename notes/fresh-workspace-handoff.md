@@ -789,6 +789,14 @@ crossing. A cross-repository producer audit found no live Bifrost or
 feedback/delivery stores and signed crossing receipts remain owned by Bifrost.
 Core checks, release-bundle checks, and the remaining CultMesh suite pass 13/13.
 
+Exact `11d99de1` deletes the producerless `HandsPrReceipt` family: the CultCache
+type and registration, dead test-only writer, read API, public exports,
+relinquishment branch, and two Hands contract advertisements. No production or
+test caller could create the receipt. Hands now owns local patch, command, and
+commit consequences; exact remote publication evidence belongs to the remote
+provider/Bifrost crossing. Core and release-bundle checks pass, and the rebuilt
+43-entry schema catalog contains no deleted PR family.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
