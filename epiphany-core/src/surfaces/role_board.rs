@@ -7,35 +7,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyRoleBoardJobStatus {
-    Idle,
-    Needed,
-    Pending,
-    Running,
-    Completed,
-    Failed,
-    Cancelled,
-    Blocked,
-    Unavailable,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyRoleBoardJob {
-    pub id: String,
-    pub owner_role: String,
-    pub status: EpiphanyRoleBoardJobStatus,
-    pub progress_note: Option<String>,
-    pub blocking_reason: Option<String>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyRoleBoardInput {
     pub mind_present: bool,
     pub current_work: EpiphanyCurrentWorkProjection,
-    pub jobs: Vec<EpiphanyRoleBoardJob>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,7 +21,6 @@ pub struct EpiphanyRoleBoardLane {
     pub owner_role: String,
     pub status: EpiphanyCoordinatorRoleStatus,
     pub note: String,
-    pub jobs: Vec<EpiphanyRoleBoardJob>,
     pub authority_scopes: Vec<String>,
     pub recommended_action: Option<EpiphanyCoordinatorSceneAction>,
 }
@@ -69,12 +43,6 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                 } else {
                     note.into()
                 },
-                jobs: input
-                    .jobs
-                    .iter()
-                    .filter(|job| job.owner_role == owner_role)
-                    .cloned()
-                    .collect(),
                 authority_scopes: vec![scope.into()],
                 recommended_action,
             }
@@ -277,40 +245,4 @@ fn planning_or_consideration_status(
         };
     }
     continuation_status(consideration)
-}
-
-pub fn role_board_job_status_to_role_status(
-    status: EpiphanyRoleBoardJobStatus,
-) -> EpiphanyCoordinatorRoleStatus {
-    match status {
-        EpiphanyRoleBoardJobStatus::Idle => EpiphanyCoordinatorRoleStatus::Ready,
-        EpiphanyRoleBoardJobStatus::Needed => EpiphanyCoordinatorRoleStatus::Needed,
-        EpiphanyRoleBoardJobStatus::Pending | EpiphanyRoleBoardJobStatus::Running => {
-            EpiphanyCoordinatorRoleStatus::Running
-        }
-        EpiphanyRoleBoardJobStatus::Completed => EpiphanyCoordinatorRoleStatus::Completed,
-        EpiphanyRoleBoardJobStatus::Failed
-        | EpiphanyRoleBoardJobStatus::Cancelled
-        | EpiphanyRoleBoardJobStatus::Blocked => EpiphanyCoordinatorRoleStatus::Blocked,
-        EpiphanyRoleBoardJobStatus::Unavailable => EpiphanyCoordinatorRoleStatus::Unavailable,
-    }
-}
-
-pub fn render_role_board_note(
-    roles: &[EpiphanyRoleBoardLane],
-    state_status: &str,
-    recommendation: crate::EpiphanyCrrcAction,
-) -> String {
-    let active = roles
-        .iter()
-        .filter(|lane| {
-            !matches!(
-                lane.status,
-                EpiphanyCoordinatorRoleStatus::Ready | EpiphanyCoordinatorRoleStatus::Completed
-            )
-        })
-        .count();
-    format!(
-        "Mind {state_status}; {active} role lane(s) carry current work; continuity recommendation {recommendation:?}."
-    )
 }

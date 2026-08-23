@@ -2,12 +2,11 @@ use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorStatus, EpiphanyCoordinatorStatusInput,
     EpiphanyCrrcAction, EpiphanyCrrcRecommendation, EpiphanyCrrcResultStatus,
-    EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection, EpiphanyJobsInput,
-    EpiphanyReorientAction, EpiphanyRoleBoardInput, EpiphanyRoleBoardJob,
-    EpiphanyRoleBoardJobStatus, EpiphanyRoleResultRoleId, EpiphanyRuntimeJobStatus,
+    EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection, EpiphanyReorientAction,
+    EpiphanyRoleBoardInput, EpiphanyRoleResultRoleId, EpiphanyRuntimeJobStatus,
     EpiphanySceneInput, EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycle,
     RepoFrontierPlanningLifecycleStage, RepoFrontierResearchLifecycle,
-    RepoFrontierResearchLifecycleStage, derive_jobs, derive_planning_view, derive_pressure_view,
+    RepoFrontierResearchLifecycleStage, derive_planning_view, derive_pressure_view,
     derive_role_board, derive_scene, runtime_job_snapshot,
 };
 use epiphany_self_policy::derive_coordinator_status;
@@ -148,23 +147,9 @@ fn run_native_status(args: &Args) -> Result<Value> {
         reorientation_work_present: reorientation_work.is_some(),
     });
     let planning = derive_planning_view(mind.as_ref());
-    let jobs = derive_jobs(EpiphanyJobsInput {
-        mind: mind.as_ref(),
-    });
-    let role_jobs = jobs
-        .iter()
-        .map(|job| EpiphanyRoleBoardJob {
-            id: job.id.clone(),
-            owner_role: job.owner_role.clone(),
-            status: role_job_status(job.status),
-            progress_note: job.progress_note.clone(),
-            blocking_reason: job.blocking_reason.clone(),
-        })
-        .collect::<Vec<_>>();
     let roles = derive_role_board(EpiphanyRoleBoardInput {
         mind_present: mind.is_some(),
         current_work: current_work.clone(),
-        jobs: role_jobs,
     });
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         mind_present: mind.is_some(),
@@ -260,7 +245,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
                 "authority": "keyedMindCurrentWork",
             },
         },
-        "jobs": {"threadId": thread_id, "source": "native", "jobs": jobs},
         "roles": {"threadId": thread_id, "source": "native", "roles": roles},
         "planning": planning,
         "currentWork": current_work,
@@ -456,20 +440,6 @@ fn coordinator_status_json(status: &EpiphanyCoordinatorStatus) -> Result<Value> 
         }
     }
     Ok(value)
-}
-
-fn role_job_status(status: epiphany_core::EpiphanyJobStatus) -> EpiphanyRoleBoardJobStatus {
-    match status {
-        epiphany_core::EpiphanyJobStatus::Idle => EpiphanyRoleBoardJobStatus::Idle,
-        epiphany_core::EpiphanyJobStatus::Needed => EpiphanyRoleBoardJobStatus::Needed,
-        epiphany_core::EpiphanyJobStatus::Pending => EpiphanyRoleBoardJobStatus::Pending,
-        epiphany_core::EpiphanyJobStatus::Running => EpiphanyRoleBoardJobStatus::Running,
-        epiphany_core::EpiphanyJobStatus::Completed => EpiphanyRoleBoardJobStatus::Completed,
-        epiphany_core::EpiphanyJobStatus::Failed => EpiphanyRoleBoardJobStatus::Failed,
-        epiphany_core::EpiphanyJobStatus::Cancelled => EpiphanyRoleBoardJobStatus::Cancelled,
-        epiphany_core::EpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
-        epiphany_core::EpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
-    }
 }
 
 pub fn render_status(status: &Value) -> String {
