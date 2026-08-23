@@ -2063,16 +2063,6 @@ pub(crate) fn validate_terminal_tool_execution_family(
     Ok(())
 }
 
-pub fn archive_completed_model_session(
-    store_path: impl AsRef<Path>,
-    session_id: &str,
-    archived_at: &str,
-) -> Result<EpiphanyArchivedRuntimeSession> {
-    archive_completed_model_session_with_before_commit(store_path, session_id, archived_at, || {
-        Ok(())
-    })
-}
-
 pub fn retain_completed_runtime_sessions(
     store_path: impl AsRef<Path>,
     retain_recent: usize,
@@ -2121,15 +2111,11 @@ pub fn retain_completed_runtime_sessions(
     Ok(archived)
 }
 
-fn archive_completed_model_session_with_before_commit<F>(
+fn archive_completed_model_session(
     store_path: impl AsRef<Path>,
     session_id: &str,
     archived_at: &str,
-    before_commit: F,
-) -> Result<EpiphanyArchivedRuntimeSession>
-where
-    F: FnOnce() -> Result<()>,
-{
+) -> Result<EpiphanyArchivedRuntimeSession> {
     validate_non_empty(session_id, "archived runtime session id")?;
     chrono::DateTime::parse_from_rfc3339(archived_at)
         .map_err(|error| anyhow!("runtime session archive timestamp is invalid: {error}"))?;
@@ -2574,7 +2560,6 @@ where
         decision_context_ids: decision_context_ids.into_iter().collect(),
     };
     let (replacement, _) = cache.prepare_entry(session_id, &archive)?;
-    before_commit()?;
     if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
         &snapshot,
         vec![replacement],
@@ -9318,38 +9303,6 @@ pub fn runtime_typed_request_attempt_exists(
         .any(|launch| request.matches_launch(launch)))
 }
 
-pub fn archive_failed_runtime_worker_attempt(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-    live_resident_request_ids: &BTreeSet<String>,
-    archived_at: &str,
-) -> Result<EpiphanyArchivedRuntimeWorkerAttempt> {
-    archive_runtime_worker_attempt(
-        store_path,
-        job_id,
-        live_resident_request_ids,
-        archived_at,
-        false,
-        || Ok(()),
-    )
-}
-
-pub fn archive_fulfilled_runtime_worker_attempt(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-    live_resident_request_ids: &BTreeSet<String>,
-    archived_at: &str,
-) -> Result<EpiphanyArchivedRuntimeWorkerAttempt> {
-    archive_runtime_worker_attempt(
-        store_path,
-        job_id,
-        live_resident_request_ids,
-        archived_at,
-        true,
-        || Ok(()),
-    )
-}
-
 fn validate_archivable_typed_worker_launch(
     cache: &CultCache,
     launch: &EpiphanyRuntimeWorkerLaunchRequest,
@@ -9572,17 +9525,13 @@ fn validate_archivable_typed_worker_launch(
     Ok(())
 }
 
-fn archive_runtime_worker_attempt<F>(
+fn archive_runtime_worker_attempt(
     store_path: impl AsRef<Path>,
     job_id: &str,
     live_resident_request_ids: &BTreeSet<String>,
     archived_at: &str,
     fulfilled: bool,
-    before_commit: F,
-) -> Result<EpiphanyArchivedRuntimeWorkerAttempt>
-where
-    F: FnOnce() -> Result<()>,
-{
+) -> Result<EpiphanyArchivedRuntimeWorkerAttempt> {
     validate_non_empty(job_id, "archived worker attempt job id")?;
     chrono::DateTime::parse_from_rfc3339(archived_at)
         .map_err(|error| anyhow!("worker attempt archive timestamp is invalid: {error}"))?;
@@ -9822,7 +9771,6 @@ where
     };
     tombstone.validate_decision_record(fulfilled)?;
     let replacement = cache.prepare_entry(job_id, &tombstone)?.0;
-    before_commit()?;
     if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
         &snapshot,
         vec![replacement],
@@ -9895,11 +9843,12 @@ pub fn retain_failed_runtime_worker_attempts(
         .into_iter()
         .skip(retain_recent.max(1))
         .map(|claim| {
-            archive_failed_runtime_worker_attempt(
+            archive_runtime_worker_attempt(
                 store_path,
                 &claim.job_id,
                 live_resident_request_ids,
                 archived_at,
+                false,
             )
         })
         .collect()
@@ -9972,11 +9921,12 @@ pub fn retain_fulfilled_runtime_worker_attempts(
         .into_iter()
         .skip(retain_recent.max(1))
         .map(|claim| {
-            archive_fulfilled_runtime_worker_attempt(
+            archive_runtime_worker_attempt(
                 store_path,
                 &claim.job_id,
                 live_resident_request_ids,
                 archived_at,
+                true,
             )
         })
         .collect()
@@ -10060,29 +10010,6 @@ pub fn open_coordinator_run(
     objective: &str,
     started_at: &str,
 ) -> Result<EpiphanyRuntimeSession> {
-    open_coordinator_run_with_before_commit(
-        store_path,
-        session_id,
-        thread_id,
-        resident_launch_digest,
-        objective,
-        started_at,
-        || Ok(()),
-    )
-}
-
-fn open_coordinator_run_with_before_commit<F>(
-    store_path: impl AsRef<Path>,
-    session_id: &str,
-    thread_id: &str,
-    resident_launch_digest: Option<&str>,
-    objective: &str,
-    started_at: &str,
-    before_commit: F,
-) -> Result<EpiphanyRuntimeSession>
-where
-    F: FnOnce() -> Result<()>,
-{
     validate_non_empty(session_id, "coordinator run session id")?;
     validate_non_empty(thread_id, "coordinator run thread id")?;
     validate_non_empty(objective, "coordinator run objective")?;
@@ -10130,7 +10057,6 @@ where
     };
     let snapshot = cache.snapshot_envelopes();
     let replacements = vec![cache.prepare_entry(session_id, &session)?.0];
-    before_commit()?;
     if !runtime_spine_backing_store(store_path)?
         .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
     {
@@ -10141,13 +10067,6 @@ where
     Ok(session)
 }
 
-pub fn finalize_coordinator_run(
-    store_path: impl AsRef<Path>,
-    receipt: &EpiphanyCoordinatorRunReceipt,
-) -> Result<EpiphanyRuntimeSession> {
-    finalize_coordinator_run_with_before_commit(store_path, receipt, || Ok(()))
-}
-
 fn coordinator_death_recovery_summary(recovery: &EpiphanyCoordinatorDeathRecovery) -> String {
     format!(
         "Continuity terminalized coordinator session after exact process observation {:?}{}.",
@@ -10156,19 +10075,6 @@ fn coordinator_death_recovery_summary(recovery: &EpiphanyCoordinatorDeathRecover
             .exit_code
             .map(|code| format!(" with exit code {code}"))
             .unwrap_or_default()
-    )
-}
-
-pub(crate) fn recover_coordinator_run_after_exact_process_death(
-    store_path: impl AsRef<Path>,
-    recovery: &EpiphanyCoordinatorDeathRecovery,
-    expected_objective: &str,
-) -> Result<EpiphanyRuntimeSession> {
-    recover_coordinator_run_after_exact_process_death_with_before_commit(
-        store_path,
-        recovery,
-        expected_objective,
-        || Ok(()),
     )
 }
 
@@ -10199,15 +10105,11 @@ pub(crate) fn coordinator_run_incarnation_is_absent(
             .any(|recovery| recovery.session_id == session_id))
 }
 
-fn recover_coordinator_run_after_exact_process_death_with_before_commit<F>(
+pub(crate) fn recover_coordinator_run_after_exact_process_death(
     store_path: impl AsRef<Path>,
     recovery: &EpiphanyCoordinatorDeathRecovery,
     expected_objective: &str,
-    before_commit: F,
-) -> Result<EpiphanyRuntimeSession>
-where
-    F: FnOnce() -> Result<()>,
-{
+) -> Result<EpiphanyRuntimeSession> {
     validate_non_empty(expected_objective, "recovered coordinator objective")?;
     if recovery.schema_version != COORDINATOR_DEATH_RECOVERY_SCHEMA_VERSION
         || recovery.recovery_id != format!("coordinator-death-recovery-{}", recovery.session_id)
@@ -10290,7 +10192,6 @@ where
         cache.prepare_entry(&session.session_id, &session)?.0,
         cache.prepare_entry(&recovery.recovery_id, recovery)?.0,
     ];
-    before_commit()?;
     if !runtime_spine_backing_store(store_path)?
         .replace_and_append_if_snapshot_unchanged(&snapshot, replacements)?
     {
@@ -10301,14 +10202,10 @@ where
     Ok(session)
 }
 
-fn finalize_coordinator_run_with_before_commit<F>(
+pub fn finalize_coordinator_run(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyCoordinatorRunReceipt,
-    before_commit: F,
-) -> Result<EpiphanyRuntimeSession>
-where
-    F: FnOnce() -> Result<()>,
-{
+) -> Result<EpiphanyRuntimeSession> {
     validate_coordinator_run_receipt(receipt)?;
     if receipt.session_id
         != coordinator_run_session_id(
@@ -10378,7 +10275,6 @@ where
         cache.prepare_entry(&session.session_id, &session)?.0,
         cache.prepare_entry(&receipt.receipt_id, receipt)?.0,
     ];
-    before_commit()?;
     if !runtime_spine_backing_store(store_path)?
         .compare_and_swap_batch(&[expected_session], replacements)?
     {
