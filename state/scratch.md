@@ -181,7 +181,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    retired session/job/model/tool identities needed to prevent resurrection
    plus the digest of the exact deleted envelopes. Runtime epoch is v12. The
    cut removes 59 net source lines and one public struct.
-32. Next: resume the public runtime-spine and test-liability audit by live owner
+32. Done: exact `09001d89` minimizes the decision-bearing archived worker
+   attempt without reducing audit reach. Duplicate archive/job identity,
+   archive timestamp, retired-type/count summaries, and unused retention
+   return vectors are gone. Exact request/terminal identity, deletion digest,
+   decision context, structured role result, and terminal job records remain.
+   Runtime epoch is v13 and archived-worker schema/type is v2. The cut removes
+   41 net source lines.
+33. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-33. Run focused tests after each cut. Only after source subtraction stabilizes
+34. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

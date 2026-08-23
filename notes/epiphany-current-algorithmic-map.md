@@ -426,6 +426,16 @@ remain durable outside session retention. Runtime writable epoch v12 and
 archived-session schema v1 make the cut explicit; no old writable store is
 migrated or dual-read.
 
+Exact `09001d89` applies the same subtraction discipline to decision-bearing
+worker archives without deleting their reason to exist. An archived worker
+attempt keeps its exact job/request family, terminal process class, deletion
+chain digest, decision context, structured role result, and terminal job
+records. The duplicate archive/job identity, archive timestamp, retired-type
+counts, retired-envelope count, and unused vectors returned by retention are
+gone. Decision audit still reconstructs the exact terminal context and typed
+outcome after live worker authority is removed. Runtime writable epoch v13 and
+archived-worker-attempt schema/type v2 make the hard cut explicit.
+
 Editor actuation is outside this machine. Epiphany may request provider-owned
 editor capabilities through CultMesh/Eve, but owns no Rider or Unity protocol,
 process, state, or verifier. Brokkr owns Unity. A future Rider daemon must own

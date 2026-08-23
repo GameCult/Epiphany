@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `7cf6d45c`
-Current worktree: documentation/evidence for archived-session subtraction;
+Latest committed implementation cut: `09001d89`
+Current worktree: documentation/evidence for archived-worker subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -1257,6 +1257,18 @@ source lines and one public struct. `runtime_spine.rs` is 10,070 lines, with 61
 public functions and 25 public structs. Runtime writable epoch is v12;
 archived-session schema is v1. Core and the release-owned swarm harness compile
 without warnings; old-store refusal and the full keyed lifecycle proof pass.
+
+Exact `09001d89` minimizes the decision-bearing archived worker attempt. It
+still preserves exact job/request identity, terminal process class, deletion
+digest, decision context, structured role result, and terminal job results, so
+decision audit survives removal of live worker authority. Duplicate archive/job
+identity, archive timestamp, retired-type/count summaries, and the unused
+vectors returned by both retention families are gone. The cut removes 41 net
+source lines. `runtime_spine.rs` is 10,036 lines, with 61 public functions and
+25 public structs. Runtime writable epoch is v13; archived-worker-attempt
+schema/type is v2. Core and swarm compile without warnings; reasoning-context
+audit tests pass 8/8, and old-store refusal plus the full keyed lifecycle proof
+pass.
 
 ## Competitive Eyes/Imagination pass
 
