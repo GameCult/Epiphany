@@ -41,7 +41,6 @@ mod soul_gateway;
 mod state_ledger;
 mod substrate_gate;
 mod surfaces;
-mod weksa_interlingua;
 mod workspace_coverage_process_bootstrap;
 mod workspace_coverage_process_documents;
 mod workspace_coverage_projection_batch_checkpoint;
@@ -591,18 +590,6 @@ pub use surfaces::derive_role_board;
 pub use surfaces::interpret_runtime_reorient_worker_result;
 pub use surfaces::interpret_runtime_role_worker_result;
 pub use surfaces::recommend_coordinator_action;
-pub use weksa_interlingua::WEKSA_INTERLINGUA_PACKET_SCHEMA_VERSION;
-pub use weksa_interlingua::WEKSA_TARGET_LOWERING_RECEIPT_SCHEMA_VERSION;
-pub use weksa_interlingua::WEKSA_TARGET_LOWERING_REQUEST_SCHEMA_VERSION;
-pub use weksa_interlingua::WeksaInterlinguaInput;
-pub use weksa_interlingua::WeksaInterlinguaPacket;
-pub use weksa_interlingua::WeksaSpeakerContext;
-pub use weksa_interlingua::WeksaTargetLoweringReceipt;
-pub use weksa_interlingua::WeksaTargetLoweringRequest;
-pub use weksa_interlingua::build_weksa_interlingua_packet;
-pub use weksa_interlingua::build_weksa_lowering_prompt;
-pub use weksa_interlingua::build_weksa_target_lowering_request;
-pub use weksa_interlingua::record_weksa_target_lowering_receipt;
 pub use workspace_coverage_process_bootstrap::{
     WorkspaceCoverageProcessBootstrap, read_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_bootstrap,
