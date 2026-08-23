@@ -107,11 +107,6 @@ pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.repo_work_public_proof.v0";
 pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY: &str =
     "gamecult-local/repo-work-public-proof/latest";
-pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
-pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
-pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
-pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.global_room_policy.v0";
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE: &str = "epiphany.cultmesh.cluster_topology";
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.cluster_topology.v0";
@@ -864,55 +859,29 @@ pub struct EpiphanyCultMeshRepoWorkPublicProofEntry {
     pub notes: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.verse_policy",
-    schema = "EpiphanyCultMeshVersePolicyEntry"
-)]
-pub struct EpiphanyCultMeshVersePolicyEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyVersePolicy {
     pub verse_id: String,
-    #[cultcache(key = 2)]
     pub tier: String,
-    #[cultcache(key = 3)]
     pub purpose: String,
-    #[cultcache(key = 4)]
     pub transport_scope: String,
-    #[cultcache(key = 5)]
     pub trust_boundary: String,
-    #[cultcache(key = 6)]
     pub private_state_allowed: bool,
-    #[cultcache(key = 7)]
     pub untrusted_ingress_allowed: bool,
-    #[cultcache(key = 8)]
     pub yggdrasil_tunnel_allowed: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.global_room_policy",
-    schema = "EpiphanyCultMeshGlobalRoomPolicyEntry"
-)]
-pub struct EpiphanyCultMeshGlobalRoomPolicyEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyGlobalRoomPolicy {
     pub room_id: String,
-    #[cultcache(key = 2)]
     pub verse_id: String,
-    #[cultcache(key = 3)]
     pub topic: String,
-    #[cultcache(key = 4)]
     pub purpose: String,
-    #[cultcache(key = 5)]
     pub posting_policy: String,
-    #[cultcache(key = 6)]
     pub threaded: bool,
-    #[cultcache(key = 7)]
     pub persona_posting_allowed: bool,
-    #[cultcache(key = 8)]
     pub untrusted_ingress_allowed: bool,
 }
 
@@ -2115,8 +2084,8 @@ pub struct EpiphanyLocalVerseContext {
     pub odin_scope: String,
     pub yggdrasil_scope: String,
     pub prompt_assembly_note: String,
-    pub verse_policies: Vec<EpiphanyCultMeshVersePolicyEntry>,
-    pub global_room_policies: Vec<EpiphanyCultMeshGlobalRoomPolicyEntry>,
+    pub verse_policies: Vec<EpiphanyVersePolicy>,
+    pub global_room_policies: Vec<EpiphanyGlobalRoomPolicy>,
     pub cluster_topology: Vec<EpiphanyCultMeshClusterTopologyEntry>,
     pub odin_advertisements: Vec<EpiphanyCultMeshOdinAdvertisementEntry>,
     pub eve_surface_states: Vec<EpiphanyCultMeshEveSurfaceStateEntry>,
@@ -2205,8 +2174,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshRepoWorkReadinessEntry => EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkMapEntry => EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkPublicProofEntry => EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION,
-    EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
-    EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
     EpiphanyCultMeshOdinAdvertisementEntry => EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION,
     EpiphanyCultMeshEveSurfaceStateEntry => EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION,
@@ -5775,8 +5742,6 @@ pub fn seed_epiphany_local_verse_context(
         note: "Epiphany local Verse query context is typed CultMesh state; prompt assembly may read it, but Mind still owns durable adoption.".to_string(),
     };
     write_epiphany_cultmesh_status(store_path, status)?;
-    write_epiphany_cultmesh_verse_policies(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_global_room_policies(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone(), body_domain)?;
     {
         let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
@@ -5808,19 +5773,8 @@ pub fn query_epiphany_local_verse_context(
         );
     }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-    let mut verse_policies = Vec::new();
-    for policy in epiphany_cultmesh_verse_policies() {
-        if let Some(loaded) = node.get::<EpiphanyCultMeshVersePolicyEntry>(&policy.verse_id)? {
-            verse_policies.push(loaded);
-        }
-    }
-
-    let mut global_room_policies = Vec::new();
-    for room in epiphany_cultmesh_global_room_policies() {
-        if let Some(loaded) = node.get::<EpiphanyCultMeshGlobalRoomPolicyEntry>(&room.room_id)? {
-            global_room_policies.push(loaded);
-        }
-    }
+    let verse_policies = epiphany_verse_policies();
+    let global_room_policies = epiphany_global_room_policies();
 
     let mut cluster_topology = Vec::new();
     for cluster in epiphany_cultmesh_cluster_topology() {
@@ -6220,10 +6174,9 @@ fn pointer_string_array(value: &Value, pointer: &str) -> Result<Vec<String>> {
         .collect()
 }
 
-pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntry> {
+pub fn epiphany_verse_policies() -> Vec<EpiphanyVersePolicy> {
     vec![
-        EpiphanyCultMeshVersePolicyEntry {
-            schema_version: EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION.to_string(),
+        EpiphanyVersePolicy {
             verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
             tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
             purpose: "Sub-agent typed state: heartbeat, organ-state records, runtime-spine jobs, private receipts, and other Epiphany-owned organs.".to_string(),
@@ -6233,8 +6186,7 @@ pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntr
             untrusted_ingress_allowed: false,
             yggdrasil_tunnel_allowed: false,
         },
-        EpiphanyCultMeshVersePolicyEntry {
-            schema_version: EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION.to_string(),
+        EpiphanyVersePolicy {
             verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
             tier: EPIPHANY_CULTMESH_LOCAL_AREA_TIER.to_string(),
             purpose: "Trusted GameCult local-area sharing across projects, including operator-approved tunnels to services on Yggdrasil.".to_string(),
@@ -6244,8 +6196,7 @@ pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntr
             untrusted_ingress_allowed: false,
             yggdrasil_tunnel_allowed: true,
         },
-        EpiphanyCultMeshVersePolicyEntry {
-            schema_version: EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION.to_string(),
+        EpiphanyVersePolicy {
             verse_id: EPIPHANY_CULTMESH_GLOBAL_VERSE_ID.to_string(),
             tier: EPIPHANY_CULTMESH_GLOBAL_TIER.to_string(),
             purpose: "Untrusted public surfaces: public dreams, questions, hypotheses, invitations, lineage, ingress receipts, and adoption receipts.".to_string(),
@@ -6258,20 +6209,7 @@ pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntr
     ]
 }
 
-pub fn write_epiphany_cultmesh_verse_policies(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshVersePolicyEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for policy in epiphany_cultmesh_verse_policies() {
-        written.push(node.put(policy.verse_id.clone(), &policy)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_global_room_policies() -> Vec<EpiphanyCultMeshGlobalRoomPolicyEntry> {
+pub fn epiphany_global_room_policies() -> Vec<EpiphanyGlobalRoomPolicy> {
     [
         (
             "dreams",
@@ -6305,8 +6243,7 @@ pub fn epiphany_cultmesh_global_room_policies() -> Vec<EpiphanyCultMeshGlobalRoo
         ),
     ]
     .into_iter()
-    .map(|(slug, topic, purpose)| EpiphanyCultMeshGlobalRoomPolicyEntry {
-        schema_version: EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION.to_string(),
+    .map(|(slug, topic, purpose)| EpiphanyGlobalRoomPolicy {
         room_id: format!("epiphany-global/{slug}"),
         verse_id: EPIPHANY_CULTMESH_GLOBAL_VERSE_ID.to_string(),
         topic: topic.to_string(),
@@ -6319,19 +6256,6 @@ pub fn epiphany_cultmesh_global_room_policies() -> Vec<EpiphanyCultMeshGlobalRoo
         untrusted_ingress_allowed: true,
     })
     .collect()
-}
-
-pub fn write_epiphany_cultmesh_global_room_policies(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshGlobalRoomPolicyEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for room in epiphany_cultmesh_global_room_policies() {
-        written.push(node.put(room.room_id.clone(), &room)?);
-    }
-    node.flush()?;
-    Ok(written)
 }
 
 pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
@@ -8626,54 +8550,6 @@ mod tests {
         let err = write_epiphany_cultmesh_work_loop_telemetry(&store, wrong_verse)
             .expect_err("work-loop evidence outside internal Verse must be refused");
         assert!(err.to_string().contains("internal Verse"));
-        Ok(())
-    }
-
-    #[test]
-    fn builtin_verse_policies_keep_public_and_private_boundaries_apart() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-verses.ccmp");
-        let written = write_epiphany_cultmesh_verse_policies(&store, "epiphany-test")?;
-        assert_eq!(written.len(), 3);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let internal = node.get_required::<EpiphanyCultMeshVersePolicyEntry>(
-            EPIPHANY_CULTMESH_INTERNAL_VERSE_ID,
-        )?;
-        let local_area = node.get_required::<EpiphanyCultMeshVersePolicyEntry>(
-            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID,
-        )?;
-        let global = node
-            .get_required::<EpiphanyCultMeshVersePolicyEntry>(EPIPHANY_CULTMESH_GLOBAL_VERSE_ID)?;
-
-        assert!(internal.private_state_allowed);
-        assert!(!internal.untrusted_ingress_allowed);
-        assert!(!local_area.private_state_allowed);
-        assert!(local_area.yggdrasil_tunnel_allowed);
-        assert!(!global.private_state_allowed);
-        assert!(global.untrusted_ingress_allowed);
-        Ok(())
-    }
-
-    #[test]
-    fn global_room_policies_make_public_threaded_rooms_for_personas() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-global-rooms.ccmp");
-        let written = write_epiphany_cultmesh_global_room_policies(&store, "epiphany-test")?;
-        assert!(written.len() >= 5);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let dreams =
-            node.get_required::<EpiphanyCultMeshGlobalRoomPolicyEntry>("epiphany-global/dreams")?;
-        let architecture = node.get_required::<EpiphanyCultMeshGlobalRoomPolicyEntry>(
-            "epiphany-global/architecture",
-        )?;
-
-        assert_eq!(dreams.verse_id, EPIPHANY_CULTMESH_GLOBAL_VERSE_ID);
-        assert!(dreams.threaded);
-        assert!(dreams.persona_posting_allowed);
-        assert!(dreams.untrusted_ingress_allowed);
-        assert!(architecture.purpose.contains("ownership"));
         Ok(())
     }
 
