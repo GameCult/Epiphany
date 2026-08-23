@@ -53,7 +53,6 @@ fn main() -> Result<()> {
 #[derive(Debug)]
 struct Args {
     thread_id: Option<String>,
-    cwd: PathBuf,
     store: PathBuf,
     json: bool,
     result: Option<PathBuf>,
@@ -61,11 +60,9 @@ struct Args {
 
 impl Args {
     fn parse() -> Result<Self> {
-        let root = env::current_dir().context("failed to resolve current directory")?;
         let mut args = env::args().skip(1);
         let mut parsed = Self {
             thread_id: None,
-            cwd: root,
             store: PathBuf::from(DEFAULT_COORDINATOR_STORE),
             json: false,
             result: None,
@@ -73,15 +70,9 @@ impl Args {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
-                "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--store" => parsed.store = take_path(&mut args, "--store")?,
                 "--json" => parsed.json = true,
                 "--result" => parsed.result = Some(take_path(&mut args, "--result")?),
-                // Historical presentation switches remain accepted but own no state.
-                "--ephemeral" | "--no-ephemeral" => {}
-                "--transcript" | "--stderr" => {
-                    let _ = take_string(&mut args, &arg)?;
-                }
                 _ => return Err(anyhow!("unknown argument: {arg}")),
             }
         }
@@ -94,11 +85,9 @@ fn run_status(args: &Args) -> Result<Value> {
 }
 
 pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<Value> {
-    let root = env::current_dir().context("failed to resolve current directory")?;
     run_native_status(
         &Args {
             thread_id: Some(thread_id.to_string()),
-            cwd: root,
             store: runtime_store.to_path_buf(),
             json: true,
             result: None,
@@ -107,7 +96,6 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
 }
 
 fn run_native_status(args: &Args) -> Result<Value> {
-    let _cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.store)?;
     let thread_id = args
         .thread_id
