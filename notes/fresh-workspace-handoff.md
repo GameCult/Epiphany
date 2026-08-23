@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `94098223`
+Latest committed implementation cut: `b78ffb25`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,18 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `b78ffb25` deletes the counterfeit `epiphany-hands-action` consequence
+recorder, its release role, the coordinator's unconsumed `recordPassCommand`,
+and the recorder's main-only tests: 926 net deletions. The executable performed
+no patch, command, or commit and had no runtime caller; it accepted descriptions
+of consequences that had already happened and wrote receipts for them. The
+coordinator now reports `awaitingHandsExecutor` instead of claiming the gate is
+ready. Exact typed intent, review, path-scope, consequence, refusal, and
+Verification admission remain, and the current-work capstone still proves the
+retained chain. Cargo now has 11 executable targets. Epiphany has no admitted
+repository actuator yet; a future Hands owner must execute the operation and
+emit receipts from its own observed consequences.
 
 Exact `94098223` removes Epiphany's unowned private host-identity custody and
 leaves only the Bifrost public-anchor contract plus signature verifier. The

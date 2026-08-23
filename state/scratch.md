@@ -76,13 +76,15 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    typed proposal intake and selection remain in Self/runtime.
 9. Done: delete the host-identity command and private-custody implementation;
    retain only Bifrost public-anchor verification plus deterministic test fixtures.
-10. In progress: redesign the Hands consequence command into its execution
-   owner before deleting the shell. Then remove tests that inspect spelling, duplicate
-   constructors, or
+10. Done: delete the callerless Hands consequence recorder, release role,
+   command-description handshake, and main-only tests. It executed nothing;
+   the coordinator now reports `awaitingHandsExecutor`, while exact typed
+   receipt-chain admission remains for a future real actuator.
+11. Next: remove tests that inspect spelling, duplicate constructors, or
    exercise one-line helpers without reaching a consequence. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-11. Run focused tests after each cut. Only after source subtraction stabilizes
+12. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

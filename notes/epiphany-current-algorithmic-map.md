@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `94098223` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `b78ffb25` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -211,6 +211,15 @@ read path, relinquishment check, exports, and contract claims. Local Hands
 authority ends at exact patch, command, and commit consequences. A real remote
 publication result enters as provider/Bifrost-owned evidence rather than an
 Epiphany-authored facsimile.
+
+Hands also does not record operator-authored descriptions as if they were
+observed consequences. Exact `b78ffb25` deletes the callerless
+`epiphany-hands-action` recorder, its packaged role, command-description
+handshake, and main-only tests. The coordinator may seal a scoped action gate,
+but reports `awaitingHandsExecutor`; it cannot terminalize that gate. Exact
+receipt-chain admission and Verification projection remain ready for a future
+actuator that performs the operation and emits receipts from its own observed
+effects.
 
 Tool discovery also has no free-floating capability registry. Exact `beb9fd32`
 deletes `EpiphanyToolCapability`, its constructor/registration/contract row,
