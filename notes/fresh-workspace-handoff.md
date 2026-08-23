@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `f9eeb460`
+Latest committed implementation cut: `ffe707ff`
 Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
@@ -665,9 +665,24 @@ invariant: the recovery write runs for `ExactAlive` and not for `Missing`.
 Supervisor check and the resulting consequence-bearing suite pass 7/7; the cut
 removes another 47 net lines.
 
+Exact `30c66080`, `008bd493`, `7e16e758`, and `3312880e` remove the generic
+command entrances, legacy lifecycle lineage, fallback/finite launch modes, and
+caller-authored service identity/configuration. They subtract 596 net lines.
+Exact `afb223da` removes two more tests that guarded formatting and a five-line
+match, collapses the latter wrapper into its only call site, and advances the
+managed-service policy schema to v1. Fixed owner, restart mode, unused backoff,
+decorative update time, and prose notes are gone; old policy rows refuse at the
+load boundary. The cut subtracts 84 net lines.
+
+Exact `ffe707ff` removes the global lifecycle latest mirror, local-Verse slot,
+receipt-history scan, timestamp election, and two tests that preserved those
+surfaces. Each service now owns one exact current receipt head; its atomic CAS
+conflicts on concurrent same-service replacement while disjoint services remain
+independent. The cut subtracts 209 net lines. Focused native checks pass:
+CultMesh 18/18, workspace process authority 11/11, and supervisor 5/5.
+
 Preserve cluster topology while it owns the runtime-bound Body domain and
-bootstrap evidence. Separately split the
-remaining daemon supervisor's
+bootstrap evidence. Separately split the remaining daemon supervisor's
 launch/reconcile authority before claiming sequencing coverage. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
 audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.

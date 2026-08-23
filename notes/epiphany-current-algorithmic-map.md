@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `f9eeb460` on `codex/epiphany-shakedown-live`
-Current worktree cut: remaining CultMesh invariant/test audit; Ox17 remains paused
+Latest committed implementation cut: `ffe707ff` on `codex/epiphany-shakedown-live`
+Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -45,13 +45,10 @@ supervisor and prompt projection. The former singleton CultMesh status row was
 a duplicate “bootstrap happened” sentinel with no independent invariant; its
 schema, writer, loader, supervisor check, and serialization test are deleted.
 
-`EpiphanyLocalVerseContext` is the consumer read path for latest daemon-poke and
-Bifrost publication state. Seven family-specific latest/exact loaders that were
-called only by tests are deleted. The surviving tests read the same view as the
-runtime and name the actual invariant: immutable poke identities, monotonic
-latest selection, and Bifrost intent/receipt/Hands-proof correlation. The two
-specialized projector policy writers are the only writers; no test-only generic
-writer recreates the forbidden generic policy path.
+`EpiphanyLocalVerseContext` projects Bifrost publication state but no aggregate
+daemon lifecycle head. Family-specific latest/exact loaders called only by
+tests are deleted. The two specialized projector policy writers are the only
+writers; no test-only generic writer recreates the forbidden policy path.
 
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
@@ -70,15 +67,22 @@ launch configuration; exact lifecycle and provider receipts own observed
 consequences. LocalVerse and Eve may derive status from those family documents,
 but no writable aggregate may impersonate them.
 
-Exact `f9eeb460` audits the surviving supervisor tests by consequence. The
-non-authoritative semantic service display label is now an inline projection;
-its self-referential helper test is deleted. The workspace recovery test now
-directly proves that only an `ExactAlive` process observation can authorize the
-recovery write instead of staging that claim with a scripted observation queue.
-The seven remaining supervisor tests guard trust-anchor encoding, lifecycle
-brake scope, Windows argv integrity, all-or-none Idunn signed-health binding,
-process replacement identity, heartbeat freshness/correlation, and the
-exact-alive recovery gate.
+Exact `30c66080`, `008bd493`, `7e16e758`, and `3312880e` close the remaining
+generic command entrances, legacy lifecycle lineage, finite/fallback launch,
+and caller-authored supervisor identity. Exact `afb223da` deletes two more
+implementation-mirror tests and the wrapper created to animate one of them,
+then advances managed-service policy to v1 without fixed owner prose,
+`restart_mode`, unused backoff, decorative update time, or notes. Historical
+policy rows refuse at the load boundary. Exact `ffe707ff` deletes the global
+lifecycle latest mirror, history scan, timestamp election, local-Verse slot,
+and their two self-referential tests. Each service now has one exact current
+receipt head; same-service concurrent replacement conflicts atomically.
+
+The five remaining supervisor tests guard lifecycle brake scope, Windows Task
+Scheduler argv integrity, all-or-none Idunn signed-health identity, stale child
+process identity/PID reuse, and heartbeat freshness plus lifecycle correlation.
+Tests that merely format bytes, call a match arm, round-trip a brake, or preserve
+a display/history mirror are gone with the production scaffolding they excused.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
