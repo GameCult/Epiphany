@@ -128,6 +128,12 @@ producer or consumer. Exact tool definitions sealed into model requests plus
 runtime execution bindings and governed invocation receipts own the actual
 path. The catalog retains tool intent/receipt and drops to 42 schemas.
 
+Continuity publishes only the document it owns. Exact `ca2d2cf2` removes packet,
+compaction-checkpoint, stale-turn-repair, and refusal contract rows that had no
+typed documents or runtime path. Reorientation still emits the exact persisted
+`ContinuityRecoveryReceipt`; compaction and handoff remain native state
+physiology rather than advertised CultNet fiction.
+
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
 admission. Cross-repository inspection found no producer for Epiphany's former

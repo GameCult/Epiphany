@@ -817,6 +817,13 @@ the tool authority. The canonical catalog drops from 43 to 42 schemas and keeps
 tool intent/receipt. Four affected packages compile; the tool runtime passes
 14/14 active tests with one explicit live-source test still ignored.
 
+Exact `ca2d2cf2` deletes four prose-only Continuity contract families: packet,
+compaction checkpoint, stale-turn repair, and refusal. They had constants and
+runtime mutation-table rows but no typed documents, schemas, stores, writers,
+readers, or tests. `ContinuityRecoveryReceipt` remains real: accepted
+reorientation constructs, persists, and exposes it. Core/release checks pass
+and the decision-auditable reorientation test passes 1/1.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
