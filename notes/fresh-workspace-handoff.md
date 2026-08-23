@@ -748,12 +748,20 @@ tests: another 518 net lines. Status now contains Mind identity, exact current
 work, one action/reason decision, and readable role lanes. Core 356/356, status
 1/1, coordinator 8/8, and release construction 19/19 pass.
 
-Next audit every remaining `epiphany.surface.*` schema against a concrete typed
-producer and consumer. Delete catalog entries that merely describe historical
-status JSON. Preserve exact current work, the operator text projection, cluster
-topology, and the four consequence-bearing supervisor tests. Do not run a
-full-workspace compile, package, deployment, or Ox root until subtraction
-closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+Exact `f10f7fb3` completes that audit: all twelve remaining surface schemas and
+their ten catalog entries had zero producer and zero consumer. The 692-line pure
+deletion includes global-revision status shapes, old Rider/Unity/Void bridges,
+and the artifact-list Persona surface; `gamecult.persona_state.v0` remains the
+portable Persona contract. The native schema-catalog command rebuilds with zero
+`epiphany.surface.*` documents and its temporary audit output was removed.
+
+Next audit the rest of the CultNet schema registry against live contract
+factories and runtime producers, beginning with schema residue for CultMesh
+operator-run families whose source owners are already deleted. Preserve real
+decision-audit contracts and provider-owned CultMesh/Eve documents.
+Preserve exact current work, cluster topology, and the four consequence-bearing
+supervisor tests. Do not run a full-workspace compile, package, deployment, or
+Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

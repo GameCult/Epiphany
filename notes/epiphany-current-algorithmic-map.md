@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `78836f3b` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `f10f7fb3` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -62,6 +62,14 @@ projections, unreachable pressure routing, manifest strings, or prompt keywords
 rather than a live consequence. Core 356/356, status 1/1, coordinator 8/8, and
 release construction 19/19 pass. The operator thought-sealing boundary remains
 tested.
+
+The schema registry contains no `epiphany.surface.*` families. Exact
+`f10f7fb3` deletes the final twelve schemas and ten catalog entries after a
+producer/consumer audit found no live owner on either side; several still
+claimed global revisions or artifact-directory state. The native schema catalog
+rebuilds successfully with zero surface documents. Persona's portable state
+remains `gamecult.persona_state.v0`; Eve/CultMesh providers retain their own
+typed contracts.
 
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
