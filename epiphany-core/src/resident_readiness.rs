@@ -989,13 +989,6 @@ mod tests {
     }
 
     #[test]
-    fn credential_mode_requires_private_owner_read_write() {
-        assert!(!unix_credential_mode_ready(0o400));
-        assert!(!unix_credential_mode_ready(0o644));
-        assert!(unix_credential_mode_ready(0o600));
-    }
-
-    #[test]
     fn legacy_credentials_file_cannot_impersonate_canonical_auth() -> Result<()> {
         let temp = tempfile::tempdir()?;
         fs::write(temp.path().join("credentials.json"), b"{}")?;

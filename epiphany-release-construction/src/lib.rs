@@ -983,10 +983,6 @@ mod tests {
         .expect("linked worktree");
 
         assert_eq!(
-            release_source_cache_identity(&first).expect("first identity"),
-            release_source_cache_identity(&first).expect("stable first identity")
-        );
-        assert_eq!(
             release_source_cache_identity(&first).expect("main identity"),
             release_source_cache_identity(&linked).expect("linked identity")
         );

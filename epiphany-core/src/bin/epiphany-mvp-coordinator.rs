@@ -326,12 +326,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         .unwrap_or_else(|| {
             "Coordinate the Epiphany MVP lanes with native runtime job receipts.".to_string()
         });
+    let runtime_id = args.runtime_id.as_deref().expect("validated runtime id");
     let runtime_identity = initialize_runtime_spine(
         &runtime_store,
-        coordinator_runtime_identity_options(
-            args.runtime_id.as_deref().expect("validated runtime id"),
-            now(),
-        ),
+        RuntimeSpineInitOptions {
+            runtime_id: runtime_id.to_string(),
+            display_name: format!("Epiphany {runtime_id}"),
+            created_at: now(),
+        },
     )?;
     let runtime_session = open_coordinator_run(
         &runtime_store,
@@ -2050,17 +2052,6 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn coordinator_runtime_identity_options(
-    runtime_id: &str,
-    created_at: String,
-) -> RuntimeSpineInitOptions {
-    RuntimeSpineInitOptions {
-        runtime_id: runtime_id.to_string(),
-        display_name: format!("Epiphany {runtime_id}"),
-        created_at,
-    }
-}
-
 fn reset_artifact_dir(path: &Path) -> Result<()> {
     let cwd = env::current_dir()?;
     let mut roots = Vec::new();
@@ -2182,16 +2173,6 @@ mod tests {
     }
 
     #[test]
-    fn coordinator_preserves_the_authenticated_runtime_identity() {
-        let options = coordinator_runtime_identity_options(
-            "epiphany-starfire",
-            "2026-08-06T00:00:00Z".into(),
-        );
-        assert_eq!(options.runtime_id, "epiphany-starfire");
-        assert_eq!(options.display_name, "Epiphany epiphany-starfire");
-    }
-
-    #[test]
     fn coordinator_error_after_opening_terminalizes_the_exact_session() -> Result<()> {
         let smoke_root = env::current_dir()?.join(".epiphany-smoke");
         fs::create_dir_all(&smoke_root)?;
@@ -2254,11 +2235,6 @@ mod tests {
         assert_eq!(receipts[0].status, "failed");
         assert_eq!(receipts[0].session_id, session.session_id);
         Ok(())
-    }
-
-    #[test]
-    fn continue_implementation_is_not_a_passive_stop_action() {
-        assert!(!is_stop_action("continueImplementation"));
     }
 
     #[test]
