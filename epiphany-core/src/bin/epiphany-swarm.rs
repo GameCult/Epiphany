@@ -148,11 +148,9 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(());
     }
-    let retained_at = Utc::now().to_rfc3339();
     retain_completed_runtime_sessions(
         &args.policy.runtime_store,
         args.retained_completed_runtime_sessions,
-        &retained_at,
     )?;
     Ok(())
 }

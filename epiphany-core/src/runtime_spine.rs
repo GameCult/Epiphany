@@ -86,7 +86,6 @@ pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.model_execution_binding";
 pub const RUNTIME_TOOL_EXECUTION_BINDING_TYPE: &str = "epiphany.runtime.tool_execution_binding";
-pub const ARCHIVED_RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.archived_session";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_TYPE: &str = "epiphany.runtime.worker_process_claim.v0";
 pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_TYPE: &str =
@@ -98,13 +97,13 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v11";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v12";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
 pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.tool_execution_binding.v0";
-pub const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v0";
+const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v1";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v2";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
@@ -252,35 +251,19 @@ pub struct EpiphanyRuntimeToolExecutionBinding {
     type = "epiphany.runtime.archived_session",
     schema = "EpiphanyArchivedRuntimeSession"
 )]
-pub struct EpiphanyArchivedRuntimeSession {
+struct EpiphanyArchivedRuntimeSession {
     #[cultcache(key = 0)]
-    pub schema_version: String,
+    schema_version: String,
     #[cultcache(key = 1)]
-    pub archive_id: String,
+    session_id: String,
     #[cultcache(key = 2)]
-    pub session_id: String,
+    job_ids: Vec<String>,
     #[cultcache(key = 3)]
-    pub archived_at: String,
+    model_request_ids: Vec<String>,
     #[cultcache(key = 4)]
-    pub job_ids: Vec<String>,
+    tool_intent_ids: Vec<String>,
     #[cultcache(key = 5)]
-    pub job_result_ids: Vec<String>,
-    #[cultcache(key = 6)]
-    pub model_request_ids: Vec<String>,
-    #[cultcache(key = 7)]
-    pub tool_intent_ids: Vec<String>,
-    #[cultcache(key = 8)]
-    pub terminal_job_status_counts: BTreeMap<String, u64>,
-    #[cultcache(key = 9)]
-    pub retired_type_counts: BTreeMap<String, u64>,
-    #[cultcache(key = 10)]
-    pub retired_envelope_count: u64,
-    #[cultcache(key = 11)]
-    pub retired_chain_digest: String,
-    #[cultcache(key = 12, default)]
-    pub reasoning_basis_ids: Vec<String>,
-    #[cultcache(key = 13, default)]
-    pub decision_context_ids: Vec<String>,
+    retired_chain_digest: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -2037,10 +2020,7 @@ pub(crate) fn validate_terminal_tool_execution_family(
 pub fn retain_completed_runtime_sessions(
     store_path: impl AsRef<Path>,
     retain_recent: usize,
-    archived_at: &str,
-) -> Result<Vec<EpiphanyArchivedRuntimeSession>> {
-    chrono::DateTime::parse_from_rfc3339(archived_at)
-        .map_err(|error| anyhow!("runtime session retention timestamp is invalid: {error}"))?;
+) -> Result<()> {
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -2071,32 +2051,23 @@ pub fn retain_completed_runtime_sessions(
             .then_with(|| right.session_id.cmp(&left.session_id))
     });
 
-    let mut archived = Vec::new();
     for session in candidates.into_iter().skip(retain_recent.max(1)) {
-        archived.push(archive_completed_model_session(
-            store_path,
-            &session.session_id,
-            archived_at,
-        )?);
+        archive_completed_model_session(store_path, &session.session_id)?;
     }
-    Ok(archived)
+    Ok(())
 }
 
 fn archive_completed_model_session(
     store_path: impl AsRef<Path>,
     session_id: &str,
-    archived_at: &str,
 ) -> Result<EpiphanyArchivedRuntimeSession> {
     validate_non_empty(session_id, "archived runtime session id")?;
-    chrono::DateTime::parse_from_rfc3339(archived_at)
-        .map_err(|error| anyhow!("runtime session archive timestamp is invalid: {error}"))?;
     let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     if let Some(existing) = cache.get::<EpiphanyArchivedRuntimeSession>(session_id)? {
         if existing.schema_version != ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION
-            || existing.archive_id != session_id
             || existing.session_id != session_id
             || !existing.retired_chain_digest.starts_with("sha256:")
         {
@@ -2485,11 +2456,9 @@ fn archive_completed_model_session(
             .cmp(&right.r#type)
             .then(left.key.cmp(&right.key))
     });
-    let mut retired_type_counts = BTreeMap::new();
     let mut digest = Sha256::new();
     digest.update(b"epiphany-runtime-archived-session-root");
     for entry in &deletions {
-        *retired_type_counts.entry(entry.r#type.clone()).or_default() += 1;
         for bytes in [
             entry.r#type.as_bytes(),
             entry.key.as_bytes(),
@@ -2499,36 +2468,13 @@ fn archive_completed_model_session(
             digest.update(bytes);
         }
     }
-    let mut terminal_job_status_counts = BTreeMap::new();
-    for job in &jobs {
-        let status = match job.status {
-            EpiphanyRuntimeJobStatus::Completed => "completed",
-            EpiphanyRuntimeJobStatus::Failed => "failed",
-            EpiphanyRuntimeJobStatus::Cancelled => "cancelled",
-            _ => unreachable!("open jobs refused above"),
-        };
-        *terminal_job_status_counts
-            .entry(status.to_string())
-            .or_default() += 1;
-    }
     let archive = EpiphanyArchivedRuntimeSession {
         schema_version: ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION.to_string(),
-        archive_id: session_id.to_string(),
         session_id: session_id.to_string(),
-        archived_at: archived_at.to_string(),
         job_ids: job_ids.into_iter().collect(),
-        job_result_ids: job_results
-            .iter()
-            .map(|result| result.result_id.clone())
-            .collect(),
         model_request_ids: model_request_ids.into_iter().collect(),
         tool_intent_ids: tool_intent_ids.into_iter().collect(),
-        terminal_job_status_counts,
-        retired_type_counts,
-        retired_envelope_count: deletions.len() as u64,
         retired_chain_digest: format!("sha256:{:x}", digest.finalize()),
-        reasoning_basis_ids: reasoning_basis_ids.into_iter().collect(),
-        decision_context_ids: decision_context_ids.into_iter().collect(),
     };
     let (replacement, _) = cache.prepare_entry(session_id, &archive)?;
     if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
@@ -9934,7 +9880,7 @@ fn require_runtime_identity_not_archived(
     if let Some(archive) = collision {
         return Err(anyhow!(
             "runtime {identity_kind} identity {identity:?} was retired by archive {:?}",
-            archive.archive_id
+            archive.session_id
         ));
     }
     Ok(())
