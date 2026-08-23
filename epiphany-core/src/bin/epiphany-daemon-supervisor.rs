@@ -39,7 +39,6 @@ use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
-use epiphany_core::retire_epiphany_cultmesh_operator_status_documents;
 use epiphany_core::runtime_modeling_semantic_projection_input;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
@@ -186,7 +185,6 @@ fn dispatch(args: Args) -> Result<()> {
         "managed-service-task-start" => managed_service_task_control(args, "start"),
         "managed-service-task-stop" => managed_service_task_control(args, "stop"),
         "managed-service-task-uninstall" => managed_service_task_control(args, "uninstall"),
-        "migrate-retired-operator-status" => migrate_retired_operator_status(args),
         "provider-health-identity-enroll" => provider_health_identity_enroll(args),
         "provider-health-identity-export" => provider_health_identity_export(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
@@ -654,21 +652,6 @@ fn windows_quote_argv(arg: &str) -> String {
     quoted.push_str(&"\\".repeat(backslashes * 2));
     quoted.push('"');
     quoted
-}
-
-fn migrate_retired_operator_status(args: Args) -> Result<()> {
-    let removed_keys = retire_epiphany_cultmesh_operator_status_documents(&args.store)?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.retired_document_migration.v0",
-            "status": "completed",
-            "retiredDocumentType": "epiphany.cultmesh.operator_status",
-            "removedKeys": removed_keys,
-            "privateStateExposed": false,
-        }))?
-    );
-    Ok(())
 }
 
 fn semantic_projector_service_status(args: Args) -> Result<()> {
@@ -3888,7 +3871,6 @@ mod provider_status_ownership_tests {
         assert_eq!(unresolved_attempt_failure_count(0), 1);
         assert_eq!(unresolved_attempt_failure_count(3), 4);
     }
-
 }
 
 #[cfg(test)]
@@ -4512,7 +4494,6 @@ impl Args {
                     | "managed-service-task-start"
                     | "managed-service-task-stop"
                     | "managed-service-task-uninstall"
-                    | "migrate-retired-operator-status"
                     | "provider-health-identity-enroll"
                     | "provider-health-identity-export"
                     | "semantic-projector-service-status"
