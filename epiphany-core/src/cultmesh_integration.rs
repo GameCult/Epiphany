@@ -57,7 +57,7 @@ pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
     "epiphany.cultmesh.managed_service_policy";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.managed_service_policy.v0";
+    "epiphany.cultmesh.managed_service_policy.v1";
 const EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
 pub const EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID: &str =
     "epiphany-workspace-coverage-projector-service";
@@ -313,8 +313,6 @@ pub struct EpiphanyCultMeshManagedServicePolicyEntry {
     pub policy_id: String,
     #[cultcache(key = 2)]
     pub service_id: String,
-    #[cultcache(key = 3)]
-    pub owner_daemon_id: String,
     #[cultcache(key = 4)]
     pub command: String,
     #[cultcache(key = 5)]
@@ -323,22 +321,14 @@ pub struct EpiphanyCultMeshManagedServicePolicyEntry {
     pub cwd: Option<String>,
     #[cultcache(key = 7)]
     pub enabled: bool,
-    #[cultcache(key = 8)]
-    pub restart_mode: String,
     #[cultcache(key = 9)]
     pub cooldown_seconds: i64,
-    #[cultcache(key = 10)]
-    pub backoff_multiplier: u32,
     #[cultcache(key = 11)]
     pub stdout_artifact: String,
     #[cultcache(key = 12)]
     pub stderr_artifact: String,
-    #[cultcache(key = 14)]
-    pub updated_at_utc: String,
     #[cultcache(key = 15)]
     pub private_state_exposed: bool,
-    #[cultcache(key = 16)]
-    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -899,6 +889,7 @@ pub fn load_epiphany_cultmesh_managed_service_policy_with_digest(
     let Some(policy) = node.get::<EpiphanyCultMeshManagedServicePolicyEntry>(&key)? else {
         return Ok(None);
     };
+    validate_managed_service_policy(&policy)?;
     let digest =
         cultmesh_envelope_digest::<EpiphanyCultMeshManagedServicePolicyEntry>(&node, &key)?;
     Ok(Some((policy, digest)))
@@ -981,7 +972,6 @@ pub fn write_epiphany_cultmesh_semantic_projector_service_policy(
             "semantic projector policy writer requires its reserved service id"
         ));
     }
-    validate_semantic_projector_managed_service_policy(&policy)?;
     write_validated_managed_service_policy(store_path, runtime_id, policy)
 }
 
@@ -996,7 +986,6 @@ pub fn write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             "workspace coverage projector policy writer requires its reserved service id"
         ));
     }
-    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
     write_validated_managed_service_policy(store_path, runtime_id, policy)
 }
 
@@ -1018,7 +1007,13 @@ pub fn load_epiphany_cultmesh_managed_service_policy(
     service_id: &str,
 ) -> Result<Option<EpiphanyCultMeshManagedServicePolicyEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(&epiphany_cultmesh_managed_service_policy_key(service_id))
+    let policy = node.get(&epiphany_cultmesh_managed_service_policy_key(service_id))?;
+    policy
+        .map(|policy| {
+            validate_managed_service_policy(&policy)?;
+            Ok(policy)
+        })
+        .transpose()
 }
 
 pub fn load_epiphany_cultmesh_managed_service_policies(
@@ -1026,11 +1021,14 @@ pub fn load_epiphany_cultmesh_managed_service_policies(
     runtime_id: impl Into<String>,
 ) -> Result<Vec<EpiphanyCultMeshManagedServicePolicyEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    Ok(node
+    node
         .get_all_with_keys::<EpiphanyCultMeshManagedServicePolicyEntry>()?
         .into_iter()
-        .map(|(_, policy)| policy)
-        .collect())
+        .map(|(_, policy)| {
+            validate_managed_service_policy(&policy)?;
+            Ok(policy)
+        })
+        .collect()
 }
 
 pub fn default_epiphany_cultmesh_swarm_brake(
@@ -1217,6 +1215,9 @@ fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
 fn validate_managed_service_policy(
     policy: &EpiphanyCultMeshManagedServicePolicyEntry,
 ) -> Result<()> {
+    if policy.schema_version != EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION {
+        return Err(anyhow!("historical managed service policy schema is not writable"));
+    }
     if policy.private_state_exposed {
         return Err(anyhow!(
             "managed service policies must not expose private state"
@@ -1225,31 +1226,28 @@ fn validate_managed_service_policy(
     for (label, value) in [
         ("policy id", policy.policy_id.as_str()),
         ("service id", policy.service_id.as_str()),
-        ("owner daemon id", policy.owner_daemon_id.as_str()),
         ("command", policy.command.as_str()),
-        ("restart mode", policy.restart_mode.as_str()),
         ("stdout artifact", policy.stdout_artifact.as_str()),
         ("stderr artifact", policy.stderr_artifact.as_str()),
-        ("updated timestamp", policy.updated_at_utc.as_str()),
     ] {
         if value.trim().is_empty() {
             return Err(anyhow!("managed service policy missing {label}"));
         }
     }
-    if !matches!(
-        policy.restart_mode.as_str(),
-        "always" | "on-failure" | "never"
-    ) {
+    if policy.cooldown_seconds < 0 {
         return Err(anyhow!(
-            "managed service policy restart_mode must be always, on-failure, or never"
+            "managed service policy requires a non-negative cooldown"
         ));
     }
-    if policy.cooldown_seconds < 0 || policy.backoff_multiplier == 0 {
-        return Err(anyhow!(
-            "managed service policy requires non-negative cooldown and positive backoff"
-        ));
+    match policy.service_id.as_str() {
+        EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID => {
+            validate_semantic_projector_managed_service_policy(policy)
+        }
+        EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => {
+            validate_workspace_coverage_projector_managed_service_policy(policy)
+        }
+        _ => Err(anyhow!("unregistered managed service policy is not writable")),
     }
-    Ok(())
 }
 
 fn validate_semantic_projector_managed_service_policy(
@@ -1270,8 +1268,6 @@ fn validate_semantic_projector_managed_service_policy(
         ));
     }
     if policy.policy_id != "managed-service-policy-epiphany-memory-semantic-projector-service"
-        || policy.owner_daemon_id != "epiphany-daemon-supervisor"
-        || policy.restart_mode != "always"
         || policy.args.len() != 15
         || policy.args[0] != "serve"
         || policy.args[1] != "--runtime-store"
@@ -1319,9 +1315,7 @@ pub(crate) fn validate_workspace_coverage_projector_managed_service_policy(
     }
     if policy.policy_id != "managed-service-policy-epiphany-workspace-coverage-projector-service"
         || policy.service_id != EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
-        || policy.owner_daemon_id != "epiphany-daemon-supervisor"
         || !policy.enabled
-        || policy.restart_mode != "always"
         || policy.args.len() != 17
         || policy.args[0] != "serve"
         || policy.args[1] != "--runtime-store"
@@ -2402,7 +2396,6 @@ mod tests {
             schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
             policy_id: "managed-service-policy-epiphany-memory-semantic-projector-service".into(),
             service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
-            owner_daemon_id: "epiphany-daemon-supervisor".into(),
             command: binary.into(),
             args: vec![
                 "serve",
@@ -2426,15 +2419,30 @@ mod tests {
             .collect(),
             cwd: None,
             enabled: true,
-            restart_mode: "always".into(),
             cooldown_seconds: 0,
-            backoff_multiplier: 1,
             stdout_artifact: "projector.stdout.log".into(),
             stderr_artifact: "projector.stderr.log".into(),
-            updated_at_utc: "2026-07-15T12:00:00Z".into(),
             private_state_exposed: false,
-            notes: vec![],
         };
+        let historical_store = temp.path().join("historical-verse.ccmp");
+        let mut historical = exact.clone();
+        historical.schema_version = "epiphany.cultmesh.managed_service_policy.v0".into();
+        let mut node = open_epiphany_cultmesh_node(&historical_store, "local")?;
+        node.put(
+            epiphany_cultmesh_managed_service_policy_key(&historical.service_id),
+            &historical,
+        )?;
+        node.flush()?;
+        assert!(
+            load_epiphany_cultmesh_managed_service_policy(
+                &historical_store,
+                "local",
+                EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID,
+            )
+            .expect_err("historical writable policy must refuse at the load boundary")
+            .to_string()
+            .contains("historical managed service policy schema")
+        );
         let mut forged = exact.clone();
         forged.command = "arbitrary.exe".into();
         assert!(
@@ -2534,7 +2542,6 @@ mod tests {
             policy_id: "managed-service-policy-epiphany-workspace-coverage-projector-service"
                 .into(),
             service_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.into(),
-            owner_daemon_id: "epiphany-daemon-supervisor".into(),
             command: binary.display().to_string(),
             args: vec![
                 "serve",
@@ -2560,14 +2567,10 @@ mod tests {
             .collect(),
             cwd: None,
             enabled: true,
-            restart_mode: "always".into(),
             cooldown_seconds: 0,
-            backoff_multiplier: 1,
             stdout_artifact: "workspace-projector.stdout.log".into(),
             stderr_artifact: "workspace-projector.stderr.log".into(),
-            updated_at_utc: "2026-07-15T12:00:00Z".into(),
             private_state_exposed: false,
-            notes: vec![],
         };
         let mut arbitrary_binary = exact.clone();
         arbitrary_binary.command = "arbitrary-projector.exe".into();
@@ -2661,7 +2664,7 @@ mod tests {
         );
 
         let mut advanced = exact;
-        advanced.updated_at_utc = "2026-07-15T12:00:02Z".into();
+        advanced.args[8] = "61".into();
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &store, "local", advanced,
         )?;
@@ -3745,7 +3748,6 @@ mod tests {
             schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
             policy_id: "managed-service-policy-epiphany-memory-semantic-projector-service".into(),
             service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
-            owner_daemon_id: "epiphany-daemon-supervisor".into(),
             command: binary.into(),
             args: vec![
                 "serve",
@@ -3769,14 +3771,10 @@ mod tests {
             .collect(),
             cwd: None,
             enabled: true,
-            restart_mode: "always".into(),
             cooldown_seconds: 0,
-            backoff_multiplier: 1,
             stdout_artifact: "projector.stdout.log".into(),
             stderr_artifact: "projector.stderr.log".into(),
-            updated_at_utc: "2026-07-15T12:01:00Z".into(),
             private_state_exposed: false,
-            notes: vec![],
         };
         write_epiphany_cultmesh_semantic_projector_service_policy(
             &verse,
@@ -3857,7 +3855,7 @@ mod tests {
         );
 
         let mut advanced_policy = policy.clone();
-        advanced_policy.updated_at_utc = "2026-07-15T12:02:30Z".into();
+        advanced_policy.args[8] = "61".into();
         write_epiphany_cultmesh_semantic_projector_service_policy(
             &verse,
             "runtime-test",

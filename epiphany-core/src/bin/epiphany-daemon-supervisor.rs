@@ -93,33 +93,6 @@ enum ManagedServiceLineage {
     Stale(String),
 }
 
-enum WorkspaceCoverageRecoveryActuation<T> {
-    Written(T),
-    Degraded(WorkspaceCoverageProcessLifecycleObservation),
-    Terminal(WorkspaceCoverageProcessLifecycleObservation),
-}
-
-fn actuate_workspace_coverage_recovery_if_alive<T>(
-    observation: WorkspaceCoverageProcessLifecycleObservation,
-    write: impl FnOnce() -> Result<T>,
-) -> Result<WorkspaceCoverageRecoveryActuation<T>> {
-    match observation {
-        WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
-            Ok(WorkspaceCoverageRecoveryActuation::Written(write()?))
-        }
-        WorkspaceCoverageProcessLifecycleObservation::Inaccessible
-        | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. } => {
-            Ok(WorkspaceCoverageRecoveryActuation::Degraded(observation))
-        }
-        WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
-        | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
-        | WorkspaceCoverageProcessLifecycleObservation::Missing
-        | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. } => {
-            Ok(WorkspaceCoverageRecoveryActuation::Terminal(observation))
-        }
-    }
-}
-
 fn report_workspace_coverage_replacement_not_alive(
     policy: &EpiphanyCultMeshManagedServicePolicyEntry,
     replacement: &WorkspaceCoverageManagedProcessLaunchEntry,
@@ -236,16 +209,6 @@ fn provider_health_identity_export(args: Args) -> Result<()> {
 
 fn lowercase_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-#[cfg(test)]
-mod provider_health_identity_output_tests {
-    use super::lowercase_hex;
-
-    #[test]
-    fn public_identity_key_is_exact_lowercase_hex() {
-        assert_eq!(lowercase_hex(&[0x00, 0x7f, 0x80, 0xff]), "007f80ff");
-    }
 }
 
 fn managed_service_task_name(args: &Args) -> String {
@@ -1489,24 +1452,14 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
         schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
         policy_id: format!("managed-service-policy-{}", sanitize_id(&args.service_id)),
         service_id: args.service_id.clone(),
-        owner_daemon_id: "epiphany-daemon-supervisor".to_string(),
         command: command.display().to_string(),
         args: args.service_args.clone(),
         cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
         enabled: !args.disabled,
-        restart_mode: "always".to_string(),
         cooldown_seconds: args.cooldown_seconds,
-        backoff_multiplier: 1,
         stdout_artifact: stdout_artifact.display().to_string(),
         stderr_artifact: stderr_artifact.display().to_string(),
-        updated_at_utc: Utc::now().to_rfc3339(),
         private_state_exposed: false,
-        notes: vec![
-            "Idunn owns desired child-service state; the service binary owns its domain state."
-                .to_string(),
-            "Every start or restart delegates to the existing typed service lifecycle primitive."
-                .to_string(),
-        ],
     };
     let written = if policy.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
         write_epiphany_cultmesh_semantic_projector_service_policy(
@@ -1532,9 +1485,7 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
             "status": "written",
             "policyId": written.policy_id,
             "serviceId": written.service_id,
-            "ownerDaemonId": written.owner_daemon_id,
             "enabled": written.enabled,
-            "restartMode": written.restart_mode,
             "command": written.command,
             "args": written.args,
             "stdoutArtifact": written.stdout_artifact,
@@ -1715,9 +1666,10 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         .transpose()?
         .unwrap_or(ProcessObservation::Missing);
     if observation == ProcessObservation::Alive {
-        let lineage = managed_service_lineage(&args, &pinned_release, &policy).with_context(|| {
-            format!("failed to authenticate {} child lineage", policy.service_id)
-        })?;
+        let lineage =
+            managed_service_lineage(&args, &pinned_release, &policy).with_context(|| {
+                format!("failed to authenticate {} child lineage", policy.service_id)
+            })?;
         if let Some(identity) = replacement_process_identity(
             &lineage,
             latest
@@ -2508,20 +2460,20 @@ fn finish_workspace_coverage_recovery(
             return Ok(());
         }
     };
-    let actuation = actuate_workspace_coverage_recovery_if_alive(actuation_observation, || {
-        write_workspace_coverage_recovery_directive(
-            &args.store,
-            runtime_store,
-            &args.runtime_id,
-            &target,
-            &replacement.launch_id,
-            &ready.heartbeat_id,
-            host,
-        )
-    })?;
-    let directive = match actuation {
-        WorkspaceCoverageRecoveryActuation::Written(directive) => directive,
-        WorkspaceCoverageRecoveryActuation::Degraded(observation) => {
+    let directive = match actuation_observation {
+        WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+            write_workspace_coverage_recovery_directive(
+                &args.store,
+                runtime_store,
+                &args.runtime_id,
+                &target,
+                &replacement.launch_id,
+                &ready.heartbeat_id,
+                host,
+            )?
+        }
+        observation @ (WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+        | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. }) => {
             return report_workspace_coverage_replacement_not_alive(
                 policy,
                 &replacement,
@@ -2529,7 +2481,10 @@ fn finish_workspace_coverage_recovery(
                 "observation-degraded",
             );
         }
-        WorkspaceCoverageRecoveryActuation::Terminal(observation) => {
+        observation @ (WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::Missing
+        | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. }) => {
             return report_workspace_coverage_replacement_not_alive(
                 policy,
                 &replacement,
@@ -2716,40 +2671,8 @@ mod service_lifecycle_brake_authority_tests {
 }
 
 #[cfg(test)]
-mod workspace_coverage_recovery_tests {
+mod supervisor_invariant_tests {
     use super::*;
-
-    #[test]
-    fn workspace_coverage_recovery_writes_only_for_exact_alive_process() -> Result<()> {
-        let mut directive_writes = 0_u8;
-        let outcome = actuate_workspace_coverage_recovery_if_alive(
-            WorkspaceCoverageProcessLifecycleObservation::Missing,
-            || {
-                directive_writes += 1;
-                Ok(())
-            },
-        )?;
-        assert!(matches!(
-            outcome,
-            WorkspaceCoverageRecoveryActuation::Terminal(
-                WorkspaceCoverageProcessLifecycleObservation::Missing
-            )
-        ));
-        assert_eq!(directive_writes, 0);
-        let outcome = actuate_workspace_coverage_recovery_if_alive(
-            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
-            || {
-                directive_writes += 1;
-                Ok("directive")
-            },
-        )?;
-        assert!(matches!(
-            outcome,
-            WorkspaceCoverageRecoveryActuation::Written("directive")
-        ));
-        assert_eq!(directive_writes, 1);
-        Ok(())
-    }
 
     #[test]
     fn windows_argv_quoting_preserves_paths_and_escapes_parser_boundaries() {

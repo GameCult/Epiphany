@@ -3494,7 +3494,6 @@ mod tests {
             policy_id: "managed-service-policy-epiphany-workspace-coverage-projector-service"
                 .to_string(),
             service_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string(),
-            owner_daemon_id: "epiphany-daemon-supervisor".to_string(),
             command,
             args: vec![
                 "serve",
@@ -3520,14 +3519,10 @@ mod tests {
             .collect(),
             cwd: None,
             enabled: true,
-            restart_mode: "always".to_string(),
             cooldown_seconds: 5,
-            backoff_multiplier: 2,
             stdout_artifact: "stdout.log".to_string(),
             stderr_artifact: "stderr.log".to_string(),
-            updated_at_utc: chrono::Utc::now().to_rfc3339(),
             private_state_exposed: false,
-            notes: Vec::new(),
         })
     }
 
@@ -3925,7 +3920,7 @@ mod tests {
             chrono::Utc::now(),
         )?;
         let mut rotated_policy = policy.clone();
-        rotated_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        rotated_policy.args[8] = "31".into();
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &verse,
             "local",
@@ -4115,7 +4110,7 @@ mod tests {
                 .contains("already has terminal evidence")
             );
             let mut advanced_policy = policy()?;
-            advanced_policy.updated_at_utc = "2026-07-16T23:59:59Z".to_string();
+            advanced_policy.args[8] = "31".into();
             write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
                 &store,
                 "local",
@@ -4250,7 +4245,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let (store, host, launch, _provider) = persisted_chain(temp.path())?;
         let mut moved_policy = policy()?;
-        moved_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        moved_policy.args[8] = "31".into();
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &store,
             "local",
@@ -4283,7 +4278,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let (store, host, launch, _provider) = persisted_chain(temp.path())?;
         let mut moved_policy = policy()?;
-        moved_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        moved_policy.args[8] = "31".into();
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &store,
             "local",
@@ -4446,7 +4441,7 @@ mod tests {
         );
 
         let mut rotated_policy = policy()?;
-        rotated_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        rotated_policy.args[8] = "31".into();
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &verse,
             "local",
