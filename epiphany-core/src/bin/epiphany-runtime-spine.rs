@@ -8,13 +8,11 @@ use epiphany_core::EpiphanyRuntimeJob;
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeSession;
-use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
 use epiphany_core::RuntimeSpineSessionClosureOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::append_runtime_event;
 use epiphany_core::close_runtime_session;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
@@ -271,30 +269,6 @@ fn main() -> Result<()> {
             println!("runtime root session repaired");
             println!("session: {}", session.session_id);
         }
-        Command::RecordEvent {
-            event_id,
-            event_type,
-            source,
-            session_id,
-            job_id,
-            summary,
-        } => {
-            let event = append_runtime_event(
-                &args.store,
-                RuntimeSpineEventOptions {
-                    event_id,
-                    occurred_at: now(),
-                    event_type,
-                    source,
-                    session_id,
-                    job_id,
-                    summary,
-                },
-            )?;
-            println!("runtime event recorded");
-            println!("event: {}", event.event_id);
-            println!("type: {}", event.event_type);
-        }
         Command::OpenJob {
             job_id,
             session_id,
@@ -396,14 +370,6 @@ enum Command {
     RepairRootSession {
         reason: String,
     },
-    RecordEvent {
-        event_id: String,
-        event_type: String,
-        source: String,
-        session_id: Option<String>,
-        job_id: Option<String>,
-        summary: String,
-    },
     OpenJob {
         job_id: String,
         session_id: String,
@@ -503,52 +469,6 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
                 session_id,
                 objective,
                 coordinator_note,
-            })
-        }
-        "record-event" => {
-            let mut event_id = format!("event-{}", Uuid::new_v4());
-            let mut event_type = String::new();
-            let mut source = "operator".to_string();
-            let mut session_id = None;
-            let mut job_id = None;
-            let mut summary = String::new();
-            parse_options(args, |name, value| match name {
-                "--event-id" => {
-                    event_id = value;
-                    Ok(())
-                }
-                "--type" => {
-                    event_type = value;
-                    Ok(())
-                }
-                "--source" => {
-                    source = value;
-                    Ok(())
-                }
-                "--session-id" => {
-                    session_id = Some(value);
-                    Ok(())
-                }
-                "--job-id" => {
-                    job_id = Some(value);
-                    Ok(())
-                }
-                "--summary" => {
-                    summary = value;
-                    Ok(())
-                }
-                _ => Err(anyhow!("unknown record-event argument: {name}")),
-            })?;
-            if event_type.trim().is_empty() {
-                return Err(anyhow!("record-event requires --type"));
-            }
-            Ok(Command::RecordEvent {
-                event_id,
-                event_type,
-                source,
-                session_id,
-                job_id,
-                summary,
             })
         }
         "open-job" => {
@@ -761,7 +681,7 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|repair-root-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|repair-root-session|open-job|complete-job|hello-frame|schema-catalog>"
 }
 
 fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {

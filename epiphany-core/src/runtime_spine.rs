@@ -968,17 +968,6 @@ pub struct ModelPassFailureTerminalOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeSpineEventOptions {
-    pub event_id: String,
-    pub occurred_at: String,
-    pub event_type: String,
-    pub source: String,
-    pub session_id: Option<String>,
-    pub job_id: Option<String>,
-    pub summary: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSpineJobOptions {
     pub job_id: String,
     pub session_id: String,
@@ -12582,41 +12571,6 @@ pub fn complete_runtime_job(
         return Err(anyhow!("runtime job completion lost its exact snapshot"));
     }
     Ok(result)
-}
-
-pub fn append_runtime_event(
-    store_path: impl AsRef<Path>,
-    options: RuntimeSpineEventOptions,
-) -> Result<EpiphanyRuntimeEvent> {
-    validate_non_empty(&options.event_id, "event id")?;
-    validate_non_empty(&options.occurred_at, "occurred at")?;
-    validate_non_empty(&options.event_type, "event type")?;
-    validate_non_empty(&options.source, "source")?;
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    if cache
-        .get::<EpiphanyRuntimeEvent>(&options.event_id)?
-        .is_some()
-    {
-        return Err(anyhow!(
-            "runtime event {:?} already exists",
-            options.event_id
-        ));
-    }
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: options.event_id.clone(),
-        occurred_at: options.occurred_at,
-        event_type: options.event_type,
-        source: options.source,
-        session_id: options.session_id,
-        job_id: options.job_id,
-        summary: options.summary,
-        metadata: BTreeMap::new(),
-    };
-    cache.put(&options.event_id, &event)?;
-    Ok(event)
 }
 
 pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRuntimeSpineStatus> {
