@@ -91,7 +91,6 @@ enum ManagedServiceLineage {
     Current,
     Pending,
     Stale(String),
-    LegacyV1,
 }
 
 enum WorkspaceCoverageRecoveryActuation<T> {
@@ -880,10 +879,6 @@ fn publish_managed_service_iteration_health(
             }
             Ok(ManagedServiceLineage::Current) => terminal_current += 1,
             Ok(ManagedServiceLineage::Pending) => {}
-            Ok(ManagedServiceLineage::LegacyV1) => contradictions.push(format!(
-                "{}: legacy v1 launch awaits typed retirement",
-                policy.service_id
-            )),
             Ok(ManagedServiceLineage::Stale(reason)) => {
                 contradictions.push(format!("{}: {reason}", policy.service_id))
             }
@@ -1009,9 +1004,6 @@ fn managed_service_lineage(
     else {
         return Ok(ManagedServiceLineage::Pending);
     };
-    if receipt.schema_version == "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1" {
-        return Ok(ManagedServiceLineage::LegacyV1);
-    }
     if receipt.managed_policy_id != policy.policy_id
         || receipt.managed_policy_digest != policy_digest
         || receipt.command != policy.command
@@ -1123,9 +1115,7 @@ fn replacement_identity_from_parts(
             executable_path,
         )
         .map(Some),
-        ManagedServiceLineage::Current
-        | ManagedServiceLineage::Pending
-        | ManagedServiceLineage::LegacyV1 => Ok(None),
+        ManagedServiceLineage::Current | ManagedServiceLineage::Pending => Ok(None),
     }
 }
 
@@ -1592,50 +1582,6 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn retire_legacy_lifecycle_receipt(
-    args: &Args,
-    legacy: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
-) -> Result<bool> {
-    let process_id = legacy
-        .process_id
-        .context("legacy launch receipt has no process id")?;
-    let observation = observe_process(process_id)?;
-    let mut retirement = service_lifecycle_receipt(
-        args,
-        "retire-legacy-launch",
-        if observation == ProcessObservation::Alive {
-            "operator-action-required"
-        } else {
-            "retired"
-        },
-        legacy.command.clone(),
-        legacy.args.clone(),
-        Some(process_id),
-        None,
-        Utc::now(),
-        Some(Utc::now()),
-        Some(format!("receipt://{}", legacy.receipt_id)),
-    );
-    retirement.notes = vec![
-        format!("Retires read-only v1 lifecycle receipt {}.", legacy.receipt_id),
-        "Legacy PID state never authorizes termination; owner-controlled stop is required before v2 relaunch."
-            .into(),
-    ];
-    if observation == ProcessObservation::Alive {
-        let identity = capture_process_instance(process_id)
-            .context("failed to observe legacy process incarnation for non-killing retirement")?;
-        retirement.process_creation_token = identity.creation_token;
-        retirement.process_created_at_rfc3339 = identity.created_at_rfc3339;
-        retirement.process_executable_path = identity.executable_path.display().to_string();
-    }
-    write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        retirement,
-    )?;
-    Ok(observation == ProcessObservation::Alive)
-}
-
 fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
     if args.service_command.is_some() {
         anyhow::bail!(
@@ -1785,31 +1731,27 @@ fn semantic_projector_service_args(
 fn managed_service_reconcile(mut args: Args) -> Result<()> {
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let pinned_release = if args.release_id.is_some() {
-        Some(pinned_packaged_release(&args, true)?.0)
-    } else {
-        None
-    };
+    let pinned_release = pinned_packaged_release(&args, true)?.0;
     let policy = load_epiphany_cultmesh_managed_service_policy(
         &args.store,
         args.runtime_id.clone(),
         &args.service_id,
     )?
     .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
-    if let Some(release) = &pinned_release {
-        let expected_role = match policy.service_id.as_str() {
-            SEMANTIC_PROJECTOR_SERVICE_ID => Some("semantic-projector"),
-            WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => Some("workspace-coverage-projector"),
-            _ => None,
-        };
-        if let Some(role) = expected_role
-            && fs::canonicalize(&policy.command)?
-                != fs::canonicalize(epiphany_packaged_release_binary_path(release, role)?)?
-        {
-            anyhow::bail!(
-                "reserved managed-service policy command is outside pinned release role {role}"
-            );
-        }
+    let expected_role = match policy.service_id.as_str() {
+        SEMANTIC_PROJECTOR_SERVICE_ID => "semantic-projector",
+        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => "workspace-coverage-projector",
+        other => anyhow::bail!("unsupported managed service policy {other}"),
+    };
+    if fs::canonicalize(&policy.command)?
+        != fs::canonicalize(epiphany_packaged_release_binary_path(
+            &pinned_release,
+            expected_role,
+        )?)?
+    {
+        anyhow::bail!(
+            "reserved managed-service policy command is outside pinned release role {expected_role}"
+        );
     }
     if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
         return reconcile_workspace_coverage_projector(args, policy);
@@ -1821,46 +1763,14 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
-    let mut legacy_retirement_released = false;
-    if let Some(receipt) = latest.as_ref()
-        && receipt.schema_version == "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1"
-        && retire_legacy_lifecycle_receipt(&args, receipt)?
-    {
-        return Ok(());
-    }
-    if let Some(receipt) = latest.as_ref()
-        && receipt.action == "retire-legacy-launch"
-        && receipt.status == "operator-action-required"
-    {
-        let identity = lifecycle_process_identity(receipt)?;
-        if matches!(
-            observe_process_instance(&identity),
-            ProcessInstanceObservation::ExactAlive
-                | ProcessInstanceObservation::Inaccessible
-                | ProcessInstanceObservation::Indeterminate { .. }
-        ) {
-            println!(
-                "Legacy managed-service launch {} awaits owner-controlled stop before v2 relaunch.",
-                receipt.receipt_id
-            );
-            return Ok(());
-        }
-        legacy_retirement_released = true;
-    }
-    let mut observation = if legacy_retirement_released {
-        ProcessObservation::Missing
-    } else {
-        latest
-            .as_ref()
-            .and_then(|receipt| receipt.process_id)
-            .map(observe_process)
-            .transpose()?
-            .unwrap_or(ProcessObservation::Missing)
-    };
-    if observation == ProcessObservation::Alive
-        && let Some(release) = pinned_release.as_ref()
-    {
-        let lineage = managed_service_lineage(&args, release, &policy).with_context(|| {
+    let mut observation = latest
+        .as_ref()
+        .and_then(|receipt| receipt.process_id)
+        .map(observe_process)
+        .transpose()?
+        .unwrap_or(ProcessObservation::Missing);
+    if observation == ProcessObservation::Alive {
+        let lineage = managed_service_lineage(&args, &pinned_release, &policy).with_context(|| {
             format!("failed to authenticate {} child lineage", policy.service_id)
         })?;
         if let Some(identity) = replacement_process_identity(
@@ -2988,17 +2898,6 @@ mod workspace_coverage_recovery_tests {
             replacement_identity_from_parts(&ManagedServiceLineage::Pending, Some(7), 0, None, "",)
                 .unwrap()
                 .is_none()
-        );
-        assert!(
-            replacement_identity_from_parts(
-                &ManagedServiceLineage::LegacyV1,
-                Some(7),
-                0,
-                None,
-                "",
-            )
-            .unwrap()
-            .is_none()
         );
         assert!(
             replacement_identity_from_parts(
