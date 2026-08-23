@@ -30,7 +30,6 @@ pub enum EpiphanyCoordinatorRoleResultStatus {
 #[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorAction {
     PrepareCheckpoint,
-    CompactRehydrateReorient,
     LaunchReorientWorker,
     WaitForReorientWorker,
     ReviewReorientResult,
@@ -61,7 +60,6 @@ pub enum EpiphanyCoordinatorAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyCoordinatorInput {
     pub mind_present: bool,
-    pub should_prepare_compaction: bool,
     pub crrc_action: EpiphanyCrrcAction,
     pub current_work: EpiphanyCurrentWorkProjection,
 }

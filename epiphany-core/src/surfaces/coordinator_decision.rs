@@ -24,13 +24,6 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.should_prepare_compaction {
-        return decision(
-            EpiphanyCoordinatorAction::CompactRehydrateReorient,
-            "Context pressure requires a new continuity obligation over the current keyed Mind.",
-        );
-    }
-
     if input.crrc_action == EpiphanyCrrcAction::RegatherManually {
         return decision(
             EpiphanyCoordinatorAction::RegatherManually,

@@ -1318,12 +1318,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         break;
                     }
                 }
-                "compactRehydrateReorient" => {
-                    push_event(
-                        &mut step,
-                        json!({"type": "compactUnsupportedInNativeSmoke"}),
-                    );
-                }
                 _ => {}
             }
             append_operator_step_jsonl(&steps_path, &step)?;

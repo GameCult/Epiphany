@@ -1,12 +1,8 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
-    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorInput, EpiphanyCrrcAction,
-    EpiphanyCrrcRecommendation,
-    EpiphanyCurrentWorkProjection, EpiphanyReorientAction, EpiphanyRoleBoardInput,
-    EpiphanyRoleResultRoleId,
-    EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
-    RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage, derive_pressure_view,
-    derive_role_board, runtime_job_snapshot,
+    EpiphanyCoordinatorInput, EpiphanyCrrcAction, EpiphanyCurrentWorkProjection,
+    EpiphanyRoleBoardInput, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
+    RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage, derive_role_board,
 };
 use serde_json::{Value, json};
 use std::{
@@ -114,25 +110,16 @@ fn run_native_status(args: &Args) -> Result<Value> {
     } else {
         empty_current_work()
     };
-    let pressure = derive_pressure_view(None::<&EpiphanyTokenUsageSnapshot>);
     let latest_reorientation_decision = mind
         .as_ref()
         .and_then(|mind| mind.reorientation_decisions.last());
-    let reorientation_work = current_work.reorientation.as_ref();
-    let reorient_action = latest_reorientation_decision
-        .map(|decision| {
-            if decision.mode == "regather" {
-                EpiphanyReorientAction::Regather
-            } else {
-                EpiphanyReorientAction::Resume
-            }
-        })
-        .unwrap_or(EpiphanyReorientAction::Resume);
-    let recommendation = keyed_reorientation_recommendation(
-        reorientation_work,
-        latest_reorientation_decision,
-        pressure.should_prepare_compaction,
-    );
+    let crrc_action = if latest_reorientation_decision
+        .is_some_and(|decision| decision.mode == "regather")
+    {
+        EpiphanyCrrcAction::RegatherManually
+    } else {
+        EpiphanyCrrcAction::Continue
+    };
 
     let roles = derive_role_board(EpiphanyRoleBoardInput {
         mind_present: mind.is_some(),
@@ -140,72 +127,9 @@ fn run_native_status(args: &Args) -> Result<Value> {
     });
     let coordinator = epiphany_core::recommend_coordinator_action(EpiphanyCoordinatorInput {
         mind_present: mind.is_some(),
-        should_prepare_compaction: pressure.should_prepare_compaction,
-        crrc_action: recommendation.action,
+        crrc_action,
         current_work: current_work.clone(),
     });
-
-    let research_lifecycle = mind.as_ref().map(|_| current_work.research.clone());
-    let planning_lifecycle = mind
-        .as_ref()
-        .map(|_| current_work.frontier_planning.clone());
-    let planning_eligibility = mind
-        .as_ref()
-        .map(|_| epiphany_core::runtime_repo_frontier_planning_eligibility(&store_path))
-        .transpose()?;
-    let frontier_relinquishment = mind
-        .as_ref()
-        .map(|_| epiphany_core::runtime_latest_repo_frontier_relinquishment(&store_path))
-        .transpose()?
-        .flatten();
-    let body_job_id = current_work
-        .body_modeling
-        .as_ref()
-        .and_then(|work| work.attempt.job_id.as_deref());
-    let modeling_job_id = current_work
-        .proposal_modeling
-        .as_ref()
-        .and_then(|work| work.attempt.job_id.as_deref())
-        .or(body_job_id)
-        .or(current_work
-            .frontier_verdict_modeling
-            .as_ref()
-            .and_then(|work| work.attempt.job_id.as_deref()));
-    let imagination_job_id = planning_lifecycle
-        .as_ref()
-        .and_then(|lifecycle| lifecycle.imagination_job_id.as_deref())
-        .or(current_work
-            .imagination_considerations
-            .first()
-            .and_then(|work| work.attempt.job_id.as_deref()))
-        .or(current_work
-            .admitted_model_direction_consideration
-            .as_ref()
-            .and_then(|work| work.attempt.job_id.as_deref()));
-    let role_results = json!({
-        "imagination": native_role_result(&store_path, imagination_job_id, EpiphanyRoleResultRoleId::Imagination),
-        "research": native_role_result(
-            &store_path,
-            research_lifecycle.as_ref().and_then(|lifecycle| lifecycle.worker_job_id.as_deref()),
-            EpiphanyRoleResultRoleId::Research,
-        ),
-        "modeling": native_role_result(&store_path, modeling_job_id, EpiphanyRoleResultRoleId::Modeling),
-        "verification": native_role_result(
-            &store_path,
-            current_work.verification.as_ref().and_then(|work| work.attempt.job_id.as_deref()),
-            EpiphanyRoleResultRoleId::Verification,
-        ),
-    });
-    let tools = if mind.is_some() {
-        native_tool_invocation_surface(&store_path)?
-    } else {
-        json!({"source": "native", "status": "missingMind"})
-    };
-    let reorient_result = keyed_reorientation_result(
-        &store_path,
-        reorientation_work,
-        latest_reorientation_decision,
-    )?;
     Ok(sanitize_for_operator(json!({
         "threadId": thread_id,
         "read": {
@@ -214,31 +138,9 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "mindPresent": mind.is_some(),
             "projectionDigest": mind.as_ref().map(|mind| mind.projection_digest.as_str()),
         },
-        "pressure": {"threadId": thread_id, "source": "native", "pressure": pressure},
-        "reorient": {
-            "threadId": thread_id,
-            "source": "native",
-            "decision": {
-                "action": reorient_action,
-                "nextAction": latest_reorientation_decision
-                    .map(|decision| decision.next_safe_move.as_str())
-                    .unwrap_or("No unresolved keyed reorientation obligation."),
-                "requestId": reorientation_work.map(|work| work.request.request_id.as_str()),
-                "authority": "keyedMindCurrentWork",
-            },
-        },
         "roles": {"threadId": thread_id, "source": "native", "roles": roles},
         "currentWork": current_work,
-        "frontierPlanning": {
-            "lifecycle": planning_lifecycle,
-            "eligibility": planning_eligibility,
-        },
-        "frontierRelinquishment": frontier_relinquishment,
-        "roleResults": role_results,
-        "reorientResult": reorient_result,
-        "crrc": {"threadId": thread_id, "source": "native", "recommendation": recommendation},
         "coordinator": coordinator,
-        "tools": tools,
     })))
 }
 
@@ -270,108 +172,6 @@ fn empty_current_work() -> EpiphanyCurrentWorkProjection {
         admitted_model_direction_consideration: None,
         hands_frontier_ready: false,
     }
-}
-
-fn native_role_result(
-    runtime_store: &Path,
-    job_id: Option<&str>,
-    role_id: EpiphanyRoleResultRoleId,
-) -> Value {
-    let Some(job_id) = job_id else {
-        return json!({"source": "native", "status": "noCurrentWork"});
-    };
-    let snapshot = epiphany_core::read_runtime_role_result(Some(runtime_store), job_id, role_id);
-    let mut result = json!({
-        "source": "native",
-        "status": snapshot.status,
-        "runtimeJobId": job_id,
-        "note": snapshot.note,
-    });
-    if let Some(finding) = snapshot.finding {
-        result["finding"] = json!(finding);
-    }
-    result
-}
-
-fn keyed_reorientation_recommendation(
-    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
-    accepted: Option<&epiphany_core::EpiphanyMindReorientationDecisionDocument>,
-    should_prepare_compaction: bool,
-) -> EpiphanyCrrcRecommendation {
-    let build = |action, reason: &str| EpiphanyCrrcRecommendation {
-        action,
-        reason: reason.into(),
-    };
-    if let Some(work) = work {
-        return match work.attempt.action {
-            EpiphanyAgentPassContinuationAction::Launch => build(
-                EpiphanyCrrcAction::LaunchReorientWorker,
-                "The exact keyed continuity request has no live attempt.",
-            ),
-            EpiphanyAgentPassContinuationAction::Wait => build(
-                EpiphanyCrrcAction::WaitForReorientWorker,
-                "The exact keyed continuity attempt is still live.",
-            ),
-            EpiphanyAgentPassContinuationAction::Review => build(
-                EpiphanyCrrcAction::ReviewReorientResult,
-                "The exact keyed continuity result awaits admission.",
-            ),
-        };
-    }
-    if should_prepare_compaction {
-        return build(
-            EpiphanyCrrcAction::LaunchReorientWorker,
-            "Context pressure requires a new keyed continuity request.",
-        );
-    }
-    if accepted.is_some_and(|decision| decision.mode == "regather") {
-        return build(
-            EpiphanyCrrcAction::RegatherManually,
-            "The accepted keyed continuity decision requires explicit regather.",
-        );
-    }
-    build(
-        EpiphanyCrrcAction::Continue,
-        "No unresolved keyed reorientation obligation exists.",
-    )
-}
-
-fn keyed_reorientation_result(
-    runtime_store: &Path,
-    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
-    accepted: Option<&epiphany_core::EpiphanyMindReorientationDecisionDocument>,
-) -> Result<Value> {
-    let Some(work) = work else {
-        return Ok(accepted
-            .map(|decision| json!({"status": "accepted", "decision": decision}))
-            .unwrap_or(Value::Null));
-    };
-    let Some(job_id) = work.attempt.job_id.as_deref() else {
-        return Ok(json!({"status": "unlaunched", "requestId": work.request.request_id}));
-    };
-    let snapshot = runtime_job_snapshot(runtime_store, job_id)?
-        .ok_or_else(|| anyhow!("keyed reorientation work lost its runtime job"))?;
-    Ok(json!({
-        "status": format!("{:?}", snapshot.job.status).to_ascii_lowercase(),
-        "requestId": work.request.request_id,
-        "jobId": job_id,
-        "result": epiphany_core::runtime_reorient_worker_result(runtime_store, job_id)?,
-    }))
-}
-
-fn native_tool_invocation_surface(runtime_store: &Path) -> Result<Value> {
-    let spine_status = epiphany_core::runtime_spine_status(runtime_store)?;
-    Ok(json!({
-        "source": "native",
-        "runtimeStore": runtime_store.display().to_string(),
-        "summary": {
-            "present": spine_status.present,
-            "intentCount": spine_status.tool_invocation_intents,
-            "pendingCount": spine_status.pending_tool_invocations,
-            "receiptCount": spine_status.tool_invocation_receipts,
-        },
-        "invocations": epiphany_core::runtime_tool_invocation_statuses(runtime_store)?,
-    }))
 }
 
 pub fn render_status(status: &Value) -> String {

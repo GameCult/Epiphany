@@ -335,17 +335,6 @@
       "path": "epiphany.surface.graph-query.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.pressure.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.pressure_surface.v0",
-      "documentType": "epiphany.surface.pressure",
-      "title": "Epiphany pressure",
-      "path": "epiphany.surface.pressure.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.reorient.schema.json",
       "kind": "document_payload",
       "wireContracts": [
