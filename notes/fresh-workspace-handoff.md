@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `03140a47`
+Latest committed implementation cut: `500125d5`
 Current worktree: canonical map/evidence sync; Ox17 remains paused
 
 ## Orientation
@@ -53,6 +53,15 @@ from that single registry instead of a second list. The production Mind store
 and its typed jobs, decisions, and receipts remain; only the duplicate mouth is
 gone. Cargo now has 21 executable targets and zero duplicate binary-source
 owners. Core checks without warnings and release construction passes 17/17.
+
+Exact `500125d5` deletes the separately packaged `epiphany-mvp-status` command.
+Nothing in deployment or operations invoked it; the coordinator instead
+textually included the binary source as a module. The live status projection,
+operator rendering, and thought sealing now live once in `epiphany-core`. The
+CLI parser, default store, output-file writer, package role, and redundant
+release assertion are gone. Cargo has 20 executable targets and zero duplicate
+binary-source owners. Coordinator compilation, the exact operator-sealing test,
+and release construction 17/17 pass.
 
 No Epiphany-owned Rider or Unity code, target, schema, or actuator exists.
 Brokkr owns Unity through Eve/CultMesh. A future Rider daemon owns Rider.

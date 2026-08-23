@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `03140a47` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `500125d5` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -101,6 +101,12 @@ and its hand-maintained mutation-contract mirror. Runtime status and model
 preflight derive accepted document types from the same CultCache registration
 that opens the Mind store. The typed runtime documents remain; a command-line
 facsimile no longer impersonates their service owner.
+
+Coordinator status is a core projection, not a second program. Exact
+`500125d5` deletes the unconsumed packaged status CLI and moves the functions
+the coordinator actually calls into one `epiphany-core` module. Operator-safe
+lowering remains tested; command parsing, file output, and duplicate compilation
+do not.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
