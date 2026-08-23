@@ -134,6 +134,12 @@ typed documents or runtime path. Reorientation still emits the exact persisted
 `ContinuityRecoveryReceipt`; compaction and handoff remain native state
 physiology rather than advertised CultNet fiction.
 
+Soul likewise publishes only its real result. Exact `f8974d52` removes generic
+verification-request, invariant-check, regression, review, and refusal contract
+rows that had no typed documents or runtime path. The keyed repo-frontier
+verification request owns the live obligation, and `SoulVerdictReceipt` owns the
+persisted audit result consumed by Modeling/Mind.
+
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
 admission. Cross-repository inspection found no producer for Epiphany's former

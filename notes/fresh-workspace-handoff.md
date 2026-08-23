@@ -824,6 +824,13 @@ readers, or tests. `ContinuityRecoveryReceipt` remains real: accepted
 reorientation constructs, persists, and exposes it. Core/release checks pass
 and the decision-auditable reorientation test passes 1/1.
 
+Exact `f8974d52` deletes five prose-only Soul families: generic verification
+request, invariant check, regression receipt, review receipt, and verification
+refusal. They had constants and mutation-table prose but no typed documents,
+schemas, stores, writers, readers, or tests. The keyed repo-frontier verification
+request and persisted `SoulVerdictReceipt` remain the real request/result path.
+Core/release checks pass; focused verification tests pass 3/3.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
