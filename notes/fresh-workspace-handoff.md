@@ -549,13 +549,21 @@ proved none of them. The 4.7-kiloline daemon supervisor is therefore an exposed
 launch/reconcile authority knot; split it before restoring transition-level
 proof rather than adding a mock shell around the monolith.
 
-Next audit `cultmesh_integration.rs`: it is 11.1 kilolines with sixty-one tests
-and several test-only Odin, Eve, daemon-capability, and topology template
-factories. Delete fixtures and assertions that preserve static presentation or
-copy field values without exercising persistence, authentication, projection,
-or an authority boundary. Do not run a full-workspace compile, package,
-deployment, or Ox root until the subtraction audit closes. Never resume Ox10,
-Ox12, Ox13, Ox15, or Ox16.
+Exact `bbe5fcf1` deletes four CultMesh tableau tests and replaces their
+production-absent seven-cluster Odin/Eve/daemon world with the minimum retired
+provider rows needed by the surviving authority tests. The real tests still
+prove that legacy rows cannot become live discovery state, explicit retirement
+touches only those rows, private-state tool requests refuse, and typed
+intent/receipt persistence round-trips. The cut removes 396 net lines;
+CultMesh integration passes 57/57 and the non-test core check is clean.
+
+Next map ownership of the static Verse, room, topology, and organ-contract
+documents still published from `cultmesh_integration.rs`. If CultNet already
+owns a contract, CultMesh should project it directly rather than authoring and
+testing a second copy. Separately split the 4.7-kiloline daemon supervisor's
+launch/reconcile authority before claiming sequencing coverage. Do not run a
+full-workspace compile, package, deployment, or Ox root until the subtraction
+audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 
