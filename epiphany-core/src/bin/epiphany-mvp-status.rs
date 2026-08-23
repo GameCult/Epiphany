@@ -1,15 +1,13 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
-    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorStatus, EpiphanyCoordinatorStatusInput,
-    EpiphanyCrrcAction, EpiphanyCrrcRecommendation, EpiphanyCrrcResultStatus,
-    EpiphanyCrrcSceneAction, EpiphanyCurrentWorkProjection, EpiphanyReorientAction,
-    EpiphanyRoleBoardInput, EpiphanyRoleResultRoleId, EpiphanyRuntimeJobStatus,
-    EpiphanySceneInput, EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycle,
-    RepoFrontierPlanningLifecycleStage, RepoFrontierResearchLifecycle,
-    RepoFrontierResearchLifecycleStage, derive_planning_view, derive_pressure_view,
-    derive_role_board, derive_scene, runtime_job_snapshot,
+    EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorInput, EpiphanyCrrcAction,
+    EpiphanyCrrcRecommendation,
+    EpiphanyCurrentWorkProjection, EpiphanyReorientAction, EpiphanyRoleBoardInput,
+    EpiphanyRoleResultRoleId,
+    EpiphanyTokenUsageSnapshot, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
+    RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage, derive_pressure_view,
+    derive_role_board, runtime_job_snapshot,
 };
-use epiphany_self_policy::derive_coordinator_status;
 use serde_json::{Value, json};
 use std::{
     env, fs,
@@ -130,37 +128,22 @@ fn run_native_status(args: &Args) -> Result<Value> {
             }
         })
         .unwrap_or(EpiphanyReorientAction::Resume);
-    let reorient_result_status = keyed_reorientation_result_status(
-        &store_path,
-        reorientation_work,
-        latest_reorientation_decision.is_some(),
-    )?;
     let recommendation = keyed_reorientation_recommendation(
         reorientation_work,
         latest_reorientation_decision,
         pressure.should_prepare_compaction,
     );
 
-    let scene = derive_scene(EpiphanySceneInput {
-        mind: mind.as_ref(),
-        loaded: mind.is_some(),
-        reorientation_work_present: reorientation_work.is_some(),
-    });
-    let planning = derive_planning_view(mind.as_ref());
     let roles = derive_role_board(EpiphanyRoleBoardInput {
         mind_present: mind.is_some(),
         current_work: current_work.clone(),
     });
-    let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
+    let coordinator = epiphany_core::recommend_coordinator_action(EpiphanyCoordinatorInput {
         mind_present: mind.is_some(),
-        pressure: pressure.clone(),
-        recommendation: recommendation.clone(),
-        roles: roles.clone(),
-        reorient_action,
-        reorient_result_status,
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        crrc_action: recommendation.action,
         current_work: current_work.clone(),
     });
-    let coordinator_json = coordinator_status_json(&coordinator)?;
 
     let research_lifecycle = mind.as_ref().map(|_| current_work.research.clone());
     let planning_lifecycle = mind
@@ -231,7 +214,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "mindPresent": mind.is_some(),
             "projectionDigest": mind.as_ref().map(|mind| mind.projection_digest.as_str()),
         },
-        "scene": {"threadId": thread_id, "scene": scene},
         "pressure": {"threadId": thread_id, "source": "native", "pressure": pressure},
         "reorient": {
             "threadId": thread_id,
@@ -246,7 +228,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
             },
         },
         "roles": {"threadId": thread_id, "source": "native", "roles": roles},
-        "planning": planning,
         "currentWork": current_work,
         "frontierPlanning": {
             "lifecycle": planning_lifecycle,
@@ -256,7 +237,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         "roleResults": role_results,
         "reorientResult": reorient_result,
         "crrc": {"threadId": thread_id, "source": "native", "recommendation": recommendation},
-        "coordinator": coordinator_json,
+        "coordinator": coordinator,
         "tools": tools,
     })))
 }
@@ -312,59 +293,27 @@ fn native_role_result(
     result
 }
 
-fn keyed_reorientation_result_status(
-    runtime_store: &Path,
-    work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
-    accepted_decision_present: bool,
-) -> Result<EpiphanyCrrcResultStatus> {
-    let Some(work) = work else {
-        return Ok(if accepted_decision_present {
-            EpiphanyCrrcResultStatus::Completed
-        } else {
-            EpiphanyCrrcResultStatus::MissingBinding
-        });
-    };
-    let Some(job_id) = work.attempt.job_id.as_deref() else {
-        return Ok(EpiphanyCrrcResultStatus::MissingBinding);
-    };
-    let snapshot = runtime_job_snapshot(runtime_store, job_id)?
-        .ok_or_else(|| anyhow!("keyed reorientation work lost its runtime job"))?;
-    Ok(match snapshot.job.status {
-        EpiphanyRuntimeJobStatus::Queued => EpiphanyCrrcResultStatus::Pending,
-        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
-            EpiphanyCrrcResultStatus::Running
-        }
-        EpiphanyRuntimeJobStatus::Completed => EpiphanyCrrcResultStatus::Completed,
-        EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
-        EpiphanyRuntimeJobStatus::Cancelled => EpiphanyCrrcResultStatus::Cancelled,
-    })
-}
-
 fn keyed_reorientation_recommendation(
     work: Option<&epiphany_core::EpiphanyReorientationWorkProjection>,
     accepted: Option<&epiphany_core::EpiphanyMindReorientationDecisionDocument>,
     should_prepare_compaction: bool,
 ) -> EpiphanyCrrcRecommendation {
-    let build = |action, scene, reason: &str| EpiphanyCrrcRecommendation {
+    let build = |action, reason: &str| EpiphanyCrrcRecommendation {
         action,
-        recommended_scene_action: scene,
         reason: reason.into(),
     };
     if let Some(work) = work {
         return match work.attempt.action {
             EpiphanyAgentPassContinuationAction::Launch => build(
                 EpiphanyCrrcAction::LaunchReorientWorker,
-                Some(EpiphanyCrrcSceneAction::ReorientLaunch),
                 "The exact keyed continuity request has no live attempt.",
             ),
             EpiphanyAgentPassContinuationAction::Wait => build(
                 EpiphanyCrrcAction::WaitForReorientWorker,
-                Some(EpiphanyCrrcSceneAction::ReorientResult),
                 "The exact keyed continuity attempt is still live.",
             ),
             EpiphanyAgentPassContinuationAction::Review => build(
                 EpiphanyCrrcAction::ReviewReorientResult,
-                Some(EpiphanyCrrcSceneAction::ReorientResult),
                 "The exact keyed continuity result awaits admission.",
             ),
         };
@@ -372,20 +321,17 @@ fn keyed_reorientation_recommendation(
     if should_prepare_compaction {
         return build(
             EpiphanyCrrcAction::LaunchReorientWorker,
-            Some(EpiphanyCrrcSceneAction::ReorientLaunch),
             "Context pressure requires a new keyed continuity request.",
         );
     }
     if accepted.is_some_and(|decision| decision.mode == "regather") {
         return build(
             EpiphanyCrrcAction::RegatherManually,
-            Some(EpiphanyCrrcSceneAction::Reorient),
             "The accepted keyed continuity decision requires explicit regather.",
         );
     }
     build(
         EpiphanyCrrcAction::Continue,
-        Some(EpiphanyCrrcSceneAction::Reorient),
         "No unresolved keyed reorientation obligation exists.",
     )
 }
@@ -426,20 +372,6 @@ fn native_tool_invocation_surface(runtime_store: &Path) -> Result<Value> {
         },
         "invocations": epiphany_core::runtime_tool_invocation_statuses(runtime_store)?,
     }))
-}
-
-fn coordinator_status_json(status: &EpiphanyCoordinatorStatus) -> Result<Value> {
-    let mut value = serde_json::to_value(status).context("failed to encode coordinator status")?;
-    let decision = value
-        .get("decision")
-        .cloned()
-        .ok_or_else(|| anyhow!("coordinator status encoded without decision"))?;
-    if let (Value::Object(root), Value::Object(decision)) = (&mut value, decision) {
-        for (key, item) in decision {
-            root.entry(key).or_insert(item);
-        }
-    }
-    Ok(value)
 }
 
 pub fn render_status(status: &Value) -> String {

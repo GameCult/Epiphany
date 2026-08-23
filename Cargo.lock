@@ -2217,7 +2217,6 @@ dependencies = [
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
  "epiphany-openai-runtime",
- "epiphany-self-policy",
  "epiphany-state-model",
  "epiphany-tool-adapter",
  "epiphany-tool-mcp-runtime",
@@ -2257,16 +2256,6 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "uuid",
-]
-
-[[package]]
-name = "epiphany-self-policy"
-version = "0.1.0"
-dependencies = [
- "epiphany-core",
- "epiphany-state-model",
- "pretty_assertions",
- "serde",
 ]
 
 [[package]]

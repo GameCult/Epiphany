@@ -1,11 +1,5 @@
 use std::sync::OnceLock;
 
-use crate::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
-use crate::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
-use crate::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
-use crate::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
-use crate::EpiphanyPressure;
-use crate::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use crate::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use crate::EpiphanyRoleResultRoleId;
 
@@ -795,12 +789,7 @@ Durable state changes belong only to the declared typed family outcome and its i
 pub struct EpiphanySpecialistPromptConfig {
     pub shared: EpiphanySharedPromptConfig,
     pub roles: EpiphanyRolePromptConfig,
-    // Parsed here so the bundled prompt config fails fast even though the GUI runner consumes it.
-    #[allow(dead_code)]
-    pub implementation: EpiphanyImplementationPromptConfig,
     pub reorientation: EpiphanyReorientationPromptConfig,
-    pub coordinator: EpiphanyCoordinatorPromptConfig,
-    pub crrc: EpiphanyCrrcPromptConfig,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -821,25 +810,9 @@ pub struct EpiphanyRolePromptConfig {
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub struct EpiphanyImplementationPromptConfig {
-    #[allow(dead_code)]
-    pub continue_template: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
 pub struct EpiphanyReorientationPromptConfig {
     pub resume: String,
     pub regather: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanyCoordinatorPromptConfig {
-    pub note_template: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct EpiphanyCrrcPromptConfig {
-    pub pre_compaction_checkpoint_intervention: String,
 }
 
 pub fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
@@ -898,78 +871,6 @@ pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAc
     epiphany_worker_prompt(body)
 }
 
-pub fn render_epiphany_coordinator_note(
-    crrc_action: CoreEpiphanyCrrcAction,
-    pressure_level: CoreEpiphanyPressureLevel,
-    modeling_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
-    verification_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
-    reorient_result_status: CoreEpiphanyCrrcResultStatus,
-    coordinator_action: CoreEpiphanyCoordinatorAction,
-) -> String {
-    let template = epiphany_agent_prompt_with_memory(
-        &epiphany_specialist_prompt_config()
-            .coordinator
-            .note_template,
-    );
-    template
-        .trim()
-        .replace("{crrc_action}", &format!("{crrc_action:?}"))
-        .replace("{pressure_level}", &format!("{pressure_level:?}"))
-        .replace(
-            "{modeling_result_status}",
-            &format!("{modeling_result_status:?}"),
-        )
-        .replace(
-            "{verification_result_status}",
-            &format!("{verification_result_status:?}"),
-        )
-        .replace(
-            "{reorient_result_status}",
-            &format!("{reorient_result_status:?}"),
-        )
-        .replace("{coordinator_action}", &format!("{coordinator_action:?}"))
-}
-
-pub fn render_epiphany_pre_compaction_checkpoint_intervention(
-    pressure: &EpiphanyPressure,
-) -> String {
-    let usage = match (
-        pressure.used_tokens,
-        pressure.remaining_tokens,
-        pressure.ratio_per_mille,
-    ) {
-        (Some(used), Some(remaining), Some(ratio)) => format!(
-            "{used} tokens used, {remaining} remaining, {}.{}% of the selected limit",
-            ratio / 10,
-            ratio % 10
-        ),
-        (Some(used), _, _) => format!("{used} tokens used"),
-        _ => "token usage known only as a pressure threshold crossing".to_string(),
-    };
-    let template = epiphany_agent_prompt_with_memory(
-        &epiphany_specialist_prompt_config()
-            .crrc
-            .pre_compaction_checkpoint_intervention,
-    );
-    template
-        .trim()
-        .replace(
-            "{pressure_level}",
-            core_pressure_level_label(pressure.level),
-        )
-        .replace("{usage}", &usage)
-}
-
-fn core_pressure_level_label(level: CoreEpiphanyPressureLevel) -> &'static str {
-    match level {
-        CoreEpiphanyPressureLevel::Unknown => "unknown",
-        CoreEpiphanyPressureLevel::Low => "low",
-        CoreEpiphanyPressureLevel::Elevated => "elevated",
-        CoreEpiphanyPressureLevel::High => "high",
-        CoreEpiphanyPressureLevel::Critical => "critical",
-    }
-}
-
 pub fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut unique = Vec::new();
     extend_unique_strings(&mut unique, values);
@@ -996,50 +897,6 @@ mod tests {
                 ["maxItems"],
             crate::admitted_model_direction_consideration::MAX_OPTION_DRAFTS
         );
-    }
-
-    #[test]
-    fn bundled_epiphany_agent_prompts_do_not_name_codex_as_prompt_authority() {
-        let prompts = epiphany_specialist_prompt_config();
-        let rendered = [
-            (
-                "shared.persistent_memory",
-                prompts.shared.persistent_memory.as_str(),
-            ),
-            ("roles.imagination", prompts.roles.imagination.as_str()),
-            ("roles.mind", prompts.roles.mind.as_str()),
-            ("roles.modeling", prompts.roles.modeling.as_str()),
-            ("roles.verification", prompts.roles.verification.as_str()),
-            ("roles.research", prompts.roles.research.as_str()),
-            ("roles.persona", prompts.roles.persona.as_str()),
-            (
-                "implementation.continue_template",
-                prompts.implementation.continue_template.as_str(),
-            ),
-            (
-                "reorientation.resume",
-                prompts.reorientation.resume.as_str(),
-            ),
-            (
-                "reorientation.regather",
-                prompts.reorientation.regather.as_str(),
-            ),
-            (
-                "coordinator.note_template",
-                prompts.coordinator.note_template.as_str(),
-            ),
-            (
-                "crrc.pre_compaction_checkpoint_intervention",
-                prompts.crrc.pre_compaction_checkpoint_intervention.as_str(),
-            ),
-        ];
-
-        for (name, prompt) in rendered {
-            assert!(
-                !prompt.contains("Codex"),
-                "{name} must stay Epiphany-owned and Codex-free"
-            );
-        }
     }
 
     #[test]

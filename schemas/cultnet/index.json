@@ -302,17 +302,6 @@
       "path": "epiphany.cultmesh.operator-run-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.scene_surface.v0",
-      "documentType": "epiphany.surface.scene",
-      "title": "Epiphany scene",
-      "path": "epiphany.surface.scene.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.freshness.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -390,17 +379,6 @@
       "path": "epiphany.surface.jobs.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.roles.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.roles_surface.v0",
-      "documentType": "epiphany.surface.roles",
-      "title": "Epiphany roles",
-      "path": "epiphany.surface.roles.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.role-result.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -421,28 +399,6 @@
       "documentType": "epiphany.surface.reorient_result",
       "title": "Epiphany reorient-result",
       "path": "epiphany.surface.reorient-result.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.planning.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.planning_surface.v0",
-      "documentType": "epiphany.surface.planning",
-      "title": "Epiphany planning",
-      "path": "epiphany.surface.planning.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.coordinator.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.coordinator_surface.v0",
-      "documentType": "epiphany.surface.coordinator",
-      "title": "Epiphany coordinator",
-      "path": "epiphany.surface.coordinator.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.persona.schema.json",

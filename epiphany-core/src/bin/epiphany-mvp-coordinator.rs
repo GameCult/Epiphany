@@ -2028,9 +2028,6 @@ fn apply_manual_regather_approval(action: &str, coordinator: &mut Value) -> Resu
         ));
     }
     coordinator["action"] = Value::String("launchResearch".to_string());
-    coordinator["canAutoRun"] = Value::Bool(true);
-    coordinator["requiresReview"] = Value::Bool(false);
-    coordinator["recommendedSceneAction"] = Value::String("roleLaunch".to_string());
     coordinator["reason"] = Value::String(
         "Operator approved the Self-derived manual regather boundary; launch Eyes once through the typed Research lane."
             .to_string(),
@@ -2413,18 +2410,12 @@ mod tests {
     fn operator_can_approve_only_a_self_derived_manual_regather() -> Result<()> {
         let mut coordinator = json!({
             "action": "regatherManually",
-            "canAutoRun": false,
-            "requiresReview": true,
-            "recommendedSceneAction": "roleResult",
         });
         assert_eq!(
             apply_manual_regather_approval("regatherManually", &mut coordinator)?,
             "launchResearch"
         );
         assert_eq!(coordinator["action"], "launchResearch");
-        assert_eq!(coordinator["canAutoRun"], true);
-        assert_eq!(coordinator["requiresReview"], false);
-        assert_eq!(coordinator["recommendedSceneAction"], "roleLaunch");
 
         let mut unrelated = json!({"action": "launchModeling"});
         let error = apply_manual_regather_approval("launchModeling", &mut unrelated)

@@ -996,10 +996,7 @@ pub(crate) fn resident_self_current_work_action(
     let decision = crate::recommend_coordinator_action(crate::EpiphanyCoordinatorInput {
         mind_present: true,
         should_prepare_compaction: false,
-        recommendation: crate::EpiphanyCoordinatorCrrcRecommendation {
-            action: crate::EpiphanyCrrcAction::Continue,
-            recommended_scene_action: None,
-        },
+        crrc_action: crate::EpiphanyCrrcAction::Continue,
         current_work,
     });
     if !matches!(

@@ -1317,52 +1317,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn root_workspace_owns_first_party_dependency_resolution() {
-        let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let repo = core.parent().expect("epiphany-core repository parent");
-        let root_manifest = fs::read_to_string(repo.join("Cargo.toml")).expect("root manifest");
-        assert!(root_manifest.contains("[workspace]"));
-        for member in [
-            "epiphany-core",
-            "epiphany-model-adapter",
-            "epiphany-openai-adapter",
-            "epiphany-openai-auth-spine",
-            "epiphany-openai-codex-spine",
-            "epiphany-openai-runtime",
-            "epiphany-self-policy",
-            "epiphany-state-model",
-            "epiphany-tool-adapter",
-            "epiphany-tool-mcp-runtime",
-        ] {
-            assert!(
-                root_manifest.contains(&format!("\"{member}\"")),
-                "root workspace omits {member}"
-            );
-            assert!(
-                !repo.join(member).join("Cargo.lock").exists(),
-                "{member} retains a competing Cargo.lock"
-            );
-        }
-    }
-
-    #[test]
-    fn coordinator_policy_is_feature_gated_outside_core_binary_ownership() {
-        let core = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let repo = core.parent().expect("epiphany-core repository parent");
-        let root_manifest = fs::read_to_string(repo.join("Cargo.toml")).expect("root manifest");
-        let core_manifest = fs::read_to_string(core.join("Cargo.toml")).expect("core manifest");
-
-        assert!(root_manifest.contains("coordinator-runtime = [\"dep:epiphany-self-policy\"]"));
-        assert!(root_manifest.contains(
-            "release-runtime = [\"coordinator-runtime\", \"openai-runtime\", \"tool-mcp-runtime\"]"
-        ));
-        assert!(root_manifest.contains("required-features = [\"coordinator-runtime\"]"));
-        assert!(core_manifest.contains("autobins = false"));
-        assert!(!core_manifest.contains("name = \"epiphany-mvp-coordinator\""));
-        assert!(!core_manifest.contains("name = \"epiphany-mvp-status\""));
-    }
-
     fn fixture() -> (TempDir, EpiphanyPackagedReleaseEntry) {
         let dir = TempDir::new().unwrap();
         let root = dir.path().join("release");

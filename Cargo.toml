@@ -7,7 +7,6 @@ members = [
     "epiphany-openai-codex-spine",
     "epiphany-openai-runtime",
     "epiphany-release-construction",
-    "epiphany-self-policy",
     "epiphany-state-model",
     "epiphany-tool-adapter",
     "epiphany-tool-mcp-runtime",
@@ -36,7 +35,6 @@ epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
-epiphany-self-policy = { path = "epiphany-self-policy", optional = true }
 epiphany-state-model = { path = "epiphany-state-model" }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = true }
@@ -59,10 +57,9 @@ uuid = { version = "1", features = ["serde", "v4"] }
 zeroize = "1"
 
 [features]
-coordinator-runtime = ["dep:epiphany-self-policy"]
 openai-runtime = ["dep:epiphany-openai-runtime"]
 tool-mcp-runtime = ["dep:epiphany-tool-mcp-runtime"]
-release-runtime = ["coordinator-runtime", "openai-runtime", "tool-mcp-runtime"]
+release-runtime = ["openai-runtime", "tool-mcp-runtime"]
 
 [profile.release]
 incremental = true
@@ -159,12 +156,10 @@ path = "epiphany-core/src/bin/epiphany-persona-discord-permit-identity.rs"
 [[bin]]
 name = "epiphany-mvp-coordinator"
 path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
-required-features = ["coordinator-runtime"]
 
 [[bin]]
 name = "epiphany-mvp-status"
 path = "epiphany-core/src/bin/epiphany-mvp-status.rs"
-required-features = ["coordinator-runtime"]
 
 [[bin]]
 name = "epiphany-frontier-proposal"

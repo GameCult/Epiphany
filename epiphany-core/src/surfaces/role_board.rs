@@ -1,6 +1,4 @@
-use super::{
-    EpiphanyCoordinatorRoleId, EpiphanyCoordinatorRoleStatus, EpiphanyCoordinatorSceneAction,
-};
+use super::EpiphanyCoordinatorRoleStatus;
 use crate::{
     EpiphanyAgentPassContinuationAction, EpiphanyCurrentWorkProjection,
     RepoFrontierPlanningLifecycleStage, RepoFrontierResearchContinuationAction,
@@ -16,37 +14,28 @@ pub struct EpiphanyRoleBoardInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardLane {
-    pub id: EpiphanyCoordinatorRoleId,
     pub title: String,
-    pub owner_role: String,
     pub status: EpiphanyCoordinatorRoleStatus,
     pub note: String,
-    pub authority_scopes: Vec<String>,
-    pub recommended_action: Option<EpiphanyCoordinatorSceneAction>,
 }
 
 pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoardLane> {
     let missing = !input.mind_present;
-    let lane =
-        |id, title: &str, owner_role: &str, status, note: &str, scope: &str, recommended_action| {
-            EpiphanyRoleBoardLane {
-                id,
-                title: title.into(),
-                owner_role: owner_role.into(),
-                status: if missing {
-                    EpiphanyCoordinatorRoleStatus::Blocked
-                } else {
-                    status
-                },
-                note: if missing {
-                    "Canonical keyed Mind is missing.".into()
-                } else {
-                    note.into()
-                },
-                authority_scopes: vec![scope.into()],
-                recommended_action,
-            }
-        };
+    let lane = |title: &str, status, note: &str| {
+        EpiphanyRoleBoardLane {
+            title: title.into(),
+            status: if missing {
+                EpiphanyCoordinatorRoleStatus::Blocked
+            } else {
+                status
+            },
+            note: if missing {
+                "Canonical keyed Mind is missing.".into()
+            } else {
+                note.into()
+            },
+        }
+    };
 
     let modeling_action = input
         .current_work
@@ -67,9 +56,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
 
     vec![
         lane(
-            EpiphanyCoordinatorRoleId::Implementation,
             "Hands / Implementation",
-            "epiphany-hands",
             if input.current_work.hands_frontier_ready {
                 EpiphanyCoordinatorRoleStatus::Ready
             } else {
@@ -80,54 +67,27 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             } else {
                 "No exact actionable Hands route exists."
             },
-            "epiphany.hands.route",
-            None,
         ),
         lane(
-            EpiphanyCoordinatorRoleId::Imagination,
             "Imagination / Planning",
-            "epiphany-imagination",
             planning_or_consideration_status(
                 input.current_work.frontier_planning.stage,
                 imagination_action,
             ),
             "Status derives from exact planning and consideration obligations.",
-            "epiphany.imagination.current_work",
-            action_scene(imagination_action),
         ),
         lane(
-            EpiphanyCoordinatorRoleId::Research,
             "Eyes / Research",
-            "epiphany-eyes",
             research_status(input.current_work.research.continuation_action()),
             "Eyes runs only for an explicit external-evidence obligation.",
-            "epiphany.eyes.current_work",
-            input
-                .current_work
-                .research
-                .continuation_action()
-                .map(|action| match action {
-                    RepoFrontierResearchContinuationAction::LaunchResearch => {
-                        EpiphanyCoordinatorSceneAction::RoleLaunch
-                    }
-                    RepoFrontierResearchContinuationAction::ReviewResearchResult => {
-                        EpiphanyCoordinatorSceneAction::RoleResult
-                    }
-                }),
         ),
         lane(
-            EpiphanyCoordinatorRoleId::Modeling,
             "Modeling / Body Map",
-            "epiphany-modeling",
             continuation_status(modeling_action),
             "Status derives from exact Body, proposal, or Soul-verdict Modeling work.",
-            "epiphany.modeling.current_work",
-            action_scene(modeling_action),
         ),
         lane(
-            EpiphanyCoordinatorRoleId::Verification,
             "Soul / Verification",
-            "epiphany-soul",
             continuation_status(
                 input
                     .current_work
@@ -136,19 +96,9 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .map(|work| work.attempt.action),
             ),
             "Verification consumes exact Hands consequences and invariant obligations.",
-            "epiphany.soul.current_work",
-            action_scene(
-                input
-                    .current_work
-                    .verification
-                    .as_ref()
-                    .map(|work| work.attempt.action),
-            ),
         ),
         lane(
-            EpiphanyCoordinatorRoleId::Reorientation,
             "Continuity / Reorientation",
-            "epiphany-continuity",
             continuation_status(
                 input
                     .current_work
@@ -157,14 +107,6 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                     .map(|work| work.attempt.action),
             ),
             "Status derives from the exact keyed continuity obligation.",
-            "epiphany.continuity.current_work",
-            action_scene(
-                input
-                    .current_work
-                    .reorientation
-                    .as_ref()
-                    .map(|work| work.attempt.action),
-            ),
         ),
     ]
 }
@@ -189,21 +131,6 @@ fn continuation_status(
         Some(EpiphanyAgentPassContinuationAction::Wait) => EpiphanyCoordinatorRoleStatus::Running,
         Some(EpiphanyAgentPassContinuationAction::Review) => EpiphanyCoordinatorRoleStatus::Review,
         None => EpiphanyCoordinatorRoleStatus::Ready,
-    }
-}
-
-fn action_scene(
-    action: Option<EpiphanyAgentPassContinuationAction>,
-) -> Option<EpiphanyCoordinatorSceneAction> {
-    match action {
-        Some(EpiphanyAgentPassContinuationAction::Launch) => {
-            Some(EpiphanyCoordinatorSceneAction::RoleLaunch)
-        }
-        Some(EpiphanyAgentPassContinuationAction::Wait)
-        | Some(EpiphanyAgentPassContinuationAction::Review) => {
-            Some(EpiphanyCoordinatorSceneAction::RoleResult)
-        }
-        None => None,
     }
 }
 
