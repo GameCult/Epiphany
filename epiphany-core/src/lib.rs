@@ -4,6 +4,7 @@ mod causal_work_identity;
 mod continuity_gateway;
 mod coordinator_objective_intake;
 mod coordinator_results;
+pub mod coordinator_status;
 mod cultmesh_integration;
 mod current_work;
 mod eyes_gateway;

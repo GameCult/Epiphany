@@ -114,7 +114,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             file_name("epiphany-persona-discord-permit-identity"),
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
-        ("coordinator-status", file_name("epiphany-mvp-status")),
         ("frontier-proposal", file_name("epiphany-frontier-proposal")),
         ("hands-action", file_name("epiphany-hands-action")),
         ("model-runtime", file_name("epiphany-model-runtime")),
@@ -1175,10 +1174,6 @@ mod tests {
         assert!(
             args.windows(2)
                 .any(|pair| pair == ["--bin", "epiphany-mvp-coordinator"])
-        );
-        assert!(
-            args.windows(2)
-                .any(|pair| pair == ["--bin", "epiphany-mvp-status"])
         );
         assert!(
             args.windows(2)

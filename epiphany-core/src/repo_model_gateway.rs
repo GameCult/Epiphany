@@ -12,18 +12,17 @@
 //!    or holds the candidate through `RepoFrontierPlanDecisionReceipt`.
 //! 4. Only an adopted decision may be embedded in `RepoFrontierRoute` by
 //!    `runtime_spine::select_and_commit_repo_frontier_route`. Route selection
-//!    binds the current admitted model revision, admission receipt, frontier
-//!    hash, and repository scope in one compare-and-swap operation.
+//!    binds the exact keyed frontier and decision documents in one atomic
+//!    compare-and-swap operation.
 //! 5. Hands remains powerless until the coordinator pairs that route with a
 //!    reviewed Hands intent, Substrate Gate receipt, and
 //!    `RepoFrontierHandsAuthority`. Hands receipts describe consequences; they
 //!    do not admit durable Mind state.
-//! 6. Soul verifies the exact route and consequence. Coordinator acceptance
-//!    applies reviewed state effects through the atomic coordinator state
-//!    transaction; no worker, Hands receipt, or status projection is a second
-//!    admission owner.
+//! 6. Soul verifies the exact route and consequence. The concrete family
+//!    admission owner commits its keyed documents and receipt through Mind CAS;
+//!    no worker, Hands receipt, coordinator display, or event is a second owner.
 //! 7. Hands refusal terminates in `RepoFrontierRelinquishmentReceipt`, while
-//!    Continuity receipts preserve recovery facts. `epiphany-mvp-status` and
+//!    Continuity receipts preserve recovery facts. Coordinator status and
 //!    CultMesh surfaces only project these admitted outcomes.
 //!
 //! If a required identity or authority is absent at any step, the chain stops.

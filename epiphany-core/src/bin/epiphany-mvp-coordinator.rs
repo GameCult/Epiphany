@@ -29,6 +29,7 @@ use epiphany_core::substrate_gate_coordinator_implementation_grant;
 use epiphany_core::{
     LaunchedCoordinator, capture_process_instance, claim_resident_self_preparation_as_child,
 };
+use epiphany_core::coordinator_status as status_projection;
 use serde_json::Value;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -50,10 +51,6 @@ const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const DETACHED_PROCESS: u32 = 0x0000_0008;
-
-#[allow(dead_code)]
-#[path = "epiphany-mvp-status.rs"]
-mod status_cli;
 
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-mcp-runtime";
@@ -282,19 +279,19 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             ));
         }
     };
-    let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
+    let local_verse_store = status_projection::absolute_path(&args.local_verse_store)?;
     assert_local_verse_brake_released(
         &local_verse_store,
         args.runtime_id.as_deref().expect("validated runtime id"),
         "epiphany-mvp-coordinator",
     )?;
-    let cwd = status_cli::absolute_path(&args.cwd)?;
+    let cwd = status_projection::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
-    let codex_home = status_cli::absolute_path(&args.codex_home)?;
-    let mcp_config = status_cli::absolute_path(&args.mcp_config)?;
-    let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
-    let runtime_store = status_cli::absolute_path(&args.runtime_store)?;
+    let codex_home = status_projection::absolute_path(&args.codex_home)?;
+    let mcp_config = status_projection::absolute_path(&args.mcp_config)?;
+    let artifact_dir = status_projection::absolute_path(&args.artifact_dir)?;
+    let runtime_store = status_projection::absolute_path(&args.runtime_store)?;
     reset_artifact_dir(&artifact_dir)?;
     fs::create_dir_all(&codex_home)?;
 
@@ -429,7 +426,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "type": "imaginationConsiderationLaunch",
                 "requestId": request_id,
                 "runtimeJobId": worker_job_id,
-                "launch": status_cli::sanitize_for_operator(operator_launch),
+                "launch": status_projection::sanitize_for_operator(operator_launch),
                 "worker": worker_run,
                 "authority": "proposal-only"
             }));
@@ -560,7 +557,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             let snapshot_name = format!("step-{index:02}-{action}.txt");
             fs::write(
                 artifact_dir.join(&snapshot_name),
-                status_cli::render_status(&status_cli::sanitize_for_operator(status.clone())),
+                status_projection::render_status(&status_projection::sanitize_for_operator(status.clone())),
             )?;
             snapshots.push(snapshot_name);
             let mut step = json!({
@@ -636,7 +633,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     )?;
                     push_event(
                         &mut step,
-                        json!({"type": "frontierPlanningFailureReview", "review": status_cli::sanitize_for_operator(serde_json::to_value(reviewed)?)}),
+                        json!({"type": "frontierPlanningFailureReview", "review": status_projection::sanitize_for_operator(serde_json::to_value(reviewed)?)}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 }
@@ -953,7 +950,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     let result = read_reorient_result(&runtime_store, &thread_id)?;
                     push_event(
                         &mut step,
-                        json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
+                        json!({"type": "reorientResult", "result": status_projection::sanitize_for_operator(result.clone())}),
                     );
                     if !matches!(
                         result["status"].as_str(),
@@ -969,7 +966,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         let recorded = accept_reorient(&runtime_store)?;
                         push_event(
                             &mut step,
-                            json!({"type": "reorientFailureRecorded", "recorded": status_cli::sanitize_for_operator(recorded)}),
+                            json!({"type": "reorientFailureRecorded", "recorded": status_projection::sanitize_for_operator(recorded)}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;
@@ -981,7 +978,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         let accepted = accept_reorient(&runtime_store)?;
                         push_event(
                             &mut step,
-                            json!({"type": "reorientAccept", "accepted": status_cli::sanitize_for_operator(accepted)}),
+                            json!({"type": "reorientAccept", "accepted": status_projection::sanitize_for_operator(accepted)}),
                         );
                         final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                         append_operator_step_jsonl(&steps_path, &step)?;
@@ -1197,7 +1194,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,
-                        json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
+                        json!({"type": "roleLaunch", "roleId": role_id, "launch": status_projection::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                     );
                     let worker_run = launch_worker_runtime_detached(
                         &model_runtime_bin,
@@ -1236,7 +1233,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     };
                     push_event(
                         &mut step,
-                        json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
+                        json!({"type": "roleResult", "roleId": role_id, "result": status_projection::sanitize_for_operator(result.clone())}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                     if !matches!(
@@ -1268,7 +1265,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     let worker_job_id = worker_job_id_from_launch(&launch)?;
                     push_event(
                         &mut step,
-                        json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
+                        json!({"type": "reorientLaunch", "launch": status_projection::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                     );
                     let worker_run = launch_worker_runtime_detached(
                         &model_runtime_bin,
@@ -1295,7 +1292,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     let result = read_reorient_result(&runtime_store, &thread_id)?;
                     push_event(
                         &mut step,
-                        json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
+                        json!({"type": "reorientResult", "result": status_projection::sanitize_for_operator(result.clone())}),
                     );
                     final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                     if !matches!(
@@ -1322,9 +1319,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             steps.push(step);
         }
 
-        let operator_final_status = status_cli::sanitize_for_operator(final_status);
-        let final_rendered = status_cli::render_status(&operator_final_status);
-        let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
+        let operator_final_status = status_projection::sanitize_for_operator(final_status);
+        let final_rendered = status_projection::render_status(&operator_final_status);
+        let operator_steps = status_projection::sanitize_for_operator(Value::Array(steps));
         let artifact_manifest = vec![
             "coordinator-summary.json".to_string(),
             "coordinator-steps.jsonl".to_string(),
@@ -1405,7 +1402,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "startupEvents": startup_events,
             "steps": operator_steps,
             "snapshots": snapshots,
-            "finalAction": status_cli::sanitize_for_operator(final_action),
+            "finalAction": status_projection::sanitize_for_operator(final_action),
             "finalStatus": operator_final_status,
             "coordinatorRunReceipt": {
                 "documentType": COORDINATOR_RUN_RECEIPT_TYPE,
@@ -1557,12 +1554,12 @@ fn assert_local_verse_brake_released(
 }
 
 fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<Value> {
-    status_cli::native_coordinator_json(runtime_store, thread_id)
+    status_projection::native_coordinator_json(runtime_store, thread_id)
 }
 
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
     if configured.components().count() != 1 {
-        return status_cli::absolute_path(configured);
+        return status_projection::absolute_path(configured);
     }
     let exe_name = format!("{}.exe", configured.display());
     let cargo_target_candidate = env::var_os("CARGO_TARGET_DIR")
@@ -2188,7 +2185,7 @@ fn append_jsonl(path: &Path, value: &Value) -> Result<()> {
 }
 
 fn append_operator_step_jsonl(path: &Path, step: &Value) -> Result<()> {
-    append_jsonl(path, &status_cli::sanitize_for_operator(step.clone()))
+    append_jsonl(path, &status_projection::sanitize_for_operator(step.clone()))
 }
 
 fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {

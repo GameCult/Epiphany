@@ -1,16 +1,15 @@
-use anyhow::{Context, Result, anyhow};
-use epiphany_core::{
+use anyhow::{Context, Result};
+use crate::{
     EpiphanyCoordinatorInput, EpiphanyCrrcAction, EpiphanyCurrentWorkProjection,
     EpiphanyRoleBoardInput, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
     RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage, derive_role_board,
 };
 use serde_json::{Value, json};
 use std::{
-    env, fs,
+    env,
     path::{Path, PathBuf},
 };
 
-const DEFAULT_COORDINATOR_STORE: &str = "state/runtime-spine.msgpack";
 const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
     "rawResult",
     "turns",
@@ -21,83 +20,12 @@ const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
 const SEALED_LONG_TEXT_KEYS: &[&str] = &["note"];
 const MAX_OPERATOR_TEXT_CHARS: usize = 1200;
 
-fn main() -> Result<()> {
-    let args = Args::parse()?;
-    let status = run_status(&args)?;
-    if let Some(result) = &args.result {
-        if let Some(parent) = result.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-        fs::write(
-            result,
-            format!("{}\n", serde_json::to_string_pretty(&status)?),
-        )
-        .with_context(|| format!("failed to write {}", result.display()))?;
-    }
-    if args.json {
-        println!("{}", serde_json::to_string_pretty(&status)?);
-    } else {
-        print!("{}", render_status(&status));
-    }
-    Ok(())
-}
-
-#[derive(Debug)]
-struct Args {
-    thread_id: Option<String>,
-    store: PathBuf,
-    json: bool,
-    result: Option<PathBuf>,
-}
-
-impl Args {
-    fn parse() -> Result<Self> {
-        let mut args = env::args().skip(1);
-        let mut parsed = Self {
-            thread_id: None,
-            store: PathBuf::from(DEFAULT_COORDINATOR_STORE),
-            json: false,
-            result: None,
-        };
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
-                "--store" => parsed.store = take_path(&mut args, "--store")?,
-                "--json" => parsed.json = true,
-                "--result" => parsed.result = Some(take_path(&mut args, "--result")?),
-                _ => return Err(anyhow!("unknown argument: {arg}")),
-            }
-        }
-        Ok(parsed)
-    }
-}
-
-fn run_status(args: &Args) -> Result<Value> {
-    run_native_status(args)
-}
-
 pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<Value> {
-    run_native_status(
-        &Args {
-            thread_id: Some(thread_id.to_string()),
-            store: runtime_store.to_path_buf(),
-            json: true,
-            result: None,
-        },
-    )
-}
-
-fn run_native_status(args: &Args) -> Result<Value> {
-    let store_path = absolute_path(&args.store)?;
-    let thread_id = args
-        .thread_id
-        .clone()
-        .unwrap_or_else(|| "native-local".to_string());
+    let store_path = absolute_path(runtime_store)?;
 
     let mind = if store_path.exists() {
         Some(
-            epiphany_core::assemble_mind_view(&store_path).with_context(|| {
+            crate::assemble_mind_view(&store_path).with_context(|| {
                 format!("failed to assemble keyed Mind {}", store_path.display())
             })?,
         )
@@ -105,7 +33,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         None
     };
     let current_work = if mind.is_some() {
-        epiphany_core::project_current_work(&store_path)
+        crate::project_current_work(&store_path)
             .context("failed to derive current work from keyed Mind and runtime receipts")?
     } else {
         empty_current_work()
@@ -113,19 +41,18 @@ fn run_native_status(args: &Args) -> Result<Value> {
     let latest_reorientation_decision = mind
         .as_ref()
         .and_then(|mind| mind.reorientation_decisions.last());
-    let crrc_action = if latest_reorientation_decision
-        .is_some_and(|decision| decision.mode == "regather")
-    {
-        EpiphanyCrrcAction::RegatherManually
-    } else {
-        EpiphanyCrrcAction::Continue
-    };
+    let crrc_action =
+        if latest_reorientation_decision.is_some_and(|decision| decision.mode == "regather") {
+            EpiphanyCrrcAction::RegatherManually
+        } else {
+            EpiphanyCrrcAction::Continue
+        };
 
     let roles = derive_role_board(EpiphanyRoleBoardInput {
         mind_present: mind.is_some(),
         current_work: current_work.clone(),
     });
-    let coordinator = epiphany_core::recommend_coordinator_action(EpiphanyCoordinatorInput {
+    let coordinator = crate::recommend_coordinator_action(EpiphanyCoordinatorInput {
         mind_present: mind.is_some(),
         crrc_action,
         current_work: current_work.clone(),
@@ -256,15 +183,6 @@ fn maybe(value: &Value, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
-fn take_string(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<String> {
-    args.next()
-        .ok_or_else(|| anyhow!("{flag} requires a value"))
-}
-
-fn take_path(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<PathBuf> {
-    Ok(PathBuf::from(take_string(args, flag)?))
-}
-
 pub fn absolute_path(path: &Path) -> Result<PathBuf> {
     if path.is_absolute() {
         return Ok(path.to_path_buf());
@@ -287,5 +205,4 @@ mod tests {
         assert!(sanitized.get("rawResult").is_none());
         assert_eq!(sanitized["decision"]["action"], "continue");
     }
-
 }

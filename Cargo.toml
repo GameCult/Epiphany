@@ -135,10 +135,6 @@ name = "epiphany-mvp-coordinator"
 path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
 
 [[bin]]
-name = "epiphany-mvp-status"
-path = "epiphany-core/src/bin/epiphany-mvp-status.rs"
-
-[[bin]]
 name = "epiphany-frontier-proposal"
 path = "epiphany-core/src/bin/epiphany-frontier-proposal.rs"
 
