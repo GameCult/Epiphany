@@ -463,7 +463,7 @@ owns only `epiphany-prepare-compaction`; the release bundle owns 25 runtime
 executables. Focused core, supervisor, and release-construction tests pass
 493/493, 32/32, and 21/21.
 
-The current third cut deletes the agent-memory migration, repair, lifecycle,
+Exact `bf516f99` deletes the agent-memory migration, repair, lifecycle,
 trait-seed, and SoA authorities with the tests that preserved them. It also
 deletes the second CultMesh SoA mirror, its timestamp-selected latest head, and
 its prompt injection. Persona now reads learned memory only from keyed
