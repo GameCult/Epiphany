@@ -35,9 +35,7 @@ use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const REPO_FRONTIER_ROUTE_TYPE: &str = "epiphany.self.repo_frontier_route";
 pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v2";
-pub const REPO_FRONTIER_HANDS_AUTHORITY_TYPE: &str = "epiphany.hands.repo_frontier_authority";
 pub const REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION: &str =
     "epiphany.hands.repo_frontier_authority.v0";
 pub const REPO_FRONTIER_ROUTE_CONTRACT: &str = "epiphany.repo_frontier_route.v2";
@@ -49,8 +47,6 @@ pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_relinquishment_receipt.v0";
 pub const REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT: &str =
     "epiphany.repo_frontier_relinquishment.v0";
-pub const REPO_FRONTIER_MODELING_REQUEST_TYPE: &str =
-    "epiphany.modeling.repo_frontier_verdict_request";
 pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.modeling.repo_frontier_verdict_request.v1";
 pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
@@ -62,9 +58,7 @@ pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
     "epiphany.imagination.repo_frontier_plan_candidate.v0";
 pub const REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_frontier_plan_decision_receipt.v1";
-pub const LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_frontier_plan_decision_receipt.v0";
+    "epiphany.mind.repo_frontier_plan_decision_receipt.v2";
 pub const REPO_FRONTIER_PLAN_DECISION_CONTRACT: &str = "epiphany.repo_frontier_plan_decision.v0";
 pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v4";
 pub const REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION: &str =
@@ -695,31 +689,27 @@ pub struct RepoFrontierPlanDecisionReceipt {
     #[cultcache(key = 2)]
     pub planning_request_id: String,
     #[cultcache(key = 3)]
-    pub legacy_mind_worker_result_id: Option<String>,
-    #[cultcache(key = 4)]
-    pub legacy_mind_worker_job_id: Option<String>,
-    #[cultcache(key = 5)]
     pub candidate_id: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 4)]
     pub candidate_sha256: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 5)]
     pub model_projection_digest: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 6)]
     pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 9)]
+    #[cultcache(key = 7)]
     pub frontier_item_id: String,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 8)]
     pub frontier_item_hash: String,
-    #[cultcache(key = 11)]
+    #[cultcache(key = 9)]
     pub decision: RepoFrontierPlanDecision,
-    #[cultcache(key = 12)]
+    #[cultcache(key = 10)]
     pub rationale: String,
-    #[cultcache(key = 13)]
+    #[cultcache(key = 11)]
     pub decided_at: String,
-    #[cultcache(key = 14)]
+    #[cultcache(key = 12)]
     pub contract: String,
-    #[cultcache(key = 15, default)]
-    pub decision_source: Option<RepoFrontierPlanDecisionSource>,
+    #[cultcache(key = 13)]
+    pub decision_source: RepoFrontierPlanDecisionSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

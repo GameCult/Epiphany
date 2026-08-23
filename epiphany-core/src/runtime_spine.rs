@@ -7103,8 +7103,6 @@ fn commit_repo_frontier_plan_decision_inner(
         schema_version: REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION.into(),
         decision_id: decision_id.clone(),
         planning_request_id: planning.request_id.clone(),
-        legacy_mind_worker_result_id: None,
-        legacy_mind_worker_job_id: None,
         candidate_id: candidate.candidate_id.clone(),
         candidate_sha256,
         model_projection_digest: planning.model_projection_digest.clone(),
@@ -7115,7 +7113,7 @@ fn commit_repo_frontier_plan_decision_inner(
         rationale,
         decided_at: decided_at.clone(),
         contract: REPO_FRONTIER_PLAN_DECISION_CONTRACT.into(),
-        decision_source: Some(decision_source.clone()),
+        decision_source: decision_source.clone(),
     };
     if let Some(existing) = cache.get::<RepoFrontierPlanDecisionReceipt>(&decision_id)? {
         if existing != receipt {
