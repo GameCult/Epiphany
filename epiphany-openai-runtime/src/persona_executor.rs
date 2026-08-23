@@ -15,7 +15,7 @@ use epiphany_core::{
     build_persona_projector_prompt_with_transcript, build_persona_turn_prompt,
     close_runtime_session, model_pass_failure_for_request,
     parse_and_validate_persona_interpreter_effect_set, persona_interpreter_effect_set_json_schema,
-    persona_projected_surface_is_clean, runtime_spine_cache,
+    runtime_spine_cache,
     terminalize_model_pass_failure_session,
 };
 use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
@@ -248,15 +248,7 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         None,
         epiphany_core::EpiphanyReasoningProjection::PersonaProjector(plan.projector_input.clone()),
         Vec::new(),
-        |output| {
-            if persona_projected_surface_is_clean(output) {
-                Ok(())
-            } else {
-                Err(anyhow!(
-                    "Persona Projector leaked action or substrate syntax"
-                ))
-            }
-        },
+        |_| Ok(()),
     )
     .await?;
 

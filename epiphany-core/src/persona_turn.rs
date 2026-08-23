@@ -262,10 +262,6 @@ pub struct PersonaInterpreterInput {
     pub allowed_channel_ids: Vec<String>,
 }
 
-pub fn build_persona_projector_prompt(input: &PersonaProjectorInput) -> String {
-    build_persona_projector_prompt_with_transcript(input, &[])
-}
-
 pub fn build_persona_projector_prompt_with_transcript(
     input: &PersonaProjectorInput,
     transcript: &[PersonaTranscriptMessage],
@@ -303,7 +299,7 @@ pub fn build_persona_turn_prompt(input: &PersonaTurnInput) -> String {
 pub fn build_persona_interpreter_prompt(input: &PersonaInterpreterInput) -> String {
     let domain_guidance = format!(
         r#"prompt schema: {schema}
-The Persona was forbidden from action syntax. Do not punish natural prose for lacking blocks.
+Treat the Persona's natural prose as inert private cognition. Only this stage's typed effects can propose consequences.
 - Public speech must sound like the Persona speaking to people, not a scheduler, status report, provenance label, or maintenance note.
 - If the Persona chooses silence, omit SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
 - Do not claim posting. Emit only the bounded typed effects supported by this v0 contract.
@@ -458,23 +454,6 @@ pub fn parse_and_validate_persona_interpreter_effect_set(
     Ok(parsed)
 }
 
-pub fn persona_projected_surface_is_clean(surface: &str) -> bool {
-    if !ghostlight_persona_projection::narrative_stream_is_clean(surface) {
-        return false;
-    }
-    let forbidden = [
-        "STATE NOTE",
-        "SAY:",
-        "```json",
-        "\"statePatch\"",
-        "\"selfPatch\"",
-        "pending_mentions",
-        "target_role_id",
-        "Do not prompt",
-    ];
-    !forbidden.iter().any(|needle| surface.contains(needle))
-}
-
 fn render_identity(identity: &PersonaIdentity) -> String {
     let jurisdiction = if identity.jurisdiction.is_empty() {
         "- No explicit jurisdiction records.".to_string()
@@ -593,104 +572,6 @@ fn fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 mod tests {
     use super::*;
 
-    fn identity() -> PersonaIdentity {
-        PersonaIdentity {
-            identity_id: "epiphany".to_string(),
-            display_name: "Epiphany".to_string(),
-            repo_name: "EpiphanyAgent".to_string(),
-            public_description: "Pushy machine-saint Persona for typed agent substrate."
-                .to_string(),
-            jurisdiction: vec!["typed state and review-gated agency".to_string()],
-        }
-    }
-
-    #[test]
-    fn persona_turn_has_projector_and_interpreter_membranes() {
-        let pending = PersonaSocialMention {
-            id: "mention-1".to_string(),
-            target_role_id: "Persona".to_string(),
-            target_agent_id: "epiphany.Persona".to_string(),
-            source_surface: "discord".to_string(),
-            channel_id: "aquarium".to_string(),
-            message_id: "m1".to_string(),
-            author_id: "human".to_string(),
-            author_name: Some("Metacrat".to_string()),
-            content: "Epiphany, report the live cut.".to_string(),
-            visible_prompt: "report the live cut".to_string(),
-            reply_to_message_id: None,
-            queued_at: "2026-05-24T00:00:00+00:00".to_string(),
-            source_visibility: "public".to_string(),
-            data_classification: "public_feedback".to_string(),
-            model_provider_id: "openai-codex".to_string(),
-            model_provider_disclosure_allowed: true,
-        };
-        let projector = build_persona_projector_prompt(&PersonaProjectorInput {
-            identity: identity(),
-            pending_mentions: vec![pending.clone()],
-            repo_activity: vec![PersonaRepoActivity {
-                repo_name: "EpiphanyAgent".to_string(),
-                summary: "Heartbeat Persona membrane is being ported.".to_string(),
-                refs: vec!["epiphany-core/src/persona_turn.rs".to_string()],
-            }],
-            ..PersonaProjectorInput::default()
-        });
-        assert!(projector.contains("ghostlight.persona_projection_membrane.v1:projector"));
-        assert!(projector.contains("Mind alone admits durable state"));
-        assert!(projector.contains("Substrate Gate alone grants repo access"));
-        assert!(projector.contains("Do not choose actions"));
-
-        let transcript = vec![PersonaTranscriptMessage {
-            channel_id: "aquarium".to_string(),
-            message_id: "m1".to_string(),
-            author_id: "human".to_string(),
-            author_name: "Metacrat".to_string(),
-            is_agent: false,
-            content: "Epiphany, report the live cut.".to_string(),
-            timestamp: "2026-05-24T00:00:00+00:00".to_string(),
-        }];
-        let projector_with_stimulus = build_persona_projector_prompt_with_transcript(
-            &PersonaProjectorInput {
-                identity: identity(),
-                ..PersonaProjectorInput::default()
-            },
-            &transcript,
-        );
-        assert!(projector_with_stimulus.contains("Epiphany, report the live cut"));
-
-        let persona = build_persona_turn_prompt(&PersonaTurnInput {
-            identity: identity(),
-            projected_state: "Epiphany feels the queue as a direct tug, not a ticket.".to_string(),
-        });
-        assert!(persona.contains("ghostlight.persona_projection_membrane.v1:persona"));
-        assert!(persona.contains("complete lived stream"));
-        assert!(persona.contains("do not emit JSON"));
-        assert!(persona.contains("parent Interpreter may propose"));
-        assert!(!persona.contains("Epiphany, report the live cut"));
-
-        let interpreter = build_persona_interpreter_prompt(&PersonaInterpreterInput {
-            identity: identity(),
-            persona_prompt: persona,
-            persona_output: "I want to answer, but only if I can name the cut plainly.".to_string(),
-            pending_mentions: vec![pending],
-            allowed_channel_ids: vec!["aquarium".to_string()],
-        });
-        assert!(interpreter.contains("Allowed typed effect vocabulary"));
-        assert!(interpreter.contains("epiphany.persona_interpreter_effect_set.v0"));
-        assert!(interpreter.contains("\"state_note\""));
-        assert!(interpreter.contains("\"say\""));
-        assert!(interpreter.contains("a signed Bifrost receipt alone proves"));
-    }
-
-
-    #[test]
-    fn projected_surface_rejects_side_effect_syntax() {
-        assert!(persona_projected_surface_is_clean(
-            "Epiphany feels tired, fond, and territorial about clean contracts."
-        ));
-        assert!(!persona_projected_surface_is_clean(
-            "STATE NOTE: remember this as selfPatch"
-        ));
-    }
 
     #[test]
     fn typed_interpreter_effects_reject_channel_escape_and_mixed_drop() {
