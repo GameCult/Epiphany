@@ -137,9 +137,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    user proposal intake, generic writer and selector, four source variants,
    constant provenance/privacy/public-source fields, compatibility hash branch,
    and provider schema branching. Mind/runtime epochs advance to v5/v8.
-24. Next: trace the remaining proposal fields against the exact Imagination
-   result, autonomous binding, Modeling request, and final typed prompt. Delete
-   only duplicated or constant cargo; preserve the consequential lifecycle and
-   concurrency proof.
-25. Run focused tests after each cut. Only after source subtraction stabilizes
+24. Done: exact `82f4733d` removes `desired_outcome` (always the proposal
+   body), `scope_hints` (always empty), and `proposed_at` (copied from the exact
+   bound Imagination result) from proposal state, payload identity, and the
+   sealed Modeling projection: 37 net deletions. Mind/runtime epochs are v6/v9.
+25. Next: decide whether proposal repository/workspace/thread/runtime coordinates
+   protect an invariant independent of the atomic Modeling request and
+   autonomous binding. Delete them if they are only checked duplication.
+26. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

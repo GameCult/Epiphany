@@ -358,6 +358,13 @@ cannot leap directly into Hands or arrive with an adopted plan. The runtime
 still validates the exact autonomous chain at launch, fulfillment, admission,
 archive retention, and replay. Mind/runtime writable epochs are v5/v8.
 
+Exact `82f4733d` removes three more values that had no independent meaning:
+`desired_outcome` always repeated the proposal body, `scope_hints` was always
+empty, and `proposed_at` copied the timestamp already retained by the exact
+bound Imagination result. They no longer participate in the durable proposal,
+its content identity, or the sealed Modeling projection. Proposal/context
+schemas are v2/v4 and Mind/runtime writable epochs are v6/v9.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

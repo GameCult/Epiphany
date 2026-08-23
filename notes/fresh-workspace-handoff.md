@@ -1166,6 +1166,16 @@ autonomous binding, Modeling request, and final sealed prompt. Delete only
 constant or duplicated cargo; then resume the public runtime-spine/test-owner
 audit. Ox17 remains paused and no local package/deployment run is authorized.
 
+Exact `82f4733d` completes the constant-field half of that pass. The proposal's
+`desired_outcome` always equaled its body, `scope_hints` was always empty, and
+`proposed_at` merely copied the exact bound Imagination result timestamp. All
+three leave the durable proposal, payload hash, and sealed Modeling projection:
+37 net deletions. Proposal/context schemas advance to v2/v4; Mind/runtime
+writable epochs advance to v6/v9. The exact proposal lifecycle, epoch refusal,
+provider mapping, and strict-schema tests pass. Next inspect whether the
+proposal's repository/workspace/thread/runtime coordinates protect anything
+not already owned by the atomic Modeling request and autonomous binding.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the
