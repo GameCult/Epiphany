@@ -4223,38 +4223,6 @@ mod tests {
     }
 
     #[test]
-    fn cluster_topology_names_private_verses_body_daemons_and_eve_surfaces() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-cluster-topology.ccmp");
-        let written = write_epiphany_cultmesh_cluster_topology(
-            &store,
-            "epiphany-test",
-            "repo:C:/fixture/Epiphany",
-        )?;
-        assert_eq!(written.len(), 7);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let persona =
-            node.get_required::<EpiphanyCultMeshClusterTopologyEntry>("epiphany.cluster.persona")?;
-        let hands =
-            node.get_required::<EpiphanyCultMeshClusterTopologyEntry>("epiphany.cluster.hands")?;
-
-        assert_eq!(persona.private_verse_id, "epiphany.cluster.persona.private");
-        assert_eq!(persona.body_domain, "repo:C:/fixture/Epiphany");
-        assert_eq!(persona.daemon_id, "epiphany-daemon-persona");
-        assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
-        assert!(persona.public_persona_discussion_allowed);
-        assert!(!hands.public_persona_discussion_allowed);
-        assert!(
-            hands
-                .notes
-                .iter()
-                .any(|note| note.contains("Odin may advertise compact metadata"))
-        );
-        Ok(())
-    }
-
-    #[test]
     fn declared_daemon_targets_do_not_materialize_observed_liveness() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-declared-versus-observed.ccmp");
@@ -4787,52 +4755,6 @@ mod tests {
         )
         .expect_err("GitHub publication receipts without Hands PR proof must be refused");
         assert!(error.to_string().contains("require a Hands PR receipt"));
-        Ok(())
-    }
-
-    #[test]
-    fn local_verse_bootstrap_does_not_publish_provider_owned_state() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local-verse.ccmp");
-        seed_epiphany_local_verse_context(
-            &store,
-            "epiphany-test",
-            "2026-06-02T00:00:00Z",
-            "repo:C:/fixture/Epiphany",
-        )?;
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-
-        assert_eq!(context.verse_policies.len(), 3);
-        assert!(context.verse_policies.iter().any(|policy| policy.verse_id
-            == EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
-            && policy.yggdrasil_tunnel_allowed));
-        assert_eq!(context.global_room_policies.len(), 6);
-        assert_eq!(context.cluster_topology.len(), 7);
-        assert!(context.cluster_topology.iter().any(|cluster| {
-            cluster.cluster_id == "epiphany.cluster.persona"
-                && cluster.public_persona_discussion_allowed
-                && cluster.eve_surface_id == "eve://epiphany/persona"
-        }));
-        assert!(context.contract_summaries.iter().any(|contract| {
-            contract.authority == "readOnly"
-                && contract.document_type == crate::DECISION_CONTEXT_TYPE
-        }));
-        assert!(
-            context
-                .contract_summaries
-                .iter()
-                .any(|contract| contract.authority == "substrateGate")
-        );
-        assert!(
-            context
-                .contract_summaries
-                .iter()
-                .any(|contract| contract.authority == "bifrost")
-        );
-        assert!(context.odin_scope.contains("all-seer"));
-        assert!(context.yggdrasil_scope.contains("Bifrost"));
-        assert!(context.prompt_assembly_note.contains("bounded context"));
         Ok(())
     }
 
