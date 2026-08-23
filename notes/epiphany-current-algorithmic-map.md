@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `c553868d` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `f9eeb460` on `codex/epiphany-shakedown-live`
 Current worktree cut: remaining CultMesh invariant/test audit; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -69,6 +69,16 @@ their authenticated health. Specialized managed-service policies own desired
 launch configuration; exact lifecycle and provider receipts own observed
 consequences. LocalVerse and Eve may derive status from those family documents,
 but no writable aggregate may impersonate them.
+
+Exact `f9eeb460` audits the surviving supervisor tests by consequence. The
+non-authoritative semantic service display label is now an inline projection;
+its self-referential helper test is deleted. The workspace recovery test now
+directly proves that only an `ExactAlive` process observation can authorize the
+recovery write instead of staging that claim with a scripted observation queue.
+The seven remaining supervisor tests guard trust-anchor encoding, lifecycle
+brake scope, Windows argv integrity, all-or-none Idunn signed-health binding,
+process replacement identity, heartbeat freshness/correlation, and the
+exact-alive recovery gate.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;

@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `c553868d`
+Latest committed implementation cut: `f9eeb460`
 Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
@@ -656,6 +656,14 @@ check passes, CultMesh passes 20/20, and the remaining supervisor tests pass
 8/8. No source reference to the deleted schemas or reconciliation path remains.
 The live managed-service path continues through specialized semantic and
 workspace-coverage policy, lifecycle, heartbeat, and recovery documents.
+
+Exact `f9eeb460` then removes the remaining self-referential supervisor display
+test and its helper. The test asserted only that a non-authoritative label
+matched the helper's own branches; correlation and provider status were already
+projected separately. The workspace recovery test was reduced to its real
+invariant: the recovery write runs for `ExactAlive` and not for `Missing`.
+Supervisor check and the resulting consequence-bearing suite pass 7/7; the cut
+removes another 47 net lines.
 
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the
