@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `63939fa2`
+Latest committed implementation cut: `bf2f39eb`
 Current worktree: canonical map/evidence sync; Ox17 remains paused
 
 ## Orientation
@@ -72,6 +72,13 @@ test-only prompt wrapper and two tests that blessed prompt phrases/forbidden
 words. Three-stage execution and replay, channel-escape refusal, substituted
 provider/model refusal, typed-effect validation, and all OpenAI-runtime targets
 pass.
+
+Exact `bf2f39eb` deletes two tests that could not falsify live behavior: one
+compared identical causal-ID calls and named the equality provenance
+independence; the other repeated generic unknown-field refusal for a field
+whose production path is already gone. Family lifecycle/admission tests still
+exercise exact request identity, and Body substitution still exercises strict
+ingress refusal. Core and OpenAI-runtime all-target checks pass.
 
 No Epiphany-owned Rider or Unity code, target, schema, or actuator exists.
 Brokkr owns Unity through Eve/CultMesh. A future Rider daemon owns Rider.

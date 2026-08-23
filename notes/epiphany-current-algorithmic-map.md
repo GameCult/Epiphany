@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `63939fa2` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `bf2f39eb` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -114,6 +114,11 @@ containing action-shaped words. Projector and Persona outputs remain sealed
 private stage results. The Interpreter's closed effect enum, allowed-channel
 set, cardinality and size bounds, exact decision context, and Mind admission
 own consequence safety. Prompt-substring tests do not.
+
+Tests must falsify an owner or consequence. Exact `bf2f39eb` deletes an
+identical-call causal-ID tautology and a duplicate unknown-field check for an
+extinct generic patch. Exact family lifecycles and runtime-owned identity
+substitution remain the behavioral proofs.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

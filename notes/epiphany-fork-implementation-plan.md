@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`63939fa2`. The current sequence has deleted the semantic-memory/workspace-coverage
+`bf2f39eb`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -532,6 +532,10 @@ Cut in this order:
    consequence. The tribunal, test-only prompt wrapper, prompt-substring test,
    and forbidden-word test are deleted; exact stage/context and typed-effect
    refusal tests remain.
+41. **Tests must falsify live behavior at `bf2f39eb`:** an identical-call
+   causal-ID tautology and a duplicate unknown-field check for extinct generic
+   patch cargo are deleted. Family lifecycle/admission and runtime-owned
+   identity-substitution checks retain the actual invariants.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
