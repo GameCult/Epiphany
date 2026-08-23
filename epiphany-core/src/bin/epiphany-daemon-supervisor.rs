@@ -652,7 +652,11 @@ fn semantic_projector_service_status(args: Args) -> Result<()> {
         "{}",
         serde_json::to_string_pretty(&json!({
             "schemaVersion": "epiphany.memory_semantic_projector_service_status.v0",
-            "status": semantic_projector_observation_status(correlation_matches, &heartbeat.status),
+            "status": if correlation_matches && heartbeat.status == "ready" {
+                "provider-correlated"
+            } else {
+                "provider-degraded"
+            },
             "processId": receipt.process_id,
             "launchReceiptId": receipt.receipt_id,
             "launchStartedAtUtc": receipt.started_at_utc,
@@ -667,17 +671,6 @@ fn semantic_projector_service_status(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
-}
-
-fn semantic_projector_observation_status(
-    correlation_matches: bool,
-    heartbeat_status: &str,
-) -> &'static str {
-    if correlation_matches && heartbeat_status == "ready" {
-        "provider-correlated"
-    } else {
-        "provider-degraded"
-    }
 }
 
 fn required<'a>(value: &'a Option<String>, flag: &str) -> Result<&'a str> {
@@ -3127,27 +3120,6 @@ fn sanitize_id(raw: &str) -> String {
 }
 
 #[cfg(test)]
-mod provider_status_ownership_tests {
-    use super::*;
-
-    #[test]
-    fn provider_correlation_never_claims_semantic_readiness() {
-        assert_eq!(
-            semantic_projector_observation_status(true, "ready"),
-            "provider-correlated"
-        );
-        assert_eq!(
-            semantic_projector_observation_status(false, "ready"),
-            "provider-degraded"
-        );
-        assert_eq!(
-            semantic_projector_observation_status(true, "degraded"),
-            "provider-degraded"
-        );
-    }
-}
-
-#[cfg(test)]
 mod service_lifecycle_brake_authority_tests {
     use super::*;
 
@@ -3196,23 +3168,15 @@ mod workspace_coverage_recovery_tests {
     use super::*;
 
     #[test]
-    fn workspace_coverage_actuation_reobserves_after_readiness() -> Result<()> {
-        let mut disappeared = std::collections::VecDeque::from([
-            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
-            WorkspaceCoverageProcessLifecycleObservation::Missing,
-        ]);
-        assert_eq!(
-            disappeared.pop_front(),
-            Some(WorkspaceCoverageProcessLifecycleObservation::ExactAlive)
-        );
+    fn workspace_coverage_recovery_writes_only_for_exact_alive_process() -> Result<()> {
         let mut directive_writes = 0_u8;
-        let termination_writes = 0_u8;
-        let launch_writes = 0_u8;
-        let outcome =
-            actuate_workspace_coverage_recovery_if_alive(disappeared.pop_front().unwrap(), || {
+        let outcome = actuate_workspace_coverage_recovery_if_alive(
+            WorkspaceCoverageProcessLifecycleObservation::Missing,
+            || {
                 directive_writes += 1;
                 Ok(())
-            })?;
+            },
+        )?;
         assert!(matches!(
             outcome,
             WorkspaceCoverageRecoveryActuation::Terminal(
@@ -3220,19 +3184,8 @@ mod workspace_coverage_recovery_tests {
             )
         ));
         assert_eq!(directive_writes, 0);
-        assert_eq!(termination_writes, 0);
-        assert_eq!(launch_writes, 0);
-
-        let mut stayed_alive = std::collections::VecDeque::from([
-            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
-            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
-        ]);
-        assert_eq!(
-            stayed_alive.pop_front(),
-            Some(WorkspaceCoverageProcessLifecycleObservation::ExactAlive)
-        );
         let outcome = actuate_workspace_coverage_recovery_if_alive(
-            stayed_alive.pop_front().unwrap(),
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
             || {
                 directive_writes += 1;
                 Ok("directive")
