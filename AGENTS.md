@@ -228,12 +228,10 @@ operator-enginseer, not the implementation servitor.
 - The target invariant is one Cargo package owner per production entrypoint.
   `epiphany-core` owns only the `epiphany-prepare-compaction` maintenance
   binary; runtime entrypoints are converging on `epiphany-release-bundle`.
-  Known violations still under repair are `epiphany-model-runtime`,
-  `epiphany-persona-service`, and `epiphany-tool-mcp-runtime`, whose sources are
-  also admitted by their leaf package manifests. Treat those duplicates as cut
-  work, not precedent. Do not point multiple packages at the same binary source
-  or preserve a binary because a stale manifest, smoke command, or historical
-  document still names it.
+  Leaf library crates disable automatic binaries; their production entrypoint
+  sources are admitted only by the release bundle. Do not point multiple
+  packages at the same binary source or preserve a binary because a stale
+  manifest, smoke command, or historical document still names it.
 - Admit a new executable only when a live consumer requires an independent
   process, privilege boundary, lifecycle, or deployment contract. Tests,
   fixtures, probes, and one-off migrations belong in existing library or

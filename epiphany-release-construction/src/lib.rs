@@ -502,7 +502,6 @@ fn build_required_release_siblings(
     })?;
     let required = required_packaged_release_binaries(target);
     for (role, file_name) in &required {
-        required_release_build_target(role)?;
         outputs.insert(
             *role,
             target_dir.join(target).join("release").join(file_name),
@@ -601,36 +600,6 @@ fn release_bundle_target_dir(
     digest.update(b"\0");
     digest.update(toolchain_fingerprint.as_bytes());
     target_root.join(format!("graph-{:x}", digest.finalize()))
-}
-
-fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
-    match role {
-        "release-publisher" => Ok(("epiphany-core", "epiphany-release")),
-        "state-steward" => Ok(("epiphany-core", "epiphany-state")),
-        "atlas-publisher" => Ok(("epiphany-core", "epiphany-atlas-publisher")),
-        "model-entanglement-projector" => {
-            Ok(("epiphany-core", "epiphany-model-entanglement-projector"))
-        }
-        "atlas-impact-ingress" => Ok(("epiphany-core", "epiphany-atlas-impact-ingress")),
-        "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
-        "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
-        "swarm" => Ok(("epiphany-core", "epiphany-swarm")),
-        "runtime-spine" => Ok(("epiphany-core", "epiphany-runtime-spine")),
-        "persona-feedback-ingress" => Ok(("epiphany-core", "epiphany-persona-feedback-ingress")),
-        "persona-service" => Ok(("epiphany-openai-runtime", "epiphany-persona-service")),
-        "persona-mouth-identity" => Ok(("epiphany-core", "epiphany-persona-mouth-identity")),
-        "persona-discord-permit" => Ok(("epiphany-core", "epiphany-persona-discord-permit")),
-        "persona-discord-permit-identity" => {
-            Ok(("epiphany-core", "epiphany-persona-discord-permit-identity"))
-        }
-        "coordinator" => Ok((".", "epiphany-mvp-coordinator")),
-        "coordinator-status" => Ok((".", "epiphany-mvp-status")),
-        "frontier-proposal" => Ok(("epiphany-core", "epiphany-frontier-proposal")),
-        "hands-action" => Ok(("epiphany-core", "epiphany-hands-action")),
-        "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
-        "tool-mcp-runtime" => Ok(("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")),
-        _ => bail!("unknown required release role {role}"),
-    }
 }
 
 pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) -> Result<()> {
@@ -974,13 +943,6 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn every_required_release_role_has_a_build_target() {
-        for (role, _) in required_packaged_release_binaries("x86_64-unknown-linux-gnu") {
-            required_release_build_target(role).expect("required release role must resolve");
-        }
-    }
-
-    #[test]
     fn binary_suffix_follows_requested_target_not_packager_host() {
         let windows = required_packaged_release_binaries("x86_64-pc-windows-msvc");
         assert!(windows.iter().all(|(_, name)| name.ends_with(".exe")));
@@ -1224,81 +1186,6 @@ mod tests {
                 .any(|pair| pair == ["--bin", "epiphany-state"])
         );
         assert!(!args.iter().any(|arg| arg == "--bins"));
-    }
-
-    #[test]
-    fn resident_cognition_roles_keep_their_owning_manifests() {
-        let root_manifest = fs::read_to_string(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .expect("epiphany-core has a repository parent")
-                .join("Cargo.toml"),
-        )
-        .expect("root release manifest");
-        let packaged_roles = required_packaged_release_binaries("x86_64-unknown-linux-gnu")
-            .into_iter()
-            .map(|(role, _)| role)
-            .collect::<BTreeSet<_>>();
-        for role in [
-            "swarm",
-            "runtime-spine",
-            "state-steward",
-            "coordinator",
-            "hands-action",
-            "model-runtime",
-            "persona-service",
-            "persona-mouth-identity",
-            "persona-discord-permit",
-            "persona-discord-permit-identity",
-            "tool-mcp-runtime",
-        ] {
-            assert!(packaged_roles.contains(role), "release omits {role}");
-        }
-        assert_eq!(
-            required_release_build_target("swarm").unwrap(),
-            ("epiphany-core", "epiphany-swarm")
-        );
-        assert_eq!(
-            required_release_build_target("runtime-spine").unwrap(),
-            ("epiphany-core", "epiphany-runtime-spine")
-        );
-        assert_eq!(
-            required_release_build_target("state-steward").unwrap(),
-            ("epiphany-core", "epiphany-state")
-        );
-        assert!(root_manifest.contains("name = \"epiphany-runtime-spine\""));
-        assert_eq!(
-            required_release_build_target("coordinator").unwrap(),
-            (".", "epiphany-mvp-coordinator")
-        );
-        assert_eq!(
-            required_release_build_target("hands-action").unwrap(),
-            ("epiphany-core", "epiphany-hands-action")
-        );
-        assert_eq!(
-            required_release_build_target("model-runtime").unwrap(),
-            ("epiphany-openai-runtime", "epiphany-model-runtime")
-        );
-        assert_eq!(
-            required_release_build_target("persona-service").unwrap(),
-            ("epiphany-openai-runtime", "epiphany-persona-service")
-        );
-        assert_eq!(
-            required_release_build_target("persona-mouth-identity").unwrap(),
-            ("epiphany-core", "epiphany-persona-mouth-identity")
-        );
-        assert_eq!(
-            required_release_build_target("persona-discord-permit").unwrap(),
-            ("epiphany-core", "epiphany-persona-discord-permit")
-        );
-        assert_eq!(
-            required_release_build_target("persona-discord-permit-identity").unwrap(),
-            ("epiphany-core", "epiphany-persona-discord-permit-identity")
-        );
-        assert_eq!(
-            required_release_build_target("tool-mcp-runtime").unwrap(),
-            ("epiphany-tool-mcp-runtime", "epiphany-tool-mcp-runtime")
-        );
     }
 
     fn fixture() -> (TempDir, EpiphanyPackagedReleaseEntry) {

@@ -3,6 +3,7 @@ name = "epiphany-openai-runtime"
 version = "0.1.0"
 edition = "2024"
 publish = false
+autobins = false
 license-file = "../LICENSE"
 
 [lib]
@@ -28,11 +29,3 @@ uuid = { version = "1", features = ["v4"] }
 [dev-dependencies]
 epiphany-state-model = { path = "../epiphany-state-model" }
 tempfile = "3"
-
-[[bin]]
-name = "epiphany-openai-runtime"
-path = "src/bin/epiphany-openai-runtime.rs"
-
-[[bin]]
-name = "epiphany-model-runtime"
-path = "src/bin/epiphany-model-runtime.rs"
