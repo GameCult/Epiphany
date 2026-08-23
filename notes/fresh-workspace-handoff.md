@@ -1199,6 +1199,19 @@ with 63 public functions and 29 public structs. The focused core check, keyed
 lifecycle proof, and epoch-refusal proof pass without warnings. Continue the
 public runtime-spine and test-liability audit.
 
+Exact `3eca3394` deletes the thirteen-field aggregate runtime status DTO. Its
+only behavioral consumers checked `present` or read `runtime_id`; the remaining
+fields forced scans of every session, job, result, tool intent, and tool receipt
+only to populate a coordinator JSON artifact with no reader. Live readiness now
+uses one exact optional `EpiphanyRuntimeIdentity` read. OpenAI schema preflight
+continues to derive document support from the actual CultCache registration,
+not a copied status list. The redundant coordinator summary member and
+`runtime-spine-status.json` artifact are gone: 96 net source deletions and one
+public struct removed. `runtime_spine.rs` is 10,132 lines, with 63 public
+functions and 28 public structs. The focused core library, OpenAI library,
+release-owned coordinator, and model-runtime targets check cleanly. Continue
+the runtime-spine/test-liability audit.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the

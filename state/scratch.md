@@ -153,7 +153,13 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    admission. External evidence must now flow into Modeling and change the
    keyed model itself. The cut removes 465 net source lines; Mind/runtime are
    v8/v11 and claim-obligation documents are v3.
-27. Next: resume the public runtime-spine and test-liability audit by live owner
+27. Done: exact `3eca3394` deletes the thirteen-field aggregate runtime status
+   DTO, its full session/job/tool scans, and the unconsumed coordinator summary
+   member plus standalone JSON status artifact. Live readiness consumers need
+   only the immutable runtime identity; schema preflight reads the canonical
+   registered type catalog directly. The cut removes 96 net source lines and
+   one public struct. `runtime_spine.rs` is 10,132 lines.
+28. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-28. Run focused tests after each cut. Only after source subtraction stabilizes
+29. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

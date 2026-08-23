@@ -383,6 +383,14 @@ claim/frontier envelopes change. Claim-obligation documents now contain only
 their real unresolved frontier identities (v3); Mind/runtime writable epochs
 are v8/v11.
 
+Exact `3eca3394` removes the aggregate runtime status projection. Readiness
+consumers now ask for the one immutable runtime identity they actually use;
+schema preflight asks the CultCache registration owner for its live type list.
+No code scans sessions, jobs, results, tool intents, and tool receipts merely
+to manufacture counters, and the coordinator no longer emits a parallel
+`runtime-spine-status.json` summary artifact. Typed documents and Eve/CultMesh
+projections remain the state and interface authorities.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,
