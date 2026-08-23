@@ -831,6 +831,13 @@ schemas, stores, writers, readers, or tests. The keyed repo-frontier verificatio
 request and persisted `SoulVerdictReceipt` remain the real request/result path.
 Core/release checks pass; focused verification tests pass 3/3.
 
+Exact `201fa192` deletes three prose-only Eyes families: generic evidence
+request, evidence review, and evidence refusal. They had constants, exports, and
+mutation-table prose but no typed documents, schemas, stores, writers, readers,
+or tests. Authenticated source lookup receipts and the exact research decision's
+persisted evidence packet remain the real Eyes path. Core/release checks and
+focused Research 2/2 pass.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only

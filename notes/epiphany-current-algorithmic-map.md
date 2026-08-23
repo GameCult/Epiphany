@@ -140,6 +140,12 @@ rows that had no typed documents or runtime path. The keyed repo-frontier
 verification request owns the live obligation, and `SoulVerdictReceipt` owns the
 persisted audit result consumed by Modeling/Mind.
 
+Eyes publishes only concrete observation evidence. Exact `201fa192` removes
+generic evidence-request, review, and refusal rows that had no typed documents
+or runtime path. Authenticated source lookup receipts prove what was inspected;
+the typed research decision becomes the exact persisted evidence packet consumed
+by current work and Modeling.
+
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
 admission. Cross-repository inspection found no producer for Epiphany's former
