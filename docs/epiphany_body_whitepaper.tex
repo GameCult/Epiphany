@@ -47,13 +47,14 @@ and the difference between the map and the substrate.
 The practical definition in this repository is:
 
 \begin{itemize}
-  \item the root checkout at \code{E:\Projects\EpiphanyAgent};
+  \item the root checkout at \code{F:\Projects\Epiphany};
   \item Epiphany Rust crates such as \code{epiphany-core}, \code{epiphany-state-model}, model/tool adapters, and OpenAI transport crates;
   \item vendored substrate in \code{vendor/codex}, \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and \code{vendor/cultmesh-rs};
   \item typed state stores under \code{state/};
   \item schemas under \code{schemas/cultnet/};
   \item local operator scripts and generated witness artifacts;
-  \item adjacent service/client bodies: Aquarium, Odin/Gjallar, Eve/CultUI, Bifrost, VoidBot, Rider, Unity, Discord, and future GameCult Verse hosts.
+  \item adjacent service/client bodies: Aquarium, Odin/Gjallar, Eve/CultUI,
+    Bifrost, VoidBot, Brokkr, Discord, and future GameCult Verse providers.
 \end{itemize}
 
 \section{Executive Map}
@@ -151,26 +152,12 @@ retired migration wound; live Modeling truth is the runtime-spine RepoModel.
 
 \section{CultNet Schema Body}
 
-The schema catalog in \code{schemas/cultnet/index.json} is the public nerve
-chart. Current local grouping from the catalog is approximately:
-
-\begin{itemize}
-  \item 10 agent-state schemas;
-  \item 5 heartbeat schemas;
-  \item 21 intent schemas;
-  \item 8 model/OpenAI schemas;
-  \item 3 tool schemas;
-  \item 6 runtime schemas;
-  \item 17 surface schemas;
-  \item 4 receipt/ledger schemas;
-  \item 7 other schemas.
-\end{itemize}
-
-The catalog includes runtime identity/session/job/event/result documents, model
-requests and receipts, tool invocation intents and receipts, Persona and
-work-organ state, heartbeat state, operator CultMesh documents, scene/freshness
-/context/graph/pressure/reorient/roles/coordinator surfaces, Unity and Rider
-bridge surfaces, Void memory, and repo-initialization documents.
+The schema catalog in \code{schemas/cultnet/index.json} publishes the portable
+contracts actually carried across a CultNet boundary. Runtime-local CultCache
+registrations are discovered from the native registry instead of mirrored into
+a second hand-maintained catalog. Editor commands are not Epiphany contracts:
+Brokkr owns Unity editor inspection and actuation through Eve/CultMesh, and a
+future Rider provider must own Rider integration through the same boundary.
 
 The invariant is simple: schema JSON describes the contract. Load-bearing
 runtime state should be typed Rust documents persisted through CultCache or
@@ -186,15 +173,16 @@ the Body. It imports and registers:
   \item runtime identity, session, job, job-result, and event records;
   \item worker launch requests and role/reorient worker result documents;
   \item model adapter, OpenAI adapter, and tool adapter documents;
-  \item surface document types for scene, freshness, context, graph query,
-  pressure, reorient, CRRC, jobs, roles, role result, reorient result,
-  planning, coordinator, Persona, Void memory, repo initialization, repo birth
-  runner, Rider bridge, and Unity bridge;
-  \item organ receipts for Mind, Eyes, Hands, Soul, Continuity, and Substrate
-  Gate;
-  \item CultMesh operator status, snapshots, run intents, run receipts, Verse
-  policy, global room policy, and organ contract documents.
+  \item sealed reasoning bases, decision contexts, typed pass failures, and
+  exact Mind commit receipts;
+  \item keyed RepoModel, frontier, planning, reorientation, and Persona
+  lifecycle documents;
+  \item exact Eyes, Hands, Soul, Continuity, and Substrate Gate receipts.
 \end{itemize}
+
+Editor-provider capabilities remain outside this registry. Epiphany consumes
+their typed CultMesh state and receipts; it does not embed an IDE bridge or
+editor-specific lifecycle authority.
 
 Runtime state is machinery telemetry. It is not project truth. Durable thread
 state may link to runtime records through runtime links, but it must not mirror
