@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`104bf390`. The current sequence has deleted the semantic-memory/workspace-coverage
+`777dd1a5`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -540,6 +540,10 @@ Cut in this order:
    duplicate immutable-GitHub identity test and permanently ignored historical
    README network probe are deleted. Canonical identity parsing remains tested
    in `epiphany-core`; CI no longer carries a test it never executes.
+43. **Tool execution has no static status mouth at `777dd1a5`:** the callerless
+   `smoke` command, fixed JSON summary, parser branch, and branding test are
+   deleted. Signed health owns liveness and typed receipts own execution; the
+   surviving single command parses directly without a one-variant enum.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
