@@ -1808,7 +1808,7 @@ fn worker_output_contract_text(
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 struct RoleWorkerResultIngress {
     role_id: Option<String>,
     verdict: Option<String>,
@@ -1816,17 +1816,24 @@ struct RoleWorkerResultIngress {
     next_safe_move: Option<String>,
     checkpoint_summary: Option<String>,
     scratch_summary: Option<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     files_inspected: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     frontier_node_ids: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     evidence_ids: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     artifact_refs: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     open_questions: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     evidence_gaps: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     risks: Vec<String>,
     research_decision: Option<epiphany_core::EpiphanyResearchDecision>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     repo_model_operations: Vec<epiphany_core::EpiphanyRepoModelMutationOperation>,
     frontier_verdict_gap: Option<String>,
-    self_patch: Option<epiphany_core::AgentSelfPatch>,
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
     imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
@@ -1836,7 +1843,7 @@ struct RoleWorkerResultIngress {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 struct ProposalFrontierDraftIngress {
     migration_body: String,
     question: String,
@@ -1849,14 +1856,14 @@ struct ProposalFrontierDraftIngress {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 struct RepoFrontierPlanMindDecisionIngress {
     decision: Option<epiphany_core::RepoFrontierPlanDecision>,
     rationale: String,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct RepoFrontierPlanCandidateIngress {
     safe_paths: Vec<String>,
     action: String,
@@ -1868,7 +1875,7 @@ struct RepoFrontierPlanCandidateIngress {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct ImaginationConsiderationCandidateIngress {
     disposition: Option<epiphany_core::ImaginationConsiderationDisposition>,
     title: String,
@@ -1880,7 +1887,7 @@ struct ImaginationConsiderationCandidateIngress {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct AdmittedModelDirectionConsiderationResultIngress {
     disposition: Option<epiphany_core::AdmittedModelDirectionDisposition>,
     summary: String,
@@ -1890,17 +1897,23 @@ struct AdmittedModelDirectionConsiderationResultIngress {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 struct ReorientWorkerResultIngress {
     mode: Option<String>,
     summary: Option<String>,
     next_safe_move: Option<String>,
     checkpoint_still_valid: Option<bool>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     files_inspected: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     frontier_node_ids: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     evidence_ids: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     artifact_refs: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     open_questions: Vec<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     continuity_risks: Vec<String>,
 }
 
@@ -2183,8 +2196,6 @@ fn role_worker_result_from_ingress(
     } else {
         (None, None)
     };
-    let (self_patch_msgpack, self_patch_error) =
-        encode_optional_document(&result.self_patch, "selfPatch");
     let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) = if let Some(ingress) =
         result.frontier_plan_candidate.as_ref()
     {
@@ -2397,12 +2408,8 @@ fn role_worker_result_from_ingress(
         evidence_gaps: clean_string_vec(&result.evidence_gaps),
         risks: clean_string_vec(&result.risks),
         research_decision_msgpack,
-        self_patch_msgpack,
         item_error: merge_optional_errors(
-            merge_optional_errors(
-                merge_optional_errors(research_decision_error, self_patch_error),
-                repo_model_mutation_proposal_error,
-            ),
+            merge_optional_errors(research_decision_error, repo_model_mutation_proposal_error),
             merge_optional_errors(
                 frontier_plan_candidate_error,
                 merge_optional_errors(
@@ -2486,7 +2493,6 @@ pub fn failed_frontier_planning_role_result(
         evidence_gaps: Vec::new(),
         risks: Vec::new(),
         research_decision_msgpack: None,
-        self_patch_msgpack: None,
         item_error: Some(summary.clone()),
         metadata: std::collections::BTreeMap::new(),
         repo_model_mutation_proposal_msgpack: None,
@@ -2577,11 +2583,18 @@ where
         })
         .unwrap_or(trimmed)
         .trim();
-    let mut value = serde_json::from_str::<UniqueJsonValue>(candidate)
+    let value = serde_json::from_str::<UniqueJsonValue>(candidate)
         .context("assistant text was not typed worker-result JSON")?
         .0;
-    remove_provider_optional_nulls(&mut value);
     serde_json::from_value(value).context("assistant text was not typed worker-result JSON")
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 struct UniqueJsonValue(serde_json::Value);
@@ -2666,23 +2679,6 @@ impl<'de> Visitor<'de> for UniqueJsonValueVisitor {
             }
         }
         Ok(UniqueJsonValue(serde_json::Value::Object(values)))
-    }
-}
-
-fn remove_provider_optional_nulls(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::Object(map) => {
-            map.retain(|_, value| !value.is_null());
-            for value in map.values_mut() {
-                remove_provider_optional_nulls(value);
-            }
-        }
-        serde_json::Value::Array(values) => {
-            for value in values {
-                remove_provider_optional_nulls(value);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -2800,8 +2796,8 @@ mod tests {
     }
 
     #[test]
-    fn model_authored_body_basis_has_no_ingress_authority() -> Result<()> {
-        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+    fn model_authored_body_basis_is_refused_at_ingress() {
+        let error = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{
                 "roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped",
                 "nextSafeMove":"Mind review","repositoryBodyObservationBasis":{
@@ -2813,10 +2809,10 @@ mod tests {
                     "scanFinishedAt":"2026-07-15T00:00:01Z"
                 }
             }"#,
-        )?;
-        assert_eq!(parsed.role_id.as_deref(), Some("modeling"));
-        assert!(parsed.repo_model_operations.is_empty());
-        Ok(())
+        )
+        .expect_err("Body identity is runtime-owned and cannot be laundered by omission");
+
+        assert!(format!("{error:#}").contains("unknown field `repositoryBodyObservationBasis`"));
     }
 
     #[test]
@@ -2826,8 +2822,7 @@ mod tests {
                 "roleId":"research","verdict":"source-gap","summary":"bounded",
                 "nextSafeMove":"review","filesInspected":[],"frontierNodeIds":null,
                 "evidenceIds":[],"artifactRefs":null,"openQuestions":null,
-                "evidenceGaps":["missing"],"risks":null,"researchDecision":null,
-                "selfPatch":null
+                "evidenceGaps":["missing"],"risks":null,"researchDecision":null
             }"#,
         )?;
 
@@ -2837,6 +2832,19 @@ mod tests {
         assert!(parsed.research_decision.is_none());
         assert_eq!(parsed.evidence_gaps, vec!["missing"]);
         Ok(())
+    }
+
+    #[test]
+    fn removed_generic_self_patch_is_not_native_role_input() {
+        let error = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"research","verdict":"source-gap","summary":"bounded",
+                "nextSafeMove":"review","filesInspected":[],"selfPatch":null
+            }"#,
+        )
+        .expect_err("the removed generic mutation mouth must be inadmissible");
+
+        assert!(format!("{error:#}").contains("unknown field `selfPatch`"));
     }
 
     #[test]
@@ -3318,59 +3326,13 @@ mod tests {
     }
 
     #[test]
-    fn verification_ingress_cannot_author_request_or_route_identity() -> Result<()> {
-        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+    fn verification_ingress_refuses_model_authored_request_or_route_identity() {
+        let error = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{"roleId":"verification","verdict":"pass","summary":"verified","nextSafeMove":"admit","verificationRequestId":" verification-request-1 ","frontierRouteId":" frontier-route-1 "}"#,
-        )?;
-        let launch = EpiphanyRuntimeWorkerLaunchRequest {
-            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
-            job_id: "verification-job-1".to_string(),
-            binding_id: "verification-binding-1".to_string(),
-            role: "verification".to_string(),
-            authority_scope: "epiphany.role.verification".to_string(),
-            instruction: "verify".to_string(),
-            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-            document_kind: "role".to_string(),
-            launch_document_msgpack: Vec::new(),
-            metadata: std::collections::BTreeMap::new(),
-            organ_launch_contract: epiphany_core::default_launch_organ_contract(
-                "epiphany.role.verification",
-                "role",
-                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
-            proposal_modeling_request_id: None,
-            frontier_planning_request_id: None,
-            frontier_plan_mind_request_id: None,
-            imagination_consideration_request_id: None,
-            admitted_model_direction_consideration_request_id: None,
-            repo_frontier_modeling_request_id: None,
-            repo_frontier_research_request_id: None,
-            repo_frontier_verification_request_id: None,
-        };
-        let result = role_worker_result_from_ingress(
-            &launch,
-            "verification",
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            "2026-07-15T10:00:00Z",
-            "verification-result-1",
-            "decision-context-test",
-            &parsed,
-            vec!["openai-request:verification-request-1".to_string()],
-            Vec::new(),
-        );
-        assert!(result.verification_request_id.is_none());
-        assert!(result.frontier_route_id.is_none());
-        assert_eq!(
-            result.evidence_ids,
-            vec!["openai-request:verification-request-1"]
-        );
-        Ok(())
+        )
+        .expect_err("causal identity is runtime-owned and must be refused at ingress");
+
+        assert!(format!("{error:#}").contains("unknown field"));
     }
 
     #[test]
@@ -3454,7 +3416,6 @@ mod tests {
             Some("planning-request-1")
         );
         assert!(result.research_decision_msgpack.is_none());
-        assert!(result.self_patch_msgpack.is_none());
         let candidate = result
             .frontier_plan_candidate()?
             .expect("typed frontier candidate");
@@ -3473,6 +3434,18 @@ mod tests {
 
     #[test]
     fn consideration_ingress_derives_all_causal_identity_from_launch_context() -> Result<()> {
+        let hostile = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"imagination","verdict":"suggest","summary":"bounded option",
+                "nextSafeMove":"Modeling review only",
+                "imaginationConsiderationCandidate":{
+                    "request_id":"hostile-model-request","title":"Bounded option"
+                }
+            }"#,
+        )
+        .expect_err("nested model-authored causal identity must be refused");
+        assert!(format!("{hostile:#}").contains("unknown field `request_id`"));
+
         let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{
                 "roleId":"imagination",
@@ -3480,26 +3453,14 @@ mod tests {
                 "summary":"bounded option",
                 "nextSafeMove":"Modeling review only",
                 "filesInspected":[],
-                "imaginationConsiderationRequestId":"hostile-model-request",
                 "imaginationConsiderationCandidate":{
-                    "request_id":"hostile-model-request",
-                    "feedback_id":"hostile-feedback",
-                    "feedback_packet_sha256":"hostile-packet",
-                    "model_revision":999,
-                    "model_hash":"hostile-model",
-                    "source_room_id":"hostile-room",
-                    "source_visibility":"private",
-                    "data_classification":"private_feedback",
                     "disposition":"suggest",
                     "title":"Bounded option",
                     "summary":"Keep the proposal review-only.",
                     "rationale":"The option is reversible.",
                     "option_drafts":[{"title":"Typed sight","summary":"Expose operator-safe provenance."}],
                     "uncertainties":[],
-                    "evidence_refs":["discord://message-1"],
-                    "recommended_review_route":"modeling_review",
-                    "proposed_at":"1900-01-01T00:00:00Z",
-                    "contract":"hostile-contract"
+                    "recommended_review_route":"modeling_review"
                 }
             }"#,
         )?;
@@ -4001,10 +3962,8 @@ mod tests {
         std::fs::write(repo.join("src.txt"), "authenticated Body")?;
         run_git(&repo, &["add", "."])?;
         run_git(&repo, &["commit", "-m", "seed"])?;
-        let agents = temp.path().join("agents.cc");
         let body_store = temp.path().join("body.cc");
-        epiphany_core::ensure_agent_memory_swarm_identity(&agents, "swarm-test")?;
-        epiphany_core::bind_runtime_to_agent_memory_swarm(&store, &agents, "2026-08-08T00:00:00Z")?;
+        epiphany_core::bind_runtime_to_swarm(&store, "swarm-test", "2026-08-08T00:00:00Z")?;
         epiphany_core::bind_repository_body(&repo, &body_store, &store, "workspace-test")?;
         let body_basis = epiphany_core::observe_runtime_repository_body_basis(&store)?;
         let frontier_item = epiphany_core::RepoFrontierItem {
@@ -4094,7 +4053,6 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             research_decision_msgpack: None,
-            self_patch_msgpack: None,
             item_error: None,
             metadata: Default::default(),
             repo_model_mutation_proposal_msgpack: None,
@@ -4441,7 +4399,6 @@ mod tests {
                 .proposal_id,
             "repo-model-mutation-proposal-worker-job-1"
         );
-        assert!(typed_result.self_patch()?.is_none());
         assert!(
             runtime_job_snapshot(&store, "worker-job-1")?
                 .expect("snapshot")

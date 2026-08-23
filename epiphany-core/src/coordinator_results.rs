@@ -222,8 +222,6 @@ fn interpret_role_lifecycle_failure(
         risks: Vec::new(),
         research_decision: None,
         repo_model_mutation_proposal: None,
-        self_patch: None,
-        self_persistence: None,
         job_error: Some(result.summary.clone()),
         item_error: None,
         verification_request_id: None,
@@ -294,13 +292,10 @@ fn render_role_result_note(
             || format!("{role_id:?} role specialist completed, but no structured result was recorded."),
             |finding| {
                 let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
-                let self_note = render_self_persistence_note(finding.self_persistence.as_ref())
-                    .map(|note| format!(" {note}"))
-                    .unwrap_or_default();
                 if let Some(error) = finding.item_error.as_deref().or(item_error) {
-                    format!("{role_id:?} role specialist completed, but the finding needs repair: {error}. Next safe move: {next}.{self_note}")
+                    format!("{role_id:?} role specialist completed, but the finding needs repair: {error}. Next safe move: {next}.")
                 } else {
-                    format!("{role_id:?} role specialist completed. Next safe move: {next}.{self_note}")
+                    format!("{role_id:?} role specialist completed. Next safe move: {next}.")
                 }
             },
         ),
@@ -314,30 +309,6 @@ fn render_role_result_note(
         EpiphanyCoordinatorRoleResultStatus::MissingBinding => "No matching Epiphany role specialist binding exists.".to_string(),
         EpiphanyCoordinatorRoleResultStatus::BackendUnavailable => "The bound runtime backend is unavailable.".to_string(),
         EpiphanyCoordinatorRoleResultStatus::BackendMissing => "The bound runtime backend job or item is missing.".to_string(),
-    }
-}
-
-fn render_self_persistence_note(
-    review: Option<&EpiphanyRoleSelfPersistenceReview>,
-) -> Option<String> {
-    let review = review?;
-    match review.status {
-        EpiphanyRoleSelfPersistenceStatus::Missing => None,
-        EpiphanyRoleSelfPersistenceStatus::Accepted => Some(format!(
-            "Self persistence request is acceptable for {}.",
-            review
-                .target_agent_id
-                .as_deref()
-                .unwrap_or("the role memory file")
-        )),
-        EpiphanyRoleSelfPersistenceStatus::Rejected => Some(format!(
-            "Self persistence request was refused: {}.",
-            if review.reasons.is_empty() {
-                "no reason recorded".to_string()
-            } else {
-                review.reasons.join("; ")
-            }
-        )),
     }
 }
 

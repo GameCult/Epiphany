@@ -1141,7 +1141,6 @@ mod tests {
             tool_adapter_bin: shared.join("tool"),
             runtime_store,
             local_verse_store,
-            agent_memory_store: shared.join("mind.cc"),
             artifact_root: shared.join("artifacts"),
             codex_home: shared.join("codex-home"),
             mcp_config: shared.join("mcp.toml"),

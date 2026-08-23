@@ -470,7 +470,6 @@ mod tests {
             bail!("singleton fixture failed to initialize repository");
         }
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         let coverage = std::fs::canonicalize(state.path())?.join("workspace-coverage.cc");
         crate::initialize_runtime_spine(
@@ -481,8 +480,7 @@ mod tests {
                 created_at: "2026-07-17T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "singleton-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-17T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "singleton-swarm", "2026-07-17T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "singleton-workspace")?;
         crate::bind_runtime_workspace_coverage_store(&runtime, &coverage, "2026-07-17T00:00:02Z")?;
         let launch_id = "019bff10-7426-7a1c-9ce4-33f91660a3a7";

@@ -236,28 +236,6 @@
       "path": "epiphany.openai-model-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent.memory.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.agent_memory.v0",
-      "documentType": "epiphany.agent_memory",
-      "title": "Epiphany Agent Memory",
-      "path": "epiphany.agent.memory.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-utterance-state.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.agent_utterance_state.v0",
-      "documentType": "epiphany.agent_utterance_state",
-      "title": "Epiphany Agent Utterance State",
-      "path": "epiphany.agent-utterance-state.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -322,28 +300,6 @@
       "documentType": "epiphany.state_ledger",
       "title": "Epiphany State Ledger",
       "path": "epiphany.state-ledger.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.thread-state.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.thread_state.v0",
-      "documentType": "epiphany.thread_state",
-      "title": "Epiphany Thread State",
-      "path": "epiphany.thread-state.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.memory-graph.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.memory_graph.v1",
-      "documentType": "epiphany.memory_graph",
-      "title": "Epiphany Memory Graph",
-      "path": "epiphany.memory-graph.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-snapshot.schema.json",
@@ -586,17 +542,6 @@
       "documentType": "epiphany.circadian_rhythm_intent.v0",
       "title": "epiphany circadian_rhythm_intent v0",
       "path": "epiphany.circadian_rhythm_intent.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent_memory_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.agent_memory_intent.v0",
-      "documentType": "epiphany.agent_memory_intent.v0",
-      "title": "epiphany agent_memory_intent v0",
-      "path": "epiphany.agent_memory_intent.v0.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.job_launch_intent.v0.schema.json",
@@ -850,17 +795,6 @@
       "documentType": "epiphany.persona_chat.v0",
       "title": "Epiphany Persona Chat Draft",
       "path": "epiphany.persona-chat.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character-turn-packet.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.character_turn_packet.v0",
-      "documentType": "epiphany.character_turn_packet.v0",
-      "title": "Epiphany Character Turn Packet",
-      "path": "epiphany.character-turn-packet.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_reddit_post.v0.schema.json",

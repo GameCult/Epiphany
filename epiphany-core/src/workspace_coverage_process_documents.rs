@@ -3769,7 +3769,6 @@ mod tests {
         }
         std::fs::write(repo.path().join("source.rs"), "fn resumed() {}\n")?;
         let runtime = temp.path().join("runtime.cc");
-        let agents = temp.path().join("agents.cc");
         let body_store = temp.path().join("body.cc");
         let coverage_path = std::fs::canonicalize(temp.path())?.join("coverage.redb");
         crate::initialize_runtime_spine(
@@ -3780,8 +3779,7 @@ mod tests {
                 created_at: "2026-07-17T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "resume-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-17T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "resume-swarm", "2026-07-17T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body_store, &runtime, "resume-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,
@@ -4387,7 +4385,6 @@ mod tests {
             .current_dir(&repo)
             .output()?;
         let runtime = temp.path().join("runtime.cc");
-        let agents = temp.path().join("agents.ccmp");
         let body_store = temp.path().join("body.ccmp");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4397,8 +4394,7 @@ mod tests {
                 created_at: "2026-07-16T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "recovery-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "recovery-swarm", "2026-07-16T00:00:01Z")?;
         crate::bind_repository_body(&repo, &body_store, &runtime, "recovery-workspace")?;
         let coverage_store_path = std::fs::canonicalize(temp.path())?.join("coverage.redb");
         crate::bind_runtime_workspace_coverage_store(

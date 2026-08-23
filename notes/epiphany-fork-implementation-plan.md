@@ -153,7 +153,7 @@ Exit evidence:
 - Finish Idunn-owned service installation/audit aftercare without moving
   elevation authority into Self or wrappers.
 - Prove cooldown-after-completion, no overlapping lane heartbeat, idle sleep,
-  rumination, and recovery across restart.
+  explicit-pressure-only wakeup, and recovery across restart.
 - Ensure scheduler and liveness receipts remain separate from project state.
 
 Exit evidence:

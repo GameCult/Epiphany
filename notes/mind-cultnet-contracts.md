@@ -1,68 +1,44 @@
 # Mind CultNet Contracts
 
-Objective: make Mind the persistent state guardian. The state is the Mind; every
-sub-agent output is a thought or proposal until Mind admits it into durable
-state.
+Mind is the sole durable decision-bearing store. Its authority is the keyed
+CultCache document set and the exact commit receipts that admit changes, not a
+generic network mutation gateway.
 
-Body is the neighboring gate. Substrate Gate decides whether an organ may touch the repo;
-Mind decides whether the resulting thought, evidence, or proposal mutates
-persistent state. Do not collapse these into one throne. That is how the machine
-starts lying with excellent posture.
+## Authority map
 
-Imagination is the neighboring Projector for Persona. It may compose a lived scene
-from state, Body substrate facts, social pressure, and organ dependencies, but it does not
-interpret side effects or admit state.
+- Owner: concrete family invariant owners construct `MindMutation` plans;
+  CultCache batch CAS commits them atomically.
+- Inputs: a sealed decision context, exact strong-read envelopes, and complete
+  family-specific inserts or replacements.
+- Outputs: keyed Mind document versions and one
+  `EpiphanyMindCommitReceipt` written in the same transaction.
+- Derived state: `EpiphanyMindView`, RepoModel views, current-work projections,
+  CultMesh publications, and Eve surfaces are deterministic read-only views.
+- Forbidden writers: models, role lanes, events, timestamps, provider results,
+  generic patches, and CultMesh consumers cannot mutate Mind directly.
+- Shared path: every model-authored durable decision enters through its concrete
+  family admission owner. Deterministic operator and routing actions retain
+  their own typed provenance and do not impersonate model reasoning.
+- Deletion line: no persisted thread aggregate, global revision, generic Mind
+  gateway review, state-effect proposal, `statePatch`, or `selfPatch` path may
+  own behavior.
 
-## Authority Map
+## Published contracts
 
-- Owner: Mind owns the decision to mutate persistent Epiphany state.
-- Inputs: typed worker results, Persona Interpreter intents, current state context,
-  runtime/job provenance, Verse ingress receipts, operator-approved intents, and
-  relevant verification evidence.
-- Outputs: Mind gateway reviews, state commit receipts, state rejection
-  receipts, and Verse adoption receipts.
-- Derived state: role findings, reorient findings, Persona side-effect intents,
-  public dreams, local-area findings, `statePatch`, `selfPatch`, evidence,
-  scratch, checkpoints, objectives, and graph edits are proposal-only until Mind
-  accepts them.
-- Forbidden writers: role acceptance, reorient acceptance, Persona Interpreter,
-  public Verse ingress, local-area Verse ingress, raw worker result ingestion,
-  runtime job completion, and compatibility JSON-RPC routes must not directly
-  decide durable state mutation.
-- Shared path: every durable state effect goes through a Mind state-effect
-  proposal and receives a Mind review plus commit or rejection receipt.
-- Deletion line: old contract language that said "coordinator accepts memory
-  mutations" is demoted. Coordinator may schedule, route, and carry intent, but
-  Mind owns persistent-state admission.
+CultMesh may publish sealed reasoning bases, exact decision contexts, structured
+terminal decisions or failures, and exact Mind commit receipts for inspection.
+Those projections are read-only. Network visibility cannot create a mutation
+mouth or reconstruct authority from a digest-only summary.
 
-## Verse Boundary
+## Merge law
 
-CultMesh simplifies the boundary by making Verse placement part of the contract:
+- disjoint document identities merge;
+- byte-identical replay returns the original receipt;
+- divergent writes to one identity conflict;
+- changed strong reads refuse the whole mutation;
+- observational-only changes do not block an otherwise disjoint commit;
+- model output is never silently rebased onto newer strong state.
 
-- `epiphany-internal`: private thoughts, state-effect proposals, Mind reviews,
-  commit receipts, rejection receipts, runtime facts, heartbeat state, role
-  dossiers, and other private organ state.
-- `gamecult-local`: trusted GameCult operator-safe sharing, non-secret status,
-  reviewable findings, and receipts. It does not carry raw worker thought,
-  private memory, or direct state mutation authority.
-- `epiphany-global`: public thought weather: dreams, questions, hypotheses,
-  Persona posts, and adoption receipts. Nothing from this Verse mutates local
-  memory, planning, doctrine, governance, or project truth without a reviewed
-  local adoption receipt.
-
-## Contract Families
-
-- `epiphany.mind.thought`: sub-agent output submitted as thought, not durable
-  state authority.
-- `epiphany.mind.state_effect_proposal`: proposed durable mutation. Mind
-  accepts, refuses, or holds it.
-- `epiphany.mind.gateway_review`: durable receipt explaining the Mind route.
-- `epiphany.mind.state_commit_receipt`: proof that Mind admitted an effect into
-  persistent state.
-- `epiphany.mind.state_rejection_receipt`: proof that Mind refused or held an
-  effect without mutating state.
-- `epiphany.mind.verse_adoption_receipt`: local adoption receipt for public or
-  foreign Verse material.
-
-The current native surfaces are in `epiphany-core::mind_gateway` and the
-Verse-scoped policy documents are in `epiphany-core::cultmesh_integration`.
+The audit question is always recoverable without a transcript: what exact typed
+projection and governed observations did the agent reason from when it made
+this decision?

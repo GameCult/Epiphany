@@ -20,10 +20,10 @@ Only thinking lanes get embodiment titles.
   actuators.
 - `Soul`: verification, invariants, ethics, falsification, and promise-keeping.
 
-Each embodied sub-agent may have lean work-organ state in `state/agents.msgpack`,
-may be represented as a heartbeat participant, and may request reviewed
-`selfPatch` changes to its own lane memory. Persona may additionally project or
-adopt portable `Persona` state because public personhood is part of its job.
+Embodied lanes reason from sealed typed Mind projections and return closed
+family-specific decisions. Heartbeat participants are scheduling projections,
+not personality or memory owners. Persona memory and social effects are keyed
+Mind documents admitted by the Persona invariant owner.
 
 ## Not Sub-Agents
 
@@ -33,8 +33,9 @@ embodiment titles, role-memory diaries, or Persona state.
 - `Body`: the substrate Epiphany acts through and senses: repository, tools,
   runtime, prompts, logs, state files, permissions, interfaces, hosted systems,
   and physical/editor/runtime bridges.
-- `Mind`: persistent state and durable steering context: memory, maps, goals,
-  doctrine, evidence, state patches, accepted receipts, and state admission.
+- `Mind`: keyed persistent state and durable steering context: objectives,
+  evidence, Modeling documents, Persona state, consequences, audits, decisions,
+  reasoning contexts, and exact commit receipts.
 - `Continuity`: protocol machinery for compaction, sleep, recovery,
   stale-turn repair, reorientation receipts, handoff preservation, and
   "what survived rupture?" accounting.
@@ -47,8 +48,7 @@ embodiment titles, role-memory diaries, or Persona state.
 - Mind admits durable state; it is not a chatty lane.
 - Mind may invoke a bounded, stateless admission-review procedure when a typed
   proposal requires model judgment. That procedure serves Mind; it is not an
-  embodied sub-agent, has no heartbeat or lane memory, cannot `roleAccept` or
-  `selfPatch`, and its immutable judgment has no consequence until Mind replays
+  embodied sub-agent, has no heartbeat or lane memory, and its immutable judgment has no consequence until Mind replays
   the causal chain and admits it.
 - Continuity preserves/rebuilds context across rupture; it is protocol
   machinery, not an embodied identity.
@@ -56,7 +56,8 @@ embodiment titles, role-memory diaries, or Persona state.
   files, verify truth, or admit state.
 - Reorientation is a bounded Continuity worker/procedure launched from CRRC,
   not an embodied sub-agent.
-- `roleAccept` and `selfPatch` are for embodied sub-agents only.
+- Embodied sub-agents emit closed family decisions. No generic role acceptance
+  or self-patch mutation mouth exists.
 - Continuity state changes should appear as typed continuity packets, recovery
   receipts, compaction checkpoints, stale-turn repairs, or refusals.
 

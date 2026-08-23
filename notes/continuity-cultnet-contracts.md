@@ -1,6 +1,6 @@
 # Continuity CultNet Contracts
 
-Objective: make Continuity the named protocol surface for compaction, sleep,
+Objective: make Continuity the named protocol surface for compaction,
 recovery, handoff, and stale-turn repair. These flows need their own receipts
 instead of hiding in scratch notes or hopeful transcript memory.
 
@@ -8,17 +8,17 @@ instead of hiding in scratch notes or hopeful transcript memory.
 
 - Owner: the Continuity protocol owns continuity across rupture.
 - Inputs: continuity packets, context pressure, compaction checkpoints,
-  heartbeat/sleep pressure, stale active turns, recovery context, handoff
+  stale active turns, recovery context, handoff
   surfaces, and Mind state context.
-- Outputs: compaction checkpoints, sleep distillation receipts, recovery
+- Outputs: compaction checkpoints, recovery
   receipts, stale-turn repair receipts, and continuity refusal receipts.
-- Derived state: handoff summaries, scratch preservation, sleep residue, and
+- Derived state: handoff summaries, scratch preservation, and
   recovery notes are continuity receipts. They are not durable Mind state until
   Mind admits them.
 - Forbidden writers: raw workers, Persona, Hands, Eyes, Soul, Self, compatibility
   routes, and background loops must not silently rewrite continuity state or
   pretend stale work completed cleanly.
-- Shared path: compaction prep, sleep distillation, handoff, wake/reorient, and
+- Shared path: compaction prep, handoff, wake/reorient, and
   stale-turn repair should share Continuity packet/review semantics.
 - Deletion line: transcript survival is not continuity. Rehydration is not adoption.
   "It was probably fine" is not a recovery receipt.
@@ -27,7 +27,6 @@ instead of hiding in scratch notes or hopeful transcript memory.
 
 - `epiphany.continuity.packet`: request or packet for continuity handling.
 - `epiphany.continuity.compaction_checkpoint`: proof of pre-rupture preservation.
-- `epiphany.continuity.sleep_distillation`: proof of sleep/rumination distillation.
 - `epiphany.continuity.recovery_receipt`: proof of wake/recovery state.
 - `epiphany.continuity.stale_turn_repair`: proof of abandoned-turn repair.
 - `epiphany.continuity.refusal_receipt`: proof that Continuity refused to trust

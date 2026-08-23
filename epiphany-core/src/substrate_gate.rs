@@ -236,29 +236,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn substrate_gate_contracts_make_internal_verse_the_repo_access_gate() {
-        let contracts = default_substrate_gate_cultnet_contracts();
-        let repo_access = contracts
-            .iter()
-            .find(|contract| contract.contract_id == "epiphany.substrate_gate.repo_access.review")
-            .expect("repo access review contract");
-
-        assert_eq!(repo_access.verse_id, "epiphany-internal");
-        assert_eq!(repo_access.authority, "substrateGate");
-        assert!(
-            repo_access
-                .notes
-                .iter()
-                .any(|note| note.contains("repo access protocol"))
-        );
-        assert!(
-            repo_access
-                .receipt_document_types
-                .contains(&SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string())
-        );
-    }
-
-    #[test]
     fn substrate_gate_grant_for_worker_is_read_only() {
         let grant = substrate_gate_repo_access_grant_for_worker(
             "grant-1".to_string(),

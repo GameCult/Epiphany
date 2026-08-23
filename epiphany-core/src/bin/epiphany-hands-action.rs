@@ -638,8 +638,7 @@ mod tests {
     use epiphany_core::RepoFrontierHandsAuthority;
     use epiphany_core::RuntimeSpineInitOptions;
     use epiphany_core::bind_repository_body;
-    use epiphany_core::bind_runtime_to_agent_memory_swarm;
-    use epiphany_core::ensure_agent_memory_swarm_identity;
+    use epiphany_core::bind_runtime_to_swarm;
     use epiphany_core::hands_action_review_for_intent;
     use epiphany_core::initialize_keyed_repo_model;
     use epiphany_core::initialize_runtime_spine;
@@ -867,7 +866,6 @@ mod tests {
         let fixture_root = store
             .parent()
             .ok_or_else(|| anyhow!("Hands test store has no fixture root"))?;
-        let agent_store = fixture_root.join("agents.cc");
         let body_store = fixture_root.join("body.cc");
         let repo = fixture_root.join("workspace");
         fs::create_dir_all(repo.join("src"))?;
@@ -879,8 +877,7 @@ mod tests {
         if !git.success() {
             return Err(anyhow!("Hands test fixture could not initialize Git Body"));
         }
-        ensure_agent_memory_swarm_identity(&agent_store, "hands-action-test-swarm")?;
-        bind_runtime_to_agent_memory_swarm(store, &agent_store, "2026-06-02T00:00:00.100Z")?;
+        bind_runtime_to_swarm(store, "hands-action-test-swarm", "2026-06-02T00:00:00.100Z")?;
         bind_repository_body(&repo, &body_store, store, "hands-action-test-workspace")?;
         let body = observe_runtime_repository_body_basis(store)?;
         let domain = EpiphanyMemoryDomain {

@@ -50,7 +50,6 @@ fn main() -> Result<()> {
             &args.state_store,
             &args.policy.runtime_store,
             &args.policy.local_verse_store,
-            &args.policy.agent_memory_store,
             &args.policy.release_store,
         ],
     )?;
@@ -565,7 +564,6 @@ impl Args {
             tool_adapter_bin: release_store.clone(),
             runtime_store: path("--runtime-store")?,
             local_verse_store: path("--local-verse-store")?,
-            agent_memory_store: path("--agent-memory-store")?,
             artifact_root: path("--artifact-root")?,
             codex_home: path("--codex-home")?,
             mcp_config: path("--mcp-config")?,
@@ -850,7 +848,6 @@ mod brake_tests {
             tool_adapter_bin: shared.join("tool"),
             runtime_store,
             local_verse_store: verse_store,
-            agent_memory_store: shared.join("mind.cc"),
             artifact_root: shared.join("artifacts"),
             codex_home: shared.join("codex-home"),
             mcp_config: shared.join("mcp.toml"),

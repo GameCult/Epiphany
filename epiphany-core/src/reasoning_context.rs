@@ -1007,7 +1007,6 @@ fn validate_model_failure_companions(records: &EpiphanyDecisionTerminalRecords) 
             .as_ref()
             .is_some_and(|error| !error.trim().is_empty())
             && record.research_decision_msgpack.is_none()
-            && record.self_patch_msgpack.is_none()
             && record.repo_model_mutation_proposal_msgpack.is_none()
             && record.frontier_plan_candidate_msgpack.is_none()
             && record.frontier_plan_mind_decision_msgpack.is_none()
@@ -2513,7 +2512,6 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             research_decision_msgpack: None,
-            self_patch_msgpack: None,
             item_error: Some(failure_summary.clone()),
             metadata: std::collections::BTreeMap::new(),
             repo_model_mutation_proposal_msgpack: None,

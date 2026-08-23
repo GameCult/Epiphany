@@ -68,12 +68,12 @@ auth and model transport.
 \begin{longtable}{>{\raggedright\arraybackslash}p{0.23\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.35\linewidth}}
 \textbf{Body Region} & \textbf{Current Owner} & \textbf{Invariant} \\
 \hline
-Durable thread state & \code{epiphany-state-model}, \code{epiphany-core} & State shape is typed; prompt rendering is a projection, not authority. \\
+Durable Mind state & keyed CultCache documents assembled by \code{epiphany-core} & Prompt rendering consumes sealed typed projections; no persisted thread aggregate or global authority revision exists. \\
 Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules, runtime lifecycle, and mutation law live here, not in bridge DTOs. \\
 Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
 Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
-Organ memory & \code{state/agents.cc}; agent-memory CLI & Resident work organs use lean work-organ state; Persona uses portable Persona state. \\
-Heartbeat physiology & \code{state/agent-heartbeats.cc} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, rumination, routine, cognition lanes, and active-turn freeze are scheduler physiology, not project truth. \\
+Persona memory & keyed Mind Persona-memory documents & Persona decisions admit bounded memories by semantic identity; no parallel role-memory aggregate or generation head exists. \\
+Heartbeat physiology & \code{state/agent-heartbeats.cc} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, explicit pressure, and active-turn exclusion only. Heartbeat owns no cognition, personality, or memory mutation. \\
 Local Verse & CultMesh over \code{state/local-verse.cc} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
 Schema catalog & \code{schemas/cultnet/index.json} & JSON schema publishes contracts; typed Rust documents remain runtime authority. \\
 Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & Artifacts witness and lower state; they do not become state owners. \\
@@ -258,17 +258,13 @@ truth, operator API owner, or plugin marketplace brain.
 Current operator access is partly native and partly witness-artifact based:
 
 \begin{itemize}
-  \item \code{tools/epiphany_local_run.ps1} is the one-command local operator
-  wrapper.
-  \item Native binaries such as \code{epiphany-mvp-status},
-  \code{epiphany-mvp-coordinator}, \code{epiphany-verse-query},
-  \code{epiphany-operator-run}, \code{epiphany-operator-snapshot},
-  \code{epiphany-eve-surface}, \code{epiphany-runtime-spine},
-  \code{epiphany-heartbeat-store}, and \code{epiphany-agent-memory-store}
-  inspect or update typed state.
+  \item Native binaries such as \code{epiphany-state},
+  \code{epiphany-mvp-coordinator}, \code{epiphany-runtime-spine},
+  \code{epiphany-heartbeat-store}, and the family-specific worker services
+  inspect or update their owned typed state.
   \item Local artifact directories such as \code{.epiphany-run/},
   \code{.epiphany-dogfood/}, \code{.epiphany-smoke/},
-  \code{.epiphany-rumination/}, \code{.epiphany-gui/}, and
+  \code{.epiphany-gui/}, and
   \code{.epiphany-character-loop/} witness work and lower typed state for
   operator inspection.
   \item Aquarium is the richer adjacent operator client. It should render and

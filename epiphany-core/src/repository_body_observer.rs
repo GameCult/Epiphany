@@ -1685,7 +1685,6 @@ mod tests {
     ) -> Result<(PathBuf, PathBuf)> {
         let store = state.join("body.cc");
         let runtime = state.join(format!("{runtime_id}.runtime.cc"));
-        let agents = state.join(format!("{runtime_id}.agents.cc"));
         crate::initialize_runtime_spine(
             &runtime,
             crate::RuntimeSpineInitOptions {
@@ -1694,8 +1693,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, swarm_id)?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, swarm_id, "2026-07-15T00:00:01Z")?;
         bind_repository_body(repo, &store, &runtime, workspace)?;
         let route = runtime_repository_body_store_binding(&runtime)?
             .ok_or_else(|| anyhow!("runtime lost repository Body-store binding"))?;

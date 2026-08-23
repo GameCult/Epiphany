@@ -4022,7 +4022,6 @@ mod tests {
         std::fs::write(repo.path().join("source.rs"), "fn one() {}\n")?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4032,8 +4031,7 @@ mod tests {
                 created_at: "2026-07-16T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "retirement-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "retirement-swarm", "2026-07-16T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "retirement-workspace")?;
         let coverage = std::fs::canonicalize(state.path())?.join("workspace-coverage.cc");
         crate::bind_runtime_workspace_coverage_store(&runtime, &coverage, "2026-07-16T00:00:02Z")?;
@@ -4507,7 +4505,6 @@ mod tests {
         }
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body_store = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4517,8 +4514,7 @@ mod tests {
                 created_at: "2026-07-16T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "read-session-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "read-session-swarm", "2026-07-16T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body_store, &runtime, "read-session-workspace")?;
         let coverage_store = std::fs::canonicalize(state.path())?.join("workspace-coverage.cc");
         crate::bind_runtime_workspace_coverage_store(
@@ -4583,7 +4579,6 @@ mod tests {
         std::fs::write(repo.path().join("binary.dat"), [0xff, 0xfe, 0xfd])?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4593,8 +4588,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "projector-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "projector-swarm", "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "projector-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,
@@ -4677,7 +4671,6 @@ mod tests {
             std::fs::write(repo.path().join("source.rs"), "fn one() {}\n")?;
             git(repo.path(), &["add", "."])?;
             let runtime = state.path().join("runtime.cc");
-            let agents = state.path().join("agents.cc");
             let body = state.path().join("body.cc");
             crate::initialize_runtime_spine(
                 &runtime,
@@ -4687,8 +4680,11 @@ mod tests {
                     created_at: "2026-07-15T00:00:00Z".into(),
                 },
             )?;
-            crate::ensure_agent_memory_swarm_identity(&agents, "projection-execution-swarm")?;
-            crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+            crate::bind_runtime_to_swarm(
+                &runtime,
+                "projection-execution-swarm",
+                "2026-07-15T00:00:01Z",
+            )?;
             crate::bind_repository_body(
                 repo.path(),
                 &body,
@@ -4791,7 +4787,6 @@ mod tests {
         std::fs::write(repo.path().join("source.rs"), "fn one() {}\n")?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4801,8 +4796,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "body-advance-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "body-advance-swarm", "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "body-advance-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,
@@ -4838,7 +4832,6 @@ mod tests {
         std::fs::write(repo.path().join("source.rs"), "fn one() {}\n")?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4848,8 +4841,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "cas-loser-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "cas-loser-swarm", "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "cas-loser-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,
@@ -4894,7 +4886,6 @@ mod tests {
         std::fs::write(repo.path().join("empty.txt"), "")?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4904,8 +4895,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "empty-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "empty-swarm", "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "empty-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,
@@ -4931,7 +4921,6 @@ mod tests {
         std::fs::write(repo.path().join("source.rs"), "fn a() {}\n")?;
         git(repo.path(), &["add", "."])?;
         let runtime = state.path().join("runtime.cc");
-        let agents = state.path().join("agents.cc");
         let body = state.path().join("body.cc");
         crate::initialize_runtime_spine(
             &runtime,
@@ -4941,8 +4930,7 @@ mod tests {
                 created_at: "2026-07-15T00:00:00Z".into(),
             },
         )?;
-        crate::ensure_agent_memory_swarm_identity(&agents, "head-cas-swarm")?;
-        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
+        crate::bind_runtime_to_swarm(&runtime, "head-cas-swarm", "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "head-cas-workspace")?;
         crate::bind_runtime_workspace_coverage_store(
             &runtime,

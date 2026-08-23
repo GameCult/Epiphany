@@ -3,15 +3,12 @@
 This folder is the canonical paperwork shrine for Epiphany's shared state
 contracts.
 
-If a trait name, organ-state field, Persona field, birth-time projection rule, or heartbeat
-surface matters enough to steer the machine, it should have a receipt here
-instead of living only in one Rust struct, one stale memory store, or one
-developer's damp recollection.
+If a Persona field, Mind document, or heartbeat scheduling surface matters
+enough to steer the machine, it should have a receipt here instead of living
+only in one Rust struct or one developer's damp recollection.
 
 ## Canonical surfaces
 
-- [ghostlight.agent-state.schema.json](./ghostlight.agent-state.schema.json):
-  source-lineage JSON Schema for dense Ghostlight character state.
 - [cultnet/gamecult.persona_state.v0.schema.json](./cultnet/gamecult.persona_state.v0.schema.json):
   portable Persona state contract for Epiphany Persona, VoidBot repo Personas, and
   Ghostlight characters. It carries explicit provenance, public presentation
@@ -22,12 +19,6 @@ developer's damp recollection.
   companion custom-label fields.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
-- [agent-state-variable-glossary.md](./agent-state-variable-glossary.md):
-  full Persona-family glossary plus current Epiphany work-organ lattice receipts.
-- [agent-utterance-state-schema.md](./agent-utterance-state-schema.md):
-  derived speech-conditioning subset for Weks, Aquarium, and other utterance
-  surfaces; it carries identity, trait vectors, mood, and activation without
-  memory records.
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md):
   typed initiative and routine-state contract for the swarm heartbeat organ.
 - [cultnet/README.md](./cultnet/README.md):
@@ -39,8 +30,8 @@ developer's damp recollection.
 
 The living implementation is in code:
 
-- [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs)
 - [heartbeat_state.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/heartbeat_state.rs)
+- [mind_documents.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/mind_documents.rs)
 
 The rule is simple:
 

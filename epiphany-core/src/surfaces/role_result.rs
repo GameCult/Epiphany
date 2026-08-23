@@ -11,23 +11,6 @@ pub enum EpiphanyRoleResultRoleId {
     Reorientation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EpiphanyRoleSelfPersistenceStatus {
-    Missing,
-    Accepted,
-    Rejected,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyRoleSelfPersistenceReview {
-    pub status: EpiphanyRoleSelfPersistenceStatus,
-    pub target_agent_id: Option<String>,
-    pub target_path: Option<String>,
-    pub reasons: Vec<String>,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleFindingInterpretation {
@@ -47,8 +30,6 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub risks: Vec<String>,
     pub research_decision: Option<crate::EpiphanyResearchDecision>,
     pub repo_model_mutation_proposal: Option<crate::EpiphanyRepoModelMutationProposal>,
-    pub self_patch: Option<AgentSelfPatch>,
-    pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
     pub job_error: Option<String>,
     pub item_error: Option<String>,
     pub verification_request_id: Option<String>,
@@ -150,10 +131,6 @@ fn interpret_role_finding(
     let repo_model_mutation_proposal_parse_error = repo_model_mutation_proposal_result
         .as_ref()
         .and_then(|result| result.as_ref().err().map(ToString::to_string));
-    let (self_patch, self_persistence) = raw_result
-        .get("selfPatch")
-        .map(|patch| decode_role_self_patch(role_id, patch))
-        .unwrap_or((None, None));
     let item_error = match role_id {
         EpiphanyRoleResultRoleId::Imagination => item_error,
         EpiphanyRoleResultRoleId::Modeling => merge_item_error(
@@ -194,8 +171,6 @@ fn interpret_role_finding(
         risks: json_string_array_field(raw_result, "risks"),
         research_decision,
         repo_model_mutation_proposal,
-        self_patch,
-        self_persistence,
         job_error,
         item_error,
         verification_request_id: json_string_field(raw_result, "verificationRequestId"),
@@ -234,15 +209,10 @@ pub fn interpret_runtime_role_worker_result(
 ) -> EpiphanyRoleFindingInterpretation {
     let research_decision_result = result.research_decision();
     let repo_model_mutation_proposal_result = result.repo_model_mutation_proposal();
-    let self_patch_result = result.self_patch();
     let research_decision = research_decision_result
         .as_ref()
         .ok()
         .and_then(|decision| decision.clone());
-    let self_patch = self_patch_result
-        .as_ref()
-        .ok()
-        .and_then(|patch| patch.clone());
     let repo_model_mutation_proposal = repo_model_mutation_proposal_result
         .as_ref()
         .ok()
@@ -253,10 +223,6 @@ pub fn interpret_runtime_role_worker_result(
             .as_ref()
             .err()
             .map(ToString::to_string),
-    );
-    let item_error = merge_item_error(
-        item_error,
-        self_patch_result.as_ref().err().map(ToString::to_string),
     );
     let item_error = merge_item_error(
         item_error,
@@ -282,8 +248,6 @@ pub fn interpret_runtime_role_worker_result(
         risks: result.risks.clone(),
         research_decision: research_decision.clone(),
         repo_model_mutation_proposal: repo_model_mutation_proposal.clone(),
-        self_patch,
-        self_persistence: None,
         job_error: None,
         item_error: match role_id {
             EpiphanyRoleResultRoleId::Modeling => merge_item_error(
@@ -456,31 +420,6 @@ pub fn build_reorient_acceptance_bundle(
     })
 }
 
-pub fn role_self_memory_target(
-    role_id: EpiphanyRoleResultRoleId,
-) -> Option<(&'static str, &'static str)> {
-    match role_id {
-        EpiphanyRoleResultRoleId::Imagination => Some((
-            "epiphany.imagination",
-            "state/agents/imagination.agent-state.json",
-        )),
-        EpiphanyRoleResultRoleId::Modeling => Some((
-            "epiphany.modeling",
-            "state/agents/modeling.agent-state.json",
-        )),
-        EpiphanyRoleResultRoleId::Research => {
-            Some(("epiphany.eyes", "state/agents/eyes.agent-state.json"))
-        }
-        EpiphanyRoleResultRoleId::Verification => {
-            Some(("epiphany.soul", "state/agents/soul.agent-state.json"))
-        }
-        EpiphanyRoleResultRoleId::Implementation => {
-            Some(("epiphany.hands", "state/agents/hands.agent-state.json"))
-        }
-        EpiphanyRoleResultRoleId::Reorientation => None,
-    }
-}
-
 pub fn role_accepted_kind(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => Ok("planning_synthesis"),
@@ -503,81 +442,6 @@ pub fn role_label(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, Str
             format!("role {role_id:?} cannot be accepted through roleAccept"),
         ),
     }
-}
-
-#[cfg(test)]
-fn review_role_self_patch(
-    role_id: EpiphanyRoleResultRoleId,
-    patch: &serde_json::Value,
-) -> EpiphanyRoleSelfPersistenceReview {
-    match decode_agent_self_patch(patch) {
-        Ok(patch) => review_role_self_patch_document(role_id, &patch),
-        Err(reason) => {
-            let Some((expected_agent_id, target_path)) = role_self_memory_target(role_id) else {
-                return EpiphanyRoleSelfPersistenceReview {
-                    status: EpiphanyRoleSelfPersistenceStatus::Rejected,
-                    target_agent_id: None,
-                    target_path: None,
-                    reasons: vec![
-                        "reorientation is Continuity protocol machinery and cannot persist role self-memory".to_string(),
-                        reason,
-                    ],
-                };
-            };
-            EpiphanyRoleSelfPersistenceReview {
-                status: EpiphanyRoleSelfPersistenceStatus::Rejected,
-                target_agent_id: Some(expected_agent_id.to_string()),
-                target_path: Some(target_path.to_string()),
-                reasons: vec![reason],
-            }
-        }
-    }
-}
-
-pub fn review_role_self_patch_document(
-    role_id: EpiphanyRoleResultRoleId,
-    patch: &AgentSelfPatch,
-) -> EpiphanyRoleSelfPersistenceReview {
-    let Some((expected_agent_id, target_path)) = role_self_memory_target(role_id) else {
-        return EpiphanyRoleSelfPersistenceReview {
-            status: EpiphanyRoleSelfPersistenceStatus::Rejected,
-            target_agent_id: None,
-            target_path: None,
-            reasons: vec![
-                "reorientation is Continuity protocol machinery and cannot persist role self-memory"
-                    .to_string(),
-            ],
-        };
-    };
-    let reasons = review_agent_self_patch_contract(expected_agent_id, patch);
-
-    EpiphanyRoleSelfPersistenceReview {
-        status: if reasons.is_empty() {
-            EpiphanyRoleSelfPersistenceStatus::Accepted
-        } else {
-            EpiphanyRoleSelfPersistenceStatus::Rejected
-        },
-        target_agent_id: Some(expected_agent_id.to_string()),
-        target_path: Some(target_path.to_string()),
-        reasons,
-    }
-}
-
-#[cfg(test)]
-fn decode_role_self_patch(
-    role_id: EpiphanyRoleResultRoleId,
-    patch: &serde_json::Value,
-) -> (
-    Option<AgentSelfPatch>,
-    Option<EpiphanyRoleSelfPersistenceReview>,
-) {
-    let review = review_role_self_patch(role_id, patch);
-    let decoded = if review.status == EpiphanyRoleSelfPersistenceStatus::Accepted {
-        decode_agent_self_patch(patch).ok()
-    } else {
-        None
-    };
-    (decoded, Some(review))
 }
 
 fn modeling_role_result_error(
@@ -866,70 +730,6 @@ mod tests {
     }
 
     #[test]
-    fn reviews_acceptable_self_patch() {
-        let finding = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Modeling,
-            &serde_json::json!({
-                "selfPatch": {
-                    "agentId": "epiphany.modeling",
-                    "reason": "Modeling should remember graph growth must stay source-grounded and bounded.",
-                    "semanticMemories": [{
-                        "memoryId": "mem-body-source-grounded-growth",
-                        "summary": "Grow graph and checkpoint state only when source evidence makes the anatomy harder to misread.",
-                        "salience": 0.82,
-                        "confidence": 0.9
-                    }]
-                }
-            }),
-            None,
-            None,
-            None,
-        );
-
-        let review = finding.self_persistence.as_ref().unwrap();
-        assert_eq!(review.status, EpiphanyRoleSelfPersistenceStatus::Accepted);
-        assert_eq!(review.target_agent_id.as_deref(), Some("epiphany.modeling"));
-    }
-
-    #[test]
-    fn rejects_bad_self_patch() {
-        let finding = interpret_role_finding(
-            EpiphanyRoleResultRoleId::Verification,
-            &serde_json::json!({
-                "selfPatch": {
-                    "agentId": "epiphany.modeling",
-                    "reason": "Too broad.",
-                    "graphs": {},
-                    "semanticMemories": [{
-                        "memoryId": "mem-soul-bad-project-truth",
-                        "summary": "Project graph state belongs in memory now.",
-                        "salience": 0.7,
-                        "confidence": 0.4
-                    }]
-                }
-            }),
-            None,
-            None,
-            None,
-        );
-
-        let review = finding.self_persistence.as_ref().unwrap();
-        assert_eq!(review.status, EpiphanyRoleSelfPersistenceStatus::Rejected);
-        assert!(
-            review
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("expected \"epiphany.soul\""))
-        );
-        assert!(
-            review
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("project truth"))
-        );
-    }
-
-    #[test]
     fn marks_modeling_no_mutation_checkpoint_reviewable() {
         let checkpoint = interpret_role_finding(
             EpiphanyRoleResultRoleId::Modeling,
@@ -1120,10 +920,6 @@ mod tests {
         }));
     }
 }
-use crate::agent_memory::AgentSelfPatch;
-#[cfg(test)]
-use crate::agent_memory::decode_agent_self_patch;
-use crate::agent_memory::review_agent_self_patch_contract;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use epiphany_state_model::EpiphanyCodeRef;
 use epiphany_state_model::EpiphanyEvidenceRecord;

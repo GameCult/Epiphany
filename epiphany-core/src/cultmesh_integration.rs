@@ -10754,7 +10754,9 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-continuity-contracts.ccmp");
         let written = write_epiphany_cultmesh_continuity_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 5);
+        assert!(written.iter().all(|contract| {
+            contract.document_type != "epiphany.continuity.sleep_distillation"
+        }));
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let continuity = node.get_required::<EpiphanyCultMeshContinuityContractEntry>(

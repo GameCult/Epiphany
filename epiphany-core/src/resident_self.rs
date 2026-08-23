@@ -296,7 +296,6 @@ pub struct ResidentSelfPolicy {
     pub tool_adapter_bin: PathBuf,
     pub runtime_store: PathBuf,
     pub local_verse_store: PathBuf,
-    pub agent_memory_store: PathBuf,
     pub artifact_root: PathBuf,
     pub codex_home: PathBuf,
     pub mcp_config: PathBuf,
@@ -325,7 +324,6 @@ impl ResidentSelfPolicy {
             ("tool adapter binary", &self.tool_adapter_bin),
             ("runtime store", &self.runtime_store),
             ("local Verse store", &self.local_verse_store),
-            ("agent memory store", &self.agent_memory_store),
             ("artifact root", &self.artifact_root),
             ("Codex home", &self.codex_home),
             ("MCP config", &self.mcp_config),
@@ -400,7 +398,6 @@ pub fn validate_resident_self_store_separation(
     for other in [
         &policy.runtime_store,
         &policy.local_verse_store,
-        &policy.agent_memory_store,
         &policy.release_store,
     ] {
         if state_canonical == canonical_store_path(other)?
@@ -1924,7 +1921,6 @@ pub fn resident_self_policy_digest(policy: &ResidentSelfPolicy) -> String {
         policy.tool_adapter_bin.display().to_string(),
         policy.runtime_store.display().to_string(),
         policy.local_verse_store.display().to_string(),
-        policy.agent_memory_store.display().to_string(),
         policy.model_provider.clone(),
         policy.max_steps.to_string(),
         policy.turn_timeout_seconds.to_string(),
@@ -2882,7 +2878,6 @@ mod coordinator_launch_contract_tests {
             tool_adapter_bin: root.join("epiphany-tool-mcp-runtime"),
             runtime_store,
             local_verse_store: root.join("local-verse.cc"),
-            agent_memory_store: root.join("mind.cc"),
             artifact_root: root.join("artifacts"),
             codex_home: root.join("codex-home"),
             mcp_config: root.join("mcp.toml"),
@@ -2912,7 +2907,6 @@ mod coordinator_launch_contract_tests {
             tool_adapter_bin: PathBuf::from("/epiphany/bin/epiphany-tool-mcp-runtime"),
             runtime_store: PathBuf::from("/epiphany/state/runtime.cc"),
             local_verse_store: PathBuf::from("/epiphany/state/local-verse.cc"),
-            agent_memory_store: PathBuf::from("/epiphany/state/mind.cc"),
             artifact_root: PathBuf::from("/epiphany/artifacts"),
             codex_home: PathBuf::from("/epiphany/codex-home"),
             mcp_config: PathBuf::from("/epiphany/mcp.toml"),

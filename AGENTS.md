@@ -173,9 +173,9 @@ When the user says to prepare for imminent compaction:
   front of an unlocked door.
 - Heartbeat scheduling should behave like physiology. Do not wake a lane again
   while its previous heartbeat turn is still running; cooldown starts after
-  completion, not at launch. When no coordinator work is active, let the swarm
-  sleep: slow rumination, memory distillation, and dreaming without hammering
-  every organ at work tempo.
+  completion, not at launch. When no typed work obligation is active, let the
+  swarm sleep. Heartbeat owns no rumination, dreaming, personality, or memory
+  mutation path and may not invent work to justify a pulse.
 - Prefer one clear hypothesis per rite.
 - Verify with checks that reflect the true objective, not just proxy incense.
 - Revert or discard changes that do not clearly improve the target.

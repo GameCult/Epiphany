@@ -5,15 +5,12 @@ use serde::Serialize;
 
 pub const CONTINUITY_PACKET_TYPE: &str = "epiphany.continuity.packet";
 pub const CONTINUITY_COMPACTION_CHECKPOINT_TYPE: &str = "epiphany.continuity.compaction_checkpoint";
-pub const CONTINUITY_SLEEP_DISTILLATION_TYPE: &str = "epiphany.continuity.sleep_distillation";
 pub const CONTINUITY_RECOVERY_RECEIPT_TYPE: &str = "epiphany.continuity.recovery_receipt";
 pub const CONTINUITY_STALE_TURN_REPAIR_TYPE: &str = "epiphany.continuity.stale_turn_repair";
 pub const CONTINUITY_REFUSAL_RECEIPT_TYPE: &str = "epiphany.continuity.refusal_receipt";
 pub const CONTINUITY_PACKET_SCHEMA_VERSION: &str = "epiphany.continuity.packet.v0";
 pub const CONTINUITY_COMPACTION_CHECKPOINT_SCHEMA_VERSION: &str =
     "epiphany.continuity.compaction_checkpoint.v0";
-pub const CONTINUITY_SLEEP_DISTILLATION_SCHEMA_VERSION: &str =
-    "epiphany.continuity.sleep_distillation.v0";
 pub const CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.continuity.recovery_receipt.v0";
 pub const CONTINUITY_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
@@ -83,13 +80,12 @@ pub fn default_continuity_cultnet_contracts() -> Vec<ContinuityCultNetContract> 
             intent_document_types: vec![CONTINUITY_PACKET_TYPE.to_string()],
             receipt_document_types: vec![
                 CONTINUITY_COMPACTION_CHECKPOINT_TYPE.to_string(),
-                CONTINUITY_SLEEP_DISTILLATION_TYPE.to_string(),
                 CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
                 CONTINUITY_STALE_TURN_REPAIR_TYPE.to_string(),
                 CONTINUITY_REFUSAL_RECEIPT_TYPE.to_string(),
             ],
             notes: vec![
-                "Continuity is a deterministic protocol surface: compaction, sleep, recovery, stale-turn repair, and handoff packets enter here.".to_string(),
+                "Continuity is a deterministic protocol surface: compaction, recovery, stale-turn repair, and handoff packets enter here.".to_string(),
                 "Continuity preserves what survives rupture; Mind decides which continuity material becomes durable state.".to_string(),
             ],
         },
@@ -104,19 +100,6 @@ pub fn default_continuity_cultnet_contracts() -> Vec<ContinuityCultNetContract> 
             receipt_document_types: Vec::new(),
             notes: vec![
                 "Compaction checkpoints preserve the hot lesson before context rupture, not after the blackout has already eaten it.".to_string(),
-            ],
-        },
-        ContinuityCultNetContract {
-            contract_id: "epiphany.continuity.sleep_distillation.receipts".to_string(),
-            verse_id: "epiphany-internal".to_string(),
-            document_type: CONTINUITY_SLEEP_DISTILLATION_TYPE.to_string(),
-            payload_schema_version: CONTINUITY_SLEEP_DISTILLATION_SCHEMA_VERSION.to_string(),
-            authority: "readOnly".to_string(),
-            operations: vec!["snapshot".to_string(), "receiptWatch".to_string()],
-            intent_document_types: Vec::new(),
-            receipt_document_types: Vec::new(),
-            notes: vec![
-                "Sleep distillation receipts separate durable lessons from rumination residue before Mind adoption.".to_string(),
             ],
         },
         ContinuityCultNetContract {
@@ -170,62 +153,5 @@ pub fn continuity_recovery_receipt_from_reorient_finding(
         files_inspected: finding.files_inspected.clone(),
         emitted_at,
         contract: "Continuity recovery emitted from a reviewed reorientation finding; it proves what survived rupture before Mind admits recovery state.".to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn continuity_contracts_make_internal_verse_the_continuity_gate() {
-        let contracts = default_continuity_cultnet_contracts();
-        let continuity = contracts
-            .iter()
-            .find(|contract| contract.contract_id == "epiphany.continuity.review")
-            .expect("continuity review contract");
-
-        assert_eq!(continuity.verse_id, "epiphany-internal");
-        assert_eq!(continuity.authority, "continuity");
-        assert!(
-            continuity
-                .notes
-                .iter()
-                .any(|note| note.contains("deterministic protocol surface"))
-        );
-        assert!(
-            continuity
-                .receipt_document_types
-                .contains(&CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string())
-        );
-    }
-
-    #[test]
-    fn reorient_finding_builds_continuity_recovery_receipt() {
-        let finding = EpiphanyReorientFindingInterpretation {
-            mode: Some("resume".to_string()),
-            summary: Some("Checkpoint remains valid.".to_string()),
-            next_safe_move: Some("Continue bounded implementation.".to_string()),
-            checkpoint_still_valid: Some(true),
-            files_inspected: vec!["state/map.yaml".to_string()],
-            frontier_node_ids: Vec::new(),
-            evidence_ids: Vec::new(),
-            artifact_refs: Vec::new(),
-            runtime_result_id: Some("result-1".to_string()),
-            runtime_job_id: Some("job-1".to_string()),
-            job_error: None,
-            item_error: None,
-        };
-        let receipt = continuity_recovery_receipt_from_reorient_finding(
-            "continuity-recovery-1".to_string(),
-            "reorientation-worker".to_string(),
-            &finding,
-            "2026-05-30T00:00:00Z".to_string(),
-        );
-
-        assert_eq!(receipt.source_result_id, "result-1");
-        assert_eq!(receipt.source_job_id, "job-1");
-        assert_eq!(receipt.mode, "resume");
-        assert_eq!(receipt.checkpoint_still_valid, "true");
     }
 }

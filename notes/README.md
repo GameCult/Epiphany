@@ -10,7 +10,6 @@ contract docs.
 - `epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split.
 - `fresh-workspace-handoff.md`: compact re-entry orientation and current live state.
 - `epiphany-current-algorithmic-map.md`: broad source-grounded machine map.
-- `codex-starvation-and-cultnet-liberation-plan.md`: active foundation campaign.
 - `codex-auth-spine-inventory.md`: retained Codex auth/model transport keeper list.
 - `epiphany-fork-implementation-plan.md`: current campaign plan.
 - `epiphany-safety-architecture.md`: capability, autonomy, and governance boundaries.
@@ -27,15 +26,13 @@ contract docs.
 
 ## Active Design References
 
-- `epiphany-memory-graph-unified-plan.md`
-- `epiphany-cultmesh-dreaming-roadmap.md`
 - `perfect-machine-audit-roadmap.md`
-- `voidbot-routine-adoption-plan.md`
 
 ## Archive
 
 - `archive/README.md`: quarantined historical ledgers, closed migrations,
-  optional bridge plans, superseded cache splits, and one-off sandbox prompts.
+  superseded memory/dreaming/routine campaigns, optional bridge plans, cache
+  splits, and one-off sandbox prompts.
 
 Cleanup rule: if a current invariant is found only in the archive, distill it
 into a canonical doc or active design reference first. Do not patch the same

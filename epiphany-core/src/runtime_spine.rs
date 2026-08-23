@@ -5,10 +5,6 @@ use crate::agent_launch::{
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
     EPIPHANY_MODELING_ROLE_BINDING_ID,
 };
-use crate::agent_memory::{
-    AGENT_MEMORY_SWARM_IDENTITY_KEY, AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION,
-    AGENT_MEMORY_SWARM_IDENTITY_TYPE, AGENT_MEMORY_TYPE, load_agent_memory_swarm_identity,
-};
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
@@ -169,7 +165,7 @@ pub const TOOL_INVOCATION_INTENT_TYPE: &str = "epiphany.tool_invocation_intent.v
 pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt.v0";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
-pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
+pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v5";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
@@ -199,7 +195,6 @@ pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
 pub const TOOL_CAPABILITY_SCHEMA_VERSION: &str = "epiphany.tool_capability.v0";
 pub const TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_receipt.v0";
-pub const AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION: &str = "epiphany.agent_memory.v0";
 pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -648,7 +643,6 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     #[cultcache(key = 16, default)]
     pub research_decision_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 17, default)]
-    pub self_patch_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 18, default)]
     pub item_error: Option<String>,
     #[cultcache(key = 19, default)]
@@ -693,10 +687,6 @@ impl EpiphanyRuntimeRoleWorkerResult {
             self.research_decision_msgpack.as_deref(),
             "role worker researchDecision",
         )
-    }
-
-    pub fn self_patch(&self) -> Result<Option<crate::AgentSelfPatch>> {
-        decode_optional_msgpack(self.self_patch_msgpack.as_deref(), "role worker selfPatch")
     }
 
     pub fn repo_model_mutation_proposal(
@@ -1287,17 +1277,15 @@ pub fn initialize_runtime_spine(
     Ok(identity)
 }
 
-pub fn bind_runtime_to_agent_memory_swarm(
+pub fn bind_runtime_to_swarm(
     runtime_store: impl AsRef<Path>,
-    agent_store: impl AsRef<Path>,
+    swarm_id: &str,
     bound_at: &str,
 ) -> Result<EpiphanyRuntimeSwarmBinding> {
     chrono::DateTime::parse_from_rfc3339(bound_at)
         .map_err(|_| anyhow!("runtime swarm binding timestamp must be RFC3339"))?;
-    let source = load_agent_memory_swarm_identity(agent_store)?
-        .ok_or_else(|| anyhow!("agent memory store has no canonical swarm identity"))?;
-    if source.schema_version != AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported canonical agent-memory swarm identity"));
+    if swarm_id.trim().is_empty() {
+        return Err(anyhow!("runtime swarm binding requires swarm id"));
     }
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
@@ -1309,10 +1297,13 @@ pub fn bind_runtime_to_agent_memory_swarm(
         schema_version: RUNTIME_SWARM_BINDING_SCHEMA_VERSION.to_string(),
         binding_id: RUNTIME_SWARM_BINDING_KEY.to_string(),
         runtime_id: identity.runtime_id.clone(),
-        swarm_id: source.swarm_id.clone(),
-        source_identity_type: AGENT_MEMORY_SWARM_IDENTITY_TYPE.to_string(),
-        source_identity_key: AGENT_MEMORY_SWARM_IDENTITY_KEY.to_string(),
-        source_identity_sha256: format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&source)?)),
+        swarm_id: swarm_id.to_string(),
+        source_identity_type: RUNTIME_IDENTITY_TYPE.to_string(),
+        source_identity_key: RUNTIME_IDENTITY_KEY.to_string(),
+        source_identity_sha256: format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&identity)?)
+        ),
         bound_at: bound_at.to_string(),
     };
     if let Some(existing) = cache.get::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)? {
@@ -1367,8 +1358,8 @@ fn require_runtime_swarm_binding(cache: &CultCache) -> Result<EpiphanyRuntimeSwa
         || binding.binding_id != RUNTIME_SWARM_BINDING_KEY
         || binding.runtime_id != identity.runtime_id
         || binding.swarm_id.trim().is_empty()
-        || binding.source_identity_type != AGENT_MEMORY_SWARM_IDENTITY_TYPE
-        || binding.source_identity_key != AGENT_MEMORY_SWARM_IDENTITY_KEY
+        || binding.source_identity_type != RUNTIME_IDENTITY_TYPE
+        || binding.source_identity_key != RUNTIME_IDENTITY_KEY
         || binding.source_identity_sha256.trim().is_empty()
         || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
     {
@@ -5337,7 +5328,6 @@ pub fn put_runtime_role_worker_result(
             ));
         }
         if result.research_decision_msgpack.is_some()
-            || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.verification_request_id.is_some()
             || result.frontier_route_id.is_some()
@@ -5434,7 +5424,6 @@ pub fn put_runtime_role_worker_result(
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
-            || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.imagination_consideration_request_id.is_some()
             || result.imagination_consideration_candidate_msgpack.is_some()
@@ -5506,7 +5495,6 @@ pub fn put_runtime_role_worker_result(
         if !result.role_id.eq_ignore_ascii_case("imagination")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
-            || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.verification_request_id.is_some()
             || result.frontier_route_id.is_some()
@@ -5594,7 +5582,6 @@ pub fn put_runtime_role_worker_result(
         if !result.role_id.eq_ignore_ascii_case("mindAdmissionReview")
             || result.item_error.is_some()
             || result.research_decision_msgpack.is_some()
-            || result.self_patch_msgpack.is_some()
             || result.repo_model_mutation_proposal_msgpack.is_some()
             || result.frontier_planning_request_id.is_some()
             || result.frontier_plan_candidate_msgpack.is_some()
@@ -13716,13 +13703,12 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![CONTINUITY_PACKET_TYPE],
             vec![
                 CONTINUITY_COMPACTION_CHECKPOINT_TYPE,
-                CONTINUITY_SLEEP_DISTILLATION_TYPE,
                 CONTINUITY_RECOVERY_RECEIPT_TYPE,
                 CONTINUITY_STALE_TURN_REPAIR_TYPE,
                 CONTINUITY_REFUSAL_RECEIPT_TYPE,
             ],
             vec![
-                "Continuity is deterministic protocol machinery: compaction, sleep, recovery, stale-turn repair, and handoff packets enter here.",
+                "Continuity is deterministic protocol machinery: compaction, recovery, stale-turn repair, and handoff packets enter here.",
                 "Continuity preserves survival across rupture; Mind admits durable state.",
             ],
         ),
@@ -13737,18 +13723,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Compaction checkpoints preserve hot context before rupture."],
-        ),
-        mutation_contract(
-            CONTINUITY_SLEEP_DISTILLATION_TYPE,
-            CONTINUITY_SLEEP_DISTILLATION_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Sleep distillation receipts separate durable lessons from rumination residue."],
         ),
         mutation_contract(
             CONTINUITY_RECOVERY_RECEIPT_TYPE,
@@ -13973,21 +13947,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            AGENT_MEMORY_TYPE,
-            AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec!["epiphany.agent_memory_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Sub-agents request memory mutations; the coordinator carries the typed intent, and Mind accepts, rejects, or explains durable-state admission.",
-            ],
-        ),
-        mutation_contract(
             HEARTBEAT_STATE_TYPE,
             HEARTBEAT_STATE_SCHEMA_VERSION,
             vec![
@@ -14170,9 +14129,7 @@ pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn bind_test_runtime_swarm(store: &Path, swarm_id: &str) -> Result<()> {
-        let agent_store = store.with_extension("test-agent-memory.cc");
-        crate::ensure_agent_memory_swarm_identity(&agent_store, swarm_id)?;
-        bind_runtime_to_agent_memory_swarm(store, &agent_store, "2026-08-14T00:00:01Z")?;
+        bind_runtime_to_swarm(store, swarm_id, "2026-08-14T00:00:01Z")?;
         Ok(())
     }
 

@@ -27,17 +27,15 @@ server object deserves to be duplicated into a second baroque schema maze.
 
 - `epiphany.runtime.*`: native runtime-spine identity, session, job, job
   result, and event documents.
-- `epiphany.agent_*` and `epiphany.state-ledger`: durable typed state the swarm
-  actually lives on, plus derived agent views such as
-  `epiphany.agent_utterance_state.v0` for speech-conditioning without memory
-  payloads.
+- keyed Mind documents and `epiphany.state-ledger`: durable typed state and
+  exact decision/commit receipts the runtime lives on.
 - `epiphany.surface.*`: operator-safe projections for scene, freshness,
   context, graph query, roles, jobs, Persona, Rider, Unity, and related live
   surfaces.
 - `*.intent.v0`: control documents Aquarium, a Discord bridge, a voice surface,
   or another trusted coordinator can submit through CultNet.
-- receipt/artifact schemas such as `epiphany.swarm-control-receipt`,
-  `epiphany.persona-bubble`, and `epiphany.character-turn-packet`.
+- receipt/artifact schemas such as `epiphany.swarm-control-receipt` and
+  `epiphany.persona-bubble`.
 
 ## Publication Path
 

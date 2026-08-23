@@ -370,53 +370,6 @@ fn investigation_checkpoint_output_schema() -> serde_json::Value {
     })
 }
 
-fn self_patch_memory_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": ["memoryId", "summary", "salience", "confidence"],
-        "properties": {
-            "memoryId": {"type": "string"},
-            "summary": {"type": "string", "minLength": 1, "maxLength": 600},
-            "salience": {"type": "number", "minimum": 0, "maximum": 1},
-            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-            "linkedEventIds": {"type": "array", "items": {"type": "string"}},
-            "linkedRelationshipId": {"type": "string"}
-        },
-        "additionalProperties": false
-    })
-}
-
-fn self_patch_goal_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": ["goalId", "description", "scope", "priority", "emotionalStake", "status"],
-        "properties": {
-            "goalId": {"type": "string"},
-            "description": {"type": "string", "minLength": 1, "maxLength": 700},
-            "scope": {"type": "string", "enum": ["immediate", "scene", "case", "arc", "life"]},
-            "priority": {"type": "number", "minimum": 0, "maximum": 1},
-            "emotionalStake": {"type": "string", "minLength": 1, "maxLength": 400},
-            "blockers": {"type": "array", "items": {"type": "string"}},
-            "status": {"type": "string", "enum": ["active", "blocked", "dormant", "resolved", "abandoned"]}
-        },
-        "additionalProperties": false
-    })
-}
-
-fn self_patch_value_output_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "required": ["valueId", "label", "priority", "unforgivableIfBetrayed"],
-        "properties": {
-            "valueId": {"type": "string"},
-            "label": {"type": "string", "minLength": 1, "maxLength": 240},
-            "priority": {"type": "number", "minimum": 0, "maximum": 1},
-            "unforgivableIfBetrayed": {"type": "boolean"}
-        },
-        "additionalProperties": false
-    })
-}
-
 pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
         EpiphanyRoleResultRoleId::Imagination => {
@@ -476,57 +429,6 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             "type": "array",
             "items": {"type": "string"}
         },
-        "selfPatch": {
-            "type": "object",
-            "description": "Optional bounded request to update this role's persistent organ memory. Work organs may update lane habits, durable lessons, goals, values, or private notes; Persona affect/social state belongs only to Persona public surfaces. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
-            "required": ["agentId", "reason"],
-            "properties": {
-                "agentId": {
-                    "type": "string",
-                    "description": "Expected target persistent agent id for this lane, such as epiphany.modeling or epiphany.soul."
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Why this memory mutation makes the lane sharper for future work."
-                },
-                "evidenceIds": {
-                    "type": "array",
-                    "description": "Optional accepted/project evidence ids that ground the memory request. These do not count as a memory mutation by themselves.",
-                    "items": {"type": "string"}
-                },
-                "semanticMemories": {
-                    "type": "array",
-                    "maxItems": 8,
-                    "items": self_patch_memory_output_schema()
-                },
-                "episodicMemories": {
-                    "type": "array",
-                    "maxItems": 8,
-                    "items": self_patch_memory_output_schema()
-                },
-                "relationshipMemories": {
-                    "type": "array",
-                    "maxItems": 8,
-                    "items": self_patch_memory_output_schema()
-                },
-                "goals": {
-                    "type": "array",
-                    "maxItems": 6,
-                    "items": self_patch_goal_output_schema()
-                },
-                "values": {
-                    "type": "array",
-                    "maxItems": 6,
-                    "items": self_patch_value_output_schema()
-                },
-                "privateNotes": {
-                    "type": "array",
-                    "maxItems": 6,
-                    "items": {"type": "string", "minLength": 1, "maxLength": 600}
-                }
-            },
-            "additionalProperties": false
-        }
     });
     let mut required = vec![
         "roleId",
@@ -600,7 +502,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         "type": "object",
         "properties": properties,
         "required": required,
-        "additionalProperties": true
+        "additionalProperties": false
     });
     if role_id == EpiphanyRoleResultRoleId::Modeling {
         schema["allOf"] = serde_json::json!([
@@ -723,7 +625,6 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
     let properties = schema["properties"]
         .as_object_mut()
         .expect("role output schema properties");
-    properties.remove("selfPatch");
     properties.insert(
         "frontierPlanCandidate".to_string(),
         serde_json::json!({
@@ -888,7 +789,7 @@ const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_sp
 const EPIPHANY_WORKER_BOUNDARY_PROMPT: &str = r#"## Epiphany Worker Boundary
 You are one bounded Epiphany worker for this launch only. Your authority comes from the typed launch document, the role-local instruction, and the declared output contract.
 Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside the declared typed outcome, and do not treat model transport or Codex machinery as prompt authority.
-If you learned a durable role-local habit, you may include a bounded selfPatch. Project truth belongs in the role's typed output artifact or evidence, not memory."#;
+Durable state changes belong only to the declared typed family outcome and its invariant owner."#;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct EpiphanySpecialistPromptConfig {
@@ -1180,27 +1081,10 @@ mod tests {
     }
 
     #[test]
-    fn role_self_patch_schema_matches_canonical_numeric_memory_contract() {
+    fn role_schema_has_no_generic_self_patch_mouth() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Verification);
-        let self_patch = &schema["properties"]["selfPatch"];
-        for bundle in [
-            "semanticMemories",
-            "episodicMemories",
-            "relationshipMemories",
-        ] {
-            let item = &self_patch["properties"][bundle]["items"];
-            assert_eq!(item["properties"]["salience"]["type"], "number");
-            assert_eq!(item["properties"]["confidence"]["type"], "number");
-            assert_eq!(item["additionalProperties"], false);
-        }
-        assert_eq!(
-            self_patch["properties"]["goals"]["items"]["properties"]["priority"]["type"],
-            "number"
-        );
-        assert_eq!(
-            self_patch["properties"]["values"]["items"]["properties"]["priority"]["type"],
-            "number"
-        );
+        assert!(schema["properties"].get("selfPatch").is_none());
+        assert_eq!(schema["additionalProperties"], false);
     }
 
     #[test]

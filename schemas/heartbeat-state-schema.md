@@ -1,125 +1,42 @@
 # Heartbeat State Schema
 
-Epiphany's heartbeat store is the typed initiative and routine-state organ for
-the swarm.
+Epiphany's heartbeat store is scheduling physiology. It decides when an
+already-existing typed obligation may receive a turn; it does not decide what
+the organism believes or invent cognition to fill idle time.
 
-The executable truth lives in
-[heartbeat_state.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/heartbeat_state.rs).
+The executable contract lives in
+`epiphany-core/src/heartbeat_state/heartbeat_documents.rs` and the scheduling
+law lives in `heartbeat_state.rs`, `heartbeat_pacing.rs`, and
+`heartbeat_store.rs`.
 
-## Store Identity
+## Store identity
 
 - document type: `epiphany.agent_heartbeat`
 - schema version: `epiphany.agent_heartbeat.v0`
 - key: `default`
 
-Related emitted schemas:
+The singleton carries pacing policy, participant readiness, pending turns,
+bounded scheduling history, initiative heat, explicit Persona transport
+pressure, and retention bookkeeping.
 
-- `ghostlight.initiative_schedule.v0`
-- `epiphany.void_routine.v0`
-- `epiphany.agent_heartbeat_status.v0`
+## Scheduling invariants
 
-## Top-Level Fields
+- An existing pending turn cannot be scheduled again.
+- Cooldown begins after terminal completion, not at launch.
+- Resident Self pressure may wake the coordinator; heartbeat does not create
+  that pressure.
+- Persona may wake only from explicit queued social pressure.
+- The swarm brake prevents new Persona cognition while allowing terminal
+  acknowledgement and recovery physiology to settle.
+- Initiative heat changes scheduling tempo only. It cannot create Mind state,
+  route an organ, or make a semantic decision.
+- When no typed obligation or social pressure exists, the scheduler sleeps.
 
-The heartbeat store currently carries:
+Heartbeat owns no personality, mood, appraisal, rumination, dreaming, memory
+graph, utterance vector, or generic self-modification surface. Durable Persona
+memory and social interpretation are keyed Mind documents admitted through the
+Persona decision context. Work for Modeling, Eyes, Hands, Soul, and Imagination
+comes from the pure current-work projection over typed state obligations.
 
-- target heartbeat rate
-- scene clock
-- selection policy
-- pacing policy
-- participants
-- history
-- optional routine/sleep surfaces:
-  - `sleep_cycle`
-  - `memory_resonance`
-  - `incubation`
-  - `thought_lanes`
-  - `bridge`
-  - `candidate_interventions`
-  - `appraisals`
-  - `reactions`
-
-The routine surfaces now have a little more anatomy than they used to:
-
-- `incubation.sourceCoverage`
-  - versioned coverage receipt for which role families and memory kinds have
-    been feeding the current routine
-- `incubation.themes[*]`
-  - now include `noveltyToSelf`, `noveltyToRoom`, `saturationScore`,
-    `refractoryPenalty`, `supportCount`, `evidenceDiversity`,
-    `explorationBonus`, `priorityScore`, `status`, and short holding/attraction
-    lines
-- `bridge.sourceCoverage`
-  - mirrored terrain coverage for the bridge decision layer
-- `bridge.topicSaturation`
-  - repeated-theme pressure derived from both bridge syntheses and current
-    incubating themes
-- `bridge.refractoryTopics`
-  - temporary cooling records for seams the machine has been worrying too hard
-
-## Participant Shape
-
-Each participant tracks:
-
-- `agent_id`
-- `role_id`
-- `display_name`
-- `arena`
-- `participant_kind`
-- `initiative_speed`
-- `next_ready_at`
-- `reaction_bias`
-- `interrupt_threshold`
-- `current_load`
-- `status`
-- `constraints`
-- last action metadata
-- optional `pending_turn`
-- optional `mood_timing`
-  - `cooldown_multiplier`
-  - scalar timing pressures: `anxiety`, `urgency`, `arousal`,
-    `thought_pressure`, `guardedness`, `reaction_intensity`
-  - `emotional_dimensions`: the 32-axis current affect vector used by
-    utterance-state projection, including anger, despair, sadness, fear,
-    contempt, annoyance, dismissal, flippancy, tenderness, warmth, shame,
-    pride, fatigue, secrecy, hesitation, emotional containment, and command
-    force
-
-Maintenance participants are the standing Epiphany organs. Scene participants
-reuse the same timing law for Ghostlight-style character turns.
-
-## Key Policy
-
-The important semantics are:
-
-- cooldown starts after turn completion, not launch
-- a participant with a pending turn should not be woken again
-- calm systems can slow toward sleep
-- urgent systems can raise tempo and concurrency
-- idle turns are for rumination, not fake work
-- sleep/dream passes are the intended distillation window
-- a live, unsaturated thought is allowed to sit and deepen without performing a
-  fake novelty errand every pass
-- novelty is split in two on purpose:
-  - `noveltyToSelf` asks whether the swarm is repeating itself
-  - `noveltyToRoom` asks whether the swarm-facing surface has already been fed
-    the same seam
-- saturation and refractory cooling exist to keep one rewarding theme from
-  annexing the whole machine
-
-## Relation To Organ State
-
-Heartbeat is physiology, not identity.
-
-Organ-state records describe what an organ is. Heartbeat describes how often it gets
-the floor, how reactive it is, and how current pressure bends that timing.
-
-Current emotional state is heartbeat physiology. Appraisals write a bounded
-named affect vector into `mood_timing`; utterance state consumes that live vector
-before falling back to slower organ-state traits. If anger, despair, annoyance,
-dismissal, flippancy, or any other speech-relevant feeling is meant to color a
-voice, it must exist here or in the typed appraisal feeding this field, not only
-as prose in a prompt.
-
-Birth-time repo personality may seed heartbeat timing once. After that, routine
-state, appraisal, mood, continuity pressure, and live work should carry the
-motion.
+JSON emitted by the heartbeat CLI is an operator artifact only. CultCache
+documents remain authority.

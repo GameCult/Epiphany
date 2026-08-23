@@ -263,12 +263,7 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
         "verification" => "Falsifies promises; must not bless theater.",
         _ => "Unknown role.",
     };
-    vec![
-        "Runs Ghostlight-shaped persistent role memory.",
-        "May improve lane memory when awake and idle.",
-        "Project truth belongs in keyed Mind documents, not role memory.",
-        role_specific,
-    ]
+    vec![role_specific]
 }
 
 #[cfg(test)]
