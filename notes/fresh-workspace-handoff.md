@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `3dda58a5`
+Latest committed implementation cut: `56267201`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `56267201` retires the three unadmitted Model Atlas daemon shells and
+their forced release roles: publisher, entanglement projector, and impact
+ingress. Their typed libraries, stores, signatures, CAS admissions,
+projections, transport, and impact evaluation remain. No current unit,
+deployment phase, caller, or independent failure-isolation contract justified
+three production processes before Gate 1. The vertical-slice map now describes
+library organs and requires a future admitted lifecycle to determine the
+minimum Idunn-managed topology. The cut removes 328 net lines and leaves 14
+Cargo executable targets; focused Atlas runtime and release-construction tests
+pass.
 
 Exact `3dda58a5` collapses Persona feedback ingress into Resident Self: the
 standalone binary, forced release role, command-only status/snapshot

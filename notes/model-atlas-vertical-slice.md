@@ -152,8 +152,9 @@ pinned by exact repository coordinates; key rotation is operator-gated.
 ## Rollout gates
 
 1. Keep impact ingress absent. Let ordinary Modeling admit the three local seed
-   facts into isolated Mind stores, then exercise the publisher and projector owners until
-   signed publications, exact watermarks, and the retained Eve tree exist.
+   facts into isolated Mind stores, then exercise the publisher and projector
+   owners until signed publications, exact watermarks, and the retained Eve
+   tree exist.
    Engage `atlas.publish`, `atlas.project`, and `atlas.impact_ingress`, run one
    more publisher/projector cycle plus the first ingress cycle, and prove every
    write/schedule is held while the last projection remains visibly stale and
@@ -199,27 +200,20 @@ The focused proofs cover:
   source evidence, exact Soul evidence, publisher age/watermarks, cycles, blast
   radius, and presentation-only select/filter commands.
 
-Current counts are Epiphany core 555/555, OpenAI Modeling ingress 23/23,
-coordinator 18/18, Odin Node 1/1 plus Rust 15/15, and Eve Atlas 4/4 plus Eve
-contracts 6/6. The ordinary Epiphany all-target workspace check also passes.
-
-Current verification commands:
+Test totals are historical pressure signals, not an Atlas acceptance claim.
+Run only the focused owner affected by a source change. The shell-removal cut
+uses:
 
 ```powershell
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
-cargo test -p epiphany-core --lib
-cargo test -p epiphany-openai-runtime --lib
-cargo test -p epiphany-release-bundle --features coordinator-runtime --bin epiphany-mvp-coordinator
-cargo check --workspace --all-targets
-
-Set-Location F:\Projects\Odin
-node --test test/model-atlas-documents.test.cjs
-cargo test -p odin-core
-
-Set-Location F:\Projects\Eve
-node --test web/model-atlas-conformance.test.mjs
-node --test packages/eve-contracts/test/contracts.test.mjs
+cargo test -p epiphany-core --lib atlas::runtime::tests
+cargo test -p epiphany-release-construction --lib binary_suffix_follows_requested_target_not_packager_host
 ```
+
+Changes to publisher, projector, impact, transport, or Eve lowering logic must
+run the corresponding focused module tests. Cross-repository and operational
+Gate verification belongs to Idunn on the admitted exact package; no local
+workspace-wide or all-target build is part of this map.
 
 Atlas verification belongs to the owning library and packaged runtime tests.
 The old feature-gated recovery smoke executable and its smoke-only authority

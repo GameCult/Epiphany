@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `3dda58a5` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `56267201` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -167,6 +167,14 @@ feedback store, and then projects allowed pressure into typed social state.
 Static status JSON and a second import command cannot race or impersonate that
 physiology. The retained tests exercise authentication, substitution refusal,
 disclosure policy, recovery, and exact provider-store import.
+
+Model Atlas is not three daemons merely because its library has three
+authorities. Exact `56267201` deletes the publisher, projector, and impact
+ingress executable wrappers plus their release roles. The typed library owners
+and their separate state remain intact; no current deployment lifecycle pays
+for speculative loops, CLI parsing, sleep cadence, or process termination
+handlers. A future Gate 1 must prove the minimum Idunn-managed process topology
+from actual lifecycle and failure-isolation needs.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
