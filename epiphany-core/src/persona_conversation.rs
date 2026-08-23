@@ -1422,7 +1422,6 @@ mod tests {
                 status: "terminal".into(),
                 reserved_at: reserved_at.into(),
                 mentions: vec![],
-                semantic_memory_recall: serde_json::Value::Null,
                 terminal_receipt: Some(terminal.clone()),
                 private_state_exposed: false,
             },
@@ -1730,7 +1729,6 @@ mod tests {
             },
             transcript: Vec::new(),
             allowed_channel_ids: vec!["aquarium".into()],
-            dynamic_semantic_memory_recall: String::new(),
             observed_sources: vec![provenance.clone()],
             admitted_at: "2026-08-18T02:00:01Z".into(),
         };
@@ -1780,7 +1778,6 @@ mod tests {
                 status: "terminal".into(),
                 reserved_at: "2026-08-09T23:59:59Z".into(),
                 mentions: vec![],
-                semantic_memory_recall: serde_json::Value::Null,
                 terminal_receipt: Some(crate::PersonaTurnTerminalReceipt {
                     schema_version: crate::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
                     receipt_id: "turn-failed:terminal".into(),

@@ -3,10 +3,8 @@ use crate::PersonaSocialMention;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::DatabaseEntry;
-use epiphany_state_model::EpiphanyMemoryContextPacket;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 use std::path::Path;
 
 pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
@@ -238,8 +236,6 @@ pub struct PersonaProjectorInput {
     #[serde(default)]
     pub memories: Vec<EpiphanyMindPersonaMemoryDocument>,
     #[serde(default)]
-    pub semantic_memory_recall: String,
-    #[serde(default)]
     pub pending_mentions: Vec<PersonaSocialMention>,
     #[serde(default)]
     pub repo_activity: Vec<PersonaRepoActivity>,
@@ -261,10 +257,6 @@ pub struct PersonaInterpreterInput {
     pub persona_prompt: String,
     pub persona_output: String,
     #[serde(default)]
-    pub semantic_memory_recall: String,
-    #[serde(default)]
-    pub dynamic_semantic_memory_recall: String,
-    #[serde(default)]
     pub pending_mentions: Vec<PersonaSocialMention>,
     #[serde(default)]
     pub allowed_channel_ids: Vec<String>,
@@ -280,11 +272,10 @@ pub fn build_persona_projector_prompt_with_transcript(
 ) -> String {
     let memory = render_memory_packet(&input.memories);
     let typed_context = format!(
-        "prompt schema: {schema}\nPersona identity:\n{identity}\n\nTyped memory packet:\n{memory}\n\nSemantic memory recall:\n{semantic_recall}\n\nPending addressed pressure:\n{mentions}\n\nRecent home-repo activity:\n{activity}\n\nLive social affordances:\n{affordances}",
+        "prompt schema: {schema}\nPersona identity:\n{identity}\n\nTyped memory packet:\n{memory}\n\nPending addressed pressure:\n{mentions}\n\nRecent home-repo activity:\n{activity}\n\nLive social affordances:\n{affordances}",
         schema = PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION,
         identity = render_identity(&input.identity),
         memory = memory,
-        semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
         mentions = render_pending_mentions(&input.pending_mentions),
         activity = render_repo_activity(&input.repo_activity),
         affordances = render_social_affordances(&input.social_affordances),
@@ -336,24 +327,10 @@ Allowed channel ids:
 Pending addressed pressure:
 {mentions}
 
-Initial semantic memory recall from the Persona turn:
-{semantic_recall}
-
-Dynamic self-memory recall from the Persona output:
-{dynamic_semantic_recall}
 "#,
         schema = PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION,
         channels = render_allowed_channels(&input.allowed_channel_ids),
         mentions = render_pending_mentions(&input.pending_mentions),
-        semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
-        dynamic_semantic_recall = render_semantic_memory_recall_text(
-            input
-                .dynamic_semantic_memory_recall
-                .trim()
-                .is_empty()
-                .then_some(input.semantic_memory_recall.as_str())
-                .unwrap_or(input.dynamic_semantic_memory_recall.as_str())
-        ),
     );
     let typed_context = format!(
         "Allowed channel ids:\n{}\n\nPending addressed-pressure records:\n{}",
@@ -481,75 +458,6 @@ pub fn parse_and_validate_persona_interpreter_effect_set(
     Ok(parsed)
 }
 
-pub fn render_persona_semantic_memory_recall(packet: &EpiphanyMemoryContextPacket) -> String {
-    let mut lines = vec![
-        format!(
-            "Derived semantic recall packet `{}` from query `{}`.",
-            packet.id, packet.query_id
-        ),
-        "These hits come from Epiphany's typed memory graph. They are hints, not durable authority; reviewed memory/state remains the owner.".to_string(),
-    ];
-
-    if packet.summaries.is_empty() && packet.nodes.is_empty() {
-        lines.push("- no matching memory graph entries in this packet".to_string());
-    }
-
-    for (index, summary) in packet.summaries.iter().take(4).enumerate() {
-        lines.push(format!(
-            "- summary {}. {}: {}; next: {}",
-            index + 1,
-            fallback(&summary.target, "unknown target"),
-            compact_semantic_recall_line(&summary.claim, 420),
-            compact_semantic_recall_line(&summary.action_implication, 260)
-        ));
-    }
-
-    for (index, node) in packet.nodes.iter().take(8).enumerate() {
-        lines.push(format!(
-            "- hit {}. {}: {}; next: {}",
-            index + 1,
-            fallback(&node.title, "untitled memory"),
-            compact_semantic_recall_line(&node.claim, 420),
-            compact_semantic_recall_line(&node.action_implication, 260)
-        ));
-    }
-
-    if !packet.warnings.is_empty() {
-        lines.push("Warnings:".to_string());
-        for warning in packet.warnings.iter().take(4) {
-            lines.push(format!("- {}", compact_semantic_recall_line(warning, 260)));
-        }
-    }
-
-    lines.join("\n")
-}
-
-pub fn semantic_memory_recall_from_heartbeat_action(action: &Value) -> String {
-    let Some(recall) = action
-        .get("persona_memory_recall")
-        .or_else(|| action.get("personaMemoryRecall"))
-    else {
-        return "- semantic memory recall unavailable in heartbeat action; do not pretend it ran"
-            .to_string();
-    };
-
-    if recall.get("privateStateExposed").and_then(Value::as_bool) != Some(false) {
-        return "- semantic memory recall refused: heartbeat action did not carry a private-state seal"
-            .to_string();
-    }
-
-    recall
-        .get("renderedRecall")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .unwrap_or_else(|| {
-            "- semantic memory recall unavailable in heartbeat action; do not pretend it ran"
-                .to_string()
-        })
-}
-
 pub fn persona_projected_surface_is_clean(surface: &str) -> bool {
     if !ghostlight_persona_projection::narrative_stream_is_clean(surface) {
         return false;
@@ -673,24 +581,6 @@ fn render_allowed_channels(channel_ids: &[String]) -> String {
         .join("\n")
 }
 
-fn render_semantic_memory_recall_text(value: &str) -> String {
-    if value.trim().is_empty() {
-        return "- semantic memory recall unavailable in this packet; do not pretend it ran"
-            .to_string();
-    }
-    value.trim().to_string()
-}
-
-fn compact_semantic_recall_line(value: &str, max_len: usize) -> String {
-    let mut compacted = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    if compacted.len() > max_len {
-        let keep = max_len.saturating_sub(3);
-        compacted.truncate(keep);
-        compacted.push_str("...");
-    }
-    compacted
-}
-
 fn fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
     if value.trim().is_empty() {
         fallback
@@ -702,11 +592,6 @@ fn fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyMemoryContextPacket;
-    use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
-    use epiphany_state_model::EpiphanyMemoryNode;
-    use epiphany_state_model::EpiphanyMemorySummary;
-    use serde_json::json;
 
     fn identity() -> PersonaIdentity {
         PersonaIdentity {
@@ -786,8 +671,6 @@ mod tests {
             identity: identity(),
             persona_prompt: persona,
             persona_output: "I want to answer, but only if I can name the cut plainly.".to_string(),
-            semantic_memory_recall: String::new(),
-            dynamic_semantic_memory_recall: String::new(),
             pending_mentions: vec![pending],
             allowed_channel_ids: vec!["aquarium".to_string()],
         });
@@ -798,93 +681,6 @@ mod tests {
         assert!(interpreter.contains("a signed Bifrost receipt alone proves"));
     }
 
-    #[test]
-    fn persona_turn_prompts_include_semantic_memory_recall_as_hint_not_authority() {
-        let recall = render_persona_semantic_memory_recall(&EpiphanyMemoryContextPacket {
-            id: "memctx-persona-current-room".to_string(),
-            query_id: "persona-current-room".to_string(),
-            summaries: vec![EpiphanyMemorySummary {
-                id: "summary-role-persona".to_string(),
-                target: "role:Persona".to_string(),
-                claim: "Persona remembers that public speech should preserve dignity and clean contracts."
-                    .to_string(),
-                action_implication: "Let this pressure shape tone, but route effects through Mind."
-                    .to_string(),
-                freshness: EpiphanyMemoryFreshnessStatus::Ready,
-                confidence: 82,
-                ..Default::default()
-            }],
-            nodes: vec![EpiphanyMemoryNode {
-                id: "node-persona-value-contracts".to_string(),
-                title: "Persona value: clean contracts".to_string(),
-                claim: "Clean typed contracts matter more than fast improvised glue.".to_string(),
-                action_implication:
-                    "Use as Persona-local context, not as authorization to mutate state."
-                        .to_string(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        });
-
-        let projector = build_persona_projector_prompt(&PersonaProjectorInput {
-            identity: identity(),
-            semantic_memory_recall: recall.clone(),
-            ..PersonaProjectorInput::default()
-        });
-        assert!(projector.contains("Semantic memory recall"));
-        assert!(projector.contains("typed memory graph"));
-        assert!(projector.contains("not durable authority"));
-
-        let persona = build_persona_turn_prompt(&PersonaTurnInput {
-            identity: identity(),
-            projected_state: "Epiphany feels the pressure of the public room.".to_string(),
-        });
-        assert!(persona.contains("Epiphany feels the pressure of the public room"));
-        assert!(!persona.contains("Semantic memory recall"));
-        assert!(!persona.contains("Clean typed contracts"));
-
-        let interpreter = build_persona_interpreter_prompt(&PersonaInterpreterInput {
-            identity: identity(),
-            persona_prompt: persona,
-            persona_output: "I can answer, but the answer should stay review-gated.".to_string(),
-            semantic_memory_recall: recall,
-            dynamic_semantic_memory_recall: "Output-triggered recall says review gates matter."
-                .to_string(),
-            pending_mentions: Vec::new(),
-            allowed_channel_ids: vec!["aquarium".to_string()],
-        });
-        assert!(interpreter.contains("Dynamic self-memory recall"));
-        assert!(interpreter.contains("Output-triggered recall"));
-        assert!(interpreter.contains("STATE NOTE"));
-        assert!(interpreter.contains("SAY"));
-    }
-
-    #[test]
-    fn heartbeat_action_recall_extracts_only_when_private_state_is_sealed() {
-        let action = json!({
-            "persona_memory_recall": {
-                "privateStateExposed": false,
-                "renderedRecall": "Derived Qdrant Persona recall; hints only."
-            }
-        });
-        assert_eq!(
-            semantic_memory_recall_from_heartbeat_action(&action),
-            "Derived Qdrant Persona recall; hints only."
-        );
-
-        let leaking_action = json!({
-            "persona_memory_recall": {
-                "privateStateExposed": true,
-                "renderedRecall": "sealed private note"
-            }
-        });
-        let refused = semantic_memory_recall_from_heartbeat_action(&leaking_action);
-        assert!(refused.contains("refused"));
-        assert!(!refused.contains("sealed private note"));
-
-        let missing = semantic_memory_recall_from_heartbeat_action(&json!({}));
-        assert!(missing.contains("unavailable"));
-    }
 
     #[test]
     fn projected_surface_rejects_side_effect_syntax() {

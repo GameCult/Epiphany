@@ -213,7 +213,6 @@ fn ensure_persona_pass_input_admitted(
             timestamp: mention.queued_at.clone(),
         })
         .collect::<Vec<_>>();
-    let semantic_recall = String::new();
     let social_affordances = request
         .mentions
         .iter()
@@ -242,7 +241,6 @@ fn ensure_persona_pass_input_admitted(
     let projector_input = PersonaProjectorInput {
         identity,
         memories: memories.clone(),
-        semantic_memory_recall: semantic_recall.clone(),
         pending_mentions: request.mentions.clone(),
         repo_activity,
         social_affordances,
@@ -278,7 +276,6 @@ fn ensure_persona_pass_input_admitted(
             .iter()
             .map(|mention| mention.channel_id.clone())
             .collect(),
-        dynamic_semantic_memory_recall: semantic_recall,
         observed_sources,
         admitted_at: request.reserved_at.clone(),
     };
@@ -421,7 +418,6 @@ mod tests {
             },
             transcript: Vec::new(),
             allowed_channel_ids: vec!["aquarium".into()],
-            dynamic_semantic_memory_recall: String::new(),
             observed_sources: vec![provenance.clone()],
             admitted_at: "2026-08-18T03:00:01Z".into(),
         };

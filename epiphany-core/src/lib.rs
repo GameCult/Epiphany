@@ -28,27 +28,15 @@ mod reorientation_work;
 mod repo_model_documents;
 mod repo_model_gateway;
 mod repository_body_observer;
-mod repository_readiness;
 mod resident_readiness;
 mod resident_self;
 mod runtime_spine;
 mod runtime_store_backend;
 mod runtime_worker_attempt;
-mod semantic_backend;
-mod semantic_projector_service;
 mod soul_gateway;
 mod state_ledger;
 mod substrate_gate;
 mod surfaces;
-mod workspace_coverage_process_bootstrap;
-mod workspace_coverage_process_documents;
-mod workspace_coverage_projection_batch_checkpoint;
-mod workspace_coverage_projection_progress;
-mod workspace_coverage_projector;
-mod workspace_coverage_projector_service;
-mod workspace_coverage_store_binding;
-#[allow(dead_code)]
-mod workspace_retrieval_coverage;
 
 pub use admitted_model_direction_consideration::{
     AdmittedModelDirectionConsiderationRequest, AdmittedModelDirectionConsiderationResult,
@@ -110,57 +98,19 @@ pub use cultcache_rs::RedbMessagePackBackingStore;
 pub use cultcache_rs::SingleFileMessagePackBackingStore;
 pub use cultmesh_integration::EPIPHANY_CANONICAL_SWARM_BRAKE_ID;
 pub use cultmesh_integration::EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_LOCAL_AREA_TIER;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_KEY;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE;
-pub use cultmesh_integration::EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID;
-pub use cultmesh_integration::EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID;
-pub use cultmesh_integration::EpiphanyCultMeshDaemonHeartbeatEventEntry;
-pub use cultmesh_integration::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-pub use cultmesh_integration::EpiphanyCultMeshDocuments;
-pub use cultmesh_integration::EpiphanyCultMeshManagedServicePolicyEntry;
-pub use cultmesh_integration::EpiphanyCultMeshSemanticProjectionHealthEntry;
-pub use cultmesh_integration::EpiphanyCultMeshSwarmBrakeEntry;
-pub use cultmesh_integration::authenticate_epiphany_cultmesh_semantic_projector_launch;
-pub use cultmesh_integration::canonical_epiphany_swarm_brake_protected_surfaces;
-pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
-pub use cultmesh_integration::engage_epiphany_cultmesh_swarm_brake;
-pub use cultmesh_integration::idunn_recover_memory_semantic_projection_from_cultmesh;
-pub use cultmesh_integration::load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
-pub use cultmesh_integration::load_epiphany_cultmesh_daemon_heartbeat_event;
-pub use cultmesh_integration::load_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policies;
-pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policy;
-pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policy_with_digest;
-pub use cultmesh_integration::load_epiphany_cultmesh_semantic_projection_health;
-pub use cultmesh_integration::load_epiphany_cultmesh_swarm_brake;
-pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_heartbeat;
-pub use cultmesh_integration::open_epiphany_cultmesh_node;
-pub use cultmesh_integration::publish_epiphany_cultmesh_semantic_projection_health;
-pub use cultmesh_integration::release_epiphany_cultmesh_swarm_brake;
-pub use cultmesh_integration::write_epiphany_cultmesh_daemon_heartbeat_event;
-pub use cultmesh_integration::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_semantic_projector_service_policy;
-pub use cultmesh_integration::write_epiphany_cultmesh_swarm_brake;
-pub use cultmesh_integration::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
+pub use cultmesh_integration::{
+    EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
+    EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE, EpiphanyCultMeshDocuments,
+    EpiphanyCultMeshSwarmBrakeEntry, canonical_epiphany_swarm_brake_protected_surfaces,
+    default_epiphany_cultmesh_swarm_brake, engage_epiphany_cultmesh_swarm_brake,
+    load_epiphany_cultmesh_swarm_brake, open_epiphany_cultmesh_node,
+    release_epiphany_cultmesh_swarm_brake, write_epiphany_cultmesh_swarm_brake,
+};
+
 pub use current_work::*;
 pub use epiphany_state_model::EpiphanyMemoryAnchor;
-pub use epiphany_state_model::EpiphanyMemoryContextPacket;
-pub use epiphany_state_model::EpiphanyMemoryContextQuery;
 pub use epiphany_state_model::EpiphanyMemoryDomain;
 pub use epiphany_state_model::EpiphanyMemoryEdge;
-pub use epiphany_state_model::EpiphanyMemoryFreshness;
-pub use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
 pub use epiphany_state_model::EpiphanyMemoryNode;
 pub use epiphany_state_model::EpiphanyMemoryProfile;
@@ -213,77 +163,18 @@ pub use imagination_consideration::{
     validate_current_request as validate_current_imagination_consideration_request,
 };
 pub use memory_graph::EpiphanyMemoryEdgeKind;
-pub use memory_graph::EpiphanyMemoryEmbeddingManifest;
 pub use memory_graph::EpiphanyMemoryGraphSnapshot;
 pub use memory_graph::EpiphanyMemoryGraphValidationError;
 pub use memory_graph::EpiphanyMemoryLifecycleReceipt;
 pub use memory_graph::EpiphanyMemoryNodeKind;
-pub use memory_graph::EpiphanyMemoryPatchCandidate;
-pub use memory_graph::MEMORY_GRAPH_PROJECTION_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTION_CLAIM_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTION_RETENTION_HEAD_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION;
-pub use memory_graph::MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION;
-pub use memory_graph::MemorySemanticIndexConfig;
-pub use memory_graph::MemorySemanticIndexReceipt;
-pub use memory_graph::MemorySemanticPhysicalRetirementObligation;
-pub use memory_graph::MemorySemanticPhysicalRetirementReceipt;
-pub use memory_graph::MemorySemanticProjectionAttempt;
-pub use memory_graph::MemorySemanticProjectionClaim;
-pub use memory_graph::MemorySemanticProjectionHealth;
-pub use memory_graph::MemorySemanticProjectionHealthStatus;
-pub use memory_graph::MemorySemanticProjectionInput;
-pub use memory_graph::MemorySemanticProjectionObligation;
-pub use memory_graph::MemorySemanticProjectionObservation;
-pub use memory_graph::MemorySemanticProjectionReadiness;
-pub use memory_graph::MemorySemanticProjectionRetentionHead;
-pub use memory_graph::MemorySemanticProjectionSourceHead;
-pub use memory_graph::MemorySemanticProjectorAcquisition;
-pub use memory_graph::MemorySemanticProjectorExecutorGrant;
-pub use memory_graph::MemorySemanticProjectorPulseClassification;
-pub use memory_graph::MemorySemanticProjectorPulseInspection;
-pub use memory_graph::MemorySemanticProjectorPulseOutcome;
-pub use memory_graph::MemorySemanticProjectorPulseStatus;
-pub use memory_graph::MemorySemanticProjectorRecoveryAuthorization;
 pub use memory_graph::RepoFrontierAdoptedPlan;
 pub use memory_graph::RepoFrontierItem;
 pub use memory_graph::RepoFrontierStatus;
-pub use memory_graph::SEMANTIC_PROJECTION_SCHEMA_VERSION;
-pub use memory_graph::SemanticCanonicalLocator;
-pub use memory_graph::SemanticDocumentKind;
-pub use memory_graph::SemanticLifecycle;
-pub use memory_graph::SemanticProjectionCandidate;
-pub use memory_graph::SemanticProjectionDocument;
-pub use memory_graph::SemanticVisibility;
-pub use memory_graph::authorize_memory_semantic_physical_retirements;
-pub use memory_graph::bind_memory_semantic_index_receipt;
-pub use memory_graph::compose_memory_graph_snapshots;
-pub use memory_graph::derive_memory_graph_freshness;
-pub use memory_graph::derive_memory_semantic_projection_health;
-pub use memory_graph::derive_memory_semantic_projection_obligation;
-pub use memory_graph::derive_semantic_projection;
-pub use memory_graph::execute_memory_semantic_physical_retirement;
 pub use memory_graph::lifecycle_allowed_for_profile;
-pub use memory_graph::load_memory_semantic_projection_readiness;
-pub use memory_graph::load_memory_semantic_projection_success;
 pub use memory_graph::memory_graph_domain_id;
 pub use memory_graph::memory_graph_edge_id;
-pub use memory_graph::memory_graph_model_hash;
 pub use memory_graph::memory_graph_node_id;
-pub use memory_graph::memory_semantic_projection_query_eligible;
-pub use memory_graph::observe_memory_semantic_projection;
-pub use memory_graph::plan_memory_graph_context_cut;
-pub use memory_graph::plan_memory_graph_context_cut_with_ranked_ids;
-pub use memory_graph::resolve_semantic_candidate;
-pub use memory_graph::retain_memory_semantic_projection_lifecycles;
-pub use memory_graph::semantic_memory_context;
-pub use memory_graph::semantic_point_id;
 pub use memory_graph::validate_memory_graph_snapshot;
-pub use memory_graph::validate_memory_semantic_projection_attempt;
-pub use memory_graph::validate_memory_semantic_projection_obligation;
 pub use mind_documents::*;
 pub use packaged_release::{
     EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION, EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
@@ -339,8 +230,6 @@ pub use persona_turn::parse_and_validate_persona_interpreter_effect_set;
 pub use persona_turn::persona_interpreter_effect_set_json_schema;
 pub use persona_turn::persona_projected_surface_is_clean;
 pub use persona_turn::put_persona_terminal_decision;
-pub use persona_turn::render_persona_semantic_memory_recall;
-pub use persona_turn::semantic_memory_recall_from_heartbeat_action;
 pub use process_observation::EpiphanyProcessObservation;
 pub use process_observation::ProcessInstanceIdentity;
 pub use process_observation::ProcessInstanceObservation;
@@ -357,7 +246,6 @@ pub use reorientation_work::*;
 pub use repo_model_documents::*;
 pub use repo_model_gateway::*;
 pub use repository_body_observer::*;
-pub use repository_readiness::*;
 pub use resident_readiness::*;
 pub use resident_self::*;
 pub use runtime_spine::ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION;
@@ -493,7 +381,6 @@ pub use runtime_spine::runtime_hello_frame;
 pub use runtime_spine::runtime_job_snapshot;
 pub use runtime_spine::runtime_latest_hands_receipt_chain_after;
 pub use runtime_spine::runtime_latest_repo_frontier_relinquishment;
-pub use runtime_spine::runtime_modeling_semantic_projection_input;
 pub use runtime_spine::runtime_registered_document_types;
 pub use runtime_spine::runtime_reorient_worker_result;
 pub use runtime_spine::runtime_repo_frontier_plan_decision;
@@ -528,8 +415,6 @@ pub use runtime_spine::validate_hands_action_authority;
 pub use runtime_spine::write_runtime_hello_frame;
 pub use runtime_spine::write_runtime_schema_catalog_json;
 pub use runtime_worker_attempt::{RuntimeTypedRequestRef, WorkerProcessStatus};
-pub use semantic_projector_service::SemanticProjectorServiceBody;
-pub use semantic_projector_service::SemanticProjectorServicePulse;
 pub use soul_gateway::*;
 pub use state_ledger::EpiphanyBranchRecord;
 pub use state_ledger::EpiphanyLedgerEvidenceRecord;
@@ -586,67 +471,4 @@ pub use surfaces::derive_role_board;
 pub use surfaces::interpret_runtime_reorient_worker_result;
 pub use surfaces::interpret_runtime_role_worker_result;
 pub use surfaces::recommend_coordinator_action;
-pub use workspace_coverage_process_bootstrap::{
-    WorkspaceCoverageProcessBootstrap, read_workspace_coverage_process_bootstrap,
-    write_workspace_coverage_process_bootstrap,
-};
-pub use workspace_coverage_process_documents::{
-    WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION, WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_TYPE,
-    WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION, WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE,
-    WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY, WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE, WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROCESS_TERMINATION_TYPE, WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY,
-    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE,
-    WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_TYPE, WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_TERMINAL_SIGHT_TYPE, WorkspaceCoverageAdvancementSightEntry,
-    WorkspaceCoverageClaimSightEntry, WorkspaceCoverageManagedProcessLaunchEntry,
-    WorkspaceCoverageProcessLifecycleObservation,
-    WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
-    WorkspaceCoverageRecoveryDirectiveEntry, WorkspaceCoverageTerminalSightEntry,
-    authenticate_current_workspace_coverage_advancement_sight,
-    authenticate_current_workspace_coverage_claim_sight,
-    authenticate_current_workspace_coverage_terminal_sight,
-    authenticate_historical_workspace_coverage_managed_process_launch,
-    authenticate_recovery_workspace_coverage_claim_sight,
-    authenticate_workspace_coverage_managed_process_launch,
-    authenticate_workspace_coverage_process_termination_observation,
-    authenticate_workspace_coverage_provider_heartbeat,
-    authenticate_workspace_coverage_replacement_lineage,
-    authenticate_workspace_coverage_termination_with_envelope_digest,
-    load_latest_workspace_coverage_managed_process_launch,
-    load_latest_workspace_coverage_provider_heartbeat,
-    load_workspace_coverage_managed_process_launch,
-    load_workspace_coverage_managed_process_launch_with_digest,
-    load_workspace_coverage_process_termination_observation,
-    load_workspace_coverage_provider_heartbeat,
-    observe_historical_workspace_coverage_managed_process,
-    observe_workspace_coverage_managed_process, process_identity_from_workspace_coverage_launch,
-    sign_workspace_coverage_heartbeat, sign_workspace_coverage_launch,
-    sign_workspace_coverage_termination, workspace_coverage_heartbeat_statement,
-    workspace_coverage_host_identity_record_digest, workspace_coverage_launch_statement,
-    workspace_coverage_termination_statement, write_workspace_coverage_managed_process_launch,
-    write_workspace_coverage_process_termination_observation,
-    write_workspace_coverage_provider_heartbeat, write_workspace_coverage_recovery_directive,
-};
-pub use workspace_coverage_projection_progress::{
-    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE, WorkspaceCoverageAdvancingAuthority,
-    WorkspaceCoverageProjectionProgressEntry, authenticate_current_workspace_coverage_advancement,
-    authenticate_workspace_coverage_projection_progress,
-    load_latest_workspace_coverage_projection_progress,
-    load_workspace_coverage_projection_progress,
-};
-pub use workspace_coverage_projector::{
-    WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,
-    WorkspaceCoverageTerminalAuthority, authenticate_current_workspace_coverage_terminal_authority,
-    authenticate_workspace_coverage_recovery_receipt,
-};
-pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
-pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;
-pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServiceBody;
-pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServicePulse;
-pub use workspace_coverage_store_binding::*;
-pub use workspace_retrieval_coverage::*;
 mod admitted_model_direction_consideration;

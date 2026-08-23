@@ -82,17 +82,8 @@ pub struct PackageReleaseRequest<'a> {
 pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static str, String)> {
     let file_name = |name: &str| target_binary_file_name(target_triple, name);
     vec![
-        ("supervisor", file_name("epiphany-daemon-supervisor")),
         ("release-publisher", file_name("epiphany-release")),
         ("state-steward", file_name("epiphany-state")),
-        (
-            "semantic-projector",
-            file_name("epiphany-memory-semantic-projector"),
-        ),
-        (
-            "workspace-coverage-projector",
-            file_name("epiphany-workspace-coverage-projector"),
-        ),
         ("atlas-publisher", file_name("epiphany-atlas-publisher")),
         (
             "model-entanglement-projector",
@@ -102,7 +93,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             "atlas-impact-ingress",
             file_name("epiphany-atlas-impact-ingress"),
         ),
-        ("semantic-query", file_name("epiphany-memory-semantic")),
         ("repository-body", file_name("epiphany-repository-body")),
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
@@ -615,19 +605,13 @@ fn release_bundle_target_dir(
 
 fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
     match role {
-        "supervisor" => Ok(("epiphany-core", "epiphany-daemon-supervisor")),
         "release-publisher" => Ok(("epiphany-core", "epiphany-release")),
         "state-steward" => Ok(("epiphany-core", "epiphany-state")),
-        "semantic-projector" => Ok(("epiphany-core", "epiphany-memory-semantic-projector")),
-        "workspace-coverage-projector" => {
-            Ok(("epiphany-core", "epiphany-workspace-coverage-projector"))
-        }
         "atlas-publisher" => Ok(("epiphany-core", "epiphany-atlas-publisher")),
         "model-entanglement-projector" => {
             Ok(("epiphany-core", "epiphany-model-entanglement-projector"))
         }
         "atlas-impact-ingress" => Ok(("epiphany-core", "epiphany-atlas-impact-ingress")),
-        "semantic-query" => Ok(("epiphany-core", "epiphany-memory-semantic")),
         "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
         "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
         "swarm" => Ok(("epiphany-core", "epiphany-swarm")),

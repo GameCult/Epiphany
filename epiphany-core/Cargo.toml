@@ -16,7 +16,6 @@ path = "src/bin/epiphany-prepare-compaction.rs"
 
 [dependencies]
 anyhow = "1"
-bm25 = "2.3.2"
 chrono = "0.4.44"
 ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
@@ -29,26 +28,19 @@ epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 epiphany-state-model = { path = "../epiphany-state-model" }
 ghostlight-persona-projection = { git = "https://github.com/GameCult/Ghostlight.git", rev = "22281891cbf9258db80c15a9fd465e6fa251e7dd", package = "ghostlight-persona-projection" }
 ed25519-dalek = "2"
-fs2 = "0.4"
 ignore = "0.4.23"
 rand_core = { version = "0.6", features = ["getrandom"] }
-zeroize = "1"
-postgres = "0.19"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
 rmp-serde = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = { version = "1", features = ["serde"] }
 sha1 = "0.10.6"
 sha2 = "0.10"
-tracing = "0.1.44"
 uuid = { version = "1", features = ["serde", "v4", "v5"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
 tempfile = "3"
-tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
-wiremock = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }

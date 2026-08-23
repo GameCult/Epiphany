@@ -4,7 +4,6 @@ use cultcache_rs::{
     SingleFileMessagePackBackingStore,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::Digest;
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
@@ -56,8 +55,6 @@ pub struct PersonaTurnRequest {
     pub status: String,
     pub reserved_at: String,
     pub mentions: Vec<PersonaSocialMention>,
-    #[serde(default)]
-    pub semantic_memory_recall: Value,
     #[serde(default)]
     pub terminal_receipt: Option<PersonaTurnTerminalReceipt>,
     pub private_state_exposed: bool,
@@ -434,7 +431,6 @@ pub fn pulse_persona_social(
             .iter()
             .map(|document| document.mention.clone())
             .collect(),
-        semantic_memory_recall: serde_json::Value::Null,
         terminal_receipt: None,
         private_state_exposed: false,
     };
@@ -715,7 +711,6 @@ pub fn persona_turn_requests(store_path: impl AsRef<Path>) -> Result<Vec<Persona
                 request.status = "terminal".into();
                 request.terminal_receipt = Some(terminal.clone());
                 request.mentions.clear();
-                request.semantic_memory_recall = serde_json::Value::Null;
             }
             request
         })

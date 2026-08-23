@@ -146,37 +146,15 @@ impl EpiphanyRepoModelView {
 
     pub fn memory_context_projection(&self) -> EpiphanyMemoryGraphSnapshot {
         EpiphanyMemoryGraphSnapshot {
-            schema_version: None,
             graph_id: self.identity.graph_id.clone(),
-            model_revision: 0,
-            model_hash: String::new(),
-            source: None,
             domains: self.domains.clone(),
             nodes: self.nodes.clone(),
             edges: self.edges.clone(),
             summaries: self.summaries.clone(),
-            embedding_manifest: None,
-            freshness: None,
             lifecycle_receipts: self.lifecycle_receipts.clone(),
             frontier: self.frontier.clone(),
         }
     }
-}
-
-pub(crate) fn derive_repo_model_semantic_projection_obligation(
-    view: &EpiphanyRepoModelView,
-    created_at: &str,
-) -> Result<crate::MemorySemanticProjectionObligation> {
-    let mut projection = view.memory_context_projection();
-    projection.model_revision = 1;
-    projection.model_hash = crate::memory_graph_model_hash(&projection)?;
-    crate::derive_memory_semantic_projection_obligation(
-        &projection,
-        &view.identity.swarm_id,
-        &format!("epiphany.runtime/{}/repo-model", view.identity.runtime_id),
-        &view.projection_digest,
-        created_at,
-    )
 }
 
 impl EpiphanyRepoModelBasis {
@@ -579,7 +557,6 @@ pub fn initialize_keyed_repo_model(
         if !repo_model_view_matches_seed(&view, seed)? {
             return Err(anyhow!("RepoModel seed replay found divergent keyed state"));
         }
-        crate::runtime_modeling_semantic_projection_input(store_path)?;
         return Ok(view);
     }
 
@@ -647,10 +624,7 @@ pub fn initialize_keyed_repo_model(
         writes,
         seeded_at,
     )? {
-        crate::EpiphanyMindCommitOutcome::Committed(_) => {
-            crate::runtime_modeling_semantic_projection_input(store_path)?;
-            assemble_repo_model_view(store_path)
-        }
+        crate::EpiphanyMindCommitOutcome::Committed(_) => assemble_repo_model_view(store_path),
         crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
             Err(anyhow!("RepoModel seed lost its exact-envelope commit"))
         }
@@ -1934,14 +1908,6 @@ mod tests {
                 .iter()
                 .any(|receipt| receipt.invariant_owner == "Modeling.repo_model_seed")
         );
-        assert_eq!(
-            cache
-                .get_all::<crate::MemorySemanticProjectionObligation>()?
-                .into_iter()
-                .filter(|obligation| obligation.partition == "modeling")
-                .count(),
-            1
-        );
         assert!(
             cache
                 .snapshot_envelopes()
@@ -2361,35 +2327,6 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["node-left", "node-right"]
         );
-        let semantic = crate::runtime_modeling_semantic_projection_input(&store)?;
-        assert_eq!(
-            semantic.source_head().source_commit_id,
-            reopened.projection_digest
-        );
-        assert_eq!(
-            semantic.obligation().source_commit_id,
-            reopened.projection_digest
-        );
-        assert!(
-            semantic
-                .authority
-                .envelopes
-                .iter()
-                .any(|envelope| { envelope.r#type == crate::EpiphanyMindCommitReceipt::TYPE })
-        );
-        let mut reopened_cache = runtime_spine_cache(&store)?;
-        reopened_cache.pull_all_backing_stores()?;
-        assert_eq!(
-            reopened_cache
-                .get_all::<crate::MemorySemanticProjectionObligation>()?
-                .into_iter()
-                .filter(|obligation| obligation.partition == "modeling")
-                .count(),
-            2
-        );
-        let replayed_semantic = crate::runtime_modeling_semantic_projection_input(&store)?;
-        assert_eq!(replayed_semantic.obligation(), semantic.obligation());
-
         let competing = [
             make_proposal(
                 "proposal-collision-left",

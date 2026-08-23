@@ -24,7 +24,6 @@ license-file = "LICENSE"
 
 [dependencies]
 anyhow = "1"
-bm25 = "2.3.2"
 chrono = "0.4.44"
 ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "vendor/cultcache-rs" }
@@ -81,10 +80,6 @@ tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev 
 tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "9200079d3b54a1ff51072e24d81fd354f085156f" }
 
 [[bin]]
-name = "epiphany-daemon-supervisor"
-path = "epiphany-core/src/bin/epiphany-daemon-supervisor.rs"
-
-[[bin]]
 name = "epiphany-atlas-publisher"
 path = "epiphany-core/src/bin/epiphany-atlas-publisher.rs"
 
@@ -103,18 +98,6 @@ path = "epiphany-core/src/bin/epiphany-release.rs"
 [[bin]]
 name = "epiphany-state"
 path = "epiphany-core/src/bin/epiphany-state.rs"
-
-[[bin]]
-name = "epiphany-memory-semantic-projector"
-path = "epiphany-core/src/bin/epiphany-memory-semantic-projector.rs"
-
-[[bin]]
-name = "epiphany-workspace-coverage-projector"
-path = "epiphany-core/src/bin/epiphany-workspace-coverage-projector.rs"
-
-[[bin]]
-name = "epiphany-memory-semantic"
-path = "epiphany-core/src/bin/epiphany-memory-semantic.rs"
 
 [[bin]]
 name = "epiphany-repository-body"

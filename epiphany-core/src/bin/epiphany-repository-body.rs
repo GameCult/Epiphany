@@ -5,7 +5,7 @@ use epiphany_core::{
     EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, EpiphanyRepoModelSeed,
     EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions,
     admit_repository_body_observation, bind_repository_body, bind_runtime_to_swarm,
-    bind_runtime_workspace_coverage_store, initialize_keyed_repo_model, initialize_runtime_spine,
+    initialize_keyed_repo_model, initialize_runtime_spine,
     load_current_runtime_repository_body_basis, load_repository_body_status,
     observe_repository_body,
 };
@@ -21,8 +21,6 @@ fn main() -> Result<()> {
             let repo = PathBuf::from(required(&args, "--repo")?);
             let store = PathBuf::from(required(&args, "--store")?);
             let runtime_store = PathBuf::from(required(&args, "--runtime-store")?);
-            let workspace_coverage_store =
-                PathBuf::from(required(&args, "--workspace-coverage-store")?);
             let workspace_id = required(&args, "--workspace-id")?;
             let runtime_id = required(&args, "--runtime-id")?;
             let swarm_id = required(&args, "--swarm-id")?;
@@ -37,7 +35,6 @@ fn main() -> Result<()> {
             )?;
             bind_runtime_to_swarm(&runtime_store, swarm_id, &at)?;
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
-            bind_runtime_workspace_coverage_store(&runtime_store, &workspace_coverage_store, &at)?;
             observe_repository_body(&repo, &store, &runtime_store)?;
             let body_basis = load_current_runtime_repository_body_basis(&runtime_store)?;
             admit_repository_body_observation(&runtime_store, &body_basis)?;
@@ -173,7 +170,7 @@ fn required<'a>(args: &'a [String], name: &str) -> Result<&'a str> {
 }
 fn usage<T>() -> Result<T> {
     bail!(
-        "usage: epiphany-repository-body bootstrap --repo PATH --store PATH --runtime-store PATH --workspace-coverage-store PATH --workspace-id ID --runtime-id ID --swarm-id ID | bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH | smoke"
+        "usage: epiphany-repository-body bootstrap --repo PATH --store PATH --runtime-store PATH --workspace-id ID --runtime-id ID --swarm-id ID | bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH | smoke"
     )
 }
 fn smoke() -> Result<()> {
@@ -183,7 +180,6 @@ fn smoke() -> Result<()> {
         uuid::Uuid::new_v4()
     ));
     let runtime_store = store.with_extension("runtime.cc");
-    let workspace_coverage_store = store.with_extension("workspace-coverage.cc");
     initialize_runtime_spine(
         &runtime_store,
         RuntimeSpineInitOptions {
@@ -203,11 +199,6 @@ fn smoke() -> Result<()> {
         &runtime_store,
         "epiphany-repository-body-smoke",
     )?;
-    bind_runtime_workspace_coverage_store(
-        &runtime_store,
-        &workspace_coverage_store,
-        "2026-07-15T00:00:02Z",
-    )?;
     let outcome = observe_repository_body(&root, &store, &runtime_store)?;
     let basis = load_current_runtime_repository_body_basis(&runtime_store)?;
     admit_repository_body_observation(&runtime_store, &basis)?;
@@ -215,8 +206,6 @@ fn smoke() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("smoke observation missing after commit"))?;
     std::fs::remove_file(&store)?;
     std::fs::remove_file(&runtime_store)?;
-    std::fs::remove_file(&workspace_coverage_store)?;
-    let _ = std::fs::remove_file(workspace_coverage_store.with_extension("cc.lock"));
     let generation = match outcome {
         ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value.generation,
     };

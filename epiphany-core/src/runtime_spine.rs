@@ -990,15 +990,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::AtlasDependencyClaimWriteIntent>()?;
     cache.register_entry_type::<crate::AtlasDependencyVerificationWriteIntent>()?;
     cache.register_entry_type::<crate::AtlasDependencyImpactWriteIntent>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionAttempt>()?;
-    cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectorExecutorGrant>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionRetentionHead>()?;
-    cache.register_entry_type::<crate::MemorySemanticPhysicalRetirementObligation>()?;
-    cache.register_entry_type::<crate::MemorySemanticPhysicalRetirementReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeModelExecutionBinding>()?;
@@ -1012,9 +1003,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeWorkerProcessClaim>()?;
     cache.register_entry_type::<EpiphanyArchivedRuntimeWorkerAttempt>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
-    cache.register_entry_type::<crate::RepositoryReadinessProjection>()?;
     cache.register_entry_type::<crate::RuntimeRepositoryBodyStoreBinding>()?;
-    cache.register_entry_type::<crate::RuntimeWorkspaceCoverageStoreBinding>()?;
     cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
@@ -1251,25 +1240,6 @@ pub fn runtime_swarm_binding(
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     cache.get(RUNTIME_SWARM_BINDING_KEY)
-}
-
-fn require_runtime_swarm_binding(cache: &CultCache) -> Result<EpiphanyRuntimeSwarmBinding> {
-    let identity = require_identity(cache)?;
-    let binding = cache
-        .get::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)?
-        .ok_or_else(|| anyhow!("RepoModel admission requires immutable runtime swarm binding"))?;
-    if binding.schema_version != RUNTIME_SWARM_BINDING_SCHEMA_VERSION
-        || binding.binding_id != RUNTIME_SWARM_BINDING_KEY
-        || binding.runtime_id != identity.runtime_id
-        || binding.swarm_id.trim().is_empty()
-        || binding.source_identity_type != RUNTIME_IDENTITY_TYPE
-        || binding.source_identity_key != RUNTIME_IDENTITY_KEY
-        || binding.source_identity_sha256.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
-    {
-        return Err(anyhow!("runtime swarm binding is invalid"));
-    }
-    Ok(binding)
 }
 
 pub fn create_runtime_session(
@@ -6347,133 +6317,6 @@ fn keyed_repo_model_basis_after_writes(
     };
     basis.validate()?;
     Ok(basis)
-}
-
-pub fn runtime_modeling_semantic_projection_input(
-    store_path: impl AsRef<Path>,
-) -> Result<crate::MemorySemanticProjectionInput> {
-    let store_path = store_path.as_ref();
-    // Projection work is cache physiology, not a Mind commit companion. A
-    // singleton companion would make otherwise-disjoint RepoModel commits
-    // contend. Reconstruct the exact current keyed basis on every pulse and
-    // insert its content-addressed work item under the same envelope CAS used
-    // by the projector. Concurrent inserts can create an older work item, but
-    // cannot make it current; the next pulse derives the newly assembled view.
-    for _ in 0..8 {
-        let mut cache = runtime_spine_cache(store_path)?;
-        cache.pull_all_backing_stores()?;
-        let binding = require_runtime_swarm_binding(&cache)?;
-        let view = crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?;
-        if view.identity.runtime_id != binding.runtime_id
-            || view.identity.swarm_id != binding.swarm_id
-        {
-            return Err(anyhow!(
-                "RepoModel semantic basis crossed its runtime swarm binding"
-            ));
-        }
-        let basis = view.reasoning_basis();
-        basis.validate_against_cache(&cache)?;
-        let mut snapshot = view.memory_context_projection();
-        // This is a compatibility-shaped projector DTO, never a causal head.
-        // Keyed document versions and their commit receipts own the input.
-        snapshot.model_revision = 1;
-        snapshot.model_hash = crate::memory_graph_model_hash(&snapshot)?;
-
-        let mut authority_envelopes = keyed_repo_model_basis_envelopes(&cache, &basis)?;
-        let receipts = repo_model_basis_commit_receipts(&cache, &basis)?;
-        if receipts.is_empty() {
-            return Err(anyhow!(
-                "RepoModel semantic basis has no Mind commit receipts"
-            ));
-        }
-        for receipt in &receipts {
-            authority_envelopes.push(
-                cache
-                    .get_envelope::<crate::EpiphanyMindCommitReceipt>(&receipt.receipt_id)?
-                    .ok_or_else(|| anyhow!("RepoModel semantic basis receipt disappeared"))?,
-            );
-        }
-        authority_envelopes.push(
-            cache
-                .get_envelope::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)?
-                .ok_or_else(|| anyhow!("Modeling projection lost its swarm binding"))?,
-        );
-        authority_envelopes
-            .sort_by(|left, right| (&left.r#type, &left.key).cmp(&(&right.r#type, &right.key)));
-        authority_envelopes
-            .dedup_by(|left, right| left.r#type == right.r#type && left.key == right.key);
-
-        let obligation =
-            crate::repo_model_documents::derive_repo_model_semantic_projection_obligation(
-                &view,
-                // Modeling cache work is content-addressed by the complete
-                // keyed basis. Wall-clock receipt order is not causal state.
-                "1970-01-01T00:00:00Z",
-            )?;
-        if let Some(persisted) =
-            cache.get::<crate::MemorySemanticProjectionObligation>(&obligation.obligation_id)?
-        {
-            if persisted != obligation {
-                return Err(anyhow!("Modeling projection obligation identity collision"));
-            }
-            return Ok(crate::MemorySemanticProjectionInput {
-                snapshot,
-                authority: crate::memory_graph::MemorySemanticProjectionAuthoritySnapshot {
-                    head: crate::MemorySemanticProjectionSourceHead {
-                        swarm_id: obligation.swarm_id.clone(),
-                        partition: obligation.partition.clone(),
-                        canonical_source_id: obligation.canonical_source_id.clone(),
-                        source_commit_id: obligation.source_commit_id.clone(),
-                        graph_id: obligation.graph_id.clone(),
-                        source_generation: obligation.source_generation,
-                        source_model_hash: obligation.source_model_hash.clone(),
-                        canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
-                    },
-                    envelopes: authority_envelopes,
-                },
-                obligation,
-            });
-        }
-
-        let mut replacements = authority_envelopes.clone();
-        replacements.push(
-            cache
-                .prepare_entry(&obligation.obligation_id, &obligation)?
-                .0,
-        );
-        if runtime_spine_backing_store(store_path)?
-            .compare_and_swap_batch(&authority_envelopes, replacements)?
-        {
-            continue;
-        }
-    }
-    Err(anyhow!(
-        "RepoModel semantic work could not settle under concurrent Mind mutation"
-    ))
-}
-
-fn repo_model_basis_commit_receipts(
-    cache: &CultCache,
-    basis: &crate::EpiphanyRepoModelBasis,
-) -> Result<Vec<crate::EpiphanyMindCommitReceipt>> {
-    basis.validate_against_cache(cache)?;
-    let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
-    let mut owners = BTreeMap::<String, crate::EpiphanyMindCommitReceipt>::new();
-    for source in &basis.source_documents {
-        let owner = receipts
-            .iter()
-            .filter(|receipt| receipt.writes.iter().any(|write| write == source))
-            .min_by(|left, right| left.receipt_id.cmp(&right.receipt_id))
-            .ok_or_else(|| {
-                anyhow!(
-                    "RepoModel document {}:{} has no exact Mind commit receipt",
-                    source.document_type,
-                    source.document_key
-                )
-            })?;
-        owners.insert(owner.receipt_id.clone(), owner.clone());
-    }
-    Ok(owners.into_values().collect())
 }
 
 pub fn select_repo_frontier_work_proposal_for_modeling(

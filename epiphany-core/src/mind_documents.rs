@@ -203,10 +203,8 @@ pub struct EpiphanyMindPersonaPassInputDocument {
     #[cultcache(key = 3)]
     pub allowed_channel_ids: Vec<String>,
     #[cultcache(key = 4)]
-    pub dynamic_semantic_memory_recall: String,
-    #[cultcache(key = 5)]
     pub observed_sources: Vec<EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 5)]
     pub admitted_at: String,
 }
 

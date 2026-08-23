@@ -31,7 +31,6 @@ pub struct PersonaModelExecutionPlan {
     projector_input: PersonaProjectorInput,
     transcript: Vec<PersonaTranscriptMessage>,
     allowed_channel_ids: Vec<String>,
-    dynamic_semantic_memory_recall: String,
     source_documents: Vec<epiphany_core::EpiphanyMindDocumentVersion>,
     cultmesh_store: PathBuf,
     runtime_id: String,
@@ -56,7 +55,6 @@ impl PersonaModelExecutionPlan {
             projector_input: document.projector_input,
             transcript: document.transcript,
             allowed_channel_ids: document.allowed_channel_ids,
-            dynamic_semantic_memory_recall: document.dynamic_semantic_memory_recall,
             source_documents: vec![source],
             cultmesh_store,
             runtime_id: runtime_id.into(),
@@ -284,8 +282,6 @@ pub async fn execute_persona_model_turn_with_runner<R: PersonaModelRunner>(
         identity: plan.projector_input.identity.clone(),
         persona_prompt: projector.output.clone(),
         persona_output: persona.output.clone(),
-        semantic_memory_recall: plan.projector_input.semantic_memory_recall.clone(),
-        dynamic_semantic_memory_recall: plan.dynamic_semantic_memory_recall.clone(),
         pending_mentions: plan.projector_input.pending_mentions.clone(),
         allowed_channel_ids: plan.allowed_channel_ids.clone(),
     };
@@ -532,7 +528,6 @@ fn validate_plan_source(store_path: &PathBuf, plan: &PersonaModelExecutionPlan) 
         || document.projector_input != plan.projector_input
         || document.transcript != plan.transcript
         || document.allowed_channel_ids != plan.allowed_channel_ids
-        || document.dynamic_semantic_memory_recall != plan.dynamic_semantic_memory_recall
     {
         return Err(anyhow!(
             "Persona execution plan diverges from its admitted Mind input"
@@ -813,7 +808,6 @@ mod tests {
             },
             transcript: vec![],
             allowed_channel_ids,
-            dynamic_semantic_memory_recall: String::new(),
             observed_sources: vec![provenance.clone()],
             admitted_at: "2026-08-14T00:00:00Z".into(),
         };

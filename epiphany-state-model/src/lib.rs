@@ -647,19 +647,7 @@ pub struct EpiphanyObjectiveDraftLanePlan {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyMemoryGraphSnapshot {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub schema_version: Option<String>,
     pub graph_id: String,
-    /// Monotonic identity of the canonical aggregate. Legacy snapshots decode as revision zero.
-    #[serde(default)]
-    pub model_revision: u64,
-    /// SHA-256 of the snapshot with this field cleared.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub model_hash: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "EpiphanyMemoryGraphSource | null")]
-    pub source: Option<EpiphanyMemoryGraphSource>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryDomain>")]
     pub domains: Vec<EpiphanyMemoryDomain>,
@@ -672,12 +660,6 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemorySummary>")]
     pub summaries: Vec<EpiphanyMemorySummary>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "EpiphanyMemoryEmbeddingManifest | null")]
-    pub embedding_manifest: Option<EpiphanyMemoryEmbeddingManifest>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "EpiphanyMemoryFreshness | null")]
-    pub freshness: Option<EpiphanyMemoryFreshness>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryLifecycleReceipt>")]
     pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
@@ -794,7 +776,7 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
         disposition: EpiphanyInvestigationDisposition::ResumeReady,
         focus: "Current Mind-admitted RepoModel frontier".to_string(),
         summary: Some(
-            "Derived from the authenticated current RepoModel semantic projection.".to_string(),
+            "Derived from the authenticated current keyed RepoModel view.".to_string(),
         ),
         next_action: Some("Resume from the current Mind-admitted RepoModel frontier.".to_string()),
         captured_at_turn_id: None,
@@ -814,13 +796,6 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
             .collect(),
         evidence_ids: Vec::new(),
     }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
-pub struct EpiphanyMemoryGraphSource {
-    pub kind: String,
-    pub identity: String,
-    pub revision: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -1030,8 +1005,6 @@ pub struct EpiphanyMemorySummary {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub source_hashes: Vec<String>,
-    #[serde(default)]
-    pub freshness: EpiphanyMemoryFreshnessStatus,
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub confidence: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1058,133 +1031,7 @@ pub struct EpiphanyMemoryLifecycleReceipt {
     pub created_at: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryEmbeddingManifest {
-    pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub collection_name: Option<String>,
-    pub embedding_model: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub vector_dimensions: Option<u32>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub indexed_document_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub stale_document_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub source_hashes: Vec<String>,
-}
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, JsonSchema, TS, Default,
-)]
-#[serde(rename_all = "snake_case")]
-#[ts(rename_all = "snake_case")]
-pub enum EpiphanyMemoryFreshnessStatus {
-    #[default]
-    Missing,
-    Ready,
-    Stale,
-    Indexing,
-    Unavailable,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryFreshness {
-    pub status: EpiphanyMemoryFreshnessStatus,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub stale_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub stale_edge_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub stale_summary_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub dirty_source_hashes: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub note: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryContextQuery {
-    pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "EpiphanyMemoryProfile | null")]
-    pub profile: Option<EpiphanyMemoryProfile>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub domain_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub edge_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "number | null")]
-    pub budget: Option<u32>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryContextPacket {
-    pub id: String,
-    pub query_id: String,
-    #[serde(default)]
-    pub repo_model_revision: u64,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub repo_model_hash: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryNode>")]
-    pub nodes: Vec<EpiphanyMemoryNode>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryEdge>")]
-    pub edges: Vec<EpiphanyMemoryEdge>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemorySummary>")]
-    pub summaries: Vec<EpiphanyMemorySummary>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<RepoFrontierItem>")]
-    pub frontier: Vec<RepoFrontierItem>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryAnchor>")]
-    pub anchors: Vec<EpiphanyMemoryAnchor>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub warnings: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub missing_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub missing_edge_ids: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemoryPatchCandidate {
-    pub id: String,
-    pub profile: EpiphanyMemoryProfile,
-    pub status: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryNode>")]
-    pub proposed_nodes: Vec<EpiphanyMemoryNode>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemoryEdge>")]
-    pub proposed_edges: Vec<EpiphanyMemoryEdge>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub reasons: Vec<String>,
-}
 
 fn is_zero_u32(value: &u32) -> bool {
     *value == 0
