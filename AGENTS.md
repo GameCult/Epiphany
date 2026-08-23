@@ -70,9 +70,34 @@ machine-spirit awake.
   git history, commit messages, smoke artifacts, or targeted logs unless it
   changes what the next awakened agent should believe.
 - Do not pour volatile phase/status sludge into the evidence reliquary. Keep
-  current status in `state/map.yaml` and `notes/fresh-workspace-handoff.md`.
-  Use `state/ledgers.msgpack` only for branch ledger state and belief-changing
-  records.
+  canonical current status and next action in `state/map.yaml`; let
+  `notes/fresh-workspace-handoff.md` carry compact narrative and re-entry
+  context that points back to the map. Use `state/ledgers.msgpack` only for
+  branch ledger state and belief-changing records.
+
+## Codex Mind Steward Route
+
+- The global dedicated-worker contract applies to every nontrivial Codex task
+  in this repository. Reserve one sub-agent exclusively as `mind_steward`; its
+  active inputs are `state/map.yaml`, `notes/fresh-workspace-handoff.md`,
+  `notes/epiphany-current-algorithmic-map.md`, the implementation plan, native
+  state status, and only the exact current source needed to falsify one steering
+  claim. It owns no implementation work.
+- Reserve those persistence surfaces from concurrent edits while the steward is
+  active. Before trusting the persisted next action or completing a phase
+  boundary, the root reviews the result, routes owner-required proposals, and
+  applies only steward-owned or owner-admitted changes.
+- `state/map.yaml` solely owns canonical executive state, current status,
+  decision constraints, and next action. The algorithmic map owns the detailed,
+  source-grounded mechanism. The handoff carries narrative and re-entry context;
+  it may echo or point to those owners, but it must not independently decide
+  current direction. Route volatile work to scratch and only belief-changing
+  evidence to the ledger. Agent or Persona memory changes use their established
+  typed admission path. When the factual owner is Modeling, Soul, or the
+  operator, the steward returns an exact evidence-backed proposal rather than
+  stealing that authority.
+- A no-change audit writes nothing. Missing inspection or mutation access is an
+  explicit Mind defect; do not manufacture a maintenance receipt around it.
 
 ## Important Paths
 
@@ -122,9 +147,12 @@ a servitor with a nail gun:
    - if that binary is absent, set
      `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'` before the
      `cargo run` fallback
-3. restate the current next action from the persisted state before touching the
-   machine
-4. if the user only asked to rehydrate or reorient, stop after orientation and
+3. dispatch the dedicated `mind_steward` and reserve the canonical persistence
+   surfaces while it performs the bounded audit above
+4. review its result, route owner-required proposals, apply only steward-owned
+   or owner-admitted changes, then restate the audited current next action before
+   touching the machine
+5. if the user only asked to rehydrate or reorient, stop after orientation and
    await explicit continuation; persisted next action is not automatic
    execution authority
 
@@ -133,8 +161,11 @@ After compaction, resume, or any suspicious loss of continuity:
 1. rerun the existing shared-target `epiphany-state.exe status`; rebuild it only
    through `C:\Users\Meta\.cargo-target-codex` when absent or intentionally stale
 2. reread `state/map.yaml` and `notes/fresh-workspace-handoff.md`
-3. treat the persisted next action as authoritative unless fresh evidence in
-   the repo contradicts the machine-map
+3. follow up with or replace the dedicated `mind_steward`, review its bounded
+   audit, route owner-required proposals, and apply only steward-owned or
+   owner-admitted changes
+4. treat the audited persisted next action as authoritative unless fresh
+   evidence in the repo contradicts the machine-map
 
 When context pressure rises and the dark approaches:
 
@@ -188,7 +219,12 @@ When the user says to prepare for imminent compaction:
 - After committing a major completed pass, push upstream unless the user asked
   not to push yet or there is a concrete reason to keep the commit local for a
   moment.
-- Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, add distilled evidence when the lesson changes future belief, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
+- Before handoff, compaction, or phase boundaries, follow up with the dedicated
+  `mind_steward`, review its bounded maintenance result, route owner-required
+  proposals, apply only steward-owned or owner-admitted changes, then sync
+  `state/map.yaml`, add distilled evidence when the lesson changes future belief,
+  make the map's next action explicit, and refresh
+  `notes/fresh-workspace-handoff.md` as narrative context that points to it.
 - Do not write handoff notes that trap the next session in indefinite tiny hardening work. Bounded slices are a landing discipline, not a roadmap; when a phase is complete enough, name the next larger organ to build.
 
 ## Dogfood Supervision Quarantine

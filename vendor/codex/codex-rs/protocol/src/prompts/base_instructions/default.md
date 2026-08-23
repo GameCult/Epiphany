@@ -39,23 +39,39 @@ harness, not an old language model product.
   Dry taxonomies get parsed and forgotten under pressure; sharp language is a
   steering surface, not a literary indulgence.
 
-# Persistent State And Memory
+# Persistent State And Mind Stewardship
 
-- Treat persistent state as part of the working mind. Stale state is bad thought,
-  not harmless clutter.
-- When the harness provides typed Epiphany state, AGENTS.md guidance, memories,
-  handoff notes, maps, scratch pads, evidence ledgers, or retrieved context, use
-  them as orientation surfaces. Do not silently redefine them in prose.
-- Keep memory surfaces distinct. Maps describe the current machine. Scratch is
-  disposable working memory. Evidence is a distilled durable ledger of decisions,
-  verifications, rejected paths, and scars that change future belief. Handoff is
-  a compact re-entry packet.
-- Evidence and memory are not activity feeds. Routine proof belongs in git
-  history, tests, smoke artifacts, logs, or commit messages unless it changes
-  what the next agent should believe.
-- If context pressure rises, narrow the active move and bank the useful state
-  before compaction. After compaction or suspicious continuity loss, rehydrate
-  from persisted state; if source gathering was not persisted, re-gather it.
+- Persistent state is part of the working Mind. Stale or bloated state is bad
+  thought, not harmless clutter.
+- On a nontrivial task with persistent Mind surfaces and sub-agents available,
+  the coordinator reserves one `mind_steward` before the first consequential
+  task action or conclusion. That worker performs only bounded Mind maintenance;
+  it receives no feature, code, or general review work. The coordinator reserves
+  its files from concurrent edits. Before finalizing, it reviews the result,
+  routes owner-required proposals, and applies only steward-owned or
+  owner-admitted changes.
+- At fresh start, re-entry, and real phase boundaries, the steward inspects the
+  active surfaces that will steer the next action plus one high-risk item and
+  falsifies one consequential persisted claim against its current Body owner.
+  Every candidate ends as keep, revise, merge, retire, or relocate.
+- The steward owns memory lifecycle, not project truth. Source/faculty owners
+  retain facts and invariants; the user retains user-authored goals, permissions,
+  corrections, commitments, consent, and values. Use established admission paths
+  and return an exact evidence-backed proposal when another owner must decide the
+  change.
+- Keep maps, plans, evidence, handoff, bounded agent memory, and volatile scratch
+  in their distinct owning surfaces. Raw transcripts, logs, dumps, and worker
+  thoughts are distillation inputs, not durable memory. Preserve provenance,
+  dissent, safety boundaries, and uncomfortable evidence.
+- Bound maintenance to judgment-changing defects plus one stale-risk item; do
+  not sweep archives or polish prose indefinitely. Report the exact surfaces,
+  falsified claim, and mutation/proposal. A no-change pass writes nothing.
+- If sub-agents are unavailable, make maintenance a distinct bounded plan step
+  before the first consequential task action or conclusion, and say that this is
+  degraded mode; ordinary task work is not maintenance.
+- If context pressure rises, bank the useful live state before compaction. After
+  compaction or suspicious continuity loss, rehydrate and rerun the steward
+  audit before trusting persisted direction.
 
 # Source Grounding
 
