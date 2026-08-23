@@ -11,13 +11,11 @@ use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
-use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
 use epiphany_core::RuntimeSpineSessionClosureOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::append_runtime_event;
 use epiphany_core::close_runtime_session;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::initialize_runtime_spine;
@@ -34,13 +32,11 @@ use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_model_adapter::EpiphanyModelToolDefinition;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
-use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::EpiphanyOpenRouterTransport;
-use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::OPENROUTER_SPINE_ADAPTER_ID;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
@@ -63,7 +59,6 @@ pub use persona_executor::*;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const DEFAULT_PROVIDER_REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
-pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
 pub const OPENROUTER_MODEL_PROVIDER: &str = "openrouter";
 
@@ -178,65 +173,14 @@ async fn run_openai_model_turn_bound(
         &model_request,
         &now(),
     )?;
-    append_runtime_event(
-        &options.store_path,
-        RuntimeSpineEventOptions {
-            event_id: format!("event-openai-started-{}", options.job_id),
-            occurred_at: now(),
-            event_type: "openai.model_turn.started".to_string(),
-            source: OPENAI_RUNTIME_SOURCE.to_string(),
-            session_id: Some(options.session_id.clone()),
-            job_id: Some(options.job_id.clone()),
-            summary: format!("Started typed OpenAI request {}.", request.request_id),
-        },
-    )?;
-    let (input_items, input_chars) = openai_request_input_metrics(&request);
-    append_runtime_event(
-        &options.store_path,
-        RuntimeSpineEventOptions {
-            event_id: format!("event-openai-request-prepared-{}", options.job_id),
-            occurred_at: now(),
-            event_type: "openai.model_turn.request_prepared".to_string(),
-            source: OPENAI_RUNTIME_SOURCE.to_string(),
-            session_id: Some(options.session_id.clone()),
-            job_id: Some(options.job_id.clone()),
-            summary: format!(
-                "Prepared OpenAI request {} for model {}: instructions={} chars, inputItems={}, inputChars={}.",
-                request.request_id,
-                request.model,
-                request.instructions.chars().count(),
-                input_items,
-                input_chars
-            ),
-        },
-    )?;
-
     let (status, events) = match profile {
         EpiphanyProviderProfile::OpenAiCodex => {
             let auth_manager = auth_manager(options.codex_home.clone());
             let status =
                 status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
-            append_runtime_event(
-                &options.store_path,
-                RuntimeSpineEventOptions {
-                    event_id: format!("event-openai-transport-ready-{}", options.job_id),
-                    occurred_at: now(),
-                    event_type: "openai.model_turn.transport_ready".to_string(),
-                    source: OPENAI_RUNTIME_SOURCE.to_string(),
-                    session_id: Some(options.session_id.clone()),
-                    job_id: Some(options.job_id.clone()),
-                    summary: format!(
-                        "Codex/OpenAI Responses transport ready for request {} with auth mode {:?}.",
-                        request.request_id, status.auth_mode
-                    ),
-                },
-            )?;
             let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
             let events = collect_transport_events(
-                transport.collect_model_events_with_frame_observer(
-                    request.clone(),
-                    frame_observer(&options),
-                ),
+                transport.collect_model_events(request.clone()),
                 &request,
             )
             .await;
@@ -251,27 +195,9 @@ async fn run_openai_model_turn_bound(
                 OPENROUTER_SPINE_ADAPTER_ID,
                 options.default_model.clone(),
             );
-            append_runtime_event(
-                &options.store_path,
-                RuntimeSpineEventOptions {
-                    event_id: format!("event-openrouter-transport-ready-{}", options.job_id),
-                    occurred_at: now(),
-                    event_type: "openrouter.model_turn.transport_ready".to_string(),
-                    source: OPENAI_RUNTIME_SOURCE.to_string(),
-                    session_id: Some(options.session_id.clone()),
-                    job_id: Some(options.job_id.clone()),
-                    summary: format!(
-                        "OpenRouter Chat Completions transport ready for request {} with a dedicated file credential.",
-                        request.request_id
-                    ),
-                },
-            )?;
             let transport = EpiphanyOpenRouterTransport::new(credential, options.request_timeout)?;
             let events = collect_transport_events(
-                transport.collect_model_events_with_frame_observer(
-                    request.clone(),
-                    frame_observer(&options),
-                ),
+                transport.collect_model_events(request.clone()),
                 &request,
             )
             .await;
@@ -287,43 +213,6 @@ async fn run_openai_model_turn_bound(
         true,
     )?;
     record_openai_events(&options.store_path, &options, &request, &provider, &events)
-}
-
-fn frame_observer(
-    options: &EpiphanyOpenAiRuntimeOptions,
-) -> impl FnMut(EpiphanyResponsesFrameObservation) + use<> {
-    let store_path = options.store_path.clone();
-    let session_id = options.session_id.clone();
-    let job_id = options.job_id.clone();
-    let mut observed_frame_count = 0u64;
-    move |observation| {
-        observed_frame_count += 1;
-        if should_record_frame_observation(observed_frame_count, &observation) {
-            let mut summary = format!(
-                "Observed provider frame {} kind={} recognized={}.",
-                observation.frame_sequence, observation.kind, observation.recognized
-            );
-            if let Some(preview) = observation.delta_preview.as_deref() {
-                summary.push_str(" deltaPreview=");
-                summary.push_str(preview);
-            }
-            let _ = append_runtime_event(
-                &store_path,
-                RuntimeSpineEventOptions {
-                    event_id: format!(
-                        "event-model-stream-frame-{}-{}",
-                        job_id, observation.frame_sequence
-                    ),
-                    occurred_at: now(),
-                    event_type: "model.turn.stream_frame".to_string(),
-                    source: OPENAI_RUNTIME_SOURCE.to_string(),
-                    session_id: Some(session_id.clone()),
-                    job_id: Some(job_id.clone()),
-                    summary,
-                },
-            );
-        }
-    }
 }
 
 async fn collect_transport_events<F>(
@@ -363,35 +252,6 @@ fn read_static_provider_credential(path: Option<&Path>, provider: &str) -> Resul
         ));
     }
     Ok(credential.to_string())
-}
-
-fn should_record_frame_observation(
-    observed_frame_count: u64,
-    observation: &EpiphanyResponsesFrameObservation,
-) -> bool {
-    observed_frame_count <= 20
-        || observed_frame_count % 100 == 0
-        || matches!(
-            observation.kind.as_str(),
-            "response.completed" | "response.failed" | "response.incomplete"
-        )
-}
-
-fn openai_request_input_metrics(request: &EpiphanyOpenAiModelRequest) -> (usize, usize) {
-    let mut chars = 0usize;
-    for item in &request.input {
-        chars += match item {
-            EpiphanyOpenAiInputItem::UserText { text }
-            | EpiphanyOpenAiInputItem::AssistantText { text } => text.chars().count(),
-            EpiphanyOpenAiInputItem::ToolCall {
-                call_id,
-                name,
-                arguments,
-            } => call_id.chars().count() + name.chars().count() + arguments.chars().count(),
-            EpiphanyOpenAiInputItem::ToolResult { output, .. } => output.chars().count(),
-        };
-    }
-    (request.input.len(), chars)
 }
 
 pub async fn run_model_turn(
@@ -559,21 +419,6 @@ fn record_openai_events(
                 _ => {}
             }
         }
-    }
-
-    for event in &events {
-        append_runtime_event(
-            store_path,
-            RuntimeSpineEventOptions {
-                event_id: format!("event-openai-{}-{}", options.job_id, event.sequence),
-                occurred_at: now(),
-                event_type: openai_event_type(event).to_string(),
-                source: OPENAI_RUNTIME_SOURCE.to_string(),
-                session_id: Some(options.session_id.clone()),
-                job_id: Some(options.job_id.clone()),
-                summary: openai_event_summary(event),
-            },
-        )?;
     }
 
     let verdict = if failure.is_some() || receipt.is_none() {
@@ -1344,47 +1189,6 @@ pub fn model_event_key(request_id: &str, sequence: u64) -> String {
 
 pub fn model_receipt_key(request_id: &str) -> String {
     request_id.to_string()
-}
-
-fn openai_event_type(event: &EpiphanyOpenAiStreamEvent) -> &'static str {
-    match event.payload {
-        EpiphanyOpenAiStreamPayload::TextDelta { .. } => "openai.model_turn.text_delta",
-        EpiphanyOpenAiStreamPayload::ReasoningDelta { .. } => "openai.model_turn.reasoning_delta",
-        EpiphanyOpenAiStreamPayload::ToolCall { .. } => "openai.model_turn.tool_call",
-        EpiphanyOpenAiStreamPayload::Completed { .. } => "openai.model_turn.completed",
-        EpiphanyOpenAiStreamPayload::Failed { .. } => "openai.model_turn.failed",
-    }
-}
-
-fn openai_event_summary(event: &EpiphanyOpenAiStreamEvent) -> String {
-    match &event.payload {
-        EpiphanyOpenAiStreamPayload::TextDelta { text } => {
-            format!(
-                "Text delta for {} ({} chars).",
-                event.request_id,
-                text.len()
-            )
-        }
-        EpiphanyOpenAiStreamPayload::ReasoningDelta { text } => {
-            format!(
-                "Reasoning delta for {} ({} chars).",
-                event.request_id,
-                text.len()
-            )
-        }
-        EpiphanyOpenAiStreamPayload::ToolCall { name, .. } => {
-            format!("Tool call {name} for {}.", event.request_id)
-        }
-        EpiphanyOpenAiStreamPayload::Completed { receipt } => {
-            format!(
-                "OpenAI request {} completed with response {:?}.",
-                event.request_id, receipt.response_id
-            )
-        }
-        EpiphanyOpenAiStreamPayload::Failed { message } => {
-            format!("OpenAI request {} failed: {message}", event.request_id)
-        }
-    }
 }
 
 pub fn openai_request_from_model_request(
