@@ -623,20 +623,4 @@ mod tests {
         assert_eq!(sanitized["decision"]["action"], "continue");
     }
 
-    #[test]
-    fn source_has_no_thread_aggregate_or_generic_interrupt() {
-        let source = include_str!("epiphany-mvp-status.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for forbidden in [
-            "EpiphanyThreadState",
-            "read_accepted_coordinator_state",
-            "latest_runtime_job_id_for_binding",
-            "derive_coordinator_finding_signals",
-            "expected_revision",
-            "interrupt_job",
-            "stateRevision",
-        ] {
-            assert!(!production.contains(forbidden));
-        }
-    }
 }

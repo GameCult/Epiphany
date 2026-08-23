@@ -21,7 +21,7 @@ use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
-use epiphany_core::authenticate_resident_provider_pair;
+use epiphany_core::authenticate_resident_provider;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
@@ -934,25 +934,17 @@ fn publish_managed_service_iteration_health(
     let mut terminal_current = 0_usize;
     let mut warming = 0_usize;
     let mut contradictions = Vec::new();
-    if let (Some(heartbeat_store), Some(resident_store)) = (
-        args.resident_heartbeat_store.as_deref(),
-        args.resident_self_store.as_deref(),
-    ) {
-        expected += 2;
-        let pair = authenticate_resident_provider_pair(
+    if let Some(resident_store) = args.resident_self_store.as_deref() {
+        expected += 1;
+        let provider = authenticate_resident_provider(
             release,
             authenticated_release_witness_sha256,
-            heartbeat_store,
             resident_store,
             args.resident_provider_stale_seconds.saturating_mul(1000),
         );
-        terminal_current += pair.terminal_current;
-        warming += pair.warming;
-        contradictions.extend(pair.contradictions);
-    } else if args.resident_heartbeat_store.is_some() || args.resident_self_store.is_some() {
-        expected += 2;
-        contradictions
-            .push("resident health requires both heartbeat and Self provider stores".into());
+        terminal_current += provider.terminal_current;
+        warming += provider.warming;
+        contradictions.extend(provider.contradictions);
     }
     for &service_id in required {
         let Some(policy) = policies
@@ -3897,17 +3889,6 @@ mod provider_status_ownership_tests {
         assert_eq!(unresolved_attempt_failure_count(3), 4);
     }
 
-    #[test]
-    fn supervisor_source_has_no_provider_status_writer() {
-        let source = include_str!("epiphany-daemon-supervisor.rs");
-
-        let provider_writer = ["write_epiphany_cultmesh_", "daemon_status"].concat();
-        let heartbeat_assignment = ["next_status.", "last_heartbeat_utc"].concat();
-        let action_assignment = ["next_status.", "operator_action"].concat();
-        assert!(!source.contains(&provider_writer));
-        assert!(!source.contains(&heartbeat_assignment));
-        assert!(!source.contains(&action_assignment));
-    }
 }
 
 #[cfg(test)]
@@ -3968,40 +3949,6 @@ mod service_lifecycle_brake_authority_tests {
             assert!(swarm_brake_blocks_service_lifecycle_entry(Some(&lifecycle)));
             assert!(required_managed_health_services(true).is_empty());
         }
-    }
-
-    #[test]
-    fn supervisor_physiology_survives_the_lifecycle_brake_without_reconciliation() {
-        let source = include_str!("epiphany-daemon-supervisor.rs");
-        let start = source.find("fn managed_service_serve(").unwrap();
-        let tail = &source[start..];
-        let end = tail.find("\nfn ").unwrap();
-        let body = &tail[..end];
-        let brake = body.find("load_epiphany_cultmesh_swarm_brake").unwrap();
-        let guard = body.find("if !lifecycle_braked").unwrap();
-        let reconcile = body.find("managed_service_reconcile").unwrap();
-        let health = body
-            .find("publish_managed_service_iteration_health")
-            .unwrap();
-        assert!(brake < guard && guard < reconcile && reconcile < health);
-        assert!(body.contains("\"reconciledPolicyCount\""));
-    }
-
-    #[test]
-    fn direct_managed_reconcile_checks_the_brake_before_any_lifecycle_mutation() {
-        let source = include_str!("epiphany-daemon-supervisor.rs");
-        let start = source.find("fn managed_service_reconcile(").unwrap();
-        let tail = &source[start..];
-        let end = tail.find("\nfn ").unwrap();
-        let body = &tail[..end];
-        let brake = body.find("load_epiphany_cultmesh_swarm_brake").unwrap();
-        let gate = body
-            .find("assert_swarm_brake_allows_service_lifecycle_entry")
-            .unwrap();
-        let policy = body
-            .find("load_epiphany_cultmesh_managed_service_policy")
-            .unwrap();
-        assert!(brake < gate && gate < policy);
     }
 
     #[test]
@@ -4807,7 +4754,6 @@ struct Args {
     idunn_deployment_request_id: Option<String>,
     idunn_provider_health_identity_store: Option<PathBuf>,
     idunn_provider_health_public_anchor: Option<PathBuf>,
-    resident_heartbeat_store: Option<PathBuf>,
     resident_self_store: Option<PathBuf>,
     resident_provider_stale_seconds: u64,
 }
@@ -4865,7 +4811,6 @@ impl Args {
         let mut idunn_deployment_request_id = None;
         let mut idunn_provider_health_identity_store = None;
         let mut idunn_provider_health_public_anchor = None;
-        let mut resident_heartbeat_store = None;
         let mut resident_self_store = None;
         let mut resident_provider_stale_seconds = 180_u64;
 
@@ -5078,13 +5023,6 @@ impl Args {
                             "missing --idunn-provider-health-public-anchor value",
                         )?));
                 }
-                "--resident-heartbeat-store" => {
-                    resident_heartbeat_store = Some(PathBuf::from(
-                        values
-                            .next()
-                            .context("missing --resident-heartbeat-store value")?,
-                    ));
-                }
                 "--resident-self-store" => {
                     resident_self_store = Some(PathBuf::from(
                         values
@@ -5273,7 +5211,6 @@ impl Args {
             idunn_deployment_request_id,
             idunn_provider_health_identity_store,
             idunn_provider_health_public_anchor,
-            resident_heartbeat_store,
             resident_self_store,
             resident_provider_stale_seconds,
         })

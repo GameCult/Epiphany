@@ -132,10 +132,6 @@ name = "epiphany-swarm"
 path = "epiphany-core/src/bin/epiphany-swarm.rs"
 
 [[bin]]
-name = "epiphany-heartbeat-store"
-path = "epiphany-core/src/bin/epiphany-heartbeat-store.rs"
-
-[[bin]]
 name = "epiphany-runtime-spine"
 path = "epiphany-core/src/bin/epiphany-runtime-spine.rs"
 

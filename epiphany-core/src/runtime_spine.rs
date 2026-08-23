@@ -26,8 +26,6 @@ use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
-use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
-use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
@@ -13943,20 +13941,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "OpenAI terminal receipts are provider-specific evidence behind the model receipt.",
-            ],
-        ),
-        mutation_contract(
-            HEARTBEAT_STATE_TYPE,
-            HEARTBEAT_STATE_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Heartbeat is internal scheduling physiology for Resident Self grants and Persona turns; external callers may inspect it but cannot steer it.",
             ],
         ),
         mutation_contract(

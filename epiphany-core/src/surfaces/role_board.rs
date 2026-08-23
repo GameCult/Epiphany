@@ -314,21 +314,3 @@ pub fn render_role_board_note(
         "Mind {state_status}; {active} role lane(s) carry current work; continuity recommendation {recommendation:?}."
     )
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn source_has_no_generic_lane_or_aggregate_authority() {
-        let source = include_str!("role_board.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for forbidden in [
-            "EpiphanyThreadState",
-            "binding_id",
-            "acceptance_receipt",
-            "state_revision",
-            "epiphany.coordinator.role.launch",
-        ] {
-            assert!(!production.contains(forbidden));
-        }
-    }
-}

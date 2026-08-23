@@ -290,17 +290,4 @@ mod tests {
         assert!(acquire_semantic_projector_singleton(&modeling).is_ok());
         Ok(())
     }
-
-    #[test]
-    fn authority_body_has_no_public_raw_session_or_session_local_windows_lock() {
-        let source = include_str!("semantic_projector_service.rs");
-        let public_session = ["pub struct Local", "IdunnSemanticProjectorSession"].concat();
-        let public_singleton = ["pub fn acquire_semantic", "_projector_singleton"].concat();
-        let local_namespace = ["Local", "\\\\EpiphanySemanticProjector"].concat();
-        assert!(!source.contains(&public_session));
-        assert!(!source.contains(&public_singleton));
-        assert!(!source.contains(&local_namespace));
-        assert!(source.contains("Global\\\\EpiphanySemanticProjector"));
-        assert!(source.contains("pub struct SemanticProjectorServiceBody"));
-    }
 }

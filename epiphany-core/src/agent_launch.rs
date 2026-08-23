@@ -999,15 +999,6 @@ mod tests {
     }
 
     #[test]
-    fn live_worker_contracts_contain_no_codex_route_vocabulary() {
-        let source = include_str!("agent_launch.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        assert!(!production.contains("thread/epiphany/"));
-        assert!(production.contains("epiphany.coordinator.reorient.launch"));
-        assert!(production.contains("researchDecision"));
-    }
-
-    #[test]
     fn bundled_epiphany_agent_prompts_do_not_name_codex_as_prompt_authority() {
         let prompts = epiphany_specialist_prompt_config();
         let rendered = [

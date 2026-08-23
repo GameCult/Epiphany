@@ -3,7 +3,7 @@
 This folder is the canonical paperwork shrine for Epiphany's shared state
 contracts.
 
-If a Persona field, Mind document, or heartbeat scheduling surface matters
+If a Persona field or Mind document matters
 enough to steer the machine, it should have a receipt here instead of living
 only in one Rust struct or one developer's damp recollection.
 
@@ -19,8 +19,6 @@ only in one Rust struct or one developer's damp recollection.
   companion custom-label fields.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
-- [heartbeat-state-schema.md](./heartbeat-state-schema.md):
-  typed initiative and routine-state contract for the swarm heartbeat organ.
 - [cultnet/README.md](./cultnet/README.md):
   published CultNet-facing state, surface, intent, and receipt schemas that
   Aquarium and other runtimes can discover through Epiphany's schema-catalog
@@ -30,7 +28,6 @@ only in one Rust struct or one developer's damp recollection.
 
 The living implementation is in code:
 
-- [heartbeat_state.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/heartbeat_state.rs)
 - [mind_documents.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/mind_documents.rs)
 
 The rule is simple:
@@ -45,7 +42,6 @@ When changing any of the following, update this folder in the same pass:
 
 - canonical organ-state or Persona family names
 - standing role trait names
-- heartbeat store shape or pacing semantics
 - schema version identifiers
 
 If a change lands in code without a matching receipt here, assume the machine

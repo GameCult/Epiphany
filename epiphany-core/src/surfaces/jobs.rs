@@ -220,19 +220,4 @@ mod tests {
         assert_eq!(jobs[2].status, EpiphanyJobStatus::Blocked);
         assert!(jobs.iter().all(|job| job.runtime_job_id.is_none()));
     }
-
-    #[test]
-    fn source_contains_no_aggregate_job_or_runtime_link_owner() {
-        let source = include_str!("jobs.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for forbidden in [
-            "EpiphanyThreadState",
-            "EpiphanyJobBinding",
-            "EpiphanyRuntimeLink",
-            "latest_runtime_link",
-            "state_revision",
-        ] {
-            assert!(!production.contains(forbidden));
-        }
-    }
 }

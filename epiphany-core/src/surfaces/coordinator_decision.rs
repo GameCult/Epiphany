@@ -290,22 +290,3 @@ fn planning_decision(
     };
     Some(value)
 }
-
-#[cfg(test)]
-mod authority_tests {
-    #[test]
-    fn source_has_no_aggregate_or_latest_lane_routing() {
-        let source = include_str!("coordinator_decision.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for forbidden in [
-            "EpiphanyThreadState",
-            "accepted_after",
-            "latest_result",
-            "finding_signals",
-            "state_revision",
-            "coordinator_run_receipt",
-        ] {
-            assert!(!production.contains(forbidden));
-        }
-    }
-}

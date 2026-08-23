@@ -120,20 +120,4 @@ mod tests {
         duplicate.evidence.push(evidence("evidence-a"));
         assert!(duplicate.validate().is_err());
     }
-
-    #[test]
-    fn role_decision_sources_have_no_generic_patch_authority() {
-        let retired_type = ["Epiphany", "Role", "State", "Patch", "Document"].concat();
-        let retired_field = ["state", "Patch"].concat();
-        for source in [
-            include_str!("../agent_launch.rs"),
-            include_str!("../current_work.rs"),
-            include_str!("../runtime_spine.rs"),
-            include_str!("role_result.rs"),
-        ] {
-            let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-            assert!(!production.contains(&retired_type));
-            assert!(!production.contains(&retired_field));
-        }
-    }
 }

@@ -73,7 +73,7 @@ Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules
 Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
 Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
 Persona memory & keyed Mind Persona-memory documents & Persona decisions admit bounded memories by semantic identity; no parallel role-memory aggregate or generation head exists. \\
-Heartbeat physiology & \code{state/agent-heartbeats.cc} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, explicit pressure, and active-turn exclusion only. Heartbeat owns no cognition, personality, or memory mutation. \\
+Resident Self physiology & Resident Self CultCache documents via \code{epiphany-swarm} & Typed pressure, exact grant creation, launch exclusion, leases, terminal receipts, retry, and bounded retention have one owner. No scheduler singleton or acknowledgement loop exists. \\
 Local Verse & CultMesh over \code{state/local-verse.cc} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
 Schema catalog & \code{schemas/cultnet/index.json} & JSON schema publishes contracts; typed Rust documents remain runtime authority. \\
 Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & Artifacts witness and lower state; they do not become state owners. \\
@@ -85,7 +85,7 @@ The checkout has nine primary Epiphany Rust crates:
 
 \begin{itemize}
   \item \code{epiphany-core}: the main domain organ. It owns state-update
-  validation, launch documents, runtime spine, heartbeat, memory graph, Persona
+  validation, launch documents, runtime spine, Resident Self, Persona
   projection, Substrate Gate, Mind, Eyes, Hands, Soul, Continuity, CultMesh
   integration, surface derivation, smokes, and local operator binaries.
   \item \code{epiphany-state-model}: the durable \code{EpiphanyThreadState}
@@ -133,10 +133,9 @@ implementation, not file authority.
 \hline
 \code{state/map.yaml} & Canonical slow project map: objective, constraints, invariants, dataflow, active subgoals, current status, guardrails, and rejected paths. \\
 \code{state/ledgers.cc} & CultCache-shaped evidence and branch ledger. Future behavior-changing lessons go here, not in an endless activity feed. \\
-\code{state/agents.cc} & Organ self-memory and Persona projection source. Resident work organs use \code{work_organ}; public/person-shaped agents use \code{persona}. \\
-\code{state/agent-heartbeats.cc} & Heartbeat initiative, cooldown, pending turns, cognition lanes, routine physiology, and scheduler pressure. \\
-\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, the admitted RepoModel, and schema catalog surfaces. \\
-\code{state/thread-state.cc} & Native thread-state store. \\
+Resident Self store & Keyed pressure, grants, prepared and active launch authority, terminal receipts, and retention head. \\
+Persona social store & Keyed mentions, immutable turn requests, terminal receipts, quarantine records, and retention plans. \\
+\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, results, worker launch requests, receipts, and model/tool transport documents. Durable decisions and keyed RepoModel documents live in Mind. \\
 \code{state/local-verse.cc} & Local CultMesh Verse context for compact operator and prompt-context packets. \\
 \code{state/semantic-projection.cc} & Typed Qdrant projection receipts. Cache health lives here, outside the canonical RepoModel. \\
 \code{state/persona-discord.toml} & Persona Discord boundary configuration. \\
@@ -260,7 +259,7 @@ Current operator access is partly native and partly witness-artifact based:
 \begin{itemize}
   \item Native binaries such as \code{epiphany-state},
   \code{epiphany-mvp-coordinator}, \code{epiphany-runtime-spine},
-  \code{epiphany-heartbeat-store}, and the family-specific worker services
+  \code{epiphany-swarm}, and the family-specific worker services
   inspect or update their owned typed state.
   \item Local artifact directories such as \code{.epiphany-run/},
   \code{.epiphany-dogfood/}, \code{.epiphany-smoke/},

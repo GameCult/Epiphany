@@ -51,17 +51,20 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. In progress: exact `2164bd0a` deletes Ghostlight scheduling, generic manual
-   heartbeat mutation controls, five dead schemas, adaptive pacing/initiative
-   heat, five fake organ lanes, and eight tests that only kept those surfaces
-   alive. Heartbeat now schedules only Resident Self and Persona. Next split
-   Persona queue/turn/blocked-pressure/retention members into keyed documents;
-   no shared vector may remain in the scheduler CAS identity.
+1. Done in the current worktree: Persona social state is keyed and separately
+   owned; the final heartbeat scheduler module, binary, schema, service, store,
+   deployment path, pacing/history, stale repair, and acknowledgement consumer
+   are deleted. Resident Self owns the complete grant lifecycle directly.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.
 3. Done: delete the local PowerShell operator wrapper, direct Persona/operator
    binaries, shipped `verse-query` control plane, and orphan Rider integration.
 4. Done: reduce `epiphany-core` from 30 binary targets to the one native
    compaction helper. Runtime executables belong to the release bundle.
-5. Run focused tests after each cut. Only after source subtraction stabilizes
+5. In progress: delete tests that inspect spelling, duplicate constructors, or
+   exercise one-line helpers without reaching a consequence. Preserve exact
+   CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
+   The remaining source-inspection concentration is the daemon supervisor and
+   workspace-coverage service; map those claims before deleting them.
+6. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

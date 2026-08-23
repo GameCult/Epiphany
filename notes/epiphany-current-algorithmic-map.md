@@ -266,9 +266,9 @@ authority.
 
 These are distinct authorities and must not be collapsed into one state enum:
 
-- Heartbeat owns scheduling pressure and terminal acknowledgement consumption.
-- Resident Self owns grant, coordinator lease, settlement, cooldown, and
-  requeue.
+- Resident Self owns typed pressure, exact grant creation, prepared and active
+  launch exclusion, coordinator lease, settlement, cooldown, retry, terminal
+  receipts, and bounded lifecycle retention.
 - Coordinator process owns its incarnation receipt or exact-death closure.
 - Runtime worker attempt owns immutable launch, process claim, activation,
   typed result, job result, and terminal attempt classification.
@@ -279,19 +279,13 @@ The attempt aggregate centralizes exact request association and typed terminal
 classification. Archived fulfilled attempts must retain recoverable decision
 authority, not merely an ID/digest tombstone.
 
-Heartbeat is scheduling physiology only. Exact `d1685df8` deletes its
-personality, appraisal, rumination, dreaming, void-routine cognition, and
-memory-graph paths. Exact `39dd9fdb` deletes the parallel agent-memory
-identity/generation store, utterance vector, and generic self-patch admission.
-When no explicit typed pressure exists, heartbeat sleeps and authors no Mind
-state.
-
-Exact `2164bd0a` removes the unowned scheduler generality. Heartbeat has one
-live participant: Resident Self. Ghostlight scene scheduling, generic
-tick/pump/heat/complete controls, adaptive pacing, initiative heat, and their
-public intent schemas are gone. Modeling, Eyes, Hands, Soul, and Imagination
-route from typed current-work obligations and never acquire idle heartbeat
-lanes.
+The heartbeat scheduler does not exist. Resident Self directly selects the
+oldest pending pressure when no grant, prepared launch, or active lease exists.
+Grant creation consumes that exact pressure through one batch CAS. Terminal
+settlement writes the final receipt and terminal grant state atomically; there
+is no acknowledgement consumer, scheduler history, pacing head, stale repair,
+or cross-store reconciliation loop. A loop iteration is physiology only and
+authors no state when there is no unresolved obligation.
 
 Persona owns a separate keyed social corpus. Each mention, immutable turn
 request, terminal receipt, quarantine record, retention head, and retention
@@ -299,7 +293,8 @@ plan has its own CultCache identity. The Persona daemon derives an exact request
 from pending mentions, reserves them through batch CAS, and cites that request
 envelope as the observed source of its admitted pass input. Failed turns make
 the mention pending with the terminal receipt bound into its next deterministic
-request identity. Heartbeat cannot launch, block, or terminalize Persona work.
+request identity. Resident Self cannot launch, block, or terminalize Persona
+work.
 
 ## RepoModel and semantic projection
 

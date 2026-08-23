@@ -1,8 +1,8 @@
 use crate::{
     ProcessInstanceIdentity, ProcessInstanceObservation, ResidentSelfPolicy,
     authenticate_epiphany_packaged_release, epiphany_packaged_release_binary_path,
-    load_epiphany_cultmesh_swarm_brake, load_heartbeat_state_entry, load_resident_self_state,
-    observe_process_instance, validate_resident_self_store_separation,
+    load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
+    validate_resident_self_store_separation,
 };
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
@@ -45,12 +45,12 @@ pub struct ResidentProcessSingletonGuard {
 }
 
 #[cfg(unix)]
-fn resident_process_singleton_lock_path(role: &str, store: &Path) -> Result<PathBuf> {
+fn resident_process_singleton_lock_path(store: &Path) -> Result<PathBuf> {
     let file_name = store
         .file_name()
         .ok_or_else(|| anyhow!("resident singleton store has no file name"))?
         .to_string_lossy();
-    Ok(store.with_file_name(format!("{file_name}.{role}.process.lock")))
+    Ok(store.with_file_name(format!("{file_name}.resident-self.process.lock")))
 }
 
 impl Drop for ResidentProcessSingletonGuard {
@@ -68,34 +68,30 @@ impl Drop for ResidentProcessSingletonGuard {
 }
 
 pub fn acquire_resident_process_singleton(
-    role: &str,
     store: impl AsRef<Path>,
 ) -> Result<ResidentProcessSingletonGuard> {
-    if !matches!(role, "heartbeat" | "resident-self") {
-        bail!("unsupported resident singleton role: {role}");
-    }
     let store = canonical_or_absolute(store.as_ref());
     #[cfg(windows)]
     {
         let identity = format!(
             "{:x}",
-            Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
+            Sha256::digest(store.to_string_lossy().to_lowercase().as_bytes())
         );
-        let name = OsStr::new(&format!("Global\\EpiphanyResident-{role}-{identity}"))
+        let name = OsStr::new(&format!("Global\\EpiphanyResidentSelf-{identity}"))
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
         let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr()) };
         if handle.is_null() {
             bail!(
-                "resident {role} singleton mutex creation failed: {}",
+                "resident Self singleton mutex creation failed: {}",
                 unsafe { GetLastError() }
             );
         }
         if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
             unsafe { CloseHandle(handle) };
             bail!(
-                "resident {role} owner already exists for canonical store {}",
+                "resident Self owner already exists for canonical store {}",
                 store.display()
             );
         }
@@ -103,7 +99,7 @@ pub fn acquire_resident_process_singleton(
     }
     #[cfg(unix)]
     {
-        let path = resident_process_singleton_lock_path(role, &store)?;
+        let path = resident_process_singleton_lock_path(&store)?;
         let file = File::options()
             .create(true)
             .read(true)
@@ -111,7 +107,7 @@ pub fn acquire_resident_process_singleton(
             .open(path)?;
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
             bail!(
-                "resident {role} owner already exists for canonical store {}",
+                "resident Self owner already exists for canonical store {}",
                 store.display()
             );
         }
@@ -123,24 +119,21 @@ pub fn acquire_resident_process_singleton(
     ))
 }
 
-fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool> {
-    if !matches!(role, "heartbeat" | "resident-self") {
-        bail!("unsupported resident singleton role: {role}");
-    }
+fn resident_process_singleton_is_owned(store: &Path) -> Result<bool> {
     let store = canonical_or_absolute(store);
     #[cfg(windows)]
     {
         let identity = format!(
             "{:x}",
-            Sha256::digest(format!("{role}|{}", store.to_string_lossy().to_lowercase()).as_bytes())
+            Sha256::digest(store.to_string_lossy().to_lowercase().as_bytes())
         );
-        let name = OsStr::new(&format!("Global\\EpiphanyResident-{role}-{identity}"))
+        let name = OsStr::new(&format!("Global\\EpiphanyResidentSelf-{identity}"))
             .encode_wide()
             .chain(std::iter::once(0))
             .collect::<Vec<_>>();
         let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 0, name.as_ptr()) };
         if handle.is_null() {
-            bail!("resident {role} singleton mutex probe failed: {}", unsafe {
+            bail!("resident Self singleton mutex probe failed: {}", unsafe {
                 GetLastError()
             });
         }
@@ -155,7 +148,7 @@ fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool>
             }
             other => {
                 unsafe { CloseHandle(handle) };
-                bail!("resident {role} singleton mutex probe returned {other}");
+                bail!("resident Self singleton mutex probe returned {other}");
             }
         };
         unsafe { CloseHandle(handle) };
@@ -163,7 +156,7 @@ fn resident_process_singleton_is_owned(role: &str, store: &Path) -> Result<bool>
     }
     #[cfg(unix)]
     {
-        let path = resident_process_singleton_lock_path(role, &store)?;
+        let path = resident_process_singleton_lock_path(&store)?;
         if !path.exists() {
             return Ok(false);
         }
@@ -225,7 +218,7 @@ impl ResidentProviderReadiness {
         if self.schema_version != RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION {
             bail!("resident provider readiness schema is unsupported");
         }
-        if !matches!(self.provider.as_str(), "heartbeat" | "resident-self") {
+        if self.provider != "resident-self" {
             bail!("resident provider readiness owner is invalid");
         }
         if self.runtime_id.trim().is_empty()
@@ -306,22 +299,6 @@ pub fn load_resident_provider_readiness(store: &Path) -> Result<Option<ResidentP
     Ok(readiness_snapshot(store)?.1)
 }
 
-pub fn heartbeat_local_provider_status(
-    heartbeat_store: &Path,
-    resident_store: &Path,
-) -> &'static str {
-    if distinct_physical_paths(heartbeat_store, resident_store)
-        && load_heartbeat_state_entry(heartbeat_store)
-            .ok()
-            .flatten()
-            .is_some()
-    {
-        "ready"
-    } else {
-        "warming"
-    }
-}
-
 pub fn resident_self_local_provider_status(
     resident_store: &Path,
     policy: &ResidentSelfPolicy,
@@ -354,7 +331,6 @@ pub fn resident_self_local_provider_status(
 #[derive(Clone, Debug)]
 pub struct ResidentReadinessRequest<'a> {
     pub release_store: &'a Path,
-    pub heartbeat_store: &'a Path,
     pub resident_store: &'a Path,
     pub policy: &'a ResidentSelfPolicy,
     pub release_runtime_id: &'a str,
@@ -375,8 +351,6 @@ pub struct ResidentCognitionReadinessProjection {
     pub source_commit: Option<String>,
     pub release_authenticated: bool,
     pub physical_stores_separate: bool,
-    pub heartbeat_initialized: bool,
-    pub heartbeat_provider_fresh: bool,
     pub resident_provider_fresh: bool,
     pub resident_state_coherent: bool,
     pub active_lease_observation: String,
@@ -402,10 +376,6 @@ pub fn derive_resident_cognition_readiness(
         .as_ref()
         .ok()
         .map(|value| value.source_commit_sha.as_str());
-    let heartbeat_executable = release
-        .as_ref()
-        .ok()
-        .and_then(|value| epiphany_packaged_release_binary_path(value, "heartbeat").ok());
     let resident_executable = release
         .as_ref()
         .ok()
@@ -424,26 +394,10 @@ pub fn derive_resident_cognition_readiness(
             }
         };
     let physical_stores_separate =
-        validate_resident_self_store_separation(request.resident_store, request.policy).is_ok()
-            && distinct_physical_paths(request.heartbeat_store, request.resident_store);
+        validate_resident_self_store_separation(request.resident_store, request.policy).is_ok();
     if !physical_stores_separate {
         reasons.push("resident cognition stores are not physically separated".into());
     }
-    let heartbeat_initialized = load_heartbeat_state_entry(request.heartbeat_store)
-        .ok()
-        .flatten()
-        .is_some();
-    if !heartbeat_initialized {
-        reasons.push("heartbeat state is absent or unreadable".into());
-    }
-    let heartbeat_provider_fresh = provider_is_fresh(
-        request.heartbeat_store,
-        "heartbeat",
-        &request,
-        expected_source_commit,
-        heartbeat_executable.as_deref(),
-        &mut reasons,
-    );
     let resident_provider_fresh = provider_is_fresh(
         request.resident_store,
         "resident-self",
@@ -491,15 +445,13 @@ pub fn derive_resident_cognition_readiness(
     }
     let ready = release_authenticated
         && physical_stores_separate
-        && heartbeat_initialized
-        && heartbeat_provider_fresh
         && resident_provider_fresh
         && resident_state_coherent
         && cognitive_runtime_id.is_some()
         && workspace_ready
         && credential_ready;
     ResidentCognitionReadinessProjection {
-        schema_version: "epiphany.resident_cognition.readiness.v0".into(),
+        schema_version: "epiphany.resident_cognition.readiness.v1".into(),
         status: if ready {
             "active"
         } else if release_authenticated {
@@ -521,8 +473,6 @@ pub fn derive_resident_cognition_readiness(
             .map(|value| value.source_commit_sha.clone()),
         release_authenticated,
         physical_stores_separate,
-        heartbeat_initialized,
-        heartbeat_provider_fresh,
         resident_provider_fresh,
         resident_state_coherent,
         active_lease_observation,
@@ -571,34 +521,24 @@ fn classify_active_lease_observation(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResidentProviderPairHealth {
+pub struct ResidentProviderHealth {
     pub terminal_current: usize,
     pub warming: usize,
     pub contradictions: Vec<String>,
 }
 
-pub fn authenticate_resident_provider_pair(
+pub fn authenticate_resident_provider(
     release: &crate::EpiphanyPackagedReleaseEntry,
     witness: &str,
-    heartbeat_store: &Path,
     resident_store: &Path,
     freshness_millis: u64,
-) -> ResidentProviderPairHealth {
-    let mut result = ResidentProviderPairHealth {
+) -> ResidentProviderHealth {
+    let mut result = ResidentProviderHealth {
         terminal_current: 0,
         warming: 0,
         contradictions: Vec::new(),
     };
-    if !distinct_physical_paths(heartbeat_store, resident_store) {
-        result
-            .contradictions
-            .push("heartbeat and resident Self provider stores alias physically".into());
-        return result;
-    }
-    for (owner, store, role) in [
-        ("heartbeat", heartbeat_store, "heartbeat"),
-        ("resident-self", resident_store, "swarm"),
-    ] {
+    for (owner, store, role) in [("resident-self", resident_store, "swarm")] {
         let executable = epiphany_packaged_release_binary_path(release, role).ok();
         let value = match load_resident_provider_readiness(store) {
             Ok(Some(value)) => value,
@@ -613,7 +553,7 @@ pub fn authenticate_resident_provider_pair(
                 continue;
             }
         };
-        let role_owner_present = match resident_process_singleton_is_owned(owner, store) {
+        let role_owner_present = match resident_process_singleton_is_owned(store) {
             Ok(value) => value,
             Err(error) => {
                 result.contradictions.push(format!(
@@ -665,7 +605,7 @@ fn provider_is_fresh(
             return false;
         }
     };
-    let role_owner_present = match resident_process_singleton_is_owned(owner, store) {
+    let role_owner_present = match resident_process_singleton_is_owned(store) {
         Ok(value) => value,
         Err(error) => {
             reasons.push(format!(
@@ -772,11 +712,6 @@ fn provider_matches_authority(
     .is_empty()
 }
 
-fn distinct_physical_paths(left: &Path, right: &Path) -> bool {
-    canonical_or_absolute(left) != canonical_or_absolute(right)
-        && matches!(crate::same_existing_file(left, right), Ok(false))
-}
-
 fn canonical_or_absolute(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
@@ -838,17 +773,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resident_process_singleton_excludes_only_the_same_role_and_store() -> Result<()> {
+    fn resident_process_singleton_excludes_only_the_same_store() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("resident.cc");
         fs::write(&store, [])?;
-        let owner = acquire_resident_process_singleton("resident-self", &store)?;
-        assert!(acquire_resident_process_singleton("resident-self", &store).is_err());
-        let other_role = acquire_resident_process_singleton("heartbeat", &store)?;
-        let other_store =
-            acquire_resident_process_singleton("resident-self", temp.path().join("other.cc"))?;
-        drop((owner, other_role, other_store));
-        assert!(acquire_resident_process_singleton("resident-self", &store).is_ok());
+        let owner = acquire_resident_process_singleton(&store)?;
+        assert!(acquire_resident_process_singleton(&store).is_err());
+        let other_store = acquire_resident_process_singleton(temp.path().join("other.cc"))?;
+        drop((owner, other_store));
+        assert!(acquire_resident_process_singleton(&store).is_ok());
         Ok(())
     }
 
@@ -857,12 +790,8 @@ mod tests {
     fn unix_resident_singleton_lock_is_shared_beside_the_mounted_store() -> Result<()> {
         let store = Path::new("/state/resident.cc");
         assert_eq!(
-            resident_process_singleton_lock_path("resident-self", store)?,
+            resident_process_singleton_lock_path(store)?,
             PathBuf::from("/state/resident.cc.resident-self.process.lock")
-        );
-        assert_eq!(
-            resident_process_singleton_lock_path("heartbeat", store)?,
-            PathBuf::from("/state/resident.cc.heartbeat.process.lock")
         );
         Ok(())
     }
@@ -894,7 +823,7 @@ mod tests {
     fn provider() -> ResidentProviderReadiness {
         ResidentProviderReadiness {
             schema_version: RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION.into(),
-            provider: "heartbeat".into(),
+            provider: "resident-self".into(),
             runtime_id: "ygg".into(),
             release_id: "release-a".into(),
             release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
@@ -915,7 +844,7 @@ mod tests {
         let executable = std::env::current_exe().unwrap();
         assert!(provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-a",
             &value.release_witness_sha256,
@@ -927,7 +856,7 @@ mod tests {
         ));
         assert!(!provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-b",
             &value.release_witness_sha256,
@@ -939,7 +868,7 @@ mod tests {
         ));
         assert!(!provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-a",
             &value.release_witness_sha256,
@@ -951,7 +880,7 @@ mod tests {
         ));
         assert!(!provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-a",
             &value.release_witness_sha256,
@@ -966,22 +895,22 @@ mod tests {
     #[test]
     fn role_singleton_probe_observes_only_a_live_owner() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("heartbeat.cc");
-        assert!(!resident_process_singleton_is_owned("heartbeat", &store)?);
+        let store = temp.path().join("resident.cc");
+        assert!(!resident_process_singleton_is_owned(&store)?);
         let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(0);
         let (release_tx, release_rx) = std::sync::mpsc::sync_channel(0);
         let owned_store = store.clone();
         let owner = std::thread::spawn(move || -> Result<()> {
-            let _guard = acquire_resident_process_singleton("heartbeat", &owned_store)?;
+            let _guard = acquire_resident_process_singleton(&owned_store)?;
             ready_tx.send(())?;
             release_rx.recv()?;
             Ok(())
         });
         ready_rx.recv()?;
-        assert!(resident_process_singleton_is_owned("heartbeat", &store)?);
+        assert!(resident_process_singleton_is_owned(&store)?);
         release_tx.send(())?;
         owner.join().expect("singleton owner thread")?;
-        assert!(!resident_process_singleton_is_owned("heartbeat", &store)?);
+        assert!(!resident_process_singleton_is_owned(&store)?);
         Ok(())
     }
 
@@ -1041,17 +970,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn hardlink_store_aliases_are_not_physically_distinct() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let first = temp.path().join("first.cc");
-        let alias = temp.path().join("alias.cc");
-        fs::write(&first, b"cultcache")?;
-        fs::hard_link(&first, &alias)?;
-        assert!(!distinct_physical_paths(&first, &alias));
-        Ok(())
-    }
-
     #[cfg(unix)]
     #[test]
     fn unix_credentials_reject_group_or_other_access() -> Result<()> {
@@ -1081,35 +999,6 @@ mod tests {
         fs::write(temp.path().join("credentials.json"), b"{}")?;
         assert!(!codex_credentials_ready(temp.path()));
         Ok(())
-    }
-
-    #[test]
-    fn projection_schema_has_no_systemd_or_secret_substitution_surface() {
-        let projection = ResidentCognitionReadinessProjection {
-            schema_version: "epiphany.resident_cognition.readiness.v0".into(),
-            status: "warming".into(),
-            runtime_id: Some("epiphany-yggdrasil".into()),
-            release_runtime_id: Some("epiphany-release-yggdrasil".into()),
-            release_id: Some("release-1".into()),
-            release_witness_sha256: Some("sha256:witness".into()),
-            source_commit: Some("commit-1".into()),
-            release_authenticated: true,
-            physical_stores_separate: true,
-            heartbeat_initialized: true,
-            heartbeat_provider_fresh: false,
-            resident_provider_fresh: false,
-            resident_state_coherent: true,
-            active_lease_observation: "none".into(),
-            brake_engaged: true,
-            workspace_ready: true,
-            credential_ready: true,
-            reasons: vec!["provider absent".into()],
-            private_state_exposed: false,
-        };
-        let json = serde_json::to_string(&projection).unwrap();
-        assert!(!json.contains("systemd"));
-        assert!(!json.contains("credentialPath"));
-        assert!(!json.contains("secret"));
     }
 
     #[test]
@@ -1159,11 +1048,9 @@ mod tests {
             release_id: "sha256:release".into(),
             release_witness_sha256: "sha256:witness".into(),
         };
-        let heartbeat_store = shared.join("heartbeat.cc");
         let resident_store = shared.join("resident.cc");
         let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
             release_store: &policy.release_store,
-            heartbeat_store: &heartbeat_store,
             resident_store: &resident_store,
             policy: &policy,
             release_runtime_id: &policy.release_runtime_id,
@@ -1209,7 +1096,7 @@ mod tests {
         assert_eq!(
             provider_authority_failures(
                 &value,
-                "heartbeat",
+                "resident-self",
                 "ygg",
                 "release-a",
                 &value.release_witness_sha256,
@@ -1236,7 +1123,7 @@ mod tests {
         let executable = PathBuf::from(&value.process_executable_path);
         assert!(provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-a",
             &value.release_witness_sha256,
@@ -1249,7 +1136,7 @@ mod tests {
         value.observed_at_millis = 2_001;
         assert!(!provider_matches_authority(
             &value,
-            "heartbeat",
+            "resident-self",
             "ygg",
             "release-a",
             &value.release_witness_sha256,
@@ -1262,9 +1149,8 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_pair_warms_on_missing_and_rejects_wrong_release() -> Result<()> {
+    fn aggregate_health_warms_on_missing_and_rejects_wrong_release() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let heartbeat = temp.path().join("heartbeat.cc");
         let resident = temp.path().join("resident.cc");
         let executable = std::env::current_exe()?;
         let binary = |role: &str| crate::EpiphanyPackagedReleaseBinary {
@@ -1284,13 +1170,12 @@ mod tests {
             toolchain_fingerprint: "toolchain".into(),
             created_at_utc: "now".into(),
             package_root: temp.path().display().to_string(),
-            binaries: vec![binary("heartbeat"), binary("swarm")],
+            binaries: vec![binary("swarm")],
             private_state_exposed: false,
         };
         let witness = format!("sha256-{}", "a".repeat(64));
-        let missing =
-            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10);
-        assert_eq!(missing.warming, 2);
+        let missing = authenticate_resident_provider(&release, &witness, &resident, 10);
+        assert_eq!(missing.warming, 1);
         let process = crate::capture_process_instance(std::process::id())?;
         let mut wrong = provider();
         wrong.runtime_id = "ygg".into();
@@ -1301,9 +1186,8 @@ mod tests {
         wrong.process_id = process.process_id;
         wrong.process_creation_token = process.creation_token;
         wrong.process_executable_path = process.executable_path.display().to_string();
-        publish_resident_provider_readiness(&heartbeat, wrong)?;
-        let rejected =
-            authenticate_resident_provider_pair(&release, &witness, &heartbeat, &resident, 10);
+        publish_resident_provider_readiness(&resident, wrong)?;
+        let rejected = authenticate_resident_provider(&release, &witness, &resident, 10);
         assert!(
             rejected
                 .contradictions

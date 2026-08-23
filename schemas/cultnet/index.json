@@ -258,17 +258,6 @@
       "path": "epiphany.work_organ_state.v0.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.agent_heartbeat.v1",
-      "documentType": "epiphany.agent_heartbeat",
-      "title": "Epiphany Heartbeat State",
-      "path": "epiphany.agent-heartbeat.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.state-ledger.schema.json",
       "kind": "document_payload",
       "wireContracts": [

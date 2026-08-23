@@ -3,7 +3,7 @@
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
 Latest committed implementation cut: `39dd9fdb`
-Current worktree: heartbeat concurrency-domain audit; Ox17 remains paused
+Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
 
@@ -28,8 +28,8 @@ authorize the next capstone or Gate 1.
   `de0fc6b360ce03493b13208d917dc8349801f03364617d966152c85846c47482`.
 - Model provider: OpenRouter `stealth/ox-alpha`, selected explicitly and
   injected through the root-owned systemd credential boundary.
-- `epiphany.service`, `epiphany-heartbeat.service`, and
-  `epiphany-swarm.service` are inactive with zero restarts after the hard epoch
+- `epiphany.service` and `epiphany-swarm.service` are inactive with zero
+  restarts after the hard epoch
   refusal rollback. The d2ca stores and swarm brake remain historical
   production state; no newer package is admitted there.
 - Idunn source `8b972715c47731f2418d0c423cb0dd2076940bd7` is provenance-exact and
@@ -43,6 +43,30 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+The current uncommitted subtraction removes the final heartbeat scheduler.
+
+- Resident Self directly owns typed pressure selection, pressure-to-grant
+  batch CAS, prepared and active launch exclusion, leases, terminal receipts,
+  retry, and bounded retention. Terminal receipts are final records; no second
+  daemon consumes acknowledgements.
+- Persona owns its separate keyed social store. The swarm receives that store
+  directly and cannot use a scheduler singleton to launch, block, retain, or
+  terminalize Persona work.
+- The heartbeat Rust module, six submodules, CLI binary, release role, schema,
+  store contract, systemd unit, deployment lifecycle, readiness checks,
+  artifact directory, pacing/history state, stale repair, and old cross-store
+  reconciliation are deleted. Old heartbeat grants, acknowledgements, and
+  Resident Self v0 stores fail the writable epoch check.
+- Native core passes 426/426 after the first fake-test pruning slice. Twenty-
+  one tests across library and runtime targets that only inspected source
+  spelling, copied removed fields, or exercised one-line helper truth tables
+  are gone. Daemon supervisor passes 29/29, coordinator 8/8, status 1/1, and
+  swarm 4/4. Exact CAS, hostile substitution, concurrency, lifecycle,
+  readiness, and re-entry proofs remain.
+- The gamecult-ops contract removes 52 net lines, and Git Bash syntax plus the
+  deployment outage-order check pass. Bootstrap retains one deliberate cleanup
+  line to remove an obsolete installed heartbeat unit.
 
 The global thread-state authority is gone.
 

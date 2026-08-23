@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
-pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v0";
+pub const RESIDENT_SELF_STATE_SCHEMA_VERSION: &str = "epiphany.resident_self.state.v1";
 pub const RESIDENT_SELF_RUNTIME_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.resident_self.runtime_receipt.v0";
 pub const RESIDENT_SELF_PRESSURE_SCHEMA_VERSION: &str = "epiphany.resident_self.pressure.v0";
@@ -21,8 +21,9 @@ pub const RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX: &str = "cultcache://atla
 pub const RESIDENT_SELF_ATLAS_NO_HANDS_AUTHORITY_CLAUSE: &str =
     "This wake grants no Hands authority.";
 pub const RESIDENT_SELF_CURRENT_WORK_PROVENANCE_PREFIX: &str = "cultcache://current-work/";
-pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.heartbeat_grant.v1";
-pub const RESIDENT_SELF_ACK_SCHEMA_VERSION: &str = "epiphany.resident_self.terminal_ack.v0";
+pub const RESIDENT_SELF_GRANT_SCHEMA_VERSION: &str = "epiphany.resident_self.grant.v1";
+pub const RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.resident_self.terminal_receipt.v1";
 pub const RESIDENT_SELF_CHILD_CLAIM_SCHEMA_VERSION: &str = "epiphany.resident_self.child_claim.v0";
 pub const RESIDENT_SELF_RETENTION_HEAD_SCHEMA_VERSION: &str =
     "epiphany.resident_self.retention_head.v0";
@@ -139,11 +140,8 @@ impl ResidentSelfPressure {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.resident_self.heartbeat_grant.v0",
-    schema = "ResidentSelfHeartbeatGrant"
-)]
-pub struct ResidentSelfHeartbeatGrant {
+#[cultcache(type = "epiphany.resident_self.grant.v1", schema = "ResidentSelfGrant")]
+pub struct ResidentSelfGrant {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -157,18 +155,14 @@ pub struct ResidentSelfHeartbeatGrant {
     #[cultcache(key = 5)]
     pub objective: String,
     #[cultcache(key = 6)]
-    pub heartbeat_schedule_id: String,
-    #[cultcache(key = 7)]
-    pub heartbeat_action_id: String,
-    #[cultcache(key = 8)]
     pub issued_at_millis: u64,
-    #[cultcache(key = 9, default)]
+    #[cultcache(key = 7, default)]
     pub consumed_at_millis: Option<u64>,
-    #[cultcache(key = 10, default)]
+    #[cultcache(key = 8, default)]
     pub private_state_exposed: bool,
-    #[cultcache(key = 11, default)]
+    #[cultcache(key = 9, default)]
     pub terminal_at_millis: Option<u64>,
-    #[cultcache(key = 12, default)]
+    #[cultcache(key = 10, default)]
     pub terminal_status: Option<String>,
 }
 
@@ -178,8 +172,6 @@ pub struct ResidentSelfGrantLifecycleProjection {
     pub grant_id: String,
     pub pressure_id: String,
     pub pressure_kind: String,
-    pub heartbeat_schedule_id: String,
-    pub heartbeat_action_id: String,
     pub issued_at_millis: u64,
     pub consumed_at_millis: Option<u64>,
     pub terminal_at_millis: Option<u64>,
@@ -189,43 +181,31 @@ pub struct ResidentSelfGrantLifecycleProjection {
     pub launchable: bool,
 }
 
-fn resident_self_grant_is_pending(
-    grant: &ResidentSelfHeartbeatGrant,
-    legacy_terminal_grant_ids: &BTreeSet<String>,
-) -> bool {
-    grant.consumed_at_millis.is_none()
-        && grant.terminal_at_millis.is_none()
-        && !(grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
-            && legacy_terminal_grant_ids.contains(&grant.grant_id))
+fn resident_self_grant_is_pending(grant: &ResidentSelfGrant) -> bool {
+    grant.consumed_at_millis.is_none() && grant.terminal_at_millis.is_none()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.resident_self.terminal_ack.v0",
-    schema = "ResidentSelfTerminalAck"
+    type = "epiphany.resident_self.terminal_receipt.v1",
+    schema = "ResidentSelfTerminalReceipt"
 )]
-pub struct ResidentSelfTerminalAck {
+pub struct ResidentSelfTerminalReceipt {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
-    pub ack_id: String,
+    pub receipt_id: String,
     #[cultcache(key = 2)]
     pub grant_id: String,
     #[cultcache(key = 3)]
-    pub heartbeat_schedule_id: String,
-    #[cultcache(key = 4)]
-    pub heartbeat_action_id: String,
-    #[cultcache(key = 5)]
     pub launch_digest: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 4)]
     pub coordinator_receipt_id: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 5)]
     pub terminal_status: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 6)]
     pub completed_at_millis: u64,
-    #[cultcache(key = 9, default)]
-    pub consumed_by_heartbeat_at_millis: Option<u64>,
-    #[cultcache(key = 10, default)]
+    #[cultcache(key = 7, default)]
     pub private_state_exposed: bool,
 }
 
@@ -506,7 +486,7 @@ pub struct ResidentSelfTurnLease {
 pub struct ResidentSelfPreparedLaunch {
     pub preparation_id: String,
     pub prepared_at_millis: u64,
-    pub grant: ResidentSelfHeartbeatGrant,
+    pub grant: ResidentSelfGrant,
     pub argv: Vec<String>,
     pub launch_digest: String,
     pub policy_digest: String,
@@ -728,7 +708,7 @@ fn resident_self_atlas_required_action(pressure_kind: &str) -> Option<&'static s
 
 fn resident_coordinator_binding_for_grant(
     policy: &ResidentSelfPolicy,
-    grant: &ResidentSelfHeartbeatGrant,
+    grant: &ResidentSelfGrant,
 ) -> Result<Option<ResidentCoordinatorBinding>> {
     let mut cache = crate::runtime_spine_cache(&policy.runtime_store)?;
     cache.pull_all_backing_stores()?;
@@ -807,17 +787,25 @@ fn state_cache(path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<ResidentSelfState>()?;
     cache.register_entry_type::<ResidentSelfRuntimeReceipt>()?;
     cache.register_entry_type::<ResidentSelfPressure>()?;
-    cache.register_entry_type::<ResidentSelfHeartbeatGrant>()?;
-    cache.register_entry_type::<ResidentSelfTerminalAck>()?;
+    cache.register_entry_type::<ResidentSelfGrant>()?;
+    cache.register_entry_type::<ResidentSelfTerminalReceipt>()?;
     cache.register_entry_type::<ResidentSelfChildClaim>()?;
     cache.register_entry_type::<ResidentSelfRetentionHead>()?;
     let mut identities = HashSet::new();
     for envelope in SingleFileMessagePackBackingStore::new(path).pull_all()? {
+        if matches!(
+            envelope.r#type.as_str(),
+            "epiphany.resident_self.heartbeat_grant.v0" | "epiphany.resident_self.terminal_ack.v0"
+        ) {
+            return Err(anyhow!(
+                "resident Self store contains a pre-cut heartbeat lifecycle document"
+            ));
+        }
         let owned = envelope.r#type == ResidentSelfState::TYPE
             || envelope.r#type == ResidentSelfRuntimeReceipt::TYPE
             || envelope.r#type == ResidentSelfPressure::TYPE
-            || envelope.r#type == ResidentSelfHeartbeatGrant::TYPE
-            || envelope.r#type == ResidentSelfTerminalAck::TYPE
+            || envelope.r#type == ResidentSelfGrant::TYPE
+            || envelope.r#type == ResidentSelfTerminalReceipt::TYPE
             || envelope.r#type == ResidentSelfChildClaim::TYPE
             || envelope.r#type == ResidentSelfRetentionHead::TYPE;
         if !owned {
@@ -840,11 +828,11 @@ fn state_cache(path: &Path) -> Result<CultCache> {
             ResidentSelfPressure::TYPE => {
                 cache.load_envelope::<ResidentSelfPressure>(envelope)?;
             }
-            ResidentSelfHeartbeatGrant::TYPE => {
-                cache.load_envelope::<ResidentSelfHeartbeatGrant>(envelope)?;
+            ResidentSelfGrant::TYPE => {
+                cache.load_envelope::<ResidentSelfGrant>(envelope)?;
             }
-            ResidentSelfTerminalAck::TYPE => {
-                cache.load_envelope::<ResidentSelfTerminalAck>(envelope)?;
+            ResidentSelfTerminalReceipt::TYPE => {
+                cache.load_envelope::<ResidentSelfTerminalReceipt>(envelope)?;
             }
             ResidentSelfChildClaim::TYPE => {
                 cache.load_envelope::<ResidentSelfChildClaim>(envelope)?;
@@ -854,6 +842,26 @@ fn state_cache(path: &Path) -> Result<CultCache> {
             }
             _ => unreachable!("owned resident Self type was matched above"),
         };
+    }
+    if let Some(state) = cache.get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
+        && state.schema_version != RESIDENT_SELF_STATE_SCHEMA_VERSION
+    {
+        return Err(anyhow!(
+            "resident Self store has an obsolete writable state epoch"
+        ));
+    }
+    if cache
+        .get_all::<ResidentSelfGrant>()?
+        .iter()
+        .any(|grant| grant.schema_version != RESIDENT_SELF_GRANT_SCHEMA_VERSION)
+        || cache
+            .get_all::<ResidentSelfTerminalReceipt>()?
+            .iter()
+            .any(|receipt| receipt.schema_version != RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION)
+    {
+        return Err(anyhow!(
+            "resident Self store has an obsolete writable lifecycle epoch"
+        ));
     }
     Ok(cache)
 }
@@ -1057,12 +1065,10 @@ pub fn ingest_resident_self_current_work_pressure(
     )
 }
 
-pub fn heartbeat_issue_resident_self_grant(
+pub fn issue_resident_self_grant(
     path: &Path,
-    schedule_id: &str,
-    action_id: &str,
     now_millis: u64,
-) -> Result<Option<ResidentSelfHeartbeatGrant>> {
+) -> Result<Option<ResidentSelfGrant>> {
     let mut cache = state_cache(path)?;
     if cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
@@ -1079,16 +1085,8 @@ pub fn heartbeat_issue_resident_self_grant(
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(None);
     }
-    let legacy_terminal_grant_ids = cache
-        .get_all::<ResidentSelfTerminalAck>()?
-        .into_iter()
-        .map(|ack| ack.grant_id)
-        .collect::<std::collections::BTreeSet<_>>();
-    let grants = cache.get_all::<ResidentSelfHeartbeatGrant>()?;
-    if grants.iter().any(|grant| {
-        (grant.heartbeat_schedule_id == schedule_id && grant.heartbeat_action_id == action_id)
-            || resident_self_grant_is_pending(grant, &legacy_terminal_grant_ids)
-    }) {
+    let grants = cache.get_all::<ResidentSelfGrant>()?;
+    if grants.iter().any(resident_self_grant_is_pending) {
         return Ok(None);
     }
     let mut pending = cache
@@ -1110,18 +1108,16 @@ pub fn heartbeat_issue_resident_self_grant(
         .count()
         + 1;
     let grant_id = format!(
-        "resident-self-grant-{schedule_id}-{action_id}-attempt-{attempt_ordinal}-{}",
+        "resident-self-grant-attempt-{attempt_ordinal}-{}",
         pressure.pressure_id
     );
-    let grant = ResidentSelfHeartbeatGrant {
+    let grant = ResidentSelfGrant {
         schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
         grant_id: grant_id.clone(),
         pressure_id: pressure.pressure_id.clone(),
         pressure_kind: pressure.kind.clone(),
         provenance_ref: pressure.provenance_ref.clone(),
         objective: pressure.objective.clone(),
-        heartbeat_schedule_id: schedule_id.into(),
-        heartbeat_action_id: action_id.into(),
         issued_at_millis: now_millis,
         consumed_at_millis: None,
         private_state_exposed: false,
@@ -1155,9 +1151,7 @@ pub fn heartbeat_issue_resident_self_grant(
         &[expected_state, expected_pressure],
         vec![state_entry, pressure_entry, grant_entry],
     )? {
-        return Err(anyhow!(
-            "heartbeat lost resident Self pressure-to-grant CAS"
-        ));
+        return Err(anyhow!("resident Self lost pressure-to-grant CAS"));
     }
     Ok(Some(grant))
 }
@@ -1184,13 +1178,8 @@ pub fn resident_self_grant_lifecycle_projection(
     let state = cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
         .unwrap_or_default();
-    let legacy_terminal_grant_ids = cache
-        .get_all::<ResidentSelfTerminalAck>()?
-        .into_iter()
-        .map(|ack| ack.grant_id)
-        .collect::<BTreeSet<_>>();
     let mut grants = cache
-        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .get_all::<ResidentSelfGrant>()?
         .into_iter()
         .filter(|grant| grant_id.is_none_or(|id| grant.grant_id == id))
         .collect::<Vec<_>>();
@@ -1214,15 +1203,11 @@ pub fn resident_self_grant_lifecycle_projection(
                 .as_ref()
                 .map(|prepared| prepared.grant.grant_id.as_str())
                 == Some(grant.grant_id.as_str());
-            let launchable = resident_self_grant_is_pending(&grant, &legacy_terminal_grant_ids)
-                && !active
-                && !prepared;
+            let launchable = resident_self_grant_is_pending(&grant) && !active && !prepared;
             ResidentSelfGrantLifecycleProjection {
                 grant_id: grant.grant_id,
                 pressure_id: grant.pressure_id,
                 pressure_kind: grant.pressure_kind,
-                heartbeat_schedule_id: grant.heartbeat_schedule_id,
-                heartbeat_action_id: grant.heartbeat_action_id,
                 issued_at_millis: grant.issued_at_millis,
                 consumed_at_millis: grant.consumed_at_millis,
                 terminal_at_millis: grant.terminal_at_millis,
@@ -1240,7 +1225,7 @@ pub fn resident_self_grant_lifecycle_projection(
 pub fn live_resident_self_typed_request_ids(path: &Path) -> Result<BTreeSet<String>> {
     let cache = state_cache(path)?;
     let mut request_ids = BTreeSet::new();
-    for grant in cache.get_all::<ResidentSelfHeartbeatGrant>()? {
+    for grant in cache.get_all::<ResidentSelfGrant>()? {
         if let Some(request) = resident_self_typed_request_ref(&grant)? {
             request_ids.insert(request.request_id().to_string());
         }
@@ -1254,7 +1239,7 @@ pub fn verify_resident_self_grant_fulfillment(
     grant_id: &str,
 ) -> Result<ResidentSelfGrantFulfillment> {
     let grant = state_cache(resident_store)?
-        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .get::<ResidentSelfGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self fulfillment check lost its grant"))?;
     let request = resident_self_typed_request_ref(&grant)?;
     let Some(request) = request else {
@@ -1275,7 +1260,7 @@ fn resident_self_grant_typed_request_is_superseded(
     grant_id: &str,
 ) -> Result<bool> {
     let grant = state_cache(resident_store)?
-        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .get::<ResidentSelfGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self supersession check lost its grant"))?;
     let Some(crate::RuntimeTypedRequestRef::AdmittedModelDirection(request_id)) =
         resident_self_typed_request_ref(&grant)?
@@ -1291,7 +1276,7 @@ fn resident_self_grant_typed_request_is_superseded(
 }
 
 fn resident_self_typed_request_ref<'a>(
-    grant: &'a ResidentSelfHeartbeatGrant,
+    grant: &'a ResidentSelfGrant,
 ) -> Result<Option<crate::RuntimeTypedRequestRef<'a>>> {
     Ok(match grant.pressure_kind.as_str() {
         "repo-frontier-proposal-modeling" => {
@@ -1346,7 +1331,7 @@ pub fn resident_self_typed_attempt_exists(
     grant_id: &str,
 ) -> Result<bool> {
     let grant = state_cache(resident_store)?
-        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .get::<ResidentSelfGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self attempt check lost its grant"))?;
     let Some(request) = resident_self_typed_request_ref(&grant)? else {
         return Ok(false);
@@ -1361,7 +1346,7 @@ pub fn recover_dead_resident_typed_worker(
     recovered_at_millis: u64,
 ) -> Result<bool> {
     let grant = state_cache(resident_store)?
-        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .get::<ResidentSelfGrant>(grant_id)?
         .ok_or_else(|| anyhow!("typed worker death recovery lost its grant"))?;
     let Some(request) = resident_self_typed_request_ref(&grant)? else {
         return Ok(false);
@@ -1496,7 +1481,7 @@ pub fn resident_self_grant_has_typed_request(
     grant_id: &str,
 ) -> Result<bool> {
     let grant = state_cache(resident_store)?
-        .get::<ResidentSelfHeartbeatGrant>(grant_id)?
+        .get::<ResidentSelfGrant>(grant_id)?
         .ok_or_else(|| anyhow!("resident Self typed-request check lost its grant"))?;
     Ok(resident_self_typed_request_ref(&grant)?.is_some())
 }
@@ -1799,7 +1784,7 @@ pub fn recover_receipt_free_dead_coordinator_session(
         ));
     }
     let grant = cache
-        .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
+        .get::<ResidentSelfGrant>(&lease.grant_id)?
         .ok_or_else(|| anyhow!("coordinator death recovery lost its grant"))?;
     if grant.consumed_at_millis.is_none()
         || grant.terminal_at_millis.is_some()
@@ -1882,17 +1867,12 @@ pub fn recover_receipt_free_dead_coordinator_session(
     Ok(Some(recovery))
 }
 
-pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
+pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfGrant>> {
     let cache = state_cache(path)?;
-    let legacy_terminal_grant_ids = cache
-        .get_all::<ResidentSelfTerminalAck>()?
-        .into_iter()
-        .map(|ack| ack.grant_id)
-        .collect::<std::collections::BTreeSet<_>>();
     let mut grants = cache
-        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .get_all::<ResidentSelfGrant>()?
         .into_iter()
-        .filter(|grant| resident_self_grant_is_pending(grant, &legacy_terminal_grant_ids))
+        .filter(resident_self_grant_is_pending)
         .collect::<Vec<_>>();
     grants.sort_by(|a, b| {
         a.issued_at_millis
@@ -1930,9 +1910,9 @@ pub fn resident_self_policy_digest(policy: &ResidentSelfPolicy) -> String {
 
 fn supersede_unlaunched_resident_self_derived_grant(
     path: &Path,
-    grant: &ResidentSelfHeartbeatGrant,
+    grant: &ResidentSelfGrant,
     now_millis: u64,
-) -> Result<ResidentSelfTerminalAck> {
+) -> Result<ResidentSelfTerminalReceipt> {
     if matches!(
         grant.pressure_kind.as_str(),
         "operator-objective" | "persona-feedback"
@@ -1953,7 +1933,7 @@ fn supersede_unlaunched_resident_self_derived_grant(
         ));
     }
     let mut current_grant = cache
-        .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+        .get::<ResidentSelfGrant>(&grant.grant_id)?
         .ok_or_else(|| anyhow!("superseded continuation grant is missing"))?;
     if current_grant != *grant {
         return Err(anyhow!("superseded continuation grant authority changed"));
@@ -1973,17 +1953,14 @@ fn supersede_unlaunched_resident_self_derived_grant(
         grant.grant_id.as_str(),
         grant.provenance_ref.as_str(),
     ]);
-    let ack = ResidentSelfTerminalAck {
-        schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
-        ack_id: format!("resident-self-superseded-{}", grant.grant_id),
+    let terminal = ResidentSelfTerminalReceipt {
+        schema_version: RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("resident-self-superseded-{}", grant.grant_id),
         grant_id: grant.grant_id.clone(),
-        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
-        heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest,
         coordinator_receipt_id: format!("resident-self-superseded-input-{}", grant.grant_id),
         terminal_status: "superseded".into(),
         completed_at_millis: now_millis,
-        consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
     };
     let envelopes = cache.snapshot_envelopes();
@@ -2006,7 +1983,7 @@ fn supersede_unlaunched_resident_self_derived_grant(
     let expected_grant = envelopes
         .iter()
         .find(|entry| {
-            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+            entry.r#type == <ResidentSelfGrant as DatabaseEntry>::TYPE
                 && entry.key == grant.grant_id
         })
         .cloned()
@@ -2018,14 +1995,14 @@ fn supersede_unlaunched_resident_self_derived_grant(
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
     let (grant_entry, _) = cache.prepare_entry(&current_grant.grant_id, &current_grant)?;
-    let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
+    let (terminal_entry, _) = cache.prepare_entry(&terminal.receipt_id, &terminal)?;
     if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
         &[expected_state, expected_pressure, expected_grant],
-        vec![state_entry, pressure_entry, grant_entry, ack_entry],
+        vec![state_entry, pressure_entry, grant_entry, terminal_entry],
     )? {
         return Err(anyhow!("resident Self lost derived-grant supersession CAS"));
     }
-    Ok(ack)
+    Ok(terminal)
 }
 
 pub fn prepare_resident_self_launch(
@@ -2154,7 +2131,7 @@ pub fn prepare_resident_self_launch(
     let grant_expected = snapshot
         .iter()
         .find(|entry| {
-            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+            entry.r#type == <ResidentSelfGrant as DatabaseEntry>::TYPE
                 && entry.key == grant.grant_id
         })
         .cloned()
@@ -2405,7 +2382,7 @@ pub fn complete_resident_self_turn_after_death(
     recovery: &crate::EpiphanyCoordinatorDeathRecovery,
     now_millis: u64,
     cooldown_seconds: u64,
-) -> Result<ResidentSelfTerminalAck> {
+) -> Result<ResidentSelfTerminalReceipt> {
     if recovery.session_id
         != crate::coordinator_run_session_id(&lease.turn_id, Some(&lease.launch_digest))?
         || recovery.thread_id != lease.turn_id
@@ -2439,30 +2416,27 @@ fn complete_resident_self_turn_with_terminal(
     now_millis: u64,
     cooldown_seconds: u64,
     count_failure: bool,
-) -> Result<ResidentSelfTerminalAck> {
+) -> Result<ResidentSelfTerminalReceipt> {
     let cache = state_cache(path)?;
     let mut state = cache
         .get::<ResidentSelfState>(RESIDENT_SELF_STATE_KEY)?
-        .ok_or_else(|| anyhow!("resident Self state missing at terminal ack"))?;
+        .ok_or_else(|| anyhow!("resident Self state missing at terminal receipt"))?;
     if state.active_turn.as_ref() != Some(lease) {
         return Err(anyhow!(
-            "resident Self active lease changed before terminal ack"
+            "resident Self active lease changed before terminal receipt"
         ));
     }
     let mut grant = cache
-        .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
-        .ok_or_else(|| anyhow!("resident Self grant missing at terminal ack"))?;
-    let ack = ResidentSelfTerminalAck {
-        schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
-        ack_id: format!("resident-self-ack-{}", lease.grant_id),
+        .get::<ResidentSelfGrant>(&lease.grant_id)?
+        .ok_or_else(|| anyhow!("resident Self grant missing at terminal receipt"))?;
+    let terminal = ResidentSelfTerminalReceipt {
+        schema_version: RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("resident-self-terminal-{}", lease.grant_id),
         grant_id: lease.grant_id.clone(),
-        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
-        heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest: lease.launch_digest.clone(),
         coordinator_receipt_id: terminal_id.to_string(),
         terminal_status: terminal_status.to_string(),
         completed_at_millis: now_millis,
-        consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
     };
     let envelopes = cache.snapshot_envelopes();
@@ -2477,11 +2451,11 @@ fn complete_resident_self_turn_with_terminal(
     let expected_grant = envelopes
         .iter()
         .find(|entry| {
-            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+            entry.r#type == <ResidentSelfGrant as DatabaseEntry>::TYPE
                 && entry.key == grant.grant_id
         })
         .cloned()
-        .ok_or_else(|| anyhow!("resident Self grant lost envelope at terminal ack"))?;
+        .ok_or_else(|| anyhow!("resident Self grant lost envelope at terminal receipt"))?;
     state.active_turn = None;
     state.last_coordinator_receipt_id = Some(terminal_id.to_string());
     state.next_eligible_at_millis =
@@ -2493,14 +2467,14 @@ fn complete_resident_self_turn_with_terminal(
     grant.terminal_status = Some(terminal_status.to_string());
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
-    let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
+    let (terminal_entry, _) = cache.prepare_entry(&terminal.receipt_id, &terminal)?;
     if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
         &[expected_state, expected_grant],
-        vec![state_entry, grant_entry, ack_entry],
+        vec![state_entry, grant_entry, terminal_entry],
     )? {
-        return Err(anyhow!("resident Self lost terminal-ack CAS"));
+        return Err(anyhow!("resident Self lost terminal-receipt CAS"));
     }
-    Ok(ack)
+    Ok(terminal)
 }
 
 pub fn cancel_resident_self_turn(
@@ -2509,7 +2483,7 @@ pub fn cancel_resident_self_turn(
     status: &str,
     reason: &str,
     now_millis: u64,
-) -> Result<ResidentSelfTerminalAck> {
+) -> Result<ResidentSelfTerminalReceipt> {
     if !matches!(
         status,
         "brake-cancelled" | "shutdown-cancelled" | "timed-out" | "process-failed" | "unfulfilled"
@@ -2527,7 +2501,7 @@ pub fn cancel_resident_self_turn(
         return Err(anyhow!("resident Self cancellation lease changed"));
     }
     let mut grant = cache
-        .get::<ResidentSelfHeartbeatGrant>(&lease.grant_id)?
+        .get::<ResidentSelfGrant>(&lease.grant_id)?
         .ok_or_else(|| anyhow!("resident Self cancellation grant missing"))?;
     let mut pressure = cache
         .get::<ResidentSelfPressure>(&grant.pressure_id)?
@@ -2539,17 +2513,14 @@ pub fn cancel_resident_self_turn(
             "resident Self cancellation pressure authority changed"
         ));
     }
-    let ack = ResidentSelfTerminalAck {
-        schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
-        ack_id: format!("resident-self-cancel-{}-{status}", lease.grant_id),
+    let terminal = ResidentSelfTerminalReceipt {
+        schema_version: RESIDENT_SELF_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+        receipt_id: format!("resident-self-cancel-{}-{status}", lease.grant_id),
         grant_id: lease.grant_id.clone(),
-        heartbeat_schedule_id: grant.heartbeat_schedule_id.clone(),
-        heartbeat_action_id: grant.heartbeat_action_id.clone(),
         launch_digest: lease.launch_digest.clone(),
         coordinator_receipt_id: format!("resident-self-runtime-{status}-{}", lease.grant_id),
         terminal_status: status.into(),
         completed_at_millis: now_millis,
-        consumed_by_heartbeat_at_millis: None,
         private_state_exposed: false,
     };
     let envelopes = cache.snapshot_envelopes();
@@ -2572,7 +2543,7 @@ pub fn cancel_resident_self_turn(
     let expected_grant = envelopes
         .iter()
         .find(|entry| {
-            entry.r#type == <ResidentSelfHeartbeatGrant as DatabaseEntry>::TYPE
+            entry.r#type == <ResidentSelfGrant as DatabaseEntry>::TYPE
                 && entry.key == grant.grant_id
         })
         .cloned()
@@ -2589,66 +2560,21 @@ pub fn cancel_resident_self_turn(
     let (state_entry, _) = cache.prepare_entry(RESIDENT_SELF_STATE_KEY, &state)?;
     let (pressure_entry, _) = cache.prepare_entry(&pressure.pressure_id, &pressure)?;
     let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, &grant)?;
-    let (ack_entry, _) = cache.prepare_entry(&ack.ack_id, &ack)?;
+    let (terminal_entry, _) = cache.prepare_entry(&terminal.receipt_id, &terminal)?;
     if !SingleFileMessagePackBackingStore::new(path).compare_and_swap_batch(
         &[expected_state, expected_pressure, expected_grant],
-        vec![state_entry, pressure_entry, grant_entry, ack_entry],
+        vec![state_entry, pressure_entry, grant_entry, terminal_entry],
     )? {
         return Err(anyhow!("resident Self lost cancellation CAS"));
     }
-    Ok(ack)
+    Ok(terminal)
 }
 
-pub fn pending_resident_self_ack_for(
-    path: &Path,
-    schedule_id: &str,
-    action_id: &str,
-) -> Result<Option<ResidentSelfTerminalAck>> {
+pub fn resident_self_terminal_receipts(path: &Path) -> Result<Vec<ResidentSelfTerminalReceipt>> {
     Ok(state_cache(path)?
-        .get_all::<ResidentSelfTerminalAck>()?
+        .get_all::<ResidentSelfTerminalReceipt>()?
         .into_iter()
-        .find(|ack| {
-            ack.heartbeat_schedule_id == schedule_id
-                && ack.heartbeat_action_id == action_id
-                && ack.consumed_by_heartbeat_at_millis.is_none()
-        }))
-}
-
-pub fn pending_resident_self_acks(path: &Path) -> Result<Vec<ResidentSelfTerminalAck>> {
-    Ok(state_cache(path)?
-        .get_all::<ResidentSelfTerminalAck>()?
-        .into_iter()
-        .filter(|ack| ack.consumed_by_heartbeat_at_millis.is_none())
         .collect())
-}
-
-pub fn heartbeat_consume_resident_self_ack(
-    path: &Path,
-    ack_id: &str,
-    now_millis: u64,
-) -> Result<()> {
-    let cache = state_cache(path)?;
-    let mut ack = cache
-        .get::<ResidentSelfTerminalAck>(ack_id)?
-        .ok_or_else(|| anyhow!("resident Self terminal ack is missing"))?;
-    if ack.consumed_by_heartbeat_at_millis.is_some() {
-        return Err(anyhow!("resident Self terminal ack was already consumed"));
-    }
-    let expected = cache
-        .snapshot_envelopes()
-        .into_iter()
-        .find(|entry| {
-            entry.r#type == <ResidentSelfTerminalAck as DatabaseEntry>::TYPE && entry.key == ack_id
-        })
-        .ok_or_else(|| anyhow!("terminal ack lost envelope"))?;
-    ack.consumed_by_heartbeat_at_millis = Some(now_millis);
-    let (replacement, _) = cache.prepare_entry(ack_id, &ack)?;
-    if !SingleFileMessagePackBackingStore::new(path)
-        .compare_and_swap_entry(&expected, replacement)?
-    {
-        return Err(anyhow!("heartbeat lost terminal ack CAS"));
-    }
-    Ok(())
 }
 
 pub fn retain_resident_self_lifecycles(
@@ -2666,23 +2592,20 @@ pub fn retain_resident_self_lifecycles(
         .map(|pressure| (pressure.pressure_id.clone(), pressure))
         .collect::<std::collections::HashMap<_, _>>();
     let grants = cache
-        .get_all::<ResidentSelfHeartbeatGrant>()?
+        .get_all::<ResidentSelfGrant>()?
         .into_iter()
         .map(|grant| (grant.grant_id.clone(), grant))
         .collect::<std::collections::HashMap<_, _>>();
     let claims = cache.get_all::<ResidentSelfChildClaim>()?;
     let mut closed = cache
-        .get_all::<ResidentSelfTerminalAck>()?
+        .get_all::<ResidentSelfTerminalReceipt>()?
         .into_iter()
-        .filter_map(|ack| {
-            let grant = grants.get(&ack.grant_id)?;
+        .filter_map(|terminal| {
+            let grant = grants.get(&terminal.grant_id)?;
             let pressure = pressures.get(&grant.pressure_id)?;
-            let terminal_grant = if grant.schema_version == RESIDENT_SELF_GRANT_SCHEMA_VERSION {
-                grant.terminal_at_millis == Some(ack.completed_at_millis)
-                    && grant.terminal_status.as_deref() == Some(ack.terminal_status.as_str())
-            } else {
-                grant.schema_version == "epiphany.resident_self.heartbeat_grant.v0"
-            };
+            let terminal_grant = grant.schema_version == RESIDENT_SELF_GRANT_SCHEMA_VERSION
+                && grant.terminal_at_millis == Some(terminal.completed_at_millis)
+                && grant.terminal_status.as_deref() == Some(terminal.terminal_status.as_str());
             let inactive = state.active_turn.as_ref().map(|lease| &lease.grant_id)
                 != Some(&grant.grant_id)
                 && state
@@ -2690,15 +2613,14 @@ pub fn retain_resident_self_lifecycles(
                     .as_ref()
                     .map(|prepared| &prepared.grant.grant_id)
                     != Some(&grant.grant_id);
-            (ack.consumed_by_heartbeat_at_millis.is_some()
-                && grant.consumed_at_millis.is_some()
+            (grant.consumed_at_millis.is_some()
                 && terminal_grant
                 && pressure.status == "consumed"
                 && pressure.consumed_by_grant_id.as_deref() == Some(grant.grant_id.as_str())
                 && inactive)
                 .then_some((
-                    ack.completed_at_millis,
-                    ack.ack_id.clone(),
+                    terminal.completed_at_millis,
+                    terminal.receipt_id.clone(),
                     grant.grant_id.clone(),
                 ))
         })
@@ -2733,8 +2655,8 @@ pub fn retain_resident_self_lifecycles(
             .ok_or_else(|| anyhow!("closed resident lifecycle lost its pressure"))?;
         for (entry_type, key) in [
             (ResidentSelfPressure::TYPE, pressure.pressure_id.as_str()),
-            (ResidentSelfHeartbeatGrant::TYPE, grant_id.as_str()),
-            (ResidentSelfTerminalAck::TYPE, ack_id.as_str()),
+            (ResidentSelfGrant::TYPE, grant_id.as_str()),
+            (ResidentSelfTerminalReceipt::TYPE, ack_id.as_str()),
         ] {
             expected.push(
                 snapshot
@@ -2956,15 +2878,13 @@ mod coordinator_launch_contract_tests {
             },
         )?;
         let policy = test_policy(temp.path(), runtime_store);
-        let grant = ResidentSelfHeartbeatGrant {
+        let grant = ResidentSelfGrant {
             schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
             grant_id: "legacy-receipt-grant".into(),
             pressure_id: "legacy-receipt-pressure".into(),
             pressure_kind: RESIDENT_SELF_COORDINATOR_CONTINUATION_PRESSURE_KIND.into(),
             provenance_ref: "cultcache://coordinator-receipt/old-receipt".into(),
             objective: "Replay the old receipt action".into(),
-            heartbeat_schedule_id: "schedule".into(),
-            heartbeat_action_id: "action".into(),
             issued_at_millis: 1,
             consumed_at_millis: None,
             private_state_exposed: false,
@@ -2973,18 +2893,6 @@ mod coordinator_launch_contract_tests {
         };
         assert!(resident_coordinator_binding_for_grant(&policy, &grant)?.is_none());
         Ok(())
-    }
-
-    #[test]
-    fn domain_materialization_has_no_scheduler_pressure_writer() {
-        let source = include_str!("resident_self.rs");
-        let body = source
-            .split("pub fn materialize_resident_self_domain_obligations")
-            .nth(1)
-            .and_then(|tail| tail.split("fn resident_self_current_work_objective").next())
-            .expect("domain materialization function must remain inspectable");
-        assert!(!body.contains("ResidentSelfPressure"));
-        assert!(!body.contains("enqueue_resident_self_pressure"));
     }
 }
 
@@ -3020,25 +2928,20 @@ mod atlas_pressure_tests {
         Ok(())
     }
 
-    fn atlas_grant(
-        lane: crate::AtlasImpactLane,
-        proposal_id: uuid::Uuid,
-    ) -> ResidentSelfHeartbeatGrant {
+    fn atlas_grant(lane: crate::AtlasImpactLane, proposal_id: uuid::Uuid) -> ResidentSelfGrant {
         let (kind, lane_name) = match lane {
             crate::AtlasImpactLane::Modeling => {
                 (RESIDENT_SELF_ATLAS_MODELING_PRESSURE_KIND, "Modeling")
             }
             crate::AtlasImpactLane::Soul => (RESIDENT_SELF_ATLAS_SOUL_PRESSURE_KIND, "Soul"),
         };
-        ResidentSelfHeartbeatGrant {
+        ResidentSelfGrant {
             schema_version: RESIDENT_SELF_GRANT_SCHEMA_VERSION.into(),
             grant_id: format!("atlas-test-grant-{proposal_id}"),
             pressure_id: format!("{kind}-{proposal_id}"),
             pressure_kind: kind.into(),
             provenance_ref: format!("{RESIDENT_SELF_ATLAS_IMPACT_PROVENANCE_PREFIX}{proposal_id}"),
             objective: resident_self_atlas_objective(lane_name, proposal_id),
-            heartbeat_schedule_id: "atlas-test-schedule".into(),
-            heartbeat_action_id: "atlas-test-action".into(),
             issued_at_millis: 100,
             consumed_at_millis: Some(200),
             private_state_exposed: false,
@@ -3047,7 +2950,7 @@ mod atlas_pressure_tests {
         }
     }
 
-    fn atlas_lease(grant: &ResidentSelfHeartbeatGrant) -> ResidentSelfTurnLease {
+    fn atlas_lease(grant: &ResidentSelfGrant) -> ResidentSelfTurnLease {
         ResidentSelfTurnLease {
             turn_id: "atlas-test-turn".into(),
             wake: ResidentSelfWake::Explicit {
@@ -3117,7 +3020,7 @@ mod atlas_pressure_tests {
             Some("launchVerification")
         );
 
-        let grant = heartbeat_issue_resident_self_grant(&store, "atlas", "wake", 102)?
+        let grant = issue_resident_self_grant(&store, 102)?
             .expect("oldest Atlas pressure should receive one resident grant");
         assert_eq!(
             grant.pressure_kind,
@@ -3155,9 +3058,7 @@ mod atlas_pressure_tests {
             &atlas_decision(crate::AtlasImpactLane::Modeling, active_id),
             100,
         )?;
-        assert!(
-            heartbeat_issue_resident_self_grant(&active_store, "atlas", "active", 101)?.is_none()
-        );
+        assert!(issue_resident_self_grant(&active_store, 101)?.is_none());
 
         let prepared_store = test_store("prepared");
         let prepared_id = uuid::Uuid::new_v4();
@@ -3187,10 +3088,7 @@ mod atlas_pressure_tests {
             &atlas_decision(crate::AtlasImpactLane::Soul, prepared_id),
             100,
         )?;
-        assert!(
-            heartbeat_issue_resident_self_grant(&prepared_store, "atlas", "prepared", 101)?
-                .is_none()
-        );
+        assert!(issue_resident_self_grant(&prepared_store, 101)?.is_none());
         assert!(pending_resident_self_pressure(&active_store)?);
         assert!(pending_resident_self_pressure(&prepared_store)?);
         std::fs::remove_file(active_store)?;
@@ -3228,7 +3126,7 @@ mod atlas_pressure_tests {
         assert!(state.active_turn.is_none());
         assert_eq!(state.next_eligible_at_millis, 12_000);
         let grant = state_cache(&store)?
-            .get::<ResidentSelfHeartbeatGrant>(&grant.grant_id)?
+            .get::<ResidentSelfGrant>(&grant.grant_id)?
             .expect("completed Atlas grant");
         assert_eq!(grant.terminal_at_millis, Some(5_000));
         std::fs::remove_file(store)?;

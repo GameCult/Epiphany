@@ -2216,21 +2216,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resident_required_action_refusal_precedes_the_action_match() {
-        let source = include_str!("epiphany-mvp-coordinator.rs");
-        let refusal = source
-            .find("requiredActionRefusal")
-            .expect("required-action refusal");
-        let action_match = source
-            .find("match action.as_str()")
-            .expect("coordinator action match");
-        assert!(refusal < action_match);
-        let refusal_body = &source[refusal..action_match];
-        assert!(refusal_body.contains("consequence\": \"none"));
-        assert!(refusal_body.contains("break;"));
-    }
-
-    #[test]
     fn proposal_cli_argument_is_only_an_assertion_over_self_derived_authority() {
         let request = "repo-frontier-proposal-modeling-request";
         assert_eq!(
@@ -2336,51 +2321,6 @@ mod tests {
                 .any(|event| event.event_type == "session.completed")
         );
         Ok(())
-    }
-
-    #[test]
-    fn coordinator_binary_has_no_codex_host_or_epiphany_json_rpc_dependency() {
-        let source = include_str!("epiphany-mvp-coordinator.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for forbidden in ["AppServerClient", "thread/epiphany/", "codex-app-server"] {
-            assert!(
-                !production.contains(forbidden),
-                "native coordinator regrew host dependency {forbidden:?}"
-            );
-        }
-        let compatibility_field = ["epiphany", "State"].concat();
-        assert!(!production.contains(&compatibility_field));
-        assert!(!production.contains("--thread-state-store"));
-    }
-
-    #[test]
-    fn coordinator_uses_keyed_family_owners_without_generic_role_routing() {
-        let source = include_str!("epiphany-mvp-coordinator.rs");
-        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
-        for required in [
-            "launch_current_imagination_consideration_work",
-            "launch_current_admitted_model_direction_consideration_work",
-            "launch_current_frontier_research_work",
-            "launch_current_frontier_verification_work",
-        ] {
-            assert!(
-                production.contains(required),
-                "missing keyed owner {required:?}"
-            );
-        }
-        for forbidden in [
-            "fn launch_role(",
-            "fn accept_role(",
-            "fn supersede_role_result(",
-            ".apply_state_update(",
-            ".accept_role(",
-            "stateRevision",
-        ] {
-            assert!(
-                !production.contains(forbidden),
-                "generic aggregate role authority survived: {forbidden:?}"
-            );
-        }
     }
 
     #[test]

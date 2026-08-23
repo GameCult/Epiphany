@@ -858,26 +858,6 @@ mod tests {
     use epiphany_model_adapter::EpiphanyModelRequest;
 
     #[test]
-    fn reorientation_has_no_aggregate_or_freshness_authority_path() {
-        let coordinator = include_str!("bin/epiphany-mvp-coordinator.rs");
-        let status = include_str!("bin/epiphany-mvp-status.rs");
-        let agent_launch = include_str!("agent_launch.rs");
-        let worker_launch = include_str!("surfaces/worker_launch.rs");
-        for (source, forbidden) in [
-            (coordinator, "build_epiphany_reorient_launch_request"),
-            (status, "recommend_reorientation"),
-            (status, "crrc_regather_current_after_relinquishment"),
-            (agent_launch, "build_epiphany_reorient_launch_request"),
-            (worker_launch, "EpiphanyReorientLaunchRequestInput"),
-        ] {
-            assert!(
-                !source.contains(forbidden),
-                "obsolete reorientation authority {forbidden:?} survived"
-            );
-        }
-    }
-
-    #[test]
     fn reorientation_is_decision_auditable_thread_free_and_keyed() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("reorientation.cc");

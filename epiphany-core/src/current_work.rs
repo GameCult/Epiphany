@@ -3849,13 +3849,8 @@ mod tests {
             &store,
             1,
         )?);
-        let current_work_grant = crate::heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "current-work-schedule",
-            "current-work-action",
-            2,
-        )?
-        .expect("the exact current-work projection should receive one grant");
+        let current_work_grant = crate::issue_resident_self_grant(&resident_store, 2)?
+            .expect("the exact current-work projection should receive one grant");
         assert_eq!(
             current_work_grant.pressure_kind,
             crate::RESIDENT_SELF_CURRENT_WORK_PRESSURE_KIND
@@ -3921,9 +3916,9 @@ mod tests {
             "a grant derived from the prior Mind projection must not launch"
         );
         assert!(crate::pending_resident_self_grant(&resident_store)?.is_none());
-        let supersession_acks = crate::pending_resident_self_acks(&resident_store)?;
-        assert_eq!(supersession_acks.len(), 1);
-        assert_eq!(supersession_acks[0].terminal_status, "superseded");
+        let terminal_receipts = crate::resident_self_terminal_receipts(&resident_store)?;
+        assert_eq!(terminal_receipts.len(), 1);
+        assert_eq!(terminal_receipts[0].terminal_status, "superseded");
         assert_current_work_reentry_is_read_only(&store, &scheduled_work)?;
         let mut scheduled_cache = crate::runtime_spine_cache(&store)?;
         scheduled_cache.pull_all_backing_stores()?;
@@ -4059,13 +4054,8 @@ mod tests {
             !crate::ingest_resident_self_current_work_pressure(&resident_store, &store, 5)?,
             "unchanged failed-attempt state must remain idempotent"
         );
-        let retry_grant = crate::heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "current-work-retry-schedule",
-            "current-work-retry-action",
-            6,
-        )?
-        .expect("failed Body attempt must receive a fresh exact-state grant");
+        let retry_grant = crate::issue_resident_self_grant(&resident_store, 6)?
+            .expect("failed Body attempt must receive a fresh exact-state grant");
         assert_eq!(
             retry_grant.provenance_ref,
             format!(

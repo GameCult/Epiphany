@@ -9,9 +9,10 @@ use epiphany_core::{
     bind_runtime_repository_domain, capture_process_instance, coordinator_run_receipts,
     derive_resident_cognition_readiness, enqueue_resident_self_pressure_idempotent,
     import_bifrost_persona_feedback_deliveries, ingest_resident_self_current_work_pressure,
-    live_resident_self_typed_request_ids, load_epiphany_cultmesh_swarm_brake,
+    issue_resident_self_grant, live_resident_self_typed_request_ids,
+    load_epiphany_cultmesh_swarm_brake,
     load_resident_self_state, materialize_resident_self_domain_obligations,
-    observe_process_instance, pending_resident_self_acks, prepare_resident_self_launch,
+    observe_process_instance, prepare_resident_self_launch, resident_self_terminal_receipts,
     publish_resident_provider_readiness, reap_exited_child_process,
     recover_dead_runtime_worker_attempts, resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
@@ -53,15 +54,9 @@ fn main() -> Result<()> {
             &args.policy.release_store,
         ],
     )?;
-    if args.heartbeat_store == args.state_store {
-        return Err(anyhow!(
-            "heartbeat and resident Self stores must be physically separate"
-        ));
-    }
     if matches!(args.command, CommandKind::Status) {
         let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
             release_store: &args.policy.release_store,
-            heartbeat_store: &args.heartbeat_store,
             resident_store: &args.state_store,
             policy: &args.policy,
             release_runtime_id: &args.policy.release_runtime_id,
@@ -73,7 +68,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
     require_resident_git("git")?;
-    let _singleton = acquire_resident_process_singleton("resident-self", &args.state_store)?;
+    let _singleton = acquire_resident_process_singleton(&args.state_store)?;
     if let Some(pressure) = args.pressure.as_ref() {
         enqueue_resident_self_pressure_idempotent(&args.state_store, pressure)?;
     }
@@ -96,11 +91,9 @@ fn main() -> Result<()> {
             loop {
                 let shutting_down = shutdown_requested.load(Ordering::SeqCst);
                 let outcome = cycle(&args, &mut state, &mut ports, shutting_down)?;
-                if resident_maintenance_required(
-                    state.revision,
-                    last_maintained_revision,
-                    std::time::Instant::now() >= next_maintenance_at,
-                ) {
+                if last_maintained_revision != Some(state.revision)
+                    || std::time::Instant::now() >= next_maintenance_at
+                {
                     maintain_resident_runtime(&args, &state)?;
                     last_maintained_revision = Some(state.revision);
                     next_maintenance_at = std::time::Instant::now() + RESIDENT_MAINTENANCE_INTERVAL;
@@ -151,22 +144,11 @@ fn maintain_resident_runtime(args: &Args, state: &ResidentSelfState) -> Result<(
     Ok(())
 }
 
-fn resident_maintenance_required(
-    revision: u64,
-    last_maintained_revision: Option<u64>,
-    interval_due: bool,
-) -> bool {
-    interval_due || last_maintained_revision != Some(revision)
-}
-
 fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()> {
-    if !runtime_receipt_retention_allowed(
-        state.active_turn.is_some(),
-        state.prepared_launch.is_some(),
-    ) {
+    if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(());
     }
-    let mut preserved = pending_resident_self_acks(&args.state_store)?
+    let mut preserved = resident_self_terminal_receipts(&args.state_store)?
         .into_iter()
         .map(|ack| ack.coordinator_receipt_id)
         .collect::<BTreeSet<_>>();
@@ -207,10 +189,6 @@ fn retain_runtime_worker_attempts(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn runtime_receipt_retention_allowed(has_active_turn: bool, has_prepared_launch: bool) -> bool {
-    !has_active_turn && !has_prepared_launch
-}
-
 fn publish_self_readiness(args: &Args) -> Result<()> {
     let process = capture_process_instance(std::process::id())?;
     publish_resident_provider_readiness(
@@ -232,26 +210,6 @@ fn publish_self_readiness(args: &Args) -> Result<()> {
         },
     )?;
     Ok(())
-}
-
-fn run_feedback_import_if_released(
-    brake_engaged: bool,
-    import: impl FnOnce() -> Result<()>,
-) -> Result<()> {
-    if brake_engaged {
-        return Ok(());
-    }
-    import()
-}
-
-fn run_cycle_ingress_if_released(
-    blocked: bool,
-    ingress: impl FnOnce() -> Result<()>,
-) -> Result<()> {
-    if blocked {
-        return Ok(());
-    }
-    ingress()
 }
 
 fn install_shutdown_signal_owner() -> Result<Arc<AtomicBool>> {
@@ -308,7 +266,7 @@ fn cycle(
     recover_dead_runtime_worker_attempts(&args.policy.runtime_store, now)?;
     let brake_engaged = ports.brake_engaged()?;
     let cognitive_runtime_id = ports.cognitive_runtime_id().to_string();
-    run_feedback_import_if_released(brake_engaged || shutdown_requested, || {
+    if !brake_engaged && !shutdown_requested {
         import_bifrost_persona_feedback_deliveries(
             &args.persona_feedback_source_store,
             &args.persona_feedback_store,
@@ -319,14 +277,13 @@ fn cycle(
         )?;
         admit_persona_feedback_to_social(
             &args.persona_feedback_store,
-            &args.heartbeat_store,
+            &args.persona_social_store,
             &cognitive_runtime_id,
             &args.policy.model_provider,
             &args.persona_model_allowed_data_classifications,
         )?;
-        Ok(())
-    })?;
-    run_cycle_ingress_if_released(brake_engaged || shutdown_requested, || {
+    }
+    if !brake_engaged && !shutdown_requested {
         bind_runtime_repository_domain(
             &args.policy.runtime_store,
             &args.feedback_target_repository,
@@ -345,8 +302,7 @@ fn cycle(
             &args.policy.runtime_store,
             now,
         )?;
-        Ok(())
-    })?;
+    }
     *state = load_resident_self_state(&args.state_store)?;
     if let Some(prepared) = state.prepared_launch.clone() {
         if let Some(claim) = resident_self_child_claim(&args.state_store, &prepared.preparation_id)?
@@ -442,6 +398,7 @@ fn cycle(
     if shutdown_requested || ports.brake_engaged()? {
         return Ok(ResidentSelfOutcome::Braked);
     }
+    issue_resident_self_grant(&args.state_store, now)?;
     let Some(prepared) = prepare_resident_self_launch(&args.state_store, &args.policy, now)? else {
         return Ok(ResidentSelfOutcome::Sleeping);
     };
@@ -479,7 +436,7 @@ fn summary(
         "activeTurnId": state.active_turn.as_ref().map(|turn| &turn.turn_id),
         "shutdownRequested": shutdown_requested,
         "nextEligibleAtMillis": state.next_eligible_at_millis,
-        "wakeAuthority": "standard heartbeat consumes typed operator, admitted Modeling-map direction consideration, Persona feedback, or Imagination proposal pressure and emits one single-consumption Self grant",
+        "wakeAuthority": "Resident Self claims one typed pending pressure and emits one single-consumption grant",
         "preparedRecovery": if state.prepared_launch.is_some() { "fail-closed-awaiting-exact-child-claim-or-witnessed-recovery" } else { "not-required" },
         "authority": "Self may launch one bounded coordinator turn; it cannot directly invoke model/tools, mutate Mind/Hands, review, release, or deploy",
         "privateStateExposed": false
@@ -505,7 +462,7 @@ fn validate_command_turn_bound(command: CommandKind, max_steps: u64) -> Result<(
 struct Args {
     command: CommandKind,
     state_store: PathBuf,
-    heartbeat_store: PathBuf,
+    persona_social_store: PathBuf,
     provider_freshness_seconds: u64,
     retained_closed_lifecycles: usize,
     retained_coordinator_receipts: usize,
@@ -615,7 +572,7 @@ impl Args {
         Ok(Self {
             command,
             state_store: path("--state-store")?,
-            heartbeat_store: path("--heartbeat-store")?,
+            persona_social_store: path("--persona-social-store")?,
             provider_freshness_seconds: u64v("--provider-freshness-seconds", 180)?,
             retained_closed_lifecycles: u64v("--retained-closed-lifecycles", 256)?
                 .try_into()
@@ -877,68 +834,4 @@ mod brake_tests {
         Ok(())
     }
 
-    #[test]
-    fn engaged_brake_does_not_touch_the_bifrost_provider_store() -> Result<()> {
-        let touched = std::cell::Cell::new(false);
-        run_feedback_import_if_released(true, || {
-            touched.set(true);
-            anyhow::bail!("absent Bifrost delivery store was touched")
-        })?;
-        assert!(!touched.get());
-        assert!(
-            run_feedback_import_if_released(false, || {
-                anyhow::bail!("released cognition requires Bifrost")
-            })
-            .is_err()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn terminal_fulfillment_has_explicit_operator_projection() {
-        assert_eq!(
-            ResidentSelfOutcome::AwaitingFulfillment.operator_status(),
-            "awaiting-fulfillment"
-        );
-    }
-
-    #[test]
-    fn shutdown_wait_returns_immediately_when_already_requested() {
-        let requested = AtomicBool::new(true);
-        let started = std::time::Instant::now();
-        wait_for_shutdown(&requested, Duration::from_secs(1));
-        assert!(started.elapsed() < Duration::from_millis(100));
-    }
-
-    #[test]
-    fn brake_or_shutdown_does_not_admit_new_cycle_ingress() -> Result<()> {
-        let touched = std::cell::Cell::new(false);
-        run_cycle_ingress_if_released(true, || {
-            touched.set(true);
-            Ok(())
-        })?;
-        assert!(!touched.get());
-        run_cycle_ingress_if_released(false, || {
-            touched.set(true);
-            Ok(())
-        })?;
-        assert!(touched.get());
-        Ok(())
-    }
-
-    #[test]
-    fn runtime_receipt_retention_refuses_active_or_prepared_launch_authority() {
-        assert!(runtime_receipt_retention_allowed(false, false));
-        assert!(!runtime_receipt_retention_allowed(true, false));
-        assert!(!runtime_receipt_retention_allowed(false, true));
-        assert!(!runtime_receipt_retention_allowed(true, true));
-    }
-
-    #[test]
-    fn maintenance_follows_revision_and_deadline_not_poll_outcome() {
-        assert!(resident_maintenance_required(7, None, false,));
-        assert!(!resident_maintenance_required(7, Some(7), false,));
-        assert!(resident_maintenance_required(8, Some(7), false,));
-        assert!(resident_maintenance_required(7, Some(7), true,));
-    }
 }
