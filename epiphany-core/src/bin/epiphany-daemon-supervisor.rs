@@ -1188,9 +1188,6 @@ fn service_launch_internal(
         {
             anyhow::bail!("reserved projector launch must use the exact current managed policy");
         }
-        if args.wait_child {
-            anyhow::bail!("reserved projector launch is an infinite managed child");
-        }
         let executable_sha256 = local_file_sha256(&command_path.display().to_string())
             .map(|digest| format!("sha256-{digest}"))
             .context("reserved projector executable cannot be fingerprinted")?;
@@ -1216,9 +1213,6 @@ fn service_launch_internal(
             || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
         {
             anyhow::bail!("workspace coverage launch must use the exact current managed policy");
-        }
-        if args.wait_child {
-            anyhow::bail!("workspace coverage launch is an infinite managed child");
         }
         let host = open_default_host_identity()
             .context("workspace coverage launch requires an enrolled host identity")?;
@@ -1415,31 +1409,16 @@ fn service_launch_internal(
         }
     }
     let process_id = Some(child.id());
-    let mut exit_code = None;
-    let mut completed_at = reserved_launch.as_ref().map(|_| Utc::now());
-    let mut status = "launched".to_string();
-    if args.wait_child {
-        let output = child
-            .wait()
-            .with_context(|| format!("failed to wait for service {}", command_path.display()))?;
-        exit_code = output.code();
-        completed_at = Some(Utc::now());
-        status = if output.success() {
-            "completed".to_string()
-        } else {
-            "failed".to_string()
-        };
-    }
     let mut receipt = service_lifecycle_receipt(
         &args,
         "launch",
-        &status,
+        "launched",
         command_path.display().to_string(),
         service_args,
         process_id,
-        exit_code,
+        None,
         started_at,
-        completed_at,
+        Some(Utc::now()),
         args.stdout_artifact
             .as_ref()
             .map(|path| path.display().to_string()),
@@ -1511,13 +1490,6 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
             args.service_id
         ))
     });
-    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
     let policy = EpiphanyCultMeshManagedServicePolicyEntry {
         schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
         policy_id: args
@@ -1575,7 +1547,6 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
             "args": written.args,
             "stdoutArtifact": written.stdout_artifact,
             "stderrArtifact": written.stderr_artifact,
-            "latestLifecycleReceiptId": latest.as_ref().map(|receipt| receipt.receipt_id.as_str()),
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
@@ -2640,10 +2611,9 @@ fn local_file_sha256(path: &str) -> Option<String> {
     Some(format!("{digest:x}"))
 }
 fn service_command_path(args: &Args) -> Result<PathBuf> {
-    if let Some(command) = args.service_command.as_ref() {
-        return Ok(command.clone());
-    }
-    env::current_exe().context("failed to resolve current supervisor executable")
+    args.service_command
+        .clone()
+        .context("managed service command was not derived from its packaged role")
 }
 
 fn quote_powershell(value: &str) -> String {
@@ -2975,7 +2945,6 @@ struct Args {
     service_args: Vec<String>,
     loop_interval_seconds: i64,
     max_iterations: u64,
-    wait_child: bool,
     receipt_id: Option<String>,
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
@@ -3024,7 +2993,6 @@ impl Args {
         let mut service_args = Vec::new();
         let mut loop_interval_seconds = 60_i64;
         let mut max_iterations = 0_u64;
-        let mut wait_child = false;
         let mut receipt_id = None;
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
@@ -3112,7 +3080,6 @@ impl Args {
                         .context("missing --max-iterations value")?
                         .parse()?;
                 }
-                "--wait-child" => wait_child = true,
                 "--receipt-id" => {
                     receipt_id = Some(values.next().context("missing --receipt-id value")?)
                 }
@@ -3319,7 +3286,6 @@ impl Args {
             service_args,
             loop_interval_seconds,
             max_iterations,
-            wait_child,
             receipt_id,
             artifact_ref,
             stdout_artifact,
