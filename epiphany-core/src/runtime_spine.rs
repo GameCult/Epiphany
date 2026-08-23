@@ -135,7 +135,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v6";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v7";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -197,8 +197,6 @@ pub struct EpiphanyRuntimeIdentity {
     #[cultcache(key = 2)]
     pub display_name: String,
     #[cultcache(key = 3)]
-    pub runtime_kind: String,
-    #[cultcache(key = 4)]
     pub created_at: String,
 }
 
@@ -1135,7 +1133,6 @@ pub fn initialize_runtime_spine(
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         runtime_id: options.runtime_id,
         display_name: options.display_name,
-        runtime_kind: "epiphany.native".to_string(),
         created_at: options.created_at,
     };
     let mind_identity = crate::EpiphanyMindIdentity {
@@ -11522,7 +11519,7 @@ pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let identity = require_identity(&cache)?;
     let message = CultNetMessage::Hello {
         runtime_id: identity.runtime_id,
-        runtime_kind: identity.runtime_kind,
+        runtime_kind: "epiphany.native".to_string(),
         agent_id: Some("self".to_string()),
         role: Some("coordinator".to_string()),
         display_name: Some(identity.display_name),
@@ -12443,7 +12440,6 @@ pub(crate) mod tests {
                 schema_version: "epiphany.runtime_spine.v0".into(),
                 runtime_id: "historical-runtime".into(),
                 display_name: "Historical runtime".into(),
-                runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-17T00:00:00Z".into(),
             },
         )?;
@@ -12480,7 +12476,6 @@ pub(crate) mod tests {
                 schema_version: "epiphany.runtime_spine.v1".into(),
                 runtime_id: "archive-v0-runtime".into(),
                 display_name: "Archive v0 runtime".into(),
-                runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-18T00:00:00Z".into(),
             },
         )?;
@@ -12510,7 +12505,6 @@ pub(crate) mod tests {
                 schema_version: "epiphany.runtime_spine.v2".into(),
                 runtime_id: "responses-only-runtime".into(),
                 display_name: "Responses-only runtime".into(),
-                runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-22T00:00:00Z".into(),
             },
         )?;
