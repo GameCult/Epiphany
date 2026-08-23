@@ -95,16 +95,20 @@ Provider requests are derived internally from canonical native requests in
 tests as well as production; no fixture may manufacture native ancestry from a
 caller-authored provider document.
 
-Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
-the runtime-bound Body domain and declared daemon targets consumed by the
-supervisor and prompt projection. The former singleton CultMesh status row was
-a duplicate “bootstrap happened” sentinel with no independent invariant; its
-schema, writer, loader, supervisor check, and serialization test are deleted.
+Runtime spine is the sole live CultNet mutation-contract publisher. Exact
+`a4af4734` deletes six parallel organ contract DTO/factories, the callerless
+local-Verse context query/seed bundle, and fixed Verse/room policy prose. No
+conversion layer replaces them.
 
-`EpiphanyLocalVerseContext` does not invent Bifrost publication state. Exact
-`203bcc41` deletes the producerless body-change/GitHub publication contracts,
-singleton latest heads, writers, validators, advertisement, projection, and five
-tests that manufactured both sides. Bifrost owns its real Persona
+Persisted cluster topology is also gone. Its writer became dead when the
+callerless seed bundle was removed, while the supervisor merely accepted any
+nonempty subset of seven fixed keys as “bootstrap” without authenticating Body
+domain, completeness, or runtime binding. That was a sentinel, not topology
+authority. Supervisor admission continues through exact store/runtime identity,
+packaged release, brake, service policy, process identity, and signed health.
+
+Exact `203bcc41` separately deletes the producerless Bifrost body-change/GitHub
+publication contracts and projections. Bifrost owns its real Persona
 feedback/delivery stores and signed crossing receipts; Epiphany consumes those
 provider-owned documents instead of publishing a substitute protocol. The two
 specialized projector policy writers remain the only writers for their actual

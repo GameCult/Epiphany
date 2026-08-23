@@ -797,13 +797,24 @@ commit consequences; exact remote publication evidence belongs to the remote
 provider/Bifrost crossing. Core and release-bundle checks pass, and the rebuilt
 43-entry schema catalog contains no deleted PR family.
 
+Exact `a4af4734` deletes the second CultNet contract author and the false
+bootstrap witness: six organ-specific contract DTO/factories, the callerless
+`EpiphanyLocalVerseContext` query/seed bundle, fixed Verse/room policy prose,
+the `mind_contracts` module and its self-affirming test, persisted seven-cluster
+topology, its dead writer/loader, the supervisor's nonempty-row bootstrap check,
+and the diagnostic test that kept the loader alive. Runtime spine is now the
+sole live CultNet mutation-contract publisher. Supervisor readiness continues
+to depend on exact runtime/store identity, packaged release, brake, service
+policy, process identity, and signed health. Core and release-bundle checks,
+CultMesh 12/12, and supervisor 4/4 pass. The cut removes 1,005 net source lines.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
 when it reaches Epiphany validation, ownership, authentication, monotonicity,
 CAS conflict, replay, projection, or an externally visible consequence; delete
 test-only APIs and fixtures with the tests they animate.
-Preserve exact current work, cluster topology, and the four consequence-bearing
+Preserve exact current work and the four consequence-bearing
 supervisor tests. Do not run a full-workspace compile, package, deployment, or
 Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
