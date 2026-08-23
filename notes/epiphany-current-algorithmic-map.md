@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `0bb6a883` on `codex/epiphany-shakedown-live`
-Current worktree cut: canonical map/evidence sync; Ox17 remains paused
+Latest committed implementation cut: `ad2292ee` on `codex/epiphany-shakedown-live`
+Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -149,6 +149,15 @@ Tool execution stdout is a completion projection, not a schema catalogue or
 authority mirror. Exact `0bb6a883` removes the fixed adapter/schema fields and
 the caller-supplied store echo. The typed CultCache receipt remains canonical;
 stdout carries only intent ID, receipt ID, and terminal status.
+
+Cryptographic identity separation does not require one executable per key.
+Exact `ad2292ee` deletes the two callerless Persona identity setup binaries,
+their release roles, and their private enrollment/anchor-export wrappers. The
+delivery-request and permit identities remain purpose-specific. Runtime owners
+may only open already-admitted private identities and validate pinned public
+anchors; deployment admission owns future enrollment if those dormant
+crossings are activated. No model pass, Persona turn, or Bifrost request path
+can mint or rotate either trust root.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

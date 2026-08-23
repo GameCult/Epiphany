@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `0bb6a883`
-Current worktree: canonical map/evidence sync; Ox17 remains paused
+Latest committed implementation cut: `ad2292ee`
+Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
 
@@ -43,6 +43,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `ad2292ee` deletes the callerless Persona mouth-identity and Discord
+permit-identity executables, their forced release roles, and the enrollment /
+anchor-export wrappers that only those binaries called: 177 pure deletions.
+The two helpers had no unit, deployment call, distinct runtime user, privilege
+boundary, or health contract; they merely caused every release to build and
+ship setup commands. The delivery-request and permit cryptographic identities
+remain distinct contracts. Their long-running consumers still open and verify
+already-admitted identities and pinned anchors; model turns and Bifrost cannot
+create or rotate them. Cargo now has 18 executable targets. Focused core,
+permit, Persona-service, and release-construction checks pass.
 
 Exact `03140a47` deletes the packaged `epiphany-runtime-spine` command and the
 false service authority it carried: 649 lines of operator/debug mutation CLI,

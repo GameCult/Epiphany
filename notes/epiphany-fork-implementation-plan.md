@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`0bb6a883`. The current sequence has deleted the semantic-memory/workspace-coverage
+`ad2292ee`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -234,6 +234,13 @@ Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through typed
 Eve/CultMesh capabilities, and a future Rider daemon will own Rider. Do not
 admit a fresh package until the remaining production surfaces and tests have
 earned their authority under the same audit.
+
+The next executable cut is the standalone Persona feedback ingress: Resident
+Self already imports the same authenticated Bifrost deliveries and the Ygg
+swarm unit supplies that owner directly. Then reassess the dormant Atlas
+entrypoints and callerless frontier-proposal wrapper. The next test cut removes
+static display labels, pure helper spelling checks, and redundant cache-policy
+assertions only where stronger consequence tests already own the invariant.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
