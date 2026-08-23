@@ -702,11 +702,30 @@ command and its ad hoc JSON projection: 40 net lines. Typed lifecycle and
 heartbeat state plus Idunn's signed aggregate health remain the read paths.
 Supervisor check and 4/4 consequence tests pass.
 
-Preserve cluster topology while it owns the runtime-bound Body domain and
-bootstrap evidence. Separately split the remaining daemon supervisor's
-launch/reconcile authority before claiming sequencing coverage. Do not run a
-full-workspace compile, package, deployment, or Ox root until the subtraction
-audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+Exact `da8ed840` removes 484 net lines of console-shaped reconcile state.
+Semantic and workspace recovery now prove launches, termination, readiness,
+and recovery through typed receipts; the scheduler proves health through its
+signed Idunn publication. Authentication failures fail the command instead of
+printing a JSON refusal and returning success. Degraded native process sight
+still refuses actuation. The supervisor is 2,104 lines and its four remaining
+tests each cross a live brake, process-identity, or signed-health boundary.
+
+Exact `2aeab7a9` deletes the generic organ dependency/proof-profile subsystem,
+its persisted worker-launch field, Persona prompt injection, evaluator, and
+three self-certifying tests: 700 net lines. The universal dependency matrix was
+never consumed by admission and contradicted direct Body-to-Modeling work.
+Worker-launch schema v2 and Persona projector prompt v1 make the hard cut.
+Family validators, typed launch documents, sealed reasoning projections, and
+concrete invariant owners remain. Focused acceptance is core 378/378,
+OpenRouter runtime 27/27, packaged runtime 13/13, and Persona re-entry 1/1.
+
+Next audit the derived operator surface modules and their tests by production
+consumer. Preserve Eve/CultMesh projections that expose live typed owners; cut
+surface DTOs, status helpers, and tests whose only consumer is their own
+fixture. Preserve cluster topology while it owns the runtime-bound Body domain
+and bootstrap evidence. Do not run a full-workspace compile, package,
+deployment, or Ox root until the subtraction audit closes. Never resume Ox10,
+Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

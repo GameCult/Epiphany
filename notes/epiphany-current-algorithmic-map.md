@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `803e3447` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `2aeab7a9` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -38,6 +38,14 @@ public-proof aggregate. Keyed Mind/runtime documents own the underlying work;
 an unused aggregate cannot become an interface merely by round-tripping. The
 unused service-execution audit and Bifrost artifact, metrics, and public-proof
 receipt families are deleted with the tests that alone called them.
+
+Worker launches carry one typed launch document, its exact output contract, and
+the sealed reasoning projection that owns model input. They do not carry a
+generic organ dependency matrix or prose receipt catalogue. Family admission
+owners derive exact dependencies from typed state; no universal "every organ
+depends on every other organ" prompt cargo can make Eyes gate Modeling or make
+a decorative list impersonate transaction authority. Persona projects exact
+social, memory, and Body inputs without that fiction.
 
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
