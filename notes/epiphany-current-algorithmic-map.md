@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `bf2f39eb` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `104bf390` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -119,6 +119,13 @@ Tests must falsify an owner or consequence. Exact `bf2f39eb` deletes an
 identical-call causal-ID tautology and a duplicate unknown-field check for an
 extinct generic patch. Exact family lifecycles and runtime-owned identity
 substitution remain the behavioral proofs.
+
+Exact `104bf390` deletes two public-source tests that supplied no additional
+protection: one duplicated the canonical immutable-GitHub parser tests already
+owned by `epiphany-core`; the other was permanently ignored, network-dependent,
+pinned to historical source, and asserted only that README prose contained the
+project name. The bounded public-source transport remains production code; its
+identity law remains tested once at its owner.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
