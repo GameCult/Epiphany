@@ -851,12 +851,6 @@ pub struct RuntimeSpineHeartbeatJobOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PreparedRuntimeSpineHeartbeatJob {
-    pub job: EpiphanyRuntimeJob,
-    pub envelopes: Vec<CultCacheEnvelope>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct EpiphanyRuntimeJobSnapshot {
     pub job: EpiphanyRuntimeJob,
     pub result: Option<EpiphanyRuntimeJobResult>,
@@ -2552,7 +2546,7 @@ fn archive_completed_model_session(
 pub fn prepare_runtime_spine_heartbeat_job(
     cache: &CultCache,
     options: RuntimeSpineHeartbeatJobOptions,
-) -> Result<PreparedRuntimeSpineHeartbeatJob> {
+) -> Result<Vec<CultCacheEnvelope>> {
     validate_non_empty(&options.runtime_id, "runtime id")?;
     validate_non_empty(&options.session_id, "session id")?;
     validate_non_empty(&options.objective, "objective")?;
@@ -2703,7 +2697,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
         cache.prepare_entry(&job.job_id, &job)?.0,
         cache.prepare_entry(&request.job_id, &request)?.0,
     ];
-    Ok(PreparedRuntimeSpineHeartbeatJob { job, envelopes })
+    Ok(envelopes)
 }
 
 fn validate_repo_frontier_verdict_modeling_launch_authority(

@@ -1207,7 +1207,6 @@ pub fn launch_current_frontier_planning_work(
         },
     )?;
     let launch = prepared
-        .envelopes
         .iter()
         .find(|envelope| {
             envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
@@ -1267,7 +1266,7 @@ pub fn launch_current_frontier_planning_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
         "frontier Planning",
     )?;
@@ -1393,7 +1392,6 @@ pub fn launch_current_frontier_plan_mind_work(
         },
     )?;
     let worker_envelope = prepared
-        .envelopes
         .iter()
         .find(|envelope| {
             envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
@@ -1471,7 +1469,7 @@ pub fn launch_current_frontier_plan_mind_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
         "frontier plan Mind",
     )?;
@@ -1640,7 +1638,7 @@ pub fn launch_current_frontier_verification_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
         "frontier Verification",
     )?;
@@ -1769,7 +1767,7 @@ pub fn launch_current_frontier_research_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
         "frontier Research",
     )?;
@@ -2924,7 +2922,6 @@ fn launch_consideration_work(
     let mut companions = Vec::new();
     if let ConsiderationLaunch::PersonaFeedback(request) = launch {
         let worker = prepared
-            .envelopes
             .iter()
             .find(|envelope| {
                 envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
@@ -2964,7 +2961,7 @@ fn launch_consideration_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         companions,
         "consideration",
     )?;
@@ -3158,7 +3155,7 @@ pub fn launch_current_body_modeling_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![
             cache.prepare_entry(&binding.binding_record_id, &binding)?.0,
             cache.prepare_entry(&grant.receipt_id, &grant)?.0,
@@ -3344,7 +3341,7 @@ pub fn launch_current_proposal_modeling_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![
             cache.prepare_entry(&binding.binding_record_id, &binding)?.0,
             cache.prepare_entry(&grant.receipt_id, &grant)?.0,
@@ -3492,7 +3489,7 @@ pub fn launch_current_frontier_verdict_modeling_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
         "frontier verdict Modeling",
     )?;

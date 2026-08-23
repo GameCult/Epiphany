@@ -470,7 +470,7 @@ pub fn launch_current_reorientation_work(
         store_path,
         &cache,
         expected,
-        prepared.envelopes,
+        prepared,
         vec![cache.prepare_entry(&binding.binding_id, &binding)?.0],
         "reorientation",
     )?;

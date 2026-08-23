@@ -253,7 +253,6 @@ pub use runtime_spine::EpiphanyRuntimeToolExecutionBinding;
 pub use runtime_spine::EpiphanyRuntimeWorkerLaunchRequest;
 pub use runtime_spine::EpiphanyRuntimeWorkerProcessClaim;
 pub use runtime_spine::ModelPassFailureTerminalOptions;
-pub use runtime_spine::PreparedRuntimeSpineHeartbeatJob;
 pub use runtime_spine::RUNTIME_IDENTITY_KEY;
 pub use runtime_spine::RUNTIME_IDENTITY_TYPE;
 pub use runtime_spine::RUNTIME_JOB_RESULT_TYPE;

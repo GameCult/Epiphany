@@ -2484,7 +2484,7 @@ mod tests {
         let mut cache = epiphany_core::runtime_spine_cache(store)?;
         cache.pull_all_backing_stores()?;
         let prepared = epiphany_core::prepare_runtime_spine_heartbeat_job(&cache, options)?;
-        cache.put_prepared_batch(prepared.envelopes)?;
+        cache.put_prepared_batch(prepared)?;
         Ok(())
     }
 
