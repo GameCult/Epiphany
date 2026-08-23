@@ -1100,12 +1100,20 @@ test that never exercised continuation, a private Unix credential-mode test
 duplicated by file-level permission proof, and a same-call cache equality.
 Release construction remains 15/15, coordinator 5/5, and core checks cleanly.
 
-The next test-liability pass audits `repository_body_observer` by the external
-Body claim each of its 23 tests protects. Authentication, read-only basis
-loading, no repository-object writes, hostile Git/config refusal, raw-byte
-visibility, binding immutability, stale-head conflict, tamper refusal, and
-generation reuse remain invariants. Private-helper spelling and duplicate
-fixture proof do not.
+Exact `79292fe3` replaces Repository Body's repeated validate/reopen/reconstruct
+flows with one authenticated snapshot loader over the runtime route, Body
+binding, historical observation, and manifest. Basis validation, Mind
+admission, Modeling projection, and manifest consumers now use that single
+snapshot. The private scanner-session spelling test and fixture-wide route
+assertions are gone; public Body behavior remains 22/22, reasoning context 8/8,
+RepoModel 5/5, Atlas runtime 2/2, and affected current-work proofs pass.
+
+The next cut audits `epiphany-core/src/runtime_spine.rs`. At 11,678 lines it is
+the largest remaining central liability. Inventory every public surface by
+non-test caller, persistent document, and external consequence; delete
+callerless readers/writers/DTOs and collapse repeated store paths while
+preserving immutable identity, exact job/session terminality, decision audit,
+conflict/replay, and retention that prevents resurrection.
 
 ## Competitive Eyes/Imagination pass
 

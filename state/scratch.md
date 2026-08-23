@@ -110,8 +110,15 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 17. Done: delete the coordinator runtime-options factory and its field-assignment
    test, the literal-membership stop test, the credential predicate test
    duplicated by file-level permissions proof, and same-call cache equality.
-18. Next: audit `repository_body_observer` tests and private helpers by exact
+18. Done: audit `repository_body_observer` tests and private helpers by exact
    Body consequence. Preserve authentication, read-only loading, raw-byte and
    hostile-Git sight, immutable binding, conflict, tamper, and generation proof.
-19. Run focused tests after each cut. Only after source subtraction stabilizes
+   Exact `79292fe3` makes one authenticated snapshot own route, binding,
+   observation, and manifest validation; duplicate store reopens, a private
+   scanner-session test, and fixture-wide route assertions are gone.
+19. Next: audit the 11,678-line `runtime_spine.rs` public surface by live
+   non-test caller, persisted document owner, and external consequence. Delete
+   callerless exports and duplicate store/validation paths without weakening
+   identity, terminality, audit, conflict/replay, or anti-resurrection proof.
+20. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
