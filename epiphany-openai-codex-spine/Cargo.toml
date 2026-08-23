@@ -20,7 +20,3 @@ serde = "1"
 serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-
-[[bin]]
-name = "epiphany-openai-spine"
-path = "src/bin/epiphany-openai-spine.rs"

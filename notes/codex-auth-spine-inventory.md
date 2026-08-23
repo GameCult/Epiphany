@@ -163,15 +163,8 @@ contracts in its hello/schema catalog. This is the contract bridge the native
 runtime should consume next. Do not add another JSON-RPC model endpoint and call
 it progress.
 
-The first native operator/debug edge now exists as the
-`epiphany-openai-spine` binary in `epiphany-openai-codex-spine`. It can report
-typed adapter status and consume a serialized `EpiphanyOpenAiModelRequest`
-document for a model turn without going through Codex app-server JSON-RPC. This
-is not the final CultNet daemon. It is a buildable extracted edge that proves
-the spine can be called from Epiphany-owned code and gives the next cut a place
-to route through while the old `thread/epiphany/*` model path is starved.
-
-The native runtime route now exists too. `epiphany-openai-adapter` documents
+The native runtime route is the operator and daemon edge.
+`epiphany-openai-adapter` documents
 derive CultCache `DatabaseEntry`, `epiphany-core::runtime_spine_cache`
 registers OpenAI adapter status/request/stream-event/receipt documents, and the
 outside-vendor `epiphany-openai-runtime` crate records typed OpenAI model-turn

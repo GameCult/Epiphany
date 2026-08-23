@@ -85,25 +85,6 @@ pub async fn status_from_auth_manager(
     }
 }
 
-pub fn status_from_codex_auth(
-    auth: Option<&CodexAuth>,
-    default_model: Option<String>,
-    supports_websockets: bool,
-) -> EpiphanyOpenAiAdapterStatus {
-    EpiphanyOpenAiAdapterStatus {
-        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
-        adapter_id: CODEX_SPINE_ADAPTER_ID.to_string(),
-        auth_mode: auth_mode_from_codex_auth(auth),
-        account_id: auth.and_then(CodexAuth::get_account_id),
-        plan_type: auth
-            .and_then(CodexAuth::account_plan_type)
-            .map(|plan| format!("{plan:?}")),
-        default_model,
-        supports_websockets,
-        codex_transport_attached: true,
-    }
-}
-
 pub fn status_from_static_api_key(
     adapter_id: &str,
     default_model: Option<String>,
@@ -1521,27 +1502,6 @@ mod tests {
         request.provider_id = "openrouter".to_string();
         request.wire_dialect = EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool;
         request
-    }
-
-    #[test]
-    fn api_key_auth_maps_to_typed_adapter_status() {
-        let auth = CodexAuth::from_api_key("test-key");
-        let status = status_from_codex_auth(Some(&auth), Some("gpt-5.4".to_string()), true);
-
-        assert_eq!(status.adapter_id, CODEX_SPINE_ADAPTER_ID);
-        assert_eq!(status.auth_mode, EpiphanyOpenAiAuthMode::ApiKey);
-        assert_eq!(status.default_model.as_deref(), Some("gpt-5.4"));
-        assert!(status.supports_websockets);
-        assert!(status.codex_transport_attached);
-    }
-
-    #[test]
-    fn missing_auth_maps_to_unknown_status() {
-        let status = status_from_codex_auth(None, None, false);
-
-        assert_eq!(status.auth_mode, EpiphanyOpenAiAuthMode::Unknown);
-        assert_eq!(status.account_id, None);
-        assert!(!status.supports_websockets);
     }
 
     #[test]
