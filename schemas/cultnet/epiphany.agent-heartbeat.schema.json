@@ -2,12 +2,12 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
   "title": "Epiphany Heartbeat State",
-  "description": "Stable typed heartbeat scheduler state for initiative, readiness, pacing, pending turns, and history. Experimental cognition thought-weather lives in epiphany.agent-heartbeat-cognition.",
+  "description": "Typed scheduling physiology for Resident Self grants and Persona turns.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
-      "type": "string"
+      "const": "epiphany.agent_heartbeat.v1"
     },
     "targetHeartbeatRate": {
       "type": "number"
@@ -23,9 +23,6 @@
       "type": "object",
       "additionalProperties": true
     },
-    "initiativeHeat": {
-      "$ref": "epiphany.heartbeat_initiative_heat.v0.schema.json"
-    },
     "participants": {
       "type": "array",
       "items": {
@@ -39,10 +36,6 @@
         "type": "object",
         "additionalProperties": true
       }
-    },
-    "extra": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [

@@ -5,8 +5,6 @@ use super::HeartbeatHistoryEvent;
 use super::HeartbeatParticipant;
 use super::HeartbeatPendingTurn;
 use super::HeartbeatSelectionPolicy;
-use super::effective_cooldown_multiplier;
-use super::initiative_heat_multiplier;
 use super::load_heartbeat_state_entry;
 use super::participant_arena;
 use super::participant_kind;
@@ -39,7 +37,7 @@ pub fn heartbeat_status_projection(
             "latestEvent": null,
             "history": [],
             "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-            "availableActions": ["init", "tick", "pump", "complete", "status"],
+            "availableActions": ["init", "repair-stale", "retain-artifacts", "status", "serve"],
         }));
     };
     let scheduler_status = if state.participants.is_empty() {
@@ -77,28 +75,11 @@ pub fn heartbeat_status_projection(
         "artifactDir": artifact_dir.as_ref(),
         "targetHeartbeatRate": state.target_heartbeat_rate,
         "sceneClock": state.scene_clock,
-        "initiativeHeat": {
-            "schemaVersion": state.initiative_heat.schema_version,
-            "globalMultiplier": state.initiative_heat.global_multiplier,
-            "multipliers": state.initiative_heat.multipliers.iter().map(|multiplier| {
-                serde_json::json!({
-                    "id": multiplier.id,
-                    "label": multiplier.label,
-                    "scope": multiplier.scope,
-                    "selector": multiplier.selector,
-                    "multiplier": multiplier.multiplier,
-                    "reason": multiplier.reason,
-                    "updatedAt": multiplier.updated_at,
-                    "expiresAtSceneClock": multiplier.expires_at_scene_clock,
-                })
-            }).collect::<Vec<_>>(),
-        },
         "participants": state.participants.iter().map(participant_status_json).collect::<Vec<_>>(),
         "latestEvent": history.last().cloned(),
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-        "adaptivePacing": state.adaptive_pacing.as_ref(),
-        "availableActions": ["init", "tick", "pump", "heat", "complete", "status"],
+        "availableActions": ["init", "repair-stale", "retain-artifacts", "status", "serve"],
     }))
 }
 
@@ -196,9 +177,6 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "arena": participant_arena(participant),
         "participantKind": participant_kind(participant),
         "initiativeSpeed": participant.initiative_speed,
-        "initiativeHeatMultiplier": initiative_heat_multiplier(participant),
-        "initiativeHeat": participant.initiative_heat.as_ref(),
-        "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
         "initiativeFrozen": participant
             .pending_turn
             .as_ref()
@@ -227,8 +205,6 @@ pub(super) fn schedule_participant_json(participant: &HeartbeatParticipant) -> V
         "arena": participant_arena(participant),
         "participant_kind": participant_kind(participant),
         "initiative_speed": participant.initiative_speed,
-        "initiative_heat_multiplier": initiative_heat_multiplier(participant),
-        "effective_cooldown_multiplier": effective_cooldown_multiplier(participant),
         "initiative_frozen": participant
             .pending_turn
             .as_ref()
@@ -267,8 +243,6 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
-        "initiativeHeatMultiplier": turn.initiative_heat_multiplier,
-        "effectiveCooldownMultiplier": turn.effective_cooldown_multiplier,
         "initiativeFrozen": turn.initiative_frozen,
         "initiativeFreezeReason": turn.initiative_freeze_reason.as_ref(),
         "recovery": turn.recovery,

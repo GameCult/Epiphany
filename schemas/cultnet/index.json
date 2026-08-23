@@ -263,32 +263,10 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.agent_heartbeat.v0",
+      "schemaVersion": "epiphany.agent_heartbeat.v1",
       "documentType": "epiphany.agent_heartbeat",
       "title": "Epiphany Heartbeat State",
       "path": "epiphany.agent-heartbeat.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_initiative_heat.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.heartbeat_initiative_heat.v0",
-      "documentType": "epiphany.heartbeat_initiative_heat.v0",
-      "title": "epiphany heartbeat_initiative_heat v0",
-      "path": "epiphany.heartbeat_initiative_heat.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat-cognition.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.agent_heartbeat_cognition.v0",
-      "documentType": "epiphany.agent_heartbeat_cognition",
-      "title": "Epiphany Heartbeat Cognition Quarantine",
-      "path": "epiphany.agent-heartbeat-cognition.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.state-ledger.schema.json",
@@ -509,39 +487,6 @@
       "documentType": "epiphany.runtime.session_intent.v0",
       "title": "epiphany runtime session_intent v0",
       "path": "epiphany.runtime.session_intent.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_pump_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.heartbeat_pump_intent.v0",
-      "documentType": "epiphany.heartbeat_pump_intent.v0",
-      "title": "epiphany heartbeat_pump_intent v0",
-      "path": "epiphany.heartbeat_pump_intent.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_heat_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.heartbeat_heat_intent.v0",
-      "documentType": "epiphany.heartbeat_heat_intent.v0",
-      "title": "epiphany heartbeat_heat_intent v0",
-      "path": "epiphany.heartbeat_heat_intent.v0.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.circadian_rhythm_intent.v0.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.circadian_rhythm_intent.v0",
-      "documentType": "epiphany.circadian_rhythm_intent.v0",
-      "title": "epiphany circadian_rhythm_intent v0",
-      "path": "epiphany.circadian_rhythm_intent.v0.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.job_launch_intent.v0.schema.json",

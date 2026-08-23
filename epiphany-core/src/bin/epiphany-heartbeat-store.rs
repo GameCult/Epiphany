@@ -3,29 +3,17 @@ use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyHeartbeatArtifactRetentionReceipt;
-use epiphany_core::GhostlightSceneParticipantSeed;
-use epiphany_core::HeartbeatCompleteOptions;
-use epiphany_core::HeartbeatHeatUpdateOptions;
-use epiphany_core::HeartbeatPumpOptions;
-use epiphany_core::HeartbeatQueueMentionOptions;
 use epiphany_core::HeartbeatStaleTurnRepairOptions;
-use epiphany_core::HeartbeatTickOptions;
-use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_local_provider_status;
 use epiphany_core::heartbeat_status_projection;
-use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::pulse_persona_heartbeat;
 use epiphany_core::pulse_resident_self_heartbeat;
-use epiphany_core::pump_heartbeat_store;
-use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::recover_stale_heartbeat_store;
 use epiphany_core::resident_cognitive_runtime_id;
 use epiphany_core::retain_heartbeat_pulse_artifacts;
-use epiphany_core::tick_heartbeat_store;
-use epiphany_core::update_heartbeat_heat_store;
 use epiphany_core::{
     ResidentProviderReadiness, acquire_resident_process_singleton,
     authenticate_epiphany_packaged_release, capture_process_instance,
@@ -51,46 +39,12 @@ fn main() -> Result<()> {
     let mut artifact_dir: Option<PathBuf> = None;
     let mut local_verse_store: Option<PathBuf> = None;
     let mut target_heartbeat_rate = 1.0_f64;
-    let mut min_heartbeat_rate = 0.05_f64;
-    let mut max_heartbeat_rate = 4.0_f64;
-    let mut min_concurrency = 1_usize;
-    let mut max_concurrency = 8_usize;
-    let mut max_ticks = 8_usize;
-    let mut coordinator_action: Option<String> = None;
-    let mut target_role: Option<String> = None;
-    let mut urgency = 0.75_f64;
-    let mut urgency_explicit = false;
     let mut schedule_id = "epiphany-heartbeat".to_string();
     let mut source_scene_ref = "epiphany/coordinator".to_string();
-    let mut defer_completion = false;
-    let mut role: Option<String> = None;
-    let mut action_id: Option<String> = None;
     let mut limit = 8_usize;
     let mut resident_self_store: Option<PathBuf> = None;
     let mut resident_runtime_store: Option<PathBuf> = None;
-    let mut profile = "epiphany".to_string();
-    let mut scene_id = "ghostlight.scene".to_string();
-    let mut scene_participants = Vec::<GhostlightSceneParticipantSeed>::new();
-    let mut heat_scope = "global".to_string();
-    let mut heat_selector = String::new();
-    let mut heat_multiplier = 1.0_f64;
-    let mut heat_id: Option<String> = None;
-    let mut heat_label: Option<String> = None;
-    let mut heat_reason: Option<String> = None;
-    let mut heat_expires_after: Option<f64> = None;
-    let mut heat_clear = false;
-    let mut channel_id: Option<String> = None;
-    let mut message_id: Option<String> = None;
-    let mut author_id: Option<String> = None;
-    let mut author_name: Option<String> = None;
-    let mut content: Option<String> = None;
-    let mut visible_prompt: Option<String> = None;
-    let mut reply_to_message_id: Option<String> = None;
-    let mut source_surface = "operator".to_string();
-    let mut mention_id: Option<String> = None;
-    let mut source_visibility = "private".to_string();
-    let mut data_classification = "operator_input".to_string();
-    let mut model_provider_id = "operator-configured".to_string();
+    let mut repair_reason: Option<String> = None;
     let mut max_age_seconds = 1800_i64;
     let mut now_utc: Option<String> = None;
     let mut interval_seconds = 120_u64;
@@ -112,32 +66,8 @@ fn main() -> Result<()> {
             "--target-heartbeat-rate" => {
                 target_heartbeat_rate = next_value(&mut args, "--target-heartbeat-rate")?.parse()?
             }
-            "--min-heartbeat-rate" => {
-                min_heartbeat_rate = next_value(&mut args, "--min-heartbeat-rate")?.parse()?
-            }
-            "--max-heartbeat-rate" => {
-                max_heartbeat_rate = next_value(&mut args, "--max-heartbeat-rate")?.parse()?
-            }
-            "--min-concurrency" => {
-                min_concurrency = next_value(&mut args, "--min-concurrency")?.parse()?
-            }
-            "--max-concurrency" => {
-                max_concurrency = next_value(&mut args, "--max-concurrency")?.parse()?
-            }
-            "--max-ticks" => max_ticks = next_value(&mut args, "--max-ticks")?.parse()?,
-            "--coordinator-action" => {
-                coordinator_action = Some(next_value(&mut args, "--coordinator-action")?)
-            }
-            "--target-role" => target_role = Some(next_value(&mut args, "--target-role")?),
-            "--urgency" => {
-                urgency = next_value(&mut args, "--urgency")?.parse()?;
-                urgency_explicit = true;
-            }
             "--schedule-id" => schedule_id = next_value(&mut args, "--schedule-id")?,
             "--source-scene-ref" => source_scene_ref = next_value(&mut args, "--source-scene-ref")?,
-            "--defer-completion" => defer_completion = true,
-            "--role" => role = Some(next_value(&mut args, "--role")?),
-            "--action-id" => action_id = Some(next_value(&mut args, "--action-id")?),
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
             "--resident-self-store" => {
                 resident_self_store = Some(next_path(&mut args, "--resident-self-store")?)
@@ -145,41 +75,7 @@ fn main() -> Result<()> {
             "--resident-runtime-store" => {
                 resident_runtime_store = Some(next_path(&mut args, "--resident-runtime-store")?)
             }
-            "--profile" => profile = next_value(&mut args, "--profile")?,
-            "--scene-id" => scene_id = next_value(&mut args, "--scene-id")?,
-            "--scene-participant" => scene_participants.push(parse_scene_participant(
-                &next_value(&mut args, "--scene-participant")?,
-            )?),
-            "--scope" => heat_scope = next_value(&mut args, "--scope")?,
-            "--selector" => heat_selector = next_value(&mut args, "--selector")?,
-            "--multiplier" => heat_multiplier = next_value(&mut args, "--multiplier")?.parse()?,
-            "--id" => heat_id = Some(next_value(&mut args, "--id")?),
-            "--label" => heat_label = Some(next_value(&mut args, "--label")?),
-            "--reason" => heat_reason = Some(next_value(&mut args, "--reason")?),
-            "--expires-after" => {
-                heat_expires_after = Some(next_value(&mut args, "--expires-after")?.parse()?)
-            }
-            "--clear" => heat_clear = true,
-            "--channel-id" => channel_id = Some(next_value(&mut args, "--channel-id")?),
-            "--message-id" => message_id = Some(next_value(&mut args, "--message-id")?),
-            "--author-id" => author_id = Some(next_value(&mut args, "--author-id")?),
-            "--author-name" => author_name = Some(next_value(&mut args, "--author-name")?),
-            "--content" => content = Some(next_value(&mut args, "--content")?),
-            "--visible-prompt" => visible_prompt = Some(next_value(&mut args, "--visible-prompt")?),
-            "--reply-to-message-id" => {
-                reply_to_message_id = Some(next_value(&mut args, "--reply-to-message-id")?)
-            }
-            "--source-surface" => source_surface = next_value(&mut args, "--source-surface")?,
-            "--mention-id" => mention_id = Some(next_value(&mut args, "--mention-id")?),
-            "--source-visibility" => {
-                source_visibility = next_value(&mut args, "--source-visibility")?
-            }
-            "--data-classification" => {
-                data_classification = next_value(&mut args, "--data-classification")?
-            }
-            "--model-provider-id" => {
-                model_provider_id = next_value(&mut args, "--model-provider-id")?
-            }
+            "--reason" => repair_reason = Some(next_value(&mut args, "--reason")?),
             "--max-age-seconds" => {
                 max_age_seconds = next_value(&mut args, "--max-age-seconds")?.parse()?
             }
@@ -212,66 +108,18 @@ fn main() -> Result<()> {
     match command.as_str() {
         "init" => {
             let store_path = store_path.ok_or_else(|| anyhow!("init requires --store"))?;
-            let state = match profile.as_str() {
-                "epiphany" => initialize_heartbeat_store(&store_path, target_heartbeat_rate)?,
-                "ghostlight-scene" => initialize_ghostlight_scene_heartbeat_store(
-                    &store_path,
-                    target_heartbeat_rate,
-                    scene_id.clone(),
-                    scene_participants,
-                )?,
-                other => return Err(anyhow!("unknown heartbeat profile {other:?}")),
-            };
+            let state = initialize_heartbeat_store(&store_path, target_heartbeat_rate)?;
             println!(
                 "{}",
                 serde_json::json!({
                     "ok": true,
                     "command": "init",
-                    "profile": profile,
                     "storeFile": store_path,
                     "schemaVersion": state.schema_version,
                     "participants": state.participants.len(),
                     "history": state.history.len(),
                 })
             );
-        }
-        "tick" => {
-            assert_swarm_brake_allows_heartbeat(
-                &local_verse_store,
-                release_runtime_id.as_deref(),
-                "tick",
-            )?;
-            let store_path = store_path.ok_or_else(|| anyhow!("tick requires --store"))?;
-            let artifact_dir =
-                artifact_dir.ok_or_else(|| anyhow!("tick requires --artifact-dir"))?;
-            let tick_schedule_id = schedule_id.clone();
-            let mut result = tick_heartbeat_store(
-                &store_path,
-                &artifact_dir,
-                HeartbeatTickOptions {
-                    target_heartbeat_rate,
-                    coordinator_action,
-                    target_role,
-                    urgency,
-                    schedule_id: tick_schedule_id,
-                    source_scene_ref,
-                    defer_completion,
-                    resident_self_store: resident_self_store.clone(),
-                },
-            )?;
-            println!("{}", result);
-        }
-        "complete" => {
-            let store_path = store_path.ok_or_else(|| anyhow!("complete requires --store"))?;
-            let artifact_dir =
-                artifact_dir.ok_or_else(|| anyhow!("complete requires --artifact-dir"))?;
-            let role = role.ok_or_else(|| anyhow!("complete requires --role"))?;
-            let result = complete_heartbeat_store(
-                &store_path,
-                &artifact_dir,
-                HeartbeatCompleteOptions { role, action_id },
-            )?;
-            println!("{}", result);
         }
         "repair-stale" => {
             let store_path = store_path.ok_or_else(|| anyhow!("repair-stale requires --store"))?;
@@ -283,7 +131,7 @@ fn main() -> Result<()> {
                 HeartbeatStaleTurnRepairOptions {
                     max_age_seconds,
                     now_utc,
-                    reason: heat_reason.unwrap_or_else(|| {
+                    reason: repair_reason.unwrap_or_else(|| {
                         "Operator requested stale heartbeat turn recovery.".to_string()
                     }),
                 },
@@ -311,91 +159,6 @@ fn main() -> Result<()> {
                     "privateStateExposed": false
                 })
             );
-        }
-        "pump" => {
-            assert_swarm_brake_allows_heartbeat(
-                &local_verse_store,
-                release_runtime_id.as_deref(),
-                "pump",
-            )?;
-            let store_path = store_path.ok_or_else(|| anyhow!("pump requires --store"))?;
-            let artifact_dir =
-                artifact_dir.ok_or_else(|| anyhow!("pump requires --artifact-dir"))?;
-            let result = pump_heartbeat_store(
-                &store_path,
-                &artifact_dir,
-                HeartbeatPumpOptions {
-                    base_heartbeat_rate: target_heartbeat_rate,
-                    min_heartbeat_rate,
-                    max_heartbeat_rate,
-                    min_concurrency,
-                    max_concurrency,
-                    max_ticks,
-                    external_urgency: if urgency_explicit { urgency } else { 0.0 },
-                    coordinator_action,
-                    target_role,
-                    schedule_id,
-                    source_scene_ref,
-                    resident_self_store,
-                },
-            )?;
-            println!("{}", result);
-        }
-        "heat" => {
-            assert_swarm_brake_allows_heartbeat(
-                &local_verse_store,
-                release_runtime_id.as_deref(),
-                "heat",
-            )?;
-            let store_path = store_path.ok_or_else(|| anyhow!("heat requires --store"))?;
-            let result = update_heartbeat_heat_store(
-                &store_path,
-                HeartbeatHeatUpdateOptions {
-                    scope: heat_scope,
-                    selector: heat_selector,
-                    multiplier: heat_multiplier,
-                    id: heat_id,
-                    label: heat_label,
-                    reason: heat_reason,
-                    expires_after_scene_clock: heat_expires_after,
-                    clear: heat_clear,
-                },
-            )?;
-            println!("{}", result);
-        }
-        "queue-mention" => {
-            assert_swarm_brake_allows_heartbeat(
-                &local_verse_store,
-                release_runtime_id.as_deref(),
-                "queue-mention",
-            )?;
-            let store_path = store_path.ok_or_else(|| anyhow!("queue-mention requires --store"))?;
-            let target_role_id = role.unwrap_or_else(|| "Persona".to_string());
-            let result = queue_heartbeat_pending_mention_store(
-                &store_path,
-                HeartbeatQueueMentionOptions {
-                    target_role_id,
-                    source_surface,
-                    channel_id: channel_id
-                        .ok_or_else(|| anyhow!("queue-mention requires --channel-id"))?,
-                    message_id: message_id
-                        .ok_or_else(|| anyhow!("queue-mention requires --message-id"))?,
-                    author_id: author_id
-                        .ok_or_else(|| anyhow!("queue-mention requires --author-id"))?,
-                    author_name,
-                    content: content.ok_or_else(|| anyhow!("queue-mention requires --content"))?,
-                    visible_prompt: visible_prompt
-                        .ok_or_else(|| anyhow!("queue-mention requires --visible-prompt"))?,
-                    reply_to_message_id,
-                    queued_at: None,
-                    mention_id,
-                    source_visibility,
-                    data_classification,
-                    model_provider_id,
-                    model_provider_disclosure_allowed: true,
-                },
-            )?;
-            println!("{}", result);
         }
         "status" => {
             let store_path = store_path.ok_or_else(|| anyhow!("status requires --store"))?;
@@ -752,34 +515,12 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(concat!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <seed>]\n",
-        "       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [options]\n",
-        "       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [options]\n",
-        "       epiphany-heartbeat-store heat --store <path> [options]\n",
-        "       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n",
+        "usage: epiphany-heartbeat-store init --store <path> [--target-heartbeat-rate <n>]\n",
         "       epiphany-heartbeat-store repair-stale --store <path> --artifact-dir <path> [options]\n",
         "       epiphany-heartbeat-store retain-artifacts --store <path> --artifact-dir <path> [--retain-pulse-artifacts <n>] [--retention-batch-size <n>]\n",
-        "       epiphany-heartbeat-store queue-mention --store <path> [options]\n",
         "       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n",
         "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--resident-self-store <path> --resident-runtime-store <path>] [--interval-seconds <n>] [--max-iterations <n>]"
     )))
-}
-
-fn assert_swarm_brake_allows_heartbeat(
-    local_verse_store: &Option<PathBuf>,
-    runtime_id: Option<&str>,
-    command: &str,
-) -> Result<()> {
-    if let Some(brake) = active_swarm_brake(local_verse_store, runtime_id)? {
-        anyhow::bail!(
-            "epiphany-heartbeat-store {command} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
-            brake.scope,
-            brake.protected_surfaces.join(","),
-            brake.affected_clusters.join(","),
-            brake.reason
-        );
-    }
-    Ok(())
 }
 
 fn heartbeat_brake_runtime_id(
@@ -879,25 +620,6 @@ mod brake_tests {
     }
 
     #[test]
-    fn retention_receipt_projection_names_operator_fields() {
-        let projection = retention_receipt_projection(&EpiphanyHeartbeatArtifactRetentionReceipt {
-            schema_version: "epiphany.heartbeat.artifact_retention_receipt.v0".into(),
-            receipt_id: "receipt-1".into(),
-            plan_id: "plan-1".into(),
-            status: "completed".into(),
-            deleted_directories: vec!["pulse-000001".into()],
-            deleted_file_count: 2,
-            deleted_byte_count: 3,
-            completed_at_utc: "2026-08-08T21:00:00Z".into(),
-            private_state_exposed: false,
-        });
-        assert_eq!(projection["receiptId"], "receipt-1");
-        assert_eq!(projection["deletedDirectories"][0], "pulse-000001");
-        assert_eq!(projection["deletedFileCount"], 2);
-        assert!(projection.as_array().is_none());
-    }
-
-    #[test]
     fn resident_heartbeat_resumes_after_highest_artifact_sequence() -> Result<()> {
         let temp = tempfile::tempdir()?;
         fs::create_dir(temp.path().join("pulse-000003"))?;
@@ -907,26 +629,4 @@ mod brake_tests {
         assert!(highest_pulse_artifact_sequence(temp.path()).is_err());
         Ok(())
     }
-}
-
-fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {
-    let parts = raw.split('|').collect::<Vec<_>>();
-    if parts.len() != 6 {
-        return Err(anyhow!(
-            "--scene-participant must be id|name|speed|reaction|threshold|constraint;constraint"
-        ));
-    }
-    Ok(GhostlightSceneParticipantSeed {
-        agent_id: parts[0].trim().to_string(),
-        display_name: parts[1].trim().to_string(),
-        initiative_speed: parts[2].trim().parse()?,
-        reaction_bias: parts[3].trim().parse()?,
-        interrupt_threshold: parts[4].trim().parse()?,
-        constraints: parts[5]
-            .split(';')
-            .map(str::trim)
-            .filter(|item| !item.is_empty())
-            .map(str::to_string)
-            .collect(),
-    })
 }

@@ -13195,14 +13195,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
                 CultNetDocumentOperation::ReceiptWatch,
             ],
-            CultNetMutationAuthority::Coordinator,
-            vec!["epiphany.heartbeat_pump_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
             vec![
-                "Heartbeat activation owns agent work; external callers submit intents and watch receipts.",
+                "Runtime jobs are lifecycle receipts derived from admitted worker-launch requests.",
             ],
         ),
         mutation_contract(
@@ -13951,19 +13950,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             HEARTBEAT_STATE_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
                 CultNetDocumentOperation::ReceiptWatch,
             ],
-            CultNetMutationAuthority::Coordinator,
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
             vec![
-                "epiphany.heartbeat_pump_intent.v0",
-                "epiphany.heartbeat_heat_intent.v0",
-                "epiphany.circadian_rhythm_intent.v0",
-            ],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Aquarium controls heartbeat and circadian rhythm through typed intents, not blind state replacement.",
-                "Initiative heat is heartbeat policy: global, group, role, and agent tempo changes enter through the heartbeat heat intent.",
+                "Heartbeat is internal scheduling physiology for Resident Self grants and Persona turns; external callers may inspect it but cannot steer it.",
             ],
         ),
         mutation_contract(

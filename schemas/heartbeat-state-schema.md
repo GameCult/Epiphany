@@ -6,18 +6,19 @@ the organism believes or invent cognition to fill idle time.
 
 The executable contract lives in
 `epiphany-core/src/heartbeat_state/heartbeat_documents.rs` and the scheduling
-law lives in `heartbeat_state.rs`, `heartbeat_pacing.rs`, and
-`heartbeat_store.rs`.
+law lives in `heartbeat_state.rs` and `heartbeat_store.rs`.
 
 ## Store identity
 
 - document type: `epiphany.agent_heartbeat`
-- schema version: `epiphany.agent_heartbeat.v0`
+- schema version: `epiphany.agent_heartbeat.v1`
 - key: `default`
 
-The singleton carries pacing policy, participant readiness, pending turns,
-bounded scheduling history, initiative heat, explicit Persona transport
-pressure, and retention bookkeeping.
+The singleton currently carries coordinator/Persona readiness, pending turns,
+bounded scheduling history, explicit Persona transport pressure, and retention
+bookkeeping. The remaining social fields are the next ownership cut: they must
+become keyed Persona documents so social writes do not share the scheduler CAS
+identity.
 
 ## Scheduling invariants
 
@@ -28,8 +29,6 @@ pressure, and retention bookkeeping.
 - Persona may wake only from explicit queued social pressure.
 - The swarm brake prevents new Persona cognition while allowing terminal
   acknowledgement and recovery physiology to settle.
-- Initiative heat changes scheduling tempo only. It cannot create Mind state,
-  route an organ, or make a semantic decision.
 - When no typed obligation or social pressure exists, the scheduler sleeps.
 
 Heartbeat owns no personality, mood, appraisal, rumination, dreaming, memory

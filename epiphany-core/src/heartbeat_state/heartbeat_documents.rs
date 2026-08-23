@@ -5,9 +5,9 @@ use serde_json::Value;
 
 pub const HEARTBEAT_STATE_TYPE: &str = "epiphany.agent_heartbeat";
 pub const HEARTBEAT_STATE_KEY: &str = "default";
-pub const HEARTBEAT_STATE_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat.v0";
+pub const HEARTBEAT_STATE_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat.v1";
 pub const HEARTBEAT_STATUS_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_status.v0";
-pub const INITIATIVE_SCHEMA_VERSION: &str = "ghostlight.initiative_schedule.v0";
+pub const INITIATIVE_SCHEMA_VERSION: &str = "epiphany.heartbeat_schedule.v0";
 pub const HEARTBEAT_STALE_TURN_REPAIR_TYPE: &str = "epiphany.heartbeat.stale_turn_repair";
 pub const HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
     "epiphany.heartbeat.stale_turn_repair.v0";
@@ -52,12 +52,6 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub participants: Vec<HeartbeatParticipant>,
     #[cultcache(key = 6)]
     pub history: Vec<HeartbeatHistoryEvent>,
-    #[cultcache(key = 16, default)]
-    pub initiative_heat: HeartbeatInitiativeHeatPolicy,
-    #[cultcache(key = 17, default)]
-    pub protocol: Option<HeartbeatProtocol>,
-    #[cultcache(key = 18, default)]
-    pub adaptive_pacing: Option<HeartbeatAdaptivePacing>,
     #[cultcache(key = 19, default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
     #[cultcache(key = 20, default)]
@@ -182,73 +176,6 @@ pub struct HeartbeatPacingPolicy {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatProtocol {
-    pub domain: String,
-    #[serde(default)]
-    pub scene_id: Option<String>,
-    pub arena: String,
-    pub contract: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatAdaptivePacing {
-    pub schema_version: String,
-    pub contract: String,
-    pub pressure: f64,
-    pub effective_heartbeat_rate: f64,
-    pub target_concurrency: usize,
-    pub running_turns: usize,
-    pub active_participants: usize,
-    pub signals: HeartbeatAdaptivePacingSignals,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatAdaptivePacingSignals {
-    pub external_urgency: f64,
-    pub pending_pressure: f64,
-    pub contract: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatInitiativeHeatPolicy {
-    #[serde(default = "default_heat_schema_version")]
-    pub schema_version: String,
-    #[serde(default = "default_heat_global_multiplier")]
-    pub global_multiplier: f64,
-    #[serde(default)]
-    pub multipliers: Vec<HeartbeatInitiativeMultiplier>,
-}
-
-impl Default for HeartbeatInitiativeHeatPolicy {
-    fn default() -> Self {
-        Self {
-            schema_version: default_heat_schema_version(),
-            global_multiplier: default_heat_global_multiplier(),
-            multipliers: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatInitiativeMultiplier {
-    pub id: String,
-    #[serde(default)]
-    pub label: String,
-    #[serde(default = "default_heat_scope")]
-    pub scope: String,
-    #[serde(default)]
-    pub selector: String,
-    #[serde(default = "default_heat_global_multiplier")]
-    pub multiplier: f64,
-    #[serde(default)]
-    pub reason: String,
-    #[serde(default)]
-    pub updated_at: Option<String>,
-    #[serde(default)]
-    pub expires_at_scene_clock: Option<f64>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HeartbeatParticipant {
     pub agent_id: String,
     pub role_id: String,
@@ -268,32 +195,6 @@ pub struct HeartbeatParticipant {
     pub last_woke_at: Option<String>,
     pub last_finished_at: Option<String>,
     pub pending_turn: Option<HeartbeatPendingTurn>,
-    #[serde(default)]
-    pub scene_id: Option<String>,
-    #[serde(default)]
-    pub groups: Vec<String>,
-    #[serde(default = "default_heat_global_multiplier")]
-    pub initiative_heat_multiplier: f64,
-    #[serde(default)]
-    pub initiative_heat: Option<HeartbeatInitiativeHeatProjection>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatInitiativeHeatProjection {
-    pub schema_version: String,
-    pub global_multiplier: f64,
-    pub effective_multiplier: f64,
-    pub basis: Vec<HeartbeatInitiativeHeatBasis>,
-    pub contract: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct HeartbeatInitiativeHeatBasis {
-    pub id: String,
-    pub scope: String,
-    pub selector: String,
-    pub multiplier: f64,
-    pub reason: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -324,16 +225,6 @@ pub struct HeartbeatPendingTurn {
     pub completed_scene_clock: Option<f64>,
     #[serde(rename = "nextReadyAt", default)]
     pub next_ready_at: Option<f64>,
-    #[serde(
-        rename = "initiativeHeatMultiplier",
-        default = "default_heat_global_multiplier"
-    )]
-    pub initiative_heat_multiplier: f64,
-    #[serde(
-        rename = "effectiveCooldownMultiplier",
-        default = "default_heat_global_multiplier"
-    )]
-    pub effective_cooldown_multiplier: f64,
     #[serde(rename = "initiativeFrozen", default)]
     pub initiative_frozen: bool,
     #[serde(rename = "initiativeFreezeReason", default)]
@@ -528,43 +419,11 @@ pub struct HeartbeatHistoryEvent {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct HeartbeatTickOptions {
-    pub target_heartbeat_rate: f64,
-    pub coordinator_action: Option<String>,
-    pub target_role: Option<String>,
-    pub urgency: f64,
-    pub schedule_id: String,
-    pub source_scene_ref: String,
-    pub defer_completion: bool,
-    pub resident_self_store: Option<std::path::PathBuf>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct HeartbeatPumpOptions {
-    pub base_heartbeat_rate: f64,
-    pub min_heartbeat_rate: f64,
-    pub max_heartbeat_rate: f64,
-    pub min_concurrency: usize,
-    pub max_concurrency: usize,
-    pub max_ticks: usize,
-    pub external_urgency: f64,
-    pub coordinator_action: Option<String>,
-    pub target_role: Option<String>,
-    pub schedule_id: String,
-    pub source_scene_ref: String,
-    pub resident_self_store: Option<std::path::PathBuf>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct HeartbeatHeatUpdateOptions {
-    pub scope: String,
-    pub selector: String,
-    pub multiplier: f64,
-    pub id: Option<String>,
-    pub label: Option<String>,
-    pub reason: Option<String>,
-    pub expires_after_scene_clock: Option<f64>,
-    pub clear: bool,
+pub(super) struct HeartbeatTickOptions {
+    pub(super) target_heartbeat_rate: f64,
+    pub(super) schedule_id: String,
+    pub(super) source_scene_ref: String,
+    pub(super) resident_self_store: Option<std::path::PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -587,36 +446,8 @@ pub struct HeartbeatQueueMentionOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct HeartbeatCompleteOptions {
-    pub role: String,
-    pub action_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct HeartbeatStaleTurnRepairOptions {
     pub max_age_seconds: i64,
     pub now_utc: Option<String>,
     pub reason: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct GhostlightSceneParticipantSeed {
-    pub agent_id: String,
-    pub display_name: String,
-    pub initiative_speed: f64,
-    pub reaction_bias: f64,
-    pub interrupt_threshold: f64,
-    pub constraints: Vec<String>,
-}
-
-fn default_heat_schema_version() -> String {
-    "epiphany.heartbeat_initiative_heat.v0".to_string()
-}
-
-fn default_heat_global_multiplier() -> f64 {
-    1.0
-}
-
-fn default_heat_scope() -> String {
-    "agent".to_string()
 }

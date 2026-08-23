@@ -1,28 +1,15 @@
 use super::EpiphanyHeartbeatStateEntry;
-use super::GhostlightSceneParticipantSeed;
 use super::HEARTBEAT_ARENA_MAINTENANCE;
-use super::HEARTBEAT_ARENA_SCENE;
 use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::HeartbeatPacingPolicy;
 use super::HeartbeatParticipant;
-use super::HeartbeatProtocol;
 use super::HeartbeatSelectionPolicy;
 use super::PARTICIPANT_KIND_AGENT;
-use super::PARTICIPANT_KIND_CHARACTER;
 use super::write_heartbeat_state_entry;
 use anyhow::Result;
-use anyhow::anyhow;
 use std::path::Path;
 
-pub(super) const ROLE_ORDER: &[&str] = &[
-    "coordinator",
-    "Persona",
-    "imagination",
-    "research",
-    "modeling",
-    "implementation",
-    "verification",
-];
+pub(super) const ROLE_ORDER: &[&str] = &["coordinator", "Persona"];
 
 pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatStateEntry {
     EpiphanyHeartbeatStateEntry {
@@ -52,9 +39,6 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             .map(|role_id| default_participant(role_id))
             .collect(),
         history: Vec::new(),
-        initiative_heat: Default::default(),
-        protocol: None,
-        adaptive_pacing: None,
         pending_mentions: Vec::new(),
         persona_turn_requests: Vec::new(),
         blocked_persona_pressures: Vec::new(),
@@ -68,42 +52,6 @@ pub fn initialize_heartbeat_store(
     target_heartbeat_rate: f64,
 ) -> Result<EpiphanyHeartbeatStateEntry> {
     write_heartbeat_state_entry(store_path, &default_heartbeat_state(target_heartbeat_rate))
-}
-
-pub fn ghostlight_scene_heartbeat_state(
-    target_heartbeat_rate: f64,
-    scene_id: impl Into<String>,
-    participants: Vec<GhostlightSceneParticipantSeed>,
-) -> Result<EpiphanyHeartbeatStateEntry> {
-    if participants.is_empty() {
-        return Err(anyhow!(
-            "Ghostlight scene heartbeat requires at least one participant"
-        ));
-    }
-    let scene_id = scene_id.into();
-    let mut state = default_heartbeat_state(target_heartbeat_rate);
-    state.participants = participants
-        .into_iter()
-        .map(|seed| ghostlight_scene_participant(&scene_id, seed))
-        .collect();
-    state.protocol = Some(HeartbeatProtocol {
-        domain: "ghostlight".to_string(),
-        scene_id: Some(scene_id),
-        arena: HEARTBEAT_ARENA_SCENE.to_string(),
-        contract: "Characters and maintenance organs use one initiative timing law; scene participants receive only projected local context.".to_string(),
-    });
-    super::validate_heartbeat_state(&state)?;
-    Ok(state)
-}
-
-pub fn initialize_ghostlight_scene_heartbeat_store(
-    store_path: impl AsRef<Path>,
-    target_heartbeat_rate: f64,
-    scene_id: impl Into<String>,
-    participants: Vec<GhostlightSceneParticipantSeed>,
-) -> Result<EpiphanyHeartbeatStateEntry> {
-    let state = ghostlight_scene_heartbeat_state(target_heartbeat_rate, scene_id, participants)?;
-    write_heartbeat_state_entry(store_path, &state)
 }
 
 pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
@@ -127,67 +75,13 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
         last_woke_at: None,
         last_finished_at: None,
         pending_turn: None,
-        scene_id: None,
-        groups: Vec::new(),
-        initiative_heat_multiplier: 1.0,
-        initiative_heat: None,
     }
-}
-
-fn ghostlight_scene_participant(
-    scene_id: &str,
-    seed: GhostlightSceneParticipantSeed,
-) -> HeartbeatParticipant {
-    let role_id = ghostlight_role_id(seed.agent_id.as_str());
-    HeartbeatParticipant {
-        agent_id: seed.agent_id,
-        role_id,
-        display_name: seed.display_name,
-        arena: HEARTBEAT_ARENA_SCENE.to_string(),
-        participant_kind: PARTICIPANT_KIND_CHARACTER.to_string(),
-        initiative_speed: seed.initiative_speed,
-        next_ready_at: 0.0,
-        reaction_bias: seed.reaction_bias,
-        interrupt_threshold: seed.interrupt_threshold,
-        current_load: 0.0,
-        status: "active".to_string(),
-        constraints: seed.constraints,
-        last_action_id: None,
-        last_woke_at: None,
-        last_finished_at: None,
-        pending_turn: None,
-        scene_id: Some(scene_id.to_string()),
-        groups: Vec::new(),
-        initiative_heat_multiplier: 1.0,
-        initiative_heat: None,
-    }
-}
-
-fn ghostlight_role_id(agent_id: &str) -> String {
-    let sanitized = agent_id
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>()
-        .trim_matches('-')
-        .to_string();
-    format!("ghostlight.character.{sanitized}")
 }
 
 pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "epiphany.self",
         "Persona" => "epiphany.Persona",
-        "imagination" => "epiphany.imagination",
-        "research" => "epiphany.eyes",
-        "modeling" => "epiphany.modeling",
-        "implementation" => "epiphany.hands",
-        "verification" => "epiphany.soul",
         _ => "epiphany.unknown",
     }
 }
@@ -196,11 +90,6 @@ pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "Self",
         "Persona" => "Persona",
-        "imagination" => "Imagination",
-        "research" => "Eyes",
-        "modeling" => "Modeling",
-        "implementation" => "Hands",
-        "verification" => "Soul",
         _ => "Unknown",
     }
 }
@@ -209,11 +98,6 @@ fn initiative_speed_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 1.28,
         "Persona" => 1.12,
-        "imagination" => 0.82,
-        "research" => 0.78,
-        "modeling" => 0.92,
-        "implementation" => 0.74,
-        "verification" => 0.88,
         _ => 1.0,
     }
 }
@@ -222,11 +106,6 @@ fn reaction_bias_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.88,
         "Persona" => 0.84,
-        "imagination" => 0.54,
-        "research" => 0.62,
-        "modeling" => 0.74,
-        "implementation" => 0.58,
-        "verification" => 0.82,
         _ => 0.5,
     }
 }
@@ -235,11 +114,6 @@ fn interrupt_threshold_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.42,
         "Persona" => 0.52,
-        "imagination" => 0.64,
-        "research" => 0.58,
-        "modeling" => 0.5,
-        "implementation" => 0.5,
-        "verification" => 0.48,
         _ => 0.5,
     }
 }
@@ -252,78 +126,7 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
         "Persona" => {
             "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room."
         }
-        "imagination" => "Synthesizes futures; must not adopt objectives.",
-        "research" => "Scouts known work; must not turn research into procrastination.",
-        "modeling" => {
-            "Grows source-grounded maps and checkpoints; must not edit implementation code."
-        }
-        "implementation" => {
-            "Touches source only with accepted guidance and verifier-readable evidence."
-        }
-        "verification" => "Falsifies promises; must not bless theater.",
         _ => "Unknown role.",
     };
     vec![role_specific]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn default_state_defines_the_fixed_lane_catalog() {
-        let state = default_heartbeat_state(1.5);
-
-        assert_eq!(state.target_heartbeat_rate, 1.5);
-        assert_eq!(state.pacing_policy.work_base_recovery, 6.0);
-        assert_eq!(state.pacing_policy.idle_base_recovery, 2.0);
-        assert_eq!(
-            state
-                .participants
-                .iter()
-                .map(|participant| participant.role_id.as_str())
-                .collect::<Vec<_>>(),
-            ROLE_ORDER
-        );
-        assert_eq!(
-            state
-                .participants
-                .iter()
-                .find(|participant| participant.role_id == "Persona")
-                .map(|participant| participant.agent_id.as_str()),
-            Some("epiphany.Persona")
-        );
-    }
-
-    #[test]
-    fn ghostlight_scene_state_replaces_maintenance_lanes_with_scene_characters() -> Result<()> {
-        let state = ghostlight_scene_heartbeat_state(
-            0.5,
-            "room",
-            vec![GhostlightSceneParticipantSeed {
-                agent_id: "Ariadne Prime".to_string(),
-                display_name: "Ariadne".to_string(),
-                initiative_speed: 1.2,
-                reaction_bias: 0.8,
-                interrupt_threshold: 0.4,
-                constraints: vec!["Speak only in the room.".to_string()],
-            }],
-        )?;
-
-        assert_eq!(state.participants.len(), 1);
-        let participant = &state.participants[0];
-        assert_eq!(participant.role_id, "ghostlight.character.ariadne-prime");
-        assert_eq!(participant.arena, HEARTBEAT_ARENA_SCENE);
-        assert_eq!(participant.participant_kind, PARTICIPANT_KIND_CHARACTER);
-        assert_eq!(participant.scene_id.as_deref(), Some("room"));
-        assert_eq!(
-            state
-                .protocol
-                .as_ref()
-                .map(|protocol| protocol.domain.as_str()),
-            Some("ghostlight")
-        );
-        Ok(())
-    }
 }

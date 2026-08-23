@@ -3,13 +3,11 @@ use super::EpiphanyHeartbeatArtifactRetentionReceipt;
 use super::EpiphanyHeartbeatStaleTurnRepairReceipt;
 use super::EpiphanyHeartbeatStateEntry;
 use super::HEARTBEAT_ARENA_MAINTENANCE;
-use super::HEARTBEAT_ARENA_SCENE;
 use super::HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY;
 use super::HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION;
 use super::HEARTBEAT_STATE_KEY;
 use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::PARTICIPANT_KIND_AGENT;
-use super::PARTICIPANT_KIND_CHARACTER;
 use super::PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION;
 use super::PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION;
 use super::PERSONA_TURN_REQUEST_SCHEMA_VERSION;
@@ -242,29 +240,6 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
             "heartbeat target_heartbeat_rate must be non-negative"
         ));
     }
-    if state.initiative_heat.global_multiplier <= 0.0 {
-        return Err(anyhow!(
-            "heartbeat initiative_heat global_multiplier must be positive"
-        ));
-    }
-    for multiplier in &state.initiative_heat.multipliers {
-        if multiplier.id.trim().is_empty() {
-            return Err(anyhow!("heartbeat initiative heat multiplier has empty id"));
-        }
-        if multiplier.multiplier <= 0.0 {
-            return Err(anyhow!(
-                "heartbeat initiative heat multiplier {} must be positive",
-                multiplier.id
-            ));
-        }
-        if multiplier.selector.trim().is_empty() && multiplier.scope != "all" {
-            return Err(anyhow!(
-                "heartbeat initiative heat multiplier {} selector is empty for scope {}",
-                multiplier.id,
-                multiplier.scope
-            ));
-        }
-    }
     for participant in &state.participants {
         if participant.agent_id.trim().is_empty() {
             return Err(anyhow!("heartbeat participant has empty agent_id"));
@@ -282,7 +257,7 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
             ));
         }
         let arena = participant_arena(participant);
-        if !matches!(arena, HEARTBEAT_ARENA_MAINTENANCE | HEARTBEAT_ARENA_SCENE) {
+        if arena != HEARTBEAT_ARENA_MAINTENANCE {
             return Err(anyhow!(
                 "heartbeat participant {} arena {:?} is unsupported",
                 participant.agent_id,
@@ -290,10 +265,7 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
             ));
         }
         let participant_kind = participant_kind(participant);
-        if !matches!(
-            participant_kind,
-            PARTICIPANT_KIND_AGENT | PARTICIPANT_KIND_CHARACTER
-        ) {
+        if participant_kind != PARTICIPANT_KIND_AGENT {
             return Err(anyhow!(
                 "heartbeat participant {} participant_kind {:?} is unsupported",
                 participant.agent_id,
