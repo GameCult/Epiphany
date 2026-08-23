@@ -102,7 +102,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v9";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v10";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -4914,12 +4914,6 @@ fn validated_proposal_modeling_worker_fulfillment(
             proposal.payload_sha256 != proposal_payload_sha256,
         ),
         ("request.runtime", request.runtime_id != identity.runtime_id),
-        ("request.thread", request.thread_id != proposal.thread_id),
-        (
-            "request.repository",
-            request.repository != proposal.repository,
-        ),
-        ("request.workspace", request.workspace != proposal.workspace),
         (
             "binding.id",
             binding.binding_record_id
@@ -5212,10 +5206,6 @@ pub(crate) fn validate_repo_frontier_work_proposal(
     if proposal.schema_version != REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION
         || proposal.contract != REPO_FRONTIER_WORK_PROPOSAL_CONTRACT
         || proposal.proposal_id.trim().is_empty()
-        || proposal.repository.trim().is_empty()
-        || proposal.workspace.trim().is_empty()
-        || proposal.thread_id.trim().is_empty()
-        || proposal.runtime_id.trim().is_empty()
         || proposal.title.trim().is_empty()
         || proposal.body.trim().is_empty()
     {
@@ -5236,11 +5226,23 @@ pub(crate) fn validate_repo_frontier_work_proposal(
 fn validate_autonomous_proposal_origin_binding(
     cache: &CultCache,
     proposal: &RepoFrontierWorkProposal,
-) -> Result<RepoFrontierAutonomousProposalBinding> {
+) -> Result<(
+    RepoFrontierAutonomousProposalBinding,
+    RepoFrontierProposalModelingRequest,
+)> {
     let binding_id = format!("autonomous-proposal-binding-{}", proposal.proposal_id);
     let binding = cache
         .get::<RepoFrontierAutonomousProposalBinding>(&binding_id)?
         .ok_or_else(|| anyhow!("Imagination proposal lacks its autonomous origin binding"))?;
+    let modeling_request_id = crate::proposal_modeling_request_id(
+        &binding.runtime_id,
+        &proposal.proposal_id,
+        &proposal.payload_sha256,
+    );
+    let modeling_request = cache
+        .get::<RepoFrontierProposalModelingRequest>(&modeling_request_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its Modeling request"))?;
+    validate_repo_frontier_proposal_modeling_request(&modeling_request)?;
     let request = cache
         .get::<crate::AdmittedModelDirectionConsiderationRequest>(&binding.direction_request_id)?
         .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction request"))?;
@@ -5359,14 +5361,16 @@ fn validate_autonomous_proposal_origin_binding(
         || binding.model_projection_digest != result.model_projection_digest
         || binding.model_source_documents != result.model_source_documents
         || binding.option_sha256 != option_sha256
-        || binding.runtime_id != proposal.runtime_id
-        || binding.thread_id != proposal.thread_id
+        || binding.runtime_id != modeling_request.runtime_id
+        || binding.thread_id != modeling_request.thread_id
+        || modeling_request.proposal_id != proposal.proposal_id
+        || modeling_request.proposal_payload_sha256 != proposal.payload_sha256
         || binding.workspace_id != route.workspace_id
         || binding.body_binding_sha256 != route.body_binding_sha256
         || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
         || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
         || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
-        || domain.repository_full_name != proposal.repository
+        || domain.repository_full_name != modeling_request.repository
         || domain.runtime_id != route.runtime_id
         || domain.swarm_id != route.swarm_id
         || domain.workspace_id != route.workspace_id
@@ -5377,14 +5381,14 @@ fn validate_autonomous_proposal_origin_binding(
     {
         return Err(anyhow!("autonomous proposal origin binding mismatch"));
     }
-    Ok(binding)
+    Ok((binding, modeling_request))
 }
 
 pub(crate) fn validate_autonomous_proposal_binding(
     cache: &CultCache,
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<RepoFrontierAutonomousProposalBinding> {
-    let binding = validate_autonomous_proposal_origin_binding(cache, proposal)?;
+    let (binding, modeling_request) = validate_autonomous_proposal_origin_binding(cache, proposal)?;
     let route = cache
         .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
         .ok_or_else(|| anyhow!("autonomous proposal requires repository Body binding"))?;
@@ -5395,7 +5399,7 @@ pub(crate) fn validate_autonomous_proposal_binding(
         || body_binding.workspace_id != route.workspace_id
         || crate::repository_body_observer::body_binding_sha256(&body_binding)?
             != route.body_binding_sha256
-        || proposal.workspace != body_binding.git_top_level
+        || modeling_request.workspace != body_binding.git_top_level
     {
         return Err(anyhow!("autonomous proposal Body binding mismatch"));
     }
@@ -5644,10 +5648,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
             let proposal = RepoFrontierWorkProposal {
                 schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
                 proposal_id: proposal_id.clone(),
-                repository: repository.into(),
-                workspace: body_binding.git_top_level.clone(),
-                thread_id: request.thread_id.clone(),
-                runtime_id: identity.runtime_id.clone(),
                 payload_sha256: payload_sha256.clone(),
                 title: option.title.clone(),
                 body: option.summary.clone(),
@@ -5717,18 +5717,13 @@ pub fn promote_autonomous_direction_options_for_modeling(
             }
             if existing.0.is_some() || existing.1.is_some() || existing.2.is_some() {
                 return Err(anyhow!(
-                    "autonomous proposal promotion companion collision for {}: proposalPresent={} bindingPresent={} selectionPresent={} proposalMatches={} selectionMatches={} existingProposalThread={} expectedRequestThread={}",
+                    "autonomous proposal promotion companion collision for {}: proposalPresent={} bindingPresent={} selectionPresent={} proposalMatches={} selectionMatches={}",
                     proposal.proposal_id,
                     existing.0.is_some(),
                     existing.1.is_some(),
                     existing.2.is_some(),
                     existing.0.as_ref() == Some(&proposal),
                     replay_selection_matches,
-                    existing
-                        .0
-                        .as_ref()
-                        .map_or("missing", |value| value.thread_id.as_str()),
-                    request.thread_id,
                 ));
             }
             let (proposal_envelope, _) = current.prepare_entry(&proposal.proposal_id, &proposal)?;
@@ -9147,8 +9142,6 @@ fn validate_archivable_typed_worker_launch(
             .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its context"))?;
             if request.runtime_id != identity.runtime_id
                 || request.proposal_payload_sha256 != proposal.payload_sha256
-                || request.repository != proposal.repository
-                || request.workspace != proposal.workspace
                 || binding.schema_version
                     != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION
                 || binding.contract != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT

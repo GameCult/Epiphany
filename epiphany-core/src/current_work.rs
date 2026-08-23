@@ -3191,7 +3191,6 @@ pub fn launch_current_proposal_modeling_work(
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("proposal Modeling launch requires runtime identity"))?;
     if request.runtime_id != identity.runtime_id
-        || request.runtime_id != proposal.runtime_id
         || request.proposal_id != proposal.proposal_id
         || request.proposal_payload_sha256 != proposal.payload_sha256
     {

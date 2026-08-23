@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{EpiphanyMindDocumentVersion, runtime_spine_cache};
 
-pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v6";
+pub const MIND_SCHEMA_EPOCH: &str = "epiphany.mind.epoch.v7";
 pub const MIND_OBJECTIVE_KEY: &str = "objective";
 pub const MIND_FOCUS_KEY: &str = "focus";
 pub const MIND_MODE_KEY: &str = "mode";
