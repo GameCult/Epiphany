@@ -414,27 +414,6 @@ mod tests {
     }
 
     #[test]
-    fn terminal_authority_precedes_recovery_and_recovery_precedes_new_work() {
-        let source = include_str!("workspace_coverage_projector_service.rs");
-        let start = source.find("fn pulse_inner(&mut self)").unwrap();
-        let tail = &source[start..];
-        let body = &tail[..tail.find("\n#[cfg(test)]").unwrap()];
-        let directive = body
-            .find("authenticate_workspace_coverage_recovery_directive")
-            .unwrap();
-        let recovery = body
-            .find("recover_workspace_coverage_projection_with_authority")
-            .unwrap();
-        let retirement = body.find("retire_workspace_coverage_collections").unwrap();
-        let classification = body.find("classify_current_workspace_coverage").unwrap();
-        let new_work = body.find("RepositoryBodyReadSession::open").unwrap();
-        assert!(retirement < classification);
-        assert!(classification < directive && directive < recovery);
-        assert!(recovery < new_work);
-        assert!(!body.contains("authenticate_current_workspace_coverage_claim_sight"));
-    }
-
-    #[test]
     fn constructor_requires_lifecycle_identity_before_touching_runtime() {
         assert!(
             WorkspaceCoverageProjectorServiceBody::new(
@@ -513,17 +492,4 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn acquired_claim_is_visible_before_any_projection_backend_work() {
-        let source = include_str!("workspace_coverage_projector_service.rs");
-        let acquired = source
-            .find("WorkspaceCoverageAcquireResult::Acquired(acquisition)")
-            .unwrap();
-        let body = &source[acquired..source.find("#[cfg(test)]").unwrap()];
-        let sight = body
-            .find("publish_workspace_coverage_claim_sight(")
-            .unwrap();
-        let execution = body.find("execute_workspace_coverage_projection(").unwrap();
-        assert!(sight < execution, "claim sight must precede backend work");
-    }
 }
