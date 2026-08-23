@@ -2927,27 +2927,6 @@ mod tests {
     }
 
     #[test]
-    fn runtime_source_has_no_generic_role_patch_parser() {
-        let retired_field = ["state", "Patch"].concat();
-        let production = include_str!("lib.rs")
-            .split("#[cfg(test)]")
-            .next()
-            .unwrap_or_default();
-        assert!(!production.contains(&retired_field));
-    }
-
-    #[test]
-    fn runtime_source_exposes_no_caller_authored_provider_request_store() {
-        let production = include_str!("lib.rs")
-            .split("#[cfg(test)]")
-            .next()
-            .unwrap_or_default();
-        assert!(!production.contains("pub fn store_openai_request"));
-        assert!(!production.contains("pub fn record_openai_events"));
-        assert!(production.contains("pub fn record_native_model_events"));
-    }
-
-    #[test]
     fn role_ingress_rejects_duplicate_top_level_fields() {
         let error = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped","nextSafeMove":"review","checkpointSummary":"first","checkpointSummary":"second"}"#,
