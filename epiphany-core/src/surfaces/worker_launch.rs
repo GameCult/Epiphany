@@ -15,9 +15,9 @@ use serde::Serialize;
 pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v4";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
-    "epiphany.worker.repo_frontier_proposal_modeling_context.v3";
+    "epiphany.worker.repo_frontier_proposal_modeling_context.v4";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
-    "epiphany.repo_frontier_proposal_modeling_context.v3";
+    "epiphany.repo_frontier_proposal_modeling_context.v4";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_planning_context.v2";
 pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
@@ -194,11 +194,8 @@ pub struct RepoFrontierProposalModelingContextProjection {
     pub workspace: String,
     pub title: String,
     pub body: String,
-    pub desired_outcome: String,
     #[serde(default)]
     pub constraints: Vec<String>,
-    #[serde(default)]
-    pub scope_hints: Vec<String>,
     #[serde(default)]
     pub evidence_refs: Vec<String>,
     pub model_projection_digest: String,

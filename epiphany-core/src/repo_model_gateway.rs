@@ -44,7 +44,7 @@ pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_verdict_modeling_request.v1";
 pub const REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION: &str =
-    "epiphany.repo_frontier_work_proposal.v1";
+    "epiphany.repo_frontier_work_proposal.v2";
 pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.self.repo_frontier_planning_request.v4";
 pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
@@ -60,7 +60,7 @@ pub const REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_research_request.v3";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
-    "epiphany.repo_frontier_work_proposal.inert.v1";
+    "epiphany.repo_frontier_work_proposal.inert.v2";
 pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION: &str =
     "epiphany.self.repo_frontier_autonomous_proposal_binding.v1";
 pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT: &str =
@@ -168,35 +168,20 @@ pub struct RepoFrontierWorkProposal {
     #[cultcache(key = 8)]
     pub body: String,
     #[cultcache(key = 9)]
-    pub desired_outcome: String,
-    #[cultcache(key = 10)]
     pub constraints: Vec<String>,
-    #[cultcache(key = 11)]
-    pub scope_hints: Vec<String>,
-    #[cultcache(key = 12)]
+    #[cultcache(key = 10)]
     pub evidence_refs: Vec<String>,
-    #[cultcache(key = 13)]
-    pub proposed_at: String,
-    #[cultcache(key = 14)]
+    #[cultcache(key = 11)]
     pub contract: String,
 }
 
 pub fn repo_frontier_proposal_payload_sha256(
     title: &str,
     body: &str,
-    desired_outcome: &str,
     constraints: &[String],
-    scope_hints: &[String],
     evidence_refs: &[String],
 ) -> Result<String> {
-    let content = rmp_serde::to_vec_named(&(
-        title,
-        body,
-        desired_outcome,
-        constraints,
-        scope_hints,
-        evidence_refs,
-    ))?;
+    let content = rmp_serde::to_vec_named(&(title, body, constraints, evidence_refs))?;
     Ok(format!("{:x}", Sha256::digest(content)))
 }
 

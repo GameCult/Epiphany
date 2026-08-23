@@ -102,7 +102,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v8";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v9";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -4863,9 +4863,7 @@ fn validated_proposal_modeling_worker_fulfillment(
     let proposal_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
         &proposal.body,
-        &proposal.desired_outcome,
         &proposal.constraints,
-        &proposal.scope_hints,
         &proposal.evidence_refs,
     )?;
     let attempt_ordinal =
@@ -4888,9 +4886,7 @@ fn validated_proposal_modeling_worker_fulfillment(
             workspace: request.workspace.clone(),
             title: proposal.title.clone(),
             body: proposal.body.clone(),
-            desired_outcome: proposal.desired_outcome.clone(),
             constraints: proposal.constraints.clone(),
-            scope_hints: proposal.scope_hints.clone(),
             evidence_refs: proposal.evidence_refs.clone(),
             model_projection_digest: projection.model_projection_digest.clone(),
             model_source_documents: projection.model_source_documents.clone(),
@@ -5222,17 +5218,13 @@ pub(crate) fn validate_repo_frontier_work_proposal(
         || proposal.runtime_id.trim().is_empty()
         || proposal.title.trim().is_empty()
         || proposal.body.trim().is_empty()
-        || proposal.desired_outcome.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&proposal.proposed_at).is_err()
     {
         return Err(anyhow!("invalid inert repo frontier work proposal"));
     }
     let expected_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
         &proposal.body,
-        &proposal.desired_outcome,
         &proposal.constraints,
-        &proposal.scope_hints,
         &proposal.evidence_refs,
     )?;
     if proposal.payload_sha256 != expected_payload_sha256 {
@@ -5646,9 +5638,7 @@ pub fn promote_autonomous_direction_options_for_modeling(
             let payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
                 &option.title,
                 &option.summary,
-                &option.summary,
                 &result.uncertainties,
-                &[],
                 &evidence_refs,
             )?;
             let proposal = RepoFrontierWorkProposal {
@@ -5661,11 +5651,8 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 payload_sha256: payload_sha256.clone(),
                 title: option.title.clone(),
                 body: option.summary.clone(),
-                desired_outcome: option.summary.clone(),
                 constraints: result.uncertainties.clone(),
-                scope_hints: Vec::new(),
                 evidence_refs,
-                proposed_at: result.proposed_at.clone(),
                 contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
             };
             validate_repo_frontier_work_proposal(&proposal)?;
