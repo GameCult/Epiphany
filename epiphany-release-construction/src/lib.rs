@@ -102,16 +102,8 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ),
         ("persona-service", file_name("epiphany-persona-service")),
         (
-            "persona-mouth-identity",
-            file_name("epiphany-persona-mouth-identity"),
-        ),
-        (
             "persona-discord-permit",
             file_name("epiphany-persona-discord-permit"),
-        ),
-        (
-            "persona-discord-permit-identity",
-            file_name("epiphany-persona-discord-permit-identity"),
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("frontier-proposal", file_name("epiphany-frontier-proposal")),

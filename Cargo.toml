@@ -119,16 +119,8 @@ path = "epiphany-openai-runtime/src/bin/epiphany-persona-service.rs"
 required-features = ["openai-runtime"]
 
 [[bin]]
-name = "epiphany-persona-mouth-identity"
-path = "epiphany-core/src/bin/epiphany-persona-mouth-identity.rs"
-
-[[bin]]
 name = "epiphany-persona-discord-permit"
 path = "epiphany-core/src/bin/epiphany-persona-discord-permit.rs"
-
-[[bin]]
-name = "epiphany-persona-discord-permit-identity"
-path = "epiphany-core/src/bin/epiphany-persona-discord-permit-identity.rs"
 
 [[bin]]
 name = "epiphany-mvp-coordinator"

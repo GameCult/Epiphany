@@ -135,54 +135,6 @@ pub struct PersonaPermitIssuerConfig {
     pub provider_anchor: GameCultServiceTrustAnchorRecord,
 }
 
-pub fn ensure_epiphany_permit_identity(
-    identity_store: &Path,
-    anchor_output: &Path,
-    runtime_id: &str,
-) -> Result<()> {
-    let signer = if identity_store.exists() {
-        cultnet_rs::open_service_identity_at::<EpiphanyPermitIdentity>(identity_store)?
-    } else {
-        cultnet_rs::enroll_service_identity_at::<EpiphanyPermitIdentity>(identity_store)?
-    };
-    if anchor_output.exists() {
-        let anchor: GameCultServiceTrustAnchorRecord =
-            rmp_serde::from_slice(&std::fs::read(anchor_output)?)?;
-        anchor.validate()?;
-        if anchor.service_id != "epiphany-persona-discord-permit"
-            || anchor.runtime_id != runtime_id
-            || anchor.signer_identity_id != signer.entry().identity_id
-            || anchor.signer_public_key != signer.entry().public_key
-            || anchor.signing_purpose != PERMIT_PURPOSE
-            || anchor.signed_schema != PERMIT_SCHEMA
-        {
-            bail!("existing permit anchor candidate differs from enrolled identity/profile");
-        }
-        return Ok(());
-    }
-    let anchor = GameCultServiceTrustAnchorRecord {
-        schema_version: cultnet_rs::GAMECULT_SERVICE_TRUST_ANCHOR_SCHEMA.into(),
-        trust_anchor_id: format!("epiphany-persona-discord-permit:{runtime_id}:v0"),
-        service_id: "epiphany-persona-discord-permit".into(),
-        runtime_id: runtime_id.into(),
-        signer_identity_id: signer.entry().identity_id.clone(),
-        signer_public_key: signer.entry().public_key.clone(),
-        signature_algorithm: "ed25519".into(),
-        signing_purpose: PERMIT_PURPOSE.into(),
-        signed_schema: PERMIT_SCHEMA.into(),
-        binding_authority: "root".into(),
-        bound_at_unix_millis: chrono::Utc::now().timestamp_millis().max(1) as u64,
-        expires_at_unix_millis: None,
-        private_state_exposed: false,
-    };
-    anchor.validate()?;
-    if let Some(parent) = anchor_output.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(anchor_output, rmp_serde::to_vec(&anchor)?)?;
-    Ok(())
-}
-
 pub fn issue_persona_discord_permit(
     config: &PersonaPermitIssuerConfig,
     signer: &ServiceIdentitySigner<EpiphanyPermitIdentity>,

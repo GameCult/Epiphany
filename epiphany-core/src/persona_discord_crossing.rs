@@ -193,54 +193,6 @@ pub fn open_persona_discord_request_identity(
     cultnet_rs::open_service_identity_at::<EpiphanyPersonaDeliveryRequestIdentity>(path)
 }
 
-pub fn enroll_persona_discord_request_identity(path: &Path) -> Result<()> {
-    if path.exists() {
-        open_persona_discord_request_identity(path)?;
-        return Ok(());
-    }
-    cultnet_rs::enroll_service_identity_at::<EpiphanyPersonaDeliveryRequestIdentity>(path)?;
-    Ok(())
-}
-
-pub fn export_persona_discord_request_anchor_candidate(
-    identity_store: &Path,
-    output: &Path,
-    runtime_id: &str,
-) -> Result<()> {
-    let signer = open_persona_discord_request_identity(identity_store)?;
-    if output.exists() {
-        let existing = load_persona_discord_service_anchor(output)?;
-        validate_persona_discord_request_anchor(&existing, runtime_id)?;
-        if existing.signer_identity_id != signer.entry().identity_id
-            || existing.signer_public_key != signer.entry().public_key
-        {
-            bail!("existing request anchor candidate belongs to a different identity");
-        }
-        return Ok(());
-    }
-    let record = GameCultServiceTrustAnchorRecord {
-        schema_version: GAMECULT_SERVICE_TRUST_ANCHOR_SCHEMA.into(),
-        trust_anchor_id: format!("epiphany-persona-mouth:{runtime_id}:delivery-request:v0"),
-        service_id: EPIPHANY_PERSONA_MOUTH_SERVICE_ID.into(),
-        runtime_id: runtime_id.into(),
-        signer_identity_id: signer.entry().identity_id.clone(),
-        signer_public_key: signer.entry().public_key.clone(),
-        signature_algorithm: "ed25519".into(),
-        signing_purpose: PERSONA_DISCORD_DELIVERY_REQUEST_SIGNING_PURPOSE.into(),
-        signed_schema: PERSONA_DISCORD_DELIVERY_REQUEST_SCHEMA_VERSION.into(),
-        binding_authority: "root".into(),
-        bound_at_unix_millis: chrono::Utc::now().timestamp_millis().max(1) as u64,
-        expires_at_unix_millis: None,
-        private_state_exposed: false,
-    };
-    record.validate()?;
-    if let Some(parent) = output.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(output, rmp_serde::to_vec(&record)?)?;
-    Ok(())
-}
-
 pub fn request_signing_payload(request: &PersonaDiscordDeliveryRequest) -> Result<Vec<u8>> {
     Ok(rmp_serde::to_vec(&request_signing_tuple(request))?)
 }
