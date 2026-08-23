@@ -500,12 +500,19 @@ Cut in this order:
    inspected evidence does not. Mind/runtime/RepoModel epochs advance to
    v4/v5/v2 with no compatibility reader. Ox16 is historical; Ox17 starts from
    a fresh store and exact package.
-36. **Runtime identity is immutable at `87983ffc`:** the v6 hard cut removes
+36. **Runtime identity is immutable at `87983ffc`/`ffcf036f`:** the v7 hard cut removes
    update time, derived document-type cargo, and temporary metadata from the
    runtime identity. Current-work launch preserves the exact identity and
    existing root-session envelopes as strong reads instead of reconstructing
    them with fresh storage timestamps. Unrelated job launches therefore share
    bootstrap identity without turning it into a global mutation head.
+37. **Production binary ownership is singular at `6f93134d`:** the root release
+   bundle alone owns model runtime, Persona service, and tool MCP runtime
+   entrypoints. Leaf crates are libraries, Cargo metadata has no duplicate
+   binary-source owner, and release construction no longer maintains a
+   hardcoded package map that does not drive the build. Exact `b95a3266`
+   separately deletes the superseded OpenAI debug executable; exact `c04c3aff`
+   deletes the auth re-export crate.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

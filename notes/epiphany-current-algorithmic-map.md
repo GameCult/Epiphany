@@ -195,7 +195,7 @@ interface authority.
 |---|---|---|---|
 | keyed Mind documents | typed semantic documents keyed by logical identity | deterministic `EpiphanyMindView` | There is no persisted aggregate Mind head or global revision. |
 | `reasoning_context.rs` Mind commit owner | invariant-owned strong reads and complete typed writes | atomic batch CAS plus `EpiphanyMindCommitReceipt` | Disjoint identities merge; same-identity or changed-strong-read conflicts refuse without partial mutation. |
-| runtime bootstrap | immutable runtime identity envelope | exact identity strong read plus keyed session/job/launch writes | Worker launch replays the original identity and existing session envelopes byte-for-byte; it cannot refresh a singleton timestamp or capability mirror and thereby serialize unrelated work. |
+| runtime bootstrap | immutable runtime identity envelope | exact identity strong read plus keyed session/job/launch writes | Worker launch replays the original identity and existing session envelopes byte-for-byte; it cannot refresh a singleton timestamp or capability mirror and thereby serialize unrelated work. Native runtime kind and supported document types are derived for CultNet publication. |
 | concrete family admission owners | sealed decision context, exact family request/result chain, affected semantic documents | one family-specific `MindMutation` | The model cannot choose which stale state is safe to ignore. |
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
@@ -559,7 +559,7 @@ Accepted through the local `5b799b12` source boundary:
   and remains a sealed immutable package. A foreign-target helper interrupted
   candidate deployment; exact rollback restored d2ca and prevented false
   admission. Production units are inactive and deployment.env is absent;
-- Mind epoch v4, runtime spine v6, and RepoModel epoch v2 refuse prior writable
+- Mind epoch v4, runtime spine v7, and RepoModel epoch v2 refuse prior writable
   stores without mutation or a dual-read path.
 - Persona production source has one outer turn deadline, no hidden provider
   request deadline, and focused provider/runtime suites pass.
