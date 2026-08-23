@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ad2292ee`
+Latest committed implementation cut: `3dda58a5`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,15 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `3dda58a5` collapses Persona feedback ingress into Resident Self: the
+standalone binary, forced release role, command-only status/snapshot
+projections, snapshot replacement seam, and two tests that only animated that
+extinct Starfire transport are gone. Resident Self remains the sole polling
+owner for signed Bifrost feedback and immediately routes admitted deliveries
+into typed social state. The cut removes 426 net lines and leaves 17 Cargo
+executable targets. Seven authenticated admission, disclosure, substitution,
+recovery, and import tests pass; the Ygg swarm binary remains clean.
 
 Exact `ad2292ee` deletes the callerless Persona mouth-identity and Discord
 permit-identity executables, their forced release roles, and the enrollment /

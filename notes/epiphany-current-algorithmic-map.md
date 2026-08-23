@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `ad2292ee` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `3dda58a5` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -158,6 +158,15 @@ may only open already-admitted private identities and validate pinned public
 anchors; deployment admission owns future enrollment if those dormant
 crossings are activated. No model pass, Persona turn, or Bifrost request path
 can mint or rotate either trust root.
+
+Persona feedback has one ingress owner. Exact `3dda58a5` deletes the standalone
+feedback CLI and the old immutable-snapshot replacement API it alone exposed.
+Resident Self reads the provider-owned Bifrost delivery store, authenticates
+each delivery against the pinned anchor, admits it into the separate local
+feedback store, and then projects allowed pressure into typed social state.
+Static status JSON and a second import command cannot race or impersonate that
+physiology. The retained tests exercise authentication, substitution refusal,
+disclosure policy, recovery, and exact provider-store import.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

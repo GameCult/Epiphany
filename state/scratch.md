@@ -21,7 +21,7 @@ machine smaller and the canonical map explicitly reopens that lane.
   another 26 targets, many by pointing at the same source files. Exact
   `1d5a1f17` reduced core to 30 binaries with zero duplicate owners and removed
   19,252 net non-vendor lines. The current cut reduces core again to its one
-  explicit maintenance binary. Subsequent cuts leave 18 total Cargo executable
+  explicit maintenance binary. Subsequent cuts leave 17 total Cargo executable
   targets across the workspace, with no duplicate binary-source owner.
 
 The storage failure is evidence of source-shape failure. Build-profile flags
@@ -67,13 +67,16 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 5. Done: delete the callerless Persona mouth/permit identity executables, their
    release roles, and enrollment wrappers. Purpose-specific identities remain;
    separate setup processes do not.
-6. In progress: delete the standalone Persona feedback ingress because
-   Resident Self already owns the authenticated Bifrost import. Then remove
-   tests that inspect spelling, duplicate constructors, or
+6. Done: delete the standalone Persona feedback ingress, its release role, and
+   old Starfire snapshot seam. Resident Self already owns the authenticated
+   Bifrost import.
+7. In progress: reassess the dormant Atlas entrypoints and callerless frontier
+   proposal wrapper. Then remove tests that inspect spelling, duplicate
+   constructors, or
    exercise one-line helpers without reaching a consequence. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-7. Run focused tests after each cut. Only after source subtraction stabilizes
+8. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
