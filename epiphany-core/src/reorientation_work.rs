@@ -429,7 +429,6 @@ pub fn launch_current_reorientation_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: work.request.runtime_id.clone(),
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Reorient from one exact keyed Mind projection".into(),
             coordinator_note: "Reorientation current-work owner opened this pass.".into(),

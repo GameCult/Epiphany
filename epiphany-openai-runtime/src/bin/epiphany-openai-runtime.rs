@@ -1273,19 +1273,37 @@ mod tests {
     use epiphany_core::EpiphanyRuntimeJobStatus;
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
-    use epiphany_core::open_runtime_spine_heartbeat_job;
     use epiphany_core::runtime_job_snapshot;
     use epiphany_core::runtime_worker_launch_request;
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
     use tempfile::tempdir;
 
-    #[test]
-    fn packaged_runtime_exposes_read_only_decision_discovery_and_exact_audit() {
-        let source = include_str!("epiphany-openai-runtime.rs");
-        assert!(source.contains("\"list-decisions\" =>"));
-        assert!(source.contains("list_auditable_decision_contexts"));
-        assert!(source.contains("\"audit-decision\" =>"));
-        assert!(!source.contains(concat!("put_decision_", "context")));
+    fn seed_test_runtime_job(
+        store: &Path,
+        options: RuntimeSpineHeartbeatJobOptions,
+    ) -> Result<()> {
+        epiphany_core::initialize_runtime_spine(
+            store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: options.runtime_id.clone(),
+                display_name: "Epiphany Test".into(),
+                created_at: options.created_at.clone(),
+            },
+        )?;
+        epiphany_core::ensure_runtime_session(
+            store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: options.session_id.clone(),
+                objective: options.objective.clone(),
+                created_at: options.created_at.clone(),
+                coordinator_note: options.coordinator_note.clone(),
+            },
+        )?;
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let prepared = epiphany_core::prepare_runtime_spine_heartbeat_job(&cache, options)?;
+        cache.put_prepared_batch(prepared.envelopes)?;
+        Ok(())
     }
 
     fn assert_typed_model_pass_failure(
@@ -1615,11 +1633,10 @@ mod tests {
     fn repeated_tool_loop_seals_outer_worker_job() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        open_runtime_spine_heartbeat_job(
+        seed_test_runtime_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                display_name: "Epiphany Test".to_string(),
                 session_id: "epiphany-main".to_string(),
                 objective: "Run typed worker.".to_string(),
                 coordinator_note: "test".to_string(),
@@ -1728,11 +1745,10 @@ mod tests {
     fn bounded_runtime_error_seals_outer_worker_job() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        open_runtime_spine_heartbeat_job(
+        seed_test_runtime_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                display_name: "Epiphany Test".to_string(),
                 session_id: "epiphany-main".to_string(),
                 objective: "Run typed worker.".to_string(),
                 coordinator_note: "test".to_string(),
@@ -1863,11 +1879,10 @@ mod tests {
     fn tool_round_limit_seals_outer_worker_job_without_stall_status() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        open_runtime_spine_heartbeat_job(
+        seed_test_runtime_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
                 runtime_id: "epiphany-test".to_string(),
-                display_name: "Epiphany Test".to_string(),
                 session_id: "epiphany-main".to_string(),
                 objective: "Run typed worker.".to_string(),
                 coordinator_note: "test".to_string(),

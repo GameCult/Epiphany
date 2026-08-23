@@ -1184,7 +1184,6 @@ pub fn launch_current_frontier_planning_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Propose one bounded plan for the exact frontier authority".into(),
             coordinator_note: "Planning current-work launch transaction opened this session."
@@ -1371,7 +1370,6 @@ pub fn launch_current_frontier_plan_mind_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Adjudicate one exact Imagination plan candidate".into(),
             coordinator_note: "Plan Mind current-work launch transaction opened this session."
@@ -1552,7 +1550,6 @@ pub fn launch_current_frontier_verification_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Audit one exact Hands consequence against its routed invariant".into(),
             coordinator_note:
@@ -1725,7 +1722,6 @@ pub fn launch_current_frontier_research_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Gather evidence for one exact external-evidence obligation".into(),
             coordinator_note: "Research current-work launch transaction opened this session."
@@ -2879,7 +2875,6 @@ fn launch_consideration_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Consider one exact typed proposal-only obligation".into(),
             coordinator_note: "Consideration current-work launch opened this attempt.".into(),
@@ -3104,7 +3099,6 @@ pub fn launch_current_body_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: work.runtime_id.clone(),
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Model the admitted repository Body".into(),
             coordinator_note: "Keyed Mind current-work launch transaction opened this session."
@@ -3279,7 +3273,6 @@ pub fn launch_current_proposal_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id.clone(),
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Model one admitted proposal against keyed Mind".into(),
             coordinator_note: "Proposal current-work launch transaction opened this session."
@@ -3448,7 +3441,6 @@ pub fn launch_current_frontier_verdict_modeling_work(
         &cache,
         crate::RuntimeSpineHeartbeatJobOptions {
             runtime_id: identity.runtime_id,
-            display_name: "Epiphany Local".into(),
             session_id: crate::EPIPHANY_RUNTIME_ROOT_SESSION_ID.into(),
             objective: "Incorporate one exact Soul verdict into its routed frontier".into(),
             coordinator_note:

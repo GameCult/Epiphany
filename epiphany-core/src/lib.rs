@@ -328,7 +328,6 @@ pub use runtime_spine::intake_user_repo_frontier_proposal;
 pub use runtime_spine::model_pass_failure_for_request;
 pub use runtime_spine::open_coordinator_run;
 pub use runtime_spine::open_runtime_model_execution;
-pub use runtime_spine::open_runtime_spine_heartbeat_job;
 pub use runtime_spine::prepare_runtime_spine_heartbeat_job;
 pub use runtime_spine::promote_autonomous_direction_options_for_modeling;
 pub use runtime_spine::put_coordinator_run_receipt;

@@ -937,7 +937,6 @@ pub struct RuntimeSpineJobResultOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeSpineHeartbeatJobOptions {
     pub runtime_id: String,
-    pub display_name: String,
     pub session_id: String,
     pub objective: String,
     pub coordinator_note: String,
@@ -2679,147 +2678,11 @@ where
     Ok(archive)
 }
 
-pub fn open_runtime_spine_heartbeat_job(
-    store_path: impl AsRef<Path>,
-    options: RuntimeSpineHeartbeatJobOptions,
-) -> Result<EpiphanyRuntimeJob> {
-    validate_non_empty(&options.runtime_id, "runtime id")?;
-    validate_non_empty(&options.display_name, "display name")?;
-    validate_non_empty(&options.session_id, "session id")?;
-    validate_non_empty(&options.objective, "objective")?;
-    validate_non_empty(&options.job_id, "job id")?;
-    validate_non_empty(&options.role, "role")?;
-    validate_repository_body_launch_carrier(&options.role, &options.launch_document)?;
-    validate_proposal_modeling_launch_carrier(
-        &options.role,
-        &options.binding_id,
-        options.proposal_modeling_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_frontier_planning_launch_carrier(
-        &options.role,
-        &options.binding_id,
-        options.frontier_planning_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_frontier_research_launch_carrier(
-        &options.role,
-        &options.binding_id,
-        options.repo_frontier_research_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_frontier_verification_launch_carrier(
-        &options.role,
-        &options.binding_id,
-        options.repo_frontier_verification_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_imagination_consideration_launch_carrier(
-        &options.role,
-        &options.binding_id,
-        options.imagination_consideration_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_repo_frontier_verdict_modeling_launch_authority(
-        &options.role,
-        options.repo_frontier_modeling_request_id.as_deref(),
-        &options.launch_document,
-    )?;
-    validate_non_empty(&options.binding_id, "binding id")?;
-    validate_non_empty(&options.authority_scope, "authority scope")?;
-    validate_non_empty(&options.instruction, "instruction")?;
-    validate_non_empty(
-        options.launch_document.thread_id(),
-        "worker launch document thread id",
-    )?;
-    validate_non_empty(&options.output_contract_id, "output contract id")?;
-    if options.output_contract_id != options.launch_document.output_contract_id() {
-        return Err(anyhow!(
-            "worker launch output_contract_id must match the typed launch document"
-        ));
-    }
-    validate_non_empty(&options.created_at, "created at")?;
-    let store_path = store_path.as_ref();
-    let job_id = options.job_id.clone();
-    let binding_id = options.binding_id.clone();
-    let role = options.role.clone();
-    let authority_scope = options.authority_scope.clone();
-    let instruction = options.instruction.clone();
-    let output_contract_id = options.output_contract_id.clone();
-    let launch_document = options.launch_document.clone();
-    initialize_runtime_spine(
-        store_path,
-        RuntimeSpineInitOptions {
-            runtime_id: options.runtime_id,
-            display_name: options.display_name,
-            created_at: options.created_at.clone(),
-        },
-    )?;
-    ensure_runtime_session(
-        store_path,
-        RuntimeSpineSessionOptions {
-            session_id: options.session_id.clone(),
-            objective: options.objective,
-            created_at: options.created_at.clone(),
-            coordinator_note: options.coordinator_note,
-        },
-    )?;
-    let job = create_runtime_job(
-        store_path,
-        RuntimeSpineJobOptions {
-            job_id: options.job_id,
-            session_id: options.session_id,
-            role: options.role,
-            created_at: options.created_at,
-            summary: format!(
-                "Heartbeat activation queued for binding {} with authority {}.",
-                options.binding_id, options.authority_scope
-            ),
-            artifact_refs: Vec::new(),
-        },
-    )?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    if cache
-        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&job_id)?
-        .is_some()
-    {
-        return Err(anyhow!(
-            "runtime worker launch request {:?} already exists",
-            job_id
-        ));
-    }
-    let request = EpiphanyRuntimeWorkerLaunchRequest {
-        schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
-        job_id: job_id.clone(),
-        binding_id,
-        role,
-        authority_scope,
-        instruction,
-        output_contract_id,
-        document_kind: worker_launch_document_kind(&launch_document).to_string(),
-        launch_document_msgpack: encode_worker_launch_document(&launch_document)?,
-        metadata: BTreeMap::new(),
-        proposal_modeling_request_id: options.proposal_modeling_request_id,
-        frontier_planning_request_id: options.frontier_planning_request_id,
-        frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
-        imagination_consideration_request_id: options.imagination_consideration_request_id,
-        admitted_model_direction_consideration_request_id: options
-            .admitted_model_direction_consideration_request_id,
-        repo_frontier_modeling_request_id: options.repo_frontier_modeling_request_id,
-        repo_frontier_research_request_id: options.repo_frontier_research_request_id,
-        repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
-    };
-    cache.put(&job_id, &request)?;
-    Ok(job)
-}
-
 pub fn prepare_runtime_spine_heartbeat_job(
     cache: &CultCache,
     options: RuntimeSpineHeartbeatJobOptions,
 ) -> Result<PreparedRuntimeSpineHeartbeatJob> {
     validate_non_empty(&options.runtime_id, "runtime id")?;
-    validate_non_empty(&options.display_name, "display name")?;
     validate_non_empty(&options.session_id, "session id")?;
     validate_non_empty(&options.objective, "objective")?;
     validate_non_empty(&options.job_id, "job id")?;
