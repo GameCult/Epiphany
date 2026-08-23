@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `39dd9fdb`
+Latest committed implementation cut: `c553868d`
 Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
@@ -646,6 +646,16 @@ aggregate, while the real semantic/workspace projectors already publish their
 own heartbeat/readiness receipts. Do not add a status publisher. In the
 supervisor split, consume family-owned health directly and delete the generic
 status/poke mirror once its command paths have moved.
+
+Exact `c553868d` completes that deletion. It removes the generic daemon status,
+poke intent/receipt, restart-policy, and scheduler-receipt document families;
+their registry entries, loaders, writers, local-Verse fields, reconciliation
+loop, CLI flags, and nine fixture-driven tests; and one helper kept alive only
+by those tests. The cut is 1,808 net lines. Non-test release-bundle supervisor
+check passes, CultMesh passes 20/20, and the remaining supervisor tests pass
+8/8. No source reference to the deleted schemas or reconciliation path remains.
+The live managed-service path continues through specialized semantic and
+workspace-coverage policy, lifecycle, heartbeat, and recovery documents.
 
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the
