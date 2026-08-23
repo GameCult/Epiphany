@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `6ccc7dd2` on `codex/epiphany-shakedown-live`
-Current worktree cut: Hands-to-Verification derivation subtraction; Ox17 remains paused
+Latest committed implementation cut: `6831eb69` on `codex/epiphany-shakedown-live`
+Current worktree cut: Proposal-Modeling launch-binding subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -211,6 +211,12 @@ its exact direction request/result, worker launch/result, selected option,
 Body/domain binding, and canonical Modeling request; validation reads those
 facts from their owning immutable documents instead of copying them into the
 join record.
+
+Proposal-Modeling launch provenance is also a narrow join. Exact `6831eb69`
+reduces its persisted binding from twelve fields to schema, request ID, job ID,
+and exact launch-document digest. The request owns proposal/runtime/thread; the
+launch owns role/binding/document; the binding key derives from the job ID.
+Fulfillment and archival read that exact key rather than scanning every binding.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
@@ -821,7 +827,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `6ccc7dd2`;
+1. let Idunn compile, test, and seal exact build-affecting source `6831eb69`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context

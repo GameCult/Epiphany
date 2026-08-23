@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`6ccc7dd2`. The current sequence has deleted the semantic-memory/workspace-coverage
+`6831eb69`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -303,6 +303,9 @@ Cut in this order:
    status consumes the shared projection.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, exact launch binding, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry.
+   Exact `6831eb69` later reduces that launch binding from twelve mirrored fields
+   to request ID, job ID, and exact launch digest under its schema; validators
+   fetch the deterministic job-derived key directly.
 5. **Continuation vocabulary landed at `e404c105` and was named truthfully at `fc5d1a4a`:** concrete pass families share one pure `EpiphanyAgentPassContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.
 6. **Dormant claim-repair authority deleted at `20dd66c8`:** no request/binding/context schema, runtime carrier, coordinator branch, result cargo, export, or model lowering survives. The independent Eyes challenge fact remains. The same pass fixed two-snapshot Body/Proposal launch derivation and stress-proved single Proposal launch 20/20.
 7. **Frontier-verdict Modeling landed at `d367e525`:** one exact Soul verdict

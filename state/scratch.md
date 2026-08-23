@@ -202,9 +202,13 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    summary. The commit owner derives Verification work directly from the typed
    patch, command, and commit receipts. No schema or test was added; 43 net
    source lines are gone.
-36. Next: resume the public runtime-spine and test-liability audit by live owner
+36. Done: exact `6831eb69` reduces the Proposal-Modeling launch binding from
+   twelve persisted fields to four and replaces global binding scans with exact
+   key reads. Request and launch documents remain the owners of the removed
+   mirrors. Runtime epoch is v16; 71 net source lines are gone.
+37. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-37. Run focused tests after each cut. Only after source subtraction stabilizes
+38. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
