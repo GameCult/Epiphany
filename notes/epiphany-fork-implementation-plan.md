@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`777dd1a5`. The current sequence has deleted the semantic-memory/workspace-coverage
+`013c3bf1`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -544,6 +544,10 @@ Cut in this order:
    `smoke` command, fixed JSON summary, parser branch, and branding test are
    deleted. Signed health owns liveness and typed receipts own execution; the
    surviving single command parses directly without a one-variant enum.
+44. **Repository Body verification is not a release command at `013c3bf1`:**
+   the callerless `smoke` path and its temporary stores are deleted. The shipped
+   binary keeps the four operational commands; 23 owner tests retain the actual
+   bind, observation, projection, Git-semantics, and tamper invariants.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

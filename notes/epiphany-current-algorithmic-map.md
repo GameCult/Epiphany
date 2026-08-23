@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `777dd1a5` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `013c3bf1` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -132,6 +132,12 @@ deletes its callerless static `smoke` command, fixed summary DTO, parser branch,
 and self-affirming branding test. Signed daemon health owns liveness; typed tool
 intents and receipts own execution. Removing the second command also removes the
 now-pointless one-variant CLI enum.
+
+Repository Body verification lives at the owner, not in a shipped manual
+self-test. Exact `013c3bf1` deletes the callerless Body `smoke` command and its
+temporary-store ritual. The runtime command retains bootstrap, bind, observe,
+and status; the 23 focused owner tests prove authenticated Body behavior and
+refusal paths directly.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
