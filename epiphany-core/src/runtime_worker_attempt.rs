@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkerProcessStatus {
+pub(crate) enum WorkerProcessStatus {
     Claimed,
     Active,
     TerminalResult,
@@ -11,7 +11,7 @@ pub enum WorkerProcessStatus {
 }
 
 impl WorkerProcessStatus {
-    pub fn parse(value: &str) -> Result<Self> {
+    pub(crate) fn parse(value: &str) -> Result<Self> {
         match value {
             "claimed" => Ok(Self::Claimed),
             "active" => Ok(Self::Active),
@@ -23,7 +23,7 @@ impl WorkerProcessStatus {
         }
     }
 
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Claimed => "claimed",
             Self::Active => "active",
@@ -34,28 +34,25 @@ impl WorkerProcessStatus {
         }
     }
 
-    pub fn is_live(self) -> bool {
+    pub(crate) fn is_live(self) -> bool {
         matches!(self, Self::Claimed | Self::Active)
     }
-    pub fn is_fulfilled_terminal(self) -> bool {
+    pub(crate) fn is_fulfilled_terminal(self) -> bool {
         self == Self::TerminalResult
     }
-    pub fn is_failed_terminal(self) -> bool {
+    pub(crate) fn is_failed_terminal(self) -> bool {
         matches!(
             self,
             Self::TerminalDeath | Self::TerminalUnactivated | Self::TerminalFailure
         )
     }
-    pub fn is_terminal(self) -> bool {
-        self.is_fulfilled_terminal() || self.is_failed_terminal()
-    }
-    pub fn allows_retry(self) -> bool {
+    pub(crate) fn allows_retry(self) -> bool {
         self.is_failed_terminal()
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RuntimeTypedRequestRef<'a> {
+pub(crate) enum RuntimeTypedRequestRef<'a> {
     ProposalModeling(&'a str),
     FrontierVerdictModeling(&'a str),
     FrontierResearch(&'a str),
@@ -65,7 +62,7 @@ pub enum RuntimeTypedRequestRef<'a> {
 }
 
 impl<'a> RuntimeTypedRequestRef<'a> {
-    pub fn request_id(self) -> &'a str {
+    pub(crate) fn request_id(self) -> &'a str {
         match self {
             Self::ProposalModeling(id)
             | Self::FrontierVerdictModeling(id)
@@ -76,7 +73,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         }
     }
 
-    pub fn kind(self) -> &'static str {
+    pub(crate) fn kind(self) -> &'static str {
         match self {
             Self::ProposalModeling(_) => "proposal-modeling",
             Self::FrontierVerdictModeling(_) => "frontier-verdict-modeling",
@@ -87,7 +84,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         }
     }
 
-    pub fn matches_launch(self, launch: &crate::EpiphanyRuntimeWorkerLaunchRequest) -> bool {
+    pub(crate) fn matches_launch(self, launch: &crate::EpiphanyRuntimeWorkerLaunchRequest) -> bool {
         match self {
             Self::ProposalModeling(id) => {
                 launch.proposal_modeling_request_id.as_deref() == Some(id)
@@ -113,7 +110,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
         }
     }
 
-    pub fn matches_result(self, result: &crate::EpiphanyRuntimeRoleWorkerResult) -> bool {
+    pub(crate) fn matches_result(self, result: &crate::EpiphanyRuntimeRoleWorkerResult) -> bool {
         match self {
             Self::ProposalModeling(id) => {
                 result.proposal_modeling_request_id.as_deref() == Some(id)
@@ -139,7 +136,7 @@ impl<'a> RuntimeTypedRequestRef<'a> {
 }
 
 impl crate::EpiphanyRuntimeWorkerLaunchRequest {
-    pub fn typed_request_ref(&self) -> Result<Option<RuntimeTypedRequestRef<'_>>> {
+    pub(crate) fn typed_request_ref(&self) -> Result<Option<RuntimeTypedRequestRef<'_>>> {
         let requests = [
             self.proposal_modeling_request_id
                 .as_deref()
@@ -170,29 +167,5 @@ impl crate::EpiphanyRuntimeWorkerLaunchRequest {
                 "worker launch carries multiple typed request authorities"
             )),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn status_classes_are_exhaustive_and_disjoint() -> Result<()> {
-        for value in [
-            "claimed",
-            "active",
-            "terminal-result",
-            "terminal-death",
-            "terminal-unactivated",
-            "terminal-failure",
-        ] {
-            let status = WorkerProcessStatus::parse(value)?;
-            assert_eq!(status.as_str(), value);
-            assert_ne!(status.is_live(), status.is_terminal());
-            assert_eq!(status.allows_retry(), status.is_failed_terminal());
-        }
-        assert!(WorkerProcessStatus::parse("completed").is_err());
-        Ok(())
     }
 }

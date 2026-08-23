@@ -4775,10 +4775,9 @@ pub fn runtime_role_worker_result(
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeTypedFulfillmentEvidence {
+pub(crate) struct RuntimeTypedFulfillmentEvidence {
     pub job_id: String,
     pub result_id: String,
-    pub request_id: String,
 }
 
 struct ValidatedProposalModelingWorkerFulfillment {
@@ -5015,7 +5014,7 @@ pub(crate) fn validate_proposal_modeling_worker_admission(
     Ok(())
 }
 
-pub fn runtime_typed_request_fulfillment(
+pub(crate) fn runtime_typed_request_fulfillment(
     store_path: impl AsRef<Path>,
     request: RuntimeTypedRequestRef<'_>,
 ) -> Result<Option<RuntimeTypedFulfillmentEvidence>> {
@@ -5096,7 +5095,6 @@ pub fn runtime_typed_request_fulfillment(
                 .fulfilled_result_id()
                 .map(str::to_string)
                 .expect("validated archived result"),
-            request_id: request_id.to_string(),
         }));
     }
     let matches = cache
@@ -5169,7 +5167,6 @@ pub fn runtime_typed_request_fulfillment(
     Ok(Some(RuntimeTypedFulfillmentEvidence {
         job_id: result.job_id.clone(),
         result_id: result.result_id.clone(),
-        request_id: request_id.to_string(),
     }))
 }
 
@@ -8753,7 +8750,7 @@ fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> 
     Ok(())
 }
 
-pub fn runtime_typed_request_attempt_exists(
+pub(crate) fn runtime_typed_request_attempt_exists(
     store_path: impl AsRef<Path>,
     request: RuntimeTypedRequestRef<'_>,
 ) -> Result<bool> {
