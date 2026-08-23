@@ -585,6 +585,12 @@ supervisor 10/10 pass.
 Next audit the remaining round-trip tests for duplicated CultCache derive
 coverage: retain tests only when they prove Epiphany validation, monotonicity,
 authentication, conflict behavior, projection, or an authority boundary.
+
+Exact `e8bc0382` deletes the unused CultMesh Persona-speech-audit and
+Weksa-lowering-receipt shadows plus all four tests that alone animated them.
+The real Persona and Weksa typed owners remain intact. This removes 432 lines;
+non-test core check and CultMesh 35/35 pass.
+
 Preserve cluster topology until its runtime-bound Body-domain owner is
 explicit. Separately split the
 4.7-kiloline daemon supervisor's

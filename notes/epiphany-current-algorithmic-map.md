@@ -28,6 +28,8 @@ CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
 tool directory. Native runtime and keyed Mind receipts remain the owners; old
 stores containing the deleted envelope types refuse at the schema boundary.
+Persona speech decisions and Weksa lowering receipts likewise remain in their
+own typed owners; CultMesh does not persist unused parallel shadows.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
