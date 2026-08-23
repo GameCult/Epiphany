@@ -1,9 +1,3 @@
-use crate::default_continuity_cultnet_contracts;
-use crate::default_eyes_cultnet_contracts;
-use crate::default_hands_cultnet_contracts;
-use crate::default_mind_cultnet_contracts;
-use crate::default_soul_cultnet_contracts;
-use crate::default_substrate_gate_cultnet_contracts;
 use crate::packaged_release::{EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead};
 use crate::workspace_coverage_process_documents::{
     WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION,
@@ -34,15 +28,11 @@ use cultmesh_rs::CultMesh;
 use cultmesh_rs::CultMeshNode;
 use cultmesh_rs::CultMeshNodeOptions;
 use cultmesh_rs::cultmesh_documents;
-use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 use std::path::Path;
 use uuid::Uuid;
 
-pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE: &str = "epiphany.cultmesh.cluster_topology";
-pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.cluster_topology.v0";
 pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_TYPE: &str =
     "epiphany.cultmesh.daemon_heartbeat_event";
 pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION: &str =
@@ -63,12 +53,8 @@ pub const EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID: &str =
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE: &str = "epiphany.cultmesh.swarm_brake";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str = "epiphany.cultmesh.swarm_brake.v0";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_KEY: &str = "epiphany-local/swarm-brake";
-pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
-pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
-pub const EPIPHANY_CULTMESH_INTERNAL_TIER: &str = "internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_TIER: &str = "local-area";
-pub const EPIPHANY_CULTMESH_GLOBAL_TIER: &str = "global";
 pub const EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_TYPE: &str =
     "epiphany.cultmesh.semantic_projection_health";
 pub const EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION: &str =
@@ -120,65 +106,6 @@ pub struct EpiphanyCultMeshSemanticProjectionHealthEntry {
     pub authoritative: bool,
     #[cultcache(key = 19)]
     pub query_eligible_display_only: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyVersePolicy {
-    pub verse_id: String,
-    pub tier: String,
-    pub purpose: String,
-    pub transport_scope: String,
-    pub trust_boundary: String,
-    pub private_state_allowed: bool,
-    pub untrusted_ingress_allowed: bool,
-    pub yggdrasil_tunnel_allowed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyGlobalRoomPolicy {
-    pub room_id: String,
-    pub verse_id: String,
-    pub topic: String,
-    pub purpose: String,
-    pub posting_policy: String,
-    pub threaded: bool,
-    pub persona_posting_allowed: bool,
-    pub untrusted_ingress_allowed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.cluster_topology",
-    schema = "EpiphanyCultMeshClusterTopologyEntry"
-)]
-pub struct EpiphanyCultMeshClusterTopologyEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub cluster_id: String,
-    #[cultcache(key = 2)]
-    pub role_id: String,
-    #[cultcache(key = 3)]
-    pub display_name: String,
-    #[cultcache(key = 4)]
-    pub private_verse_id: String,
-    #[cultcache(key = 5)]
-    pub body_domain: String,
-    #[cultcache(key = 6)]
-    pub body_kind: String,
-    #[cultcache(key = 7)]
-    pub daemon_id: String,
-    #[cultcache(key = 8)]
-    pub daemon_surface_id: String,
-    #[cultcache(key = 9)]
-    pub eve_surface_id: String,
-    #[cultcache(key = 10)]
-    pub public_persona_discussion_allowed: bool,
-    #[cultcache(key = 11)]
-    #[cultcache(key = 12)]
-    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -341,36 +268,7 @@ pub struct EpiphanyCultMeshSwarmBrakeEntry {
     pub runtime_id: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyLocalVerseContext {
-    pub schema_version: String,
-    pub runtime_id: String,
-    pub store_path: String,
-    pub summary: String,
-    pub odin_scope: String,
-    pub yggdrasil_scope: String,
-    pub prompt_assembly_note: String,
-    pub verse_policies: Vec<EpiphanyVersePolicy>,
-    pub global_room_policies: Vec<EpiphanyGlobalRoomPolicy>,
-    pub cluster_topology: Vec<EpiphanyCultMeshClusterTopologyEntry>,
-    pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
-    pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyLocalVerseContractSummary {
-    pub contract_id: String,
-    pub verse_id: String,
-    pub authority: String,
-    pub document_type: String,
-    pub operations: Vec<String>,
-    pub receipt_document_types: Vec<String>,
-}
-
 cultmesh_documents!(EpiphanyCultMeshDocuments {
-    EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonHeartbeatEventEntry => EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshManagedServicePolicyEntry => EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION,
@@ -808,10 +706,7 @@ pub fn default_epiphany_cultmesh_swarm_brake(
         scope: "swarm".to_string(),
         reason: "No swarm brake is engaged; unattended automation still requires typed scheduler, cooldown, recovery, and operator receipt gates.".to_string(),
         operator_agent_id: EPIPHANY_CANONICAL_SWARM_BRAKE_OWNER.to_string(),
-        affected_clusters: epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .map(|cluster| cluster.cluster_id)
-            .collect(),
+        affected_clusters: Vec::new(),
         protected_surfaces: vec![
             "heartbeat.scheduler".to_string(),
             "coordinator.run".to_string(),
@@ -1204,136 +1099,6 @@ fn validate_semantic_projector_launch_receipt(
     Ok(())
 }
 
-pub fn seed_epiphany_local_verse_context(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    generated_at_utc: impl Into<String>,
-    body_domain: impl Into<String>,
-) -> Result<()> {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    let generated_at_utc = generated_at_utc.into();
-    let body_domain = body_domain.into();
-    if !body_domain.starts_with("repo:") || body_domain.trim() == "repo:" {
-        anyhow::bail!("local Verse repository topology requires an explicit repo: Body domain");
-    }
-    write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone(), body_domain)?;
-    {
-        let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-        if node
-            .get::<EpiphanyCultMeshSwarmBrakeEntry>(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?
-            .is_none()
-        {
-            write_epiphany_cultmesh_swarm_brake(
-                store_path,
-                runtime_id.clone(),
-                default_epiphany_cultmesh_swarm_brake(generated_at_utc.clone()),
-            )?;
-        }
-    }
-    Ok(())
-}
-
-pub fn query_epiphany_local_verse_context(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<EpiphanyLocalVerseContext> {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    if !store_path.exists() {
-        anyhow::bail!(
-            "local Verse store does not exist at {}",
-            store_path.display()
-        );
-    }
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-    let verse_policies = epiphany_verse_policies();
-    let global_room_policies = epiphany_global_room_policies();
-
-    let mut cluster_topology = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        if let Some(loaded) =
-            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
-        {
-            cluster_topology.push(loaded);
-        }
-    }
-
-    let mut contract_summaries = Vec::new();
-    contract_summaries.extend(
-        default_mind_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    contract_summaries.extend(
-        default_substrate_gate_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    contract_summaries.extend(
-        default_eyes_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    contract_summaries.extend(
-        default_hands_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    contract_summaries.extend(
-        default_soul_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    contract_summaries.extend(
-        default_continuity_cultnet_contracts()
-            .into_iter()
-            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
-    );
-    Ok(EpiphanyLocalVerseContext {
-        schema_version: "epiphany.local_verse_context.v0".to_string(),
-        runtime_id: runtime_id.clone(),
-        store_path: store_path.display().to_string(),
-        summary: "Local Verse query context for compact Epiphany prompt assembly and operator inspection.".to_string(),
-        odin_scope: "Odin is the all-seer coordinator of Verse discovery: it may know every Verse's advertised public/operator-safe surface, but it must not bypass Verse trust boundaries or Mind adoption gates.".to_string(),
-        yggdrasil_scope: "Yggdrasil is the hosting spine for important trusted GameCult Verses such as Bifrost; local-area writes require explicit trusted tunnel/lease policy and never carry private internal state.".to_string(),
-        prompt_assembly_note: "Prompt assembly should query this compact typed bundle plus semantic memory context cuts; Verse context is injected dynamically as bounded context, not as durable truth.".to_string(),
-        verse_policies,
-        global_room_policies,
-        cluster_topology,
-        swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
-        contract_summaries,
-    })
-}
-
-trait IntoLocalVerseContractSummary {
-    fn into_local_verse_summary(self) -> EpiphanyLocalVerseContractSummary;
-}
-
-macro_rules! impl_local_verse_contract_summary {
-    ($ty:ty) => {
-        impl IntoLocalVerseContractSummary for $ty {
-            fn into_local_verse_summary(self) -> EpiphanyLocalVerseContractSummary {
-                EpiphanyLocalVerseContractSummary {
-                    contract_id: self.contract_id,
-                    verse_id: self.verse_id,
-                    authority: self.authority,
-                    document_type: self.document_type,
-                    operations: self.operations,
-                    receipt_document_types: self.receipt_document_types,
-                }
-            }
-        }
-    };
-}
-
-impl_local_verse_contract_summary!(crate::MindCultNetContract);
-impl_local_verse_contract_summary!(crate::SubstrateGateCultNetContract);
-impl_local_verse_contract_summary!(crate::EyesCultNetContract);
-impl_local_verse_contract_summary!(crate::HandsCultNetContract);
-impl_local_verse_contract_summary!(crate::SoulCultNetContract);
-impl_local_verse_contract_summary!(crate::ContinuityCultNetContract);
-
 fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
 }
@@ -1344,168 +1109,6 @@ fn epiphany_cultmesh_daemon_service_lifecycle_receipt_current_key(service_id: &s
 
 fn epiphany_cultmesh_managed_service_policy_key(service_id: &str) -> String {
     format!("epiphany-local/managed-service-policy/{service_id}")
-}
-
-pub fn epiphany_verse_policies() -> Vec<EpiphanyVersePolicy> {
-    vec![
-        EpiphanyVersePolicy {
-            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
-            tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
-            purpose: "Sub-agent typed state: heartbeat, organ-state records, runtime-spine jobs, private receipts, and other Epiphany-owned organs.".to_string(),
-            transport_scope: "single-host or trusted localhost mesh".to_string(),
-            trust_boundary: "private Epiphany instance boundary".to_string(),
-            private_state_allowed: true,
-            untrusted_ingress_allowed: false,
-            yggdrasil_tunnel_allowed: false,
-        },
-        EpiphanyVersePolicy {
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            tier: EPIPHANY_CULTMESH_LOCAL_AREA_TIER.to_string(),
-            purpose: "Trusted GameCult local-area sharing across projects, including operator-approved tunnels to services on Yggdrasil.".to_string(),
-            transport_scope: "LAN plus explicit GameCult tunnel endpoints".to_string(),
-            trust_boundary: "trusted GameCult project/runtime boundary".to_string(),
-            private_state_allowed: false,
-            untrusted_ingress_allowed: false,
-            yggdrasil_tunnel_allowed: true,
-        },
-        EpiphanyVersePolicy {
-            verse_id: EPIPHANY_CULTMESH_GLOBAL_VERSE_ID.to_string(),
-            tier: EPIPHANY_CULTMESH_GLOBAL_TIER.to_string(),
-            purpose: "Untrusted public surfaces: public dreams, questions, hypotheses, invitations, lineage, ingress receipts, and adoption receipts.".to_string(),
-            transport_scope: "public internet".to_string(),
-            trust_boundary: "untrusted public boundary".to_string(),
-            private_state_allowed: false,
-            untrusted_ingress_allowed: true,
-            yggdrasil_tunnel_allowed: false,
-        },
-    ]
-}
-
-pub fn epiphany_global_room_policies() -> Vec<EpiphanyGlobalRoomPolicy> {
-    [
-        (
-            "dreams",
-            "Dreams",
-            "Public dreams, symbolic fragments, imaginative pressure, and unfinished possible worlds.",
-        ),
-        (
-            "architecture",
-            "Architecture",
-            "System design, ownership maps, protocol boundaries, and rejected machine shapes.",
-        ),
-        (
-            "research",
-            "Research",
-            "Prior art, papers, source-grounded findings, and scout reports.",
-        ),
-        (
-            "Personas",
-            "Personas",
-            "Public Persona identity, voice, social surface, and community-facing presence.",
-        ),
-        (
-            "gamecult",
-            "GameCult",
-            "GameCult project coordination, public receipts, and cross-project questions.",
-        ),
-        (
-            "governance",
-            "Governance",
-            "Public proposals and governance-adjacent discussion before any Bifrost adoption.",
-        ),
-    ]
-    .into_iter()
-    .map(|(slug, topic, purpose)| EpiphanyGlobalRoomPolicy {
-        room_id: format!("epiphany-global/{slug}"),
-        verse_id: EPIPHANY_CULTMESH_GLOBAL_VERSE_ID.to_string(),
-        topic: topic.to_string(),
-        purpose: purpose.to_string(),
-        posting_policy:
-            "Personas may post public, non-private, citation/provenance-bearing thread roots and replies; local adoption still requires review."
-                .to_string(),
-        threaded: true,
-        persona_posting_allowed: true,
-        untrusted_ingress_allowed: true,
-    })
-    .collect()
-}
-
-pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
-    epiphany_cultmesh_cluster_topology_for_body("repo:unbound")
-}
-
-pub fn epiphany_cultmesh_cluster_topology_for_body(
-    body_domain: impl Into<String>,
-) -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
-    let body_domain = body_domain.into();
-    [
-        ("self", "coordinator", "Self", false),
-        ("hands", "implementation", "Hands", false),
-        ("persona", "Persona", "Persona", true),
-        ("imagination", "imagination", "Imagination", false),
-        ("eyes", "research", "Eyes", false),
-        ("modeling", "modeling", "Modeling", false),
-        ("soul", "verification", "Soul", false),
-    ]
-    .into_iter()
-    .map(
-        |(cluster_slug, role_id, display_name, public_persona_discussion_allowed)| {
-            let cluster_id = format!("epiphany.cluster.{cluster_slug}");
-            EpiphanyCultMeshClusterTopologyEntry {
-                schema_version: EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION.to_string(),
-                cluster_id: cluster_id.clone(),
-                role_id: role_id.to_string(),
-                display_name: display_name.to_string(),
-                private_verse_id: format!("{cluster_id}.private"),
-                body_domain: body_domain.clone(),
-                body_kind: "repository".to_string(),
-                daemon_id: format!("epiphany-daemon-{cluster_slug}"),
-                daemon_surface_id: format!("epiphany-daemon-{cluster_slug}/local"),
-                eve_surface_id: format!("eve://epiphany/{cluster_slug}"),
-                public_persona_discussion_allowed,
-                notes: vec![
-                    format!(
-                        "CultMesh advertises this cluster topology as {EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE}."
-                    ),
-                    "Private Verse carries cluster-local typed state and is not public collaboration weather.".to_string(),
-                    "Odin may advertise compact metadata and Eve connection hints, but not private state payloads.".to_string(),
-                    "The body domain names the substrate this cluster serves; Substrate Gate still governs repo access.".to_string(),
-                ],
-            }
-        },
-    )
-    .collect()
-}
-
-pub fn write_epiphany_cultmesh_cluster_topology(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    body_domain: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology_for_body(body_domain) {
-        written.push(node.put(cluster.cluster_id.clone(), &cluster)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_epiphany_cultmesh_cluster_topology(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
-    let store_path = store_path.as_ref();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut topology = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        if let Some(loaded) =
-            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
-        {
-            topology.push(loaded);
-        }
-    }
-    Ok(topology)
 }
 
 fn epiphany_cultmesh_daemon_heartbeat_event_key(heartbeat_id: &str) -> String {
@@ -2540,28 +2143,6 @@ mod tests {
             )?
             .is_none()
         );
-        Ok(())
-    }
-
-    #[test]
-    fn diagnostic_loaders_do_not_materialize_missing_body_state() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let missing_parent = temp.path().join("missing-body");
-        let store = missing_parent.join("missing-local-verse.ccmp");
-
-        assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
-        assert!(
-            !store.exists(),
-            "read-only diagnostic loaders must not create a CultCache store"
-        );
-        assert!(
-            !missing_parent.exists(),
-            "read-only diagnostic loaders must not create the store parent"
-        );
-        let error = query_epiphany_local_verse_context(&store, "epiphany-test")
-            .expect_err("a missing Verse cannot project a context");
-        assert!(error.to_string().contains("store does not exist"));
-        assert!(!missing_parent.exists());
         Ok(())
     }
 

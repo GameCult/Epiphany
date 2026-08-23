@@ -18,7 +18,6 @@ use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
 use epiphany_core::authenticate_resident_provider;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
-use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
@@ -234,17 +233,6 @@ fn semantic_recover(args: Args) -> Result<()> {
             "privateStateExposed": false
         }))?
     );
-    Ok(())
-}
-
-fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
-    let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
-    if topology.is_empty() {
-        anyhow::bail!(
-            "local Verse has no persisted cluster topology at {}; run explicit bootstrap before daemon-supervisor commands",
-            args.store.display()
-        );
-    }
     Ok(())
 }
 
@@ -944,8 +932,6 @@ fn launch_workspace_coverage_projector(
 }
 
 fn build_managed_service_policy(args: &Args) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
-    require_supervisor_bootstrap(&args)?;
-
     let command = service_command_path(&args)?;
     let stdout_artifact = args.stdout_artifact.clone().unwrap_or_else(|| {
         PathBuf::from(format!(
