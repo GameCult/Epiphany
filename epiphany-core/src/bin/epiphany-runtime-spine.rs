@@ -51,7 +51,7 @@ fn main() -> Result<()> {
             println!("runtime: {}", identity.runtime_id);
             println!(
                 "documents: {}",
-                identity.supported_document_types.join(", ")
+                epiphany_core::runtime_registered_document_types().join(", ")
             );
         }
         Command::Status => {

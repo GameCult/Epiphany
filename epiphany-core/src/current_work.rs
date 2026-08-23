@@ -3722,6 +3722,11 @@ mod tests {
                 created_at: "2026-08-17T00:00:00Z".into(),
             },
         )?;
+        let mut initial_runtime = crate::runtime_spine_cache(&store)?;
+        initial_runtime.pull_all_backing_stores()?;
+        let initial_identity = initial_runtime
+            .get_envelope::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+            .expect("initialized runtime identity");
         crate::runtime_spine::tests::bind_test_runtime_swarm(&store, "swarm")?;
         crate::runtime_spine::tests::bind_test_repository_body(&store, "workspace")?;
         let body = crate::observe_runtime_repository_body_basis(&store)?;
@@ -6261,6 +6266,15 @@ mod tests {
         assert!(after_research.proposal_modeling.is_none());
         assert!(after_research.frontier_verdict_modeling.is_none());
         assert_current_work_reentry_is_read_only(&store, &after_research)?;
+        let mut final_runtime = crate::runtime_spine_cache(&store)?;
+        final_runtime.pull_all_backing_stores()?;
+        assert_eq!(
+            final_runtime
+                .get_envelope::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
+                .expect("runtime identity survives current-work launches"),
+            initial_identity,
+            "current-work launches must not mutate their shared runtime identity",
+        );
         Ok(())
     }
 }

@@ -135,7 +135,7 @@ pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v5";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v6";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -200,12 +200,6 @@ pub struct EpiphanyRuntimeIdentity {
     pub runtime_kind: String,
     #[cultcache(key = 4)]
     pub created_at: String,
-    #[cultcache(key = 5)]
-    pub updated_at: String,
-    #[cultcache(key = 6)]
-    pub supported_document_types: Vec<String>,
-    #[cultcache(key = 7, default)]
-    pub metadata: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1131,31 +1125,25 @@ pub fn initialize_runtime_spine(
             "runtime identity cannot change during initialization"
         ));
     }
-    let created_at = existing
-        .as_ref()
-        .map(|identity| identity.created_at.clone())
-        .unwrap_or_else(|| options.created_at.clone());
+    if let Some(existing) = existing {
+        let existing_mind = existing_mind.expect("identity pair was checked above");
+        if existing_mind.runtime_id != existing.runtime_id {
+            return Err(anyhow!("runtime and Mind identities disagree"));
+        }
+        return Ok(existing);
+    }
     let identity = EpiphanyRuntimeIdentity {
         schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
         runtime_id: options.runtime_id,
         display_name: options.display_name,
         runtime_kind: "epiphany.native".to_string(),
-        created_at,
-        updated_at: options.created_at,
-        supported_document_types: runtime_registered_document_types(),
-        metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
+        created_at: options.created_at,
     };
     let mind_identity = crate::EpiphanyMindIdentity {
         schema_epoch: crate::MIND_SCHEMA_EPOCH.to_string(),
         runtime_id: identity.runtime_id.clone(),
     };
-    if let Some(existing_mind) = existing_mind {
-        if existing_mind != mind_identity {
-            return Err(anyhow!("Mind schema identity collision"));
-        }
-        cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
-        return Ok(identity);
-    }
+    debug_assert!(existing_mind.is_none());
     let runtime_envelope = cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0;
     let mind_envelope = cache
         .prepare_entry(crate::MIND_SCHEMA_EPOCH, &mind_identity)?
@@ -2887,20 +2875,15 @@ pub fn prepare_runtime_spine_heartbeat_job(
     }
     validate_non_empty(&options.created_at, "created at")?;
 
-    let existing_identity = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
-    let identity = EpiphanyRuntimeIdentity {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        runtime_id: options.runtime_id,
-        display_name: options.display_name,
-        runtime_kind: "epiphany.native".to_string(),
-        created_at: existing_identity
-            .as_ref()
-            .map(|value| value.created_at.clone())
-            .unwrap_or_else(|| options.created_at.clone()),
-        updated_at: options.created_at.clone(),
-        supported_document_types: runtime_registered_document_types(),
-        metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
-    };
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("runtime job preparation requires runtime identity"))?;
+    let identity_envelope = cache
+        .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("runtime job preparation lost runtime identity envelope"))?;
+    if identity.runtime_id != options.runtime_id {
+        return Err(anyhow!("runtime job preparation cannot substitute runtime identity"));
+    }
     let session = match cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
         Some(existing)
             if matches!(
@@ -2973,9 +2956,13 @@ pub fn prepare_runtime_spine_heartbeat_job(
         repo_frontier_research_request_id: options.repo_frontier_research_request_id,
         repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
     };
+    let session_envelope = match cache.get_envelope::<EpiphanyRuntimeSession>(&session.session_id)? {
+        Some(existing) => existing,
+        None => cache.prepare_entry(&session.session_id, &session)?.0,
+    };
     let envelopes = vec![
-        cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
-        cache.prepare_entry(&session.session_id, &session)?.0,
+        identity_envelope,
+        session_envelope,
         cache.prepare_entry(&job.job_id, &job)?.0,
         cache.prepare_entry(&request.job_id, &request)?.0,
     ];
@@ -12595,9 +12582,6 @@ pub(crate) mod tests {
                 display_name: "Historical runtime".into(),
                 runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-17T00:00:00Z".into(),
-                updated_at: "2026-08-17T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
             },
         )?;
         let before = runtime_spine_backing_store(&store)?.pull_all()?;
@@ -12635,9 +12619,6 @@ pub(crate) mod tests {
                 display_name: "Archive v0 runtime".into(),
                 runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-18T00:00:00Z".into(),
-                updated_at: "2026-08-18T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
             },
         )?;
         let archive_v0_before = runtime_spine_backing_store(&archive_v0_store)?.pull_all()?;
@@ -12668,9 +12649,6 @@ pub(crate) mod tests {
                 display_name: "Responses-only runtime".into(),
                 runtime_kind: "epiphany.native".into(),
                 created_at: "2026-08-22T00:00:00Z".into(),
-                updated_at: "2026-08-22T00:00:00Z".into(),
-                supported_document_types: Vec::new(),
-                metadata: BTreeMap::new(),
             },
         )?;
         let responses_only_before =
