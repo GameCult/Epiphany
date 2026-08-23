@@ -83,7 +83,6 @@ machine-spirit awake.
 - Epiphany algorithmic map: `F:\Projects\Epiphany\notes\epiphany-current-algorithmic-map.md`
 - Epiphany safety architecture: `F:\Projects\Epiphany\notes\epiphany-safety-architecture.md`
 - State CLI: `cargo run --manifest-path F:\Projects\Epiphany\Cargo.toml --bin epiphany-state -- ...`
-- Pre-compaction helper: `cargo run --manifest-path F:\Projects\Epiphany\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction -- ...`
 
 ## Useful Commands
 
@@ -97,7 +96,6 @@ name the shared target explicitly:
 & 'C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe' status
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
 cargo run --manifest-path .\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --
 ```
 
 Useful Codex repo searches:
@@ -150,11 +148,11 @@ is negligence with a dramatic soundtrack.
 
 When the user says to prepare for imminent compaction:
 
-1. run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --` before editing persistence surfaces
-2. use its warnings as the checklist for map, handoff, scratch, evidence, and git hygiene
+1. run the existing shared-target `epiphany-state.exe status` and `git status --short --branch` before editing persistence surfaces
+2. inspect the canonical map, handoff, scratch, evidence, and git state directly
 3. update only the state that actually needs to change
-4. run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --` again after edits
-5. fix errors, address warnings, and commit the completed persistence pass unless the work is deliberately mid-surgery
+4. rerun `epiphany-state.exe status` and `git status --short --branch` after edits
+5. commit the completed persistence pass unless the work is deliberately mid-surgery
 
 ## Operating Discipline
 
@@ -226,8 +224,8 @@ operator-enginseer, not the implementation servitor.
   Minimize authority surfaces and build fan-out, not line count; readable code
   and consequence-bearing verifier reach remain invariants.
 - The target invariant is one Cargo package owner per production entrypoint.
-  `epiphany-core` owns only the `epiphany-prepare-compaction` maintenance
-  binary; runtime entrypoints are converging on `epiphany-release-bundle`.
+  `epiphany-core` is a library; the release bundle owns runtime and maintenance
+  entrypoints, including the single `epiphany-state` steward CLI.
   Leaf library crates disable automatic binaries; their production entrypoint
   sources are admitted only by the release bundle. Do not point multiple
   packages at the same binary source or preserve a binary because a stale

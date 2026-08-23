@@ -10,10 +10,6 @@ license-file = "../LICENSE"
 name = "epiphany_core"
 path = "src/lib.rs"
 
-[[bin]]
-name = "epiphany-prepare-compaction"
-path = "src/bin/epiphany-prepare-compaction.rs"
-
 [dependencies]
 anyhow = "1"
 chrono = "0.4.44"
