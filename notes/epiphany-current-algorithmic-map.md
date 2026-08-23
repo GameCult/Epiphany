@@ -402,6 +402,13 @@ Coordinator priority is a pure projection:
 No default Modeling job, latest lane, accepted-at comparison, runtime event, or
 generic interrupt can manufacture work.
 
+There is no persisted generic runtime-event document. A runtime session or job
+owns its own lifecycle state; `EpiphanyRuntimeJobResult`,
+`EpiphanyModelPassFailure`, `EpiphanyCoordinatorRunReceipt`, and
+`EpiphanyCoordinatorDeathRecovery` own their exact terminal facts. CultNet and
+operator views derive display from those documents. No paired event may become
+a second terminality, archival, replay, or recovery authority.
+
 ```mermaid
 flowchart TD
     Body["Typed Body observation"] --> MO["Modeling obligation"]

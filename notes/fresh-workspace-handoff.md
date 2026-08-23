@@ -848,6 +848,29 @@ Preserve exact current work and the four consequence-bearing
 supervisor tests. Do not run a full-workspace compile, package, deployment, or
 Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
+## Latest authority cuts
+
+Exact `8c20f896` reduces Substrate Gate from six advertised contract families to
+its one real immutable repo-access grant. Request, review, refusal, snapshot,
+and mutation were prose-only constants with no typed body, writer, reader, or
+consequence. Two constructor-literal tests went with them; the governed-tool
+allowlist denial test remains.
+
+Exact `bb6f2ef6` deletes the fictional Hands rollback receipt and the alternate
+JSON gate-authority path. The coordinator now passes the exact persisted Hands
+intent/review IDs directly to the recorder. `coordinator-summary.json` remains
+operator display and cannot decide action authority.
+
+Exact `d66baa27`, `058751fb`, `573ddc8b`, and `27fe11ae` delete the generic
+runtime-event organ completely. Provider frames and typed model stream events
+are no longer copied into a second event family; arbitrary CLI callers cannot
+author event claims; session/job/failure commits no longer create duplicate
+terminal witnesses; and coordinator start/completion/death, retention,
+archival, status, CLI, registry, CultNet, and legacy-repair paths no longer read
+or write event shadows. Session/job state and exact typed terminal documents
+are the sole lifecycle owners. Core 337/337, model runtime 25/25, coordinator
+8/8, swarm 4/4, coordinator-core 4/4, and affected native checks pass.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the
