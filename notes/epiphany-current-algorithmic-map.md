@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `900c5232` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `94098223` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -182,6 +182,14 @@ its release role, parser, JSON echo, and parser tests. The current-work owner
 still admits the exact proposal, selects Modeling work, resolves concurrent
 launch, seals reasoning, and commits the result. No wrapper can create a second
 proposal mouth or make CLI spelling part of the invariant.
+
+Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
+Epiphany's host-identity executable and the private signer, persisted identity,
+enrollment, platform protection, and anchor-export implementation behind it.
+Epiphany retains only the typed public anchor and purpose/payload/identity-bound
+Ed25519 verifier required at feedback admission. Tests use a deterministic
+test-only signer; production code cannot create, open, rotate, or export the
+provider's trust root.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

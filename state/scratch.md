@@ -21,7 +21,7 @@ machine smaller and the canonical map explicitly reopens that lane.
   another 26 targets, many by pointing at the same source files. Exact
   `1d5a1f17` reduced core to 30 binaries with zero duplicate owners and removed
   19,252 net non-vendor lines. The current cut reduces core again to its one
-  explicit maintenance binary. Subsequent cuts leave 13 total Cargo executable
+  explicit maintenance binary. Subsequent cuts leave 12 total Cargo executable
   targets across the workspace, with no duplicate binary-source owner.
 
 The storage failure is evidence of source-shape failure. Build-profile flags
@@ -74,13 +74,15 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    retain typed library owners until Gate 1 proves the minimum process topology.
 8. Done: delete the callerless frontier-proposal wrapper and release role;
    typed proposal intake and selection remain in Self/runtime.
-9. In progress: inspect the host-identity setup command and Hands consequence
-   command boundary. Then remove tests that inspect spelling, duplicate
+9. Done: delete the host-identity command and private-custody implementation;
+   retain only Bifrost public-anchor verification plus deterministic test fixtures.
+10. In progress: redesign the Hands consequence command into its execution
+   owner before deleting the shell. Then remove tests that inspect spelling, duplicate
    constructors, or
    exercise one-line helpers without reaching a consequence. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-10. Run focused tests after each cut. Only after source subtraction stabilizes
+11. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

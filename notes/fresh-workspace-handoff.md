@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `900c5232`
+Latest committed implementation cut: `94098223`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `94098223` removes Epiphany's unowned private host-identity custody and
+leaves only the Bifrost public-anchor contract plus signature verifier. The
+host-identity executable, release role, private identity schema/signer,
+enrollment/open/status/export APIs, default paths, Windows DPAPI, Linux seed
+masking, assurance claims, and direct random/zeroize/root OS dependencies are
+gone. Bifrost owns its private identity; Epiphany authenticates signed feedback
+against one pinned public anchor. A deterministic test-only signer replaces the
+production custody stack in verifier fixtures. The cut removes 561 net lines,
+leaves 12 Cargo executable targets, and passes focused verifier, Persona
+feedback, core, swarm, and release-construction checks.
 
 Exact `900c5232` deletes the callerless `epiphany-frontier-proposal` command,
 its forced release role, CLI parser, JSON summary, and two parser-only tests:
