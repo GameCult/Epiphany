@@ -12,12 +12,12 @@ use epiphany_core::{
     issue_resident_self_grant, live_resident_self_typed_request_ids,
     load_epiphany_cultmesh_swarm_brake,
     load_resident_self_state, materialize_resident_self_domain_obligations,
-    observe_process_instance, prepare_resident_self_launch, resident_self_terminal_receipts,
+    observe_process_instance, prepare_resident_self_launch,
     publish_resident_provider_readiness, reap_exited_child_process,
     recover_dead_runtime_worker_attempts, resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, retain_completed_runtime_sessions,
-    retain_coordinator_run_receipts, retain_failed_runtime_worker_attempts,
+    retain_failed_runtime_worker_attempts,
     retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
     runtime_worker_process_claims, settle_resident_self_exited_coordinator,
     settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
@@ -25,7 +25,7 @@ use epiphany_core::{
     validate_resident_self_store_separation,
 };
 use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -148,24 +148,10 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
     if state.active_turn.is_some() || state.prepared_launch.is_some() {
         return Ok(());
     }
-    let mut preserved = resident_self_terminal_receipts(&args.state_store)?
-        .into_iter()
-        .map(|ack| ack.coordinator_receipt_id)
-        .collect::<BTreeSet<_>>();
-    if let Some(receipt_id) = &state.last_coordinator_receipt_id {
-        preserved.insert(receipt_id.clone());
-    }
     let retained_at = Utc::now().to_rfc3339();
     retain_completed_runtime_sessions(
         &args.policy.runtime_store,
         args.retained_completed_runtime_sessions,
-        &preserved,
-        &retained_at,
-    )?;
-    retain_coordinator_run_receipts(
-        &args.policy.runtime_store,
-        args.retained_coordinator_receipts,
-        &preserved,
         &retained_at,
     )?;
     Ok(())
@@ -465,7 +451,6 @@ struct Args {
     persona_social_store: PathBuf,
     provider_freshness_seconds: u64,
     retained_closed_lifecycles: usize,
-    retained_coordinator_receipts: usize,
     retained_completed_runtime_sessions: usize,
     retained_runtime_worker_attempts: usize,
     persona_feedback_source_store: PathBuf,
@@ -577,9 +562,6 @@ impl Args {
             retained_closed_lifecycles: u64v("--retained-closed-lifecycles", 256)?
                 .try_into()
                 .context("--retained-closed-lifecycles exceeds platform size")?,
-            retained_coordinator_receipts: u64v("--retained-coordinator-receipts", 256)?
-                .try_into()
-                .context("--retained-coordinator-receipts exceeds platform size")?,
             retained_completed_runtime_sessions: u64v(
                 "--retained-completed-runtime-sessions",
                 256,
