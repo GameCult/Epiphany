@@ -1,71 +1,43 @@
 use super::EpiphanyHeartbeatArtifactRetentionPlan;
 use super::EpiphanyHeartbeatArtifactRetentionReceipt;
-use super::EpiphanyHeartbeatCognitionEntry;
 use super::EpiphanyHeartbeatStaleTurnRepairReceipt;
 use super::EpiphanyHeartbeatStateEntry;
 use super::HEARTBEAT_ARENA_MAINTENANCE;
 use super::HEARTBEAT_ARENA_SCENE;
-use super::HEARTBEAT_COGNITION_KEY;
-use super::HEARTBEAT_COGNITION_SCHEMA_VERSION;
 use super::HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY;
 use super::HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION;
 use super::HEARTBEAT_STATE_KEY;
 use super::HEARTBEAT_STATE_SCHEMA_VERSION;
-use super::LegacyHeartbeatStateWithCognition;
 use super::PARTICIPANT_KIND_AGENT;
 use super::PARTICIPANT_KIND_CHARACTER;
 use super::PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION;
 use super::PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION;
 use super::PERSONA_TURN_REQUEST_SCHEMA_VERSION;
 use super::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION;
-use super::now_iso;
 use super::participant_arena;
 use super::participant_kind;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use cultcache_rs::{CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry};
-use serde_json::Value;
 use std::collections::HashSet;
 use std::path::Path;
 
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
     cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionPlan>()?;
     cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionReceipt>()?;
-    import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), false)?;
+    import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref())?;
     Ok(cache)
 }
 
-fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionPlan>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatArtifactRetentionReceipt>()?;
-    import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), true)?;
-    Ok(cache)
-}
-
-fn import_owned_heartbeat_envelopes(
-    cache: &mut CultCache,
-    store_path: &Path,
-    legacy: bool,
-) -> Result<()> {
-    let state_type = if legacy {
-        <LegacyHeartbeatStateWithCognition as DatabaseEntry>::TYPE
-    } else {
-        <EpiphanyHeartbeatStateEntry as DatabaseEntry>::TYPE
-    };
+fn import_owned_heartbeat_envelopes(cache: &mut CultCache, store_path: &Path) -> Result<()> {
+    let state_type = <EpiphanyHeartbeatStateEntry as DatabaseEntry>::TYPE;
     let mut identities = HashSet::new();
     for envelope in SingleFileMessagePackBackingStore::new(store_path).pull_all()? {
         let owned = (envelope.r#type == state_type && envelope.key == HEARTBEAT_STATE_KEY)
-            || (envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE
-                && envelope.key == HEARTBEAT_COGNITION_KEY)
             || envelope.r#type == <EpiphanyHeartbeatStaleTurnRepairReceipt as DatabaseEntry>::TYPE;
         let owned = owned
             || envelope.r#type == <EpiphanyHeartbeatArtifactRetentionPlan as DatabaseEntry>::TYPE
@@ -82,15 +54,7 @@ fn import_owned_heartbeat_envelopes(
             ));
         }
         if envelope.r#type == state_type {
-            if legacy {
-                // The legacy and current state documents intentionally share a
-                // polymorphic identity. A current payload is not legacy cargo.
-                let _ = cache.load_envelope::<LegacyHeartbeatStateWithCognition>(envelope);
-            } else {
-                cache.load_envelope::<EpiphanyHeartbeatStateEntry>(envelope)?;
-            }
-        } else if envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE {
-            cache.load_envelope::<EpiphanyHeartbeatCognitionEntry>(envelope)?;
+            cache.load_envelope::<EpiphanyHeartbeatStateEntry>(envelope)?;
         } else if envelope.r#type == <EpiphanyHeartbeatArtifactRetentionPlan as DatabaseEntry>::TYPE
         {
             cache.load_envelope::<EpiphanyHeartbeatArtifactRetentionPlan>(envelope)?;
@@ -184,34 +148,6 @@ pub fn commit_heartbeat_state_transaction(
     Ok(())
 }
 
-pub fn load_heartbeat_cognition_entry(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
-    let store_path = store_path.as_ref();
-    let cache = heartbeat_state_cache(store_path)?;
-    if let Some(cognition) =
-        cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
-    {
-        return Ok(Some(cognition));
-    }
-    let legacy_cache = legacy_heartbeat_state_cache(store_path)?;
-    let legacy = match legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY) {
-        Ok(Some(legacy)) => legacy,
-        Ok(None) | Err(_) => return Ok(None),
-    };
-    legacy_heartbeat_cognition_entry(legacy)
-}
-
-pub fn write_heartbeat_cognition_entry(
-    store_path: impl AsRef<Path>,
-    cognition: &EpiphanyHeartbeatCognitionEntry,
-) -> Result<EpiphanyHeartbeatCognitionEntry> {
-    validate_heartbeat_cognition(cognition)?;
-    let store_path = store_path.as_ref();
-    let cache = heartbeat_state_cache(store_path)?;
-    commit_owned_entry(store_path, &cache, HEARTBEAT_COGNITION_KEY, cognition)
-}
-
 pub fn write_heartbeat_stale_turn_repair_receipt(
     store_path: impl AsRef<Path>,
     receipt: &EpiphanyHeartbeatStaleTurnRepairReceipt,
@@ -288,72 +224,6 @@ pub fn validate_heartbeat_stale_turn_repair_receipt(
         ));
     }
     Ok(())
-}
-
-pub fn validate_heartbeat_cognition(cognition: &EpiphanyHeartbeatCognitionEntry) -> Result<()> {
-    if cognition.schema_version != HEARTBEAT_COGNITION_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "heartbeat cognition schema_version is {:?}, expected {:?}",
-            cognition.schema_version,
-            HEARTBEAT_COGNITION_SCHEMA_VERSION
-        ));
-    }
-    Ok(())
-}
-
-fn legacy_heartbeat_cognition_entry(
-    legacy: LegacyHeartbeatStateWithCognition,
-) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
-    if legacy.sleep_cycle.is_none()
-        && legacy.memory_resonance.is_none()
-        && legacy.incubation.is_none()
-        && legacy.thought_lanes.is_none()
-        && legacy.bridge.is_none()
-        && legacy.candidate_interventions.is_none()
-        && legacy.appraisals.is_none()
-        && legacy.reactions.is_none()
-    {
-        return Ok(None);
-    }
-    let routine = legacy.extra.get("voidRoutine");
-    let latest_run_id = routine
-        .and_then(|value| value.get("lastRunId"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let source = routine
-        .and_then(|value| value.get("source"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let updated_at = routine
-        .and_then(|value| value.get("lastRunAt"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(now_iso);
-    Ok(Some(EpiphanyHeartbeatCognitionEntry {
-        schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
-        updated_at,
-        latest_run_id,
-        latest_artifact_ref: None,
-        source,
-        sleep_cycle: decode_legacy_document(legacy.sleep_cycle)?,
-        memory_resonance: decode_legacy_document(legacy.memory_resonance)?,
-        incubation: decode_legacy_document(legacy.incubation)?,
-        thought_lanes: decode_legacy_document(legacy.thought_lanes)?,
-        bridge: decode_legacy_document(legacy.bridge)?,
-        candidate_interventions: decode_legacy_document(legacy.candidate_interventions)?,
-        appraisals: decode_legacy_document(legacy.appraisals)?,
-        reactions: decode_legacy_document(legacy.reactions)?,
-    }))
-}
-
-fn decode_legacy_document<T>(value: Option<Value>) -> Result<Option<T>>
-where
-    T: serde::de::DeserializeOwned,
-{
-    value
-        .map(serde_json::from_value)
-        .transpose()
-        .map_err(Into::into)
 }
 
 pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<()> {
@@ -608,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn round_trips_state_and_cognition_documents() -> Result<()> {
+    fn round_trips_scheduler_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("heartbeats.msgpack");
         let state = default_heartbeat_state(1.0);
@@ -620,31 +490,6 @@ mod tests {
         assert_eq!(loaded.schema_version, HEARTBEAT_STATE_SCHEMA_VERSION);
         assert_eq!(loaded.participants.len(), state.participants.len());
 
-        let cognition = EpiphanyHeartbeatCognitionEntry {
-            schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
-            updated_at: "2026-05-17T00:00:00Z".to_string(),
-            latest_run_id: Some("run-1".to_string()),
-            latest_artifact_ref: None,
-            source: Some("unit-test".to_string()),
-            sleep_cycle: None,
-            memory_resonance: None,
-            incubation: None,
-            thought_lanes: None,
-            bridge: None,
-            candidate_interventions: None,
-            appraisals: None,
-            reactions: None,
-        };
-
-        write_heartbeat_cognition_entry(&store_path, &cognition)?;
-        let loaded_cognition = load_heartbeat_cognition_entry(&store_path)?
-            .expect("heartbeat cognition should round-trip through CultCache");
-
-        assert_eq!(
-            loaded_cognition.schema_version,
-            HEARTBEAT_COGNITION_SCHEMA_VERSION
-        );
-        assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
         Ok(())
     }
 

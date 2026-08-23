@@ -91,8 +91,6 @@ pub struct AgentUtteranceActivation {
     pub initiative_speed: f64,
     pub reaction_bias: f64,
     pub interrupt_threshold: f64,
-    pub personality_cooldown_multiplier: f64,
-    pub mood_cooldown_multiplier: f64,
     pub initiative_heat_multiplier: f64,
     pub effective_cooldown_multiplier: f64,
     pub pending_turn_active: bool,
@@ -168,7 +166,7 @@ pub fn derive_agent_utterance_state(
             unforgivable_if_betrayed: value.unforgivable_if_betrayed,
         })
         .collect::<Vec<_>>();
-    let mood = derive_utterance_mood(participant, mood_label, canonical);
+    let mood = derive_utterance_mood(mood_label, canonical);
     let activation = derive_utterance_activation(participant);
     let vector_source = source.into();
     let identity = AgentUtteranceIdentity {
@@ -211,65 +209,37 @@ pub fn derive_agent_utterance_state(
 }
 
 fn derive_utterance_mood(
-    participant: Option<&HeartbeatParticipant>,
     mood_label: Option<&str>,
     canonical: &GhostlightCanonicalState,
 ) -> AgentUtteranceMood {
-    let timing = participant.and_then(|participant| participant.mood_timing.as_ref());
     let situational = &canonical.situational_state;
-    let anxiety = timing
-        .map(|mood| mood.anxiety)
-        .unwrap_or_else(|| trait_activation(situational, "anxiety"));
-    let urgency = timing
-        .map(|mood| mood.urgency)
-        .unwrap_or_else(|| trait_activation(situational, "urgency"));
-    let arousal = timing
-        .map(|mood| mood.arousal)
-        .unwrap_or_else(|| trait_activation(situational, "arousal"));
-    let thought_pressure = timing
-        .map(|mood| mood.thought_pressure)
-        .unwrap_or_else(|| trait_activation(situational, "thought_pressure"));
-    let guardedness = timing
-        .map(|mood| mood.guardedness)
-        .unwrap_or_else(|| trait_activation(situational, "guardedness"));
-    let reaction_intensity = timing
-        .map(|mood| mood.reaction_intensity)
-        .unwrap_or_else(|| trait_activation(situational, "reaction_intensity"));
+    let anxiety = trait_activation(situational, "anxiety");
+    let urgency = trait_activation(situational, "urgency");
+    let arousal = trait_activation(situational, "arousal");
+    let thought_pressure = trait_activation(situational, "thought_pressure");
+    let guardedness = trait_activation(situational, "guardedness");
+    let reaction_intensity = trait_activation(situational, "reaction_intensity");
     AgentUtteranceMood {
         label: mood_label
             .map(str::to_string)
-            .unwrap_or_else(|| inferred_mood_label(timing.map(|mood| mood.arousal), situational)),
-        source: timing.and_then(|mood| mood.source.clone()),
-        emotional_dimensions: timing
-            .filter(|mood| !mood.emotional_dimensions.is_empty())
-            .map(|mood| {
-                mood.emotional_dimensions
-                    .iter()
-                    .map(|dimension| AgentUtteranceMoodDimension {
-                        name: dimension.name.clone(),
-                        value: dimension.value,
-                        source_path: dimension.source_path.clone(),
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                emotional_dimensions(
-                    situational,
-                    anxiety,
-                    urgency,
-                    arousal,
-                    thought_pressure,
-                    guardedness,
-                    reaction_intensity,
-                )
-            }),
+            .unwrap_or_else(|| inferred_mood_label(arousal, situational)),
+        source: None,
+        emotional_dimensions: emotional_dimensions(
+            situational,
+            anxiety,
+            urgency,
+            arousal,
+            thought_pressure,
+            guardedness,
+            reaction_intensity,
+        ),
         anxiety,
         urgency,
         arousal,
         thought_pressure,
         guardedness,
         reaction_intensity,
-        cooldown_multiplier: timing.map(|mood| mood.cooldown_multiplier).unwrap_or(1.0),
+        cooldown_multiplier: 1.0,
     }
 }
 
@@ -362,24 +332,18 @@ fn derive_utterance_activation(
             initiative_speed: 1.0,
             reaction_bias: 0.0,
             interrupt_threshold: 0.0,
-            personality_cooldown_multiplier: 1.0,
-            mood_cooldown_multiplier: 1.0,
             initiative_heat_multiplier: 1.0,
             effective_cooldown_multiplier: 1.0,
             ..AgentUtteranceActivation::default()
         };
     };
-    let effective_cooldown_multiplier = participant.personality_cooldown_multiplier
-        * participant.mood_cooldown_multiplier
-        / participant.initiative_heat_multiplier.max(0.001);
+    let effective_cooldown_multiplier = 1.0 / participant.initiative_heat_multiplier.max(0.001);
     AgentUtteranceActivation {
         status: participant.status.clone(),
         current_load: participant.current_load,
         initiative_speed: participant.initiative_speed,
         reaction_bias: participant.reaction_bias,
         interrupt_threshold: participant.interrupt_threshold,
-        personality_cooldown_multiplier: participant.personality_cooldown_multiplier,
-        mood_cooldown_multiplier: participant.mood_cooldown_multiplier,
         initiative_heat_multiplier: participant.initiative_heat_multiplier,
         effective_cooldown_multiplier,
         pending_turn_active: participant.pending_turn.is_some(),
@@ -390,10 +354,9 @@ fn derive_utterance_activation(
 }
 
 fn inferred_mood_label(
-    arousal: Option<f64>,
-    situational: &BTreeMap<String, GhostlightTraitVector>,
+    arousal: f64,
+    _situational: &BTreeMap<String, GhostlightTraitVector>,
 ) -> String {
-    let arousal = arousal.unwrap_or_else(|| trait_activation(situational, "arousal"));
     if arousal >= 0.75 {
         "activated".to_string()
     } else if arousal <= 0.25 {
@@ -1029,10 +992,6 @@ fn activation_value(activation: &AgentUtteranceActivation, name: &str) -> f64 {
         "cooldown_pressure" => multiplier_pressure(activation.effective_cooldown_multiplier),
         "reaction_bias" => activation.reaction_bias,
         "interrupt_threshold" => activation.interrupt_threshold,
-        "personality_cooldown_multiplier" => {
-            multiplier_pressure(activation.personality_cooldown_multiplier)
-        }
-        "mood_cooldown_multiplier" => multiplier_pressure(activation.mood_cooldown_multiplier),
         "initiative_speed" => multiplier_pressure(activation.initiative_speed),
         _ => 0.0,
     }
@@ -1194,7 +1153,6 @@ mod tests {
     use crate::agent_memory::GhostlightMemories;
     use crate::agent_memory::GhostlightValue;
     use crate::agent_memory::GhostlightWorld;
-    use crate::heartbeat_state::HeartbeatMoodTiming;
 
     #[test]
     fn utterance_state_projects_voice_without_memories() -> anyhow::Result<()> {
@@ -1215,6 +1173,11 @@ mod tests {
             ("dismissal", 0.58),
             ("flippancy", 0.67),
             ("emotional_containment", 0.49),
+            ("urgency", 0.74),
+            ("arousal", 0.82),
+            ("thought_pressure", 0.69),
+            ("guardedness", 0.21),
+            ("reaction_intensity", 0.77),
         ] {
             situational_state.insert(
                 name.to_string(),
@@ -1280,20 +1243,7 @@ mod tests {
             last_woke_at: Some("2026-05-20T12:00:00+00:00".to_string()),
             last_finished_at: None,
             pending_turn: None,
-            personality_cooldown_multiplier: 0.8,
-            mood_cooldown_multiplier: 0.7,
             initiative_heat_multiplier: 1.5,
-            mood_timing: Some(HeartbeatMoodTiming {
-                source: Some("heartbeat appraisal".to_string()),
-                anxiety: 0.33,
-                urgency: 0.74,
-                arousal: 0.82,
-                thought_pressure: 0.69,
-                guardedness: 0.21,
-                reaction_intensity: 0.77,
-                cooldown_multiplier: 0.7,
-                ..HeartbeatMoodTiming::default()
-            }),
             ..HeartbeatParticipant::default()
         };
 

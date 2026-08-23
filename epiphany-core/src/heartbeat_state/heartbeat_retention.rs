@@ -3,7 +3,7 @@ use super::{
     HEARTBEAT_ARTIFACT_RETENTION_PLAN_LATEST_KEY, HEARTBEAT_ARTIFACT_RETENTION_PLAN_SCHEMA_VERSION,
     HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_LATEST_KEY,
     HEARTBEAT_ARTIFACT_RETENTION_RECEIPT_SCHEMA_VERSION, HeartbeatArtifactRetentionMember,
-    heartbeat_state_cache, load_heartbeat_cognition_entry,
+    heartbeat_state_cache,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
@@ -53,16 +53,11 @@ pub fn retain_heartbeat_pulse_artifacts(
         return Ok(None);
     }
     let retire_count = batch_size.min(pulses.len() - retain_pulse_count);
-    let protected = protected_latest_cognition_pulse(store_path.as_ref(), &artifact_root)?;
     let members = pulses
         .iter()
-        .filter(|(_, path)| protected.as_deref() != path.file_name().and_then(|name| name.to_str()))
         .take(retire_count)
         .map(|(_, path)| artifact_member(&artifact_root, path))
         .collect::<Result<Vec<_>>>()?;
-    if members.len() != retire_count {
-        bail!("heartbeat artifact retention cannot fill a batch without current cognition");
-    }
     let plan_id = retention_plan_id(&artifact_root, retain_pulse_count, batch_size, &members);
     let plan = EpiphanyHeartbeatArtifactRetentionPlan {
         schema_version: HEARTBEAT_ARTIFACT_RETENTION_PLAN_SCHEMA_VERSION.to_string(),
@@ -77,30 +72,6 @@ pub fn retain_heartbeat_pulse_artifacts(
     validate_retention_plan(&plan)?;
     write_retention_plan(store_path.as_ref(), &plan)?;
     reconcile_retention_plan(store_path.as_ref(), &artifact_root, &plan, completed_at_utc).map(Some)
-}
-
-fn protected_latest_cognition_pulse(
-    store_path: &Path,
-    artifact_root: &Path,
-) -> Result<Option<String>> {
-    let Some(reference) =
-        load_heartbeat_cognition_entry(store_path)?.and_then(|entry| entry.latest_artifact_ref)
-    else {
-        return Ok(None);
-    };
-    let path = PathBuf::from(reference);
-    if !path.exists() {
-        return Ok(None);
-    }
-    let canonical = path.canonicalize()?;
-    let Ok(relative) = canonical.strip_prefix(artifact_root) else {
-        return Ok(None);
-    };
-    let Some(first) = relative.components().next() else {
-        return Ok(None);
-    };
-    let name = first.as_os_str().to_string_lossy().to_string();
-    Ok(pulse_sequence(&name).is_some().then_some(name))
 }
 
 fn pending_retention_plan(
@@ -409,10 +380,7 @@ fn write_retention_receipt(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        EpiphanyHeartbeatCognitionEntry, HEARTBEAT_COGNITION_SCHEMA_VERSION,
-        initialize_heartbeat_store, write_heartbeat_cognition_entry,
-    };
+    use crate::initialize_heartbeat_store;
 
     fn pulse(root: &Path, sequence: u64, content: &str) -> Result<PathBuf> {
         let path = root.join(format!("pulse-{sequence:06}"));
@@ -499,50 +467,6 @@ mod tests {
                 .is_err()
         );
         assert!(artifacts.join("pulse-000001").exists());
-        Ok(())
-    }
-
-    #[test]
-    fn latest_cognition_artifact_is_never_retired() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("heartbeat.cc");
-        let artifacts = temp.path().join("artifacts");
-        fs::create_dir(&artifacts)?;
-        initialize_heartbeat_store(&store, 1.0)?;
-        let protected = pulse(&artifacts, 1, "protected")?;
-        for sequence in 2..=5 {
-            pulse(&artifacts, sequence, "stable")?;
-        }
-        write_heartbeat_cognition_entry(
-            &store,
-            &EpiphanyHeartbeatCognitionEntry {
-                schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
-                updated_at: "2026-08-08T21:03:00Z".to_string(),
-                latest_run_id: Some("protected-run".to_string()),
-                latest_artifact_ref: Some(
-                    protected
-                        .join("nested")
-                        .join("artifact.json")
-                        .display()
-                        .to_string(),
-                ),
-                source: Some("test".to_string()),
-                sleep_cycle: None,
-                memory_resonance: None,
-                incubation: None,
-                thought_lanes: None,
-                bridge: None,
-                candidate_interventions: None,
-                appraisals: None,
-                reactions: None,
-            },
-        )?;
-
-        let receipt =
-            retain_heartbeat_pulse_artifacts(&store, &artifacts, 2, 2, "2026-08-08T21:03:01Z")?
-                .expect("retention should skip protected current cognition");
-        assert!(!receipt.deleted_directories.contains(&"pulse-000001".into()));
-        assert!(protected.exists());
         Ok(())
     }
 }

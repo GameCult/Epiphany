@@ -38,7 +38,6 @@ pub use freshness::derive_memory_graph_freshness;
 pub use ids::memory_graph_domain_id;
 pub use ids::memory_graph_edge_id;
 pub use ids::memory_graph_node_id;
-pub use profiles::memory_graph_from_heartbeat_cognition;
 pub use semantic_index::*;
 pub use semantic_projection::*;
 pub use semantic_projector::*;

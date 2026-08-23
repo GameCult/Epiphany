@@ -1,5 +1,3 @@
-use super::HEARTBEAT_COGNITION_KEY;
-use super::HEARTBEAT_COGNITION_TYPE;
 use super::HEARTBEAT_STATE_KEY;
 use super::HEARTBEAT_STATE_TYPE;
 use super::HEARTBEAT_STATUS_SCHEMA_VERSION;
@@ -7,15 +5,11 @@ use super::HeartbeatHistoryEvent;
 use super::HeartbeatParticipant;
 use super::HeartbeatPendingTurn;
 use super::HeartbeatSelectionPolicy;
-use super::VOID_ROUTINE_SCHEMA_VERSION;
 use super::effective_cooldown_multiplier;
 use super::initiative_heat_multiplier;
-use super::load_heartbeat_cognition_entry;
 use super::load_heartbeat_state_entry;
-use super::mood_cooldown_multiplier;
 use super::participant_arena;
 use super::participant_kind;
-use super::personality_cooldown_multiplier;
 use anyhow::Result;
 use serde_json::Value;
 use std::cmp::Reverse;
@@ -48,7 +42,6 @@ pub fn heartbeat_status_projection(
             "availableActions": ["init", "tick", "pump", "complete", "status"],
         }));
     };
-    let cognition = load_heartbeat_cognition_entry(store_path)?;
     let scheduler_status = if state.participants.is_empty() {
         "unconfigured"
     } else if state.participants.iter().all(|participant| {
@@ -104,17 +97,8 @@ pub fn heartbeat_status_projection(
         "latestEvent": history.last().cloned(),
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-        "cognitionQuarantine": cognition.as_ref().map(heartbeat_cognition_status_json),
-        "sleepCycle": cognition.as_ref().and_then(|entry| entry.sleep_cycle.clone()),
-        "memoryResonance": cognition.as_ref().and_then(|entry| entry.memory_resonance.clone()),
-        "incubation": cognition.as_ref().and_then(|entry| entry.incubation.clone()),
-        "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
-        "bridge": cognition.as_ref().and_then(|entry| entry.bridge.clone()),
-        "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
-        "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
-        "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
         "adaptivePacing": state.adaptive_pacing.as_ref(),
-        "availableActions": ["init", "tick", "pump", "heat", "complete", "status", "routine"],
+        "availableActions": ["init", "tick", "pump", "heat", "complete", "status"],
     }))
 }
 
@@ -156,18 +140,6 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
 }
 
 fn artifact_summary(payload: &Value) -> Value {
-    if payload.get("schema_version")
-        == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
-    {
-        return serde_json::json!({
-            "runId": payload.get("runId"),
-            "isNapping": payload.pointer("/sleepCycle/isNapping"),
-            "resonanceCount": payload.pointer("/memoryResonance/pairs").and_then(Value::as_array).map(Vec::len),
-            "incubationCount": payload.pointer("/incubation/themes").and_then(Value::as_array).map(Vec::len),
-            "appraisalCount": payload.pointer("/appraisals/participantAppraisals").and_then(Value::as_array).map(Vec::len),
-            "reactionCount": payload.pointer("/reactions/reactions").and_then(Value::as_array).map(Vec::len),
-        });
-    }
     let event = if payload.get("actionId").is_some() {
         Some(payload)
     } else {
@@ -213,19 +185,6 @@ fn cultcache_status(store_path: &Path) -> Value {
         "modifiedAt": modified_at,
         "entryType": HEARTBEAT_STATE_TYPE,
         "entryKey": HEARTBEAT_STATE_KEY,
-        "cognitionEntryType": HEARTBEAT_COGNITION_TYPE,
-        "cognitionEntryKey": HEARTBEAT_COGNITION_KEY,
-    })
-}
-
-fn heartbeat_cognition_status_json(cognition: &super::EpiphanyHeartbeatCognitionEntry) -> Value {
-    serde_json::json!({
-        "schema_version": cognition.schema_version,
-        "updatedAt": cognition.updated_at,
-        "latestRunId": cognition.latest_run_id,
-        "latestArtifactRef": cognition.latest_artifact_ref,
-        "source": cognition.source,
-        "contract": "Experimental Void/Ghostlight thought-weather is quarantined outside stable heartbeat scheduling state. Status may project it for inspection, but scheduler policy owns only typed timing physiology.",
     })
 }
 
@@ -237,8 +196,6 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "arena": participant_arena(participant),
         "participantKind": participant_kind(participant),
         "initiativeSpeed": participant.initiative_speed,
-        "personalityCooldownMultiplier": personality_cooldown_multiplier(participant),
-        "moodCooldownMultiplier": mood_cooldown_multiplier(participant),
         "initiativeHeatMultiplier": initiative_heat_multiplier(participant),
         "initiativeHeat": participant.initiative_heat.as_ref(),
         "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
@@ -250,8 +207,6 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
             .pending_turn
             .as_ref()
             .and_then(|turn| turn.initiative_freeze_reason.as_ref()),
-        "personalityTiming": participant.personality_timing.as_ref(),
-        "moodTiming": participant.mood_timing.as_ref(),
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
         "interruptThreshold": participant.interrupt_threshold,
@@ -272,8 +227,6 @@ pub(super) fn schedule_participant_json(participant: &HeartbeatParticipant) -> V
         "arena": participant_arena(participant),
         "participant_kind": participant_kind(participant),
         "initiative_speed": participant.initiative_speed,
-        "personality_cooldown_multiplier": personality_cooldown_multiplier(participant),
-        "mood_cooldown_multiplier": mood_cooldown_multiplier(participant),
         "initiative_heat_multiplier": initiative_heat_multiplier(participant),
         "effective_cooldown_multiplier": effective_cooldown_multiplier(participant),
         "initiative_frozen": participant
@@ -314,8 +267,6 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
-        "personalityCooldownMultiplier": turn.personality_cooldown_multiplier,
-        "moodCooldownMultiplier": turn.mood_cooldown_multiplier,
         "initiativeHeatMultiplier": turn.initiative_heat_multiplier,
         "effectiveCooldownMultiplier": turn.effective_cooldown_multiplier,
         "initiativeFrozen": turn.initiative_frozen,

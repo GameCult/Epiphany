@@ -10,8 +10,6 @@ use epiphany_core::HeartbeatPumpOptions;
 use epiphany_core::HeartbeatQueueMentionOptions;
 use epiphany_core::HeartbeatStaleTurnRepairOptions;
 use epiphany_core::HeartbeatTickOptions;
-use epiphany_core::VoidRoutineOptions;
-use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_local_provider_status;
 use epiphany_core::heartbeat_status_projection;
@@ -26,10 +24,8 @@ use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::recover_stale_heartbeat_store;
 use epiphany_core::resident_cognitive_runtime_id;
 use epiphany_core::retain_heartbeat_pulse_artifacts;
-use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
-use epiphany_core::validate_agent_memory_store;
 use epiphany_core::{
     ResidentProviderReadiness, acquire_resident_process_singleton,
     authenticate_epiphany_packaged_release, capture_process_instance,
@@ -45,7 +41,6 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
-use uuid::Uuid;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -71,15 +66,11 @@ fn main() -> Result<()> {
     let mut role: Option<String> = None;
     let mut action_id: Option<String> = None;
     let mut limit = 8_usize;
-    let mut agent_store: Option<PathBuf> = None;
     let mut resident_self_store: Option<PathBuf> = None;
     let mut resident_runtime_store: Option<PathBuf> = None;
-    let mut apply_rumination = false;
     let mut profile = "epiphany".to_string();
     let mut scene_id = "ghostlight.scene".to_string();
     let mut scene_participants = Vec::<GhostlightSceneParticipantSeed>::new();
-    let mut source = "epiphany/void-routine".to_string();
-    let mut no_dream = false;
     let mut heat_scope = "global".to_string();
     let mut heat_selector = String::new();
     let mut heat_multiplier = 1.0_f64;
@@ -148,21 +139,17 @@ fn main() -> Result<()> {
             "--role" => role = Some(next_value(&mut args, "--role")?),
             "--action-id" => action_id = Some(next_value(&mut args, "--action-id")?),
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
-            "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
             "--resident-self-store" => {
                 resident_self_store = Some(next_path(&mut args, "--resident-self-store")?)
             }
             "--resident-runtime-store" => {
                 resident_runtime_store = Some(next_path(&mut args, "--resident-runtime-store")?)
             }
-            "--apply-rumination" => apply_rumination = true,
             "--profile" => profile = next_value(&mut args, "--profile")?,
             "--scene-id" => scene_id = next_value(&mut args, "--scene-id")?,
             "--scene-participant" => scene_participants.push(parse_scene_participant(
                 &next_value(&mut args, "--scene-participant")?,
             )?),
-            "--source" => source = next_value(&mut args, "--source")?,
-            "--no-dream" => no_dream = true,
             "--scope" => heat_scope = next_value(&mut args, "--scope")?,
             "--selector" => heat_selector = next_value(&mut args, "--selector")?,
             "--multiplier" => heat_multiplier = next_value(&mut args, "--multiplier")?.parse()?,
@@ -257,15 +244,6 @@ fn main() -> Result<()> {
             let store_path = store_path.ok_or_else(|| anyhow!("tick requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("tick requires --artifact-dir"))?;
-            if let Some(agent_store) = &agent_store {
-                let errors = validate_agent_memory_store(agent_store)?;
-                if !errors.is_empty() {
-                    return Err(anyhow!(
-                        "agent memory validation failed: {}",
-                        errors.join("; ")
-                    ));
-                }
-            }
             let tick_schedule_id = schedule_id.clone();
             let mut result = tick_heartbeat_store(
                 &store_path,
@@ -278,16 +256,9 @@ fn main() -> Result<()> {
                     schedule_id: tick_schedule_id,
                     source_scene_ref,
                     defer_completion,
-                    agent_store: agent_store.clone(),
                     resident_self_store: resident_self_store.clone(),
                 },
             )?;
-            if apply_rumination {
-                let agent_store = agent_store
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("--apply-rumination requires --agent-store"))?;
-                apply_rumination_patch(&mut result, agent_store, &artifact_dir, &schedule_id)?;
-            }
             println!("{}", result);
         }
         "complete" => {
@@ -350,15 +321,6 @@ fn main() -> Result<()> {
             let store_path = store_path.ok_or_else(|| anyhow!("pump requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("pump requires --artifact-dir"))?;
-            if let Some(agent_store) = &agent_store {
-                let errors = validate_agent_memory_store(agent_store)?;
-                if !errors.is_empty() {
-                    return Err(anyhow!(
-                        "agent memory validation failed: {}",
-                        errors.join("; ")
-                    ));
-                }
-            }
             let result = pump_heartbeat_store(
                 &store_path,
                 &artifact_dir,
@@ -374,7 +336,6 @@ fn main() -> Result<()> {
                     target_role,
                     schedule_id,
                     source_scene_ref,
-                    agent_store,
                     resident_self_store,
                 },
             )?;
@@ -464,35 +425,6 @@ fn main() -> Result<()> {
                 );
             }
         }
-        "routine" => {
-            assert_swarm_brake_allows_heartbeat(
-                &local_verse_store,
-                release_runtime_id.as_deref(),
-                "routine",
-            )?;
-            let store_path = store_path.ok_or_else(|| anyhow!("routine requires --store"))?;
-            let artifact_dir =
-                artifact_dir.ok_or_else(|| anyhow!("routine requires --artifact-dir"))?;
-            if let Some(agent_store) = &agent_store {
-                let errors = validate_agent_memory_store(agent_store)?;
-                if !errors.is_empty() {
-                    return Err(anyhow!(
-                        "agent memory validation failed: {}",
-                        errors.join("; ")
-                    ));
-                }
-            }
-            let result = run_void_routine_store(
-                &store_path,
-                &artifact_dir,
-                VoidRoutineOptions {
-                    agent_store,
-                    source,
-                    allow_dream: !no_dream,
-                },
-            )?;
-            println!("{}", result);
-        }
         "serve" => {
             if interval_seconds == 0 {
                 return Err(anyhow!(
@@ -535,15 +467,6 @@ fn main() -> Result<()> {
                 &resident_runtime_store,
                 release_runtime_id.as_deref(),
             )?;
-            if let Some(agent_store) = &agent_store {
-                let errors = validate_agent_memory_store(agent_store)?;
-                if !errors.is_empty() {
-                    return Err(anyhow!(
-                        "agent memory validation failed: {}",
-                        errors.join("; ")
-                    ));
-                }
-            }
             fs::create_dir_all(&artifact_dir).with_context(|| {
                 format!(
                     "failed to create heartbeat serve artifact directory {}",
@@ -551,7 +474,6 @@ fn main() -> Result<()> {
                 )
             })?;
             let mut completed_iterations = highest_pulse_artifact_sequence(&artifact_dir)?;
-            let mut completed_routines = 0_u64;
             let mut refused_pulses = 0_u64;
             let shutdown_requested = install_shutdown_signal_owner()?;
             loop {
@@ -600,7 +522,6 @@ fn main() -> Result<()> {
                         brake.is_some(),
                         &format!("{schedule_id}.serve-{iteration:06}"),
                         &source_scene_ref,
-                        agent_store.clone(),
                     )?;
                     if pulse.status != "idle" {
                         completed_iterations = iteration;
@@ -670,7 +591,6 @@ fn main() -> Result<()> {
                     &iteration_dir,
                     &format!("{schedule_id}.persona-{iteration:06}"),
                     &source_scene_ref,
-                    agent_store.clone(),
                     false,
                 )?;
                 if persona_pulse["status"] != "idle" {
@@ -696,17 +616,7 @@ fn main() -> Result<()> {
                     wait_for_shutdown(&shutdown_requested, Duration::from_secs(interval_seconds));
                     continue;
                 }
-                let result = run_void_routine_store(
-                    &store_path,
-                    &iteration_dir,
-                    VoidRoutineOptions {
-                        agent_store: agent_store.clone(),
-                        source: source.clone(),
-                        allow_dream: !no_dream,
-                    },
-                )?;
                 completed_iterations = iteration;
-                completed_routines += 1;
                 let retention = retain_heartbeat_pulse_artifacts(
                     &store_path,
                     &artifact_dir,
@@ -718,13 +628,11 @@ fn main() -> Result<()> {
                     "{}",
                     serde_json::json!({
                         "schemaVersion": "epiphany.heartbeat.serve_pulse.v0",
-                        "status": "completed",
+                        "status": "idle",
                         "owner": "heartbeat",
                         "lifecycleOwner": "Idunn",
                         "iteration": iteration,
                         "artifactDir": iteration_dir,
-                        "routineOk": result["ok"],
-                        "routineArtifact": result["artifactPath"],
                         "retention": retention.as_ref().map(retention_receipt_projection),
                         "privateStateExposed": false
                     })
@@ -745,22 +653,12 @@ fn main() -> Result<()> {
                     "artifactDir": artifact_dir,
                     "intervalSeconds": interval_seconds,
                     "completedIterations": completed_iterations,
-                    "completedRoutines": completed_routines,
                     "refusedPulses": refused_pulses,
                     "bounded": max_iterations > 0,
                     "shutdownRequested": shutdown_requested.load(Ordering::SeqCst),
                     "privateStateExposed": false
                 })
             );
-        }
-        "smoke" => {
-            let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
-            let result = run_smoke(&agent_store)?;
-            let ok = result["ok"].as_bool().unwrap_or(false);
-            println!("{}", serde_json::to_string_pretty(&result)?);
-            if !ok {
-                std::process::exit(1);
-            }
         }
         _ => return usage(),
     }
@@ -863,9 +761,7 @@ fn usage() -> Result<()> {
         "       epiphany-heartbeat-store retain-artifacts --store <path> --artifact-dir <path> [--retain-pulse-artifacts <n>] [--retention-batch-size <n>]\n",
         "       epiphany-heartbeat-store queue-mention --store <path> [options]\n",
         "       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n",
-        "       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [options]\n",
-        "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--resident-self-store <path> --resident-runtime-store <path>] [--agent-store <path>] [--source <source>] [--no-dream] [--interval-seconds <n>] [--max-iterations <n>]\n",
-        "       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--resident-self-store <path> --resident-runtime-store <path>] [--interval-seconds <n>] [--max-iterations <n>]"
     )))
 }
 
@@ -1033,539 +929,4 @@ fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> 
             .map(str::to_string)
             .collect(),
     })
-}
-
-fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
-    let temp_dir = scoped_temp_dir("epiphany-heartbeat-smoke")?;
-    let temp_agent_store = temp_dir.join("agents.msgpack");
-    let store_path = temp_dir.join("heartbeats.msgpack");
-    let artifact_dir = temp_dir.join("artifacts");
-    fs::copy(agent_store, &temp_agent_store).with_context(|| {
-        format!(
-            "failed to copy {} to {}",
-            agent_store.display(),
-            temp_agent_store.display()
-        )
-    })?;
-
-    let initial_errors = validate_agent_memory_store(&temp_agent_store)?;
-    if !initial_errors.is_empty() {
-        let _ = fs::remove_dir_all(&temp_dir);
-        return Ok(serde_json::json!({
-            "ok": false,
-            "phase": "agent-memory-validate",
-            "validationErrors": initial_errors,
-        }));
-    }
-
-    initialize_heartbeat_store(&store_path, 1.0)?;
-    let heat = update_heartbeat_heat_store(
-        &store_path,
-        HeartbeatHeatUpdateOptions {
-            scope: "role".to_string(),
-            selector: "implementation".to_string(),
-            multiplier: 4.0,
-            id: Some("smoke-implementation-heat".to_string()),
-            label: Some("Smoke implementation heat".to_string()),
-            reason: Some(
-                "Prove heartbeat initiative heat changes the live turn surface.".to_string(),
-            ),
-            expires_after_scene_clock: Some(20.0),
-            clear: false,
-        },
-    )?;
-    let work = tick_heartbeat_store(
-        &store_path,
-        &artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: 1.0,
-            coordinator_action: Some("continueImplementation".to_string()),
-            target_role: None,
-            urgency: 0.95,
-            schedule_id: "smoke-work".to_string(),
-            source_scene_ref: "smoke/coordinator".to_string(),
-            defer_completion: true,
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-    let blocked_repeat = tick_heartbeat_store(
-        &store_path,
-        &artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: 1.0,
-            coordinator_action: Some("continueImplementation".to_string()),
-            target_role: None,
-            urgency: 0.95,
-            schedule_id: "smoke-work".to_string(),
-            source_scene_ref: "smoke/coordinator".to_string(),
-            defer_completion: true,
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )
-    .err()
-    .map(|error| error.to_string());
-
-    let action_id = work["event"]["actionId"]
-        .as_str()
-        .ok_or_else(|| anyhow!("smoke work event has no actionId"))?
-        .to_string();
-    let completed = complete_heartbeat_store(
-        &store_path,
-        &artifact_dir,
-        HeartbeatCompleteOptions {
-            role: "implementation".to_string(),
-            action_id: Some(action_id),
-        },
-    )?;
-    let mut idle = tick_heartbeat_store(
-        &store_path,
-        &artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: 1.0,
-            coordinator_action: None,
-            target_role: None,
-            urgency: 0.0,
-            schedule_id: "smoke-idle".to_string(),
-            source_scene_ref: "smoke/idle".to_string(),
-            defer_completion: false,
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-
-    if let Some(patch) = idle["rumination"]["selfPatch"].as_object() {
-        let role_id = idle["rumination"]["roleId"]
-            .as_str()
-            .ok_or_else(|| anyhow!("idle rumination has no roleId"))?
-            .to_string();
-        let patch = serde_json::from_value(serde_json::Value::Object(patch.clone()))
-            .context("idle rumination selfPatch is not a typed AgentSelfPatch")?;
-        let applied = apply_agent_self_patch_document(&role_id, patch, &temp_agent_store)?;
-        idle["rumination"]["result"] = serde_json::to_value(applied)?;
-        idle["rumination"]["applied"] = serde_json::Value::Bool(true);
-        write_rumination_artifact(&artifact_dir, "smoke-idle", &idle["rumination"])?;
-    }
-
-    let validation_errors = validate_agent_memory_store(&temp_agent_store)?;
-    let status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
-    if status["status"] != "loaded" || status["schedulerStatus"] != "active" {
-        anyhow::bail!(
-            "heartbeat status must distinguish loaded state from active scheduler physiology"
-        );
-    }
-    let routine = run_void_routine_store(
-        &store_path,
-        &artifact_dir,
-        VoidRoutineOptions {
-            agent_store: Some(temp_agent_store.clone()),
-            source: "smoke/void-routine".to_string(),
-            allow_dream: true,
-        },
-    )?;
-    let routine_status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
-    let relaxed_store_path = temp_dir.join("relaxed-heartbeats.msgpack");
-    initialize_heartbeat_store(&relaxed_store_path, 1.0)?;
-    let relaxed_pump = pump_heartbeat_store(
-        &relaxed_store_path,
-        &artifact_dir,
-        HeartbeatPumpOptions {
-            base_heartbeat_rate: 1.0,
-            min_heartbeat_rate: 0.05,
-            max_heartbeat_rate: 4.0,
-            min_concurrency: 1,
-            max_concurrency: 8,
-            max_ticks: 8,
-            external_urgency: 0.0,
-            coordinator_action: None,
-            target_role: None,
-            schedule_id: "smoke-relaxed-pump".to_string(),
-            source_scene_ref: "smoke/relaxed".to_string(),
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-    let alarmed_store_path = temp_dir.join("alarmed-heartbeats.msgpack");
-    initialize_heartbeat_store(&alarmed_store_path, 1.0)?;
-    let alarmed_pump = pump_heartbeat_store(
-        &alarmed_store_path,
-        &artifact_dir,
-        HeartbeatPumpOptions {
-            base_heartbeat_rate: 1.0,
-            min_heartbeat_rate: 0.05,
-            max_heartbeat_rate: 4.0,
-            min_concurrency: 1,
-            max_concurrency: 8,
-            max_ticks: 8,
-            external_urgency: 1.0,
-            coordinator_action: None,
-            target_role: None,
-            schedule_id: "smoke-alarmed-pump".to_string(),
-            source_scene_ref: "smoke/alarmed".to_string(),
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-    let stale_store_path = temp_dir.join("stale-heartbeats.msgpack");
-    initialize_heartbeat_store(&stale_store_path, 1.0)?;
-    let stale_work = tick_heartbeat_store(
-        &stale_store_path,
-        &artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: 1.0,
-            coordinator_action: Some("continueImplementation".to_string()),
-            target_role: None,
-            urgency: 0.95,
-            schedule_id: "smoke-stale-work".to_string(),
-            source_scene_ref: "smoke/stale".to_string(),
-            defer_completion: true,
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-    let stale_repair = recover_stale_heartbeat_store(
-        &stale_store_path,
-        &artifact_dir,
-        HeartbeatStaleTurnRepairOptions {
-            max_age_seconds: 0,
-            now_utc: None,
-            reason: "Smoke-test stale heartbeat recovery receipt.".to_string(),
-        },
-    )?;
-    let after_stale_repair = tick_heartbeat_store(
-        &stale_store_path,
-        &artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: 1.0,
-            coordinator_action: Some("continueImplementation".to_string()),
-            target_role: None,
-            urgency: 0.95,
-            schedule_id: "smoke-after-stale-repair".to_string(),
-            source_scene_ref: "smoke/stale".to_string(),
-            defer_completion: true,
-            agent_store: Some(temp_agent_store.clone()),
-            resident_self_store: None,
-        },
-    )?;
-    let initiative_errors = validate_schedule_shape(&work["schedule"])
-        .into_iter()
-        .chain(validate_schedule_shape(&idle["schedule"]))
-        .collect::<Vec<_>>();
-    let ok = work["event"]["selectedRole"] == "implementation"
-        && work["event"]["turnStatus"] == "running"
-        && blocked_repeat
-            .as_deref()
-            .is_some_and(|message| message.contains("already has running heartbeat turn"))
-        && completed["event"]["turnStatus"] == "completed"
-        && idle["event"]["actionType"] == "ruminate_memory"
-        && idle["event"]["turnStatus"] == "completed"
-        && idle["event"]["nextReadyAt"].as_f64().unwrap_or_default()
-            > completed["event"]["nextReadyAt"]
-                .as_f64()
-                .unwrap_or_default()
-        && idle["rumination"]["result"]["status"] == "accepted"
-        && validation_errors.is_empty()
-        && initiative_errors.is_empty()
-        && heat["heat"]["multipliers"]
-            .as_array()
-            .is_some_and(|multipliers| {
-                multipliers.iter().any(|multiplier| {
-                    multiplier["id"] == "smoke-implementation-heat"
-                        && multiplier["scope"] == "role"
-                        && multiplier["selector"] == "implementation"
-                        && multiplier["multiplier"].as_f64() == Some(4.0)
-                })
-            })
-        && work["schedule"]["action_catalog"]
-            .as_array()
-            .and_then(|actions| actions.first())
-            .and_then(|action| action["initiative_heat_multiplier"].as_f64())
-            == Some(4.0)
-        && artifact_dir.join("smoke-work.initiative.json").exists()
-        && artifact_dir.join("smoke-work.completion.json").exists()
-        && artifact_dir.join("smoke-idle.rumination.json").exists()
-        && status["participants"].as_array().map(Vec::len) == Some(7)
-        && routine["routine"]["schema_version"] == "epiphany.void_routine.v0"
-        && routine["routine"]["memoryResonance"]["schema_version"]
-            == "epiphany.memory_resonance.v0"
-        && routine["routine"]["incubation"]["schema_version"] == "epiphany.incubation.v0"
-        && routine["routine"]["thoughtLanes"]["schema_version"] == "epiphany.cognition_lanes.v0"
-        && routine["routine"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0"
-        && routine["routine"]["candidateInterventions"]["schema_version"]
-            == "epiphany.candidate_interventions.v0"
-        && routine["routine"]["appraisals"]["schema_version"]
-            == "epiphany.agent_thought_appraisals.v0"
-        && routine["routine"]["reactions"]["schema_version"] == "epiphany.agent_reactions.v0"
-        && routine["routine"]["incubation"]["sourceCoverage"]["schema_version"]
-            == "epiphany.source_coverage.v0"
-        && routine["routine"]["incubation"]["themes"]
-            .as_array()
-            .and_then(|themes| themes.first())
-            .is_some_and(|theme| {
-                theme
-                    .get("noveltyToSelf")
-                    .and_then(serde_json::Value::as_f64)
-                    .is_some()
-                    && theme
-                        .get("noveltyToRoom")
-                        .and_then(serde_json::Value::as_f64)
-                        .is_some()
-                    && theme
-                        .get("saturationScore")
-                        .and_then(serde_json::Value::as_f64)
-                        .is_some()
-                    && theme
-                        .get("status")
-                        .and_then(serde_json::Value::as_str)
-                        .is_some()
-            })
-        && routine["routine"]["bridge"]["sourceCoverage"]["schema_version"]
-            == "epiphany.source_coverage.v0"
-        && routine["routine"]["bridge"]["refractoryTopics"].is_array()
-        && routine["routine"]["bridge"]["decision"]["reason"]
-            .as_str()
-            .is_some_and(|reason| !reason.is_empty())
-        && routine_status["cognitionQuarantine"]["schema_version"]
-            == "epiphany.agent_heartbeat_cognition.v0"
-        && routine_status["cognitionQuarantine"]["latestRunId"].as_str()
-            == routine["routine"]["runId"].as_str()
-        && routine_status["participants"]
-            .as_array()
-            .and_then(|participants| {
-                let hands = participants
-                    .iter()
-                    .find(|item| item["roleId"] == "implementation")?;
-                let self_lane = participants
-                    .iter()
-                    .find(|item| item["roleId"] == "coordinator")?;
-                let hands_personality = hands["personalityCooldownMultiplier"]
-                    .as_f64()
-                    .unwrap_or(1.0);
-                let self_personality = self_lane["personalityCooldownMultiplier"]
-                    .as_f64()
-                    .unwrap_or(1.0);
-                let hands_effective = hands["effectiveCooldownMultiplier"].as_f64().unwrap_or(1.0);
-                let self_effective = self_lane["effectiveCooldownMultiplier"]
-                    .as_f64()
-                    .unwrap_or(1.0);
-                Some(hands_personality < self_personality && hands_effective < self_effective)
-            })
-            == Some(true)
-        && routine_status["sleepCycle"]["schema_version"] == "epiphany.sleep_cycle.v0";
-    let ok = ok
-        && relaxed_pump["pump"]["launched"].as_u64() == Some(0)
-        && relaxed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(0)
-        && alarmed_pump["pump"]["launched"].as_u64() == Some(7)
-        && alarmed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(7)
-        && stale_work["event"]["turnStatus"] == "running"
-        && stale_repair["repaired"].as_u64() == Some(1)
-        && stale_repair["receipts"]
-            .as_array()
-            .and_then(|receipts| receipts.first())
-            .is_some_and(|receipt| receipt[10] == "repaired" && receipt[12] == false)
-        && after_stale_repair["event"]["selectedRole"] == stale_work["event"]["selectedRole"]
-        && after_stale_repair["event"]["turnStatus"] == "running";
-
-    let result = serde_json::json!({
-        "ok": ok,
-        "workEvent": work["event"],
-        "heat": heat["heat"],
-        "blockedRepeat": blocked_repeat,
-        "completionEvent": completed["event"],
-        "idleEvent": idle["event"],
-        "idleRumination": idle["rumination"],
-        "voidRoutine": routine["routine"],
-        "personalityTiming": routine_status["participants"],
-        "relaxedPump": relaxed_pump["pump"],
-        "alarmedPump": alarmed_pump["pump"],
-        "staleRepair": stale_repair,
-        "afterStaleRepairEvent": after_stale_repair["event"],
-        "validationErrors": validation_errors,
-        "initiativeErrors": initiative_errors,
-    });
-    let _ = fs::remove_dir_all(&temp_dir);
-    Ok(result)
-}
-
-fn apply_rumination_patch(
-    result: &mut serde_json::Value,
-    agent_store: &Path,
-    artifact_dir: &Path,
-    schedule_id: &str,
-) -> Result<()> {
-    if result["rumination"].is_null() {
-        return Ok(());
-    }
-    let Some(patch) = result["rumination"]["selfPatch"].as_object() else {
-        return Ok(());
-    };
-    let role_id = result["rumination"]["roleId"]
-        .as_str()
-        .ok_or_else(|| anyhow!("rumination has no roleId"))?
-        .to_string();
-    let patch = serde_json::from_value(serde_json::Value::Object(patch.clone()))
-        .context("rumination selfPatch is not a typed AgentSelfPatch")?;
-    let applied = apply_agent_self_patch_document(&role_id, patch, agent_store)?;
-    result["rumination"]["result"] = serde_json::to_value(applied)?;
-    result["rumination"]["applied"] = serde_json::Value::Bool(true);
-    write_rumination_artifact(artifact_dir, schedule_id, &result["rumination"])?;
-    Ok(())
-}
-
-fn write_rumination_artifact(
-    artifact_dir: &Path,
-    schedule_id: &str,
-    value: &serde_json::Value,
-) -> Result<()> {
-    fs::create_dir_all(artifact_dir)
-        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
-    let path = artifact_dir.join(format!("{schedule_id}.rumination.json"));
-    fs::write(&path, format!("{}\n", serde_json::to_string_pretty(value)?))
-        .with_context(|| format!("failed to write {}", path.display()))
-}
-
-fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
-    let mut errors = Vec::new();
-    let required = [
-        "schema_version",
-        "schedule_id",
-        "source_scene_ref",
-        "scene_clock",
-        "participants",
-        "action_catalog",
-        "reaction_windows",
-        "selection_policy",
-        "next_actor_selection",
-        "review_notes",
-    ];
-    for key in required {
-        if schedule.get(key).is_none() {
-            errors.push(format!("initiative schedule missing {key}"));
-        }
-    }
-    if schedule["schema_version"] != "ghostlight.initiative_schedule.v0" {
-        errors.push("initiative schedule has wrong schema_version".to_string());
-    }
-    if !schedule["scene_clock"].is_number()
-        || schedule["scene_clock"]
-            .as_f64()
-            .is_some_and(|clock| clock < 0.0)
-    {
-        errors.push("initiative schedule scene_clock must be non-negative number".to_string());
-    }
-    for participant in schedule["participants"].as_array().into_iter().flatten() {
-        if ![
-            "active",
-            "blocked",
-            "withdrawn",
-            "incapacitated",
-            "offscreen",
-        ]
-        .contains(&participant["status"].as_str().unwrap_or_default())
-        {
-            errors.push(format!(
-                "participant {:?} has invalid status",
-                participant["agent_id"]
-            ));
-        }
-        for key in [
-            "initiative_speed",
-            "next_ready_at",
-            "reaction_bias",
-            "interrupt_threshold",
-            "current_load",
-        ] {
-            if !participant[key].is_number() {
-                errors.push(format!(
-                    "participant {:?} {key} must be numeric",
-                    participant["agent_id"]
-                ));
-            }
-        }
-    }
-    for action in schedule["action_catalog"].as_array().into_iter().flatten() {
-        if ![
-            "speak",
-            "silence",
-            "move",
-            "gesture",
-            "touch_object",
-            "block_object",
-            "use_object",
-            "show_object",
-            "withhold_object",
-            "transfer_object",
-            "spend_resource",
-            "attack",
-            "wait",
-            "mixed",
-            "role_work",
-            "ruminate_memory",
-            "scene_turn",
-            "persona_turn",
-        ]
-        .contains(&action["action_type"].as_str().unwrap_or_default())
-        {
-            errors.push(format!(
-                "action {:?} has invalid action_type",
-                action["action_id"]
-            ));
-        }
-        if !["micro", "short", "standard", "major", "committed"]
-            .contains(&action["action_scale"].as_str().unwrap_or_default())
-        {
-            errors.push(format!(
-                "action {:?} has invalid action_scale",
-                action["action_id"]
-            ));
-        }
-    }
-    let selection = &schedule["next_actor_selection"];
-    if ![
-        "scheduled_turn",
-        "reaction_interrupt",
-        "coordinator_override",
-    ]
-    .contains(&selection["selection_kind"].as_str().unwrap_or_default())
-    {
-        errors.push("next_actor_selection has invalid selection_kind".to_string());
-    }
-    for snapshot in selection["readiness_snapshot"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        if let Some(object) = snapshot.as_object() {
-            let extra_keys = object
-                .keys()
-                .filter(|key| {
-                    ![
-                        "agent_id",
-                        "arena",
-                        "participant_kind",
-                        "next_ready_at",
-                        "initiative_frozen",
-                        "freeze_reason",
-                        "reaction_readiness",
-                        "eligible_for_reaction",
-                    ]
-                    .contains(&key.as_str())
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            if !extra_keys.is_empty() {
-                errors.push(format!(
-                    "readiness snapshot has Ghostlight-incompatible keys: {extra_keys:?}"
-                ));
-            }
-        }
-    }
-    errors
-}
-
-fn scoped_temp_dir(prefix: &str) -> Result<PathBuf> {
-    let path = env::temp_dir().join(format!("{prefix}-{}", Uuid::new_v4()));
-    fs::create_dir(&path).with_context(|| format!("failed to claim {}", path.display()))?;
-    Ok(path)
 }

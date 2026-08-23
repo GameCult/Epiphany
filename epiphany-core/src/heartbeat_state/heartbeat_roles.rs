@@ -129,13 +129,8 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
         pending_turn: None,
         scene_id: None,
         groups: Vec::new(),
-        personality_cooldown_multiplier: 1.0,
-        mood_cooldown_multiplier: 1.0,
         initiative_heat_multiplier: 1.0,
         initiative_heat: None,
-        personality_timing: None,
-        mood_timing: None,
-        birth_personality_seed: None,
     }
 }
 
@@ -163,13 +158,8 @@ fn ghostlight_scene_participant(
         pending_turn: None,
         scene_id: Some(scene_id.to_string()),
         groups: Vec::new(),
-        personality_cooldown_multiplier: 1.0,
-        mood_cooldown_multiplier: 1.0,
         initiative_heat_multiplier: 1.0,
         initiative_heat: None,
-        personality_timing: None,
-        mood_timing: None,
-        birth_personality_seed: None,
     }
 }
 
