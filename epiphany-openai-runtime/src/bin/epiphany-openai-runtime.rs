@@ -17,13 +17,15 @@ use anyhow::anyhow;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::MODEL_ADAPTER_REQUEST_SCHEMA_ID;
-use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+#[cfg(test)]
+use epiphany_openai_adapter::{
+    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiStreamEvent, EpiphanyOpenAiStreamPayload,
+};
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
+#[cfg(test)]
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::append_requested_public_source_receipts;
 use epiphany_openai_runtime::assistant_text_from_model_events;
@@ -32,10 +34,10 @@ use epiphany_openai_runtime::build_worker_model_request;
 use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
-use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::fail_model_backed_worker_job;
 use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::load_worker_launch_request;
+#[cfg(test)]
 use epiphany_openai_runtime::record_native_model_events;
 use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_tool_followup_model_turn;
@@ -297,82 +299,6 @@ async fn main() -> Result<()> {
             }
             print_json(&summary)?;
         }
-        "smoke" => {
-            let options = parse_smoke_options(args.collect())?;
-            require_supported_provider(&options.provider)?;
-            let mut request = EpiphanyModelRequest::new(
-                "smoke-request",
-                "smoke-conversation",
-                &options.provider,
-                default_worker_model(),
-                "Answer with one sentence.",
-            );
-            request.input.push(EpiphanyModelInputItem::UserText {
-                text: "smoke".to_string(),
-            });
-            let openai_request =
-                epiphany_openai_runtime::openai_request_from_model_request(&request);
-            let mut runtime_options = default_options(
-                options.store_path.clone(),
-                options.codex_home,
-                &openai_request,
-            );
-            runtime_options.provider_credential_path = options.provider_credential_path;
-            ensure_openai_runtime_ready(&runtime_options)?;
-            epiphany_core::ensure_runtime_session(
-                &runtime_options.store_path,
-                epiphany_core::RuntimeSpineSessionOptions {
-                    session_id: runtime_options.session_id.clone(),
-                    objective: runtime_options.objective.clone(),
-                    created_at: now(),
-                    coordinator_note: runtime_options.coordinator_note.clone(),
-                },
-            )?;
-            epiphany_core::create_runtime_job(
-                &runtime_options.store_path,
-                epiphany_core::RuntimeSpineJobOptions {
-                    job_id: runtime_options.job_id.clone(),
-                    session_id: runtime_options.session_id.clone(),
-                    role: OPENAI_RUNTIME_ROLE.to_string(),
-                    created_at: now(),
-                    summary: "Smoke typed model runtime route through the OpenAI/Codex provider."
-                        .to_string(),
-                    artifact_refs: Vec::new(),
-                },
-            )?;
-            epiphany_openai_runtime::store_model_request(&runtime_options.store_path, &request)?;
-            let mut receipt = EpiphanyOpenAiModelReceipt::new(&request.request_id, &request.model);
-            receipt.response_id = Some("smoke-response".to_string());
-            receipt.transport = Some("smoke_no_network".to_string());
-            let events = vec![
-                EpiphanyOpenAiStreamEvent {
-                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
-                    request_id: request.request_id.clone(),
-                    sequence: 0,
-                    payload: EpiphanyOpenAiStreamPayload::ToolCall {
-                        call_id: "smoke-tool-call".to_string(),
-                        name: "mcp__smoke_server__smoke_tool".to_string(),
-                        arguments: "{}".to_string(),
-                    },
-                },
-                EpiphanyOpenAiStreamEvent {
-                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
-                    request_id: request.request_id.clone(),
-                    sequence: 1,
-                    payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
-                },
-            ];
-            let summary = record_native_model_events(
-                &runtime_options.store_path,
-                &runtime_options,
-                &request,
-                &events,
-            )?;
-            print_json(&json!({
-                "summary": summary,
-                "transport": "not-opened"
-            }))?;
-        }
         _ => return Err(anyhow!(usage())),
     }
     Ok(())
@@ -510,13 +436,6 @@ impl ModelTurnCliOptions {
         }
         options
     }
-}
-
-struct SmokeCliOptions {
-    provider: String,
-    store_path: PathBuf,
-    codex_home: PathBuf,
-    provider_credential_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -2133,37 +2052,6 @@ fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTur
     })
 }
 
-fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
-    let mut provider = DEFAULT_PROVIDER.to_string();
-    let mut store_path = PathBuf::from(format!(
-        ".epiphany-dogfood/model-runtime/smoke-{}.msgpack",
-        Uuid::new_v4()
-    ));
-    let mut codex_home = default_codex_home()?;
-    let mut provider_credential_path = None;
-    let mut iter = args.into_iter();
-    while let Some(arg) = iter.next() {
-        match arg.as_str() {
-            "--provider" => provider = next_value(&mut iter, "--provider")?,
-            "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
-            "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
-            "--provider-credential" => {
-                provider_credential_path = Some(PathBuf::from(next_value(
-                    &mut iter,
-                    "--provider-credential",
-                )?))
-            }
-            other => return Err(anyhow!("unknown smoke argument: {other}")),
-        }
-    }
-    Ok(SmokeCliOptions {
-        provider,
-        store_path,
-        codex_home,
-        provider_credential_path,
-    })
-}
-
 fn require_supported_provider(provider: &str) -> Result<()> {
     if matches!(provider, "openai-codex" | "openai" | "openrouter") {
         return Ok(());
@@ -2188,5 +2076,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <list-decisions|audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <list-decisions|audit-decision|model-turn|run-worker|tool-followup|tool-followup-turn> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--request path] [--request-id id] [--context-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--activation-token-sha256 hex] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
 }
