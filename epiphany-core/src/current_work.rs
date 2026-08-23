@@ -3200,17 +3200,9 @@ pub fn launch_current_proposal_modeling_work(
     )?;
     let binding = crate::RepoFrontierProposalModelingLaunchBinding {
         schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        binding_record_id,
         proposal_modeling_request_id: request.request_id.clone(),
-        proposal_id: proposal.proposal_id.clone(),
-        proposal_payload_sha256: proposal.payload_sha256.clone(),
         job_id: job_id.clone(),
-        binding_id: crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
-        runtime_id: identity.runtime_id,
-        thread_id: request.thread_id,
-        launched_at: options.created_at.clone(),
         worker_launch_document_sha256,
-        contract: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT.into(),
     };
     let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
         format!("substrate-grant-{}", binding.job_id),
@@ -3252,7 +3244,7 @@ pub fn launch_current_proposal_modeling_work(
         expected,
         prepared,
         vec![
-            cache.prepare_entry(&binding.binding_record_id, &binding)?.0,
+            cache.prepare_entry(&binding_record_id, &binding)?.0,
             cache.prepare_entry(&grant.receipt_id, &grant)?.0,
         ],
         "proposal Modeling",
