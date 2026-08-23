@@ -505,8 +505,6 @@ pub use runtime_spine::put_hands_action_review;
 pub use runtime_spine::put_hands_command_receipt;
 pub use runtime_spine::put_hands_commit_receipt;
 pub use runtime_spine::put_hands_patch_receipt;
-#[cfg(test)]
-pub use runtime_spine::put_hands_pr_receipt;
 pub use runtime_spine::put_repo_frontier_hands_authority;
 pub use runtime_spine::put_repo_frontier_verification_request;
 pub use runtime_spine::put_repo_frontier_work_proposal;
@@ -534,7 +532,6 @@ pub use runtime_spine::runtime_hands_action_review;
 pub use runtime_spine::runtime_hands_command_receipt;
 pub use runtime_spine::runtime_hands_commit_receipt;
 pub use runtime_spine::runtime_hands_patch_receipt;
-pub use runtime_spine::runtime_hands_pr_receipt;
 pub use runtime_spine::runtime_hands_receipt_chain_after;
 pub use runtime_spine::runtime_hands_receipt_chain_matches_current_model;
 pub use runtime_spine::runtime_has_actionable_eyes_frontier;

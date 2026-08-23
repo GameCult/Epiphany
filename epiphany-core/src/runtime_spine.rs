@@ -1137,7 +1137,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<HandsPatchReceipt>()?;
     cache.register_entry_type::<HandsCommandReceipt>()?;
     cache.register_entry_type::<HandsCommitReceipt>()?;
-    cache.register_entry_type::<HandsPrReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -9888,10 +9887,6 @@ pub fn relinquish_repo_frontier_hands_route(
             .get_all::<HandsCommitReceipt>()?
             .iter()
             .any(|receipt| receipt.intent_id == intent_id)
-        || cache
-            .get_all::<HandsPrReceipt>()?
-            .iter()
-            .any(|receipt| receipt.intent_id == intent_id)
     {
         return Err(anyhow!("Hands cannot relinquish after consequences exist"));
     }
@@ -10958,44 +10953,6 @@ pub fn runtime_hands_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<HandsCommitReceipt>(receipt_id)
-}
-
-#[cfg(test)]
-pub fn put_hands_pr_receipt(store_path: impl AsRef<Path>, receipt: &HandsPrReceipt) -> Result<()> {
-    validate_non_empty(&receipt.receipt_id, "Hands PR receipt id")?;
-    validate_non_empty(&receipt.intent_id, "Hands PR intent")?;
-    validate_non_empty(&receipt.review_id, "Hands PR review")?;
-    validate_non_empty(&receipt.runtime_job_id, "Hands PR runtime job")?;
-    validate_non_empty(&receipt.commit_receipt_id, "Hands PR commit receipt")?;
-    validate_non_empty(&receipt.commit_sha, "Hands PR commit sha")?;
-    validate_non_empty(&receipt.branch, "Hands PR branch")?;
-    validate_non_empty(&receipt.pull_request_url, "Hands PR url")?;
-    validate_non_empty(&receipt.pull_request_number, "Hands PR number")?;
-    validate_non_empty(&receipt.pull_request_title, "Hands PR title")?;
-    validate_non_empty(
-        &receipt.bifrost_publication_receipt_id,
-        "Hands PR Bifrost publication receipt",
-    )?;
-    validate_non_empty(&receipt.summary, "Hands PR summary")?;
-    validate_non_empty(&receipt.emitted_at, "Hands PR timestamp")?;
-    if receipt.changed_paths.is_empty() {
-        return Err(anyhow!("Hands PR receipt must name changed paths"));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
-}
-
-pub fn runtime_hands_pr_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<HandsPrReceipt>> {
-    validate_non_empty(receipt_id, "Hands PR receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsPrReceipt>(receipt_id)
 }
 
 pub fn runtime_hands_receipt_chain_after(
@@ -13466,12 +13423,11 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 HANDS_COMMAND_RECEIPT_TYPE,
                 HANDS_PATCH_RECEIPT_TYPE,
                 HANDS_COMMIT_RECEIPT_TYPE,
-                HANDS_PR_RECEIPT_TYPE,
                 HANDS_ROLLBACK_RECEIPT_TYPE,
                 HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
             ],
             vec![
-                "Hands is the action organ: commands, patches, commits, PRs, and rollbacks enter as bounded action intents.",
+                "Hands is the action organ: commands, patches, commits, and rollbacks enter as bounded action intents.",
                 "Substrate Gate grants substrate access before Hands mutates; Soul verifies consequences after.",
             ],
         ),
@@ -13520,20 +13476,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             CultNetMutationAuthority::ReadOnly,
             vec![],
-            vec![HANDS_PR_RECEIPT_TYPE],
-            vec!["Commit receipts preserve publication consequences after verification."],
-        ),
-        mutation_contract(
-            HANDS_PR_RECEIPT_TYPE,
-            HANDS_PR_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
             vec![],
-            vec![],
-            vec!["PR receipts preserve outward publication consequences for operator review."],
+            vec!["Commit receipts preserve repository consequences after verification."],
         ),
         mutation_contract(
             HANDS_ROLLBACK_RECEIPT_TYPE,

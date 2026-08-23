@@ -7,7 +7,6 @@ pub const HANDS_ACTION_REVIEW_TYPE: &str = "epiphany.hands.action_review";
 pub const HANDS_COMMAND_RECEIPT_TYPE: &str = "epiphany.hands.command_receipt";
 pub const HANDS_PATCH_RECEIPT_TYPE: &str = "epiphany.hands.patch_receipt";
 pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";
-pub const HANDS_PR_RECEIPT_TYPE: &str = "epiphany.hands.pr_receipt";
 pub const HANDS_ROLLBACK_RECEIPT_TYPE: &str = "epiphany.hands.rollback_receipt";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_TYPE: &str = "epiphany.hands.action_refusal_receipt";
 pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v1";
@@ -15,7 +14,6 @@ pub const HANDS_ACTION_REVIEW_SCHEMA_VERSION: &str = "epiphany.hands.action_revi
 pub const HANDS_COMMAND_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.command_receipt.v0";
 pub const HANDS_PATCH_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.patch_receipt.v0";
 pub const HANDS_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.commit_receipt.v0";
-pub const HANDS_PR_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.pr_receipt.v0";
 pub const HANDS_ROLLBACK_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.rollback_receipt.v0";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.hands.action_refusal_receipt.v1";
@@ -201,43 +199,6 @@ pub struct HandsCommitReceipt {
     pub contract: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.hands.pr_receipt", schema = "HandsPrReceipt")]
-pub struct HandsPrReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub intent_id: String,
-    #[cultcache(key = 3)]
-    pub review_id: String,
-    #[cultcache(key = 4)]
-    pub runtime_job_id: String,
-    #[cultcache(key = 5)]
-    pub commit_receipt_id: String,
-    #[cultcache(key = 6)]
-    pub commit_sha: String,
-    #[cultcache(key = 7)]
-    pub branch: String,
-    #[cultcache(key = 8)]
-    pub pull_request_url: String,
-    #[cultcache(key = 9)]
-    pub pull_request_number: String,
-    #[cultcache(key = 10)]
-    pub pull_request_title: String,
-    #[cultcache(key = 11)]
-    pub changed_paths: Vec<String>,
-    #[cultcache(key = 12)]
-    pub bifrost_publication_receipt_id: String,
-    #[cultcache(key = 13)]
-    pub summary: String,
-    #[cultcache(key = 14)]
-    pub emitted_at: String,
-    #[cultcache(key = 15)]
-    pub contract: String,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HandsCultNetContract {
@@ -271,12 +232,11 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
                 HANDS_COMMAND_RECEIPT_TYPE.to_string(),
                 HANDS_PATCH_RECEIPT_TYPE.to_string(),
                 HANDS_COMMIT_RECEIPT_TYPE.to_string(),
-                HANDS_PR_RECEIPT_TYPE.to_string(),
                 HANDS_ROLLBACK_RECEIPT_TYPE.to_string(),
                 HANDS_ACTION_REFUSAL_RECEIPT_TYPE.to_string(),
             ],
             notes: vec![
-                "Hands is the action organ: commands, patches, commits, PRs, and rollbacks enter here as bounded action intents.".to_string(),
+                "Hands is the action organ: commands, patches, commits, and rollbacks enter here as bounded action intents.".to_string(),
                 "Hands does not grant repo access; Substrate Gate grants substrate access before Hands mutates, and Soul verifies the result after.".to_string(),
             ],
         },
@@ -320,16 +280,16 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
             ],
         },
         HandsCultNetContract {
-            contract_id: "epiphany.hands.commit_and_pr.receipts".to_string(),
+            contract_id: "epiphany.hands.commit.receipts".to_string(),
             verse_id: "epiphany-internal".to_string(),
             document_type: HANDS_COMMIT_RECEIPT_TYPE.to_string(),
             payload_schema_version: HANDS_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
             authority: "readOnly".to_string(),
             operations: vec!["snapshot".to_string(), "receiptWatch".to_string()],
             intent_document_types: Vec::new(),
-            receipt_document_types: vec![HANDS_PR_RECEIPT_TYPE.to_string()],
+            receipt_document_types: Vec::new(),
             notes: vec![
-                "Commit and PR receipts preserve publication consequences after Soul verification and operator policy allow them.".to_string(),
+                "Commit receipts preserve repository consequences after Soul verification and operator policy allow them.".to_string(),
             ],
         },
         HandsCultNetContract {
@@ -441,6 +401,6 @@ pub fn hands_commit_receipt_for_review(
         changed_paths,
         summary,
         emitted_at,
-        contract: "Hands commit receipt proves source publication consequences after a reviewed action; it is still subject to Soul verification and Mind admission.".to_string(),
+        contract: "Hands commit receipt proves a repository commit consequence after a reviewed action; it is still subject to Soul verification and Mind admission.".to_string(),
     }
 }
