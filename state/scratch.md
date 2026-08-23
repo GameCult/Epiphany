@@ -175,7 +175,13 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    Exact job/result fulfillment, archive validation, refusal filtering, and
    Resident Self recovery remain. The cut removes 31 net source lines, two
    public functions, and one public struct.
-31. Next: resume the public runtime-spine and test-liability audit by live owner
+31. Done: exact `7cf6d45c` makes the archived model-session tombstone private
+   and minimal. Seven write-only summaries, a duplicate archive/session ID,
+   and the unused retention timestamp are gone. The tombstone retains only the
+   retired session/job/model/tool identities needed to prevent resurrection
+   plus the digest of the exact deleted envelopes. Runtime epoch is v12. The
+   cut removes 59 net source lines and one public struct.
+32. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-32. Run focused tests after each cut. Only after source subtraction stabilizes
+33. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

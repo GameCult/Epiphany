@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `5ed5ca88`
-Current worktree: documentation/evidence for typed-fulfillment API subtraction;
+Latest committed implementation cut: `7cf6d45c`
+Current worktree: documentation/evidence for archived-session subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -1245,6 +1245,18 @@ public runtime-spine functions, one public runtime-spine struct, and one test.
 `runtime_spine.rs` is 10,124 lines, with 61 public functions and 26 public
 structs. The core check is warning-free and the complete keyed
 Modeling/Research/Verification/Hands/Persona lifecycle proof passes.
+
+Exact `7cf6d45c` makes the completed model-session archive a private minimal
+tombstone. Its only behavioral purpose is to prevent retired session, job,
+model-request, and tool-intent identities from resurrecting while binding the
+deletion to one exact envelope-chain digest. Seven unread summary fields, the
+duplicate archive/session identity, and the unused archive-time argument are
+gone. Decision-bearing reasoning bases, decision contexts, and structured
+outcomes remain durable outside session retention. The cut removes 59 net
+source lines and one public struct. `runtime_spine.rs` is 10,070 lines, with 61
+public functions and 25 public structs. Runtime writable epoch is v12;
+archived-session schema is v1. Core and the release-owned swarm harness compile
+without warnings; old-store refusal and the full keyed lifecycle proof pass.
 
 ## Competitive Eyes/Imagination pass
 

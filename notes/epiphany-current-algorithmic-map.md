@@ -414,6 +414,18 @@ classification spelling is gone. Exact live/archive result validation,
 admission-refusal filtering, retry classification, and resident-Self recovery
 remain covered by the keyed lifecycle consequence proof.
 
+Exact `7cf6d45c` reduces completed model-session retention to its behavioral
+minimum. `EpiphanyArchivedRuntimeSession` is a private tombstone, not a public
+runtime contract. It records only the retired session, job, model-request, and
+tool-intent identities that prevent resurrection, plus the digest of the exact
+deleted envelope chain. The duplicate archive/session identity, archive-time
+clock, result-ID copy, terminal-status counts, retired-type counts, retired
+envelope count, and reasoning-basis/decision-context mirrors were never read
+and are gone. Reasoning bases, decision contexts, and structured decisions
+remain durable outside session retention. Runtime writable epoch v12 and
+archived-session schema v1 make the cut explicit; no old writable store is
+migrated or dual-read.
+
 Editor actuation is outside this machine. Epiphany may request provider-owned
 editor capabilities through CultMesh/Eve, but owns no Rider or Unity protocol,
 process, state, or verifier. Brokkr owns Unity. A future Rider daemon must own
