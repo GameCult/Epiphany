@@ -872,42 +872,44 @@ fn current_proposal_modeling_work(
 ) -> Result<Option<EpiphanyProposalModelingWorkProjection>> {
     let mut requests = cache.get_all::<RepoFrontierProposalModelingRequest>()?;
     requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
-    let bindings = cache.get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?;
+    let launches = cache.get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?;
     let receipts = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
     let admission_refusals = cache.get_all::<EpiphanyAgentPassAdmissionRefusal>()?;
     'requests: for request in requests {
         crate::runtime_spine::validate_repo_frontier_proposal_modeling_request(&request)?;
-        let mut request_bindings = bindings
+        let mut request_launches = launches
             .iter()
-            .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
-            .map(|binding| {
+            .filter(|launch| {
+                launch.proposal_modeling_request_id.as_deref() == Some(request.request_id.as_str())
+            })
+            .map(|launch| {
                 Ok((
-                    proposal_modeling_attempt_ordinal(&request.request_id, &binding.job_id)?,
-                    binding,
+                    proposal_modeling_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                    launch,
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
-        request_bindings.sort_by_key(|(ordinal, _)| *ordinal);
-        for (expected, (ordinal, _)) in request_bindings.iter().enumerate() {
+        request_launches.sort_by_key(|(ordinal, _)| *ordinal);
+        for (expected, (ordinal, _)) in request_launches.iter().enumerate() {
             if *ordinal != expected {
                 return Err(anyhow!(
                     "proposal Modeling request has noncontiguous attempt identity"
                 ));
             }
         }
-        if request_bindings.is_empty() {
+        if request_launches.is_empty() {
             return Ok(Some(EpiphanyProposalModelingWorkProjection {
                 request,
                 attempt: EpiphanyAgentPassAttemptProjection::unattempted(),
             }));
         }
-        let latest_ordinal = request_bindings
+        let latest_ordinal = request_launches
             .last()
-            .expect("checked nonempty bindings")
+            .expect("checked nonempty launches")
             .0;
         let mut admitted_ordinal = None;
-        for (ordinal, binding) in &request_bindings {
-            let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&binding.job_id)?;
+        for (ordinal, launch) in &request_launches {
+            let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&launch.job_id)?;
             if let Some(result) = result.as_ref() {
                 if result.proposal_modeling_request_id.as_deref()
                     != Some(request.request_id.as_str())
@@ -934,12 +936,12 @@ fn current_proposal_modeling_work(
                 }
             }
             let job = cache
-                .get::<crate::EpiphanyRuntimeJob>(&binding.job_id)?
-                .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
+                .get::<crate::EpiphanyRuntimeJob>(&launch.job_id)?
+                .ok_or_else(|| anyhow!("proposal Modeling launch lost its runtime job"))?;
             let admission_refused = admission_refusals.iter().any(|refusal| {
                 refusal.pass_family == EpiphanyAgentPassFamily::ProposalModeling
                     && refusal.request_id == request.request_id
-                    && refusal.job_id == binding.job_id
+                    && refusal.job_id == launch.job_id
                     && result.as_ref().is_some_and(|result| {
                         refusal.result_id == result.result_id
                             && refusal.decision_context_id == result.decision_context_id
@@ -972,11 +974,11 @@ fn current_proposal_modeling_work(
             }
             continue 'requests;
         }
-        let (_, latest) = request_bindings.last().expect("checked nonempty bindings");
+        let (_, latest) = request_launches.last().expect("checked nonempty launches");
         let result = cache.get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?;
         let job = cache
             .get::<crate::EpiphanyRuntimeJob>(&latest.job_id)?
-            .ok_or_else(|| anyhow!("proposal Modeling launch binding lost its runtime job"))?;
+            .ok_or_else(|| anyhow!("proposal Modeling launch lost its runtime job"))?;
         let admission_refused = result.as_ref().is_some_and(|result| {
             admission_refusals.iter().any(|refusal| {
                 refusal.pass_family == EpiphanyAgentPassFamily::ProposalModeling
@@ -3090,7 +3092,7 @@ pub fn launch_current_body_modeling_work(
 pub fn launch_current_proposal_modeling_work(
     store_path: impl AsRef<Path>,
     options: EpiphanyProposalModelingLaunchOptions,
-) -> Result<crate::RepoFrontierProposalModelingLaunchBinding> {
+) -> Result<String> {
     let store_path = store_path.as_ref();
     if chrono::DateTime::parse_from_rfc3339(&options.created_at).is_err() {
         return Err(anyhow!("proposal Modeling launch options are invalid"));
@@ -3125,9 +3127,11 @@ pub fn launch_current_proposal_modeling_work(
         .as_ref()
         .ok_or_else(|| anyhow!("proposal Modeling launch requires keyed RepoModel state"))?;
     let attempt_ordinal = cache
-        .get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
+        .filter(|launch| {
+            launch.proposal_modeling_request_id.as_deref() == Some(request.request_id.as_str())
+        })
         .count()
         + cache
             .get_all::<crate::EpiphanyArchivedRuntimeWorkerAttempt>()?
@@ -3149,7 +3153,6 @@ pub fn launch_current_proposal_modeling_work(
         "proposal-modeling-{}-attempt-{attempt_ordinal}",
         request.request_id
     );
-    let binding_record_id = format!("repo-frontier-proposal-modeling-launch-{job_id}");
     let launch_document =
         crate::EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
             thread_id: request.thread_id.clone(),
@@ -3166,10 +3169,6 @@ pub fn launch_current_proposal_modeling_work(
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
         });
-    let worker_launch_document_sha256 = format!(
-        "{:x}",
-        Sha256::digest(rmp_serde::to_vec_named(&launch_document)?)
-    );
     let authority_scope = "epiphany.role.modeling".to_string();
     let output_contract_id = launch_document.output_contract_id().to_string();
     let prepared = crate::prepare_runtime_spine_heartbeat_job(
@@ -3198,15 +3197,9 @@ pub fn launch_current_proposal_modeling_work(
             created_at: options.created_at.clone(),
         },
     )?;
-    let binding = crate::RepoFrontierProposalModelingLaunchBinding {
-        schema_version: crate::REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        proposal_modeling_request_id: request.request_id.clone(),
-        job_id: job_id.clone(),
-        worker_launch_document_sha256,
-    };
     let grant = crate::substrate_gate::substrate_gate_repo_access_grant_for_worker(
-        format!("substrate-grant-{}", binding.job_id),
-        binding.job_id.clone(),
+        format!("substrate-grant-{job_id}"),
+        job_id.clone(),
         crate::EPIPHANY_MODELING_ROLE_BINDING_ID.into(),
         crate::EPIPHANY_MODELING_OWNER_ROLE.into(),
         authority_scope,
@@ -3243,13 +3236,10 @@ pub fn launch_current_proposal_modeling_work(
         &cache,
         expected,
         prepared,
-        vec![
-            cache.prepare_entry(&binding_record_id, &binding)?.0,
-            cache.prepare_entry(&grant.receipt_id, &grant)?.0,
-        ],
+        vec![cache.prepare_entry(&grant.receipt_id, &grant)?.0],
         "proposal Modeling",
     )?;
-    Ok(binding)
+    Ok(job_id)
 }
 
 pub fn launch_current_frontier_verdict_modeling_work(
@@ -4172,7 +4162,7 @@ mod tests {
             .into_iter()
             .map(|racer| racer.join().expect("proposal launch racer panicked"))
             .collect::<Vec<_>>();
-        let proposal_launch = race_results
+        let proposal_job_id = race_results
             .iter()
             .find_map(|result| result.as_ref().ok())
             .cloned()
@@ -4180,15 +4170,11 @@ mod tests {
         assert!(race_results.iter().all(|result| {
             result
                 .as_ref()
-                .map(|binding| binding == &proposal_launch)
+                .map(|job_id| job_id == &proposal_job_id)
                 .unwrap_or(true)
         }));
         assert_eq!(
-            proposal_launch.proposal_modeling_request_id,
-            request.request_id
-        );
-        assert_eq!(
-            proposal_launch.job_id,
+            proposal_job_id,
             format!("proposal-modeling-{}-attempt-0", request.request_id)
         );
         assert_eq!(
@@ -4211,8 +4197,8 @@ mod tests {
         crate::complete_runtime_job(
             &store,
             crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-failed-{}", proposal_launch.job_id),
-                job_id: proposal_launch.job_id.clone(),
+                result_id: format!("runtime-result-failed-{proposal_job_id}"),
+                job_id: proposal_job_id.clone(),
                 completed_at: "2026-08-17T00:00:09.100Z".into(),
                 verdict: "failed".into(),
                 summary: "provider returned no terminal decision".into(),
@@ -4230,7 +4216,7 @@ mod tests {
                 .map(|work| (work.attempt.action, work.attempt.job_id.as_deref())),
             Some((
                 EpiphanyAgentPassContinuationAction::Launch,
-                Some(proposal_launch.job_id.as_str()),
+                Some(proposal_job_id.as_str()),
             ))
         );
         assert_ne!(
@@ -4251,23 +4237,26 @@ mod tests {
             )?,
             "unchanged proposal failure must remain idempotent"
         );
-        let proposal_launch = launch_current_proposal_modeling_work(
+        let proposal_job_id = launch_current_proposal_modeling_work(
             &store,
             EpiphanyProposalModelingLaunchOptions {
                 created_at: "2026-08-17T00:00:09.200Z".into(),
             },
         )?;
         assert_eq!(
-            proposal_launch.job_id,
+            proposal_job_id,
             format!("proposal-modeling-{}-attempt-1", request.request_id)
         );
         let mut final_cache = crate::runtime_spine_cache(&store)?;
         final_cache.pull_all_backing_stores()?;
         assert_eq!(
             final_cache
-                .get_all::<crate::RepoFrontierProposalModelingLaunchBinding>()?
+                .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
                 .into_iter()
-                .filter(|binding| binding.proposal_modeling_request_id == request.request_id)
+                .filter(|launch| {
+                    launch.proposal_modeling_request_id.as_deref()
+                        == Some(request.request_id.as_str())
+                })
                 .count(),
             2
         );
@@ -4278,7 +4267,7 @@ mod tests {
                 .all(|envelope| envelope.r#type != "epiphany.thread_state")
         );
         let proposal_runtime_launch = final_cache
-            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_launch.job_id)?
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_job_id)?
             .expect("proposal runtime launch");
         let proposal_document = proposal_runtime_launch.launch_document()?;
         let crate::EpiphanyWorkerLaunchDocument::Role(proposal_document) = proposal_document else {
@@ -4302,7 +4291,7 @@ mod tests {
             "model",
         );
         proposal_native.reasoning_basis_id = Some(proposal_reasoning_basis.basis_id.clone());
-        proposal_native.source_worker_job_id = Some(proposal_launch.job_id.clone());
+        proposal_native.source_worker_job_id = Some(proposal_job_id.clone());
         let proposal_context = crate::EpiphanyDecisionContext::new(
             &proposal_reasoning_basis,
             proposal_native,
@@ -4311,7 +4300,7 @@ mod tests {
         final_cache.put(&proposal_context.context_id, &proposal_context)?;
         let result_id = "proposal-result";
         let mutation = crate::EpiphanyRepoModelMutationProposal::new(
-            format!("repo-model-mutation-proposal-{}", proposal_launch.job_id),
+            format!("repo-model-mutation-proposal-{proposal_job_id}"),
             request.request_id.clone(),
             result_id,
             vec![proposal.proposal_id.clone()],
@@ -4335,7 +4324,7 @@ mod tests {
         let proposal_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
             result_id: result_id.into(),
-            job_id: proposal_launch.job_id.clone(),
+            job_id: proposal_job_id.clone(),
             role_id: "modeling".into(),
             verdict: "checkpoint-update-needed".into(),
             summary: "proposal modeled".into(),
@@ -4378,14 +4367,14 @@ mod tests {
         let activation_token = "proposal-activation";
         crate::claim_runtime_worker_process(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             &process,
             &format!("{:x}", Sha256::digest(activation_token.as_bytes())),
             "2026-08-17T00:00:10Z",
         )?;
         crate::activate_runtime_worker_process(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             &process,
             activation_token,
             "2026-08-17T00:00:11Z",
@@ -4394,8 +4383,8 @@ mod tests {
         crate::complete_runtime_job(
             &store,
             crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{}", proposal_launch.job_id),
-                job_id: proposal_launch.job_id.clone(),
+                result_id: format!("runtime-result-{proposal_job_id}"),
+                job_id: proposal_job_id.clone(),
                 completed_at: "2026-08-17T00:00:12Z".into(),
                 verdict: proposal_result.verdict.clone(),
                 summary: proposal_result.summary.clone(),
@@ -4406,7 +4395,7 @@ mod tests {
             },
         )?;
         assert_eq!(
-            crate::runtime_worker_process_claim(&store, &proposal_launch.job_id)?
+            crate::runtime_worker_process_claim(&store, &proposal_job_id)?
                 .expect("structured Modeling result terminalizes its process claim")
                 .status,
             crate::WorkerProcessStatus::TerminalResult.as_str()
@@ -4421,7 +4410,7 @@ mod tests {
         );
         let proposal_outcome = accept_proposal_modeling_result(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             "2026-08-17T00:00:13Z",
         )?;
         let EpiphanyAgentPassAdmissionOutcome::Refused {
@@ -4457,23 +4446,23 @@ mod tests {
         );
         assert_eq!(
             refused_work.attempt.job_id.as_deref(),
-            Some(proposal_launch.job_id.as_str())
+            Some(proposal_job_id.as_str())
         );
 
-        let proposal_launch = launch_current_proposal_modeling_work(
+        let proposal_job_id = launch_current_proposal_modeling_work(
             &store,
             EpiphanyProposalModelingLaunchOptions {
                 created_at: "2026-08-17T00:00:13.100Z".into(),
             },
         )?;
         assert_eq!(
-            proposal_launch.job_id,
+            proposal_job_id,
             format!("proposal-modeling-{}-attempt-2", request.request_id)
         );
         let mut retry_cache = crate::runtime_spine_cache(&store)?;
         retry_cache.pull_all_backing_stores()?;
         let retry_launch = retry_cache
-            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_launch.job_id)?
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&proposal_job_id)?
             .expect("refused proposal retry launch");
         let crate::EpiphanyWorkerLaunchDocument::Role(retry_document) =
             retry_launch.launch_document()?
@@ -4494,12 +4483,12 @@ mod tests {
             "model",
         );
         retry_native.reasoning_basis_id = Some(retry_basis.basis_id.clone());
-        retry_native.source_worker_job_id = Some(proposal_launch.job_id.clone());
+        retry_native.source_worker_job_id = Some(proposal_job_id.clone());
         let retry_context =
             crate::EpiphanyDecisionContext::new(&retry_basis, retry_native, Vec::new())?;
         retry_cache.put(&retry_context.context_id, &retry_context)?;
         let valid_mutation = crate::EpiphanyRepoModelMutationProposal::new(
-            format!("repo-model-mutation-proposal-{}", proposal_launch.job_id),
+            format!("repo-model-mutation-proposal-{proposal_job_id}"),
             request.request_id.clone(),
             "proposal-result-retry",
             vec![proposal.proposal_id.clone()],
@@ -4521,7 +4510,7 @@ mod tests {
         )?;
         let mut proposal_result = proposal_result;
         proposal_result.result_id = "proposal-result-retry".into();
-        proposal_result.job_id = proposal_launch.job_id.clone();
+        proposal_result.job_id = proposal_job_id.clone();
         proposal_result.repo_model_mutation_proposal_msgpack =
             Some(rmp_serde::to_vec_named(&valid_mutation)?);
         proposal_result.decision_context_id = retry_context.context_id.clone();
@@ -4534,14 +4523,14 @@ mod tests {
         let retry_activation = "proposal-retry-activation";
         crate::claim_runtime_worker_process(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             &retry_process,
             &format!("{:x}", Sha256::digest(retry_activation.as_bytes())),
             "2026-08-17T00:00:13.200Z",
         )?;
         crate::activate_runtime_worker_process(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             &retry_process,
             retry_activation,
             "2026-08-17T00:00:13.300Z",
@@ -4550,8 +4539,8 @@ mod tests {
         crate::complete_runtime_job(
             &store,
             crate::RuntimeSpineJobResultOptions {
-                result_id: format!("runtime-result-{}", proposal_launch.job_id),
-                job_id: proposal_launch.job_id.clone(),
+                result_id: format!("runtime-result-{proposal_job_id}"),
+                job_id: proposal_job_id.clone(),
                 completed_at: "2026-08-17T00:00:13.400Z".into(),
                 verdict: proposal_result.verdict.clone(),
                 summary: proposal_result.summary.clone(),
@@ -4571,7 +4560,7 @@ mod tests {
         );
         let proposal_outcome = accept_proposal_modeling_result(
             &store,
-            &proposal_launch.job_id,
+            &proposal_job_id,
             "2026-08-17T00:00:14Z",
         )?;
         let EpiphanyAgentPassAdmissionOutcome::Committed(proposal_commit) = proposal_outcome else {

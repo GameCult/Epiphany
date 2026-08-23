@@ -498,11 +498,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "explicit proposal Modeling request does not match current keyed work"
                 ));
             }
-            let binding = epiphany_core::launch_current_proposal_modeling_work(
+            let worker_job_id = epiphany_core::launch_current_proposal_modeling_work(
                 &runtime_store,
                 epiphany_core::EpiphanyProposalModelingLaunchOptions { created_at: now() },
             )?;
-            let worker_job_id = binding.job_id.clone();
             startup_proposal_modeling_job_id = Some(worker_job_id.clone());
             let worker_run = launch_worker_runtime_detached(
                 &model_runtime_bin,
@@ -526,7 +525,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "type": "proposalModelingLaunch",
                 "requestId": request_id,
                 "runtimeJobId": worker_job_id,
-                "launch": binding,
                 "worker": worker_run,
                 "authority": "proposal-modeling-only"
             }));
@@ -1150,7 +1148,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                                 "Self-derived proposal Modeling request changed before launch"
                             ));
                         }
-                        let binding = epiphany_core::launch_current_proposal_modeling_work(
+                        let job_id = epiphany_core::launch_current_proposal_modeling_work(
                             &runtime_store,
                             epiphany_core::EpiphanyProposalModelingLaunchOptions {
                                 created_at: now(),
@@ -1158,8 +1156,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         )?;
                         json!({
                             "bindingId": epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID,
-                            "backendJobId": binding.job_id,
-                            "proposalModelingLaunchBinding": binding,
+                            "backendJobId": job_id,
                         })
                     } else if role_id == "modeling"
                         && status["currentWork"]["bodyModeling"].is_object()

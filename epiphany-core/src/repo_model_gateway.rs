@@ -71,8 +71,6 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_frontier_proposal_modeling_request.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_request.v0";
-pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.coordinator.repo_frontier_proposal_modeling_launch_binding.v2";
 pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_frontier_planning_launch_binding.v0";
 pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT: &str =
@@ -192,22 +190,6 @@ pub struct RepoFrontierProposalModelingRequest {
     pub selected_at: String,
     #[cultcache(key = 9)]
     pub contract: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.coordinator.repo_frontier_proposal_modeling_launch_binding",
-    schema = "RepoFrontierProposalModelingLaunchBinding"
-)]
-pub struct RepoFrontierProposalModelingLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub proposal_modeling_request_id: String,
-    #[cultcache(key = 2)]
-    pub job_id: String,
-    #[cultcache(key = 3)]
-    pub worker_launch_document_sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

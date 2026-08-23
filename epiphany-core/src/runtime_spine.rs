@@ -22,7 +22,6 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT,
     REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT,
     REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT, REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION,
@@ -35,7 +34,7 @@ use crate::repo_model_gateway::{
     RepoFrontierPlanMindDecision, RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
     RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
-    RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
+    RepoFrontierProposalModelingRequest,
     RepoFrontierResearchRequest, RepoFrontierRoute, RepoFrontierVerdictDisposition,
     RepoFrontierWorkProposal, RuntimeRepositoryDomainBinding,
 };
@@ -95,7 +94,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v16";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v17";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -867,7 +866,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierAutonomousProposalBinding>()?;
     cache.register_entry_type::<RuntimeRepositoryDomainBinding>()?;
     cache.register_entry_type::<RepoFrontierProposalModelingRequest>()?;
-    cache.register_entry_type::<RepoFrontierProposalModelingLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
     cache.register_entry_type::<RepoFrontierResearchRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanningLaunchBinding>()?;
@@ -4746,13 +4744,6 @@ fn validated_proposal_modeling_worker_fulfillment(
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment proposal is missing"))?;
     validate_repo_frontier_work_proposal(&proposal)?;
     validate_autonomous_proposal_origin_binding(cache, &proposal)?;
-    let binding_id = format!(
-        "repo-frontier-proposal-modeling-launch-{}",
-        result.job_id
-    );
-    let binding = cache
-        .get::<RepoFrontierProposalModelingLaunchBinding>(&binding_id)?
-        .ok_or_else(|| anyhow!("proposal Modeling fulfillment lost its launch binding"))?;
     let launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment worker launch is missing"))?;
@@ -4796,7 +4787,6 @@ fn validated_proposal_modeling_worker_fulfillment(
         };
         projection == &expected
     });
-    let launch_sha256 = format!("{:x}", Sha256::digest(&launch.launch_document_msgpack));
     let mismatches = [
         (
             "request.payload",
@@ -4816,19 +4806,6 @@ fn validated_proposal_modeling_worker_fulfillment(
             proposal.payload_sha256 != proposal_payload_sha256,
         ),
         ("request.runtime", request.runtime_id != identity.runtime_id),
-        (
-            "binding.schema",
-            binding.schema_version != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION,
-        ),
-        (
-            "binding.request",
-            binding.proposal_modeling_request_id != request.request_id,
-        ),
-        ("binding.job", binding.job_id != result.job_id),
-        (
-            "binding.hash",
-            binding.worker_launch_document_sha256 != launch_sha256,
-        ),
         (
             "launch.schema",
             launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
@@ -8648,13 +8625,6 @@ fn validate_archivable_typed_worker_launch(
                 .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its proposal"))?;
             validate_repo_frontier_work_proposal(&proposal)?;
             validate_autonomous_proposal_origin_binding(cache, &proposal)?;
-            let binding_id = format!(
-                "repo-frontier-proposal-modeling-launch-{}",
-                launch.job_id
-            );
-            let binding = cache
-                .get::<RepoFrontierProposalModelingLaunchBinding>(&binding_id)?
-                .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its binding"))?;
             let projection = match &document {
                 EpiphanyWorkerLaunchDocument::Role(document) => {
                     document.proposal_modeling_context.as_ref()
@@ -8664,11 +8634,6 @@ fn validate_archivable_typed_worker_launch(
             .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its context"))?;
             if request.runtime_id != identity.runtime_id
                 || request.proposal_payload_sha256 != proposal.payload_sha256
-                || binding.schema_version
-                    != REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION
-                || binding.proposal_modeling_request_id != request.request_id
-                || binding.job_id != launch.job_id
-                || binding.worker_launch_document_sha256 != launch_sha256
                 || projection.request_id != request.request_id
                 || projection.proposal_id != proposal.proposal_id
                 || projection.proposal_payload_sha256 != proposal.payload_sha256
@@ -8955,7 +8920,6 @@ fn archive_runtime_worker_attempt(
         }
     }
     let snapshot = cache.snapshot_envelopes();
-    let proposal_binding_id = format!("repo-frontier-proposal-modeling-launch-{job_id}");
     let imagination_bindings = cache
         .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
         .into_iter()
@@ -9012,8 +8976,6 @@ fn archive_runtime_worker_attempt(
                 || (entry.r#type == EpiphanyRuntimeJob::TYPE && entry.key == job_id)
                 || (entry.r#type == EpiphanyRuntimeJobResult::TYPE
                     && job_results.contains(&entry.key))
-                || (entry.r#type == RepoFrontierProposalModelingLaunchBinding::TYPE
-                    && entry.key == proposal_binding_id)
                 || (entry.r#type == crate::ImaginationConsiderationLaunchBinding::TYPE
                     && imagination_bindings.contains(&entry.key))
         })
