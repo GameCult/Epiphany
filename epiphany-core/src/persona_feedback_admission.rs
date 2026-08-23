@@ -1,11 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
-    CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry, PushAllOptions,
+    CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
     SingleFileMessagePackBackingStore,
-};
-use cultnet_rs::{
-    CultNetMessage, CultNetRawPayloadEncoding, CultNetWireContract,
-    decode_cultnet_message_from_slice,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -19,8 +15,6 @@ use crate::{
 pub const BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION: &str =
     "bifrost.persona_feedback.delivery.v0";
 pub const BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE: &str = "bifrost.persona_feedback.delivery";
-pub const BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION: &str =
-    "bifrost.persona_feedback.admission_receipt.v0";
 pub const LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION: &str =
     "epiphany.persona_feedback.admitted_pressure.v0";
 pub const PERSONA_FEEDBACK_SOCIAL_ADMISSION_SCHEMA_VERSION: &str =
@@ -539,87 +533,6 @@ pub fn import_bifrost_persona_feedback_deliveries(
         .collect()
 }
 
-/// Applies one immutable Bifrost CultNet export to the local crossing source.
-///
-/// The snapshot is decoded and every delivery is authenticated before the
-/// complete local source store is replaced. Bifrost admission receipts may
-/// accompany the export as transport evidence, but are deliberately not
-/// persisted into Epiphany's delivery-only source store.
-pub fn apply_bifrost_persona_feedback_snapshot(
-    snapshot_path: &Path,
-    source_store: &Path,
-    trust_anchor_path: &Path,
-    expected_runtime_id: &str,
-    expected_repository: &str,
-    expected_persona_id: &str,
-) -> Result<usize> {
-    let message = decode_cultnet_message_from_slice(
-        &std::fs::read(snapshot_path)?,
-        CultNetWireContract::CultNetSchemaV0,
-    )?;
-    let CultNetMessage::SnapshotResponseRaw { documents, .. } = message else {
-        bail!("Bifrost Persona feedback crossing requires cultnet.snapshot_response_raw.v0");
-    };
-    let anchor: HostIdentityTrustAnchorEntry =
-        rmp_serde::from_slice(&std::fs::read(trust_anchor_path)?).map_err(|error| {
-            anyhow!("Bifrost Persona feedback trust anchor is malformed: {error}")
-        })?;
-
-    let mut identities = std::collections::BTreeMap::new();
-    let mut staged = Vec::new();
-    for document in documents {
-        if document.schema_id == BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION {
-            continue;
-        }
-        if document.schema_id != BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION {
-            bail!(
-                "Bifrost Persona feedback snapshot contains foreign schema {:?}",
-                document.schema_id
-            );
-        }
-        if document.payload_encoding != CultNetRawPayloadEncoding::Messagepack {
-            bail!("Bifrost Persona feedback delivery is not MessagePack");
-        }
-        let delivery: BifrostPersonaFeedbackAdmission = rmp_serde::from_slice(&document.payload)
-            .map_err(|error| anyhow!("Bifrost Persona feedback delivery is malformed: {error}"))?;
-        if document.record_key != delivery.admission_id {
-            bail!("Bifrost Persona feedback record key does not match admission identity");
-        }
-        validate_bifrost_persona_feedback_admission(
-            &delivery,
-            &anchor,
-            expected_runtime_id,
-            expected_repository,
-            expected_persona_id,
-        )?;
-        let identity = (
-            delivery.packet_sha256.clone(),
-            delivery.admission_id.clone(),
-        );
-        if identities
-            .insert(delivery.packet.feedback_id.clone(), identity.clone())
-            .is_some_and(|existing| existing != identity)
-        {
-            bail!("Bifrost Persona feedback snapshot contains a feedback identity collision");
-        }
-        staged.push(CultCacheEnvelope {
-            key: document.record_key,
-            r#type: BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE.into(),
-            payload: document.payload,
-            stored_at: document.stored_at,
-            // CultCache's persisted schema catalog owns the document type for
-            // this local source. The wire schema version was validated above;
-            // retaining it here would reclassify the envelope as that version
-            // string when the store is reopened.
-            schema_id: Some(BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE.into()),
-        });
-    }
-    staged.sort_by(|left, right| left.key.cmp(&right.key));
-    let mut backing = SingleFileMessagePackBackingStore::new(source_store);
-    backing.push_all(&staged, PushAllOptions::default())?;
-    Ok(staged.len())
-}
-
 pub fn validate_persona_feedback_store_separation(
     source_store: &Path,
     feedback_store: &Path,
@@ -651,24 +564,6 @@ fn paths_share_storage(left: &Path, right: &Path) -> Result<bool> {
         ))
     };
     Ok(canonical(left)? == canonical(right)? || crate::same_existing_file(left, right)?)
-}
-
-pub fn validate_bifrost_persona_feedback_source(
-    source_store: &Path,
-    trust_anchor_path: &Path,
-    expected_runtime_id: &str,
-    expected_repository: &str,
-    expected_persona_id: &str,
-) -> Result<usize> {
-    Ok(validated_bifrost_persona_feedback_deliveries(
-        source_store,
-        trust_anchor_path,
-        expected_runtime_id,
-        expected_repository,
-        expected_persona_id,
-    )?
-    .1
-    .len())
 }
 
 fn validated_bifrost_persona_feedback_deliveries(
@@ -782,134 +677,6 @@ mod tests {
             )?
             .signature;
         Ok(admission)
-    }
-
-    #[test]
-    fn applies_authenticated_cultnet_snapshot_as_an_atomic_delivery_only_source() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("unused-anchor-store.cc"),
-        )?;
-        let anchor_path = temp.path().join("bifrost-anchor.msgpack");
-        std::fs::write(&anchor_path, rmp_serde::to_vec(&anchor)?)?;
-        let delivery = signed_delivery(&signer, "epiphany")?;
-        let snapshot = CultNetMessage::SnapshotResponseRaw {
-            message_id: "bifrost-export-1".into(),
-            documents: vec![
-                cultnet_rs::CultNetRawDocumentRecord {
-                    schema_id: BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION.into(),
-                    record_key: delivery.admission_id.clone(),
-                    stored_at: "2026-08-06T00:00:00Z".into(),
-                    payload_encoding: CultNetRawPayloadEncoding::Messagepack,
-                    payload: rmp_serde::to_vec(&delivery)?,
-                    source_runtime_id: Some("bifrost-yggdrasil".into()),
-                    source_agent_id: Some(delivery.provider_identity_id.clone()),
-                    source_role: Some("bifrost-persona-feedback".into()),
-                    tags: Some(vec!["cultnet.transport.snapshot.v0".into()]),
-                },
-                cultnet_rs::CultNetRawDocumentRecord {
-                    schema_id: BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION.into(),
-                    record_key: "receipt-1".into(),
-                    stored_at: "2026-08-06T00:00:00Z".into(),
-                    payload_encoding: CultNetRawPayloadEncoding::Messagepack,
-                    payload: rmp_serde::to_vec(&(1_u8,))?,
-                    source_runtime_id: Some("bifrost-yggdrasil".into()),
-                    source_agent_id: None,
-                    source_role: Some("bifrost-persona-feedback".into()),
-                    tags: None,
-                },
-            ],
-        };
-        let snapshot_path = temp.path().join("export.msgpack");
-        std::fs::write(
-            &snapshot_path,
-            cultnet_rs::encode_cultnet_message_to_vec(
-                &snapshot,
-                CultNetWireContract::CultNetSchemaV0,
-            )?,
-        )?;
-        let source_store = temp.path().join("crossed-deliveries.cc");
-
-        assert_eq!(
-            apply_bifrost_persona_feedback_snapshot(
-                &snapshot_path,
-                &source_store,
-                &anchor_path,
-                "epiphany-yggdrasil",
-                "GameCult/Epiphany",
-                "epiphany",
-            )?,
-            1
-        );
-        assert_eq!(
-            validate_bifrost_persona_feedback_source(
-                &source_store,
-                &anchor_path,
-                "epiphany-yggdrasil",
-                "GameCult/Epiphany",
-                "epiphany",
-            )?,
-            1
-        );
-        let entries =
-            SingleFileMessagePackBackingStore::new(&source_store).pull_all_read_only_snapshot()?;
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].r#type, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE);
-        Ok(())
-    }
-
-    #[test]
-    fn refuses_invalid_snapshot_before_replacing_the_crossing_source() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("unused-anchor-store.cc"),
-        )?;
-        let anchor_path = temp.path().join("bifrost-anchor.msgpack");
-        std::fs::write(&anchor_path, rmp_serde::to_vec(&anchor)?)?;
-        let source_store = temp.path().join("crossed-deliveries.cc");
-        std::fs::write(&source_store, b"previous-good-source")?;
-        let before = std::fs::read(&source_store)?;
-        let mut delivery = signed_delivery(&signer, "epiphany")?;
-        delivery.packet.feedback_text = "unsigned substitution".into();
-        let snapshot = CultNetMessage::SnapshotResponseRaw {
-            message_id: "bifrost-export-invalid".into(),
-            documents: vec![cultnet_rs::CultNetRawDocumentRecord {
-                schema_id: BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION.into(),
-                record_key: delivery.admission_id.clone(),
-                stored_at: "2026-08-06T00:00:00Z".into(),
-                payload_encoding: CultNetRawPayloadEncoding::Messagepack,
-                payload: rmp_serde::to_vec(&delivery)?,
-                source_runtime_id: Some("bifrost-yggdrasil".into()),
-                source_agent_id: None,
-                source_role: Some("bifrost-persona-feedback".into()),
-                tags: None,
-            }],
-        };
-        let snapshot_path = temp.path().join("invalid.msgpack");
-        std::fs::write(
-            &snapshot_path,
-            cultnet_rs::encode_cultnet_message_to_vec(
-                &snapshot,
-                CultNetWireContract::CultNetSchemaV0,
-            )?,
-        )?;
-        assert!(
-            apply_bifrost_persona_feedback_snapshot(
-                &snapshot_path,
-                &source_store,
-                &anchor_path,
-                "epiphany-yggdrasil",
-                "GameCult/Epiphany",
-                "epiphany",
-            )
-            .is_err()
-        );
-        assert_eq!(std::fs::read(&source_store)?, before);
-        Ok(())
     }
 
     #[test]

@@ -186,15 +186,15 @@ pub use persona_discord_crossing::*;
 pub use persona_discord_permit::*;
 pub use persona_feedback_admission::{
     BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
-    BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION, BifrostPersonaFeedbackAdmission,
+    BifrostPersonaFeedbackAdmission,
     LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION, LocalAdmittedPersonaFeedback,
     PERSONA_FEEDBACK_SOCIAL_ADMISSION_SCHEMA_VERSION, PersonaFeedbackPacket,
     PersonaFeedbackSocialAdmissionReceipt, admit_bifrost_persona_feedback,
     admit_persona_feedback_to_social, admitted_persona_feedback,
-    apply_bifrost_persona_feedback_snapshot, import_bifrost_persona_feedback_deliveries,
+    import_bifrost_persona_feedback_deliveries,
     persona_feedback_admission_signing_payload, persona_feedback_admission_signing_purpose,
     persona_feedback_packet_sha256, persona_feedback_ready_for_cognition,
-    validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
+    validate_persona_feedback_store_separation,
 };
 pub use persona_social_state::*;
 pub use persona_turn::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION;

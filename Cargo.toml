@@ -110,10 +110,6 @@ name = "epiphany-swarm"
 path = "epiphany-core/src/bin/epiphany-swarm.rs"
 
 [[bin]]
-name = "epiphany-persona-feedback-ingress"
-path = "epiphany-core/src/bin/epiphany-persona-feedback-ingress.rs"
-
-[[bin]]
 name = "epiphany-persona-service"
 path = "epiphany-openai-runtime/src/bin/epiphany-persona-service.rs"
 required-features = ["openai-runtime"]
