@@ -7,7 +7,6 @@ mod coordinator_results;
 mod cultmesh_integration;
 mod current_work;
 mod eyes_gateway;
-mod frontier_plan_chain;
 mod hands_gateway;
 mod host_identity;
 mod idunn_provider_health;
@@ -175,7 +174,6 @@ pub use eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 pub use eyes_gateway::EyesEvidencePacket;
 pub use eyes_gateway::EyesSourceLookupReceipt;
 pub use eyes_gateway::eyes_evidence_packet_from_research_finding;
-pub use frontier_plan_chain::validate_frontier_plan_decision_chain;
 pub use hands_gateway::*;
 pub use host_identity::{
     HOST_IDENTITY_KEY, HOST_IDENTITY_SCHEMA_VERSION, HOST_IDENTITY_TRUST_ANCHOR_KEY,
