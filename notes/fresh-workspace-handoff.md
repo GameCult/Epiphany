@@ -848,6 +848,24 @@ Preserve exact current work and the four consequence-bearing
 supervisor tests. Do not run a full-workspace compile, package, deployment, or
 Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
+## Competitive Eyes/Imagination pass
+
+`notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the
+2026-08-22 Munder Difflin launch, its growth trail, product/source architecture,
+HN criticism, public failure ledger, pricing and trust boundaries, and
+implications for Epiphany, Aquarium, CultMesh, Bifrost, Idunn, and Model Atlas.
+
+The durable signal is not an architectural victory claim. Munder has real
+category heat and is materially ahead at packaging, provider reuse,
+cross-platform reach, visual comprehension, distribution, community feedback,
+and commercial experimentation. Users appear to want an operator-attention
+surface over plans, questions, blockers, decisions, consequences, and liveness.
+Retention, reliable autonomy, and paid conversion remain unproven. The note
+proposes falsifiable golden-path, Aquarium, orchestration-overhead, memory,
+Body-binding, provider, federation, and willingness-to-pay experiments; none is
+adopted roadmap authority. The test-authority audit and Ox17 brake remain
+unchanged.
+
 ## Operational state that matters
 
 - Original c011 resident and Heartbeat containers are not running; both exited
