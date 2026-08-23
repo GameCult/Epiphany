@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`ce90f911`. The current sequence has deleted the semantic-memory/workspace-coverage
+`0bb6a883`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -553,6 +553,10 @@ Cut in this order:
    it wrote synthetic request, tool-call, completion, and receipt documents into
    a writable runtime store. Real execution and transcript-free decision audit
    remain, and the release-owned model-runtime suite passes 12/12.
+46. **Tool completion does not mirror static contracts at `0bb6a883`:** the
+   run summary loses its fixed adapter/schema catalogue and caller-supplied
+   store echo. Exact authority remains the typed receipt; stdout returns only
+   intent ID, receipt ID, and terminal status.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

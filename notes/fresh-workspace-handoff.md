@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ce90f911`
+Latest committed implementation cut: `0bb6a883`
 Current worktree: canonical map/evidence sync; Ox17 remains paused
 
 ## Orientation
@@ -108,6 +108,12 @@ runtime store, then reported `not-opened`. It could therefore manufacture
 authentic-looking physiology without provider evidence. The real model-turn,
 worker, follow-up, decision-list, and decision-audit commands remain; their
 release-owned suite passes 12/12.
+
+Exact `0bb6a883` narrows tool-runtime stdout to intent ID, receipt ID, and
+terminal status. The removed adapter ID, caller-supplied store path, and static
+intent/receipt schema map were display echoes; the model runtime did not read
+them and exact authority already lives in the typed CultCache receipt. The four
+release-owned tool-runtime tests remain green.
 
 No Epiphany-owned Rider or Unity code, target, schema, or actuator exists.
 Brokkr owns Unity through Eve/CultMesh. A future Rider daemon owns Rider.
@@ -548,7 +554,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the source/test-authority audit
-from exact `ce90f911`; do not compile or deploy through Idunn yet. Inspect the
+from exact `0bb6a883`; do not compile or deploy through Idunn yet. Inspect the
 remaining production modules and tests by owner, consumer, invariant, and
 failure mode. Delete an abstraction with the tests that merely animate it when
 it has no decision-bearing consumer. Preserve the keyed Mind, sealed reasoning,

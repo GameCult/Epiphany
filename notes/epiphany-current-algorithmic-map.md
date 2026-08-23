@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `ce90f911` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `0bb6a883` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -144,6 +144,11 @@ never a shipped command that writes synthetic evidence into a runtime store.
 Exact `ce90f911` deletes the callerless `smoke` route, fake request/tool-call/
 completion sequence, `smoke_no_network` receipt, parser, options, and usage
 claim. The retained commands execute or audit real typed model work.
+
+Tool execution stdout is a completion projection, not a schema catalogue or
+authority mirror. Exact `0bb6a883` removes the fixed adapter/schema fields and
+the caller-supplied store echo. The typed CultCache receipt remains canonical;
+stdout carries only intent ID, receipt ID, and terminal status.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
