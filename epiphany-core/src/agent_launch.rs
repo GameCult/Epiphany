@@ -104,9 +104,7 @@ fn repo_model_node_output_schema() -> serde_json::Value {
             "action_implication": {"type": "string", "minLength": 1},
             "anchors": {"type": "array", "items": memory_anchor_output_schema()},
             "source_hashes": {"type": "array", "items": {"type": "string"}},
-            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]},
-            "salience": {"type": "integer", "minimum": 0},
-            "confidence": {"type": "integer", "minimum": 0}
+            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]}
         },
         "anyOf": [
             {"properties": {"question": {"minLength": 1}}},
@@ -127,8 +125,7 @@ fn repo_model_edge_output_schema() -> serde_json::Value {
             "kind": {"type": "string", "enum": ["owns", "reads", "writes", "derives", "adapts", "persists", "launches", "verifies", "supports", "contradicts", "grounds", "triggers", "depends_on", "other"]},
             "claim": {"type": "string"},
             "anchors": {"type": "array", "items": memory_anchor_output_schema()},
-            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]},
-            "confidence": {"type": "integer", "minimum": 0}
+            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]}
         },
         "additionalProperties": false
     })

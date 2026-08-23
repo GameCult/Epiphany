@@ -855,10 +855,6 @@ pub struct EpiphanyMemoryNode {
     pub source_hashes: Vec<String>,
     #[serde(default)]
     pub lifecycle: EpiphanyMemoryLifecycle,
-    #[serde(default, skip_serializing_if = "is_zero_u32")]
-    pub salience: u32,
-    #[serde(default, skip_serializing_if = "is_zero_u32")]
-    pub confidence: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub created_at: Option<String>,
@@ -902,8 +898,6 @@ pub struct EpiphanyMemoryEdge {
     pub anchors: Vec<EpiphanyMemoryAnchor>,
     #[serde(default)]
     pub lifecycle: EpiphanyMemoryLifecycle,
-    #[serde(default, skip_serializing_if = "is_zero_u32")]
-    pub confidence: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -923,10 +917,4 @@ pub struct EpiphanyMemoryAnchor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub note: Option<String>,
-}
-
-
-
-fn is_zero_u32(value: &u32) -> bool {
-    *value == 0
 }
