@@ -129,11 +129,17 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    and its two DTOs onto the shared actionable-frontier predicate. Hands and
    Imagination retain the same unchallenged-target rule; the keyed lifecycle
    proof passes.
-22. Next: trace the test-only user-proposal intake and four-variant proposal
-   source-kind surface against the sole live Imagination promotion owner. Do
-   not delete the broad downstream concurrency proof or add a test-only
-   authority bypass; rebuild it from live provenance or first find a smaller
-   verifier. Demote individually exported archive actuators owned only by the
-   retention loops.
-23. Run focused tests after each cut. Only after source subtraction stabilizes
+22. Done: exact `ac6455c5` demotes the three individual archive actuators and
+   removes five always-noop transaction callbacks. Their retention owners keep
+   the exact snapshot/CAS fences; no caller can inject a transaction opinion.
+23. Done: exact `6e600e8d` rebuilds the broad proposal/Hands/Persona proof from
+   the real admitted Imagination direction chain, then deletes the test-only
+   user proposal intake, generic writer and selector, four source variants,
+   constant provenance/privacy/public-source fields, compatibility hash branch,
+   and provider schema branching. Mind/runtime epochs advance to v5/v8.
+24. Next: trace the remaining proposal fields against the exact Imagination
+   result, autonomous binding, Modeling request, and final typed prompt. Delete
+   only duplicated or constant cargo; preserve the consequential lifecycle and
+   concurrency proof.
+25. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

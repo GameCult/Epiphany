@@ -88,10 +88,12 @@ feedback, core, swarm, and release-construction checks.
 
 Exact `900c5232` deletes the callerless `epiphany-frontier-proposal` command,
 its forced release role, CLI parser, JSON summary, and two parser-only tests:
-188 pure deletions. Proposal intake and selection remain typed runtime/Self
-operations. The retained current-work capstone proves intake, deterministic
-selection, concurrent launch, sealed reasoning, admission, and read-only
-re-entry without the wrapper. Cargo now has 13 executable targets.
+188 pure deletions. At that cut, proposal intake and selection remained typed
+runtime/Self operations; exact `6e600e8d` later removed that generic mouth as
+well and made admitted Imagination promotion the sole proposal owner. The
+current-work capstone now proves the real promotion, concurrent launch, sealed
+reasoning, admission, and read-only re-entry. Cargo then had 13 executable
+targets.
 
 Exact `56267201` retires the three unadmitted Model Atlas daemon shells and
 their forced release roles: publisher, entanglement projector, and impact
@@ -1138,14 +1140,31 @@ actionable-frontier predicate. Hands and Imagination both still require
 unchallenged target claims. The focused keyed lifecycle proof passes. The
 runtime spine now has 10,820 lines, 70 public functions, and 29 public structs.
 
-The next suspected false surface is the user/Persona/Bifrost proposal source
-family. `RepoFrontierUserProposalInput`, its writer, and its selector are called
-only by the broad current-work test; production proposals are promoted from an
-exact Imagination direction result. Do not amputate the test blindly: it also
-proves downstream proposal admission, Hands-to-Verification atomicity, and
-concurrent Persona/Hands writes. A coherent cut must rebuild that verifier from
-live Imagination provenance or replace it with smaller consequence-level
-proofs, not introduce a test-only authority bypass.
+Exact `ac6455c5` removes five dormant transaction-injection callbacks and
+demotes the completed-session and failed/fulfilled-worker archive actuators
+behind their retention owners: 107 net deletions. The callbacks were always
+`|| Ok(())`; exact envelope snapshots, batch CAS, replacement/deletion sets,
+and retention fences remain unchanged.
+
+Exact `6e600e8d` rebuilds the broad current-work proof through the real admitted
+Imagination direction path, including the exact reasoning basis, decision
+context, worker result, option digest, Body/domain binding, autonomous proposal
+binding, and atomic Modeling request. It then deletes the test-only user
+proposal input, generic writer and selector, User/Persona/Bifrost source
+variants, constant actor/source/privacy/public-source fields, the legacy hash
+branch, and the provider's four-way schema branch: 192 net source deletions.
+Proposal Modeling may route only to Eyes or Imagination; Hands still requires
+an adopted plan. Mind/runtime writable epochs advance to v5/v8. The broad proof
+still covers proposal retries and admission, Hands-to-Verification atomicity,
+and concurrent Persona/Hands commits. Focused core lifecycle, epoch refusal,
+OpenAI proposal mapping, strict provider schema, swarm, and coordinator checks
+pass. `runtime_spine.rs` now has 10,520 lines, 64 public functions, and 29 public
+structs.
+
+Next, trace the remaining proposal fields against the exact Imagination result,
+autonomous binding, Modeling request, and final sealed prompt. Delete only
+constant or duplicated cargo; then resume the public runtime-spine/test-owner
+audit. Ox17 remains paused and no local package/deployment run is authorized.
 
 ## Competitive Eyes/Imagination pass
 

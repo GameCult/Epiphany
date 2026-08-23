@@ -183,12 +183,14 @@ for speculative loops, CLI parsing, sleep cadence, or process termination
 handlers. A future Gate 1 must prove the minimum Idunn-managed process topology
 from actual lifecycle and failure-isolation needs.
 
-Operator proposal intake is a typed Self/runtime operation, not a production
-program. Exact `900c5232` deletes the callerless frontier-proposal executable,
-its release role, parser, JSON echo, and parser tests. The current-work owner
-still admits the exact proposal, selects Modeling work, resolves concurrent
-launch, seals reasoning, and commits the result. No wrapper can create a second
-proposal mouth or make CLI spelling part of the invariant.
+Proposal work has one source: an exact admitted Imagination direction result.
+Self atomically promotes that result into an inert proposal, its autonomous
+origin binding, and its Modeling request. Exact `900c5232` first deleted the
+callerless frontier-proposal executable. Exact `6e600e8d` then deleted the
+remaining generic writer, user input DTO, selector, and User/Persona/Bifrost
+source variants after rebuilding the broad lifecycle proof through the live
+Imagination chain. A proposal cannot exist without its exact direction request,
+worker launch/result, option digest, Body/domain binding, and Modeling request.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
@@ -341,6 +343,20 @@ projection to whether one current Imagination frontier was actionable. Hands
 and Imagination now use the same pure frontier predicate with an explicit
 unchallenged-target requirement. No diagnostic DTO is allowed to become a
 second routing algorithm merely because it can explain the first one.
+
+Exact `ac6455c5` also removes five dormant transaction-injection callbacks and
+demotes individual archive actuators behind their retention owners. The exact
+envelope snapshots and batch-CAS fences remain the transaction law; callers no
+longer receive a ceremonial hook for an opinion they never supplied.
+
+Exact `6e600e8d` makes proposal provenance singular all the way into inference.
+The sealed proposal projection no longer carries a source-kind switch, actor,
+source reference, privacy flag, or proposal-level public-source list already
+owned by the autonomous binding. The provider output schema has one shape and
+permits only Eyes or Imagination as the next organ; an Imagination proposal
+cannot leap directly into Hands or arrive with an adopted plan. The runtime
+still validates the exact autonomous chain at launch, fulfillment, admission,
+archive retention, and replay. Mind/runtime writable epochs are v5/v8.
 
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
