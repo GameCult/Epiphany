@@ -20,8 +20,6 @@ use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
-use epiphany_core::MemorySemanticProjectionInput;
-use epiphany_core::agent_memory_semantic_projection_input;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
 use epiphany_core::authenticate_resident_provider_pair;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
@@ -39,13 +37,9 @@ use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_epiphany_packaged_release;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
-use epiphany_core::migrate_memory_semantic_projection_attempts_v0;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::retire_epiphany_cultmesh_operator_status_documents;
-use epiphany_core::retire_memory_semantic_projection_claims_v0;
-use epiphany_core::retire_orphaned_memory_semantic_projection_attempts_v0;
-use epiphany_core::retire_unowned_memory_semantic_index_receipts;
 use epiphany_core::runtime_modeling_semantic_projection_input;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
@@ -193,7 +187,6 @@ fn dispatch(args: Args) -> Result<()> {
         "managed-service-task-stop" => managed_service_task_control(args, "stop"),
         "managed-service-task-uninstall" => managed_service_task_control(args, "uninstall"),
         "migrate-retired-operator-status" => migrate_retired_operator_status(args),
-        "migrate-semantic-attempts-v0" => migrate_semantic_attempts_v0(args),
         "provider-health-identity-enroll" => provider_health_identity_enroll(args),
         "provider-health-identity-export" => provider_health_identity_export(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
@@ -678,48 +671,6 @@ fn migrate_retired_operator_status(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn migrate_semantic_attempts_v0(args: Args) -> Result<()> {
-    let agent_store = args
-        .agent_store
-        .as_ref()
-        .context("migrate-semantic-attempts-v0 requires --agent-store")?;
-    let runtime_store = args
-        .runtime_store
-        .as_ref()
-        .context("migrate-semantic-attempts-v0 requires --runtime-store")?;
-    if agent_store == runtime_store {
-        anyhow::bail!("semantic Mind and Modeling stores must remain distinct");
-    }
-    let retired_mind_claim_ids = retire_memory_semantic_projection_claims_v0(agent_store)?;
-    let retired_modeling_claim_ids = retire_memory_semantic_projection_claims_v0(runtime_store)?;
-    let retired_mind_attempt_ids =
-        retire_orphaned_memory_semantic_projection_attempts_v0(agent_store)?;
-    let retired_modeling_attempt_ids =
-        retire_orphaned_memory_semantic_projection_attempts_v0(runtime_store)?;
-    let retired_mind_receipt_ids = retire_unowned_memory_semantic_index_receipts(agent_store)?;
-    let retired_modeling_receipt_ids =
-        retire_unowned_memory_semantic_index_receipts(runtime_store)?;
-    let mind_attempt_ids = migrate_memory_semantic_projection_attempts_v0(agent_store)?;
-    let modeling_attempt_ids = migrate_memory_semantic_projection_attempts_v0(runtime_store)?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.memory_semantic_projection_attempt_migration.v0",
-            "status": "completed",
-            "retiredMindClaimIds": retired_mind_claim_ids,
-            "retiredModelingClaimIds": retired_modeling_claim_ids,
-            "retiredMindAttemptIds": retired_mind_attempt_ids,
-            "retiredModelingAttemptIds": retired_modeling_attempt_ids,
-            "retiredMindReceiptIds": retired_mind_receipt_ids,
-            "retiredModelingReceiptIds": retired_modeling_receipt_ids,
-            "mindAttemptIds": mind_attempt_ids,
-            "modelingAttemptIds": modeling_attempt_ids,
-            "privateStateExposed": false,
-        }))?
-    );
-    Ok(())
-}
-
 fn semantic_projector_service_status(args: Args) -> Result<()> {
     let receipt = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
         &args.store,
@@ -766,22 +717,16 @@ fn semantic_projector_observation_status(
     }
 }
 
-fn semantic_projection_input(args: &Args) -> Result<(MemorySemanticProjectionInput, &Path)> {
-    match (&args.agent_store, &args.runtime_store) {
-        (Some(path), None) => Ok((agent_memory_semantic_projection_input(path)?, path)),
-        (None, Some(path)) => Ok((runtime_modeling_semantic_projection_input(path)?, path)),
-        _ => anyhow::bail!(
-            "semantic projector commands require exactly one of --agent-store or --runtime-store"
-        ),
-    }
-}
-
 fn required<'a>(value: &'a Option<String>, flag: &str) -> Result<&'a str> {
     value.as_deref().with_context(|| format!("missing {flag}"))
 }
 
 fn semantic_recover(args: Args) -> Result<()> {
-    let (input, store) = semantic_projection_input(&args)?;
+    let store = args
+        .runtime_store
+        .as_ref()
+        .context("semantic-recover requires --runtime-store")?;
+    let input = runtime_modeling_semantic_projection_input(store)?;
     let (authorization, claim) = idunn_recover_memory_semantic_projection_from_cultmesh(
         &args.store,
         args.runtime_id.clone(),
@@ -1906,10 +1851,6 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
             "semantic-projector-service-policy derives its packaged executable; --service-command is forbidden"
         );
     }
-    let agent_store = args
-        .agent_store
-        .as_ref()
-        .context("semantic-projector-service-policy requires --agent-store")?;
     let runtime_store = args
         .runtime_store
         .as_ref()
@@ -1922,9 +1863,6 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         .ollama_base_url
         .as_deref()
         .context("semantic-projector-service-policy requires --ollama-base-url")?;
-    if agent_store == runtime_store {
-        anyhow::bail!("semantic projector Mind and Modeling stores must be distinct");
-    }
     args.service_id = SEMANTIC_PROJECTOR_SERVICE_ID.to_string();
     args.policy_id = Some(format!(
         "managed-service-policy-{SEMANTIC_PROJECTOR_SERVICE_ID}"
@@ -1932,7 +1870,6 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
     args.restart_mode = "always".to_string();
     args.service_command = Some(packaged_role_command_path(&args, "semantic-projector")?);
     args.service_args = semantic_projector_service_args(
-        agent_store,
         runtime_store,
         &args.store,
         &args.runtime_id,
@@ -2027,7 +1964,6 @@ fn workspace_coverage_projector_service_args(
 }
 
 fn semantic_projector_service_args(
-    agent_store: &Path,
     runtime_store: &Path,
     local_verse_store: &Path,
     runtime_id: &str,
@@ -2038,8 +1974,6 @@ fn semantic_projector_service_args(
 ) -> Vec<String> {
     vec![
         "serve".to_string(),
-        "--agent-store".to_string(),
-        agent_store.display().to_string(),
         "--runtime-store".to_string(),
         runtime_store.display().to_string(),
         "--local-verse-store".to_string(),
@@ -4120,9 +4054,8 @@ mod semantic_projector_authority_tests {
     }
 
     #[test]
-    fn managed_projector_policy_launches_one_process_with_both_owned_partitions() {
+    fn managed_projector_policy_launches_one_modeling_process() {
         let args = semantic_projector_service_args(
-            Path::new("mind.ccmp"),
             Path::new("modeling.ccmp"),
             Path::new("local-verse.ccmp"),
             "local-runtime",
@@ -4135,8 +4068,6 @@ mod semantic_projector_authority_tests {
             args,
             vec![
                 "serve",
-                "--agent-store",
-                "mind.ccmp",
                 "--runtime-store",
                 "modeling.ccmp",
                 "--local-verse-store",
@@ -4858,7 +4789,6 @@ struct Args {
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
     stderr_artifact: Option<PathBuf>,
-    agent_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     expected_claim_id: Option<String>,
     provider_heartbeat_id: Option<String>,
@@ -4917,7 +4847,6 @@ impl Args {
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
         let mut stderr_artifact = None;
-        let mut agent_store = None;
         let mut runtime_store = None;
         let mut expected_claim_id = None;
         let mut provider_heartbeat_id = None;
@@ -5052,11 +4981,6 @@ impl Args {
                     stderr_artifact = Some(PathBuf::from(
                         values.next().context("missing --stderr-artifact value")?,
                     ));
-                }
-                "--agent-store" => {
-                    agent_store = Some(PathBuf::from(
-                        values.next().context("missing --agent-store value")?,
-                    ))
                 }
                 "--runtime-store" => {
                     runtime_store = Some(PathBuf::from(
@@ -5207,7 +5131,6 @@ impl Args {
                     | "managed-service-task-stop"
                     | "managed-service-task-uninstall"
                     | "migrate-retired-operator-status"
-                    | "migrate-semantic-attempts-v0"
                     | "provider-health-identity-enroll"
                     | "provider-health-identity-export"
                     | "semantic-projector-service-status"
@@ -5332,7 +5255,6 @@ impl Args {
             artifact_ref,
             stdout_artifact,
             stderr_artifact,
-            agent_store,
             runtime_store,
             expected_claim_id,
             provider_heartbeat_id,

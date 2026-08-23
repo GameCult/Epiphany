@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
-    MemorySemanticProjectionInput, SemanticPartition, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
-    WorkspaceCoveragePolicy, WorkspaceProjectionIdentity, agent_memory_semantic_projection_input,
+    MemorySemanticProjectionInput, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+    WorkspaceCoveragePolicy, WorkspaceProjectionIdentity,
     load_memory_semantic_projection_readiness, observe_repository_readiness,
     publish_epiphany_cultmesh_semantic_projection_health,
     runtime_modeling_semantic_projection_input, semantic_memory_context,
@@ -47,7 +47,6 @@ fn main() -> Result<()> {
             let packet = semantic_memory_context(
                 &snapshot,
                 &swarm_id,
-                options.partition,
                 &EpiphanyMemoryContextQuery {
                     id: options
                         .query_id
@@ -67,11 +66,6 @@ fn main() -> Result<()> {
             let runtime_store = options.runtime_store.as_ref().ok_or_else(|| {
                 usage_error("repository-readiness requires --runtime-store <path>")
             })?;
-            if options.agent_store.is_some() {
-                return Err(usage_error(
-                    "repository-readiness accepts only --runtime-store <path>",
-                ));
-            }
             let workspace_identity = WorkspaceProjectionIdentity {
                 policy: WorkspaceCoveragePolicy::bounded_regular_files_v0(
                     WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
@@ -106,12 +100,10 @@ fn main() -> Result<()> {
 
 struct Options {
     runtime_store: Option<PathBuf>,
-    agent_store: Option<PathBuf>,
     local_verse_store: Option<PathBuf>,
     runtime_id: String,
     provider_incarnation: Option<String>,
     swarm_id: Option<String>,
-    partition: SemanticPartition,
     text: Option<String>,
     query_id: Option<String>,
     budget: Option<u32>,
@@ -125,12 +117,10 @@ impl Options {
     fn parse(args: impl Iterator<Item = String>) -> Result<Self> {
         let mut options = Self {
             runtime_store: None,
-            agent_store: None,
             local_verse_store: None,
             runtime_id: "epiphany-memory-semantic".to_string(),
             provider_incarnation: None,
             swarm_id: None,
-            partition: SemanticPartition::Modeling,
             text: None,
             query_id: None,
             budget: None,
@@ -147,12 +137,10 @@ impl Options {
             };
             match flag.as_str() {
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
-                "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
                 "--local-verse-store" => options.local_verse_store = Some(PathBuf::from(value()?)),
                 "--runtime-id" => options.runtime_id = value()?,
                 "--provider-incarnation" => options.provider_incarnation = Some(value()?),
                 "--swarm-id" => options.swarm_id = Some(value()?),
-                "--partition" => options.partition = parse_partition(&value()?)?,
                 "--text" => options.text = Some(value()?),
                 "--query-id" => options.query_id = Some(value()?),
                 "--budget" => options.budget = Some(value()?.parse().context("invalid budget")?),
@@ -178,23 +166,8 @@ impl Options {
         {
             return Err(usage_error("--swarm-id must not be empty"));
         }
-        let sources = [
-            options.runtime_store.is_some(),
-            options.agent_store.is_some(),
-        ]
-        .into_iter()
-        .filter(|present| *present)
-        .count();
-        if sources != 1 {
-            return Err(usage_error(
-                "provide exactly one --runtime-store or --agent-store",
-            ));
-        }
-        if options.partition == SemanticPartition::Mind && options.runtime_store.is_some() {
-            return Err(usage_error("Mind projection requires --agent-store"));
-        }
-        if options.partition == SemanticPartition::Modeling && options.agent_store.is_some() {
-            return Err(usage_error("Modeling projection requires --runtime-store"));
+        if options.runtime_store.is_none() {
+            return Err(usage_error("provide --runtime-store"));
         }
         Ok(options)
     }
@@ -208,13 +181,11 @@ impl Options {
     }
 
     fn load_projection_input(&self) -> Result<(MemorySemanticProjectionInput, &PathBuf)> {
-        let (input, store) = if let Some(path) = &self.runtime_store {
-            (runtime_modeling_semantic_projection_input(path)?, path)
-        } else if let Some(path) = &self.agent_store {
-            (agent_memory_semantic_projection_input(path)?, path)
-        } else {
-            return Err(anyhow!("semantic projection requires a typed source store"));
-        };
+        let store = self
+            .runtime_store
+            .as_ref()
+            .ok_or_else(|| anyhow!("semantic projection requires the runtime store"))?;
+        let input = runtime_modeling_semantic_projection_input(store)?;
         if self
             .swarm_id
             .as_ref()
@@ -228,7 +199,7 @@ impl Options {
     }
 
     fn source_store(&self) -> Option<&PathBuf> {
-        self.runtime_store.as_ref().or(self.agent_store.as_ref())
+        self.runtime_store.as_ref()
     }
 
     fn provider_incarnation(&self) -> Result<&str> {
@@ -241,14 +212,6 @@ impl Options {
     }
 }
 
-fn parse_partition(value: &str) -> Result<SemanticPartition> {
-    match value {
-        "mind" => Ok(SemanticPartition::Mind),
-        "modeling" => Ok(SemanticPartition::Modeling),
-        _ => Err(usage_error("partition must be mind or modeling")),
-    }
-}
-
 fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
     serde_json::from_str(&format!("\"{value}\""))
         .with_context(|| format!("unknown memory profile {value:?}"))
@@ -256,7 +219,7 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <context|health|repository-readiness> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>] [--workspace-embedding-provider-id <id> --workspace-embedding-model <model> --workspace-vector-dimensions <n>]"
+        "{message}\nusage: epiphany-memory-semantic <context|health|repository-readiness> --runtime-store <path> [--swarm-id <id>] [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>] [--workspace-embedding-provider-id <id> --workspace-embedding-model <model> --workspace-vector-dimensions <n>]"
     )
 }
 

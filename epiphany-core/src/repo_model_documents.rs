@@ -173,7 +173,6 @@ pub(crate) fn derive_repo_model_semantic_projection_obligation(
     crate::derive_memory_semantic_projection_obligation(
         &projection,
         &view.identity.swarm_id,
-        crate::SemanticPartition::Modeling,
         &format!("epiphany.runtime/{}/repo-model", view.identity.runtime_id),
         &view.projection_digest,
         created_at,

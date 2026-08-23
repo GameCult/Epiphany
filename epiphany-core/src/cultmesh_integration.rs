@@ -2647,7 +2647,7 @@ fn validate_semantic_projection_health(
         || row.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
         || row.verse_tier != EPIPHANY_CULTMESH_LOCAL_AREA_TIER
         || row.swarm_id.trim().is_empty()
-        || !matches!(row.partition.as_str(), "mind" | "modeling")
+        || row.partition != "modeling"
         || row.obligation_id.trim().is_empty()
         || row.canonical_model_hash.trim().is_empty()
         || row.canonical_content_set_hash.trim().is_empty()
@@ -4572,31 +4572,30 @@ fn validate_semantic_projector_managed_service_policy(
     if policy.policy_id != "managed-service-policy-epiphany-memory-semantic-projector-service"
         || policy.owner_daemon_id != "epiphany-daemon-supervisor"
         || policy.restart_mode != "always"
-        || policy.args.len() != 17
+        || policy.args.len() != 15
         || policy.args[0] != "serve"
-        || policy.args[1] != "--agent-store"
+        || policy.args[1] != "--runtime-store"
         || policy.args[2].trim().is_empty()
-        || policy.args[3] != "--runtime-store"
+        || policy.args[3] != "--local-verse-store"
         || policy.args[4].trim().is_empty()
-        || policy.args[5] != "--local-verse-store"
+        || policy.args[5] != "--runtime-id"
         || policy.args[6].trim().is_empty()
-        || policy.args[7] != "--runtime-id"
+        || policy.args[7] != "--interval-seconds"
         || policy.args[8].trim().is_empty()
-        || policy.args[9] != "--interval-seconds"
-        || policy.args[10]
+        || policy.args[8]
             .parse::<u64>()
             .ok()
             .filter(|value| *value > 0)
             .is_none()
-        || policy.args[11] != "--qdrant-url"
+        || policy.args[9] != "--qdrant-url"
+        || policy.args[10].trim().is_empty()
+        || policy.args[11] != "--ollama-base-url"
         || policy.args[12].trim().is_empty()
-        || policy.args[13] != "--ollama-base-url"
+        || policy.args[13] != "--ollama-model"
         || policy.args[14].trim().is_empty()
-        || policy.args[15] != "--ollama-model"
-        || policy.args[16].trim().is_empty()
     {
         return Err(anyhow!(
-            "reserved semantic projector policy must bind one packaged process to both canonical stores"
+            "reserved semantic projector policy must bind one packaged process to the canonical Modeling store"
         ));
     }
     Ok(())
@@ -7558,8 +7557,6 @@ mod tests {
             command: binary.into(),
             args: vec![
                 "serve",
-                "--agent-store",
-                "mind.ccmp",
                 "--runtime-store",
                 "modeling.ccmp",
                 "--local-verse-store",
@@ -7908,13 +7905,12 @@ mod tests {
     }
 
     #[test]
-    fn semantic_health_publication_is_monotonic_partitioned_sight_only() -> Result<()> {
+    fn semantic_health_publication_is_monotonic_sight_only() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let canonical = temp.path().join("canonical.msgpack");
         let verse = temp.path().join("verse.ccmp");
         let modeling_1 = semantic_health_input(&canonical, "swarm-a", "modeling", 1)?;
         let modeling_2 = semantic_health_input(&canonical, "swarm-a", "modeling", 2)?;
-        let mind_1 = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
         let before = SingleFileMessagePackBackingStore::new(&canonical).pull_all()?;
 
         publish_epiphany_cultmesh_semantic_projection_health(
@@ -7938,20 +7934,11 @@ mod tests {
             &modeling_1,
             "incarnation-a",
         )?;
-        publish_epiphany_cultmesh_semantic_projection_health(
-            &verse,
-            "runtime",
-            &canonical,
-            &mind_1,
-            "incarnation-a",
-        )?;
-
         assert_eq!(delayed.source_generation, 2);
         let rows = load_epiphany_cultmesh_semantic_projection_health(&verse, "runtime")?;
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].partition, "mind");
-        assert_eq!(rows[1].partition, "modeling");
-        assert_eq!(rows[1].source_generation, 2);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].partition, "modeling");
+        assert_eq!(rows[0].source_generation, 2);
         assert!(rows.iter().all(|row| !row.private_state_exposed));
         assert_eq!(
             SingleFileMessagePackBackingStore::new(&canonical).pull_all()?,
@@ -8024,7 +8011,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let canonical = temp.path().join("canonical.msgpack");
         let verse = temp.path().join("verse.ccmp");
-        let input = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
+        let input = semantic_health_input(&canonical, "swarm-a", "modeling", 1)?;
         let row = publish_epiphany_cultmesh_semantic_projection_health(
             &verse,
             "runtime",
@@ -8034,7 +8021,7 @@ mod tests {
         )?;
         let hostile_key = format!(
             "{}/latest",
-            semantic_projection_health_scope_key("other-swarm", "mind")
+            semantic_projection_health_scope_key("other-swarm", "modeling")
         );
         let mut node = open_epiphany_cultmesh_node(&verse, "hostile")?;
         node.put(hostile_key, &row)?;
@@ -8055,7 +8042,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let canonical = temp.path().join("canonical.msgpack");
         let verse = temp.path().join("verse.ccmp");
-        let input = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
+        let input = semantic_health_input(&canonical, "swarm-a", "modeling", 1)?;
         let mut empty_authority = input.clone();
         empty_authority.authority.envelopes.clear();
         assert!(
@@ -8103,7 +8090,6 @@ mod tests {
         let packet = crate::semantic_memory_context(
             input.snapshot(),
             "swarm-a",
-            crate::SemanticPartition::Mind,
             &crate::EpiphanyMemoryContextQuery {
                 id: "hostile-query".to_string(),
                 text: Some("test".to_string()),
@@ -10929,7 +10915,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let canonical = temp.path().join("canonical.msgpack");
         let verse = temp.path().join("verse.ccmp");
-        let input = semantic_health_input(&canonical, "swarm-recovery", "mind", 1)?;
+        let input = semantic_health_input(&canonical, "swarm-recovery", "modeling", 1)?;
         let claim =
             crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
                 &canonical,
@@ -10954,8 +10940,6 @@ mod tests {
             command: binary.into(),
             args: vec![
                 "serve",
-                "--agent-store",
-                "mind.ccmp",
                 "--runtime-store",
                 "modeling.ccmp",
                 "--local-verse-store",

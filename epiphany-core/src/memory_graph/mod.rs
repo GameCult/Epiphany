@@ -32,13 +32,12 @@ pub use epiphany_state_model::RepoFrontierStatus;
 
 pub use compose::compose_memory_graph_snapshots;
 pub use context_cut::plan_memory_graph_context_cut;
-pub(crate) use context_cut::plan_memory_graph_context_cut_for_partition;
 pub use context_cut::plan_memory_graph_context_cut_with_ranked_ids;
+pub(crate) use context_cut::plan_modeling_context_cut;
 pub use freshness::derive_memory_graph_freshness;
 pub use ids::memory_graph_domain_id;
 pub use ids::memory_graph_edge_id;
 pub use ids::memory_graph_node_id;
-pub use profiles::memory_graph_from_agent_memories;
 pub use profiles::memory_graph_from_heartbeat_cognition;
 pub use semantic_index::*;
 pub use semantic_projection::*;

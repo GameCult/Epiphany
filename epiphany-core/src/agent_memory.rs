@@ -584,89 +584,6 @@ pub fn validate_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Vec<S
     Ok(errors)
 }
 
-pub fn agent_memory_semantic_projection_input(
-    store_path: impl AsRef<Path>,
-) -> Result<crate::MemorySemanticProjectionInput> {
-    let store_path = store_path.as_ref();
-    let mut cache = agent_memory_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let identity = cache
-        .get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
-        .ok_or_else(|| anyhow!("Mind projection requires immutable swarm identity"))?;
-    let witness = cache
-        .get::<AgentMemoryGenerationWitness>(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)?
-        .ok_or_else(|| anyhow!("Mind projection requires admitted generation witness"))?;
-    let (generation, source_hash) = agent_memory_source_head(&mut cache)?;
-    if generation != witness.generation || source_hash != witness.source_hash {
-        return Err(anyhow!("Mind projection generation witness is not current"));
-    }
-    let mut entries = Vec::with_capacity(ROLE_TARGETS.len());
-    for (role_id, _, _) in ROLE_TARGETS {
-        entries.push(cache.get_required::<EpiphanyAgentMemoryEntry>(role_id)?);
-    }
-    let mut snapshot =
-        crate::memory_graph_from_agent_memories(format!("{}-mind", identity.swarm_id), &entries);
-    snapshot.model_revision = witness.generation;
-    let matches = cache
-        .get_all::<crate::MemorySemanticProjectionObligation>()?
-        .into_iter()
-        .filter(|obligation| obligation.source_commit_id == witness.witness_id)
-        .collect::<Vec<_>>();
-    if matches.len() != 1 {
-        return Err(anyhow!(
-            "Mind projection requires exactly one obligation for current generation"
-        ));
-    }
-    let obligation = matches.into_iter().next().expect("one obligation");
-    let expected = crate::derive_memory_semantic_projection_obligation(
-        &snapshot,
-        &identity.swarm_id,
-        crate::SemanticPartition::Mind,
-        &format!("epiphany.agent-memory/{}/mind", identity.swarm_id),
-        &witness.witness_id,
-        &witness.committed_at,
-    )?;
-    if obligation != expected {
-        return Err(anyhow!(
-            "Mind projection obligation does not match canonical head"
-        ));
-    }
-    let opening = cache.snapshot_envelopes();
-    let authority_envelopes = opening
-        .into_iter()
-        .filter(|envelope| {
-            (envelope.r#type == AGENT_MEMORY_SWARM_IDENTITY_TYPE
-                && envelope.key == AGENT_MEMORY_SWARM_IDENTITY_KEY)
-                || (envelope.r#type == AGENT_MEMORY_GENERATION_WITNESS_TYPE
-                    && envelope.key == AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)
-                || (envelope.r#type == AGENT_MEMORY_TYPE
-                    && ROLE_TARGETS
-                        .iter()
-                        .any(|(role_id, _, _)| envelope.key == *role_id))
-        })
-        .collect::<Vec<_>>();
-    if authority_envelopes.len() != ROLE_TARGETS.len() + 2 {
-        return Err(anyhow!("Mind projection authority snapshot is incomplete"));
-    }
-    Ok(crate::MemorySemanticProjectionInput {
-        snapshot,
-        authority: crate::memory_graph::MemorySemanticProjectionAuthoritySnapshot {
-            head: crate::MemorySemanticProjectionSourceHead {
-                swarm_id: obligation.swarm_id.clone(),
-                partition: obligation.partition.clone(),
-                canonical_source_id: obligation.canonical_source_id.clone(),
-                source_commit_id: obligation.source_commit_id.clone(),
-                graph_id: obligation.graph_id.clone(),
-                source_generation: obligation.source_generation,
-                source_model_hash: obligation.source_model_hash.clone(),
-                canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
-            },
-            envelopes: authority_envelopes,
-        },
-        obligation,
-    })
-}
-
 fn canonical_agent_memory_source_hash(
     cache: &mut CultCache,
     identity: &AgentMemorySwarmIdentity,
@@ -782,35 +699,6 @@ fn commit_agent_memory_generation(
         changed_role_ids: vec![role_id.to_string()],
         committed_at: committed_at.clone(),
     };
-    let mut projected_entries = Vec::with_capacity(ROLE_TARGETS.len());
-    for (canonical_role, _, _) in ROLE_TARGETS {
-        projected_entries.push(
-            replacements
-                .get(*canonical_role)
-                .cloned()
-                .or_else(|| {
-                    cache
-                        .get::<EpiphanyAgentMemoryEntry>(canonical_role)
-                        .ok()
-                        .flatten()
-                })
-                .ok_or_else(|| anyhow!("canonical Mind generation lost role {canonical_role:?}"))?,
-        );
-    }
-    let mut projection_snapshot = crate::memory_graph_from_agent_memories(
-        format!("{}-mind", identity.swarm_id),
-        &projected_entries,
-    );
-    projection_snapshot.model_revision = generation;
-    let obligation = crate::derive_memory_semantic_projection_obligation(
-        &projection_snapshot,
-        &identity.swarm_id,
-        crate::SemanticPartition::Mind,
-        &format!("epiphany.agent-memory/{}/mind", identity.swarm_id),
-        &witness_id,
-        &committed_at,
-    )?;
-
     let opening = cache.snapshot_envelopes();
     let mut expected = Vec::new();
     let mut batch = Vec::new();
@@ -845,11 +733,6 @@ fn commit_agent_memory_generation(
     );
     batch.push(cache.prepare_entry(&witness_id, &witness)?.0);
     batch.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
-    batch.push(
-        cache
-            .prepare_entry(&obligation.obligation_id, &obligation)?
-            .0,
-    );
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     if !backing.compare_and_swap_batch(&expected, batch)? {
         return Err(anyhow!(
@@ -885,20 +768,9 @@ fn admit_initial_agent_memory_generation(
                 "initial Mind admission collides with live generation"
             ));
         }
-        let obligations = cache
-            .get_all::<crate::MemorySemanticProjectionObligation>()?
-            .into_iter()
-            .filter(|obligation| obligation.source_commit_id == existing.witness_id)
-            .collect::<Vec<_>>();
-        if obligations.len() != 1 {
-            return Err(anyhow!(
-                "initial Mind admission lost its exact semantic projection obligation"
-            ));
-        }
         return Ok(existing);
     }
 
-    let mut entries = Vec::with_capacity(ROLE_TARGETS.len());
     for (role_id, expected_agent_id, _) in ROLE_TARGETS {
         let entry = cache
             .get::<EpiphanyAgentMemoryEntry>(role_id)?
@@ -910,7 +782,6 @@ fn admit_initial_agent_memory_generation(
                 errors.join("; ")
             ));
         }
-        entries.push(entry);
     }
     let committed_at = now_rfc3339();
     let fingerprint = format!("{}|{}|{}", identity.swarm_id, mutation_kind, source_hash);
@@ -948,18 +819,6 @@ fn admit_initial_agent_memory_generation(
         changed_role_ids,
         committed_at: committed_at.clone(),
     };
-    let mut snapshot =
-        crate::memory_graph_from_agent_memories(format!("{}-mind", identity.swarm_id), &entries);
-    snapshot.model_revision = witness.generation;
-    let obligation = crate::derive_memory_semantic_projection_obligation(
-        &snapshot,
-        &identity.swarm_id,
-        crate::SemanticPartition::Mind,
-        &format!("epiphany.agent-memory/{}/mind", identity.swarm_id),
-        &witness_id,
-        &committed_at,
-    )?;
-
     let opening = cache.snapshot_envelopes();
     let mut expected = Vec::new();
     let mut replacements = Vec::new();
@@ -986,11 +845,6 @@ fn admit_initial_agent_memory_generation(
     );
     replacements.push(cache.prepare_entry(&witness_id, &witness)?.0);
     replacements.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
-    replacements.push(
-        cache
-            .prepare_entry(&obligation.obligation_id, &obligation)?
-            .0,
-    );
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     if !backing.compare_and_swap_batch(&expected, replacements)? {
         return Err(anyhow!(
@@ -1360,15 +1214,6 @@ fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<AgentMemorySwarmIdentity>()?;
     cache.register_entry_type::<AgentMemoryGenerationWitness>()?;
     cache.register_entry_type::<AgentMemoryMindAdmissionReceipt>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionAttempt>()?;
-    cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectorExecutorGrant>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
-    cache.register_entry_type::<crate::MemorySemanticProjectionRetentionHead>()?;
-    cache.register_entry_type::<crate::MemorySemanticPhysicalRetirementObligation>()?;
-    cache.register_entry_type::<crate::MemorySemanticPhysicalRetirementReceipt>()?;
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
@@ -1981,21 +1826,6 @@ fn immutable_swarm_identity_separates_stores_and_refuses_collision() -> Result<(
     let collision = ensure_agent_memory_swarm_identity(&first_store, "swarm-beta")
         .expect_err("immutable store identity must refuse substitution");
     assert!(collision.to_string().contains("collision"));
-    assert_ne!(
-        crate::semantic_point_id(
-            &first.swarm_id,
-            crate::SemanticPartition::Mind,
-            AGENT_MEMORY_TYPE,
-            "Persona",
-            "memory-1"
-        ),
-        crate::semantic_point_id(
-            &second.swarm_id,
-            crate::SemanticPartition::Mind,
-            AGENT_MEMORY_TYPE,
-            "Persona",
-            "memory-1"
-        )
-    );
+    assert_ne!(first.swarm_id, second.swarm_id);
     Ok(())
 }

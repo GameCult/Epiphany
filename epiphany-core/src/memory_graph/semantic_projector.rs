@@ -11,7 +11,6 @@ use cultcache_rs::{
     SingleFileMessagePackBackingStore,
 };
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -136,233 +135,6 @@ pub struct MemorySemanticPhysicalRetirementReceipt {
     pub completed_at: String,
     #[cultcache(key = 6)]
     pub private_state_exposed: bool,
-}
-
-#[derive(Deserialize, Serialize)]
-struct LegacyMemorySemanticProjectionAttemptV0 {
-    schema_version: String,
-    attempt_id: String,
-    obligation_id: String,
-    started_at: String,
-    completed_at: Option<String>,
-    status: String,
-    error: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-struct LegacyMemorySemanticProjectionClaimV0 {
-    schema_version: String,
-    scope_id: String,
-    claim_id: String,
-    obligation_id: String,
-    attempt_id: String,
-    executor_id: String,
-    epoch: u64,
-    status: String,
-    claimed_at: String,
-    completed_at: Option<String>,
-}
-
-/// Retires pre-Idunn claim/attempt pairs from active authority. Their old
-/// receipts remain historical and query-ineligible; current obligations can
-/// then receive fresh fenced work.
-pub fn retire_memory_semantic_projection_claims_v0(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<String>> {
-    const ATTEMPT_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_attempt";
-    const CLAIM_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_claim";
-    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
-    let opening = backing.pull_all()?;
-    let mut retired = Vec::new();
-    for claim_envelope in opening.iter().filter(|entry| entry.r#type == CLAIM_TYPE) {
-        if rmp_serde::from_slice::<MemorySemanticProjectionClaim>(&claim_envelope.payload).is_ok() {
-            continue;
-        }
-        let claim = rmp_serde::from_slice::<LegacyMemorySemanticProjectionClaimV0>(
-            &claim_envelope.payload,
-        )?;
-        if claim.schema_version != "gamecult.epiphany.memory_semantic_projection_claim.v0" {
-            return Err(anyhow!(
-                "unsupported legacy semantic claim schema for {:?}",
-                claim.claim_id
-            ));
-        }
-        let attempt_envelope = opening
-            .iter()
-            .find(|entry| entry.r#type == ATTEMPT_TYPE && entry.key == claim.attempt_id)
-            .ok_or_else(|| {
-                anyhow!(
-                    "legacy semantic claim {:?} has no exact attempt",
-                    claim.claim_id
-                )
-            })?;
-        let attempt = rmp_serde::from_slice::<LegacyMemorySemanticProjectionAttemptV0>(
-            &attempt_envelope.payload,
-        )?;
-        if attempt.attempt_id != claim.attempt_id || attempt.obligation_id != claim.obligation_id {
-            return Err(anyhow!("legacy semantic claim/attempt pair disagrees"));
-        }
-        if !backing
-            .delete_batch_if_unchanged(&[claim_envelope.clone(), attempt_envelope.clone()])?
-        {
-            return Err(anyhow!(
-                "legacy semantic authority changed during explicit retirement"
-            ));
-        }
-        retired.push(claim.claim_id);
-    }
-    Ok(retired)
-}
-
-/// Retires historical v0 attempts whose scope claim was already superseded or
-/// overwritten before fenced claim history existed.
-pub fn retire_orphaned_memory_semantic_projection_attempts_v0(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<String>> {
-    const ATTEMPT_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_attempt";
-    const CLAIM_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_claim";
-    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
-    let opening = backing.pull_all()?;
-    let current_claim_attempt_ids = opening
-        .iter()
-        .filter(|entry| entry.r#type == CLAIM_TYPE)
-        .filter_map(|entry| {
-            rmp_serde::from_slice::<MemorySemanticProjectionClaim>(&entry.payload)
-                .ok()
-                .map(|claim| claim.attempt_id)
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut retired = Vec::new();
-    for attempt_envelope in opening.iter().filter(|entry| entry.r#type == ATTEMPT_TYPE) {
-        if rmp_serde::from_slice::<MemorySemanticProjectionAttempt>(&attempt_envelope.payload)
-            .is_ok()
-        {
-            continue;
-        }
-        let attempt = rmp_serde::from_slice::<LegacyMemorySemanticProjectionAttemptV0>(
-            &attempt_envelope.payload,
-        )?;
-        if attempt.schema_version != "gamecult.epiphany.memory_semantic_projection_attempt.v0" {
-            return Err(anyhow!(
-                "unsupported orphaned semantic attempt schema for {:?}",
-                attempt.attempt_id
-            ));
-        }
-        if current_claim_attempt_ids.contains(&attempt.attempt_id) {
-            continue;
-        }
-        if !backing.delete_batch_if_unchanged(std::slice::from_ref(attempt_envelope))? {
-            return Err(anyhow!(
-                "orphaned semantic attempt changed during explicit retirement"
-            ));
-        }
-        retired.push(attempt.attempt_id);
-    }
-    Ok(retired)
-}
-
-/// Retires index receipts whose physical claim namespace is absent from the
-/// canonical store. Their Qdrant points are rebuildable cache residue.
-pub fn retire_unowned_memory_semantic_index_receipts(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<String>> {
-    const RECEIPT_TYPE: &str = "gamecult.epiphany.memory_semantic_index_receipt";
-    const CLAIM_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_claim";
-    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
-    let opening = backing.pull_all()?;
-    let claim_ids = opening
-        .iter()
-        .filter(|entry| entry.r#type == CLAIM_TYPE)
-        .filter_map(|entry| {
-            rmp_serde::from_slice::<MemorySemanticProjectionClaim>(&entry.payload)
-                .ok()
-                .map(|claim| claim.claim_id)
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut retired = Vec::new();
-    for envelope in opening.iter().filter(|entry| entry.r#type == RECEIPT_TYPE) {
-        let receipt = rmp_serde::from_slice::<MemorySemanticIndexReceipt>(&envelope.payload)?;
-        if !receipt.claim_id.trim().is_empty()
-            && receipt.claim_epoch > 0
-            && claim_ids.contains(&receipt.claim_id)
-        {
-            continue;
-        }
-        if !backing.delete_batch_if_unchanged(std::slice::from_ref(envelope))? {
-            return Err(anyhow!(
-                "unowned semantic index receipt changed during explicit retirement"
-            ));
-        }
-        retired.push(receipt.receipt_id);
-    }
-    Ok(retired)
-}
-
-/// Upgrades v0 attempt rows by binding them to the exact persisted claim that
-/// already owns their attempt identity. No claim means no migration.
-pub fn migrate_memory_semantic_projection_attempts_v0(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<String>> {
-    const ATTEMPT_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_attempt";
-    const CLAIM_TYPE: &str = "gamecult.epiphany.memory_semantic_projection_claim";
-    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
-    let opening = backing.pull_all()?;
-    let claims = opening
-        .iter()
-        .filter(|entry| entry.r#type == CLAIM_TYPE)
-        .map(|entry| rmp_serde::from_slice::<MemorySemanticProjectionClaim>(&entry.payload))
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    let mut migrated = Vec::new();
-    for envelope in opening.iter().filter(|entry| entry.r#type == ATTEMPT_TYPE) {
-        if rmp_serde::from_slice::<MemorySemanticProjectionAttempt>(&envelope.payload).is_ok() {
-            continue;
-        }
-        let legacy =
-            rmp_serde::from_slice::<LegacyMemorySemanticProjectionAttemptV0>(&envelope.payload)?;
-        if legacy.schema_version != "gamecult.epiphany.memory_semantic_projection_attempt.v0" {
-            return Err(anyhow!(
-                "unsupported legacy semantic attempt schema for {:?}",
-                legacy.attempt_id
-            ));
-        }
-        let claim = claims
-            .iter()
-            .find(|claim| {
-                claim.attempt_id == legacy.attempt_id && claim.obligation_id == legacy.obligation_id
-            })
-            .ok_or_else(|| {
-                anyhow!(
-                    "legacy semantic attempt {:?} has no exact owning claim",
-                    legacy.attempt_id
-                )
-            })?;
-        let upgraded = MemorySemanticProjectionAttempt {
-            schema_version: MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION.to_string(),
-            attempt_id: legacy.attempt_id,
-            obligation_id: legacy.obligation_id,
-            started_at: legacy.started_at,
-            completed_at: legacy.completed_at,
-            status: legacy.status,
-            error: legacy.error,
-            claim_id: claim.claim_id.clone(),
-            claim_epoch: claim.epoch,
-            executor_id: claim.executor_id.clone(),
-            executor_incarnation: claim.executor_incarnation.clone(),
-            authority_id: claim.authority_id.clone(),
-            physical_backend_url: String::new(),
-            collection_name: String::new(),
-        };
-        validate_memory_semantic_projection_attempt(&upgraded)?;
-        let mut replacement: CultCacheEnvelope = envelope.clone();
-        replacement.payload = rmp_serde::to_vec_named(&upgraded)?;
-        if !backing.compare_and_swap_entry(envelope, replacement)? {
-            return Err(anyhow!(
-                "semantic attempt changed during explicit migration"
-            ));
-        }
-        migrated.push(upgraded.attempt_id);
-    }
-    Ok(migrated)
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -697,164 +469,6 @@ mod authority_tests {
             classify_memory_semantic_projection_for_pulse(&store, &input)?,
             crate::MemorySemanticProjectorPulseClassification::Ready
         );
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_attempt_migration_binds_exact_owning_claim() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("legacy-attempt.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let projection_input = input(&store, &obligation)?;
-        let acquisition = idunn_acquire_memory_semantic_projection(
-            &store,
-            &projection_input,
-            "executor-a",
-            "executor-a-incarnation",
-            "execute",
-            "idunn-incarnation-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let backing = SingleFileMessagePackBackingStore::new(&store);
-        let opening = backing.pull_all()?;
-        let attempt_envelope = opening
-            .iter()
-            .find(|entry| {
-                entry.r#type == MemorySemanticProjectionAttempt::TYPE
-                    && entry.key == acquisition.claim.attempt_id
-            })
-            .context("attempt missing")?;
-        let attempt: MemorySemanticProjectionAttempt =
-            rmp_serde::from_slice(&attempt_envelope.payload)?;
-        let legacy = LegacyMemorySemanticProjectionAttemptV0 {
-            schema_version: "gamecult.epiphany.memory_semantic_projection_attempt.v0".into(),
-            attempt_id: attempt.attempt_id.clone(),
-            obligation_id: attempt.obligation_id.clone(),
-            started_at: attempt.started_at,
-            completed_at: attempt.completed_at,
-            status: attempt.status,
-            error: attempt.error,
-        };
-        let mut legacy_envelope = attempt_envelope.clone();
-        legacy_envelope.payload = rmp_serde::to_vec_named(&legacy)?;
-        assert!(backing.compare_and_swap_entry(attempt_envelope, legacy_envelope)?);
-
-        assert_eq!(
-            migrate_memory_semantic_projection_attempts_v0(&store)?,
-            vec![attempt.attempt_id.clone()]
-        );
-        let (_, _, _, upgraded) = load_running_claim(&store, &acquisition.claim.claim_id)?;
-        assert_eq!(upgraded.claim_id, acquisition.claim.claim_id);
-        assert_eq!(upgraded.claim_epoch, acquisition.claim.epoch);
-        assert_eq!(upgraded.executor_id, acquisition.claim.executor_id);
-        assert_eq!(
-            upgraded.executor_incarnation,
-            acquisition.claim.executor_incarnation
-        );
-        assert_eq!(upgraded.authority_id, acquisition.claim.authority_id);
-        assert!(migrate_memory_semantic_projection_attempts_v0(&store)?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_unfenced_claim_and_attempt_retire_atomically() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("legacy-claim.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let projection_input = input(&store, &obligation)?;
-        let acquisition = idunn_acquire_memory_semantic_projection(
-            &store,
-            &projection_input,
-            "executor-a",
-            "executor-a-incarnation",
-            "execute",
-            "idunn-incarnation-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let backing = SingleFileMessagePackBackingStore::new(&store);
-        let opening = backing.pull_all()?;
-        let claim_envelope = exact_envelope(
-            &opening,
-            MemorySemanticProjectionClaim::TYPE,
-            &acquisition.claim.scope_id,
-        )?;
-        let attempt_envelope = exact_envelope(
-            &opening,
-            MemorySemanticProjectionAttempt::TYPE,
-            &acquisition.claim.attempt_id,
-        )?;
-        let legacy_claim = LegacyMemorySemanticProjectionClaimV0 {
-            schema_version: "gamecult.epiphany.memory_semantic_projection_claim.v0".into(),
-            scope_id: acquisition.claim.scope_id.clone(),
-            claim_id: acquisition.claim.claim_id.clone(),
-            obligation_id: acquisition.claim.obligation_id.clone(),
-            attempt_id: acquisition.claim.attempt_id.clone(),
-            executor_id: acquisition.claim.executor_id.clone(),
-            epoch: acquisition.claim.epoch,
-            status: acquisition.claim.status.clone(),
-            claimed_at: acquisition.claim.claimed_at.clone(),
-            completed_at: acquisition.claim.completed_at.clone(),
-        };
-        let attempt: MemorySemanticProjectionAttempt =
-            rmp_serde::from_slice(&attempt_envelope.payload)?;
-        let legacy_attempt = LegacyMemorySemanticProjectionAttemptV0 {
-            schema_version: "gamecult.epiphany.memory_semantic_projection_attempt.v0".into(),
-            attempt_id: attempt.attempt_id,
-            obligation_id: attempt.obligation_id,
-            started_at: attempt.started_at,
-            completed_at: attempt.completed_at,
-            status: attempt.status,
-            error: attempt.error,
-        };
-        let mut legacy_claim_envelope = claim_envelope.clone();
-        legacy_claim_envelope.payload = rmp_serde::to_vec_named(&legacy_claim)?;
-        let mut legacy_attempt_envelope = attempt_envelope.clone();
-        legacy_attempt_envelope.payload = rmp_serde::to_vec_named(&legacy_attempt)?;
-        assert!(backing.compare_and_swap_batch(
-            &[claim_envelope, attempt_envelope],
-            vec![legacy_claim_envelope, legacy_attempt_envelope],
-        )?);
-
-        assert_eq!(
-            retire_memory_semantic_projection_claims_v0(&store)?,
-            vec![acquisition.claim.claim_id]
-        );
-        let observation = observe_memory_semantic_projection(&store, &projection_input)?;
-        assert_eq!(observation.status, "pending");
-        assert!(retire_memory_semantic_projection_claims_v0(&store)?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn orphaned_legacy_attempt_retires_without_fabricated_claim() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("orphaned-attempt.msgpack");
-        let legacy = LegacyMemorySemanticProjectionAttemptV0 {
-            schema_version: "gamecult.epiphany.memory_semantic_projection_attempt.v0".into(),
-            attempt_id: "orphaned-attempt-1".into(),
-            obligation_id: "obligation-modeling-7".into(),
-            started_at: "2026-07-15T04:01:00Z".into(),
-            completed_at: Some("2026-07-15T04:02:00Z".into()),
-            status: "succeeded".into(),
-            error: None,
-        };
-        let mut backing = SingleFileMessagePackBackingStore::new(&store);
-        backing.push(&CultCacheEnvelope {
-            key: legacy.attempt_id.clone(),
-            r#type: MemorySemanticProjectionAttempt::TYPE.into(),
-            payload: rmp_serde::to_vec_named(&legacy)?,
-            stored_at: "2026-07-15T04:02:00Z".into(),
-            schema_id: Some(MemorySemanticProjectionAttempt::TYPE.into()),
-        })?;
-        assert_eq!(
-            retire_orphaned_memory_semantic_projection_attempts_v0(&store)?,
-            vec![legacy.attempt_id]
-        );
-        assert!(backing.pull_all()?.is_empty());
         Ok(())
     }
 
@@ -1454,7 +1068,7 @@ pub fn observe_memory_semantic_projection(
 }
 
 pub(crate) fn projection_scope_id(swarm_id: &str, partition: &str) -> Result<String> {
-    if swarm_id.trim().is_empty() || !matches!(partition, "mind" | "modeling") {
+    if swarm_id.trim().is_empty() || partition != "modeling" {
         return Err(anyhow!("semantic projection scope identity is invalid"));
     }
     Ok(format!(
@@ -1763,19 +1377,13 @@ pub(crate) fn idunn_acquire_memory_semantic_projection_with_config(
         epoch,
         acquired_at,
     );
-    let partition = match obligation.partition.as_str() {
-        "mind" => super::SemanticPartition::Mind,
-        "modeling" => super::SemanticPartition::Modeling,
-        _ => {
-            return Err(anyhow!(
-                "semantic projection obligation partition is invalid"
-            ));
-        }
-    };
-    if config.qdrant_url.trim().is_empty() || config.collection(partition).trim().is_empty() {
+    if obligation.partition != "modeling"
+        || config.qdrant_url.trim().is_empty()
+        || config.collection().trim().is_empty()
+    {
         return Err(anyhow!("semantic projection physical namespace is invalid"));
     }
-    let attempt = running_attempt(&claim, &config.qdrant_url, config.collection(partition));
+    let attempt = running_attempt(&claim, &config.qdrant_url, config.collection());
     let grant = MemorySemanticProjectorExecutorGrant {
         schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
         grant_id: grant_id.clone(),
@@ -1878,15 +1486,11 @@ pub(crate) fn execute_memory_semantic_projection(
     claim_id: &str,
     config: &super::MemorySemanticIndexConfig,
 ) -> Result<MemorySemanticIndexReceipt> {
-    let partition = match input.obligation.partition.as_str() {
-        "mind" => super::SemanticPartition::Mind,
-        "modeling" => super::SemanticPartition::Modeling,
-        _ => {
-            return Err(anyhow!(
-                "semantic projection obligation partition is invalid"
-            ));
-        }
-    };
+    if input.obligation.partition != "modeling" {
+        return Err(anyhow!(
+            "semantic projection obligation partition is invalid"
+        ));
+    }
     let store_path = store_path.as_ref();
     let started_at = now_rfc3339();
     let (_, _, claim, attempt) = load_running_claim(store_path, claim_id)?;
@@ -1897,7 +1501,7 @@ pub(crate) fn execute_memory_semantic_projection(
     }
     authenticate_claim_authority(store_path, &claim)?;
     if attempt.physical_backend_url != config.qdrant_url
-        || attempt.collection_name != config.collection(partition)
+        || attempt.collection_name != config.collection()
     {
         let error = anyhow!(
             "semantic projection execution config disagrees with acquired physical namespace"
@@ -1913,7 +1517,6 @@ pub(crate) fn execute_memory_semantic_projection(
     let raw_receipt = match super::semantic_index::index_memory_semantic_partition(
         &input.snapshot,
         &input.obligation.swarm_id,
-        partition,
         &super::semantic_index::MemorySemanticProjectionNamespace {
             obligation_id: claim.obligation_id.clone(),
             claim_id: claim.claim_id.clone(),
@@ -2350,7 +1953,7 @@ pub fn validate_memory_semantic_projector_executor_grant(
         || !is_opaque_identity(&grant.grant_id)
         || !is_opaque_identity(&grant.scope_id)
         || !is_opaque_identity(&grant.swarm_id)
-        || !matches!(grant.partition.as_str(), "mind" | "modeling")
+        || grant.partition != "modeling"
         || !is_opaque_identity(&grant.obligation_id)
         || !is_opaque_identity(&grant.executor_id)
         || !is_opaque_identity(&grant.executor_incarnation)
@@ -2407,7 +2010,7 @@ pub fn validate_memory_semantic_projector_recovery_authorization(
         || !is_opaque_identity(&authorization.authorization_id)
         || !is_opaque_identity(&authorization.scope_id)
         || !is_opaque_identity(&authorization.swarm_id)
-        || !matches!(authorization.partition.as_str(), "mind" | "modeling")
+        || authorization.partition != "modeling"
         || !is_opaque_identity(&authorization.obligation_id)
         || !is_opaque_identity(&authorization.claim_id)
         || authorization.claim_epoch == 0
@@ -2461,7 +2064,7 @@ pub fn validate_memory_semantic_physical_retirement_obligation(
         || !is_opaque_identity(&obligation.retirement_id)
         || !is_opaque_identity(&obligation.scope_id)
         || !is_opaque_identity(&obligation.swarm_id)
-        || !matches!(obligation.partition.as_str(), "mind" | "modeling")
+        || obligation.partition != "modeling"
         || !is_opaque_identity(&obligation.obligation_id)
         || !is_opaque_identity(&obligation.attempt_id)
         || !is_opaque_identity(&obligation.claim_id)
@@ -2833,12 +2436,8 @@ where
         return Ok(receipt);
     }
     if retirement.physical_backend_url != config.qdrant_url
-        || retirement.collection_name
-            != config.collection(match retirement.partition.as_str() {
-                "mind" => super::SemanticPartition::Mind,
-                "modeling" => super::SemanticPartition::Modeling,
-                _ => return Err(anyhow!("semantic physical-retirement partition is invalid")),
-            })
+        || retirement.partition != "modeling"
+        || retirement.collection_name != config.collection()
     {
         return Err(anyhow!(
             "semantic physical-retirement namespace is not permitted by current projector policy"
@@ -3753,7 +3352,7 @@ fn validate_idunn_semantic_recovery_evidence(
     }
     if !valid_rfc3339(&evidence.launch_lifecycle_receipt_completed_at)
         || !valid_rfc3339(&evidence.provider_heartbeat_at)
-        || !matches!(evidence.partition.as_str(), "mind" | "modeling")
+        || evidence.partition != "modeling"
         || evidence.claim_epoch == 0
         || evidence.provider_incarnation == evidence.abandoned_executor_incarnation
         || evidence.startup_correlation_id != evidence.launch_lifecycle_receipt_id
@@ -3874,14 +3473,6 @@ mod retention_tests {
         other_basis.obligation_id = "memory-semantic-projection-modeling-other-basis".into();
         assert!(semantic_obligation_is_stale(&other_basis, &current));
         assert!(!semantic_obligation_is_stale(&current, &current));
-
-        let mut mind_current = current.clone();
-        mind_current.partition = "mind".into();
-        mind_current.source_generation = 2;
-        let mut mind_old = mind_current.clone();
-        mind_old.obligation_id = "memory-semantic-projection-mind-old".into();
-        mind_old.source_generation = 1;
-        assert!(semantic_obligation_is_stale(&mind_old, &mind_current));
     }
 
     fn failed_lifecycle(
@@ -4531,34 +4122,6 @@ mod retention_tests {
             retain_memory_semantic_projection_lifecycles(&store, &input, 1, "2026-08-10T06:00:01Z")
                 .unwrap_err();
         assert!(error.to_string().contains("running scope claim"));
-        assert_eq!(
-            SingleFileMessagePackBackingStore::new(&store).pull_all()?,
-            opening
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn semantic_lifecycle_retention_refuses_future_generation_even_inside_window() -> Result<()> {
-        let directory = tempdir()?;
-        let store = directory.path().join("semantic.cc");
-        let mut older = obligation("swarm-future", 1);
-        let mut current = obligation("swarm-future", 2);
-        let mut future = obligation("swarm-future", 3);
-        for value in [&mut older, &mut current, &mut future] {
-            value.partition = "mind".into();
-            value.obligation_id = value.obligation_id.replace("modeling", "mind");
-        }
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&older.obligation_id, &older)?;
-        cache.put(&current.obligation_id, &current)?;
-        cache.put(&future.obligation_id, &future)?;
-        let input = input_for(&store, &current);
-        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
-        let error =
-            retain_memory_semantic_projection_lifecycles(&store, &input, 1, "2026-08-10T08:00:00Z")
-                .unwrap_err();
-        assert!(error.to_string().contains("non-stale generation"));
         assert_eq!(
             SingleFileMessagePackBackingStore::new(&store).pull_all()?,
             opening

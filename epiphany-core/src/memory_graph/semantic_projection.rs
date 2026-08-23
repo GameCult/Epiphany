@@ -13,13 +13,6 @@ pub const SEMANTIC_PROJECTION_SCHEMA_VERSION: &str = "gamecult.epiphany.semantic
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SemanticPartition {
-    Mind,
-    Modeling,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SemanticDocumentKind {
     Node,
     Edge,
@@ -53,7 +46,6 @@ pub struct SemanticCanonicalLocator {
 pub struct SemanticProjectionDocument {
     pub point_id: String,
     pub swarm_id: String,
-    pub partition: SemanticPartition,
     pub kind: SemanticDocumentKind,
     pub canonical: SemanticCanonicalLocator,
     pub graph_id: String,
@@ -75,48 +67,21 @@ pub struct SemanticProjectionDocument {
 pub struct SemanticProjectionCandidate {
     pub point_id: String,
     pub canonical: SemanticCanonicalLocator,
-    pub partition: SemanticPartition,
     pub score: f32,
     pub indexed_model_revision: u64,
     pub indexed_model_hash: String,
     pub indexed_canonical_content_hash: String,
 }
 
-pub trait SemanticEmbedder {
-    fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
-}
-
-pub trait SemanticVectorIndex {
-    fn replace_partition(
-        &self,
-        swarm_id: &str,
-        partition: SemanticPartition,
-        documents: &[(SemanticProjectionDocument, Vec<f32>)],
-    ) -> Result<()>;
-
-    fn search(
-        &self,
-        swarm_id: &str,
-        partition: SemanticPartition,
-        vector: &[f32],
-        limit: usize,
-    ) -> Result<Vec<SemanticProjectionCandidate>>;
-}
-
 pub fn semantic_point_id(
     swarm_id: &str,
-    partition: SemanticPartition,
     canonical_type: &str,
     canonical_key: &str,
     canonical_document_id: &str,
 ) -> String {
-    let partition = match partition {
-        SemanticPartition::Mind => "mind",
-        SemanticPartition::Modeling => "modeling",
-    };
     Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
-        format!("{swarm_id}|{partition}|{canonical_type}|{canonical_key}|{canonical_document_id}")
+        format!("{swarm_id}|modeling|{canonical_type}|{canonical_key}|{canonical_document_id}")
             .as_bytes(),
     )
     .to_string()
@@ -189,14 +154,16 @@ pub fn derive_semantic_projection(
     let mut out = Vec::new();
 
     for node in &snapshot.nodes {
-        if excluded_lifecycle(node.lifecycle) || stale_nodes.contains(node.id.as_str()) {
+        if !is_modeling_profile(node.profile)
+            || excluded_lifecycle(node.lifecycle)
+            || stale_nodes.contains(node.id.as_str())
+        {
             continue;
         }
         let domain = required_domain(&domains, &node.domain_id)?;
         out.push(document(
             swarm_id,
             snapshot,
-            partition(node.profile),
             SemanticDocumentKind::Node,
             &node.id,
             domain,
@@ -219,7 +186,10 @@ pub fn derive_semantic_projection(
     }
 
     for edge in &snapshot.edges {
-        if excluded_lifecycle(edge.lifecycle) || stale_edges.contains(edge.id.as_str()) {
+        if !is_modeling_profile(edge.profile)
+            || excluded_lifecycle(edge.lifecycle)
+            || stale_edges.contains(edge.id.as_str())
+        {
             continue;
         }
         let source = nodes
@@ -230,6 +200,8 @@ pub fn derive_semantic_projection(
             .ok_or_else(|| anyhow!("validated edge lost target"))?;
         if excluded_lifecycle(source.lifecycle)
             || excluded_lifecycle(target.lifecycle)
+            || !is_modeling_profile(source.profile)
+            || !is_modeling_profile(target.profile)
             || stale_nodes.contains(source.id.as_str())
             || stale_nodes.contains(target.id.as_str())
         {
@@ -244,7 +216,6 @@ pub fn derive_semantic_projection(
         out.push(document(
             swarm_id,
             snapshot,
-            partition(edge.profile),
             SemanticDocumentKind::Edge,
             &edge.id,
             domain,
@@ -261,18 +232,18 @@ pub fn derive_semantic_projection(
     }
 
     for summary in &snapshot.summaries {
-        if summary.freshness != EpiphanyMemoryFreshnessStatus::Ready
+        let domain = required_domain(&domains, &summary.domain_id)?;
+        if !is_modeling_profile(domain.profile)
+            || summary.freshness != EpiphanyMemoryFreshnessStatus::Ready
             || summary.confidence < 70
             || !summary.known_omissions.is_empty()
             || stale_summaries.contains(summary.id.as_str())
         {
             continue;
         }
-        let domain = required_domain(&domains, &summary.domain_id)?;
         out.push(document(
             swarm_id,
             snapshot,
-            partition(domain.profile),
             SemanticDocumentKind::Summary,
             &summary.id,
             domain,
@@ -313,7 +284,6 @@ pub fn derive_semantic_projection(
         out.push(document(
             swarm_id,
             snapshot,
-            SemanticPartition::Modeling,
             SemanticDocumentKind::Frontier,
             &item.id,
             domain,
@@ -340,19 +310,14 @@ pub fn derive_semantic_projection(
 }
 
 pub fn resolve_semantic_candidate<'a>(
-    expected_partition: SemanticPartition,
     candidate: &SemanticProjectionCandidate,
     current_documents: &'a [SemanticProjectionDocument],
 ) -> Result<&'a SemanticProjectionDocument> {
-    if candidate.partition != expected_partition {
-        return Err(anyhow!("semantic candidate partition mismatch"));
-    }
     let document = current_documents
         .iter()
         .find(|document| document.point_id == candidate.point_id)
         .ok_or_else(|| anyhow!("semantic candidate is missing or no longer live"))?;
-    if document.partition != candidate.partition
-        || document.canonical != candidate.canonical
+    if document.canonical != candidate.canonical
         || document.model_revision != candidate.indexed_model_revision
         || document.model_hash != candidate.indexed_model_hash
         || document.canonical_content_hash != candidate.indexed_canonical_content_hash
@@ -367,7 +332,6 @@ pub fn resolve_semantic_candidate<'a>(
 fn document<T: Serialize>(
     swarm_id: &str,
     snapshot: &EpiphanyMemoryGraphSnapshot,
-    partition: SemanticPartition,
     kind: SemanticDocumentKind,
     document_id: &str,
     domain: &EpiphanyMemoryDomain,
@@ -395,15 +359,8 @@ fn document<T: Serialize>(
         canonical_document_id: document_id.to_string(),
     };
     Ok(SemanticProjectionDocument {
-        point_id: semantic_point_id(
-            swarm_id,
-            partition,
-            canonical_type,
-            document_id,
-            document_id,
-        ),
+        point_id: semantic_point_id(swarm_id, canonical_type, document_id, document_id),
         swarm_id: swarm_id.to_string(),
-        partition,
         kind,
         canonical,
         graph_id: snapshot.graph_id.clone(),
@@ -428,13 +385,11 @@ fn document<T: Serialize>(
     })
 }
 
-fn partition(profile: EpiphanyMemoryProfile) -> SemanticPartition {
-    match profile {
-        EpiphanyMemoryProfile::RepoArchitecture | EpiphanyMemoryProfile::RepoDataflow => {
-            SemanticPartition::Modeling
-        }
-        _ => SemanticPartition::Mind,
-    }
+fn is_modeling_profile(profile: EpiphanyMemoryProfile) -> bool {
+    matches!(
+        profile,
+        EpiphanyMemoryProfile::RepoArchitecture | EpiphanyMemoryProfile::RepoDataflow
+    )
 }
 
 fn excluded_lifecycle(lifecycle: EpiphanyMemoryLifecycle) -> bool {
@@ -575,22 +530,13 @@ mod tests {
     }
 
     #[test]
-    fn derives_typed_partitions_and_filters_non_live_documents() {
+    fn derives_only_live_modeling_documents() {
         let documents = derive_semantic_projection("swarm-a", &snapshot()).unwrap();
-        assert_eq!(documents.len(), 5);
+        assert_eq!(documents.len(), 2);
         assert!(
             documents
                 .iter()
-                .any(
-                    |document| document.canonical.canonical_document_id == "mind-node"
-                        && document.partition == SemanticPartition::Mind
-                )
-        );
-        assert!(
-            documents
-                .iter()
-                .any(|document| document.kind == SemanticDocumentKind::Frontier
-                    && document.partition == SemanticPartition::Modeling)
+                .any(|document| document.kind == SemanticDocumentKind::Frontier)
         );
         assert!(
             !documents
@@ -615,45 +561,30 @@ mod tests {
         let candidate = SemanticProjectionCandidate {
             point_id: document.point_id.clone(),
             canonical: document.canonical.clone(),
-            partition: document.partition,
             score: 0.9,
             indexed_model_revision: document.model_revision,
             indexed_model_hash: document.model_hash.clone(),
             indexed_canonical_content_hash: document.canonical_content_hash.clone(),
         };
         assert_eq!(
-            resolve_semantic_candidate(SemanticPartition::Modeling, &candidate, &documents)
+            resolve_semantic_candidate(&candidate, &documents)
                 .unwrap()
                 .point_id,
             document.point_id
         );
         let mut stale = candidate.clone();
         stale.indexed_canonical_content_hash = "stale".into();
-        assert!(
-            resolve_semantic_candidate(SemanticPartition::Modeling, &stale, &documents).is_err()
-        );
-        assert!(
-            resolve_semantic_candidate(SemanticPartition::Mind, &candidate, &documents).is_err()
-        );
+        assert!(resolve_semantic_candidate(&stale, &documents).is_err());
         let mut stale_revision = candidate.clone();
         stale_revision.indexed_model_revision -= 1;
-        assert!(
-            resolve_semantic_candidate(SemanticPartition::Modeling, &stale_revision, &documents)
-                .is_err()
-        );
+        assert!(resolve_semantic_candidate(&stale_revision, &documents).is_err());
         let mut stale_model = candidate.clone();
         stale_model.indexed_model_hash = "old-model".into();
-        assert!(
-            resolve_semantic_candidate(SemanticPartition::Modeling, &stale_model, &documents)
-                .is_err()
-        );
+        assert!(resolve_semantic_candidate(&stale_model, &documents).is_err());
         let mut wrong_locator = candidate.clone();
         wrong_locator.canonical.canonical_document_id = "other".into();
-        assert!(
-            resolve_semantic_candidate(SemanticPartition::Modeling, &wrong_locator, &documents)
-                .is_err()
-        );
-        assert!(resolve_semantic_candidate(SemanticPartition::Modeling, &candidate, &[]).is_err());
+        assert!(resolve_semantic_candidate(&wrong_locator, &documents).is_err());
+        assert!(resolve_semantic_candidate(&candidate, &[]).is_err());
     }
 
     #[test]
@@ -710,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn hostile_composed_graph_cannot_cross_partition_or_domain_through_any_cut_path() {
+    fn modeling_cut_cannot_cross_domain_through_ranked_ids() {
         let mut snapshot = snapshot();
         snapshot.frontier.push(RepoFrontierItem {
             id: "mind-frontier".into(),
@@ -721,7 +652,7 @@ mod tests {
             status: RepoFrontierStatus::Active,
             ..Default::default()
         });
-        let modeling = crate::memory_graph::plan_memory_graph_context_cut_for_partition(
+        let modeling = crate::memory_graph::plan_modeling_context_cut(
             &snapshot,
             &crate::memory_graph::EpiphanyMemoryContextQuery {
                 id: "hostile-modeling".into(),
@@ -733,7 +664,6 @@ mod tests {
                 ..Default::default()
             },
             &["mind-node".into(), "edge".into(), "summary".into()],
-            SemanticPartition::Modeling,
         );
         assert!(modeling.nodes.iter().all(|node| {
             node.domain_id == "repo"
@@ -752,29 +682,5 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["frontier"]
         );
-
-        let mind = crate::memory_graph::plan_memory_graph_context_cut_for_partition(
-            &snapshot,
-            &crate::memory_graph::EpiphanyMemoryContextQuery {
-                id: "hostile-mind".into(),
-                domain_ids: vec!["mind".into()],
-                node_ids: vec!["repo-node".into()],
-                edge_ids: vec!["edge".into()],
-                text: Some("owns map".into()),
-                budget: Some(64),
-                ..Default::default()
-            },
-            &["repo-node".into(), "edge".into(), "frontier".into()],
-            SemanticPartition::Mind,
-        );
-        assert!(mind.nodes.iter().all(|node| {
-            node.domain_id == "mind"
-                && !matches!(
-                    node.profile,
-                    EpiphanyMemoryProfile::RepoArchitecture | EpiphanyMemoryProfile::RepoDataflow
-                )
-        }));
-        assert!(mind.edges.is_empty());
-        assert!(mind.frontier.is_empty());
     }
 }

@@ -81,8 +81,7 @@ where
 
     pub(crate) fn pulse(
         &self,
-        sealed_inputs: &[MemorySemanticProjectionInput],
-        fairness_cursor: Option<&str>,
+        input: &MemorySemanticProjectionInput,
     ) -> MemorySemanticProjectorPulseOutcome {
         if self
             .active
@@ -92,77 +91,30 @@ where
             return outcome(MemorySemanticProjectorPulseStatus::Busy, vec![], None, None);
         }
         let _guard = PulseGuard(&self.active);
-        if sealed_inputs.is_empty() {
-            return outcome(MemorySemanticProjectorPulseStatus::Idle, vec![], None, None);
-        }
-        let scopes = sealed_inputs.iter().map(scope_key).collect::<Vec<_>>();
-        let start = fairness_cursor
-            .and_then(|cursor| scopes.iter().position(|scope| scope == cursor))
-            .map_or(0, |index| (index + 1) % sealed_inputs.len());
-        let mut inspections = Vec::with_capacity(sealed_inputs.len());
-        let mut first_source_error = None;
-        for offset in 0..sealed_inputs.len() {
-            let index = (start + offset) % sealed_inputs.len();
-            let input = &sealed_inputs[index];
-            let scope_id = scopes[index].clone();
-            let classification = match self.port.classify(input) {
-                Ok(classification) => classification,
-                Err(error) => {
-                    let error = format!("{error:#}");
-                    first_source_error.get_or_insert_with(|| error.clone());
-                    inspections.push(MemorySemanticProjectorPulseInspection {
+        let scope_id = scope_key(input);
+        let classification = match self.port.classify(input) {
+            Ok(classification) => classification,
+            Err(error) => {
+                return outcome(
+                    MemorySemanticProjectorPulseStatus::Refused,
+                    vec![MemorySemanticProjectorPulseInspection {
                         scope_id,
                         classification: None,
-                        error: Some(error),
-                    });
-                    continue;
-                }
-            };
-            inspections.push(MemorySemanticProjectorPulseInspection {
-                scope_id: scope_id.clone(),
-                classification: Some(classification.clone()),
-                error: None,
-            });
-            if let MemorySemanticProjectorPulseClassification::RunningOwned { claim_id } =
-                classification
-            {
-                if let Err(error) = self.port.execute(input, &claim_id) {
-                    return outcome(
-                        MemorySemanticProjectorPulseStatus::Refused,
-                        inspections,
-                        Some(scope_id),
-                        Some(format!("{error:#}")),
-                    );
-                }
-                return outcome(
-                    MemorySemanticProjectorPulseStatus::Executed,
-                    inspections,
-                    Some(scope_id),
+                        error: Some(format!("{error:#}")),
+                    }],
                     None,
+                    Some(format!("{error:#}")),
                 );
             }
-            let Some(purpose) = classification.automatic_purpose() else {
-                continue;
-            };
-            let claim_id = match self.port.acquire(input, purpose) {
-                Ok(Some(claim_id)) => claim_id,
-                Ok(None) => {
-                    return outcome(
-                        MemorySemanticProjectorPulseStatus::Contended,
-                        inspections,
-                        Some(scope_id),
-                        None,
-                    );
-                }
-                Err(error) => {
-                    return outcome(
-                        MemorySemanticProjectorPulseStatus::Refused,
-                        inspections,
-                        Some(scope_id),
-                        Some(format!("{error:#}")),
-                    );
-                }
-            };
+        };
+        let inspections = vec![MemorySemanticProjectorPulseInspection {
+            scope_id: scope_id.clone(),
+            classification: Some(classification.clone()),
+            error: None,
+        }];
+        if let MemorySemanticProjectorPulseClassification::RunningOwned { claim_id } =
+            classification
+        {
             if let Err(error) = self.port.execute(input, &claim_id) {
                 return outcome(
                     MemorySemanticProjectorPulseStatus::Refused,
@@ -178,21 +130,47 @@ where
                 None,
             );
         }
-        if let Some(error) = first_source_error {
-            outcome(
-                MemorySemanticProjectorPulseStatus::Refused,
-                inspections,
-                None,
-                Some(error),
-            )
-        } else {
-            outcome(
+        let Some(purpose) = classification.automatic_purpose() else {
+            return outcome(
                 MemorySemanticProjectorPulseStatus::Idle,
                 inspections,
                 None,
                 None,
-            )
+            );
+        };
+        let claim_id = match self.port.acquire(input, purpose) {
+            Ok(Some(claim_id)) => claim_id,
+            Ok(None) => {
+                return outcome(
+                    MemorySemanticProjectorPulseStatus::Contended,
+                    inspections,
+                    Some(scope_id),
+                    None,
+                );
+            }
+            Err(error) => {
+                return outcome(
+                    MemorySemanticProjectorPulseStatus::Refused,
+                    inspections,
+                    Some(scope_id),
+                    Some(format!("{error:#}")),
+                );
+            }
+        };
+        if let Err(error) = self.port.execute(input, &claim_id) {
+            return outcome(
+                MemorySemanticProjectorPulseStatus::Refused,
+                inspections,
+                Some(scope_id),
+                Some(format!("{error:#}")),
+            );
         }
+        outcome(
+            MemorySemanticProjectorPulseStatus::Executed,
+            inspections,
+            Some(scope_id),
+            None,
+        )
     }
 }
 
@@ -344,7 +322,7 @@ mod tests {
             MemorySemanticProjectorPulseClassification::Stale,
         ] {
             let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![classification]));
-            let outcome = pulser.pulse(&[input("mind")], None);
+            let outcome = pulser.pulse(&input("modeling"));
             assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Idle);
             assert!(pulser.port.acquisitions.lock().unwrap().is_empty());
             assert!(pulser.port.executions.lock().unwrap().is_empty());
@@ -356,7 +334,7 @@ mod tests {
         let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![
             MemorySemanticProjectorPulseClassification::Repair,
         ]));
-        let outcome = pulser.pulse(&[input("modeling")], None);
+        let outcome = pulser.pulse(&input("modeling"));
         assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Executed);
         assert_eq!(
             pulser.port.acquisitions.lock().unwrap().as_slice(),
@@ -368,7 +346,7 @@ mod tests {
     fn native_classification_refuses_an_advanced_sealed_input_as_stale() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("classification.msgpack");
-        let current = input("mind");
+        let current = input("modeling");
         let mut cache: CultCache = semantic_projector_cache(&store)?;
         cache.put(&current.obligation().obligation_id, current.obligation())?;
         assert_eq!(
@@ -385,29 +363,17 @@ mod tests {
     }
 
     #[test]
-    fn pending_and_failed_select_one_global_action_with_rotating_fairness() {
+    fn pending_and_failed_execute_one_action() {
         for classification in [
             MemorySemanticProjectorPulseClassification::Pending,
             MemorySemanticProjectorPulseClassification::Failed,
         ] {
             let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![classification]));
-            let outcome = pulser.pulse(&[input("modeling")], None);
+            let outcome = pulser.pulse(&input("modeling"));
             assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Executed);
             assert_eq!(pulser.port.acquisitions.lock().unwrap().len(), 1);
             assert_eq!(pulser.port.executions.lock().unwrap().len(), 1);
         }
-
-        let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![
-            MemorySemanticProjectorPulseClassification::Pending,
-        ]));
-        let candidates = [input("mind"), input("modeling")];
-        let outcome = pulser.pulse(&candidates, Some("swarm-a:mind"));
-        assert_eq!(
-            outcome.selected_scope_id.as_deref(),
-            Some("swarm-a:modeling")
-        );
-        assert_eq!(outcome.inspections.len(), 1);
-        assert_eq!(pulser.port.executions.lock().unwrap().len(), 1);
     }
 
     #[test]
@@ -415,7 +381,7 @@ mod tests {
         let port = MockPort::new(vec![MemorySemanticProjectorPulseClassification::Pending]);
         *port.acquire_result.lock().unwrap() = Some(None);
         let pulser = MemorySemanticProjectorPulser::new(port);
-        let outcome = pulser.pulse(&[input("mind"), input("modeling")], None);
+        let outcome = pulser.pulse(&input("modeling"));
         assert_eq!(
             outcome.status,
             MemorySemanticProjectorPulseStatus::Contended
@@ -431,32 +397,13 @@ mod tests {
                 claim_id: "recovered-claim".to_string(),
             },
         ]));
-        let outcome = pulser.pulse(&[input("mind")], None);
+        let outcome = pulser.pulse(&input("modeling"));
         assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Executed);
         assert!(pulser.port.acquisitions.lock().unwrap().is_empty());
         assert_eq!(
             pulser.port.executions.lock().unwrap().as_slice(),
             ["recovered-claim"]
         );
-    }
-
-    #[test]
-    fn one_source_fault_does_not_hide_an_actionable_other_source() {
-        let port = MockPort::new(vec![]);
-        *port.classifications.lock().unwrap() = vec![
-            Err("stale sealed source"),
-            Ok(MemorySemanticProjectorPulseClassification::Pending),
-        ];
-        let pulser = MemorySemanticProjectorPulser::new(port);
-        let outcome = pulser.pulse(&[input("mind"), input("modeling")], None);
-        assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Executed);
-        assert_eq!(outcome.inspections.len(), 2);
-        assert!(outcome.inspections[0].classification.is_none());
-        assert_eq!(
-            outcome.selected_scope_id.as_deref(),
-            Some("swarm-a:modeling")
-        );
-        assert_eq!(pulser.port.executions.lock().unwrap().len(), 1);
     }
 
     #[test]
@@ -468,10 +415,10 @@ mod tests {
         let pulser = Arc::new(MemorySemanticProjectorPulser::new(port));
         let worker = {
             let pulser = pulser.clone();
-            std::thread::spawn(move || pulser.pulse(&[input("mind")], None))
+            std::thread::spawn(move || pulser.pulse(&input("modeling")))
         };
         entered.wait();
-        let busy = pulser.pulse(&[input("modeling")], None);
+        let busy = pulser.pulse(&input("modeling"));
         assert_eq!(busy.status, MemorySemanticProjectorPulseStatus::Busy);
         release.wait();
         assert_eq!(

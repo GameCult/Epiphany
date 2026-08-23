@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
-use epiphany_state_model::EpiphanyMemoryContextQuery;
 use serde_json::Value;
 use sha2::Digest;
 use std::collections::BTreeMap;
@@ -1212,12 +1211,7 @@ fn tick_once(
             &pending,
             &selected_after_identity(&selected),
             selected_pending_mentions.clone(),
-            persona_memory_recall_for_scheduled_turn(
-                options.agent_store.as_deref(),
-                &selected,
-                &action,
-                &selected_pending_mentions,
-            ),
+            Value::Null,
         )?;
     }
     if !options.defer_completion && action.action_type != "persona_turn" {
@@ -1225,12 +1219,6 @@ fn tick_once(
     }
 
     let selected_after = state.participants[selected_index].clone();
-    let persona_memory_recall = persona_memory_recall_for_scheduled_turn(
-        options.agent_store.as_deref(),
-        &selected_after,
-        &action,
-        &selected_pending_mentions,
-    );
     let event = HeartbeatHistoryEvent {
         ts: now_iso(),
         schedule_id: options.schedule_id.clone(),
@@ -1280,7 +1268,6 @@ fn tick_once(
             "commitment": action.commitment,
             "local_affordance_basis": action.local_affordance_basis,
             "pending_mentions": selected_pending_mentions,
-            "persona_memory_recall": persona_memory_recall,
         }],
         "reaction_windows": if let Some(work_role) = &work_role {
             serde_json::json!([{
@@ -1772,171 +1759,6 @@ fn action_for_selection(
             "When no coordinator work is active, idle rumination is slowed by the sleep multiplier and shaped by personality and mood cooldowns so the swarm dreams instead of thrashing.".to_string(),
         ],
     }
-}
-
-fn persona_memory_recall_for_scheduled_turn(
-    agent_store: Option<&Path>,
-    selected: &HeartbeatParticipant,
-    action: &HeartbeatAction,
-    pending_mentions: &[HeartbeatPendingMention],
-) -> Value {
-    if action.action_type != "persona_turn" || selected.role_id != "Persona" {
-        return Value::Null;
-    }
-    let Some(agent_store) = agent_store else {
-        return serde_json::json!({
-            "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-            "status": "unavailable",
-            "cacheStatus": "agent-store-missing",
-            "renderedRecall": "- semantic Persona memory recall unavailable: no agent store was provided for this heartbeat tick",
-            "privateStateExposed": false,
-        });
-    };
-
-    let swarm_identity = match crate::load_agent_memory_swarm_identity(agent_store) {
-        Ok(Some(identity)) => identity,
-        Ok(None) => {
-            return serde_json::json!({
-                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-                "status": "unavailable",
-                "cacheStatus": "swarm-identity-missing",
-                "renderedRecall": "- semantic Persona memory recall unavailable: agent store has no immutable swarm identity",
-                "privateStateExposed": false,
-            });
-        }
-        Err(error) => {
-            return serde_json::json!({
-                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-                "status": "unavailable",
-                "cacheStatus": "swarm-identity-load-failed",
-                "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_heartbeat_line(&format!("{error:#}"), 320)),
-                "privateStateExposed": false,
-            });
-        }
-    };
-
-    let entry = match crate::agent_memory::load_agent_memory_entry_for_role(agent_store, "Persona")
-    {
-        Ok(Some(entry)) => entry,
-        Ok(None) => {
-            return serde_json::json!({
-                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-                "status": "unavailable",
-                "cacheStatus": "persona-memory-missing",
-                "renderedRecall": "- semantic Persona memory recall unavailable: Persona memory entry is missing",
-                "privateStateExposed": false,
-            });
-        }
-        Err(error) => {
-            return serde_json::json!({
-                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-                "status": "unavailable",
-                "cacheStatus": "persona-memory-load-failed",
-                "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_heartbeat_line(&format!("{error:#}"), 320)),
-                "privateStateExposed": false,
-            });
-        }
-    };
-
-    let query = persona_memory_recall_query(selected, pending_mentions);
-    let mut entries = Vec::new();
-    for role in crate::agent_memory_role_ids() {
-        if let Ok(Some(role_entry)) = crate::load_agent_memory_entry_for_role(agent_store, role) {
-            entries.push(role_entry);
-        }
-    }
-    let swarm_id = swarm_identity.swarm_id;
-    let projection_input = crate::agent_memory_semantic_projection_input(agent_store).ok();
-    let graph = projection_input.as_ref().map_or_else(
-        || crate::memory_graph_from_agent_memories(&format!("{swarm_id}-mind"), &entries),
-        |input| input.snapshot.clone(),
-    );
-    let persona_domain_id =
-        crate::memory_graph_domain_id(crate::EpiphanyMemoryProfile::RoleSelf, "role", "Persona");
-    let query_document = EpiphanyMemoryContextQuery {
-        id: "heartbeat-persona-turn".to_string(),
-        profile: Some(crate::EpiphanyMemoryProfile::RoleSelf),
-        domain_ids: vec![persona_domain_id],
-        node_ids: Vec::new(),
-        edge_ids: Vec::new(),
-        text: Some(query.clone()),
-        budget: Some(8),
-    };
-    let config = memory_semantic_config_for_heartbeat();
-    let readiness = projection_input.as_ref().and_then(|input| {
-        crate::load_memory_semantic_projection_readiness(agent_store, input)
-            .ok()
-            .flatten()
-    });
-    let packet = crate::semantic_memory_context(
-        &graph,
-        &swarm_id,
-        crate::SemanticPartition::Mind,
-        &query_document,
-        readiness.as_ref(),
-        &config,
-    );
-    let fallback = packet
-        .warnings
-        .iter()
-        .any(|warning| warning.contains("canonical BM25 fallback"));
-    let rendered_recall = crate::render_persona_semantic_memory_recall(&packet);
-
-    serde_json::json!({
-        "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
-        "status": if fallback { "fallback" } else { "ready" },
-        "cacheStatus": if fallback { "canonical-bm25" } else { "shared-mind-qdrant" },
-        "identityId": entry.agent.agent_id,
-        "roleId": entry.role_id,
-        "chunkCount": graph.nodes.len() + graph.summaries.len(),
-        "hitCount": packet.nodes.len() + packet.summaries.len(),
-        "renderedRecall": rendered_recall,
-        "warnings": packet.warnings,
-        "privateStateExposed": false,
-    })
-}
-
-fn persona_memory_recall_query(
-    selected: &HeartbeatParticipant,
-    pending_mentions: &[HeartbeatPendingMention],
-) -> String {
-    let mention_text = pending_mentions
-        .iter()
-        .map(|mention| {
-            format!(
-                "{}: {}",
-                mention.author_name.as_deref().unwrap_or(&mention.author_id),
-                mention.visible_prompt
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!(
-        "{} current Persona turn\nPending addressed pressure:\n{}",
-        selected.display_name,
-        if mention_text.trim().is_empty() {
-            "(none)"
-        } else {
-            mention_text.as_str()
-        }
-    )
-}
-
-fn memory_semantic_config_for_heartbeat() -> crate::MemorySemanticIndexConfig {
-    let mut config = crate::MemorySemanticIndexConfig::from_env();
-    config.qdrant_timeout_ms = config.qdrant_timeout_ms.min(1_000);
-    config.ollama_timeout_ms = config.ollama_timeout_ms.min(1_000);
-    config
-}
-
-fn compact_heartbeat_line(value: &str, max_len: usize) -> String {
-    let mut compacted = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    if compacted.len() > max_len {
-        let keep = max_len.saturating_sub(3);
-        compacted.truncate(keep);
-        compacted.push_str("...");
-    }
-    compacted
 }
 
 fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Option<String> {
@@ -4201,14 +4023,6 @@ const STOP_WORDS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EpiphanyAgentMemoryEntry;
-    use crate::GhostlightAgent;
-    use crate::GhostlightCanonicalState;
-    use crate::GhostlightIdentity;
-    use crate::GhostlightMemories;
-    use crate::GhostlightMemory;
-    use crate::GhostlightValue;
-    use crate::GhostlightWorld;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -4880,129 +4694,6 @@ mod tests {
         let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
         assert_eq!(state.persona_turn_requests.len(), 1);
         Ok(())
-    }
-
-    #[test]
-    fn persona_turn_action_catalog_carries_memory_recall_from_agent_store() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("Persona-heartbeats.msgpack");
-        let agent_store = temp.path().join("agents.msgpack");
-        let artifact_dir = temp.path().join("artifacts");
-        initialize_heartbeat_store(&store_path, 1.0)?;
-        crate::ensure_agent_memory_swarm_identity(&agent_store, "heartbeat-test-swarm")?;
-        crate::write_agent_memory_entry_for_role_migration(&agent_store, &persona_memory_entry())?;
-        queue_heartbeat_pending_mention_store(
-            &store_path,
-            HeartbeatQueueMentionOptions {
-                target_role_id: "Persona".to_string(),
-                source_surface: "discord".to_string(),
-                channel_id: "aquarium".to_string(),
-                message_id: "m1".to_string(),
-                author_id: "human".to_string(),
-                author_name: Some("Metacrat".to_string()),
-                content: "Epiphany, remember the typed contracts before speaking.".to_string(),
-                visible_prompt: "remember the typed contracts before speaking".to_string(),
-                reply_to_message_id: None,
-                queued_at: Some("2026-05-24T00:00:00+00:00".to_string()),
-                mention_id: Some("mention-Persona-memory-test".to_string()),
-                source_visibility: "public".to_string(),
-                data_classification: "public_feedback".to_string(),
-                model_provider_id: "openai-codex".to_string(),
-                model_provider_disclosure_allowed: true,
-            },
-        )?;
-
-        let tick = tick_heartbeat_store(
-            &store_path,
-            &artifact_dir,
-            HeartbeatTickOptions {
-                target_heartbeat_rate: 1.0,
-                coordinator_action: None,
-                target_role: None,
-                urgency: 0.0,
-                schedule_id: "Persona-mentioned-memory".to_string(),
-                source_scene_ref: "test/Persona-mentioned-memory".to_string(),
-                defer_completion: true,
-                agent_store: Some(agent_store),
-                resident_self_store: None,
-            },
-        )?;
-
-        let recall = &tick["schedule"]["action_catalog"][0]["persona_memory_recall"];
-        assert_eq!(
-            recall["schemaVersion"],
-            crate::SEMANTIC_PROJECTION_SCHEMA_VERSION
-        );
-        assert_eq!(recall["roleId"], "Persona");
-        assert_eq!(recall["privateStateExposed"], false);
-        assert!(
-            !recall["status"].as_str().unwrap_or_default().is_empty(),
-            "Persona recall should report whether it came from Qdrant or fallback"
-        );
-        assert!(
-            !recall["cacheStatus"]
-                .as_str()
-                .unwrap_or_default()
-                .is_empty(),
-            "Persona recall should report cache status"
-        );
-        assert!(
-            !recall["renderedRecall"]
-                .as_str()
-                .unwrap_or_default()
-                .trim()
-                .is_empty(),
-            "Persona recall should carry a rendered prompt surface"
-        );
-        assert!(recall["chunkCount"].as_u64().unwrap_or_default() > 0);
-        assert!(
-            !recall["renderedRecall"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("sealed private note")
-        );
-        Ok(())
-    }
-
-    fn persona_memory_entry() -> EpiphanyAgentMemoryEntry {
-        EpiphanyAgentMemoryEntry {
-            schema_version: "ghostlight.agent_state.v0".to_string(),
-            role_id: "Persona".to_string(),
-            world: GhostlightWorld::default(),
-            agent: GhostlightAgent {
-                agent_id: "epiphany.Persona".to_string(),
-                identity: GhostlightIdentity {
-                    name: "Epiphany".to_string(),
-                    roles: vec!["Persona".to_string()],
-                    origin: "EpiphanyAgent".to_string(),
-                    public_description: "Public typed-contract voice.".to_string(),
-                    private_notes: vec!["sealed private note".to_string()],
-                },
-                memories: GhostlightMemories {
-                    semantic: vec![GhostlightMemory {
-                        memory_id: "semantic-1".to_string(),
-                        summary: "Clean typed contracts must shape Persona speech.".to_string(),
-                        salience: 0.9,
-                        confidence: 0.9,
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                },
-                canonical_state: GhostlightCanonicalState {
-                    values: vec![GhostlightValue {
-                        value_id: "value-1".to_string(),
-                        label: "Clean typed contracts".to_string(),
-                        priority: 0.9,
-                        unforgivable_if_betrayed: true,
-                    }],
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            relationships: Vec::new(),
-            events: Vec::new(),
-            scenes: Vec::new(),
-        }
     }
 
     #[test]

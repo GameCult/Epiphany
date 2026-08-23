@@ -55,25 +55,16 @@ fn main() -> Result<()> {
     semantic_config.qdrant_url = args.qdrant_url.clone();
     semantic_config.ollama_base_url = args.ollama_base_url.clone();
     semantic_config.ollama_model = args.ollama_model.clone();
-    let projector = SemanticProjectorServiceBody::new(
-        &args.agent_store,
-        &args.runtime_store,
-        semantic_config.clone(),
-    )?;
+    let projector =
+        SemanticProjectorServiceBody::new(&args.runtime_store, semantic_config.clone())?;
     let provider_incarnation = projector.provider_incarnation().to_string();
-    let mut cursor = None;
     let mut sequence = 0_u64;
     loop {
         sequence = sequence.saturating_add(1);
-        let pulse = projector.pulse(cursor.as_deref());
+        let pulse = projector.pulse();
         let outcome = pulse.outcome;
         let inputs = pulse.inputs;
         let source_faults = pulse.source_fault_count;
-        cursor = outcome
-            .selected_scope_id
-            .clone()
-            .or_else(|| outcome.inspections.last().map(|row| row.scope_id.clone()));
-
         let mut retention_faults = Vec::new();
         let mut retention_mutation_count = 0_u32;
         for input in &inputs {
@@ -216,7 +207,6 @@ fn authenticate_managed_launch(
 
 fn source_store<'a>(args: &'a Args, input: &MemorySemanticProjectionInput) -> Result<&'a PathBuf> {
     match input.obligation().partition.as_str() {
-        "mind" => Ok(&args.agent_store),
         "modeling" => Ok(&args.runtime_store),
         other => Err(anyhow!(
             "unsupported semantic projection partition {other:?}"
@@ -235,7 +225,6 @@ fn pulse_status(status: MemorySemanticProjectorPulseStatus) -> &'static str {
 }
 
 struct Args {
-    agent_store: PathBuf,
     runtime_store: PathBuf,
     local_verse_store: PathBuf,
     runtime_id: String,
@@ -256,7 +245,6 @@ impl Args {
         if !matches!(command.as_str(), "pulse" | "once" | "serve" | "daemon") {
             return Err(anyhow!("unknown command {command:?}; use pulse or serve"));
         }
-        let mut agent_store = None;
         let mut runtime_store = None;
         let mut local_verse_store = None;
         let mut runtime_id = "epiphany-local".to_string();
@@ -277,7 +265,6 @@ impl Args {
                     .with_context(|| format!("missing value for {flag}"))
             };
             match flag.as_str() {
-                "--agent-store" => agent_store = Some(PathBuf::from(value()?)),
                 "--runtime-store" => runtime_store = Some(PathBuf::from(value()?)),
                 "--local-verse-store" => local_verse_store = Some(PathBuf::from(value()?)),
                 "--runtime-id" => runtime_id = value()?,
@@ -297,7 +284,6 @@ impl Args {
             return Err(anyhow!("--retained-generations must be positive"));
         }
         Ok(Self {
-            agent_store: agent_store.context("missing --agent-store")?,
             runtime_store: runtime_store.context("missing --runtime-store")?,
             local_verse_store: local_verse_store.context("missing --local-verse-store")?,
             runtime_id,
