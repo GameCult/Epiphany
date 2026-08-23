@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `56267201`
+Latest committed implementation cut: `900c5232`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,13 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `900c5232` deletes the callerless `epiphany-frontier-proposal` command,
+its forced release role, CLI parser, JSON summary, and two parser-only tests:
+188 pure deletions. Proposal intake and selection remain typed runtime/Self
+operations. The retained current-work capstone proves intake, deterministic
+selection, concurrent launch, sealed reasoning, admission, and read-only
+re-entry without the wrapper. Cargo now has 13 executable targets.
 
 Exact `56267201` retires the three unadmitted Model Atlas daemon shells and
 their forced release roles: publisher, entanglement projector, and impact

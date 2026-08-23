@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`56267201`. The current sequence has deleted the semantic-memory/workspace-coverage
+`900c5232`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -238,8 +238,10 @@ earned their authority under the same audit.
 Resident Self now solely imports authenticated Bifrost deliveries; exact
 `3dda58a5` deletes the standalone Persona feedback ingress and its old Starfire
 snapshot seam. Exact `56267201` deletes the three unadmitted Atlas daemon
-shells while retaining their typed library owners. Next reassess the callerless
-frontier-proposal wrapper. The next test cut removes
+shells while retaining their typed library owners. Exact `900c5232` deletes the
+callerless frontier-proposal wrapper while retaining typed Self/runtime intake.
+Next inspect the one-shot host-identity and Hands consequence command
+boundaries. The next test cut removes
 static display labels, pure helper spelling checks, and redundant cache-policy
 assertions only where stronger consequence tests already own the invariant.
 

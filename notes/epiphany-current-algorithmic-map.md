@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `56267201` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `900c5232` on `codex/epiphany-shakedown-live`
 Current worktree cut: executable/test authority subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -175,6 +175,13 @@ and their separate state remain intact; no current deployment lifecycle pays
 for speculative loops, CLI parsing, sleep cadence, or process termination
 handlers. A future Gate 1 must prove the minimum Idunn-managed process topology
 from actual lifecycle and failure-isolation needs.
+
+Operator proposal intake is a typed Self/runtime operation, not a production
+program. Exact `900c5232` deletes the callerless frontier-proposal executable,
+its release role, parser, JSON echo, and parser tests. The current-work owner
+still admits the exact proposal, selects Modeling work, resolves concurrent
+launch, seals reasoning, and commits the result. No wrapper can create a second
+proposal mouth or make CLI spelling part of the invariant.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
