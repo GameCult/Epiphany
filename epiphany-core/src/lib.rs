@@ -9,7 +9,6 @@ mod cultmesh_integration;
 mod current_work;
 mod eyes_gateway;
 mod hands_gateway;
-mod host_identity;
 mod idunn_provider_health;
 mod idunn_runtime_health;
 mod imagination_consideration;
@@ -122,14 +121,6 @@ pub use eyes_gateway::EyesEvidencePacket;
 pub use eyes_gateway::EyesSourceLookupReceipt;
 pub use eyes_gateway::eyes_evidence_packet_from_research_finding;
 pub use hands_gateway::*;
-pub use host_identity::{
-    HOST_IDENTITY_TRUST_ANCHOR_TYPE, HostIdentitySignature, HostIdentityTrustAnchorEntry,
-    verify_host_identity_trust_anchor_signature,
-};
-#[cfg(test)]
-pub(crate) use host_identity::{
-    HostIdentitySigner, enroll_host_identity_at, export_host_identity_trust_anchor,
-};
 pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
     IdunnProviderHealthAdmission, ProviderReleaseBinding, RequiredProviderHealth,
@@ -188,11 +179,9 @@ pub use persona_feedback_admission::{
     BifrostPersonaFeedbackAdmission,
     LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION, LocalAdmittedPersonaFeedback,
     PERSONA_FEEDBACK_SOCIAL_ADMISSION_SCHEMA_VERSION, PersonaFeedbackPacket,
-    PersonaFeedbackSocialAdmissionReceipt, admit_bifrost_persona_feedback,
-    admit_persona_feedback_to_social, admitted_persona_feedback,
-    import_bifrost_persona_feedback_deliveries,
-    persona_feedback_admission_signing_payload, persona_feedback_admission_signing_purpose,
-    persona_feedback_packet_sha256, persona_feedback_ready_for_cognition,
+    PersonaFeedbackSocialAdmissionReceipt, admit_persona_feedback_to_social,
+    admitted_persona_feedback, import_bifrost_persona_feedback_deliveries,
+    persona_feedback_ready_for_cognition,
     validate_persona_feedback_store_separation,
 };
 pub use persona_social_state::*;

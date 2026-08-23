@@ -3,14 +3,11 @@ use cultcache_rs::{
     CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
     SingleFileMessagePackBackingStore,
 };
+use cultnet_rs::{ServiceIdentitySignature, ServiceIdentityTrustAnchor};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
-
-use crate::{
-    HostIdentitySignature, HostIdentityTrustAnchorEntry,
-    verify_host_identity_trust_anchor_signature,
-};
 
 pub const BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION: &str =
     "bifrost.persona_feedback.delivery.v0";
@@ -20,6 +17,9 @@ pub const LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION: &str =
 pub const PERSONA_FEEDBACK_SOCIAL_ADMISSION_SCHEMA_VERSION: &str =
     "epiphany.persona_feedback.social_admission.v1";
 const SIGNING_PURPOSE: &str = "bifrost.persona-feedback.delivery.v0";
+const TRUST_ANCHOR_SCHEMA: &str = "epiphany.host_identity_trust_anchor.v0";
+const ID_DOMAIN: &[u8] = b"epiphany.host-incarnation.identity.v0\0";
+const SIGNATURE_DOMAIN: &[u8] = b"epiphany.host-incarnation.signature.v0\0";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,14 +147,14 @@ pub struct PersonaFeedbackSocialAdmissionReceipt {
     pub private_state_exposed: bool,
 }
 
-pub fn persona_feedback_packet_sha256(packet: &PersonaFeedbackPacket) -> Result<String> {
+fn persona_feedback_packet_sha256(packet: &PersonaFeedbackPacket) -> Result<String> {
     Ok(format!(
         "sha256-{:x}",
         Sha256::digest(rmp_serde::to_vec(packet)?)
     ))
 }
 
-pub fn persona_feedback_admission_signing_payload(
+fn persona_feedback_admission_signing_payload(
     admission: &BifrostPersonaFeedbackAdmission,
 ) -> Result<Vec<u8>> {
     rmp_serde::to_vec(&(
@@ -172,14 +172,10 @@ pub fn persona_feedback_admission_signing_payload(
     .map_err(Into::into)
 }
 
-pub fn persona_feedback_admission_signing_purpose() -> &'static str {
-    SIGNING_PURPOSE
-}
-
-pub fn admit_bifrost_persona_feedback(
+fn admit_bifrost_persona_feedback(
     feedback_store: &Path,
     admission: &BifrostPersonaFeedbackAdmission,
-    trusted_bifrost_identity: &HostIdentityTrustAnchorEntry,
+    trusted_bifrost_identity: &ServiceIdentityTrustAnchor,
     expected_runtime_id: &str,
     expected_repository: &str,
     expected_persona_id: &str,
@@ -234,7 +230,7 @@ pub fn admit_bifrost_persona_feedback(
 
 fn validate_bifrost_persona_feedback_admission(
     admission: &BifrostPersonaFeedbackAdmission,
-    trusted_bifrost_identity: &HostIdentityTrustAnchorEntry,
+    trusted_bifrost_identity: &ServiceIdentityTrustAnchor,
     expected_runtime_id: &str,
     expected_repository: &str,
     expected_persona_id: &str,
@@ -287,11 +283,10 @@ fn validate_bifrost_persona_feedback_admission(
     if admission.packet_sha256 != digest {
         bail!("Persona feedback admission payload binding is invalid");
     }
-    verify_host_identity_trust_anchor_signature(
+    verify_bifrost_persona_feedback_signature(
         trusted_bifrost_identity,
-        SIGNING_PURPOSE,
         &persona_feedback_admission_signing_payload(admission)?,
-        &HostIdentitySignature {
+        &ServiceIdentitySignature {
             identity_id: admission.provider_identity_id.clone(),
             signature: admission.provider_signature.clone(),
         },
@@ -445,6 +440,46 @@ fn is_sha256(value: &str) -> bool {
     })
 }
 
+fn verify_bifrost_persona_feedback_signature(
+    anchor: &ServiceIdentityTrustAnchor,
+    payload: &[u8],
+    proof: &ServiceIdentitySignature,
+) -> Result<()> {
+    if anchor.schema_version != TRUST_ANCHOR_SCHEMA
+        || anchor.public_key.len() != 32
+        || bifrost_identity_id(&anchor.public_key) != anchor.identity_id
+        || proof.identity_id != anchor.identity_id
+    {
+        bail!("Bifrost Persona feedback trust anchor or signature identity is invalid");
+    }
+    let public_key: [u8; 32] = anchor
+        .public_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow!("Bifrost Persona feedback public key has invalid length"))?;
+    let signature = Signature::from_slice(&proof.signature)
+        .map_err(|_| anyhow!("Bifrost Persona feedback signature has invalid length"))?;
+    VerifyingKey::from_bytes(&public_key)?
+        .verify(&bifrost_signing_message(payload), &signature)
+        .map_err(|_| anyhow!("Bifrost Persona feedback signature verification failed"))
+}
+
+fn bifrost_identity_id(public_key: &[u8]) -> String {
+    format!("{:x}", Sha256::digest([ID_DOMAIN, public_key].concat()))
+}
+
+fn bifrost_signing_message(payload: &[u8]) -> Vec<u8> {
+    let purpose = SIGNING_PURPOSE.as_bytes();
+    let mut message =
+        Vec::with_capacity(SIGNATURE_DOMAIN.len() + purpose.len() + payload.len() + 16);
+    message.extend_from_slice(SIGNATURE_DOMAIN);
+    message.extend_from_slice(&(purpose.len() as u64).to_be_bytes());
+    message.extend_from_slice(purpose);
+    message.extend_from_slice(&(payload.len() as u64).to_be_bytes());
+    message.extend_from_slice(payload);
+    message
+}
+
 pub fn admitted_persona_feedback(
     path: &Path,
     _runtime_id: &str,
@@ -573,11 +608,11 @@ fn validated_bifrost_persona_feedback_deliveries(
     expected_repository: &str,
     expected_persona_id: &str,
 ) -> Result<(
-    HostIdentityTrustAnchorEntry,
+    ServiceIdentityTrustAnchor,
     Vec<BifrostPersonaFeedbackAdmission>,
 )> {
     let anchor_bytes = std::fs::read(trust_anchor_path)?;
-    let anchor: HostIdentityTrustAnchorEntry = rmp_serde::from_slice(&anchor_bytes)
+    let anchor: ServiceIdentityTrustAnchor = rmp_serde::from_slice(&anchor_bytes)
         .map_err(|error| anyhow!("Bifrost Persona feedback trust anchor is malformed: {error}"))?;
     // Bifrost owns this store and replaces its complete snapshot atomically.
     // Epiphany is a read-only consumer; taking CultCache's ordinary shared
@@ -631,9 +666,61 @@ fn validated_bifrost_persona_feedback_deliveries(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
+
+    struct TestBifrostSigner {
+        identity_id: String,
+        signing_key: SigningKey,
+    }
+
+    impl TestBifrostSigner {
+        fn identity_id(&self) -> &str {
+            &self.identity_id
+        }
+
+        fn sign(&self, payload: &[u8]) -> ServiceIdentitySignature {
+            ServiceIdentitySignature {
+                identity_id: self.identity_id.clone(),
+                signature: self
+                    .signing_key
+                    .sign(&bifrost_signing_message(payload))
+                    .to_bytes()
+                    .to_vec(),
+            }
+        }
+    }
+
+    fn test_bifrost_identity(label: &str) -> (TestBifrostSigner, ServiceIdentityTrustAnchor) {
+        let seed: [u8; 32] = Sha256::digest(
+            [
+                b"epiphany.test-host-identity.v0\0".as_slice(),
+                label.as_bytes(),
+            ]
+            .concat(),
+        )
+        .into();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let public_key = signing_key.verifying_key().to_bytes().to_vec();
+        let identity_id = bifrost_identity_id(&public_key);
+        let anchor = ServiceIdentityTrustAnchor {
+            schema_version: TRUST_ANCHOR_SCHEMA.into(),
+            identity_id: identity_id.clone(),
+            public_key: public_key.clone(),
+            assurance: "test-only".into(),
+            identity_created_at: "2026-08-23T00:00:00Z".into(),
+            source_identity_record_sha256: format!("sha256-{:x}", Sha256::digest(&public_key)),
+        };
+        (
+            TestBifrostSigner {
+                identity_id,
+                signing_key,
+            },
+            anchor,
+        )
+    }
 
     fn signed_delivery(
-        signer: &crate::HostIdentitySigner,
+        signer: &TestBifrostSigner,
         target_persona: &str,
     ) -> Result<BifrostPersonaFeedbackAdmission> {
         let packet = PersonaFeedbackPacket {
@@ -671,10 +758,7 @@ mod tests {
             provider_signature: Vec::new(),
         };
         admission.provider_signature = signer
-            .sign(
-                SIGNING_PURPOSE,
-                &persona_feedback_admission_signing_payload(&admission)?,
-            )?
+            .sign(&persona_feedback_admission_signing_payload(&admission)?)
             .signature;
         Ok(admission)
     }
@@ -682,11 +766,7 @@ mod tests {
     #[test]
     fn admits_exact_authenticated_delivery_as_pressure_only() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         let delivery = signed_delivery(&signer, "epiphany")?;
         let local = admit_bifrost_persona_feedback(
             &temp.path().join("local.cc"),
@@ -711,11 +791,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let feedback_store = temp.path().join("local.cc");
         let social_store = temp.path().join("persona-social.cc");
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         let delivery = signed_delivery(&signer, "epiphany")?;
         let admitted = admit_bifrost_persona_feedback(
             &feedback_store,
@@ -784,11 +860,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let feedback_store = temp.path().join("local.cc");
         let social_store = temp.path().join("persona-social.cc");
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         let delivery = signed_delivery(&signer, "epiphany")?;
         let admitted = admit_bifrost_persona_feedback(
             &feedback_store,
@@ -836,11 +908,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let feedback_store = temp.path().join("local.cc");
         let social_store = temp.path().join("persona-social.cc");
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         let delivery = signed_delivery(&signer, "epiphany")?;
         admit_bifrost_persona_feedback(
             &feedback_store,
@@ -881,16 +949,8 @@ mod tests {
     #[test]
     fn refuses_target_payload_and_provider_substitution() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let other = crate::enroll_host_identity_at(&temp.path().join("caller.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
-        let other_anchor = crate::export_host_identity_trust_anchor(
-            &other,
-            &temp.path().join("caller-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
+        let (_other, other_anchor) = test_bifrost_identity("caller");
         let delivery = signed_delivery(&signer, "epiphany")?;
         assert!(
             admit_bifrost_persona_feedback(
@@ -933,19 +993,12 @@ mod tests {
     #[test]
     fn feedback_limit_is_1200_utf8_bytes_not_unicode_scalars() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("bifrost-anchor.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         let mut delivery = signed_delivery(&signer, "epiphany")?;
         delivery.packet.feedback_text = "😀".repeat(300);
         delivery.packet_sha256 = persona_feedback_packet_sha256(&delivery.packet)?;
         delivery.provider_signature = signer
-            .sign(
-                SIGNING_PURPOSE,
-                &persona_feedback_admission_signing_payload(&delivery)?,
-            )?
+            .sign(&persona_feedback_admission_signing_payload(&delivery)?)
             .signature;
         assert!(
             admit_bifrost_persona_feedback(
@@ -962,10 +1015,7 @@ mod tests {
         delivery.packet.feedback_text.push('😀');
         delivery.packet_sha256 = persona_feedback_packet_sha256(&delivery.packet)?;
         delivery.provider_signature = signer
-            .sign(
-                SIGNING_PURPOSE,
-                &persona_feedback_admission_signing_payload(&delivery)?,
-            )?
+            .sign(&persona_feedback_admission_signing_payload(&delivery)?)
             .signature;
         assert!(
             admit_bifrost_persona_feedback(
@@ -987,11 +1037,7 @@ mod tests {
         let source_store = temp.path().join("bifrost-delivery.cc");
         let feedback_store = temp.path().join("persona-feedback.cc");
         let anchor_path = temp.path().join("bifrost-anchor.msgpack");
-        let signer = crate::enroll_host_identity_at(&temp.path().join("bifrost.cc"))?;
-        let anchor = crate::export_host_identity_trust_anchor(
-            &signer,
-            &temp.path().join("unused-anchor-store.cc"),
-        )?;
+        let (signer, anchor) = test_bifrost_identity("bifrost");
         std::fs::write(&anchor_path, rmp_serde::to_vec(&anchor)?)?;
         let delivery = signed_delivery(&signer, "epiphany")?;
         let mut source = CultCache::new();
