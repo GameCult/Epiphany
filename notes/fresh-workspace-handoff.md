@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `6831eb69`
-Current worktree: documentation/evidence for Proposal-Modeling launch-binding subtraction;
+Latest committed implementation cut: `b0a4978d`
+Current worktree: documentation/evidence for Proposal-Modeling launch-authority deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `6831eb69` is the current
+production symlink body and is inactive. Exact `b0a4978d` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -45,14 +45,14 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
-Exact `6831eb69` reduces the Proposal-Modeling launch binding from twelve
-persisted fields to four: schema, exact request ID, job ID, and launch-document
-digest. The request owns proposal/runtime/thread identity; the launch owns
-role/binding/document identity; the CultCache key derives from the job ID.
-Fulfillment and archival now fetch that exact document rather than scanning all
-bindings. The full keyed retry/admission/archive lifecycle and old-epoch refusal
-pass, OpenAI runtime checks cleanly, and 71 net source lines are gone. Runtime
-writable state is v16.
+Exact `b0a4978d` deletes the Proposal-Modeling launch-binding document family.
+The immutable worker launch already owns the exact typed request reference, job,
+role, binding, and sealed launch document. Current-work, retry counting,
+fulfillment, coordinator actuation, and archival now consume it directly. The
+registry entry, launch-digest mirror, deletion choreography, and operator JSON
+echo are gone. The broad keyed lifecycle, coordinator target, OpenAI runtime,
+and old-epoch refusal pass. The cut removes 70 net source lines and advances
+runtime writable state to v17.
 
 Exact `6ccc7dd2` deletes the private 20-field Hands receipt-chain summary. The
 Hands commit owner now derives the deterministic Verification request directly

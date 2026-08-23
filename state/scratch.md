@@ -206,9 +206,18 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    twelve persisted fields to four and replaces global binding scans with exact
    key reads. Request and launch documents remain the owners of the removed
    mirrors. Runtime epoch is v16; 71 net source lines are gone.
-37. Next: resume the public runtime-spine and test-liability audit by live owner
+37. Done: exact `b0a4978d` deletes the Proposal-Modeling launch-binding type
+   entirely. The immutable worker launch owns request, job, role, binding, and
+   sealed document identity; current-work, admission, coordinator actuation, and
+   archival now consume it directly. Runtime epoch is v17; 70 net source lines
+   are gone.
+38. Next: apply the same ownership test to Body Modeling, Planning, PlanMind,
+   Imagination consideration, and Reorientation launch bindings. Delete the
+   family when the worker launch and typed request already own its facts; do not
+   create generic launch authority.
+39. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-38. Run focused tests after each cut. Only after source subtraction stabilizes
+40. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
