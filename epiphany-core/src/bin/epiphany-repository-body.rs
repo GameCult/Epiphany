@@ -149,7 +149,6 @@ fn main() -> Result<()> {
                 ),
             }
         }
-        "smoke" => smoke()?,
         _ => return usage(),
     }
     Ok(())
@@ -166,48 +165,6 @@ fn required<'a>(args: &'a [String], name: &str) -> Result<&'a str> {
 }
 fn usage<T>() -> Result<T> {
     bail!(
-        "usage: epiphany-repository-body bootstrap --repo PATH --store PATH --runtime-store PATH --workspace-id ID --runtime-id ID --swarm-id ID | bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH | smoke"
+        "usage: epiphany-repository-body bootstrap --repo PATH --store PATH --runtime-store PATH --workspace-id ID --runtime-id ID --swarm-id ID | bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH"
     )
-}
-fn smoke() -> Result<()> {
-    let root = std::env::current_dir()?;
-    let store = std::env::temp_dir().join(format!(
-        "epiphany-repository-body-smoke-{}.cc",
-        uuid::Uuid::new_v4()
-    ));
-    let runtime_store = store.with_extension("runtime.cc");
-    initialize_runtime_spine(
-        &runtime_store,
-        RuntimeSpineInitOptions {
-            runtime_id: "epiphany-smoke-runtime".into(),
-            display_name: "Repository Body smoke".into(),
-            created_at: "2026-07-15T00:00:00Z".into(),
-        },
-    )?;
-    bind_runtime_to_swarm(
-        &runtime_store,
-        "epiphany-smoke-swarm",
-        "2026-07-15T00:00:01Z",
-    )?;
-    bind_repository_body(
-        &root,
-        &store,
-        &runtime_store,
-        "epiphany-repository-body-smoke",
-    )?;
-    let outcome = observe_repository_body(&root, &store, &runtime_store)?;
-    let basis = load_current_runtime_repository_body_basis(&runtime_store)?;
-    admit_repository_body_observation(&runtime_store, &basis)?;
-    let observed = load_repository_body_status(&store)?
-        .ok_or_else(|| anyhow::anyhow!("smoke observation missing after commit"))?;
-    std::fs::remove_file(&store)?;
-    std::fs::remove_file(&runtime_store)?;
-    let generation = match outcome {
-        ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value.generation,
-    };
-    println!(
-        "repository-body-smoke=ok generation={} tree={}",
-        generation, observed.1.tree_oid
-    );
-    Ok(())
 }
