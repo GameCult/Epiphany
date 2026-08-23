@@ -1176,6 +1176,15 @@ provider mapping, and strict-schema tests pass. Next inspect whether the
 proposal's repository/workspace/thread/runtime coordinates protect anything
 not already owned by the atomic Modeling request and autonomous binding.
 
+Exact `6fbd8184` answers that question by moving all four coordinates out of
+inert proposal content. The atomic Modeling request owns them; autonomous
+validation derives that request from binding runtime plus proposal ID/hash and
+checks its repository/workspace/thread/runtime against the authenticated
+Body/domain and exact Imagination chain. The proposal schema is v3 and
+Mind/runtime writable epochs are v7/v10. The broad lifecycle proof, epoch
+refusal, and coordinator compile pass. `runtime_spine.rs` is 10,500 lines.
+Resume the public runtime-spine/test-liability audit next.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the

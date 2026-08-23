@@ -365,6 +365,13 @@ bound Imagination result. They no longer participate in the durable proposal,
 its content identity, or the sealed Modeling projection. Proposal/context
 schemas are v2/v4 and Mind/runtime writable epochs are v6/v9.
 
+Exact `6fbd8184` removes repository, workspace, thread, and runtime coordinates
+from inert proposal content. The atomic proposal Modeling request owns those
+coordinates. Autonomous validation derives that exact request from binding
+runtime plus proposal identity, then binds it to the current Body/domain and
+the exact Imagination request/result/worker chain. Proposal schema is v3;
+Mind/runtime writable epochs are v7/v10.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

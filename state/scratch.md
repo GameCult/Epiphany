@@ -141,8 +141,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    body), `scope_hints` (always empty), and `proposed_at` (copied from the exact
    bound Imagination result) from proposal state, payload identity, and the
    sealed Modeling projection: 37 net deletions. Mind/runtime epochs are v6/v9.
-25. Next: decide whether proposal repository/workspace/thread/runtime coordinates
-   protect an invariant independent of the atomic Modeling request and
-   autonomous binding. Delete them if they are only checked duplication.
-26. Run focused tests after each cut. Only after source subtraction stabilizes
+25. Done: exact `6fbd8184` removes repository/workspace/thread/runtime mirrors
+   from inert proposal content. The atomic Modeling request owns the coordinates;
+   autonomous validation derives that request from binding runtime plus proposal
+   identity and checks it against exact Body/domain and Imagination provenance.
+   Mind/runtime epochs are v7/v10.
+26. Next: resume the public runtime-spine and test-liability audit by live owner
+   and consequential invariant.
+27. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
