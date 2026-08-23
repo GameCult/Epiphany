@@ -612,6 +612,25 @@ real swarm-brake row instead of borrowing the dead status schema as scenery.
 This removes another 99 net lines. Non-test core, CultMesh 29/29, the affected
 readiness and Persona tests, and daemon supervisor 10/10 pass.
 
+Exact `967743cc` deletes seven daemon-poke and Bifrost latest/exact loader APIs
+that only tests called. The remaining tests consume `EpiphanyLocalVerseContext`,
+the same view as runtime prompt/supervision paths, and are named for immutable
+identity, monotonic latest selection, and governed receipt correlation rather
+than serialization. This removes 85 net lines; non-test core and CultMesh 29/29
+pass.
+
+Exact `1ab0859b` deletes two more CultMesh tableau tests: one copied static
+topology strings already exercised at prompt/liveness boundaries, and one still
+claimed to reject provider-owned bootstrap state after those provider fields
+had been deleted. This is 78 pure test-line deletions; CultMesh passes 27/27.
+
+Exact `ab5b16ec` deletes the `#[cfg(test)]` generic managed-service-policy writer
+and the two assertions that summoned that forbidden path solely to watch it
+refuse reserved services. Production already exposes only specialized semantic
+and workspace-coverage projector writers. Their hostile-command, injected-
+argument, exact-policy, and policy-digest checks remain. This removes 28 lines;
+non-test core and the three focused reserved-policy tests pass.
+
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the
 remaining daemon supervisor's

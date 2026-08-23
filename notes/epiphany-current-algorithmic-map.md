@@ -44,6 +44,14 @@ the runtime-bound Body domain and declared daemon targets consumed by the
 supervisor and prompt projection. The former singleton CultMesh status row was
 a duplicate “bootstrap happened” sentinel with no independent invariant; its
 schema, writer, loader, supervisor check, and serialization test are deleted.
+
+`EpiphanyLocalVerseContext` is the consumer read path for latest daemon-poke and
+Bifrost publication state. Seven family-specific latest/exact loaders that were
+called only by tests are deleted. The surviving tests read the same view as the
+runtime and name the actual invariant: immutable poke identities, monotonic
+latest selection, and Bifrost intent/receipt/Hands-proof correlation. The two
+specialized projector policy writers are the only writers; no test-only generic
+writer recreates the forbidden generic policy path.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
