@@ -15,17 +15,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    match Cli::parse(std::env::args().skip(1).collect())? {
-        Cli::Run(options) => println!("{}", serde_json::to_string_pretty(&run(options).await?)?),
-        Cli::Smoke => println!("{}", serde_json::to_string_pretty(&smoke())?),
-    }
+    let options = parse_cli(std::env::args().skip(1).collect())?;
+    println!("{}", serde_json::to_string_pretty(&run(options).await?)?);
     Ok(())
 }
 
-enum Cli {
-    Run(RunOptions),
-    Smoke,
-}
 struct RunOptions {
     store: PathBuf,
     intent_id: String,
@@ -34,29 +28,23 @@ struct RunOptions {
     resident_store: Option<PathBuf>,
 }
 
-impl Cli {
-    fn parse(args: Vec<String>) -> Result<Self> {
-        let (command, rest) = args.split_first().ok_or_else(|| anyhow!(usage()))?;
-        match command.as_str() {
-            "smoke" if rest.is_empty() => Ok(Self::Smoke),
-            "smoke" => Err(anyhow!("smoke accepts no arguments")),
-            "run" => {
-                let flags = flags(rest)?;
-                reject_unknown(
-                    &flags,
-                    &["store", "intent-id", "mcp-config", "cwd", "resident-store"],
-                )?;
-                Ok(Self::Run(RunOptions {
-                    store: PathBuf::from(required(&flags, "store")?),
-                    intent_id: required(&flags, "intent-id")?.to_string(),
-                    mcp_config: flags.get("mcp-config").map(PathBuf::from),
-                    cwd: flags.get("cwd").map(PathBuf::from),
-                    resident_store: flags.get("resident-store").map(PathBuf::from),
-                }))
-            }
-            _ => Err(anyhow!(usage())),
-        }
+fn parse_cli(args: Vec<String>) -> Result<RunOptions> {
+    let (command, rest) = args.split_first().ok_or_else(|| anyhow!(usage()))?;
+    if command != "run" {
+        return Err(anyhow!(usage()));
     }
+    let flags = flags(rest)?;
+    reject_unknown(
+        &flags,
+        &["store", "intent-id", "mcp-config", "cwd", "resident-store"],
+    )?;
+    Ok(RunOptions {
+        store: PathBuf::from(required(&flags, "store")?),
+        intent_id: required(&flags, "intent-id")?.to_string(),
+        mcp_config: flags.get("mcp-config").map(PathBuf::from),
+        cwd: flags.get("cwd").map(PathBuf::from),
+        resident_store: flags.get("resident-store").map(PathBuf::from),
+    })
 }
 
 async fn run(options: RunOptions) -> Result<RunSummary> {
@@ -205,7 +193,7 @@ fn reject_unknown(flags: &BTreeMap<String, String>, allowed: &[&str]) -> Result<
     }
 }
 fn usage() -> &'static str {
-    "usage: epiphany-tool-mcp-runtime run --store PATH --intent-id ID [--mcp-config PATH] [--cwd PATH] [--resident-store PATH] | smoke"
+    "usage: epiphany-tool-mcp-runtime run --store PATH --intent-id ID [--mcp-config PATH] [--cwd PATH] [--resident-store PATH]"
 }
 
 #[derive(Serialize)]
@@ -217,22 +205,6 @@ struct RunSummary {
     receipt_id: String,
     status: String,
     schemas: BTreeMap<String, String>,
-}
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SmokeSummary {
-    adapter: String,
-    status: String,
-    native_namespace: String,
-    schemas: BTreeMap<String, String>,
-}
-fn smoke() -> SmokeSummary {
-    SmokeSummary {
-        adapter: EPIPHANY_TOOL_RUNTIME_ADAPTER_ID.into(),
-        status: "ok".into(),
-        native_namespace: "epiphany_source".into(),
-        schemas: schemas(),
-    }
 }
 fn schemas() -> BTreeMap<String, String> {
     BTreeMap::from([
@@ -267,7 +239,7 @@ mod tests {
 
     #[test]
     fn parses_production_cli_without_legacy_codex_flags() -> Result<()> {
-        let Cli::Run(options) = Cli::parse(vec![
+        let options = parse_cli(vec![
             "run".into(),
             "--store".into(),
             "body.cc".into(),
@@ -275,13 +247,10 @@ mod tests {
             "i".into(),
             "--mcp-config".into(),
             "mcp.toml".into(),
-        ])?
-        else {
-            panic!()
-        };
+        ])?;
         assert_eq!(options.intent_id, "i");
         assert!(
-            Cli::parse(vec![
+            parse_cli(vec![
                 "run".into(),
                 "--store".into(),
                 "x".into(),
@@ -293,14 +262,6 @@ mod tests {
             .is_err()
         );
         Ok(())
-    }
-
-    #[test]
-    fn smoke_names_first_party_runtime() {
-        let value = serde_json::to_value(smoke()).unwrap();
-        assert_eq!(value["adapter"], EPIPHANY_TOOL_RUNTIME_ADAPTER_ID);
-        assert_eq!(value["nativeNamespace"], "epiphany_source");
-        assert!(!value.to_string().to_lowercase().contains("codex"));
     }
 
     #[tokio::test]
