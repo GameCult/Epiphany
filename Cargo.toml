@@ -3,7 +3,6 @@ members = [
     "epiphany-core",
     "epiphany-model-adapter",
     "epiphany-openai-adapter",
-    "epiphany-openai-auth-spine",
     "epiphany-openai-codex-spine",
     "epiphany-openai-runtime",
     "epiphany-release-construction",

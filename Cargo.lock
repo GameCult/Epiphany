@@ -2030,21 +2030,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "epiphany-openai-auth-spine"
-version = "0.1.0"
-dependencies = [
- "codex-login",
- "serde_json",
-]
-
-[[package]]
 name = "epiphany-openai-codex-spine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "codex-client",
+ "codex-login",
  "epiphany-openai-adapter",
- "epiphany-openai-auth-spine",
  "futures",
  "http",
  "serde",

@@ -45,9 +45,9 @@ clean-room client pretending to be Codex.
 
 ### Transformations
 
-- `epiphany-openai-auth-spine` is now a thin Epiphany-named boundary over
-  vendored `codex-login`. It re-exports Codex auth types and default-client
-  construction instead of cloning env/file/keyring/token-refresh behavior.
+- `epiphany-openai-codex-spine` imports the narrow auth types and default-client
+  construction it needs directly from vendored `codex-login`, without cloning
+  env/file/keyring/token-refresh behavior or wrapping re-exports in another crate.
   Subscription credential authority remains in retained Codex-compatible
   machinery; Epiphany owns only the typed status/request/event/runtime surfaces
   around it.
@@ -72,10 +72,8 @@ clean-room client pretending to be Codex.
 
 ## Keep
 
-- `epiphany-openai-auth-spine`: keep only as a typed Epiphany wrapper/status
-  surface around Codex-compatible auth. It should not pretend to be the legal
-  authority for subscription credentials by cloning the auth behavior outside
-  vendored Codex.
+- `codex-login`: keep as the legal authority for Codex-compatible subscription
+  credentials. The Epiphany transport imports only its required auth surface.
 - `codex-client`: keep only as a plain HTTP/SSE transport helper for now. It
   does not own Epiphany request shape, model policy, stream semantics, or durable
   state.
@@ -116,8 +114,8 @@ EpiphanyOpenAIModelTransport
   -> emit typed stream events / receipts
 ```
 
-The adapter may depend on `epiphany-openai-auth-spine`, retained Codex auth
-machinery, and `codex-client` while the reliquary survives. It must not depend
+The adapter may depend on retained `codex-login` auth machinery and
+`codex-client` while the reliquary survives. It must not depend
 on `codex-app-server`, `codex_message_processor`, plugin/app/skill/marketplace
 modules, broad Codex provider/request construction, or Epiphany state
 ownership.
@@ -146,15 +144,14 @@ pure document crate depend on Codex.
 
 The transport wrapper is now also in that spine. It maps typed
 `EpiphanyOpenAiModelRequest` documents into a local serializable Responses
-request body, resolves credentials through `epiphany-openai-auth-spine`, chooses the
+request body, resolves credentials through vendored `codex-login`, chooses the
 ChatGPT/OpenAI base URL from auth mode, opens an HTTP Responses SSE stream with
 `codex-client`, and converts stream deltas/completion into typed
 `EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt` documents. It no
 longer imports Codex `ResponsesApiRequest`, `ResponsesClient`,
 `ResponseEvent`, provider config, model-provider, or broad app-server
-workflow. It intentionally reaches vendored `codex-login` only through
-`epiphany-openai-auth-spine` so auth identity remains Codex-compatible without
-letting Codex own Epiphany request/state shape.
+workflow. Its narrow direct imports preserve Codex-compatible auth identity
+without letting Codex own Epiphany request/state shape.
 
 The CultNet paperwork is now public too. `schemas/cultnet/` contains typed
 schemas for OpenAI adapter status, model request, stream event, and terminal
@@ -195,13 +192,11 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The credential extraction overcut has been corrected. The native clone of
-Codex file/keyring/auto auth, env API key handling, ChatGPT token refresh,
-account metadata parsing, and header-client setup was deleted from
-`epiphany-openai-auth-spine`; the crate now depends on vendored `codex-login`
-and carries the Codex workspace `tokio-tungstenite` / `tungstenite` patches
-needed for standalone builds. The remaining simplification target is not auth
-purity; it is the next Epiphany-in-vendor evacuation surface.
+The credential extraction overcut has been corrected. Codex file/keyring/auto
+auth, env API key handling, ChatGPT token refresh, account metadata parsing,
+and header-client setup remain in vendored `codex-login`. The redundant
+Epiphany re-export crate is gone; the root workspace carries the Codex
+`tokio-tungstenite` / `tungstenite` patches required for standalone builds.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.
