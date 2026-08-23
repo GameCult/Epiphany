@@ -133,14 +133,13 @@ fn dispatch(args: Args) -> Result<()> {
         "managed-service-serve" => managed_service_serve(args),
         "provider-health-identity-enroll" => provider_health_identity_enroll(args),
         "provider-health-identity-export" => provider_health_identity_export(args),
-        "semantic-projector-service-status" => semantic_projector_service_status(args),
         "semantic-projector-service-policy" => semantic_projector_service_policy(args),
         "workspace-coverage-projector-service-policy" => {
             workspace_coverage_projector_service_policy(args)
         }
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use managed-service-serve, provider-health-identity-enroll/export, semantic-projector-service-status, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
+            "unknown command {other:?}; use managed-service-serve, provider-health-identity-enroll/export, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
         ),
     }
 }
@@ -224,45 +223,6 @@ fn pinned_packaged_release(
     let authenticated =
         authenticate_epiphany_packaged_release(&args.store, &args.runtime_id, release_id, &digest)?;
     Ok((authenticated, digest))
-}
-
-fn semantic_projector_service_status(args: Args) -> Result<()> {
-    let receipt = load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
-        &args.store,
-        args.runtime_id.clone(),
-        SEMANTIC_PROJECTOR_SERVICE_ID,
-    )?
-    .context("semantic projector launch receipt is absent")?;
-    let heartbeat = load_latest_epiphany_cultmesh_daemon_heartbeat(
-        &args.store,
-        args.runtime_id,
-        SEMANTIC_PROJECTOR_EXECUTOR_ID,
-    )?
-    .context("semantic projector heartbeat is absent")?;
-    let correlation_matches = heartbeat.startup_lifecycle_receipt_id == receipt.receipt_id;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.memory_semantic_projector_service_status.v0",
-            "status": if correlation_matches && heartbeat.status == "ready" {
-                "provider-correlated"
-            } else {
-                "provider-degraded"
-            },
-            "processId": receipt.process_id,
-            "launchReceiptId": receipt.receipt_id,
-            "launchStartedAtUtc": receipt.started_at_utc,
-            "executableSha256": receipt.executable_sha256,
-            "heartbeatId": heartbeat.heartbeat_id,
-            "heartbeatAt": heartbeat.heartbeat_at,
-            "providerIncarnation": heartbeat.provider_incarnation,
-            "heartbeatStatus": heartbeat.status,
-            "startupCorrelationMatches": correlation_matches,
-            "privateStateExposed": false,
-            "authoritative": false,
-        }))?
-    );
-    Ok(())
 }
 
 fn required<'a>(value: &'a Option<String>, flag: &str) -> Result<&'a str> {
