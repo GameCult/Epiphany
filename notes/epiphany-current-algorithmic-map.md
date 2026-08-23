@@ -335,6 +335,13 @@ interface authority.
 | Brokkr / editor providers | provider-owned editor capability documents and exact receipts | typed CultMesh/Eve observations and governed actuation results | Epiphany does not own Unity or Rider bridges. Brokkr owns Unity; a future Rider daemon owns Rider. |
 | CultMesh/Eve | typed provider-owned documents and deterministic views | private/local/public projections | Visibility and rendering never create authority. |
 
+Exact `40d00bc5` removes Self's parallel planning-eligibility tableau. Its
+detailed candidate blocker fields had no reader; the only consumer reduced the
+projection to whether one current Imagination frontier was actionable. Hands
+and Imagination now use the same pure frontier predicate with an explicit
+unchallenged-target requirement. No diagnostic DTO is allowed to become a
+second routing algorithm merely because it can explain the first one.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

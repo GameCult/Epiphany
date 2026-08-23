@@ -1128,6 +1128,25 @@ retention helpers. Preserve immutable identity, exact job/session terminality,
 decision audit, model/tool binding, atomic Hands-to-Verification admission,
 conflict/replay, and retention fences that prevent authority resurrection.
 
+Exact `1fea7bde` completes that immediate reader cut: the timestamp-selected
+Hands-chain query and its selector are gone, and the summary is private cargo
+used only while the commit owner derives its exact Verification request. Exact
+`40d00bc5` then removes the detailed planning-eligibility tableau, its two DTOs,
+and two public APIs. No consumer read its per-candidate blocker fields; Self
+reduced the entire projection to a boolean already owned by the shared
+actionable-frontier predicate. Hands and Imagination both still require
+unchallenged target claims. The focused keyed lifecycle proof passes. The
+runtime spine now has 10,820 lines, 70 public functions, and 29 public structs.
+
+The next suspected false surface is the user/Persona/Bifrost proposal source
+family. `RepoFrontierUserProposalInput`, its writer, and its selector are called
+only by the broad current-work test; production proposals are promoted from an
+exact Imagination direction result. Do not amputate the test blindly: it also
+proves downstream proposal admission, Hands-to-Verification atomicity, and
+concurrent Persona/Hands writes. A coherent cut must rebuild that verifier from
+live Imagination provenance or replace it with smaller consequence-level
+proofs, not introduce a test-only authority bypass.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the

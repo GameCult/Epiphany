@@ -122,8 +122,18 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    the wholly unconsumed Hands route-relinquishment lifecycle: 800 source
    lines with no replacement. The surviving keyed lifecycle still proves
    atomic Hands-to-Verification admission and concurrent Persona/Hands writes.
-20. Next: delete the last callerless Hands receipt-chain reader, demote its
-   private summary cargo, then audit single-caller archive/status/retention
-   helpers against anti-resurrection and operator-sight consequences.
-21. Run focused tests after each cut. Only after source subtraction stabilizes
+20. Done: exact `1fea7bde` deletes the last callerless Hands receipt-chain
+   reader and timestamp selector, then demotes the summary to private atomic-
+   commit cargo: 77 lines.
+21. Done: exact `40d00bc5` collapses the 100-line planning-eligibility tableau
+   and its two DTOs onto the shared actionable-frontier predicate. Hands and
+   Imagination retain the same unchallenged-target rule; the keyed lifecycle
+   proof passes.
+22. Next: trace the test-only user-proposal intake and four-variant proposal
+   source-kind surface against the sole live Imagination promotion owner. Do
+   not delete the broad downstream concurrency proof or add a test-only
+   authority bypass; rebuild it from live provenance or first find a smaller
+   verifier. Demote individually exported archive actuators owned only by the
+   retention loops.
+23. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
