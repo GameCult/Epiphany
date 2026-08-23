@@ -2,8 +2,9 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `a276d0f4`
-Current worktree: executable/test authority subtraction; Ox17 remains paused
+Latest committed implementation cut: `bda8d8c6`
+Current worktree: documentation/evidence for role-launch authority subtraction;
+Ox17 remains paused
 
 ## Orientation
 
@@ -1220,6 +1221,18 @@ CAS behavior do not change. The cut removes ten net source lines and one public
 struct. `runtime_spine.rs` is 10,126 lines, with 63 public functions and 27
 public structs. The focused core check plus the OpenAI-library and
 release-owned model-runtime test harnesses compile cleanly.
+
+Exact `bda8d8c6` deletes twelve aggregate-Mind fields from
+`EpiphanyRoleWorkerLaunchDocument` and all thirteen constructors. Every
+producer supplied empty defaults, while the sealed reasoning basis already
+owns the exact typed Mind projection and source-document versions. Role launch
+now carries only pass identity plus family-specific authority; there is no
+parallel scratch/graph/planning/evidence/observation/checkpoint/churn state
+mouth. The cut removes 255 net source lines. Core and both OpenAI runtime
+owners compile; reasoning-context tests pass 8/8, and narrow Modeling request,
+typed failure, and repeated-tool-loop terminality proofs pass. Epiphany still
+owns no Rider or Unity editor integration: Brokkr owns Unity through
+CultMesh/Eve, and a future Rider daemon must own Rider.
 
 ## Competitive Eyes/Imagination pass
 

@@ -396,6 +396,19 @@ preparation has one output: the exact CultCache envelope batch that the family
 admission owner commits atomically. The full job is still one envelope in that
 batch; it is no longer duplicated as an unread return field or public DTO.
 
+Exact `bda8d8c6` removes twelve aggregate-Mind fields from the role-launch
+document. Every live constructor filled them with empty defaults, and the
+sealed `EpiphanyReasoningBasis` already carries the exact current typed Mind
+projection assembled from source document versions. Role launch now owns only
+pass identity and family-specific authority; it cannot carry a second scratch,
+graph, planning, evidence, observation, invariant, checkpoint, or churn view.
+This removes 255 net source lines without changing the decision-context chain.
+
+Editor actuation is outside this machine. Epiphany may request provider-owned
+editor capabilities through CultMesh/Eve, but owns no Rider or Unity protocol,
+process, state, or verifier. Brokkr owns Unity. A future Rider daemon must own
+Rider.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

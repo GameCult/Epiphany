@@ -163,7 +163,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    exact envelope batch every caller actually consumes. Its unread full job
    clone and one public struct are gone; the job document remains inside the
    atomic prepared batch. Ten net source lines are removed.
-29. Next: resume the public runtime-spine and test-liability audit by live owner
+29. Done: exact `bda8d8c6` deletes twelve duplicate aggregate-Mind fields from
+   the role-launch contract and every constructor. Every producer supplied
+   empty defaults, and the sealed reasoning basis already owns the exact typed
+   Mind projection. Launch authority now carries only identity plus its
+   family-specific context. The cut removes 255 net source lines.
+30. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-30. Run focused tests after each cut. Only after source subtraction stabilizes
+31. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
