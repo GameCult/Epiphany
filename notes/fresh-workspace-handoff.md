@@ -755,10 +755,23 @@ and the artifact-list Persona surface; `gamecult.persona_state.v0` remains the
 portable Persona contract. The native schema-catalog command rebuilds with zero
 `epiphany.surface.*` documents and its temporary audit output was removed.
 
-Next audit the rest of the CultNet schema registry against live contract
-factories and runtime producers, beginning with schema residue for CultMesh
-operator-run families whose source owners are already deleted. Preserve real
-decision-audit contracts and provider-owned CultMesh/Eve documents.
+Exact `ab3cacfb` deletes thirty-one more producerless contracts: abandoned
+RepoWork aggregates, CultMesh operator-run shadows, generic launch/accept
+intents, swarm receipts, Persona artifacts, and every Epiphany-owned Rider and
+Unity command schema. Runtime sessions now advertise read-only lifecycle state
+instead of a nonexistent coordinator intent path. Brokkr owns Unity editor
+capabilities through CultMesh/Eve; a future Rider daemon owns Rider. The same
+cut found a 415-line prompt-context module and the specialist TOML prompt system
+were consumed only by their own four tests. Module, exports, configuration,
+dependency, and tests are deleted. Native core, OpenAI runtime, and release
+bundle checks pass; the behavioral core suite passes 352/352; the published
+catalog contains 23 local schemas and none of the deleted families.
+
+Next continue the test-authority audit, beginning with remaining direct schema,
+prompt-rendering, CLI-parser, and CultMesh projection tests. Retain a test only
+when it reaches Epiphany validation, ownership, authentication, monotonicity,
+CAS conflict, replay, projection, or an externally visible consequence; delete
+test-only APIs and fixtures with the tests they animate.
 Preserve exact current work, cluster topology, and the four consequence-bearing
 supervisor tests. Do not run a full-workspace compile, package, deployment, or
 Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.

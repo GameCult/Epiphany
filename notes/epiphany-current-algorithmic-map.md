@@ -71,6 +71,19 @@ rebuilds successfully with zero surface documents. Persona's portable state
 remains `gamecult.persona_state.v0`; Eve/CultMesh providers retain their own
 typed contracts.
 
+Exact `ab3cacfb` reduces the local catalog to twenty-three live or portable
+contracts. Thirty-one producerless RepoWork, operator-run, generic intent,
+swarm, Persona-artifact, Rider, and Unity schemas are gone. Runtime sessions are
+read-only lifecycle state; no generic session intent or swarm receipt is
+advertised. Brokkr owns Unity capabilities through CultMesh/Eve, and a future
+Rider daemon owns Rider. Epiphany has no editor-specific command organ.
+
+The same cut removes the callerless `prompt_context` module and the
+specialist-prompt TOML loader. Their public APIs had no production consumer and
+their four tests were their only population. Live agent passes assemble sealed
+typed reasoning projections and exact native/provider requests directly; no
+parallel freeform context renderer survives.
+
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
 supervisor and prompt projection. The former singleton CultMesh status row was
