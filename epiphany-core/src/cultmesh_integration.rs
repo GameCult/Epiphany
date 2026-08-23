@@ -1,4 +1,3 @@
-use crate::EpiphanyAgentStateSoaEntry;
 use crate::default_continuity_cultnet_contracts;
 use crate::default_eyes_cultnet_contracts;
 use crate::default_hands_cultnet_contracts;
@@ -30,10 +29,8 @@ use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Utc;
 use cultcache_rs::CacheBackingStore;
-use cultcache_rs::CultSoaColumnValues;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
-use cultcache_rs::SoaDocument;
 use cultmesh_rs::CultMesh;
 use cultmesh_rs::CultMeshNode;
 use cultmesh_rs::CultMeshNodeOptions;
@@ -87,12 +84,6 @@ pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.work_loop_telemetry.v0";
 pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY: &str =
     "epiphany-internal/work-loop-telemetry/latest";
-pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_TYPE: &str =
-    "epiphany.cultmesh.agent_state_soa_summary";
-pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.agent_state_soa_summary.v0";
-pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY: &str =
-    "epiphany-local/agent-state-soa-summary/latest";
 pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_TYPE: &str = "epiphany.cultmesh.repo_work_overview";
 pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.repo_work_overview.v0";
@@ -679,95 +670,6 @@ pub struct EpiphanyCultMeshWorkLoopTelemetryEntry {
     pub commit_diff_preview: String,
     #[cultcache(key = 30, default)]
     pub verification_assertions: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.agent_state_soa_summary",
-    schema = "EpiphanyCultMeshAgentStateSoaSummaryEntry"
-)]
-pub struct EpiphanyCultMeshAgentStateSoaSummaryEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub runtime_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub summary_id: String,
-    #[cultcache(key = 4)]
-    pub generated_at: String,
-    #[cultcache(key = 5)]
-    pub source_store: String,
-    #[cultcache(key = 6)]
-    pub row_count: u32,
-    #[cultcache(key = 7)]
-    pub role_ids: Vec<String>,
-    #[cultcache(key = 8)]
-    pub agent_ids: Vec<String>,
-    #[cultcache(key = 9)]
-    pub display_names: Vec<String>,
-    #[cultcache(key = 10)]
-    pub profile_kinds: Vec<String>,
-    #[cultcache(key = 11)]
-    pub portable_contracts: Vec<String>,
-    #[cultcache(key = 12)]
-    pub semantic_memory_counts: Vec<u32>,
-    #[cultcache(key = 13)]
-    pub episodic_memory_counts: Vec<u32>,
-    #[cultcache(key = 14)]
-    pub relationship_memory_counts: Vec<u32>,
-    #[cultcache(key = 15)]
-    pub goal_counts: Vec<u32>,
-    #[cultcache(key = 16)]
-    pub value_counts: Vec<u32>,
-    #[cultcache(key = 17)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 18)]
-    pub notes: Vec<String>,
-}
-
-impl SoaDocument for EpiphanyCultMeshAgentStateSoaSummaryEntry {
-    fn soa_columns(rows: &[Self]) -> std::collections::BTreeMap<&'static str, CultSoaColumnValues> {
-        let mut columns = std::collections::BTreeMap::new();
-        columns.insert(
-            "summaryId",
-            CultSoaColumnValues::new(
-                rows.iter()
-                    .map(|row| row.summary_id.clone())
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        columns.insert(
-            "rowCount",
-            CultSoaColumnValues::new(rows.iter().map(|row| row.row_count).collect::<Vec<_>>()),
-        );
-        columns.insert(
-            "privateStateExposed",
-            CultSoaColumnValues::new(
-                rows.iter()
-                    .map(|row| row.private_state_exposed)
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        columns.insert(
-            "roleIds",
-            CultSoaColumnValues::new(
-                rows.iter()
-                    .map(|row| row.role_ids.clone())
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        columns.insert(
-            "portableContracts",
-            CultSoaColumnValues::new(
-                rows.iter()
-                    .map(|row| row.portable_contracts.clone())
-                    .collect::<Vec<_>>(),
-            ),
-        );
-        columns
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -2439,7 +2341,6 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_hands_action_gate: Option<EpiphanyCultMeshHandsActionGateEntry>,
     pub latest_role_review_event: Option<EpiphanyCultMeshRoleReviewEventEntry>,
     pub latest_work_loop_summary: Option<EpiphanyLocalVerseWorkLoopSummary>,
-    pub latest_agent_state_soa_summary: Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>,
     pub latest_repo_work_overview: Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
     pub latest_repo_work_map_entry: Option<EpiphanyCultMeshRepoWorkMapEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
@@ -2488,7 +2389,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshHandsActionGateEntry => EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION,
     EpiphanyCultMeshRoleReviewEventEntry => EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
-    EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkOverviewEntry => EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkReadinessEntry => EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkMapEntry => EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
@@ -5939,136 +5839,6 @@ pub fn epiphany_local_verse_work_loop_summary(
     }
 }
 
-pub fn epiphany_cultmesh_agent_state_soa_summary_from_entry(
-    runtime_id: impl Into<String>,
-    summary_id: impl Into<String>,
-    soa: &EpiphanyAgentStateSoaEntry,
-) -> EpiphanyCultMeshAgentStateSoaSummaryEntry {
-    EpiphanyCultMeshAgentStateSoaSummaryEntry {
-        schema_version: EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION.to_string(),
-        runtime_id: runtime_id.into(),
-        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-        summary_id: summary_id.into(),
-        generated_at: soa.generated_at.clone(),
-        source_store: soa.source_store.clone(),
-        row_count: soa.role_ids.len() as u32,
-        role_ids: soa.role_ids.clone(),
-        agent_ids: soa.agent_ids.clone(),
-        display_names: soa.display_names.clone(),
-        profile_kinds: soa.profile_kinds.clone(),
-        portable_contracts: soa.portable_contracts.clone(),
-        semantic_memory_counts: soa.semantic_memory_counts.clone(),
-        episodic_memory_counts: soa.episodic_memory_counts.clone(),
-        relationship_memory_counts: soa.relationship_memory_counts.clone(),
-        goal_counts: soa.goal_counts.clone(),
-        value_counts: soa.value_counts.clone(),
-        private_state_exposed: false,
-        notes: vec![
-            "Summary mirrors persisted epiphany.agent_state_soa.v0 column shape for local Verse discovery; agent memory text remains in the agent-memory store.".to_string(),
-            "CultMesh carries row/column topology for Odin, Eve, and prompt assembly without becoming the agent-memory owner.".to_string(),
-        ],
-    }
-}
-
-pub fn write_epiphany_cultmesh_agent_state_soa_summary(
-    store_path: impl AsRef<Path>,
-    summary: EpiphanyCultMeshAgentStateSoaSummaryEntry,
-) -> Result<EpiphanyCultMeshAgentStateSoaSummaryEntry> {
-    validate_agent_state_soa_summary(&summary)?;
-    let mut node = open_epiphany_cultmesh_node(&store_path, summary.runtime_id.clone())?;
-    let written = node.put(summary.summary_id.clone(), &summary)?;
-    let current_latest = node.get::<EpiphanyCultMeshAgentStateSoaSummaryEntry>(
-        EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY,
-    )?;
-    if current_latest.as_ref().is_none_or(|current| {
-        agent_state_soa_generation_key(&written) >= agent_state_soa_generation_key(current)
-    }) {
-        node.put(
-            EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY,
-            &written,
-        )?;
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_latest_epiphany_cultmesh_agent_state_soa_summary(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)
-}
-
-fn validate_agent_state_soa_summary(
-    summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry,
-) -> Result<()> {
-    if summary.private_state_exposed {
-        return Err(anyhow!(
-            "agent state SoA summaries must not expose private state"
-        ));
-    }
-    if summary.schema_version != EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "agent state SoA summary schema_version must be {:?}",
-            EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION
-        ));
-    }
-    if summary.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
-        return Err(anyhow!(
-            "agent state SoA summary belongs in the local-area Verse"
-        ));
-    }
-    DateTime::parse_from_rfc3339(&summary.generated_at)
-        .map_err(|error| anyhow!("agent state SoA summary has invalid generated_at: {error}"))?;
-    let len = summary.role_ids.len();
-    if summary.row_count as usize != len {
-        return Err(anyhow!(
-            "agent state SoA summary row_count is {}, expected {}",
-            summary.row_count,
-            len
-        ));
-    }
-    for (name, candidate) in [
-        ("agentIds", summary.agent_ids.len()),
-        ("displayNames", summary.display_names.len()),
-        ("profileKinds", summary.profile_kinds.len()),
-        ("portableContracts", summary.portable_contracts.len()),
-        ("semanticMemoryCounts", summary.semantic_memory_counts.len()),
-        ("episodicMemoryCounts", summary.episodic_memory_counts.len()),
-        (
-            "relationshipMemoryCounts",
-            summary.relationship_memory_counts.len(),
-        ),
-        ("goalCounts", summary.goal_counts.len()),
-        ("valueCounts", summary.value_counts.len()),
-    ] {
-        if candidate != len {
-            return Err(anyhow!(
-                "agent state SoA summary column {name} has length {candidate}, expected {len}"
-            ));
-        }
-    }
-    if summary
-        .role_ids
-        .iter()
-        .any(|role_id| role_id.trim().is_empty())
-    {
-        return Err(anyhow!("agent state SoA summary contains an empty role id"));
-    }
-    Ok(())
-}
-
-fn agent_state_soa_generation_key(
-    summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry,
-) -> (DateTime<FixedOffset>, &str) {
-    (
-        DateTime::parse_from_rfc3339(&summary.generated_at)
-            .expect("validated agent state SoA generation timestamp"),
-        summary.summary_id.as_str(),
-    )
-}
-
 pub fn load_latest_epiphany_cultmesh_repo_work_overview(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -6375,8 +6145,6 @@ pub fn query_epiphany_local_verse_context(
             )?
             .as_ref()
             .map(epiphany_local_verse_work_loop_summary),
-        latest_agent_state_soa_summary: node
-            .get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)?,
         latest_repo_work_overview: node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)?,
         latest_repo_work_map_entry: node.get(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY)?,
         contract_summaries,
@@ -9482,124 +9250,6 @@ mod tests {
         let err = write_epiphany_cultmesh_work_loop_telemetry(&store, wrong_verse)
             .expect_err("work-loop evidence outside internal Verse must be refused");
         assert!(err.to_string().contains("internal Verse"));
-        Ok(())
-    }
-
-    #[test]
-    fn agent_state_soa_summary_mirrors_agent_store_shape_without_memory_text() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local-verse.ccmp");
-        let soa = EpiphanyAgentStateSoaEntry {
-            schema_version: "epiphany.agent_state_soa.v0".to_string(),
-            generated_at: "2026-06-18T00:00:00Z".to_string(),
-            source_store: "state/agents.msgpack".to_string(),
-            role_ids: vec!["Persona".to_string(), "implementation".to_string()],
-            agent_ids: vec!["epiphany.Persona".to_string(), "epiphany.hands".to_string()],
-            display_names: vec!["Persona".to_string(), "Hands".to_string()],
-            profile_kinds: vec!["Persona".to_string(), "WorkOrgan".to_string()],
-            portable_contracts: vec![
-                "gamecult.persona_state.v0".to_string(),
-                "epiphany.work_organ_state.v0".to_string(),
-            ],
-            semantic_memory_counts: vec![3, 2],
-            episodic_memory_counts: vec![1, 0],
-            relationship_memory_counts: vec![2, 0],
-            goal_counts: vec![1, 1],
-            value_counts: vec![4, 3],
-        };
-        let summary = epiphany_cultmesh_agent_state_soa_summary_from_entry(
-            "epiphany-test",
-            "agent-state-soa-summary-test",
-            &soa,
-        );
-        write_epiphany_cultmesh_agent_state_soa_summary(&store, summary.clone())?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_agent_state_soa_summary(&store, "epiphany-test")?,
-            Some(summary.clone())
-        );
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context.latest_agent_state_soa_summary,
-            Some(summary.clone())
-        );
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        assert!(
-            node.documents()
-                .binding(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_TYPE)
-                .is_some()
-        );
-        let summary_table = node.soa::<EpiphanyCultMeshAgentStateSoaSummaryEntry>()?;
-        assert_eq!(summary_table.len(), 2);
-        assert!(
-            summary_table
-                .column::<String>("summaryId")?
-                .values()
-                .contains(&"agent-state-soa-summary-test".to_string())
-        );
-        assert!(
-            summary_table
-                .column::<u32>("rowCount")?
-                .values()
-                .contains(&2)
-        );
-        assert!(
-            summary_table
-                .column::<bool>("privateStateExposed")?
-                .values()
-                .iter()
-                .all(|exposed| !exposed)
-        );
-        assert!(
-            summary_table
-                .column::<Vec<String>>("portableContracts")?
-                .values()
-                .iter()
-                .any(|contracts| contracts.contains(&"gamecult.persona_state.v0".to_string()))
-        );
-        let serialized = serde_json::to_string(&summary)?;
-        assert!(serialized.contains("gamecult.persona_state.v0"));
-        assert!(!serialized.contains("privateNotes"));
-        assert!(!summary.private_state_exposed);
-
-        let mut newer = summary.clone();
-        newer.summary_id = "agent-state-soa-summary-newer".to_string();
-        newer.generated_at = "2026-06-18T01:00:00Z".to_string();
-        write_epiphany_cultmesh_agent_state_soa_summary(&store, newer.clone())?;
-
-        let mut delayed = summary.clone();
-        delayed.summary_id = "agent-state-soa-summary-delayed".to_string();
-        delayed.generated_at = "2026-06-17T23:00:00Z".to_string();
-        write_epiphany_cultmesh_agent_state_soa_summary(&store, delayed)?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_agent_state_soa_summary(&store, "epiphany-test")?,
-            Some(newer)
-        );
-
-        let mut invalid_time = summary.clone();
-        invalid_time.summary_id = "agent-state-soa-summary-invalid".to_string();
-        invalid_time.generated_at = "not-a-time".to_string();
-        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, invalid_time)
-            .expect_err("invalid agent summary time must be refused");
-        assert!(err.to_string().contains("invalid generated_at"));
-
-        let mut wrong_verse = summary.clone();
-        wrong_verse.summary_id = "agent-state-soa-summary-wrong-verse".to_string();
-        wrong_verse.verse_id = EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string();
-        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, wrong_verse)
-            .expect_err("agent summary outside local-area Verse must be refused");
-        assert!(err.to_string().contains("local-area Verse"));
-
-        let mut leaked = summary.clone();
-        leaked.private_state_exposed = true;
-        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, leaked)
-            .expect_err("private-state agent summaries must be refused");
-        assert!(err.to_string().contains("must not expose private state"));
-
-        let mut drifted = summary;
-        drifted.agent_ids.pop();
-        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, drifted)
-            .expect_err("column length drift must be refused");
-        assert!(err.to_string().contains("column agentIds has length"));
         Ok(())
     }
 

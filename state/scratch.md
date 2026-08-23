@@ -51,9 +51,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. Map `agent_memory` and every remaining aggregate consumer against keyed
-   Mind. Delete memories, social state, migrations, projections, and tests whose
-   only purpose is to preserve the parallel aggregate.
+1. In progress: `agent_memory` migration/repair/lifecycle/trait-seed/SoA code
+   and its tests are gone. The CultMesh SoA mirror, timestamp-selected latest
+   head, and prompt injection are gone. Persona learned memory now comes from
+   exact keyed Mind Persona documents. Next cut the global Mind semantic
+   partition and heartbeat personality/rumination selfPatch consumers, then
+   delete the aggregate identity/generation store they preserve.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.
 3. Done: delete the local PowerShell operator wrapper, direct Persona/operator

@@ -103,53 +103,6 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         );
     }
 
-    if let Some(summary) = input.local_verse.latest_agent_state_soa_summary.as_ref() {
-        lines.push("## Agent State SoA".to_string());
-        lines.push(format!(
-            "- Summary `{}`: rows={}, source={}, private_state_exposed={}",
-            summary.summary_id,
-            summary.row_count,
-            summary.source_store,
-            summary.private_state_exposed
-        ));
-        for index in 0..summary.role_ids.len().min(7) {
-            lines.push(format!(
-                "- `{}` / `{}`: profile={}, contract={}, semantic={}, episodic={}, relationship={}, goals={}, values={}",
-                summary.role_ids[index],
-                summary.agent_ids.get(index).cloned().unwrap_or_default(),
-                summary.profile_kinds.get(index).cloned().unwrap_or_default(),
-                summary
-                    .portable_contracts
-                    .get(index)
-                    .cloned()
-                    .unwrap_or_default(),
-                summary
-                    .semantic_memory_counts
-                    .get(index)
-                    .copied()
-                    .unwrap_or_default(),
-                summary
-                    .episodic_memory_counts
-                    .get(index)
-                    .copied()
-                    .unwrap_or_default(),
-                summary
-                    .relationship_memory_counts
-                    .get(index)
-                    .copied()
-                    .unwrap_or_default(),
-                summary.goal_counts.get(index).copied().unwrap_or_default(),
-                summary.value_counts.get(index).copied().unwrap_or_default()
-            ));
-        }
-        push_omitted_count(
-            &mut lines,
-            summary.role_ids.len(),
-            7,
-            "agent state SoA rows",
-        );
-    }
-
     if let Some(intent) = input
         .local_verse
         .latest_daemon_tool_invocation_intent
@@ -404,15 +357,12 @@ mod tests {
     use super::*;
     use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
     use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
-    use crate::EpiphanyAgentStateSoaEntry;
     use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
-    use crate::epiphany_cultmesh_agent_state_soa_summary_from_entry;
     use crate::epiphany_cultmesh_bifrost_body_change_publication_intent;
     use crate::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
     use crate::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
     use crate::query_epiphany_local_verse_context;
     use crate::seed_epiphany_local_verse_context;
-    use crate::write_epiphany_cultmesh_agent_state_soa_summary;
     use crate::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
     use crate::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
     use crate::write_epiphany_cultmesh_bifrost_github_publication_receipt;
@@ -520,30 +470,6 @@ mod tests {
                 verification_assertions: vec!["prompt renders digest only".to_string()],
             },
         )?;
-        let agent_state_soa = EpiphanyAgentStateSoaEntry {
-            schema_version: "epiphany.agent_state_soa.v0".to_string(),
-            generated_at: "2026-06-18T00:00:00Z".to_string(),
-            source_store: "state/agents.msgpack".to_string(),
-            role_ids: vec!["Persona".to_string(), "implementation".to_string()],
-            agent_ids: vec!["epiphany.Persona".to_string(), "epiphany.hands".to_string()],
-            display_names: vec!["Persona".to_string(), "Hands".to_string()],
-            profile_kinds: vec!["Persona".to_string(), "WorkOrgan".to_string()],
-            portable_contracts: vec![
-                "gamecult.persona_state.v0".to_string(),
-                "epiphany.work_organ_state.v0".to_string(),
-            ],
-            semantic_memory_counts: vec![3, 2],
-            episodic_memory_counts: vec![1, 0],
-            relationship_memory_counts: vec![2, 0],
-            goal_counts: vec![1, 1],
-            value_counts: vec![4, 3],
-        };
-        let agent_state_summary = epiphany_cultmesh_agent_state_soa_summary_from_entry(
-            "epiphany-test",
-            "agent-state-soa-summary-prompt-test",
-            &agent_state_soa,
-        );
-        write_epiphany_cultmesh_agent_state_soa_summary(&store, agent_state_summary)?;
         let local_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let memory_context = EpiphanyMemoryContextPacket {
             id: "memctx-test".to_string(),
@@ -596,10 +522,6 @@ mod tests {
         assert!(rendered.contains("private_state_exposed=false"));
         assert!(!rendered.contains("inspectCompactSurface"));
         assert!(!rendered.contains("watchTypedReceipts"));
-        assert!(rendered.contains("Agent State SoA"));
-        assert!(rendered.contains("agent-state-soa-summary-prompt-test"));
-        assert!(rendered.contains("gamecult.persona_state.v0"));
-        assert!(rendered.contains("epiphany.work_organ_state.v0"));
         assert!(rendered.contains("Bifrost Publication Gate"));
         assert!(rendered.contains("bifrost-publication-intent-prompt-test"));
         assert!(rendered.contains("github_receipt=github-publication-prompt-test"));

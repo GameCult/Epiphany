@@ -1,4 +1,4 @@
-use crate::EpiphanyAgentMemoryEntry;
+use crate::EpiphanyMindPersonaMemoryDocument;
 use crate::EpiphanyOrganDependency;
 use crate::HeartbeatPendingMention;
 use crate::default_organ_dependencies_for;
@@ -239,7 +239,7 @@ pub struct PersonaSocialAffordance {
 pub struct PersonaProjectorInput {
     pub identity: PersonaIdentity,
     #[serde(default)]
-    pub memory: Option<EpiphanyAgentMemoryEntry>,
+    pub memories: Vec<EpiphanyMindPersonaMemoryDocument>,
     #[serde(default)]
     pub semantic_memory_recall: String,
     #[serde(default)]
@@ -283,11 +283,7 @@ pub fn build_persona_projector_prompt_with_transcript(
     input: &PersonaProjectorInput,
     transcript: &[PersonaTranscriptMessage],
 ) -> String {
-    let memory = input
-        .memory
-        .as_ref()
-        .map(render_memory_packet)
-        .unwrap_or_else(|| "No durable Persona memory entry is loaded.".to_string());
+    let memory = render_memory_packet(&input.memories);
     let dependencies = if input.organ_dependencies.is_empty() {
         vec![default_organ_dependencies_for("Persona")]
     } else {
@@ -603,38 +599,20 @@ fn render_identity(identity: &PersonaIdentity) -> String {
     )
 }
 
-fn render_memory_packet(memory: &EpiphanyAgentMemoryEntry) -> String {
-    let values = memory
-        .agent
-        .canonical_state
-        .values
+fn render_memory_packet(memories: &[EpiphanyMindPersonaMemoryDocument]) -> String {
+    if memories.is_empty() {
+        return "- no durable Persona memories".to_string();
+    }
+    memories
         .iter()
-        .map(|value| format!("- {} ({:.2})", value.label, value.priority))
+        .map(|memory| {
+            format!(
+                "- {} [{}; salience {:.2}; confidence {:.2}]",
+                memory.summary, memory.memory_kind, memory.salience, memory.confidence
+            )
+        })
         .collect::<Vec<_>>()
-        .join("\n");
-    let goals = memory
-        .agent
-        .goals
-        .iter()
-        .map(|goal| format!("- {} [{}]", goal.description, goal.status))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let notes = memory
-        .agent
-        .identity
-        .private_notes
-        .iter()
-        .map(|note| format!("- {note}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!(
-        "Identity: {}\nPublic description: {}\nPrivate notes:\n{}\nValues:\n{}\nGoals:\n{}",
-        memory.agent.identity.name,
-        memory.agent.identity.public_description,
-        fallback(&notes, "- none"),
-        fallback(&values, "- none"),
-        fallback(&goals, "- none"),
-    )
+        .join("\n")
 }
 
 fn render_pending_mentions(mentions: &[HeartbeatPendingMention]) -> String {

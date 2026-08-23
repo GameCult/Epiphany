@@ -1641,11 +1641,20 @@ mod tests {
         cache.pull_all_backing_stores()?;
         let first = cache.get_all::<crate::EpiphanyMindCommitReceipt>()?;
         assert_eq!(first.len(), 1);
-        let memories = cache.get_all::<crate::EpiphanyMindPersonaMemoryDocument>()?;
+        let mut memories = cache.get_all::<crate::EpiphanyMindPersonaMemoryDocument>()?;
+        memories.sort_by(|left, right| left.memory_id.cmp(&right.memory_id));
         assert_eq!(memories.len(), 2);
         assert!(memories.iter().all(|memory| {
             memory.agent_id == request.agent_id
                 && memory.decision_context_id == document.decision_context_id
+        }));
+        let view = crate::assemble_mind_view(&runtime)?;
+        assert_eq!(view.persona_memories, memories);
+        assert!(view.persona_memories.iter().all(|memory| {
+            view.source_documents.iter().any(|source| {
+                source.document_type == crate::EpiphanyMindPersonaMemoryDocument::TYPE
+                    && source.document_key == memory.memory_id
+            })
         }));
 
         assert_eq!(

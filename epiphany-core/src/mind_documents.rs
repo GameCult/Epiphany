@@ -351,6 +351,7 @@ pub struct EpiphanyMindView {
     pub invariants: Vec<EpiphanyInvariant>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
+    pub persona_memories: Vec<EpiphanyMindPersonaMemoryDocument>,
     pub verification_audits: Vec<EpiphanyMindVerificationAuditDocument>,
     pub reorientation_decisions: Vec<crate::EpiphanyMindReorientationDecisionDocument>,
     pub reorientation_failures: Vec<crate::EpiphanyMindReorientationPassFailureDocument>,
@@ -588,6 +589,10 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     let mut observations =
         values::<EpiphanyMindObservationDocument, _>(&cache, |value| value.value)?;
     let mut evidence = values::<EpiphanyMindEvidenceDocument, _>(&cache, |value| value.value)?;
+    let mut persona_memories = cache.get_all::<EpiphanyMindPersonaMemoryDocument>()?;
+    for memory in &persona_memories {
+        memory.validate()?;
+    }
     let mut verification_audits = cache.get_all::<EpiphanyMindVerificationAuditDocument>()?;
     let mut reorientation_decisions =
         cache.get_all::<crate::EpiphanyMindReorientationDecisionDocument>()?;
@@ -638,6 +643,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
     invariants.sort_by(|left, right| left.id.cmp(&right.id));
     observations.sort_by(|left, right| left.id.cmp(&right.id));
     evidence.sort_by(|left, right| left.id.cmp(&right.id));
+    persona_memories.sort_by(|left, right| left.memory_id.cmp(&right.memory_id));
     verification_audits.sort_by(|left, right| left.audit_id.cmp(&right.audit_id));
     reorientation_decisions.sort_by(|left, right| left.decision_id.cmp(&right.decision_id));
     reorientation_failures.sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
@@ -683,6 +689,7 @@ pub fn assemble_mind_view(store_path: impl AsRef<Path>) -> Result<EpiphanyMindVi
         invariants,
         observations,
         evidence,
+        persona_memories,
         verification_audits,
         reorientation_decisions,
         reorientation_failures,
@@ -724,6 +731,8 @@ fn canonical_mind_versions(
                     | EpiphanyMindInvariantDocument::TYPE
                     | EpiphanyMindObservationDocument::TYPE
                     | EpiphanyMindEvidenceDocument::TYPE
+                    | EpiphanyMindPersonaMemoryDocument::TYPE
+                    | EpiphanyMindPersonaPassInputDocument::TYPE
                     | EpiphanyMindVerificationAuditDocument::TYPE
                     | crate::EpiphanyMindReorientationDecisionDocument::TYPE
                     | crate::EpiphanyMindReorientationPassFailureDocument::TYPE

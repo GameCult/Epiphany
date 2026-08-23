@@ -3,13 +3,13 @@ use std::{env, net::SocketAddr, path::PathBuf, thread, time::Duration};
 use anyhow::{Context, Result, anyhow};
 use cultcache_rs::{CacheBackingStore, DatabaseEntry, SingleFileMessagePackBackingStore};
 use epiphany_core::{
-    EpiphanyAgentMemoryEntry, EpiphanyHeartbeatStateEntry, EpiphanyMindDocumentVersion,
+    EpiphanyHeartbeatStateEntry, EpiphanyMindDocumentVersion, EpiphanyMindPersonaMemoryDocument,
     EpiphanyMindPersonaPassInputDocument, PersonaIdentity, PersonaProjectorInput,
     PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage, PersonaTurnRequest,
     PersonaTurnTerminalOptions, admit_persona_pass_input, assemble_mind_view,
     complete_persona_turn_request_store, default_organ_dependencies_for,
     exchange_persona_discord_delivery_rudp, load_admitted_persona_pass_input,
-    load_agent_memory_entry_for_role, load_epiphany_cultmesh_swarm_brake,
+    load_epiphany_cultmesh_swarm_brake,
     load_heartbeat_state_entry, load_persona_discord_receipt_anchor,
     load_persona_discord_service_anchor, open_persona_discord_request_identity,
     pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
@@ -186,9 +186,13 @@ fn ensure_persona_pass_input_admitted(
         return Ok(());
     }
 
-    let memory = load_agent_memory_entry_for_role(&options.agent_store, &request.role_id)
-        .ok()
-        .flatten();
+    let mind = assemble_mind_view(&options.runtime_store)?;
+    let memories = mind
+        .persona_memories
+        .iter()
+        .filter(|memory| memory.agent_id == request.agent_id)
+        .cloned()
+        .collect::<Vec<_>>();
     let identity = PersonaIdentity {
         identity_id: request.agent_id.clone(),
         display_name: options.persona_name.clone(),
@@ -227,7 +231,6 @@ fn ensure_persona_pass_input_admitted(
             recent_message_ids: vec![mention.message_id.clone()],
         })
         .collect();
-    let mind = assemble_mind_view(&options.runtime_store)?;
     let repo_activity = mind
         .repository_body_observation
         .as_ref()
@@ -241,10 +244,9 @@ fn ensure_persona_pass_input_admitted(
         })
         .into_iter()
         .collect();
-    let has_memory = memory.is_some();
     let projector_input = PersonaProjectorInput {
         identity,
-        memory,
+        memories: memories.clone(),
         semantic_memory_recall: semantic_recall.clone(),
         pending_mentions: request.mentions.clone(),
         repo_activity,
@@ -259,18 +261,16 @@ fn ensure_persona_pass_input_admitted(
     let heartbeat_source =
         EpiphanyMindDocumentVersion::from_envelope("epiphany-heartbeat", &heartbeat_envelope)?;
     let mut observed_sources = vec![heartbeat_source.clone()];
-    if has_memory {
-        let agent_envelope = SingleFileMessagePackBackingStore::new(&options.agent_store)
-            .pull_all()?
-            .into_iter()
-            .find(|entry| {
-                entry.r#type == EpiphanyAgentMemoryEntry::TYPE && entry.key == request.role_id
+    for memory in &memories {
+        let source = mind
+            .source_documents
+            .iter()
+            .find(|source| {
+                source.document_type == EpiphanyMindPersonaMemoryDocument::TYPE
+                    && source.document_key == memory.memory_id
             })
-            .ok_or_else(|| anyhow!("Persona pass input lost its agent-memory source"))?;
-        observed_sources.push(EpiphanyMindDocumentVersion::from_envelope(
-            "epiphany-agent-memory",
-            &agent_envelope,
-        )?);
+            .ok_or_else(|| anyhow!("Persona memory is absent from the canonical Mind basis"))?;
+        observed_sources.push(source.clone());
     }
     if let Some(source) = mind.source_documents.iter().find(|source| {
         source.document_type == epiphany_core::EpiphanyMindRepositoryBodyObservationDocument::TYPE
@@ -303,7 +303,6 @@ fn ensure_persona_pass_input_admitted(
 struct Options {
     runtime_store: PathBuf,
     heartbeat_store: PathBuf,
-    agent_store: PathBuf,
     cultmesh_store: PathBuf,
     codex_home: PathBuf,
     provider_credential_path: Option<PathBuf>,
@@ -351,7 +350,6 @@ impl Options {
         Ok(Self {
             runtime_store: path("--runtime-store")?,
             heartbeat_store: path("--heartbeat-store")?,
-            agent_store: path("--agent-store")?,
             cultmesh_store: path("--cultmesh-store")?,
             codex_home: path("--codex-home")?,
             provider_credential_path: values.get("--provider-credential").map(PathBuf::from),
@@ -452,7 +450,6 @@ mod tests {
         let options = Options {
             runtime_store: runtime_store.clone(),
             heartbeat_store: absent.join("heartbeat.cc"),
-            agent_store: absent.join("agent.cc"),
             cultmesh_store: absent.join("cultmesh.cc"),
             codex_home: absent.join("codex-home"),
             provider_credential_path: None,

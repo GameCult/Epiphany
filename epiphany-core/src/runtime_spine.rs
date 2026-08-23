@@ -11181,34 +11181,6 @@ pub fn runtime_soul_verdict_receipt(
     cache.get::<SoulVerdictReceipt>(receipt_id)
 }
 
-// Continuity recovery receipts are accepted-reorientation prerequisites and
-// publish atomically with the coordinator state transition. Direct insertion
-// is fixture-only.
-#[cfg(test)]
-pub(crate) fn put_continuity_recovery_receipt(
-    store_path: impl AsRef<Path>,
-    receipt: &ContinuityRecoveryReceipt,
-) -> Result<()> {
-    validate_non_empty(&receipt.receipt_id, "Continuity recovery receipt id")?;
-    validate_non_empty(
-        &receipt.source_result_id,
-        "Continuity recovery source result",
-    )?;
-    validate_non_empty(&receipt.source_job_id, "Continuity recovery source job")?;
-    validate_non_empty(&receipt.binding_id, "Continuity recovery binding")?;
-    validate_non_empty(&receipt.mode, "Continuity recovery mode")?;
-    validate_non_empty(
-        &receipt.checkpoint_still_valid,
-        "Continuity recovery checkpoint validity",
-    )?;
-    validate_non_empty(&receipt.emitted_at, "Continuity recovery timestamp")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
-}
-
 pub fn runtime_continuity_recovery_receipt(
     store_path: impl AsRef<Path>,
     receipt_id: &str,

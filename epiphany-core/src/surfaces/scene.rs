@@ -426,6 +426,7 @@ mod tests {
             ],
             observations: Vec::new(),
             evidence: Vec::new(),
+            persona_memories: Vec::new(),
             verification_audits: Vec::new(),
             reorientation_decisions: Vec::new(),
             reorientation_failures: Vec::new(),

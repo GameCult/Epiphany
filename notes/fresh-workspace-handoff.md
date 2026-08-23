@@ -455,7 +455,7 @@ the builder target root to 4 KiB. Exact `1d5a1f17` landed the first causal cut:
 - core library tests remain 494/494 and Hands remains 5/5 under the sole release
   package owner.
 
-The second verified cut is not yet committed. It deletes the
+Exact `387afe49` is the second verified cut. It deletes the
 `runtime_store_migration` module/test, all 29 remaining unshipped core
 executables, the shipped `epiphany-verse-query` parallel control plane, the
 local PowerShell launcher, and its orphan Rider bridge. `epiphany-core` now
@@ -463,9 +463,18 @@ owns only `epiphany-prepare-compaction`; the release bundle owns 25 runtime
 executables. Focused core, supervisor, and release-construction tests pass
 493/493, 32/32, and 21/21.
 
-Next, split the few live Persona/heartbeat inputs from `agent_memory`, then
-delete its aggregate identity, generation, SoA, migration/repair, and generic
-selfPatch authorities with the tests that preserve them. Do not run a
+The current third cut deletes the agent-memory migration, repair, lifecycle,
+trait-seed, and SoA authorities with the tests that preserved them. It also
+deletes the second CultMesh SoA mirror, its timestamp-selected latest head, and
+its prompt injection. Persona now reads learned memory only from keyed
+`EpiphanyMindPersonaMemoryDocument` rows in the assembled Mind view; those
+documents participate in the exact projection digest and source set. Dead
+test-only alternate Resident Self and direct Continuity writers are also gone.
+The final core library passes 483/483 and Persona service re-entry passes 1/1.
+
+Next delete the global Mind semantic partition and heartbeat
+personality/rumination selfPatch consumers, then delete the aggregate
+agent-memory identity/generation store they alone preserve. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
 audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
