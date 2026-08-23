@@ -2,18 +2,11 @@ use crate::EpiphanyResearchDecision;
 use crate::EpiphanyRoleFindingInterpretation;
 use cultcache_rs::DatabaseEntry;
 
-pub const EYES_EVIDENCE_REQUEST_TYPE: &str = "epiphany.eyes.evidence_request";
-pub const EYES_EVIDENCE_REVIEW_TYPE: &str = "epiphany.eyes.evidence_review";
 pub const EYES_SOURCE_LOOKUP_RECEIPT_TYPE: &str = "epiphany.eyes.source_lookup_receipt";
 pub const EYES_EVIDENCE_PACKET_TYPE: &str = "epiphany.eyes.evidence_packet";
-pub const EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE: &str = "epiphany.eyes.evidence_refusal_receipt";
-pub const EYES_EVIDENCE_REQUEST_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_request.v0";
-pub const EYES_EVIDENCE_REVIEW_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_review.v0";
 pub const EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.eyes.source_lookup_receipt.v0";
 pub const EYES_EVIDENCE_PACKET_SCHEMA_VERSION: &str = "epiphany.eyes.evidence_packet.v1";
-pub const EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.eyes.evidence_refusal_receipt.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(

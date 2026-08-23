@@ -9,12 +9,6 @@ use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
-use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
-use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE;
-use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_SCHEMA_VERSION;
-use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_TYPE;
-use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_SCHEMA_VERSION;
-use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_TYPE;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::eyes_gateway::EyesEvidencePacket;
@@ -13332,39 +13326,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            EYES_EVIDENCE_REQUEST_TYPE,
-            EYES_EVIDENCE_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![EYES_EVIDENCE_REQUEST_TYPE],
-            vec![
-                EYES_EVIDENCE_REVIEW_TYPE,
-                EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
-                EYES_EVIDENCE_PACKET_TYPE,
-                EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
-            ],
-            vec![
-                "Eyes is the evidence ingress guardian: source-grounded claims, provenance, uncertainty, and evidence packets enter through this contract.",
-                "Substrate Gate grants substrate access; Eyes decides what was actually inspected and what other organs may cite.",
-            ],
-        ),
-        mutation_contract(
-            EYES_EVIDENCE_REVIEW_TYPE,
-            EYES_EVIDENCE_REVIEW_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Eyes reviews explain whether a claim is source-grounded, uncertain, or refused."],
-        ),
-        mutation_contract(
             EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
             EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION,
             vec![
@@ -13391,18 +13352,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Evidence packets carry provenance, uncertainty, and source refs for the other organs.",
             ],
-        ),
-        mutation_contract(
-            EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
-            EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Evidence refusal receipts preserve why Eyes would not certify a claim."],
         ),
         mutation_contract(
             HANDS_ACTION_INTENT_TYPE,
