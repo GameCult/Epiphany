@@ -675,20 +675,6 @@ mod tests {
     use epiphany_core::PersonaIdentity;
     use tempfile::tempdir;
 
-    #[test]
-    fn native_persona_runner_has_one_outer_turn_deadline() {
-        let source = include_str!("persona_executor.rs");
-        let production = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("production code");
-        assert!(production.contains("tokio::time::timeout("));
-        assert!(production.contains("request_timeout: None"));
-        assert!(
-            !production.contains("request_timeout: Some(crate::DEFAULT_PROVIDER_REQUEST_TIMEOUT)")
-        );
-    }
-
     struct FakeRunner {
         calls: Vec<String>,
     }

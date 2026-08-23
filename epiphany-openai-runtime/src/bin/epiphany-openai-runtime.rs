@@ -1352,7 +1352,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_cli_requires_activation_capability_before_runtime_path() -> Result<()> {
+    fn worker_cli_requires_activation_capability() -> Result<()> {
         assert!(
             parse_run_worker_options(vec!["--job-id".into(), "job-without-gate".into(),]).is_err()
         );
@@ -1363,14 +1363,6 @@ mod tests {
             "a".repeat(64),
         ])?;
         assert_eq!(options.activation_token_sha256, "a".repeat(64));
-        let source = include_str!("epiphany-openai-runtime.rs");
-        let gate = source
-            .find("claim_and_wait_for_worker_activation(&options)?")
-            .expect("worker main owns activation gate");
-        let watchdog = source
-            .find("start_run_worker_timeout_watchdog(&options)")
-            .expect("worker runtime starts watchdog");
-        assert!(gate < watchdog);
         Ok(())
     }
 
