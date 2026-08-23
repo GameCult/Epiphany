@@ -1,63 +1,60 @@
-# Substrate Gate CultNet Contracts
+# Substrate Gate CultNet Contract
 
-Objective: make the Substrate Gate the repository access protocol. Body is the
-substrate itself, not a gatekeeper persona and not the modeling organ. Organs
-may request reads, indexing, commands, edits, and bridge operations, but the
-Substrate Gate decides the scoped access to the repo.
+Objective: make repository access explicit without turning Substrate Gate into a
+second workflow, decision, or state-admission system. Body is the substrate;
+Substrate Gate owns only the exact grant that lets a named runtime job touch a
+bounded part of that substrate.
 
 ## Authority Map
 
-- Owner: the Substrate Gate protocol owns repository access grants and refusals.
-- Inputs: typed repo access requests, workspace identity, requested paths,
-  requested operations, command/bridge intent, current repo policy, coordinator
-  authority, operator approvals, and relevant safety/evidence context.
-- Outputs: Substrate Gate access reviews, access grant receipts, access refusal
-  receipts, repo snapshot receipts, and repo mutation receipts.
-- Derived state: retrieved snippets, search hits, index manifests, diffs, build
-  logs, provider-owned editor receipts, and source maps are evidence
-  projections, not permission to touch more substrate. Brokkr owns Unity editor
-  capabilities through CultMesh/Eve; a future Rider daemon owns Rider
-  capabilities through the same provider boundary.
-- Forbidden writers/readers: Hands, Eyes, Persona, public Verse ingress, raw worker
-  launches, compatibility JSON-RPC routes, and bridge tools must not directly
-  read, index, execute against, or mutate the repo without a scoped Substrate
-  Gate grant.
-- Shared path: source reads, semantic indexing, file edits, command execution,
-  and requests to provider-owned editor/runtime capabilities should all be
-  expressible as Substrate-Gate-scoped repo access requests with receipts.
-- Deletion line: worker launch `authority_scope` is not repo access authority.
-  It may describe role/task scope, but the Substrate Gate must grant substrate
-  access.
+- Owner: the concrete family invariant owner constructs and persists one
+  `SubstrateGateRepoAccessGrantReceipt` for an authenticated runtime job.
+- Inputs: runtime job, worker binding, role, authority scope, fixed permitted
+  operations, bounded paths, and grant time.
+- Output: one immutable grant receipt. Runtime validators correlate its exact
+  identity and envelope with the launch, tool intent, Hands intent/review, and
+  consequence that consumes it.
+- Derived state: source lookup receipts, Body observations, Hands patch/command/
+  commit receipts, provider-owned editor receipts, and CultNet views report
+  consequences. They do not create access authority.
+- Forbidden writers: models, tools, CultNet clients, and provider daemons cannot
+  author an Epiphany grant. A model cannot widen the paths or operations in a
+  persisted grant.
+- Shared paths: governed source tools and Hands consequences reach their
+  family-specific validators through the same exact grant identity.
+- Cut line: launch `authority_scope` is descriptive until bound to a persisted
+  grant. Substrate Gate does not own workflow requests, reviews, refusals,
+  snapshots, mutations, evidence admission, or Mind commits.
 
-## Contract Families
+## Contract Family
 
-- `epiphany.substrate_gate.repo_access_request`: request for scoped repository
-  access.
-- `epiphany.substrate_gate.repo_access_review`: Substrate Gate decision and scope
-  explanation.
-- `epiphany.substrate_gate.repo_access_grant_receipt`: proof of scoped access.
-- `epiphany.substrate_gate.repo_access_refusal_receipt`: proof of refusal.
-- `epiphany.substrate_gate.repo_snapshot_receipt`: proof of source
-  inspection/indexing performed under Substrate Gate access.
-- `epiphany.substrate_gate.repo_mutation_receipt`: proof that mutation or
-  repo-affecting command execution had a prior Substrate Gate grant.
+- `epiphany.substrate_gate.repo_access_grant_receipt`: the sole Substrate Gate
+  document. CultNet advertises it read-only.
+
+There is no generic access-request protocol. Family owners derive required
+access from typed current work and either issue an exact grant or refuse the
+operation directly. There is no generic snapshot or mutation receipt: Eyes
+source receipts and Hands consequence receipts already own those facts.
+
+## Organ Boundaries
+
+Mind decides whether typed observations and decisions enter durable state.
+Substrate Gate decides only whether a particular runtime job may touch bounded
+repository substrate. Neither is an alias for the other.
+
+Modeling may consume typed Body observations and exact RepoModel documents
+directly. Eyes is involved when a claim needs evidence outside the Body; it is
+not a mandatory preprocessor for Modeling. Hands consumes an adopted action
+route plus an exact grant, then emits the consequence receipt Soul verifies.
+
+Editor integration remains provider-owned. Brokkr owns Unity inspection and
+actuation over Eve/CultMesh. A future Rider daemon owns Rider. Epiphany carries
+no embedded Unity or Rider command organ and cannot manufacture provider
+receipts on either daemon's behalf.
 
 ## Verse Boundary
 
-Substrate Gate access contracts live in `epiphany-internal`. Operator-safe
-projections may appear in `gamecult-local` after review, but raw repo access
-requests, private paths, command cargo, diffs, and mutation receipts stay
-internal unless another explicit export policy says otherwise.
-`epiphany-global` never gains repository access authority.
-
-Mind and the Substrate Gate are neighboring protocols, not aliases. The
-Substrate Gate decides whether the machine may touch the repo. Mind decides
-whether resulting thought or evidence mutates persistent state.
-
-Imagination can project Body substrate facts into a Persona scene only after those facts have
-entered through Substrate-Gate-scoped access. A beautiful scene is not a repo
-access grant. Eyes is the next gate after access: a Substrate Gate grant allows
-looking, but only Eyes can turn looked-at material into a citable evidence
-packet. Modeling may update the machine's internal body model only from
-source-grounded material that has passed through the appropriate access and
-evidence path.
+The grant remains private runtime state. CultNet may project its typed contract
+and operator-safe receipt view, but cannot submit or widen grants. Provider
+capabilities are discovered through CultMesh; discovery does not grant local
+repository access or Mind admission.

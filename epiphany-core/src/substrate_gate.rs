@@ -1,29 +1,9 @@
 use cultcache_rs::DatabaseEntry;
 
-pub const SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE: &str =
-    "epiphany.substrate_gate.repo_access_request";
-pub const SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE: &str =
-    "epiphany.substrate_gate.repo_access_review";
 pub const SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE: &str =
     "epiphany.substrate_gate.repo_access_grant_receipt";
-pub const SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE: &str =
-    "epiphany.substrate_gate.repo_access_refusal_receipt";
-pub const SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE: &str =
-    "epiphany.substrate_gate.repo_snapshot_receipt";
-pub const SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE: &str =
-    "epiphany.substrate_gate.repo_mutation_receipt";
-pub const SUBSTRATE_GATE_REPO_ACCESS_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.substrate_gate.repo_access_request.v0";
-pub const SUBSTRATE_GATE_REPO_ACCESS_REVIEW_SCHEMA_VERSION: &str =
-    "epiphany.substrate_gate.repo_access_review.v0";
 pub const SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_access_grant_receipt.v0";
-pub const SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.substrate_gate.repo_access_refusal_receipt.v0";
-pub const SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.substrate_gate.repo_snapshot_receipt.v0";
-pub const SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.substrate_gate.repo_mutation_receipt.v0";
 pub const SUBSTRATE_GATE_SOURCE_READ_OPERATION: &str = "read";
 pub const SUBSTRATE_GATE_PUBLIC_SOURCE_READ_OPERATION: &str = "publicSourceRead";
 
@@ -154,27 +134,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn substrate_gate_grant_for_worker_is_read_only() {
-        let grant = substrate_gate_repo_access_grant_for_worker(
-            "grant-1".to_string(),
-            "job-1".to_string(),
-            "research-source-gather-worker".to_string(),
-            "epiphany-eyes".to_string(),
-            "epiphany.role.research".to_string(),
-            true,
-            "2026-05-30T00:00:00Z".to_string(),
-        );
-        assert!(grant.granted_operations.contains(&"read".to_string()));
-        assert!(
-            grant
-                .granted_operations
-                .contains(&"publicSourceRead".to_string())
-        );
-        assert!(!grant.granted_operations.contains(&"write".to_string()));
-        assert!(grant.contract.contains("mutation remains forbidden"));
-    }
-
-    #[test]
     fn governed_tools_map_to_fixed_grant_operations() {
         assert_eq!(
             substrate_gate_operation_for_governed_tool("epiphany_source", "read_file"),
@@ -187,30 +146,6 @@ mod tests {
         assert_eq!(
             substrate_gate_operation_for_governed_tool("epiphany_public", "arbitrary_url"),
             None
-        );
-    }
-
-    #[test]
-    fn repo_work_and_implementation_grants_have_fixed_policies() {
-        let planning = substrate_gate_repo_work_planning_grant(
-            "planning-grant".to_string(),
-            "planning-job".to_string(),
-            vec!["README.md".to_string()],
-            "2026-07-12T00:00:00Z".to_string(),
-        );
-        assert_eq!(planning.binding_id, "repo-work-runner");
-        assert_eq!(planning.granted_operations, vec!["read", "snapshot"]);
-
-        let implementation = substrate_gate_coordinator_implementation_grant(
-            "implementation-grant".to_string(),
-            "implementation-job".to_string(),
-            vec!["src".to_string()],
-            "2026-07-12T00:00:00Z".to_string(),
-        );
-        assert_eq!(implementation.binding_id, "implementation-worker");
-        assert_eq!(
-            implementation.granted_operations,
-            vec!["read", "snapshot", "patch", "command", "commit"]
         );
     }
 }

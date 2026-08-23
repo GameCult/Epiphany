@@ -58,16 +58,6 @@ use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REQUEST_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REVIEW_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
-use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::substrate_gate::SubstrateGateRepoAccessGrantReceipt;
 use crate::{
     DECISION_CONTEXT_SCHEMA_VERSION, DECISION_CONTEXT_TYPE, MIND_COMMIT_RECEIPT_SCHEMA_VERSION,
@@ -13242,40 +13232,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE,
-            SUBSTRATE_GATE_REPO_ACCESS_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE],
-            vec![
-                SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE,
-                SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
-                SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
-            ],
-            vec![
-                "Substrate Gate is the repository access protocol: reads, indexing, edits, commands, and bridge operations must be requested through this contract.",
-                "Hands mutates only after a scoped Substrate Gate grant; Eyes inspects only after a scoped Substrate Gate read/index grant.",
-            ],
-        ),
-        mutation_contract(
-            SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE,
-            SUBSTRATE_GATE_REPO_ACCESS_REVIEW_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Substrate Gate reviews explain granted/refused repo paths, operations, commands, and bridge surfaces.",
-            ],
-        ),
-        mutation_contract(
             SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
             SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
             vec![
@@ -13286,44 +13242,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["A Substrate Gate grant receipt scopes a permitted repo touch."],
-        ),
-        mutation_contract(
-            SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
-            SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["A Substrate Gate refusal receipt preserves why repo access was denied."],
-        ),
-        mutation_contract(
-            SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
-            SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Repo snapshots are evidence projections from Substrate-Gate-scoped access."],
-        ),
-        mutation_contract(
-            SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE,
-            SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Repo mutation receipts prove Substrate Gate granted the substrate touch before Hands changed files or ran repo-affecting commands.",
-            ],
         ),
         mutation_contract(
             EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
