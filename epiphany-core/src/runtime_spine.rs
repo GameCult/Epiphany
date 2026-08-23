@@ -8224,14 +8224,15 @@ pub fn commit_repo_frontier_modeling_request(
 
 fn derive_repo_frontier_verification_request_for_chain(
     cache: &CultCache,
-    chain: &RuntimeHandsReceiptChainSummary,
-    requested_at: &str,
+    patch: &HandsPatchReceipt,
+    command: &HandsCommandReceipt,
+    commit: &HandsCommitReceipt,
 ) -> Result<RepoFrontierVerificationRequest> {
     let authorities = cache
         .get_all::<RepoFrontierHandsAuthority>()?
         .into_iter()
         .filter(|value| {
-            value.hands_intent_id == chain.intent_id && value.hands_review_id == chain.review_id
+            value.hands_intent_id == commit.intent_id && value.hands_review_id == commit.review_id
         })
         .collect::<Vec<_>>();
     if authorities.len() != 1 {
@@ -8249,12 +8250,12 @@ fn derive_repo_frontier_verification_request_for_chain(
     )?];
     let request_id = format!(
         "frontier-verification-{}-{}",
-        authority.route_id, chain.commit_receipt_id
+        authority.route_id, commit.receipt_id
     );
     let requested_at = cache
         .get::<RepoFrontierVerificationRequest>(&request_id)?
         .map(|existing| existing.requested_at)
-        .unwrap_or_else(|| requested_at.to_string());
+        .unwrap_or_else(|| commit.emitted_at.clone());
     let request = RepoFrontierVerificationRequest {
         schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
         request_id,
@@ -8263,11 +8264,11 @@ fn derive_repo_frontier_verification_request_for_chain(
         model_source_documents: authority.model_source_documents.clone(),
         frontier_item_id: authority.frontier_item_id.clone(),
         frontier_item_hash: authority.frontier_item_hash.clone(),
-        hands_intent_id: chain.intent_id.clone(),
-        hands_review_id: chain.review_id.clone(),
-        hands_patch_receipt_id: chain.patch_receipt_id.clone(),
-        hands_command_receipt_id: chain.command_receipt_id.clone(),
-        hands_commit_receipt_id: chain.commit_receipt_id.clone(),
+        hands_intent_id: commit.intent_id.clone(),
+        hands_review_id: commit.review_id.clone(),
+        hands_patch_receipt_id: patch.receipt_id.clone(),
+        hands_command_receipt_id: command.receipt_id.clone(),
+        hands_commit_receipt_id: commit.receipt_id.clone(),
         requested_at,
         contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
         frontier_authority_documents,
@@ -8530,29 +8531,8 @@ pub fn put_hands_commit_receipt(
         })
         .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
         .ok_or_else(|| anyhow!("Hands commit requires its successful command receipt"))?;
-    let chain = RuntimeHandsReceiptChainSummary {
-        patch_schema_version: patch.schema_version.clone(),
-        patch_receipt_id: patch.receipt_id.clone(),
-        command_schema_version: command.schema_version.clone(),
-        command_receipt_id: command.receipt_id.clone(),
-        commit_schema_version: receipt.schema_version.clone(),
-        commit_receipt_id: receipt.receipt_id.clone(),
-        intent_id: receipt.intent_id.clone(),
-        review_id: receipt.review_id.clone(),
-        runtime_job_id: receipt.runtime_job_id.clone(),
-        substrate_gate_grant_receipt_id: command.substrate_gate_grant_receipt_id.clone(),
-        changed_paths: receipt.changed_paths.clone(),
-        command: command.command.clone(),
-        exit_code: command.exit_code.clone(),
-        stdout_artifact: command.stdout_artifact.clone(),
-        stderr_artifact: command.stderr_artifact.clone(),
-        commit_sha: receipt.commit_sha.clone(),
-        branch: receipt.branch.clone(),
-        summary: receipt.summary.clone(),
-        emitted_at: receipt.emitted_at.clone(),
-    };
     let request =
-        derive_repo_frontier_verification_request_for_chain(&cache, &chain, &receipt.emitted_at)?;
+        derive_repo_frontier_verification_request_for_chain(&cache, &patch, &command, receipt)?;
     let context = repo_frontier_verification_context_with_commit(&cache, &request, Some(receipt))?;
     let snapshot = cache.snapshot_envelopes();
     let mut expected = Vec::new();
@@ -8616,29 +8596,6 @@ pub fn runtime_hands_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<HandsCommitReceipt>(receipt_id)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RuntimeHandsReceiptChainSummary {
-    pub patch_schema_version: String,
-    pub patch_receipt_id: String,
-    pub command_schema_version: String,
-    pub command_receipt_id: String,
-    pub commit_schema_version: String,
-    pub commit_receipt_id: String,
-    pub intent_id: String,
-    pub review_id: String,
-    pub runtime_job_id: String,
-    pub substrate_gate_grant_receipt_id: String,
-    pub changed_paths: Vec<String>,
-    pub command: String,
-    pub exit_code: String,
-    pub stdout_artifact: String,
-    pub stderr_artifact: String,
-    pub commit_sha: String,
-    pub branch: String,
-    pub summary: String,
-    pub emitted_at: String,
 }
 
 fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> Result<()> {
