@@ -3186,9 +3186,7 @@ pub fn launch_current_proposal_modeling_work(
         .get::<crate::RepoFrontierWorkProposal>(&request.proposal_id)?
         .ok_or_else(|| anyhow!("proposal Modeling launch lost its proposal"))?;
     crate::runtime_spine::validate_repo_frontier_work_proposal(&proposal)?;
-    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        crate::runtime_spine::validate_autonomous_proposal_binding(&cache, &proposal)?;
-    }
+    crate::runtime_spine::validate_autonomous_proposal_binding(&cache, &proposal)?;
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("proposal Modeling launch requires runtime identity"))?;
@@ -3518,17 +3516,12 @@ fn build_proposal_modeling_context_projection(
         thread_id: request.thread_id.clone(),
         repository: request.repository.clone(),
         workspace: request.workspace.clone(),
-        source_kind: proposal.source_kind,
-        source_actor: proposal.source_actor.clone(),
-        source_ref: proposal.source_ref.clone(),
         title: proposal.title.clone(),
         body: proposal.body.clone(),
         desired_outcome: proposal.desired_outcome.clone(),
         constraints: proposal.constraints.clone(),
         scope_hints: proposal.scope_hints.clone(),
         evidence_refs: proposal.evidence_refs.clone(),
-        public_source_refs: proposal.public_source_refs.clone(),
-        private_state_included: proposal.private_state_included,
         model_projection_digest: model.projection_digest.clone(),
         model_source_documents: model.source_documents.clone(),
         prior_admission_refusals,
@@ -4129,32 +4122,141 @@ mod tests {
         assert_eq!(crate::repository_body_read_counters(), (0, 0));
         assert_current_work_reentry_is_read_only(&store, &completed_work)?;
 
-        let proposal = crate::intake_user_repo_frontier_proposal(
+        let route = crate::runtime_repository_body_store_binding(&store)?
+            .expect("runtime Body route remains bound");
+        let (body_binding, _) =
+            crate::load_repository_body_status(std::path::Path::new(&route.body_store_path))?
+                .expect("runtime Body store remains authenticated");
+        crate::bind_runtime_repository_domain(
             &store,
-            crate::RepoFrontierUserProposalInput {
-                proposal_id: "proposal-1".into(),
-                source_actor: "operator".into(),
-                source_ref: "operator://proposal-1".into(),
-                repository: "epiphany".into(),
-                workspace: "workspace".into(),
-                thread_id: "creation-provenance-only".into(),
-                runtime_id: "runtime".into(),
+            "GameCult/Epiphany",
+            "2026-08-17T00:00:05.100Z",
+        )?;
+        let direction_request = crate::commit_admitted_model_direction_consideration_request(
+            &store,
+            "2026-08-17T00:00:05.200Z",
+        )?
+        .expect("current keyed model produces one direction obligation");
+        let direction_job_id = launch_current_admitted_model_direction_consideration_work(
+            &store,
+            &direction_request.request_id,
+            "2026-08-17T00:00:05.300Z",
+        )?;
+        let mut direction_cache = crate::runtime_spine_cache(&store)?;
+        direction_cache.pull_all_backing_stores()?;
+        let direction_launch = direction_cache
+            .get::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&direction_job_id)?
+            .expect("direction launch remains exact");
+        drop(direction_cache);
+        let direction_basis = crate::worker_reasoning_basis(&store, &direction_launch)?;
+        crate::put_reasoning_basis(&store, &direction_basis)?;
+        let mut direction_native = epiphany_model_adapter::EpiphanyModelRequest::new(
+            "direction-request",
+            "direction-conversation",
+            "openai-codex",
+            "gpt-test",
+            "model",
+        );
+        direction_native.reasoning_basis_id = Some(direction_basis.basis_id.clone());
+        direction_native.source_worker_job_id = Some(direction_job_id.clone());
+        let direction_context =
+            crate::EpiphanyDecisionContext::new(&direction_basis, direction_native, Vec::new())?;
+        let mut direction_cache = crate::runtime_spine_cache(&store)?;
+        direction_cache.pull_all_backing_stores()?;
+        direction_cache.put(&direction_context.context_id, &direction_context)?;
+        let direction_result = crate::AdmittedModelDirectionConsiderationResult {
+            schema_version: crate::admitted_model_direction_consideration::RESULT_SCHEMA.into(),
+            result_id: crate::admitted_model_direction_consideration_result_id_for_launch(
+                &direction_request.request_id,
+                &direction_job_id,
+            ),
+            request_id: direction_request.request_id.clone(),
+            runtime_id: direction_request.runtime_id.clone(),
+            thread_id: direction_request.thread_id.clone(),
+            model_projection_digest: direction_request.model_projection_digest.clone(),
+            model_source_documents: direction_request.model_source_documents.clone(),
+            disposition: crate::AdmittedModelDirectionDisposition::Suggest,
+            summary: "Model one proposal".into(),
+            option_drafts: vec![crate::ImaginationOptionDraft {
                 title: "Model one proposal".into(),
-                body: "Add one typed frontier without touching unrelated Mind state.".into(),
-                desired_outcome: "One inspectable frontier".into(),
-                constraints: Vec::new(),
-                scope_hints: vec!["epiphany-core/src".into()],
+                summary: "Add one typed frontier without touching unrelated Mind state.".into(),
+            }],
+            uncertainties: Vec::new(),
+            evidence_refs: Vec::new(),
+            proposed_at: "2026-08-17T00:00:05.400Z".into(),
+            contract: crate::admitted_model_direction_consideration::RESULT_CONTRACT.into(),
+            proposal_only: true,
+            terminal: true,
+        };
+        let direction_worker_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "direction-worker-result".into(),
+            job_id: direction_job_id.clone(),
+            role_id: "imagination".into(),
+            verdict: "suggest".into(),
+            summary: direction_result.summary.clone(),
+            next_safe_move: "Promote through the exact proposal owner.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            research_decision_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_mutation_proposal_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            repo_frontier_research_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            repository_body_observation_basis: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: Some(
+                direction_request.request_id.clone(),
+            ),
+            admitted_model_direction_consideration_result_msgpack: Some(rmp_serde::to_vec_named(
+                &direction_result,
+            )?),
+            decision_context_id: direction_context.context_id.clone(),
+        };
+        crate::put_runtime_role_worker_result(&store, &direction_worker_result)?;
+        crate::complete_runtime_job(
+            &store,
+            crate::RuntimeSpineJobResultOptions {
+                result_id: "direction-runtime-result".into(),
+                job_id: direction_job_id,
+                completed_at: "2026-08-17T00:00:05.500Z".into(),
+                verdict: "suggest".into(),
+                summary: direction_result.summary,
+                next_safe_move: "Promote through the exact proposal owner.".into(),
                 evidence_refs: Vec::new(),
-                public_source_refs: Vec::new(),
-                proposed_at: "2026-08-17T00:00:06Z".into(),
-                private_state_included: false,
+                artifact_refs: Vec::new(),
+                decision_context_id: Some(direction_context.context_id),
             },
         )?;
-        let request = crate::select_repo_frontier_work_proposal_for_modeling(
+        let mut promoted = crate::promote_autonomous_direction_options_for_modeling(
             &store,
-            &proposal.proposal_id,
-            "2026-08-17T00:00:07Z",
+            "GameCult/Epiphany",
+            &body_binding.git_top_level,
+            "2026-08-17T00:00:06Z",
         )?;
+        assert_eq!(promoted.len(), 1);
+        let request = promoted.remove(0);
+        let mut proposal_cache = crate::runtime_spine_cache(&store)?;
+        proposal_cache.pull_all_backing_stores()?;
+        let proposal = proposal_cache
+            .get::<crate::RepoFrontierWorkProposal>(&request.proposal_id)?
+            .expect("promotion atomically persists its proposal");
         let proposal_initial_projection = project_current_work(&store)?;
         let proposal_work = proposal_initial_projection
             .proposal_modeling

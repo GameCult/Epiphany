@@ -1446,8 +1446,8 @@ fn worker_output_schema_json(
                 epiphany_core::epiphany_admitted_model_direction_consideration_output_schema()
             } else if document.imagination_consideration_context.is_some() {
                 epiphany_core::epiphany_imagination_consideration_output_schema()
-            } else if let Some(context) = document.proposal_modeling_context.as_ref() {
-                epiphany_core::epiphany_proposal_modeling_output_schema(context.source_kind)
+            } else if document.proposal_modeling_context.is_some() {
+                epiphany_core::epiphany_proposal_modeling_output_schema()
             } else if role_id == epiphany_core::EpiphanyRoleResultRoleId::Modeling
                 && launch_request.repo_frontier_modeling_request_id.is_some()
             {
@@ -1818,11 +1818,7 @@ fn role_worker_result_from_ingress(
                             dependency_item_ids,
                             status: epiphany_core::RepoFrontierStatus::Active,
                             evidence_refs,
-                            public_source_refs: if draft.recommended_next_organ.trim() == "Eyes" {
-                                context.public_source_refs.clone()
-                            } else {
-                                Vec::new()
-                            },
+                            public_source_refs: Vec::new(),
                             created_at: Some(completed_at.to_string()),
                             updated_at: Some(completed_at.to_string()),
                             retired_at: None,
@@ -2603,7 +2599,7 @@ mod tests {
 
     #[test]
     fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
-        let mut schemas = vec![
+        let schemas = vec![
             epiphany_core::epiphany_role_launch_output_schema(
                 epiphany_core::EpiphanyRoleResultRoleId::Imagination,
             ),
@@ -2620,18 +2616,9 @@ mod tests {
             epiphany_core::epiphany_frontier_plan_mind_output_schema(),
             epiphany_core::epiphany_imagination_consideration_output_schema(),
             epiphany_core::epiphany_admitted_model_direction_consideration_output_schema(),
+            epiphany_core::epiphany_proposal_modeling_output_schema(),
             epiphany_core::epiphany_reorient_launch_output_schema(),
         ];
-        for source_kind in [
-            epiphany_core::RepoFrontierProposalSourceKind::User,
-            epiphany_core::RepoFrontierProposalSourceKind::Persona,
-            epiphany_core::RepoFrontierProposalSourceKind::Bifrost,
-            epiphany_core::RepoFrontierProposalSourceKind::Imagination,
-        ] {
-            schemas.push(epiphany_core::epiphany_proposal_modeling_output_schema(
-                source_kind,
-            ));
-        }
 
         for (index, schema) in schemas.into_iter().enumerate() {
             let mut request = EpiphanyOpenAiModelRequest::new(
@@ -2735,20 +2722,12 @@ mod tests {
             thread_id: "thread-1".into(),
             repository: "GameCult/Epiphany".into(),
             workspace: "/workspace".into(),
-            source_kind: epiphany_core::RepoFrontierProposalSourceKind::User,
-            source_actor: "operator".into(),
-            source_ref: "operator://proposal".into(),
             title: "Map lifecycle".into(),
             body: "Inspect typed state".into(),
             desired_outcome: "One bounded frontier".into(),
             constraints: Vec::new(),
             scope_hints: vec!["epiphany-core/src/resident_self.rs".into()],
             evidence_refs: vec!["git:source".into()],
-            public_source_refs: vec![
-                "github://GameCult/Epiphany@0123456789abcdef0123456789abcdef01234567/README.md"
-                    .into(),
-            ],
-            private_state_included: false,
             model_projection_digest: "model-projection-41".into(),
             model_source_documents: Vec::new(),
             prior_admission_refusals: Vec::new(),
@@ -2816,7 +2795,7 @@ mod tests {
         assert_eq!(item.status, epiphany_core::RepoFrontierStatus::Active);
         assert!(item.adopted_plan.is_none());
         assert!(item.evidence_refs.contains(&"proposal-1".to_string()));
-        assert_eq!(item.public_source_refs, context.public_source_refs);
+        assert!(item.public_source_refs.is_empty());
         Ok(())
     }
 
@@ -2950,17 +2929,12 @@ mod tests {
             thread_id: "thread-1".into(),
             repository: "GameCult/Epiphany".into(),
             workspace: "/workspace".into(),
-            source_kind: epiphany_core::RepoFrontierProposalSourceKind::User,
-            source_actor: "operator".into(),
-            source_ref: "operator://proposal".into(),
             title: "Map lifecycle".into(),
             body: "Inspect typed state".into(),
             desired_outcome: "One bounded frontier".into(),
             constraints: Vec::new(),
             scope_hints: vec!["epiphany-core/src/resident_self.rs".into()],
             evidence_refs: vec!["git:source".into()],
-            public_source_refs: Vec::new(),
-            private_state_included: false,
             model_projection_digest: "model-projection-41".into(),
             model_source_documents: Vec::new(),
             prior_admission_refusals: Vec::new(),

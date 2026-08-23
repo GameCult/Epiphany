@@ -526,17 +526,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     schema
 }
 
-pub fn epiphany_proposal_modeling_output_schema(
-    source_kind: crate::RepoFrontierProposalSourceKind,
-) -> serde_json::Value {
-    let recommended_organs = match source_kind {
-        crate::RepoFrontierProposalSourceKind::Imagination => vec!["Eyes", "Imagination"],
-        crate::RepoFrontierProposalSourceKind::User
-        | crate::RepoFrontierProposalSourceKind::Persona
-        | crate::RepoFrontierProposalSourceKind::Bifrost => {
-            vec!["Hands", "Eyes", "Imagination"]
-        }
-    };
+pub fn epiphany_proposal_modeling_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "required": [
@@ -571,7 +561,7 @@ pub fn epiphany_proposal_modeling_output_schema(
                         "description": "A strict lexicographically sorted, duplicate-free repository-relative path ceiling for this wound. Include intended outputs that downstream Planning may authorize Hands to change; do not substitute files inspected as evidence.",
                         "items": {"type": "string", "minLength": 1}
                     },
-                    "recommendedNextOrgan": {"type": "string", "enum": recommended_organs},
+                    "recommendedNextOrgan": {"type": "string", "enum": ["Eyes", "Imagination"]},
                     "dependencyItemIds": {"type": "array", "items": {"type": "string"}},
                     "evidenceRefs": {"type": "array", "items": {"type": "string"}}
                 },

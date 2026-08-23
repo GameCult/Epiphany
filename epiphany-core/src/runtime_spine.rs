@@ -102,7 +102,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v7";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v8";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -4839,9 +4839,7 @@ fn validated_proposal_modeling_worker_fulfillment(
         .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
         .ok_or_else(|| anyhow!("proposal Modeling fulfillment proposal is missing"))?;
     validate_repo_frontier_work_proposal(&proposal)?;
-    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        validate_autonomous_proposal_origin_binding(cache, &proposal)?;
-    }
+    validate_autonomous_proposal_origin_binding(cache, &proposal)?;
     let bindings = cache
         .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
         .into_iter()
@@ -4869,7 +4867,6 @@ fn validated_proposal_modeling_worker_fulfillment(
         &proposal.constraints,
         &proposal.scope_hints,
         &proposal.evidence_refs,
-        &proposal.public_source_refs,
     )?;
     let attempt_ordinal =
         crate::current_work::proposal_modeling_attempt_ordinal(request_id, &result.job_id)?;
@@ -4889,17 +4886,12 @@ fn validated_proposal_modeling_worker_fulfillment(
             thread_id: request.thread_id.clone(),
             repository: request.repository.clone(),
             workspace: request.workspace.clone(),
-            source_kind: proposal.source_kind,
-            source_actor: proposal.source_actor.clone(),
-            source_ref: proposal.source_ref.clone(),
             title: proposal.title.clone(),
             body: proposal.body.clone(),
             desired_outcome: proposal.desired_outcome.clone(),
             constraints: proposal.constraints.clone(),
             scope_hints: proposal.scope_hints.clone(),
             evidence_refs: proposal.evidence_refs.clone(),
-            public_source_refs: proposal.public_source_refs.clone(),
-            private_state_included: proposal.private_state_included,
             model_projection_digest: projection.model_projection_digest.clone(),
             model_source_documents: projection.model_source_documents.clone(),
             prior_admission_refusals: prior_admission_refusals.clone(),
@@ -5045,19 +5037,13 @@ pub(crate) fn validate_proposal_modeling_worker_admission(
             .iter()
             .any(|id| id == &proposal.proposal_id)
         || !crate::memory_graph::frontier_item_has_routeable_repository_scope(upserts[0])
-        || upserts[0].public_source_refs
-            != if upserts[0].recommended_next_organ == "Eyes" {
-                proposal.public_source_refs.clone()
-            } else {
-                Vec::new()
-            }
+        || !upserts[0].public_source_refs.is_empty()
         || upserts[0].status != crate::RepoFrontierStatus::Active
         || !matches!(
             upserts[0].recommended_next_organ.as_str(),
-            "Hands" | "Eyes" | "Imagination"
+            "Eyes" | "Imagination"
         )
-        || (proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination
-            && (upserts[0].recommended_next_organ == "Hands" || upserts[0].adopted_plan.is_some()))
+        || upserts[0].adopted_plan.is_some()
     {
         return Err(anyhow!(
             "proposal Modeling fulfillment result is not one safe proposal-citing routeable frontier"
@@ -5224,42 +5210,12 @@ pub fn runtime_typed_request_fulfillment(
     }))
 }
 
-fn put_immutable_planning_entry<T: cultcache_rs::DatabaseEntry + PartialEq + Clone>(
-    store_path: &Path,
-    key: &str,
-    value: &T,
-) -> Result<()> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    if let Some(existing) = cache.get::<T>(key)? {
-        return if existing == *value {
-            Ok(())
-        } else {
-            Err(anyhow!("planning document ids are immutable"))
-        };
-    }
-    let (envelope, _) = cache.prepare_entry(key, value)?;
-    let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], vec![envelope])? {
-        return Ok(());
-    }
-    let mut reloaded = runtime_spine_cache(store_path)?;
-    reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<T>(key)? {
-        Some(existing) if existing == *value => Ok(()),
-        _ => Err(anyhow!("planning document CAS collision")),
-    }
-}
-
 pub(crate) fn validate_repo_frontier_work_proposal(
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<()> {
     if proposal.schema_version != REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION
         || proposal.contract != REPO_FRONTIER_WORK_PROPOSAL_CONTRACT
         || proposal.proposal_id.trim().is_empty()
-        || proposal.source_actor.trim().is_empty()
-        || proposal.source_ref.trim().is_empty()
         || proposal.repository.trim().is_empty()
         || proposal.workspace.trim().is_empty()
         || proposal.thread_id.trim().is_empty()
@@ -5267,16 +5223,9 @@ pub(crate) fn validate_repo_frontier_work_proposal(
         || proposal.title.trim().is_empty()
         || proposal.body.trim().is_empty()
         || proposal.desired_outcome.trim().is_empty()
-        || proposal.private_state_included
         || chrono::DateTime::parse_from_rfc3339(&proposal.proposed_at).is_err()
     {
         return Err(anyhow!("invalid inert repo frontier work proposal"));
-    }
-    let canonical_public_sources = crate::ImmutableGithubSource::canonicalize_set(
-        proposal.public_source_refs.iter().map(String::as_str),
-    )?;
-    if canonical_public_sources != proposal.public_source_refs {
-        return Err(anyhow!("proposal public source set is not canonical"));
     }
     let expected_payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
         &proposal.title,
@@ -5285,7 +5234,6 @@ pub(crate) fn validate_repo_frontier_work_proposal(
         &proposal.constraints,
         &proposal.scope_hints,
         &proposal.evidence_refs,
-        &proposal.public_source_refs,
     )?;
     if proposal.payload_sha256 != expected_payload_sha256 {
         return Err(anyhow!("proposal content hash mismatch"));
@@ -5297,11 +5245,6 @@ fn validate_autonomous_proposal_origin_binding(
     cache: &CultCache,
     proposal: &RepoFrontierWorkProposal,
 ) -> Result<RepoFrontierAutonomousProposalBinding> {
-    if proposal.source_kind != crate::RepoFrontierProposalSourceKind::Imagination {
-        return Err(anyhow!(
-            "autonomous binding requires an Imagination proposal"
-        ));
-    }
     let binding_id = format!("autonomous-proposal-binding-{}", proposal.proposal_id);
     let binding = cache
         .get::<RepoFrontierAutonomousProposalBinding>(&binding_id)?
@@ -5437,8 +5380,6 @@ fn validate_autonomous_proposal_origin_binding(
         || domain.workspace_id != route.workspace_id
         || domain.body_binding_sha256 != route.body_binding_sha256
         || chrono::DateTime::parse_from_rfc3339(&binding.created_at).is_err()
-        || proposal.source_actor != EPIPHANY_IMAGINATION_OWNER_ROLE
-        || proposal.source_ref != result.result_id
         || proposal.title != option.title
         || proposal.body != option.summary
     {
@@ -5489,71 +5430,6 @@ pub(crate) fn validate_repo_frontier_proposal_modeling_request(
     }
     Ok(())
 }
-
-pub fn put_repo_frontier_work_proposal(
-    store_path: impl AsRef<Path>,
-    proposal: &RepoFrontierWorkProposal,
-) -> Result<()> {
-    validate_repo_frontier_work_proposal(proposal)?;
-    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        return Err(anyhow!(
-            "generic proposal intake cannot author Imagination provenance"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path.as_ref())?;
-    cache.pull_all_backing_stores()?;
-    let identity = require_identity(&cache)?;
-    if identity.runtime_id != proposal.runtime_id {
-        return Err(anyhow!("proposal runtime identity mismatch"));
-    }
-    // The proposal's thread is immutable creation provenance. Runtime identity
-    // owns intake; no mutable coordinator incarnation may admit or reject the
-    // same semantic proposal.
-    put_immutable_planning_entry(store_path.as_ref(), &proposal.proposal_id, proposal)
-}
-
-pub fn intake_user_repo_frontier_proposal(
-    store_path: impl AsRef<Path>,
-    input: crate::RepoFrontierUserProposalInput,
-) -> Result<RepoFrontierWorkProposal> {
-    let public_source_refs = crate::ImmutableGithubSource::canonicalize_set(
-        input.public_source_refs.iter().map(String::as_str),
-    )?;
-    let payload_sha256 = crate::repo_frontier_proposal_payload_sha256(
-        &input.title,
-        &input.body,
-        &input.desired_outcome,
-        &input.constraints,
-        &input.scope_hints,
-        &input.evidence_refs,
-        &public_source_refs,
-    )?;
-    let proposal = RepoFrontierWorkProposal {
-        schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
-        proposal_id: input.proposal_id,
-        source_kind: crate::RepoFrontierProposalSourceKind::User,
-        source_actor: input.source_actor,
-        source_ref: input.source_ref,
-        repository: input.repository,
-        workspace: input.workspace,
-        thread_id: input.thread_id,
-        runtime_id: input.runtime_id,
-        payload_sha256,
-        title: input.title,
-        body: input.body,
-        desired_outcome: input.desired_outcome,
-        constraints: input.constraints,
-        scope_hints: input.scope_hints,
-        evidence_refs: input.evidence_refs,
-        public_source_refs,
-        private_state_included: input.private_state_included,
-        proposed_at: input.proposed_at,
-        contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
-    };
-    put_repo_frontier_work_proposal(store_path, &proposal)?;
-    Ok(proposal)
-}
-
 
 pub fn bind_runtime_repository_domain(
     runtime_store: impl AsRef<Path>,
@@ -5774,14 +5650,10 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 &result.uncertainties,
                 &[],
                 &evidence_refs,
-                &[],
             )?;
             let proposal = RepoFrontierWorkProposal {
                 schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
                 proposal_id: proposal_id.clone(),
-                source_kind: crate::RepoFrontierProposalSourceKind::Imagination,
-                source_actor: EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
-                source_ref: result.result_id.clone(),
                 repository: repository.into(),
                 workspace: body_binding.git_top_level.clone(),
                 thread_id: request.thread_id.clone(),
@@ -5793,8 +5665,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
                 constraints: result.uncertainties.clone(),
                 scope_hints: Vec::new(),
                 evidence_refs,
-                public_source_refs: Vec::new(),
-                private_state_included: false,
                 proposed_at: result.proposed_at.clone(),
                 contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
             };
@@ -5983,73 +5853,6 @@ fn keyed_repo_model_basis_envelopes(
         .collect()
 }
 
-
-pub fn select_repo_frontier_work_proposal_for_modeling(
-    store_path: impl AsRef<Path>,
-    proposal_id: &str,
-    selected_at: &str,
-) -> Result<RepoFrontierProposalModelingRequest> {
-    chrono::DateTime::parse_from_rfc3339(selected_at)
-        .map_err(|_| anyhow!("proposal selection timestamp must be RFC3339"))?;
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let identity = require_identity(&cache)?;
-    let proposal = cache
-        .get::<RepoFrontierWorkProposal>(proposal_id)?
-        .ok_or_else(|| anyhow!("proposal selection requires exact persisted proposal"))?;
-    validate_repo_frontier_work_proposal(&proposal)?;
-    if proposal.source_kind == crate::RepoFrontierProposalSourceKind::Imagination {
-        validate_autonomous_proposal_binding(&cache, &proposal)?;
-    }
-    if proposal.runtime_id != identity.runtime_id {
-        return Err(anyhow!("proposal selection provenance mismatch"));
-    }
-    let existing_requests = cache.get_all::<RepoFrontierProposalModelingRequest>()?;
-    let request_id = crate::proposal_modeling_request_id(
-        &proposal.runtime_id,
-        &proposal.proposal_id,
-        &proposal.payload_sha256,
-    );
-    let request = RepoFrontierProposalModelingRequest {
-        schema_version: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION.into(),
-        request_id: request_id.clone(),
-        proposal_id: proposal.proposal_id.clone(),
-        proposal_payload_sha256: proposal.payload_sha256.clone(),
-        runtime_id: proposal.runtime_id.clone(),
-        thread_id: proposal.thread_id.clone(),
-        repository: proposal.repository.clone(),
-        workspace: proposal.workspace.clone(),
-        selected_at: selected_at.into(),
-        contract: REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT.into(),
-    };
-    if let Some(existing) = existing_requests
-        .into_iter()
-        .find(|r| r.proposal_id == proposal_id)
-    {
-        validate_repo_frontier_proposal_modeling_request(&existing)?;
-        return if existing == request {
-            Ok(existing)
-        } else {
-            Err(anyhow!("proposal selection identity conflict"))
-        };
-    }
-    match put_immutable_planning_entry(store_path, &request_id, &request) {
-        Ok(()) => Ok(request),
-        Err(error) => {
-            let mut reloaded = runtime_spine_cache(store_path)?;
-            reloaded.pull_all_backing_stores()?;
-            if let Some(existing) =
-                reloaded.get::<RepoFrontierProposalModelingRequest>(&request_id)?
-            {
-                if existing == request {
-                    return Ok(existing);
-                }
-            }
-            Err(error)
-        }
-    }
-}
 
 pub fn select_and_commit_repo_frontier_planning_request(
     runtime_store: impl AsRef<Path>,
@@ -9336,6 +9139,7 @@ fn validate_archivable_typed_worker_launch(
                 .get::<RepoFrontierWorkProposal>(&request.proposal_id)?
                 .ok_or_else(|| anyhow!("archived proposal Modeling launch lost its proposal"))?;
             validate_repo_frontier_work_proposal(&proposal)?;
+            validate_autonomous_proposal_origin_binding(cache, &proposal)?;
             let bindings = cache
                 .get_all::<RepoFrontierProposalModelingLaunchBinding>()?
                 .into_iter()
