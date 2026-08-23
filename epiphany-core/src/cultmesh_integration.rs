@@ -1491,26 +1491,6 @@ pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         .collect())
 }
 
-#[cfg(test)]
-pub fn write_epiphany_cultmesh_managed_service_policy(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    policy: EpiphanyCultMeshManagedServicePolicyEntry,
-) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
-    if policy.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID {
-        return Err(anyhow!(
-            "reserved semantic projector policy requires its specialized writer"
-        ));
-    }
-    if policy.service_id == EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
-        return Err(anyhow!(
-            "reserved workspace coverage projector policy requires its specialized writer"
-        ));
-    }
-    validate_managed_service_policy(&policy)?;
-    write_validated_managed_service_policy(store_path, runtime_id, policy)
-}
-
 pub fn write_epiphany_cultmesh_semantic_projector_service_policy(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -3339,9 +3319,6 @@ mod tests {
             private_state_exposed: false,
             notes: vec![],
         };
-        assert!(
-            write_epiphany_cultmesh_managed_service_policy(&store, "local", exact.clone()).is_err()
-        );
         let mut forged = exact.clone();
         forged.command = "arbitrary.exe".into();
         assert!(
@@ -3476,9 +3453,6 @@ mod tests {
             private_state_exposed: false,
             notes: vec![],
         };
-        assert!(
-            write_epiphany_cultmesh_managed_service_policy(&store, "local", exact.clone()).is_err()
-        );
         let mut arbitrary_binary = exact.clone();
         arbitrary_binary.command = "arbitrary-projector.exe".into();
         assert!(

@@ -252,8 +252,6 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_restart_policy;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_scheduler_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_status;
-#[cfg(test)]
-pub use cultmesh_integration::write_epiphany_cultmesh_managed_service_policy;
 pub use cultmesh_integration::write_epiphany_cultmesh_semantic_projector_service_policy;
 pub use cultmesh_integration::write_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
