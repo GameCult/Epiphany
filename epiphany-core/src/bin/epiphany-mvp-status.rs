@@ -57,7 +57,6 @@ struct Args {
     store: PathBuf,
     json: bool,
     result: Option<PathBuf>,
-    include_auxiliary_status: bool,
 }
 
 impl Args {
@@ -70,7 +69,6 @@ impl Args {
             store: PathBuf::from(DEFAULT_COORDINATOR_STORE),
             json: false,
             result: None,
-            include_auxiliary_status: true,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -79,7 +77,6 @@ impl Args {
                 "--store" => parsed.store = take_path(&mut args, "--store")?,
                 "--json" => parsed.json = true,
                 "--result" => parsed.result = Some(take_path(&mut args, "--result")?),
-                "--coordinator-only" => parsed.include_auxiliary_status = false,
                 // Historical presentation switches remain accepted but own no state.
                 "--ephemeral" | "--no-ephemeral" => {}
                 "--transcript" | "--stderr" => {
@@ -93,7 +90,7 @@ impl Args {
 }
 
 fn run_status(args: &Args) -> Result<Value> {
-    run_native_status(args, args.include_auxiliary_status)
+    run_native_status(args)
 }
 
 pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<Value> {
@@ -105,13 +102,11 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
             store: runtime_store.to_path_buf(),
             json: true,
             result: None,
-            include_auxiliary_status: false,
         },
-        false,
     )
 }
 
-fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Value> {
+fn run_native_status(args: &Args) -> Result<Value> {
     let _cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.store)?;
     let thread_id = args
@@ -255,15 +250,6 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         reorientation_work,
         latest_reorientation_decision,
     )?;
-    let auxiliary = if include_auxiliary_status {
-        json!({
-            "status": "derivedOnly",
-            "note": "Auxiliary physiology and Persona transport are not coordinator routing inputs."
-        })
-    } else {
-        json!({"status": "omitted"})
-    };
-
     Ok(sanitize_for_operator(json!({
         "threadId": thread_id,
         "read": {
@@ -271,16 +257,6 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
             "mindStore": store_path,
             "mindPresent": mind.is_some(),
             "projectionDigest": mind.as_ref().map(|mind| mind.projection_digest.as_str()),
-        },
-        "view": {
-            "source": "native",
-            "scene": &scene,
-            "pressure": &pressure,
-            "jobs": &jobs,
-            "roles": &roles,
-            "planning": &planning,
-            "coordinator": &coordinator_json,
-            "tools": &tools,
         },
         "scene": {"threadId": thread_id, "scene": scene},
         "pressure": {"threadId": thread_id, "source": "native", "pressure": pressure},
@@ -310,7 +286,6 @@ fn run_native_status(args: &Args, include_auxiliary_status: bool) -> Result<Valu
         "crrc": {"threadId": thread_id, "source": "native", "recommendation": recommendation},
         "coordinator": coordinator_json,
         "tools": tools,
-        "auxiliary": auxiliary,
     })))
 }
 
