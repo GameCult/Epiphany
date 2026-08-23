@@ -296,7 +296,6 @@ pub use runtime_spine::close_runtime_session;
 pub use runtime_spine::commit_repo_frontier_modeling_request;
 pub use runtime_spine::commit_repo_frontier_plan_decision;
 pub use runtime_spine::commit_repo_frontier_plan_mind_request;
-pub use runtime_spine::commit_repo_model_claim_challenge;
 pub use runtime_spine::complete_runtime_job;
 pub use runtime_spine::coordinator_run_receipts;
 pub use runtime_spine::coordinator_run_session_id;

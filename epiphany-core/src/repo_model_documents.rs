@@ -4,8 +4,8 @@ use std::path::Path;
 use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
-    EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot,
-    EpiphanyMemoryNode, RepoFrontierItem,
+    EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot, EpiphanyMemoryNode,
+    RepoFrontierItem,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -87,7 +87,7 @@ repo_document!(
 );
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.mind.repo_model.claim_obligations.v2",
+    type = "epiphany.mind.repo_model.claim_obligations.v3",
     schema = "EpiphanyRepoModelClaimObligationsDocument"
 )]
 pub struct EpiphanyRepoModelClaimObligationsDocument {
@@ -95,8 +95,6 @@ pub struct EpiphanyRepoModelClaimObligationsDocument {
     pub node_id: String,
     #[cultcache(key = 1)]
     pub unresolved_frontier_ids: Vec<String>,
-    #[cultcache(key = 2)]
-    pub active_challenge_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -798,7 +796,6 @@ pub fn plan_repo_model_mutation(
                     EpiphanyRepoModelClaimObligationsDocument {
                         node_id: node.id.clone(),
                         unresolved_frontier_ids: Vec::new(),
-                        active_challenge_ids: Vec::new(),
                     }
                 });
                 if let Some(existing) =
@@ -806,7 +803,6 @@ pub fn plan_repo_model_mutation(
                 {
                     insert_strong_envelope(&mut strong, existing)?;
                 }
-                obligation.active_challenge_ids.clear();
                 let envelope = cache
                     .prepare_entry(&node.id, &EpiphanyRepoModelNodeDocument::new(node)?)?
                     .0;
@@ -827,12 +823,9 @@ pub fn plan_repo_model_mutation(
                     EpiphanyRepoModelClaimObligationsDocument {
                         node_id: node_id.clone(),
                         unresolved_frontier_ids: Vec::new(),
-                        active_challenge_ids: Vec::new(),
                     }
                 });
-                if !obligation.unresolved_frontier_ids.is_empty()
-                    || !obligation.active_challenge_ids.is_empty()
-                {
+                if !obligation.unresolved_frontier_ids.is_empty() {
                     return Err(anyhow!(
                         "RepoModel node retirement is blocked by unresolved claim obligations"
                     ));
@@ -937,7 +930,6 @@ pub fn plan_repo_model_mutation(
                         EpiphanyRepoModelClaimObligationsDocument {
                             node_id: node_id.clone(),
                             unresolved_frontier_ids: Vec::new(),
-                            active_challenge_ids: Vec::new(),
                         }
                     });
                     if let Some(existing) =
@@ -1355,7 +1347,6 @@ fn claim_obligations_for_frontier(
             |(node_id, unresolved_frontier_ids)| EpiphanyRepoModelClaimObligationsDocument {
                 node_id,
                 unresolved_frontier_ids: unresolved_frontier_ids.into_iter().collect(),
-                active_challenge_ids: Vec::new(),
             },
         )
         .collect()
@@ -1423,38 +1414,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         frontier.clone(),
         claim_obligations.clone(),
     )?;
-    let challenges = cache.get_all::<crate::RepoModelClaimChallenge>()?;
-    for obligation in &claim_obligations {
-        for challenge_id in &obligation.active_challenge_ids {
-            let challenge = challenges
-                .iter()
-                .find(|challenge| challenge.challenge_id == *challenge_id)
-                .ok_or_else(|| anyhow!("claim obligation names a missing challenge"))?;
-            if challenge.target_claim_id != obligation.node_id {
-                return Err(anyhow!("claim obligation challenge targets another node"));
-            }
-        }
-    }
-    for challenge in &challenges {
-        let Some(node) = nodes
-            .iter()
-            .find(|node| node.id == challenge.target_claim_id)
-        else {
-            continue;
-        };
-        let node_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(node)?));
-        if node_sha256 == challenge.target_claim_sha256
-            && !claim_obligations.iter().any(|obligation| {
-                obligation.node_id == challenge.target_claim_id
-                    && obligation
-                        .active_challenge_ids
-                        .contains(&challenge.challenge_id)
-            })
-        {
-            return Err(anyhow!("current claim challenge lost its claim obligation"));
-        }
-    }
-
     let mut source_documents = cache
         .snapshot_envelopes()
         .into_iter()
@@ -1539,14 +1498,6 @@ fn validate_claim_obligations(
             .unresolved_frontier_ids
             .windows(2)
             .all(|pair| pair[0] < pair[1])
-            || !obligation
-                .active_challenge_ids
-                .windows(2)
-                .all(|pair| pair[0] < pair[1])
-            || obligation
-                .active_challenge_ids
-                .iter()
-                .any(|id| id.trim().is_empty())
         {
             return Err(anyhow!("RepoModel claim obligation is not canonical"));
         }
@@ -1592,8 +1543,7 @@ mod tests {
     use super::*;
     use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
     use epiphany_state_model::{
-        EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind,
-        RepoFrontierStatus,
+        EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind, RepoFrontierStatus,
     };
 
     fn bind_test_body(
@@ -1816,7 +1766,6 @@ mod tests {
             &EpiphanyRepoModelClaimObligationsDocument {
                 node_id: "node-1".into(),
                 unresolved_frontier_ids: Vec::new(),
-                active_challenge_ids: Vec::new(),
             },
         )?;
         let first = assemble_repo_model_view(&store)?;

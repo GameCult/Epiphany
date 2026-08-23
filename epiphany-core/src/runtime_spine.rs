@@ -6,8 +6,6 @@ use crate::agent_launch::{
     EPIPHANY_MODELING_ROLE_BINDING_ID,
 };
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
-use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
-use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
 use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
@@ -32,7 +30,6 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT, REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_ROUTE_CONTRACT, REPO_FRONTIER_ROUTE_SCHEMA_VERSION,
     REPO_FRONTIER_WORK_PROPOSAL_CONTRACT, REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION,
-    REPO_MODEL_CLAIM_CHALLENGE_CONTRACT, REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT, RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY,
     RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION, RepoFrontierAutonomousProposalBinding,
     RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
@@ -42,8 +39,7 @@ use crate::repo_model_gateway::{
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierResearchRequest, RepoFrontierRoute, RepoFrontierVerdictDisposition,
-    RepoFrontierWorkProposal, RepoModelClaimChallenge,
-    RuntimeRepositoryDomainBinding,
+    RepoFrontierWorkProposal, RuntimeRepositoryDomainBinding,
 };
 use crate::runtime_store_backend::{
     RuntimeSpineBackingStore as SingleFileMessagePackBackingStore, runtime_spine_backing_store,
@@ -102,7 +98,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v10";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v11";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -916,7 +912,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyArchivedRuntimeWorkerAttempt>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
     cache.register_entry_type::<crate::RuntimeRepositoryBodyStoreBinding>()?;
-    cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
@@ -1136,7 +1131,6 @@ pub fn bind_runtime_to_swarm(
         _ => Err(anyhow!("runtime swarm binding lost immutable CAS")),
     }
 }
-
 
 pub fn create_runtime_session(
     store_path: impl AsRef<Path>,
@@ -2639,7 +2633,9 @@ pub fn prepare_runtime_spine_heartbeat_job(
         .get_envelope::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("runtime job preparation lost runtime identity envelope"))?;
     if identity.runtime_id != options.runtime_id {
-        return Err(anyhow!("runtime job preparation cannot substitute runtime identity"));
+        return Err(anyhow!(
+            "runtime job preparation cannot substitute runtime identity"
+        ));
     }
     let session = match cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
         Some(existing)
@@ -2713,10 +2709,11 @@ pub fn prepare_runtime_spine_heartbeat_job(
         repo_frontier_research_request_id: options.repo_frontier_research_request_id,
         repo_frontier_verification_request_id: options.repo_frontier_verification_request_id,
     };
-    let session_envelope = match cache.get_envelope::<EpiphanyRuntimeSession>(&session.session_id)? {
-        Some(existing) => existing,
-        None => cache.prepare_entry(&session.session_id, &session)?.0,
-    };
+    let session_envelope =
+        match cache.get_envelope::<EpiphanyRuntimeSession>(&session.session_id)? {
+            Some(existing) => existing,
+            None => cache.prepare_entry(&session.session_id, &session)?.0,
+        };
     let envelopes = vec![
         identity_envelope,
         session_envelope,
@@ -3012,7 +3009,6 @@ pub fn runtime_worker_launch_request(
     cache.pull_all_backing_stores()?;
     cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)
 }
-
 
 pub fn runtime_worker_process_claim(
     store_path: impl AsRef<Path>,
@@ -5792,7 +5788,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
     Ok(promoted)
 }
 
-
 fn current_keyed_repo_model(
     cache: &CultCache,
 ) -> Result<(crate::EpiphanyRepoModelView, crate::EpiphanyRepoModelBasis)> {
@@ -5835,7 +5830,6 @@ fn keyed_repo_model_basis_envelopes(
         .collect()
 }
 
-
 pub fn select_and_commit_repo_frontier_planning_request(
     runtime_store: impl AsRef<Path>,
     at: &str,
@@ -5849,8 +5843,7 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
     let (view, basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
-    let challenges = current_repo_model_claim_challenges(&cache, &model, &basis)?;
-    let item = actionable_imagination_frontier_item(&model, &challenges)
+    let item = actionable_imagination_frontier_item(&model)
         .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
     let item_hash = repo_frontier_item_hash(item)?;
     let frontier_authority_documents = frontier_authority_documents(&cache, item)?;
@@ -6036,9 +6029,7 @@ pub(crate) fn validate_actionable_repo_frontier_planning_request(
     }
     let view = crate::repo_model_documents::assemble_repo_model_view_from_cache(cache)?;
     let model = view.memory_context_projection();
-    let basis = view.reasoning_basis();
-    let challenges = current_repo_model_claim_challenges(cache, &model, &basis)?;
-    if !imagination_frontier_item_is_actionable(&model, &challenges, &current_item) {
+    if !imagination_frontier_item_is_actionable(&model, &current_item) {
         return Err(anyhow!("planning request frontier is no longer actionable"));
     }
     Ok(())
@@ -6180,14 +6171,13 @@ fn validate_repo_frontier_plan_mind_request_identity(
     Ok((planning, candidate))
 }
 
-fn actionable_imagination_frontier_item<'a>(
-    model: &'a crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
-) -> Option<&'a crate::RepoFrontierItem> {
+fn actionable_imagination_frontier_item(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+) -> Option<&crate::RepoFrontierItem> {
     let mut eligible = model
         .frontier
         .iter()
-        .filter(|item| imagination_frontier_item_is_actionable(model, challenges, item))
+        .filter(|item| imagination_frontier_item_is_actionable(model, item))
         .collect::<Vec<_>>();
     eligible.sort_by(|a, b| a.id.cmp(&b.id));
     eligible.into_iter().next()
@@ -6195,7 +6185,6 @@ fn actionable_imagination_frontier_item<'a>(
 
 fn imagination_frontier_item_is_actionable(
     model: &crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
     item: &crate::RepoFrontierItem,
 ) -> bool {
     let terminal = |id: &str| {
@@ -6215,212 +6204,7 @@ fn imagination_frontier_item_is_actionable(
     item.status == crate::RepoFrontierStatus::Active
         && item.recommended_next_organ == "Imagination"
         && crate::memory_graph::frontier_item_has_routeable_repository_scope(item)
-        && frontier_target_claims_unchallenged(item, challenges)
         && item.dependency_item_ids.iter().all(|id| terminal(id))
-}
-
-fn frontier_target_claims_unchallenged(
-    item: &crate::RepoFrontierItem,
-    challenges: &[RepoModelClaimChallenge],
-) -> bool {
-    !challenges
-        .iter()
-        .any(|challenge| item.target_claim_ids.contains(&challenge.target_claim_id))
-}
-
-fn current_repo_model_claim_challenges(
-    cache: &CultCache,
-    model: &crate::EpiphanyMemoryGraphSnapshot,
-    basis: &crate::EpiphanyRepoModelBasis,
-) -> Result<Vec<RepoModelClaimChallenge>> {
-    let mut current = Vec::new();
-    for challenge in cache.get_all::<RepoModelClaimChallenge>()? {
-        let Some(claim) = model
-            .nodes
-            .iter()
-            .find(|node| node.id == challenge.target_claim_id)
-        else {
-            continue;
-        };
-        if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
-            == challenge.target_claim_sha256
-        {
-            validate_repo_model_claim_challenge_chain(cache, model, basis, &challenge, true)?;
-            current.push(challenge);
-        }
-    }
-    Ok(current)
-}
-
-fn validate_repo_model_claim_challenge_chain(
-    cache: &CultCache,
-    model: &crate::EpiphanyMemoryGraphSnapshot,
-    _current_basis: &crate::EpiphanyRepoModelBasis,
-    challenge: &RepoModelClaimChallenge,
-    require_current_model: bool,
-) -> Result<()> {
-    if challenge.schema_version != REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION
-        || challenge.contract != REPO_MODEL_CLAIM_CHALLENGE_CONTRACT
-        || challenge.challenge_id.trim().is_empty()
-        || challenge.finding.trim().is_empty()
-        || challenge.uncertainty.trim().is_empty()
-        || challenge.source_refs.is_empty()
-        || challenge.evidence_ids.is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&challenge.challenged_at).is_err()
-    {
-        return Err(anyhow!("invalid repo model claim challenge"));
-    }
-    let packet = cache
-        .get::<EyesEvidencePacket>(&challenge.eyes_evidence_packet_id)?
-        .ok_or_else(|| anyhow!("claim challenge requires exact Eyes evidence packet"))?;
-    if packet.schema_version != EYES_EVIDENCE_PACKET_SCHEMA_VERSION
-        || packet.contract.trim().is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&packet.emitted_at).is_err()
-        || packet.source_result_id != challenge.source_result_id
-        || packet.source_job_id != challenge.source_job_id
-        || packet.source_refs != challenge.source_refs
-        || packet.evidence_ids != challenge.evidence_ids
-        || format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&packet)?))
-            != challenge.eyes_evidence_packet_sha256
-    {
-        return Err(anyhow!("claim challenge substituted Eyes evidence"));
-    }
-    let audit_basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: challenge.model_projection_digest.clone(),
-        source_documents: challenge.model_source_documents.clone(),
-    };
-    audit_basis.validate()?;
-    let claim = model
-        .nodes
-        .iter()
-        .find(|node| node.id == challenge.target_claim_id)
-        .ok_or_else(|| anyhow!("claim challenge target claim is missing"))?;
-    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
-        != challenge.target_claim_sha256
-    {
-        return Err(anyhow!("claim challenge target claim identity mismatch"));
-    }
-    let claim_envelope = cache
-        .get_envelope::<crate::EpiphanyRepoModelNodeDocument>(&claim.id)?
-        .ok_or_else(|| anyhow!("claim challenge target claim envelope is missing"))?;
-    let claim_version =
-        crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", &claim_envelope)?;
-    if !audit_basis.source_documents.contains(&claim_version) {
-        return Err(anyhow!(
-            "claim challenge audit basis omitted its exact target claim"
-        ));
-    }
-    if require_current_model {
-        let obligation = cache
-            .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&claim.id)?
-            .ok_or_else(|| anyhow!("claim challenge target lost its obligation owner"))?;
-        if obligation.node_id != claim.id {
-            return Err(anyhow!("claim challenge obligation owner is corrupt"));
-        }
-    }
-    Ok(())
-}
-
-pub fn commit_repo_model_claim_challenge(
-    store_path: impl AsRef<Path>,
-    challenge: &RepoModelClaimChallenge,
-) -> Result<()> {
-    if challenge.schema_version != REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION
-        || challenge.contract != REPO_MODEL_CLAIM_CHALLENGE_CONTRACT
-        || challenge.challenge_id.trim().is_empty()
-        || challenge.finding.trim().is_empty()
-        || challenge.uncertainty.trim().is_empty()
-        || challenge.source_refs.is_empty()
-        || challenge.evidence_ids.is_empty()
-        || chrono::DateTime::parse_from_rfc3339(&challenge.challenged_at).is_err()
-    {
-        return Err(anyhow!("invalid repo model claim challenge"));
-    }
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let backing = SingleFileMessagePackBackingStore::new(store_path);
-    let envelopes = backing.pull_all()?;
-    let (view, basis) = current_keyed_repo_model(&cache)?;
-    let model = view.memory_context_projection();
-    validate_repo_model_claim_challenge_chain(&cache, &model, &basis, challenge, true)?;
-    if let Some(existing) = cache.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
-        if existing != *challenge {
-            return Err(anyhow!("claim challenge ids are immutable"));
-        }
-        let obligation = cache
-            .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&challenge.target_claim_id)?
-            .ok_or_else(|| anyhow!("replayed claim challenge lost its obligation"))?;
-        return if obligation
-            .active_challenge_ids
-            .contains(&challenge.challenge_id)
-        {
-            Ok(())
-        } else {
-            Err(anyhow!("replayed claim challenge lost active authority"))
-        };
-    }
-    let packet_envelope = envelopes
-        .iter()
-        .find(|entry| {
-            entry.r#type == EYES_EVIDENCE_PACKET_TYPE
-                && entry.key == challenge.eyes_evidence_packet_id
-        })
-        .cloned()
-        .ok_or_else(|| anyhow!("claim challenge packet envelope is missing"))?;
-    let (challenge_envelope, _) = cache.prepare_entry(&challenge.challenge_id, challenge)?;
-    let claim_envelope = cache
-        .get_envelope::<crate::EpiphanyRepoModelNodeDocument>(&challenge.target_claim_id)?
-        .ok_or_else(|| anyhow!("claim challenge target envelope is missing"))?;
-    let mut obligation = cache
-        .get::<crate::EpiphanyRepoModelClaimObligationsDocument>(&challenge.target_claim_id)?
-        .ok_or_else(|| anyhow!("claim challenge target obligation is missing"))?;
-    let obligation_envelope = cache
-        .get_envelope::<crate::EpiphanyRepoModelClaimObligationsDocument>(
-            &challenge.target_claim_id,
-        )?
-        .ok_or_else(|| anyhow!("claim challenge target obligation envelope is missing"))?;
-    obligation
-        .active_challenge_ids
-        .push(challenge.challenge_id.clone());
-    obligation.active_challenge_ids.sort();
-    obligation.active_challenge_ids.dedup();
-    let expected = vec![claim_envelope, obligation_envelope.clone(), packet_envelope];
-    let mut writes = expected
-        .iter()
-        .filter(|envelope| {
-            envelope.r#type != obligation_envelope.r#type || envelope.key != obligation_envelope.key
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    writes.push(challenge_envelope);
-    writes.push(
-        cache
-            .prepare_entry(&challenge.target_claim_id, &obligation)?
-            .0,
-    );
-    if !backing.compare_and_swap_batch(&expected, writes)? {
-        let mut reloaded = runtime_spine_cache(store_path)?;
-        reloaded.pull_all_backing_stores()?;
-        return match (
-            reloaded.get::<RepoModelClaimChallenge>(&challenge.challenge_id)?,
-            reloaded.get::<crate::EpiphanyRepoModelClaimObligationsDocument>(
-                &challenge.target_claim_id,
-            )?,
-        ) {
-            (Some(existing), Some(obligation))
-                if existing == *challenge
-                    && obligation
-                        .active_challenge_ids
-                        .contains(&challenge.challenge_id) =>
-            {
-                Ok(())
-            }
-            (Some(_), _) => Err(anyhow!("claim challenge immutable collision")),
-            _ => Err(anyhow!("claim challenge lost exact claim/packet CAS")),
-        };
-    }
-    Ok(())
 }
 
 fn validate_repo_frontier_plan_candidate_against_request(
@@ -6710,8 +6494,7 @@ pub fn select_and_commit_repo_frontier_route(
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
     let (view, basis) = current_keyed_repo_model(&cache)?;
     let current = view.memory_context_projection();
-    let challenges = current_repo_model_claim_challenges(&cache, &current, &basis)?;
-    let item = actionable_hands_frontier_item(&current, &challenges)
+    let item = actionable_hands_frontier_item(&current)
         .ok_or_else(|| anyhow!("current repo model has no eligible Hands frontier route"))?;
     if !crate::memory_graph::frontier_item_has_routeable_repository_scope(item) {
         return Err(anyhow!(
@@ -6768,36 +6551,26 @@ pub fn select_and_commit_repo_frontier_route(
     Ok(route)
 }
 
-fn actionable_hands_frontier_item<'a>(
-    model: &'a crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
-) -> Option<&'a crate::RepoFrontierItem> {
-    actionable_frontier_item_for_organ(model, challenges, "Hands", true)
+fn actionable_hands_frontier_item(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+) -> Option<&crate::RepoFrontierItem> {
+    actionable_frontier_item_for_organ(model, "Hands")
 }
 
 fn actionable_frontier_item_for_organ<'a>(
     model: &'a crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
     organ: &str,
-    require_unchallenged_targets: bool,
 ) -> Option<&'a crate::RepoFrontierItem> {
-    model.frontier.iter().find(|item| {
-        frontier_item_is_actionable_for_organ(
-            model,
-            challenges,
-            item,
-            organ,
-            require_unchallenged_targets,
-        )
-    })
+    model
+        .frontier
+        .iter()
+        .find(|item| frontier_item_is_actionable_for_organ(model, item, organ))
 }
 
 fn frontier_item_is_actionable_for_organ(
     model: &crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
     item: &crate::RepoFrontierItem,
     organ: &str,
-    require_unchallenged_targets: bool,
 ) -> bool {
     let terminal = |status: crate::RepoFrontierStatus| {
         matches!(
@@ -6810,7 +6583,6 @@ fn frontier_item_is_actionable_for_organ(
     item.status == crate::RepoFrontierStatus::Active
         && item.recommended_next_organ == organ
         && crate::memory_graph::frontier_item_has_routeable_repository_scope(item)
-        && (!require_unchallenged_targets || frontier_target_claims_unchallenged(item, challenges))
         && item.dependency_item_ids.iter().all(|dependency_id| {
             model
                 .frontier
@@ -6825,9 +6597,8 @@ fn frontier_item_is_actionable_for_organ(
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
 pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
-    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands", true)
+    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
 }
-
 
 fn frontier_authority_documents(
     cache: &CultCache,
@@ -6936,11 +6707,6 @@ fn planning_claim_obligation_envelopes(
                 != *document
             {
                 return Err(anyhow!("planning claim obligation changed"));
-            }
-            let obligation: crate::EpiphanyRepoModelClaimObligationsDocument =
-                rmp_serde::from_slice(&envelope.payload)?;
-            if !obligation.active_challenge_ids.is_empty() {
-                return Err(anyhow!("planning claim is challenged"));
             }
             Ok(envelope.clone())
         })
@@ -7084,7 +6850,7 @@ pub fn select_and_commit_repo_frontier_research_request(
     let model = view.memory_context_projection();
     let launches = cache.get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     let packets = cache.get_all::<EyesEvidencePacket>()?;
-    let item = match next_repo_frontier_research_work(&cache, &model, &[], &launches, &packets)? {
+    let item = match next_repo_frontier_research_work(&cache, &model, &launches, &packets)? {
         Some(NextRepoFrontierResearchWork::Existing(request)) => return Ok(request),
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => item,
         None => {
@@ -7176,7 +6942,6 @@ fn repo_frontier_research_request_for_admitted_item(
     })
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RepoFrontierResearchLifecycleStage {
@@ -7245,7 +7010,7 @@ pub fn runtime_repo_frontier_research_lifecycle(
     let (view, _basis) = current_keyed_repo_model(&cache)?;
     let model = view.memory_context_projection();
 
-    let work = next_repo_frontier_research_work(&cache, &model, &[], &launches, &packets)?;
+    let work = next_repo_frontier_research_work(&cache, &model, &launches, &packets)?;
     let request = match work {
         Some(NextRepoFrontierResearchWork::Unrequested(item)) => {
             return Ok(RepoFrontierResearchLifecycle {
@@ -7352,7 +7117,6 @@ enum NextRepoFrontierResearchWork {
 fn next_repo_frontier_research_work(
     cache: &CultCache,
     model: &crate::EpiphanyMemoryGraphSnapshot,
-    challenges: &[RepoModelClaimChallenge],
     launches: &[EpiphanyRuntimeWorkerLaunchRequest],
     packets: &[EyesEvidencePacket],
 ) -> Result<Option<NextRepoFrontierResearchWork>> {
@@ -7372,9 +7136,11 @@ fn next_repo_frontier_research_work(
     if let Some(request) = existing_uncovered.into_iter().next() {
         return Ok(Some(NextRepoFrontierResearchWork::Existing(request)));
     }
-    for item in model.frontier.iter().filter(|item| {
-        frontier_item_is_actionable_for_organ(model, challenges, item, "Eyes", false)
-    }) {
+    for item in model
+        .frontier
+        .iter()
+        .filter(|item| frontier_item_is_actionable_for_organ(model, item, "Eyes"))
+    {
         let item_hash = repo_frontier_item_hash(item)?;
         if !existing_actionable.iter().any(|request| {
             request.frontier_item_id == item.id && request.frontier_item_hash == item_hash
@@ -7647,7 +7413,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
                 ..empty(RepoFrontierPlanningLifecycleStage::Terminal)
             });
         }
-        if runtime_has_actionable_frontier_for_organ(runtime_store, "Imagination", true)? {
+        if runtime_has_actionable_frontier_for_organ(runtime_store, "Imagination")? {
             return Ok(empty(RepoFrontierPlanningLifecycleStage::Ready));
         }
         let latest_terminal = decisions.iter().max_by(|a, b| {
@@ -7818,28 +7584,16 @@ pub fn runtime_repo_frontier_planning_lifecycle(
 fn runtime_has_actionable_frontier_for_organ(
     runtime_store: impl AsRef<Path>,
     organ: &str,
-    require_unchallenged_targets: bool,
 ) -> Result<bool> {
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    let Ok((view, basis)) = current_keyed_repo_model(&cache) else {
+    let Ok((view, _basis)) = current_keyed_repo_model(&cache) else {
         return Ok(false);
     };
     let model = view.memory_context_projection();
-    let challenges = if require_unchallenged_targets {
-        current_repo_model_claim_challenges(&cache, &model, &basis)?
-    } else {
-        Vec::new()
-    };
-    Ok(actionable_frontier_item_for_organ(
-        &model,
-        &challenges,
-        organ,
-        require_unchallenged_targets,
-    )
-    .is_some())
+    Ok(actionable_frontier_item_for_organ(&model, organ).is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -7890,32 +7644,6 @@ pub fn runtime_reorient_worker_result(
     cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
 }
 
-// Eyes packets are accepted-research prerequisites and publish atomically with
-// the coordinator state transition. Direct insertion is fixture-only.
-#[cfg(test)]
-pub(crate) fn put_eyes_evidence_packet(
-    store_path: impl AsRef<Path>,
-    packet: &EyesEvidencePacket,
-) -> Result<()> {
-    validate_non_empty(&packet.packet_id, "Eyes evidence packet id")?;
-    validate_non_empty(
-        &packet.source_result_id,
-        "Eyes evidence packet source result",
-    )?;
-    validate_non_empty(&packet.source_job_id, "Eyes evidence packet source job")?;
-    validate_non_empty(&packet.source_role_id, "Eyes evidence packet source role")?;
-    validate_non_empty(&packet.emitted_at, "Eyes evidence packet timestamp")?;
-    if packet.evidence_ids.is_empty() {
-        return Err(anyhow!("Eyes evidence packet must reference evidence ids"));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    cache.put(&packet.packet_id, packet)?;
-    Ok(())
-}
-
-
 pub fn put_substrate_gate_repo_access_grant_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SubstrateGateRepoAccessGrantReceipt,
@@ -7962,7 +7690,6 @@ pub fn put_substrate_gate_repo_access_grant_receipt(
         _ => Err(anyhow!("Substrate Gate grant ids are immutable")),
     }
 }
-
 
 pub fn put_hands_action_intent(
     store_path: impl AsRef<Path>,
@@ -8030,7 +7757,6 @@ pub fn put_hands_action_intent(
     }
 }
 
-
 pub fn put_hands_action_review(
     store_path: impl AsRef<Path>,
     review: &HandsActionReview,
@@ -8064,7 +7790,6 @@ pub fn put_hands_action_review(
         _ => Err(anyhow!("Hands action review ids are immutable")),
     }
 }
-
 
 fn validate_repo_frontier_hands_authority_chain(
     cache: &CultCache,
@@ -8274,7 +7999,6 @@ pub fn put_repo_frontier_hands_authority(
     }
 }
 
-
 fn worker_result_has_keyed_mind_commit(
     cache: &CultCache,
     result: &EpiphanyRuntimeRoleWorkerResult,
@@ -8387,8 +8111,6 @@ pub(crate) fn verification_frontier_is_current(
         .unwrap_or(false))
 }
 
-
-
 pub(crate) fn repo_frontier_verification_context(
     cache: &CultCache,
     request: &RepoFrontierVerificationRequest,
@@ -8467,7 +8189,6 @@ fn repo_frontier_verification_context_with_commit(
         contract: crate::REPO_FRONTIER_VERIFICATION_CONTEXT_CONTRACT.into(),
     })
 }
-
 
 pub(crate) fn derive_repo_frontier_modeling_request(
     cache: &CultCache,
@@ -8620,7 +8341,6 @@ pub fn commit_repo_frontier_modeling_request(
     }
 }
 
-
 fn derive_repo_frontier_verification_request_for_chain(
     cache: &CultCache,
     chain: &RuntimeHandsReceiptChainSummary,
@@ -8673,7 +8393,6 @@ fn derive_repo_frontier_verification_request_for_chain(
     };
     Ok(request)
 }
-
 
 fn validate_hands_consequence_grant(
     store_path: &Path,
@@ -8769,7 +8488,6 @@ fn validate_hands_consequence_grant(
     }
     Ok(())
 }
-
 
 pub fn put_hands_patch_receipt(
     store_path: impl AsRef<Path>,
@@ -9018,7 +8736,6 @@ pub fn runtime_hands_commit_receipt(
     cache.pull_all_backing_stores()?;
     cache.get::<HandsCommitReceipt>(receipt_id)
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeHandsReceiptChainSummary {
@@ -10278,7 +9995,6 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
         supported_document_types,
     })
 }
-
 
 pub fn runtime_registered_document_types() -> Result<Vec<String>> {
     Ok(runtime_spine_schema_cache()?.registered_entry_types())
