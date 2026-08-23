@@ -84,15 +84,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
     vec![
         ("release-publisher", file_name("epiphany-release")),
         ("state-steward", file_name("epiphany-state")),
-        ("atlas-publisher", file_name("epiphany-atlas-publisher")),
-        (
-            "model-entanglement-projector",
-            file_name("epiphany-model-entanglement-projector"),
-        ),
-        (
-            "atlas-impact-ingress",
-            file_name("epiphany-atlas-impact-ingress"),
-        ),
         ("repository-body", file_name("epiphany-repository-body")),
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),

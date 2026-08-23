@@ -78,18 +78,6 @@ tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev 
 tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "9200079d3b54a1ff51072e24d81fd354f085156f" }
 
 [[bin]]
-name = "epiphany-atlas-publisher"
-path = "epiphany-core/src/bin/epiphany-atlas-publisher.rs"
-
-[[bin]]
-name = "epiphany-model-entanglement-projector"
-path = "epiphany-core/src/bin/epiphany-model-entanglement-projector.rs"
-
-[[bin]]
-name = "epiphany-atlas-impact-ingress"
-path = "epiphany-core/src/bin/epiphany-atlas-impact-ingress.rs"
-
-[[bin]]
 name = "epiphany-release"
 path = "epiphany-core/src/bin/epiphany-release.rs"
 

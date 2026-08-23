@@ -111,21 +111,25 @@ not merely that the projector drew one.
 - `atlas.publish`, `atlas.project`, and `atlas.impact_ingress` brakes stop writes
   and scheduling while retaining the last projection read-only.
 
-## Live organs
+## Library organs; deployment not admitted
 
-- `epiphany-atlas-publisher` reads a local Mind store, publishes immutable
-  events to its publisher CultCache/CultMesh store, and transports them to
-  Odin. Its signing identity lives in a separate private `.cc` store.
-- `epiphany-model-entanglement-projector` pins repository trust anchors, queries
-  Odin, verifies publications, derives a deterministic projection, and
-  publishes the canonical Eve provider and surface documents.
-- `epiphany-atlas-impact-ingress` compares a projection with locally owned
-  claims, admits exact impact documents, and asks local Resident Self to
-  schedule permitted pressure.
+- The publisher library reads a local Mind store, publishes immutable events to
+  its publisher CultCache/CultMesh store, and transports them to Odin. Its
+  signing identity lives in a separate private `.cc` store.
+- The projector library pins repository trust anchors, queries Odin, verifies
+  publications, derives a deterministic projection, and publishes canonical
+  Eve provider and surface documents.
+- The impact-ingress library compares a projection with locally owned claims,
+  admits exact impact documents, and asks local Resident Self to schedule
+  permitted pressure.
 
-Each organ has its own store. The local Mind, private identity, publisher
-events, CultMesh publication, Odin catalog, projection, and impact scheduler
-state are never collapsed into a writable mega-graph.
+These are typed library owners, not three production daemons. The former
+command wrappers had no unit, live consumer, deployment phase, or independent
+failure-isolation contract and are not shipped. If the operational gate is
+adopted, its process topology must be designed from the admitted lifecycle
+rather than resurrected from those wrappers. The local Mind, private identity,
+publisher events, CultMesh publication, Odin catalog, projection, and impact
+scheduler state must not collapse into a writable mega-graph.
 
 ## Starfire pilot topology
 
@@ -148,7 +152,7 @@ pinned by exact repository coordinates; key rotation is operator-gated.
 ## Rollout gates
 
 1. Keep impact ingress absent. Let ordinary Modeling admit the three local seed
-   facts into isolated Mind stores, then run the publishers and projector until
+   facts into isolated Mind stores, then exercise the publisher and projector owners until
    signed publications, exact watermarks, and the retained Eve tree exist.
    Engage `atlas.publish`, `atlas.project`, and `atlas.impact_ingress`, run one
    more publisher/projector cycle plus the first ingress cycle, and prove every
@@ -158,9 +162,10 @@ pinned by exact repository coordinates; key rotation is operator-gated.
 2. Release Atlas scopes for Modeling and Soul while leaving existing Hands
    authorization unchanged. A temporary Eve contract change must wake Odin
    Modeling and then Epiphany Modeling without an operator prompt.
-3. Place the organs under the existing daemon supervisor. Sustain the pilot
-   while observing publisher/projector lag, per-publisher watermarks,
-   rejection count, cycles, and pending impacts through CultMesh/Eve.
+3. Admit only the minimum Idunn-managed process topology justified by the
+   proven lifecycle and failure-isolation requirements. Sustain the pilot while
+   observing publisher/projector lag, per-publisher watermarks, rejection
+   count, cycles, and pending impacts through CultMesh/Eve.
 4. Only after sustained local proof, register topology and recovery runbooks in
    `gamecult-ops`. Yggdrasil and the public Verse remain outside V1.
 
