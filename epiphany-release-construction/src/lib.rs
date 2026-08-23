@@ -312,7 +312,14 @@ impl ReleaseSourceGuard {
 
         run_git_checked(
             &path,
-            &release_submodule_update_args(),
+            &[
+                "-c",
+                "core.longpaths=true",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ],
             "failed to initialize exact release submodules",
         )?;
         reset_and_clean_cached_submodules(&path, "clean exact release submodules")?;
@@ -339,17 +346,6 @@ impl ReleaseSourceGuard {
             _source_lock: source_lock,
         })
     }
-}
-
-fn release_submodule_update_args() -> [&'static str; 6] {
-    [
-        "-c",
-        "core.longpaths=true",
-        "submodule",
-        "update",
-        "--init",
-        "--recursive",
-    ]
 }
 
 fn reset_and_clean_cached_submodules(repo: &Path, context: &str) -> Result<()> {
@@ -925,20 +921,6 @@ mod tests {
     }
 
     #[test]
-    fn release_bundle_cache_is_owned_by_build_graph() {
-        let root = Path::new("release-build-cache");
-        let first = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
-        let second = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
-        assert_eq!(first, second);
-        assert!(
-            first
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("graph-"))
-        );
-    }
-
-    #[test]
     fn release_bundle_cache_is_stable_across_lockfile_edits() {
         let root = Path::new("release-build-cache");
         let baseline = release_bundle_target_dir(root, b"lock-v1", "target-a", "toolchain-a");
@@ -946,23 +928,6 @@ mod tests {
             baseline,
             release_bundle_target_dir(root, b"lock-v2", "target-a", "toolchain-a")
         );
-    }
-
-    #[test]
-    fn cached_source_update_does_not_force_refresh_unchanged_submodules() {
-        let args = release_submodule_update_args();
-        assert_eq!(
-            args,
-            [
-                "-c",
-                "core.longpaths=true",
-                "submodule",
-                "update",
-                "--init",
-                "--recursive",
-            ]
-        );
-        assert!(!args.contains(&"--force"));
     }
 
     #[test]

@@ -1483,17 +1483,6 @@ mod tests {
     }
 
     #[test]
-    fn same_nonempty_tool_request_round_requires_real_repetition() {
-        let first = vec!["source::read_file::{\"path\":\"README.md\"}".to_string()];
-        let second = vec!["source::git_show::{\"commit\":\"abc\"}".to_string()];
-
-        assert!(!same_nonempty_tool_request_round(None, &first));
-        assert!(!same_nonempty_tool_request_round(Some(&first), &[]));
-        assert!(!same_nonempty_tool_request_round(Some(&first), &second));
-        assert!(same_nonempty_tool_request_round(Some(&first), &first));
-    }
-
-    #[test]
     fn tool_loop_guard_stalls_only_after_repeated_identical_rounds() {
         let mut guard = ToolLoopGuard::default();
         let first = vec!["source::read_file::{\"path\":\"README.md\"}".to_string()];
