@@ -63,7 +63,6 @@ use epiphany_core::{
     epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
 };
 use rand_core::{OsRng, RngCore};
-use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
@@ -71,6 +70,7 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
 use std::thread;
@@ -131,12 +131,6 @@ fn main() -> Result<()> {
 fn dispatch(args: Args) -> Result<()> {
     match args.command.as_str() {
         "managed-service-serve" => managed_service_serve(args),
-        "managed-service-task-plan" => managed_service_task_install(args, false),
-        "managed-service-task-install" => managed_service_task_install(args, true),
-        "managed-service-task-status" => managed_service_task_status(args),
-        "managed-service-task-start" => managed_service_task_control(args, "start"),
-        "managed-service-task-stop" => managed_service_task_control(args, "stop"),
-        "managed-service-task-uninstall" => managed_service_task_control(args, "uninstall"),
         "provider-health-identity-enroll" => provider_health_identity_enroll(args),
         "provider-health-identity-export" => provider_health_identity_export(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
@@ -146,7 +140,7 @@ fn dispatch(args: Args) -> Result<()> {
         }
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, provider-health-identity-enroll/export, semantic-projector-service-status, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
+            "unknown command {other:?}; use managed-service-serve, provider-health-identity-enroll/export, semantic-projector-service-status, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
         ),
     }
 }
@@ -210,12 +204,6 @@ fn lowercase_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn managed_service_task_name(args: &Args) -> String {
-    args.service_name
-        .clone()
-        .unwrap_or_else(|| "Epiphany-Idunn-Managed-Service-Reconciler".to_string())
-}
-
 fn pinned_packaged_release(
     args: &Args,
     require_digest: bool,
@@ -236,322 +224,6 @@ fn pinned_packaged_release(
     let authenticated =
         authenticate_epiphany_packaged_release(&args.store, &args.runtime_id, release_id, &digest)?;
     Ok((authenticated, digest))
-}
-
-fn managed_service_task_action(args: &Args) -> Result<(PathBuf, PathBuf, Vec<String>)> {
-    let (release, witness_digest) = pinned_packaged_release(args, false)?;
-    let command = fs::canonicalize(epiphany_packaged_release_binary_path(
-        &release,
-        "supervisor",
-    )?)
-    .context("witnessed managed-service supervisor is absent")?;
-    let cwd = fs::canonicalize(
-        args.cwd
-            .clone()
-            .unwrap_or(env::current_dir().context("failed to resolve task working directory")?),
-    )
-    .context("managed-service task working directory must exist")?;
-    if !command.is_absolute() || !cwd.is_absolute() {
-        anyhow::bail!("managed-service task command and working directory must be absolute");
-    }
-    let mut action_args = vec![
-        "managed-service-serve".to_string(),
-        "--store".to_string(),
-        absolutize_from(&cwd, &args.store).display().to_string(),
-        "--runtime-id".to_string(),
-        args.runtime_id.clone(),
-        "--loop-interval-seconds".to_string(),
-        args.loop_interval_seconds.to_string(),
-        "--release-id".to_string(),
-        release.release_id.clone(),
-        "--release-witness-sha256".to_string(),
-        witness_digest,
-        "--fatal-log".to_string(),
-        absolutize_from(
-            &cwd,
-            args.fatal_log.as_deref().unwrap_or_else(|| {
-                Path::new(".epiphany-run/services/managed-service-scheduler.fatal.log")
-            }),
-        )
-        .display()
-        .to_string(),
-    ];
-    if args.max_iterations != 0 {
-        action_args.extend([
-            "--max-iterations".to_string(),
-            args.max_iterations.to_string(),
-        ]);
-    }
-    Ok((command, cwd, action_args))
-}
-
-fn absolutize_from(cwd: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        cwd.join(path)
-    }
-}
-
-fn managed_service_task_install(args: Args, execute: bool) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let started_at = Utc::now();
-    let task_name = managed_service_task_name(&args);
-    let (command, cwd, action_args) = managed_service_task_action(&args)?;
-    let argument_line = windows_command_line(&action_args);
-    let delay = format!("PT{}S", args.task_logon_delay_seconds);
-    let register_script = format!(
-        "$ErrorActionPreference='Stop'; $user=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name; \
-$action=New-ScheduledTaskAction -Execute {} -Argument {} -WorkingDirectory {}; \
-$trigger=New-ScheduledTaskTrigger -AtLogOn -User $user; $trigger.Delay={}; \
-$recoveryTrigger=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval ([TimeSpan]::FromSeconds({})); \
-$principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited; \
-$settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount {} -RestartInterval ([TimeSpan]::FromSeconds({})) -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; \
-Register-ScheduledTask -TaskName {} -Action $action -Trigger @($trigger,$recoveryTrigger) -Principal $principal -Settings $settings -Description 'Idunn foreground managed-service reconciler; typed local Verse policy remains authority.' -Force | Out-Null",
-        quote_powershell(&command.display().to_string()),
-        quote_powershell(&argument_line),
-        quote_powershell(&cwd.display().to_string()),
-        quote_powershell(&delay),
-        args.task_restart_interval_seconds,
-        args.task_restart_count,
-        args.task_restart_interval_seconds,
-        quote_powershell(&task_name),
-    );
-    let readback_script = managed_service_task_readback_script(
-        &task_name,
-        &command,
-        &argument_line,
-        &cwd,
-        &delay,
-        args.task_restart_count,
-        args.task_restart_interval_seconds,
-    );
-    let script = format!("{register_script}; {readback_script}");
-    let (status, exit_code, stdout, stderr) = if execute {
-        let output = run_powershell(&script)?;
-        let drifted = output.status.success() && task_readback_has_drift(&output.stdout)?;
-        let status = if !output.status.success() {
-            "install-failed"
-        } else if drifted {
-            "install-drift"
-        } else {
-            "installed"
-        };
-        (
-            status,
-            output.status.code(),
-            String::from_utf8_lossy(&output.stdout).trim().to_string(),
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        )
-    } else {
-        ("planned", None, String::new(), String::new())
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "managed-service-task-install",
-        status,
-        command.display().to_string(),
-        action_args.clone(),
-        None,
-        exit_code,
-        started_at,
-        Some(Utc::now()),
-        Some(format!("task-scheduler://windows/{task_name}")),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion":"epiphany.windows.managed_service_task.v0", "status":status,
-            "taskName":task_name, "receiptId":written.receipt_id, "executeRequested":execute,
-            "principal":{"user":"current-user","logonType":"InteractiveToken","runLevel":"Limited"},
-            "trigger":{"kind":"AtLogOn","delaySeconds":args.task_logon_delay_seconds},
-            "settings":{"multipleInstances":"IgnoreNew","restartCount":args.task_restart_count,
-              "restartIntervalSeconds":args.task_restart_interval_seconds,"executionTimeLimitSeconds":0,
-              "startWhenAvailable":true,"allowStartIfOnBatteries":true,"stopIfGoingOnBatteries":false},
-            "action":{"command":command,"args":action_args,"workingDirectory":cwd},
-            "exitCode":exit_code,"stdout":stdout,"stderr":stderr,"privateStateExposed":false
-        }))?
-    );
-    if execute && status != "installed" {
-        anyhow::bail!(
-            "scheduled task installation did not verify: stdout={stdout}; stderr={stderr}"
-        );
-    }
-    Ok(())
-}
-
-fn managed_service_task_status(args: Args) -> Result<()> {
-    managed_service_task_operation(args, "status")
-}
-
-fn managed_service_task_control(args: Args, operation: &str) -> Result<()> {
-    managed_service_task_operation(args, operation)
-}
-
-fn managed_service_task_operation(args: Args, operation: &str) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let started_at = Utc::now();
-    let task_name = managed_service_task_name(&args);
-    let quoted = quote_powershell(&task_name);
-    let script = match operation {
-        "status" => {
-            let (command, cwd, action_args) = managed_service_task_action(&args)?;
-            managed_service_task_readback_script(
-                &task_name,
-                &command,
-                &windows_command_line(&action_args),
-                &cwd,
-                &format!("PT{}S", args.task_logon_delay_seconds),
-                args.task_restart_count,
-                args.task_restart_interval_seconds,
-            )
-        }
-        "start" => format!("$ErrorActionPreference='Stop'; Start-ScheduledTask -TaskName {quoted}"),
-        "stop" => format!("$ErrorActionPreference='Stop'; Stop-ScheduledTask -TaskName {quoted}"),
-        "uninstall" => format!(
-            "$ErrorActionPreference='Stop'; Unregister-ScheduledTask -TaskName {quoted} -Confirm:$false"
-        ),
-        _ => anyhow::bail!("unsupported managed-service task operation {operation}"),
-    };
-    let output = run_powershell(&script)?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let status = if operation == "status" && output.status.code() == Some(3) {
-        "missing".to_string()
-    } else if operation == "status"
-        && output.status.success()
-        && task_readback_has_drift(&output.stdout)?
-    {
-        "drift".to_string()
-    } else if output.status.success() {
-        if operation == "status" {
-            "in-sync".to_string()
-        } else {
-            format!("{operation}-requested")
-        }
-    } else {
-        format!("{operation}-failed")
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        &format!("managed-service-task-{operation}"),
-        &status,
-        "powershell.exe".to_string(),
-        vec!["-NoProfile".to_string(), "-Command".to_string(), script],
-        None,
-        output.status.code(),
-        started_at,
-        Some(Utc::now()),
-        Some(format!("task-scheduler://windows/{task_name}/{operation}")),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(
-            &json!({"schemaVersion":"epiphany.windows.managed_service_task.v0",
-        "status":status,"taskName":task_name,"operation":operation,"receiptId":written.receipt_id,
-        "exitCode":output.status.code(),"stdout":stdout,"stderr":stderr,"privateStateExposed":false})
-        )?
-    );
-    if !output.status.success() && !(operation == "status" && output.status.code() == Some(3)) {
-        anyhow::bail!("scheduled task {operation} failed: {stderr}");
-    }
-    Ok(())
-}
-
-fn managed_service_task_readback_script(
-    task_name: &str,
-    command: &Path,
-    arguments: &str,
-    cwd: &Path,
-    delay: &str,
-    restart_count: u32,
-    restart_interval_seconds: u64,
-) -> String {
-    format!(
-        "$ErrorActionPreference='Stop'; $expectedSid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; function Resolve-TaskSid($id){{try{{(New-Object System.Security.Principal.NTAccount($id)).Translate([System.Security.Principal.SecurityIdentifier]).Value}}catch{{''}}}}; $t=Get-ScheduledTask -TaskName {} -ErrorAction SilentlyContinue; if($null -eq $t){{'missing';exit 3}}; $i=Get-ScheduledTaskInfo -TaskName {}; $d=@(); \
-if($t.Actions[0].Execute -ne {}){{$d+='action.execute'}}; if($t.Actions[0].Arguments -ne {}){{$d+='action.arguments'}}; if($t.Actions[0].WorkingDirectory -ne {}){{$d+='action.workingDirectory'}}; \
-if((Resolve-TaskSid $t.Principal.UserId) -ne $expectedSid){{$d+='principal.userId'}}; if([string]$t.Principal.LogonType -notin @('Interactive','InteractiveToken')){{$d+='principal.logonType'}}; if([string]$t.Principal.RunLevel -ne 'Limited'){{$d+='principal.runLevel'}}; \
-if($t.Triggers.Count -ne 2){{$d+='trigger.count'}}; if($t.Triggers[0].CimClass.CimClassName -ne 'MSFT_TaskLogonTrigger'){{$d+='trigger.kind'}}; if((Resolve-TaskSid $t.Triggers[0].UserId) -ne $expectedSid){{$d+='trigger.userId'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Triggers[0].Delay).TotalSeconds -ne [Xml.XmlConvert]::ToTimeSpan({}).TotalSeconds){{$d+='trigger.delay'}}; if($t.Triggers[1].CimClass.CimClassName -ne 'MSFT_TaskTimeTrigger'){{$d+='recoveryTrigger.kind'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Triggers[1].Repetition.Interval).TotalSeconds -ne {}){{$d+='recoveryTrigger.interval'}}; \
-if([string]$t.Settings.MultipleInstances -ne 'IgnoreNew'){{$d+='settings.multipleInstances'}}; if($t.Settings.RestartCount -ne {}){{$d+='settings.restartCount'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Settings.RestartInterval).TotalSeconds -ne {}){{$d+='settings.restartInterval'}}; \
-if([Xml.XmlConvert]::ToTimeSpan([string]$t.Settings.ExecutionTimeLimit).TotalSeconds -ne 0){{$d+='settings.executionTimeLimit'}}; if($t.Settings.DisallowStartIfOnBatteries){{$d+='settings.allowStartIfOnBatteries'}}; if($t.Settings.StopIfGoingOnBatteries){{$d+='settings.stopIfGoingOnBatteries'}}; \
-[pscustomobject]@{{TaskName=$t.TaskName;State=[string]$t.State;LastRunTime=$i.LastRunTime;LastTaskResult=$i.LastTaskResult;NextRunTime=$i.NextRunTime;Execute=$t.Actions[0].Execute;Arguments=$t.Actions[0].Arguments;WorkingDirectory=$t.Actions[0].WorkingDirectory;UserId=$t.Principal.UserId;LogonType=[string]$t.Principal.LogonType;RunLevel=[string]$t.Principal.RunLevel;DriftReasons=$d}}|ConvertTo-Json -Compress",
-        quote_powershell(task_name),
-        quote_powershell(task_name),
-        quote_powershell(&command.display().to_string()),
-        quote_powershell(arguments),
-        quote_powershell(&cwd.display().to_string()),
-        quote_powershell(delay),
-        restart_interval_seconds,
-        restart_count,
-        restart_interval_seconds,
-    )
-}
-
-fn task_readback_has_drift(stdout: &[u8]) -> Result<bool> {
-    let value: Value =
-        serde_json::from_slice(stdout).context("failed to parse scheduled-task readback")?;
-    Ok(value
-        .get("DriftReasons")
-        .and_then(Value::as_array)
-        .is_none_or(|reasons| !reasons.is_empty()))
-}
-
-fn run_powershell(script: &str) -> Result<std::process::Output> {
-    Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-NonInteractive")
-        .arg("-Command")
-        .arg(script)
-        .output()
-        .context("failed to invoke Windows Task Scheduler through PowerShell")
-}
-
-fn windows_command_line(args: &[String]) -> String {
-    args.iter()
-        .map(|arg| windows_quote_argv(arg))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn windows_quote_argv(arg: &str) -> String {
-    if arg.is_empty() {
-        return "\"\"".to_string();
-    }
-    if !arg.chars().any(|ch| ch.is_whitespace() || ch == '"') {
-        return arg.to_string();
-    }
-    let mut quoted = String::from("\"");
-    let mut backslashes = 0_usize;
-    for ch in arg.chars() {
-        if ch == '\\' {
-            backslashes += 1;
-        } else if ch == '"' {
-            quoted.push_str(&"\\".repeat(backslashes * 2 + 1));
-            quoted.push('"');
-            backslashes = 0;
-        } else {
-            quoted.push_str(&"\\".repeat(backslashes));
-            backslashes = 0;
-            quoted.push(ch);
-        }
-    }
-    quoted.push_str(&"\\".repeat(backslashes * 2));
-    quoted.push('"');
-    quoted
 }
 
 fn semantic_projector_service_status(args: Args) -> Result<()> {
@@ -1109,98 +781,22 @@ struct CoverageReplacementEvidence {
     termination_envelope_digest: String,
 }
 
-struct ServiceLaunchOutcome {
-    coverage_launch: Option<WorkspaceCoverageManagedProcessLaunchEntry>,
-}
-
-fn service_launch(args: Args) -> Result<()> {
-    service_launch_internal(args, None, true).map(|_| ())
-}
-
-fn service_launch_internal(
-    args: Args,
-    replacement: Option<CoverageReplacementEvidence>,
-    emit_output: bool,
-) -> Result<ServiceLaunchOutcome> {
+fn spawn_managed_service(
+    args: &Args,
+    command_path: &Path,
+    environment: &[(&str, String)],
+    piped_stdin: bool,
+) -> Result<(Child, Vec<String>, DateTime<Utc>)> {
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
-    let command_path = service_command_path(&args)?;
     let service_args = args.service_args.clone();
-    let coverage_reserved = args.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID;
-    let reserved_executor_id = match args.service_id.as_str() {
-        SEMANTIC_PROJECTOR_SERVICE_ID => Some(SEMANTIC_PROJECTOR_EXECUTOR_ID),
-        _ => None,
-    };
-    let reserved_launch = if let Some(executor_id) = reserved_executor_id {
-        let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
-            &args.store,
-            args.runtime_id.clone(),
-            &args.service_id,
-        )?
-        .context("reserved projector managed policy is absent")?;
-        if command_path != PathBuf::from(&policy.command)
-            || service_args != policy.args
-            || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
-        {
-            anyhow::bail!("reserved projector launch must use the exact current managed policy");
-        }
-        let executable_sha256 = local_file_sha256(&command_path.display().to_string())
-            .map(|digest| format!("sha256-{digest}"))
-            .context("reserved projector executable cannot be fingerprinted")?;
-        Some((
-            policy.policy_id,
-            digest,
-            Uuid::new_v4().to_string(),
-            executable_sha256,
-            executor_id.to_string(),
-        ))
-    } else {
-        None
-    };
-    let coverage_launch = if coverage_reserved {
-        let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
-            &args.store,
-            args.runtime_id.clone(),
-            &args.service_id,
-        )?
-        .context("reserved workspace coverage managed policy is absent")?;
-        if command_path != PathBuf::from(&policy.command)
-            || service_args != policy.args
-            || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
-        {
-            anyhow::bail!("workspace coverage launch must use the exact current managed policy");
-        }
-        let host = open_default_host_identity()
-            .context("workspace coverage launch requires an enrolled host identity")?;
-        let boot = native_boot_identity()
-            .context("workspace coverage launch requires a proven native boot identity")?;
-        let mut seed = [0_u8; 32];
-        OsRng.fill_bytes(&mut seed);
-        let provider_key = SigningKey::from_bytes(&seed);
-        Some((
-            policy,
-            digest,
-            host,
-            boot,
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            seed,
-            provider_key,
-        ))
-    } else {
-        None
-    };
-    let mut command = Command::new(&command_path);
+    let mut command = Command::new(command_path);
     command.args(&service_args);
-    if let Some((_, _, receipt_id, _, _)) = &reserved_launch {
-        command.env("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id);
+    for (key, value) in environment {
+        command.env(key, value);
     }
-    if let Some((_, _, _, _, launch_id, _, _, _)) = &coverage_launch {
-        command.env(
-            "EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID",
-            launch_id.to_string(),
-        );
+    if piped_stdin {
         command.stdin(Stdio::piped());
     } else {
         command.stdin(Stdio::null());
@@ -1228,210 +824,224 @@ fn service_launch_internal(
     {
         command.creation_flags(0x08000000);
     }
-    let mut child = command
+    let child = command
         .spawn()
         .with_context(|| format!("failed to launch service {}", command_path.display()))?;
-    let generic_process_identity = if coverage_launch.is_none() {
-        let identity = match capture_process_instance(child.id()) {
-            Ok(identity) => identity,
-            Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(error)
-                    .context("failed to capture exact managed-service process identity");
-            }
-        };
-        if identity.executable_path != command_path.canonicalize()? {
-            let _ = child.kill();
-            let _ = child.wait();
-            anyhow::bail!("spawned managed-service executable disagrees with launch command");
-        }
-        Some(identity)
-    } else {
-        None
-    };
-    if let Some((
-        policy,
-        policy_digest,
-        host,
-        boot,
-        launch_id,
-        incarnation_id,
-        mut seed,
-        provider_key,
-    )) = coverage_launch
+    Ok((child, service_args, started_at))
+}
+
+fn launch_semantic_projector(args: Args) -> Result<()> {
+    let (policy, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        &args.store,
+        args.runtime_id.clone(),
+        SEMANTIC_PROJECTOR_SERVICE_ID,
+    )?
+    .context("semantic projector managed policy is absent")?;
+    let command_path = service_command_path(&args)?;
+    if command_path != PathBuf::from(&policy.command)
+        || args.service_args != policy.args
+        || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
     {
-        let persist_result = (|| -> Result<WorkspaceCoverageManagedProcessLaunchEntry> {
-            let process = capture_process_instance(child.id())
-                .context("failed to capture exact workspace coverage process identity")?;
-            let canonical_executable = command_path
-                .canonicalize()
-                .context("failed to canonicalize workspace coverage executable")?;
-            if process.executable_path != canonical_executable {
-                anyhow::bail!(
-                    "spawned workspace coverage process executable disagrees with policy command"
-                );
-            }
-            let executable_sha256 = local_file_sha256(&canonical_executable.display().to_string())
-                .map(|digest| format!("sha256-{digest}"))
-                .context("workspace coverage executable cannot be fingerprinted")?;
-            let mut bootstrap = WorkspaceCoverageProcessBootstrap {
-                launch_id,
-                provider_signing_seed: seed,
-            };
-            let mut stdin = child
-                .stdin
-                .take()
-                .context("workspace coverage child stdin is unavailable")?;
-            write_workspace_coverage_process_bootstrap(&mut stdin, &bootstrap)?;
-            drop(stdin);
-            bootstrap.provider_signing_seed.zeroize();
-            seed.zeroize();
-            let launched_at = started_at.to_rfc3339();
-            let mut launch = WorkspaceCoverageManagedProcessLaunchEntry {
-                schema_version: WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION.to_string(),
-                launch_id: launch_id.to_string(),
-                service_id: WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string(),
-                provider_daemon_id: WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID.to_string(),
-                runtime_id: args.runtime_id.clone(),
-                policy_id: policy.policy_id,
-                policy_envelope_digest: policy_digest,
-                command: policy.command,
-                args: policy.args,
-                cwd: policy.cwd,
-                launched_at_utc: launched_at,
-                host_identity_id: host.entry().identity_id.clone(),
-                host_public_key: host.entry().public_key.clone(),
-                host_assurance: host.entry().assurance.clone(),
-                host_identity_record_digest: workspace_coverage_host_identity_record_digest(
-                    host.entry(),
-                )?,
-                boot_identity: boot,
-                process_id: process.process_id,
-                process_creation_token: process.creation_token,
-                process_created_at_rfc3339: process.created_at_rfc3339,
-                process_executable_path: process.executable_path.display().to_string(),
-                executable_sha256,
-                provider_incarnation_id: incarnation_id.to_string(),
-                provider_public_key: provider_key.verifying_key().to_bytes().to_vec(),
-                host_signature: Vec::new(),
-                supervisor_id: "epiphany-daemon-supervisor".to_string(),
-                identity_captured_at_utc: Utc::now().to_rfc3339(),
-                signature_algorithm: "ed25519".to_string(),
-                replaces_launch_id: replacement
-                    .as_ref()
-                    .map(|evidence| evidence.old_launch_id.clone()),
-                replaces_termination_id: replacement
-                    .as_ref()
-                    .map(|evidence| evidence.termination_id.clone()),
-                replaces_termination_envelope_digest: replacement
-                    .as_ref()
-                    .map(|evidence| evidence.termination_envelope_digest.clone()),
-            };
-            sign_workspace_coverage_launch(&mut launch, &host)?;
-            write_workspace_coverage_managed_process_launch(
-                &args.store,
-                args.runtime_id.clone(),
-                launch,
-                host.entry(),
-            )
-        })();
-        seed.zeroize();
-        match persist_result {
-            Ok(written) => {
-                if emit_output {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&json!({
-                            "status": "launched",
-                            "store": args.store,
-                            "runtimeId": args.runtime_id,
-                            "serviceId": written.service_id,
-                            "launchId": written.launch_id,
-                            "processId": written.process_id,
-                            "privateStateExposed": false,
-                        }))?
-                    );
-                }
-                return Ok(ServiceLaunchOutcome {
-                    coverage_launch: Some(written),
-                });
-            }
-            Err(error) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(error)
-                    .context("failed to establish authenticated workspace coverage launch");
-            }
-        }
+        anyhow::bail!("semantic projector launch must use the exact current managed policy");
     }
-    let process_id = Some(child.id());
-    let mut receipt = service_lifecycle_receipt(
-        &args,
-        "launch",
-        "launched",
-        command_path.display().to_string(),
-        service_args,
-        process_id,
-        None,
-        started_at,
-        Some(Utc::now()),
-        args.stdout_artifact
-            .as_ref()
-            .map(|path| path.display().to_string()),
-    );
-    if let Some(identity) = generic_process_identity {
+    let receipt_id = Uuid::new_v4().to_string();
+    let executable_sha256 = local_file_sha256(&command_path.display().to_string())
+        .map(|digest| format!("sha256-{digest}"))
+        .context("semantic projector executable cannot be fingerprinted")?;
+    let environment = [("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id.clone())];
+    let (mut child, service_args, started_at) =
+        spawn_managed_service(&args, &command_path, &environment, false)?;
+    let persist_result = (|| {
+        let identity = capture_process_instance(child.id())
+            .context("failed to capture exact semantic projector process identity")?;
+        if identity.executable_path != command_path.canonicalize()? {
+            anyhow::bail!("spawned semantic projector executable disagrees with policy command");
+        }
+        let mut receipt = service_lifecycle_receipt(
+            &args,
+            "launch",
+            "launched",
+            command_path.display().to_string(),
+            service_args,
+            Some(child.id()),
+            None,
+            started_at,
+            Some(Utc::now()),
+            args.stdout_artifact
+                .as_ref()
+                .map(|path| path.display().to_string()),
+        );
+        receipt.receipt_id = receipt_id.clone();
+        receipt.managed_policy_id = policy.policy_id;
+        receipt.managed_policy_digest = policy_digest;
+        receipt.provider_daemon_id = SEMANTIC_PROJECTOR_EXECUTOR_ID.to_string();
+        receipt.startup_correlation_id = receipt_id;
+        receipt.executable_sha256 = executable_sha256;
         receipt.process_creation_token = identity.creation_token;
         receipt.process_created_at_rfc3339 = identity.created_at_rfc3339;
         receipt.process_executable_path = identity.executable_path.display().to_string();
-    }
-    if let Some((policy_id, policy_digest, receipt_id, executable_sha256, executor_id)) =
-        reserved_launch
-    {
-        receipt.receipt_id = receipt_id.clone();
-        receipt.managed_policy_id = policy_id;
-        receipt.managed_policy_digest = policy_digest;
-        receipt.provider_daemon_id = executor_id;
-        receipt.startup_correlation_id = receipt_id;
-        receipt.executable_sha256 = executable_sha256;
-    }
-    let written = match write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    ) {
+        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &args.store,
+            args.runtime_id.clone(),
+            receipt,
+        )
+    })();
+    let written = match persist_result {
         Ok(written) => written,
         Err(error) => {
-            if reserved_executor_id.is_some() {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-            return Err(error).context("failed to persist service launch receipt");
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error).context("failed to establish authenticated semantic launch");
         }
     };
-    if emit_output {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
             "status": written.status,
             "store": args.store,
             "runtimeId": args.runtime_id,
             "serviceId": written.service_id,
             "receiptId": written.receipt_id,
             "processId": written.process_id,
-            "exitCode": written.exit_code,
             "stdoutArtifact": args.stdout_artifact,
             "stderrArtifact": args.stderr_artifact,
-            "privateStateExposed": written.private_state_exposed,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
+}
+
+fn launch_workspace_coverage_projector(
+    args: Args,
+    replacement: Option<CoverageReplacementEvidence>,
+    emit_output: bool,
+) -> Result<WorkspaceCoverageManagedProcessLaunchEntry> {
+    let (policy, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        &args.store,
+        args.runtime_id.clone(),
+        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+    )?
+    .context("workspace coverage managed policy is absent")?;
+    let command_path = service_command_path(&args)?;
+    if command_path != PathBuf::from(&policy.command)
+        || args.service_args != policy.args
+        || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
+    {
+        anyhow::bail!("workspace coverage launch must use the exact current managed policy");
+    }
+    let host = open_default_host_identity()
+        .context("workspace coverage launch requires an enrolled host identity")?;
+    let boot = native_boot_identity()
+        .context("workspace coverage launch requires a proven native boot identity")?;
+    let launch_id = Uuid::new_v4();
+    let incarnation_id = Uuid::new_v4();
+    let mut seed = [0_u8; 32];
+    OsRng.fill_bytes(&mut seed);
+    let provider_key = SigningKey::from_bytes(&seed);
+    let environment = [("EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID", launch_id.to_string())];
+    let (mut child, _, started_at) =
+        spawn_managed_service(&args, &command_path, &environment, true)?;
+    let persist_result = (|| -> Result<WorkspaceCoverageManagedProcessLaunchEntry> {
+        let process = capture_process_instance(child.id())
+            .context("failed to capture exact workspace coverage process identity")?;
+        let canonical_executable = command_path
+            .canonicalize()
+            .context("failed to canonicalize workspace coverage executable")?;
+        if process.executable_path != canonical_executable {
+            anyhow::bail!(
+                "spawned workspace coverage process executable disagrees with policy command"
+            );
+        }
+        let executable_sha256 = local_file_sha256(&canonical_executable.display().to_string())
+            .map(|digest| format!("sha256-{digest}"))
+            .context("workspace coverage executable cannot be fingerprinted")?;
+        let mut bootstrap = WorkspaceCoverageProcessBootstrap {
+            launch_id,
+            provider_signing_seed: seed,
+        };
+        let mut stdin = child
+            .stdin
+            .take()
+            .context("workspace coverage child stdin is unavailable")?;
+        write_workspace_coverage_process_bootstrap(&mut stdin, &bootstrap)?;
+        drop(stdin);
+        bootstrap.provider_signing_seed.zeroize();
+        seed.zeroize();
+        let mut launch = WorkspaceCoverageManagedProcessLaunchEntry {
+            schema_version: WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION.to_string(),
+            launch_id: launch_id.to_string(),
+            service_id: WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string(),
+            provider_daemon_id: WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID.to_string(),
+            runtime_id: args.runtime_id.clone(),
+            policy_id: policy.policy_id,
+            policy_envelope_digest: policy_digest,
+            command: policy.command,
+            args: policy.args,
+            cwd: policy.cwd,
+            launched_at_utc: started_at.to_rfc3339(),
+            host_identity_id: host.entry().identity_id.clone(),
+            host_public_key: host.entry().public_key.clone(),
+            host_assurance: host.entry().assurance.clone(),
+            host_identity_record_digest: workspace_coverage_host_identity_record_digest(
+                host.entry(),
+            )?,
+            boot_identity: boot,
+            process_id: process.process_id,
+            process_creation_token: process.creation_token,
+            process_created_at_rfc3339: process.created_at_rfc3339,
+            process_executable_path: process.executable_path.display().to_string(),
+            executable_sha256,
+            provider_incarnation_id: incarnation_id.to_string(),
+            provider_public_key: provider_key.verifying_key().to_bytes().to_vec(),
+            host_signature: Vec::new(),
+            supervisor_id: "epiphany-daemon-supervisor".to_string(),
+            identity_captured_at_utc: Utc::now().to_rfc3339(),
+            signature_algorithm: "ed25519".to_string(),
+            replaces_launch_id: replacement
+                .as_ref()
+                .map(|evidence| evidence.old_launch_id.clone()),
+            replaces_termination_id: replacement
+                .as_ref()
+                .map(|evidence| evidence.termination_id.clone()),
+            replaces_termination_envelope_digest: replacement
+                .as_ref()
+                .map(|evidence| evidence.termination_envelope_digest.clone()),
+        };
+        sign_workspace_coverage_launch(&mut launch, &host)?;
+        write_workspace_coverage_managed_process_launch(
+            &args.store,
+            args.runtime_id.clone(),
+            launch,
+            host.entry(),
+        )
+    })();
+    seed.zeroize();
+    let written = match persist_result {
+        Ok(written) => written,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error).context("failed to establish authenticated workspace coverage launch");
+        }
+    };
+    if emit_output {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "status": "launched",
+                "store": args.store,
+                "runtimeId": args.runtime_id,
+                "serviceId": written.service_id,
+                "launchId": written.launch_id,
+                "processId": written.process_id,
+                "privateStateExposed": false,
             }))?
         );
     }
-    Ok(ServiceLaunchOutcome {
-        coverage_launch: None,
-    })
+    Ok(written)
 }
 
-fn write_managed_service_policy(args: Args) -> Result<()> {
+fn build_managed_service_policy(args: &Args) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
     require_supervisor_bootstrap(&args)?;
 
     let command = service_command_path(&args)?;
@@ -1447,7 +1057,7 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
             args.service_id
         ))
     });
-    let policy = EpiphanyCultMeshManagedServicePolicyEntry {
+    Ok(EpiphanyCultMeshManagedServicePolicyEntry {
         schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
         policy_id: format!("managed-service-policy-{}", sanitize_id(&args.service_id)),
         service_id: args.service_id.clone(),
@@ -1459,24 +1069,12 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
         stdout_artifact: stdout_artifact.display().to_string(),
         stderr_artifact: stderr_artifact.display().to_string(),
         private_state_exposed: false,
-    };
-    let written = if policy.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
-        write_epiphany_cultmesh_semantic_projector_service_policy(
-            &args.store,
-            args.runtime_id.clone(),
-            policy,
-        )?
-    } else if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
-        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
-            &args.store,
-            args.runtime_id.clone(),
-            policy,
-        )?
-    } else {
-        anyhow::bail!(
-            "generic managed-service policy writing is retired; use an owning specialized policy command"
-        );
-    };
+    })
+}
+
+fn report_managed_service_policy(
+    written: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -1493,6 +1091,14 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+fn bind_managed_policy(args: &mut Args, policy: &EpiphanyCultMeshManagedServicePolicyEntry) {
+    args.service_command = Some(PathBuf::from(&policy.command));
+    args.service_args = policy.args.clone();
+    args.cwd = policy.cwd.as_ref().map(PathBuf::from);
+    args.stdout_artifact = Some(PathBuf::from(&policy.stdout_artifact));
+    args.stderr_artifact = Some(PathBuf::from(&policy.stderr_artifact));
 }
 
 fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
@@ -1522,7 +1128,13 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
     if args.max_iterations != 0 {
         anyhow::bail!("semantic projector managed service must not have a finite iteration limit");
     }
-    write_managed_service_policy(args)
+    let policy = build_managed_service_policy(&args)?;
+    let written = write_epiphany_cultmesh_semantic_projector_service_policy(
+        &args.store,
+        args.runtime_id,
+        policy,
+    )?;
+    report_managed_service_policy(&written)
 }
 
 fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
@@ -1557,7 +1169,13 @@ fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
             "workspace coverage projector managed service must not have a finite iteration limit"
         );
     }
-    write_managed_service_policy(args)
+    let policy = build_managed_service_policy(&args)?;
+    let written = write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+        &args.store,
+        args.runtime_id,
+        policy,
+    )?;
+    report_managed_service_policy(&written)
 }
 
 fn packaged_role_command_path(args: &Args, role: &str) -> Result<PathBuf> {
@@ -1730,12 +1348,8 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
             }
         }
     }
-    args.service_command = Some(PathBuf::from(&policy.command));
-    args.service_args = policy.args.clone();
-    args.cwd = policy.cwd.as_ref().map(PathBuf::from);
-    args.stdout_artifact = Some(PathBuf::from(&policy.stdout_artifact));
-    args.stderr_artifact = Some(PathBuf::from(&policy.stderr_artifact));
-    service_launch(args)
+    bind_managed_policy(&mut args, &policy);
+    launch_semantic_projector(args)
 }
 
 fn terminate_native_process_instance(identity: &ProcessInstanceIdentity) -> Result<()> {
@@ -1800,12 +1414,8 @@ fn reconcile_workspace_coverage_projector(
         }
     };
     let Some(latest) = latest else {
-        args.service_command = Some(PathBuf::from(&policy.command));
-        args.service_args = policy.args.clone();
-        args.cwd = policy.cwd.clone().map(PathBuf::from);
-        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
-        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
-        let _ = service_launch_internal(args, None, true)?;
+        bind_managed_policy(&mut args, &policy);
+        launch_workspace_coverage_projector(args, None, true)?;
         return Ok(());
     };
     let current_policy_matches_latest = latest.policy_id == policy.policy_id
@@ -1899,12 +1509,8 @@ fn reconcile_workspace_coverage_projector(
                 &latest.launch_id,
                 host.entry(),
             )?;
-        args.service_command = Some(PathBuf::from(&policy.command));
-        args.service_args = policy.args.clone();
-        args.cwd = policy.cwd.clone().map(PathBuf::from);
-        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
-        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
-        let _ = service_launch_internal(
+        bind_managed_policy(&mut args, &policy);
+        launch_workspace_coverage_projector(
             args,
             Some(CoverageReplacementEvidence {
                 old_launch_id: latest.launch_id,
@@ -2042,12 +1648,8 @@ fn reconcile_workspace_coverage_projector(
                 &latest.launch_id,
                 host.entry(),
             )?;
-        args.service_command = Some(PathBuf::from(&policy.command));
-        args.service_args = policy.args.clone();
-        args.cwd = policy.cwd.clone().map(PathBuf::from);
-        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
-        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
-        let launched = service_launch_internal(
+        bind_managed_policy(&mut args, &policy);
+        let launched = launch_workspace_coverage_projector(
             args,
             Some(CoverageReplacementEvidence {
                 old_launch_id: latest.launch_id,
@@ -2055,9 +1657,7 @@ fn reconcile_workspace_coverage_projector(
                 termination_envelope_digest: termination_digest,
             }),
             false,
-        )?
-        .coverage_launch
-        .context("terminal workspace coverage observer restart returned no launch identity")?;
+        )?;
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -2350,17 +1950,13 @@ fn reconcile_workspace_coverage_projector(
     let (replacement, launched_now) = if let Some(existing) = existing_replacement {
         (existing, false)
     } else {
-        args.service_command = Some(PathBuf::from(&policy.command));
-        args.service_args = policy.args.clone();
-        args.cwd = policy.cwd.clone().map(PathBuf::from);
-        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
-        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
+        bind_managed_policy(&mut args, &policy);
         (
-            service_launch_internal(args.clone(), Some(replacement_evidence), false)?
-                .coverage_launch
-                .context(
-                    "workspace coverage replacement launch returned no specialized identity",
-                )?,
+            launch_workspace_coverage_projector(
+                args.clone(),
+                Some(replacement_evidence),
+                false,
+            )?,
             true,
         )
     };
@@ -2524,10 +2120,6 @@ fn service_command_path(args: &Args) -> Result<PathBuf> {
         .context("managed service command was not derived from its packaged role")
 }
 
-fn quote_powershell(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-
 fn service_lifecycle_receipt(
     args: &Args,
     action: &str,
@@ -2672,28 +2264,6 @@ mod supervisor_invariant_tests {
     use super::*;
 
     #[test]
-    fn windows_argv_quoting_preserves_paths_and_escapes_parser_boundaries() {
-        assert_eq!(
-            windows_quote_argv(r"C:\Epiphany\bin.exe"),
-            r"C:\Epiphany\bin.exe"
-        );
-        assert_eq!(
-            windows_quote_argv(r"C:\Program Files\Epiphany"),
-            r#""C:\Program Files\Epiphany""#
-        );
-        assert_eq!(windows_quote_argv(""), "\"\"");
-        assert_eq!(windows_quote_argv(r#"a"b"#), r#""a\"b""#);
-        assert_eq!(
-            windows_quote_argv("ends with slash\\"),
-            r#""ends with slash\\""#
-        );
-        assert_eq!(
-            windows_command_line(&[r"C:\Mind\state.cc".to_string(), "two words".to_string()]),
-            r#"C:\Mind\state.cc "two words""#
-        );
-    }
-
-    #[test]
     fn idunn_health_configuration_is_explicit_and_all_or_none() {
         let endpoint: SocketAddr = "127.0.0.1:17870".parse().unwrap();
         let identity_store = Path::new("provider-health.cc");
@@ -2799,7 +2369,6 @@ struct Args {
     disabled: bool,
     cooldown_seconds: i64,
     service_id: String,
-    service_name: Option<String>,
     service_command: Option<PathBuf>,
     service_args: Vec<String>,
     loop_interval_seconds: i64,
@@ -2814,9 +2383,6 @@ struct Args {
     ollama_base_url: Option<String>,
     ollama_model: String,
     fatal_log: Option<PathBuf>,
-    task_logon_delay_seconds: u64,
-    task_restart_interval_seconds: u64,
-    task_restart_count: u32,
     release_id: Option<String>,
     release_witness_sha256: Option<String>,
     idunn_rudp_health: Option<SocketAddr>,
@@ -2841,7 +2407,6 @@ impl Args {
         let mut disabled = false;
         let mut cooldown_seconds = 0_i64;
         let service_id = String::new();
-        let mut service_name = None;
         let service_command = None;
         let service_args = Vec::new();
         let mut loop_interval_seconds = 60_i64;
@@ -2855,9 +2420,6 @@ impl Args {
         let mut qdrant_url = None;
         let mut ollama_base_url = None;
         let mut ollama_model = "qwen3-embedding:0.6b".to_string();
-        let mut task_logon_delay_seconds = 30_u64;
-        let mut task_restart_interval_seconds = 60_u64;
-        let mut task_restart_count = 999_u32;
         let mut fatal_log = None;
         let mut release_id = None;
         let mut release_witness_sha256 = None;
@@ -2887,9 +2449,6 @@ impl Args {
                         .next()
                         .context("missing --cooldown-seconds value")?
                         .parse()?;
-                }
-                "--service-name" => {
-                    service_name = Some(values.next().context("missing --service-name value")?)
                 }
                 "--loop-interval-seconds" | "--serve-interval-seconds" => {
                     loop_interval_seconds = values
@@ -2941,24 +2500,6 @@ impl Args {
                 }
                 "--ollama-model" => {
                     ollama_model = values.next().context("missing --ollama-model value")?
-                }
-                "--task-logon-delay-seconds" => {
-                    task_logon_delay_seconds = values
-                        .next()
-                        .context("missing --task-logon-delay-seconds value")?
-                        .parse()?;
-                }
-                "--task-restart-interval-seconds" => {
-                    task_restart_interval_seconds = values
-                        .next()
-                        .context("missing --task-restart-interval-seconds value")?
-                        .parse()?;
-                }
-                "--task-restart-count" => {
-                    task_restart_count = values
-                        .next()
-                        .context("missing --task-restart-count value")?
-                        .parse()?;
                 }
                 "--fatal-log" => {
                     fatal_log = Some(PathBuf::from(
@@ -3092,7 +2633,6 @@ impl Args {
             disabled,
             cooldown_seconds,
             service_id,
-            service_name,
             service_command,
             service_args,
             loop_interval_seconds,
@@ -3107,9 +2647,6 @@ impl Args {
             ollama_base_url,
             ollama_model,
             fatal_log,
-            task_logon_delay_seconds,
-            task_restart_interval_seconds,
-            task_restart_count,
             release_id,
             release_witness_sha256,
             idunn_rudp_health,
