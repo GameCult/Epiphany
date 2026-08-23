@@ -8,13 +8,13 @@ use epiphany_core::{
     EpiphanyMindPersonaMemoryDocument, EpiphanyMindPersonaPassInputDocument, PersonaIdentity,
     PersonaProjectorInput, PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage,
     PersonaTurnRequest, PersonaTurnTerminalOptions, admit_persona_pass_input, assemble_mind_view,
-    complete_persona_social_turn, default_organ_dependencies_for,
-    exchange_persona_discord_delivery_rudp, load_admitted_persona_pass_input,
-    load_epiphany_cultmesh_swarm_brake, load_persona_discord_receipt_anchor,
-    load_persona_discord_service_anchor, open_persona_discord_request_identity,
-    pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
-    persona_model_terminal_exists, persona_turn_request_source, persona_turn_requests,
-    poll_persona_discord_crossing, pulse_persona_social, reconcile_terminal_persona_conversation,
+    complete_persona_social_turn, exchange_persona_discord_delivery_rudp,
+    load_admitted_persona_pass_input, load_epiphany_cultmesh_swarm_brake,
+    load_persona_discord_receipt_anchor, load_persona_discord_service_anchor,
+    open_persona_discord_request_identity, pending_persona_discord_delivery_request_for_turn,
+    persona_delivery_receipt_exists_for_turn, persona_model_terminal_exists,
+    persona_turn_request_source, persona_turn_requests, poll_persona_discord_crossing,
+    pulse_persona_social, reconcile_terminal_persona_conversation,
     retain_terminal_persona_conversations, validate_persona_discord_request_anchor,
 };
 use epiphany_openai_runtime::{
@@ -246,7 +246,6 @@ fn ensure_persona_pass_input_admitted(
         pending_mentions: request.mentions.clone(),
         repo_activity,
         social_affordances,
-        organ_dependencies: vec![default_organ_dependencies_for("Persona")],
     };
     let social_source = persona_turn_request_source(&options.social_store, &request.request_id)?;
     let mut observed_sources = vec![social_source.clone()];

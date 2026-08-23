@@ -1,8 +1,5 @@
 use crate::EpiphanyMindPersonaMemoryDocument;
-use crate::EpiphanyOrganDependency;
 use crate::PersonaSocialMention;
-use crate::default_organ_dependencies_for;
-use crate::render_organ_dependencies;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::DatabaseEntry;
@@ -13,7 +10,7 @@ use serde_json::Value;
 use std::path::Path;
 
 pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
-    "epiphany.imagination_persona_projector_prompt.v0";
+    "epiphany.imagination_persona_projector_prompt.v1";
 pub const PERSONA_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_turn_prompt.v0";
 pub const PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION: &str =
     "epiphany.persona_interpreter_prompt.v0";
@@ -248,8 +245,6 @@ pub struct PersonaProjectorInput {
     pub repo_activity: Vec<PersonaRepoActivity>,
     #[serde(default)]
     pub social_affordances: Vec<PersonaSocialAffordance>,
-    #[serde(default)]
-    pub organ_dependencies: Vec<EpiphanyOrganDependency>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -284,13 +279,8 @@ pub fn build_persona_projector_prompt_with_transcript(
     transcript: &[PersonaTranscriptMessage],
 ) -> String {
     let memory = render_memory_packet(&input.memories);
-    let dependencies = if input.organ_dependencies.is_empty() {
-        vec![default_organ_dependencies_for("Persona")]
-    } else {
-        input.organ_dependencies.clone()
-    };
     let typed_context = format!(
-        "prompt schema: {schema}\nPersona identity:\n{identity}\n\nTyped memory packet:\n{memory}\n\nSemantic memory recall:\n{semantic_recall}\n\nPending addressed pressure:\n{mentions}\n\nRecent home-repo activity:\n{activity}\n\nLive social affordances:\n{affordances}\n\nOrgan dependency contract:\n{dependencies}",
+        "prompt schema: {schema}\nPersona identity:\n{identity}\n\nTyped memory packet:\n{memory}\n\nSemantic memory recall:\n{semantic_recall}\n\nPending addressed pressure:\n{mentions}\n\nRecent home-repo activity:\n{activity}\n\nLive social affordances:\n{affordances}",
         schema = PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION,
         identity = render_identity(&input.identity),
         memory = memory,
@@ -298,7 +288,6 @@ pub fn build_persona_projector_prompt_with_transcript(
         mentions = render_pending_mentions(&input.pending_mentions),
         activity = render_repo_activity(&input.repo_activity),
         affordances = render_social_affordances(&input.social_affordances),
-        dependencies = render_organ_dependencies(&dependencies),
     );
     ghostlight_persona_projection::build_projector_prompt(
         &ghostlight_persona_projection::ProjectorPrompt {
@@ -763,8 +752,6 @@ mod tests {
         assert!(projector.contains("ghostlight.persona_projection_membrane.v1:projector"));
         assert!(projector.contains("Mind alone admits durable state"));
         assert!(projector.contains("Substrate Gate alone grants repo access"));
-        assert!(projector.contains("Organ dependency contract"));
-        assert!(projector.contains("Continuity"));
         assert!(projector.contains("Do not choose actions"));
 
         let transcript = vec![PersonaTranscriptMessage {

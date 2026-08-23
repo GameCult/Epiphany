@@ -20,7 +20,6 @@ use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
-use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION,
@@ -166,7 +165,7 @@ pub const RUNTIME_TOOL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.tool_execution_binding.v0";
 pub const ARCHIVED_RUNTIME_SESSION_SCHEMA_VERSION: &str = "epiphany.runtime.archived_session.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.runtime.worker_launch_request.v1";
+    "epiphany.runtime.worker_launch_request.v2";
 pub const RUNTIME_WORKER_PROCESS_CLAIM_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_process_claim.v0";
 pub const ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION: &str =
@@ -412,8 +411,6 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub launch_document_msgpack: Vec<u8>,
     #[cultcache(key = 9, default)]
     pub metadata: BTreeMap<String, String>,
-    #[cultcache(key = 10, default)]
-    pub organ_launch_contract: EpiphanyLaunchOrganContract,
     #[cultcache(key = 11, default)]
     pub proposal_modeling_request_id: Option<String>,
     #[cultcache(key = 12, default)]
@@ -1037,7 +1034,6 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub instruction: String,
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
-    pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub proposal_modeling_request_id: Option<String>,
     pub frontier_planning_request_id: Option<String>,
     pub frontier_plan_mind_request_id: Option<String>,
@@ -3426,12 +3422,6 @@ pub fn open_runtime_spine_heartbeat_job(
             "worker launch output_contract_id must match the typed launch document"
         ));
     }
-    validate_launch_organ_contract(
-        &options.organ_launch_contract,
-        &options.authority_scope,
-        options.launch_document.document_kind(),
-        &options.output_contract_id,
-    )?;
     validate_non_empty(&options.created_at, "created at")?;
     let store_path = store_path.as_ref();
     let job_id = options.job_id.clone();
@@ -3440,7 +3430,6 @@ pub fn open_runtime_spine_heartbeat_job(
     let authority_scope = options.authority_scope.clone();
     let instruction = options.instruction.clone();
     let output_contract_id = options.output_contract_id.clone();
-    let organ_launch_contract = options.organ_launch_contract.clone();
     let launch_document = options.launch_document.clone();
     initialize_runtime_spine(
         store_path,
@@ -3495,7 +3484,6 @@ pub fn open_runtime_spine_heartbeat_job(
         document_kind: worker_launch_document_kind(&launch_document).to_string(),
         launch_document_msgpack: encode_worker_launch_document(&launch_document)?,
         metadata: BTreeMap::new(),
-        organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
@@ -3569,12 +3557,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
             "worker launch output_contract_id must match the typed launch document"
         ));
     }
-    validate_launch_organ_contract(
-        &options.organ_launch_contract,
-        &options.authority_scope,
-        options.launch_document.document_kind(),
-        &options.output_contract_id,
-    )?;
     validate_non_empty(&options.created_at, "created at")?;
 
     let existing_identity = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
@@ -3664,7 +3646,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         document_kind: worker_launch_document_kind(&options.launch_document).to_string(),
         launch_document_msgpack: encode_worker_launch_document(&options.launch_document)?,
         metadata: BTreeMap::new(),
-        organ_launch_contract: options.organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
@@ -13968,53 +13949,6 @@ fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'sta
 
 fn encode_worker_launch_document(document: &EpiphanyWorkerLaunchDocument) -> Result<Vec<u8>> {
     rmp_serde::to_vec_named(document).context("failed to encode worker launch document MessagePack")
-}
-
-fn validate_launch_organ_contract(
-    contract: &EpiphanyLaunchOrganContract,
-    authority_scope: &str,
-    document_kind: &str,
-    output_contract_id: &str,
-) -> Result<()> {
-    validate_non_empty(
-        &contract.schema_version,
-        "epiphany launch organ contract schema_version",
-    )?;
-    if contract.authority_scope != authority_scope {
-        return Err(anyhow!(
-            "epiphany launch organ contract authority_scope must match the launch request"
-        ));
-    }
-    if contract.document_kind != document_kind {
-        return Err(anyhow!(
-            "epiphany launch organ contract document_kind must match the typed launch document"
-        ));
-    }
-    if contract.output_contract_id != output_contract_id {
-        return Err(anyhow!(
-            "epiphany launch organ contract output_contract_id must match the launch request"
-        ));
-    }
-    validate_non_empty(
-        &contract.owner_organ,
-        "epiphany launch organ contract owner_organ",
-    )?;
-    if contract.dependencies.is_empty() {
-        return Err(anyhow!(
-            "epiphany launch organ contract must carry organ dependencies"
-        ));
-    }
-    if contract.required_receipt_document_types.is_empty() {
-        return Err(anyhow!(
-            "epiphany launch organ contract must carry required receipt document types"
-        ));
-    }
-    if contract.receipt_proof_profiles.is_empty() {
-        return Err(anyhow!(
-            "epiphany launch organ contract must carry effect-specific receipt proof profiles"
-        ));
-    }
-    Ok(())
 }
 
 fn decode_optional_msgpack<T>(payload: Option<&[u8]>, label: &str) -> Result<Option<T>>

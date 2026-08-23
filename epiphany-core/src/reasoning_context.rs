@@ -1976,11 +1976,6 @@ mod tests {
             document_kind: "role".into(),
             launch_document_msgpack: rmp_serde::to_vec_named(&document)?,
             metadata: Default::default(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "epiphany.role.imagination",
-                "role",
-                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-            ),
             proposal_modeling_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,

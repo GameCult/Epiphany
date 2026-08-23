@@ -440,11 +440,6 @@ pub fn launch_current_reorientation_work(
             instruction: "Decide resume or regather from only the sealed typed continuity projection. Return the reorientation result contract; do not invent live state.".into(),
             launch_document,
             output_contract_id: output_contract_id.clone(),
-            organ_launch_contract: crate::default_launch_organ_contract(
-                "epiphany.reorient.decision",
-                "reorient",
-                &output_contract_id,
-            ),
             proposal_modeling_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,

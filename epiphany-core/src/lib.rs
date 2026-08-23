@@ -17,7 +17,6 @@ mod imagination_consideration;
 mod memory_graph;
 mod mind_contracts;
 mod mind_documents;
-mod organ_dependencies;
 mod packaged_release;
 mod persona_conversation;
 mod persona_discord_crossing;
@@ -190,6 +189,7 @@ pub use cultmesh_integration::epiphany_cultmesh_bifrost_github_publication_recei
 pub use cultmesh_integration::epiphany_global_room_policies;
 pub use cultmesh_integration::epiphany_verse_policies;
 pub use cultmesh_integration::idunn_recover_memory_semantic_projection_from_cultmesh;
+pub use cultmesh_integration::load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 pub use cultmesh_integration::load_epiphany_cultmesh_cluster_topology;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_heartbeat_event;
 pub use cultmesh_integration::load_epiphany_cultmesh_daemon_service_lifecycle_receipt;
@@ -199,7 +199,6 @@ pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policy_with
 pub use cultmesh_integration::load_epiphany_cultmesh_semantic_projection_health;
 pub use cultmesh_integration::load_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_heartbeat;
-pub use cultmesh_integration::load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 pub use cultmesh_integration::open_epiphany_cultmesh_node;
 pub use cultmesh_integration::publish_epiphany_cultmesh_semantic_projection_health;
 pub use cultmesh_integration::query_epiphany_local_verse_context;
@@ -362,23 +361,6 @@ pub use memory_graph::validate_memory_semantic_projection_obligation;
 pub use mind_contracts::MindCultNetContract;
 pub use mind_contracts::default_mind_cultnet_contracts;
 pub use mind_documents::*;
-pub use organ_dependencies::EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION;
-pub use organ_dependencies::EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION;
-pub use organ_dependencies::EPIPHANY_STANDING_ORGANS;
-pub use organ_dependencies::EpiphanyLaunchOrganContract;
-pub use organ_dependencies::EpiphanyOrganDependency;
-pub use organ_dependencies::EpiphanyReceiptEffectKind;
-pub use organ_dependencies::EpiphanyReceiptProofEvaluation;
-pub use organ_dependencies::EpiphanyReceiptProofProfile;
-pub use organ_dependencies::default_launch_organ_contract;
-pub use organ_dependencies::default_launch_required_receipts;
-pub use organ_dependencies::default_organ_dependencies_for;
-pub use organ_dependencies::default_organ_dependency_matrix;
-pub use organ_dependencies::default_receipt_proof_profiles;
-pub use organ_dependencies::evaluate_receipt_proof_profiles;
-pub use organ_dependencies::receipt_proof_evaluation_errors;
-pub use organ_dependencies::render_organ_dependencies;
-pub use organ_dependencies::render_organ_dependency;
 pub use packaged_release::{
     EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION, EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
     EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE, EpiphanyPackagedReleaseBinary,

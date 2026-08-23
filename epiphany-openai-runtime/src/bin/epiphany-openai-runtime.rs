@@ -1273,7 +1273,6 @@ mod tests {
     use epiphany_core::EpiphanyRuntimeJobStatus;
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
-    use epiphany_core::default_launch_organ_contract;
     use epiphany_core::open_runtime_spine_heartbeat_job;
     use epiphany_core::runtime_job_snapshot;
     use epiphany_core::runtime_worker_launch_request;
@@ -1660,11 +1659,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                organ_launch_contract: default_launch_organ_contract(
-                    "epiphany.role.verification",
-                    "role",
-                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-                ),
                 proposal_modeling_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
@@ -1778,11 +1772,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                organ_launch_contract: default_launch_organ_contract(
-                    "epiphany.role.verification",
-                    "role",
-                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-                ),
                 proposal_modeling_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
@@ -1918,11 +1907,6 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
-                organ_launch_contract: default_launch_organ_contract(
-                    "epiphany.role.verification",
-                    "role",
-                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
-                ),
                 proposal_modeling_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
