@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `013c3bf1` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `ce90f911` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -138,6 +138,12 @@ self-test. Exact `013c3bf1` deletes the callerless Body `smoke` command and its
 temporary-store ritual. The runtime command retains bootstrap, bind, observe,
 and status; the 23 focused owner tests prove authenticated Body behavior and
 refusal paths directly.
+
+Model-runtime physiology must come from an actual provider or a test fixture,
+never a shipped command that writes synthetic evidence into a runtime store.
+Exact `ce90f911` deletes the callerless `smoke` route, fake request/tool-call/
+completion sequence, `smoke_no_network` receipt, parser, options, and usage
+claim. The retained commands execute or audit real typed model work.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

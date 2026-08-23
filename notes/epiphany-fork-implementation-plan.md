@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`013c3bf1`. The current sequence has deleted the semantic-memory/workspace-coverage
+`ce90f911`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -548,6 +548,11 @@ Cut in this order:
    the callerless `smoke` path and its temporary stores are deleted. The shipped
    binary keeps the four operational commands; 23 owner tests retain the actual
    bind, observation, projection, Git-semantics, and tamper invariants.
+45. **Provider physiology cannot be counterfeited at `ce90f911`:** the
+   callerless model-runtime `smoke` command is deleted. It opened no provider;
+   it wrote synthetic request, tool-call, completion, and receipt documents into
+   a writable runtime store. Real execution and transcript-free decision audit
+   remain, and the release-owned model-runtime suite passes 12/12.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

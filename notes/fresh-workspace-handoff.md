@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `013c3bf1`
+Latest committed implementation cut: `ce90f911`
 Current worktree: canonical map/evidence sync; Ox17 remains paused
 
 ## Orientation
@@ -100,6 +100,14 @@ the production bind/observe/read path, printed `ok`, and deleted its files. The
 shipped Body binary retains only bootstrap, bind, observe, and status. Its actual
 owner tests pass 23/23, including authenticated projection, tamper refusal,
 generation, Git semantics, and no repository mutation.
+
+Exact `ce90f911` deletes the model runtime's callerless `smoke` route. That
+route opened no provider transport: it wrote a synthetic request, synthetic tool
+call, synthetic completed receipt, and `smoke_no_network` marker into a writable
+runtime store, then reported `not-opened`. It could therefore manufacture
+authentic-looking physiology without provider evidence. The real model-turn,
+worker, follow-up, decision-list, and decision-audit commands remain; their
+release-owned suite passes 12/12.
 
 No Epiphany-owned Rider or Unity code, target, schema, or actuator exists.
 Brokkr owns Unity through Eve/CultMesh. A future Rider daemon owns Rider.
@@ -540,7 +548,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the source/test-authority audit
-from exact `013c3bf1`; do not compile or deploy through Idunn yet. Inspect the
+from exact `ce90f911`; do not compile or deploy through Idunn yet. Inspect the
 remaining production modules and tests by owner, consumer, invariant, and
 failure mode. Delete an abstraction with the tests that merely animate it when
 it has no decision-bearing consumer. Preserve the keyed Mind, sealed reasoning,
