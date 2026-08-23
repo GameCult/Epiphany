@@ -627,69 +627,6 @@ pub fn pin_atlas_publisher_trust_anchor(
         .compare_and_swap_trust_binding(expected_revision, binding)
 }
 
-pub fn commit_atlas_surface_offer_intent(
-    runtime_mind_store: &Path,
-    intent: &AtlasSurfaceOfferWriteIntent,
-    committed_at: &str,
-) -> Result<crate::EpiphanyMindCommitOutcome> {
-    intent.validate()?;
-    require_current_atlas_body_basis(runtime_mind_store, &intent.body_basis)?;
-    let mut cache = crate::runtime_spine_cache(runtime_mind_store)?;
-    cache.pull_all_backing_stores()?;
-    let mut strong_reads = exact_or_absent_local_source(
-        &cache,
-        intent.expected_current_source.as_ref(),
-        ATLAS_SURFACE_OFFER_SCHEMA,
-        &intent.next.surface_id.to_string(),
-    )?
-    .into_iter()
-    .collect::<Vec<_>>();
-    if let Some(replacement) = intent.replacement_source.as_ref() {
-        strong_reads.push(exact_local_source(&cache, replacement)?);
-    }
-    let provenance = prepared_envelope(intent.intent_id.clone(), intent)?;
-    let write = prepared_envelope(intent.next.surface_id.to_string(), &intent.next)?;
-    crate::commit_typed_organ_mind_mutation(
-        runtime_mind_store,
-        "Modeling",
-        provenance,
-        "Modeling.atlas.surface_offer",
-        strong_reads,
-        vec![write],
-        committed_at,
-    )
-}
-
-pub fn commit_atlas_dependency_claim_intent(
-    runtime_mind_store: &Path,
-    intent: &AtlasDependencyClaimWriteIntent,
-    committed_at: &str,
-) -> Result<crate::EpiphanyMindCommitOutcome> {
-    intent.validate()?;
-    require_current_atlas_body_basis(runtime_mind_store, &intent.body_basis)?;
-    let mut cache = crate::runtime_spine_cache(runtime_mind_store)?;
-    cache.pull_all_backing_stores()?;
-    let strong_reads = exact_or_absent_local_source(
-        &cache,
-        intent.expected_current_source.as_ref(),
-        ATLAS_DEPENDENCY_CLAIM_SCHEMA,
-        &intent.next.claim_id.to_string(),
-    )?
-    .into_iter()
-    .collect::<Vec<_>>();
-    let provenance = prepared_envelope(intent.intent_id.clone(), intent)?;
-    let write = prepared_envelope(intent.next.claim_id.to_string(), &intent.next)?;
-    crate::commit_typed_organ_mind_mutation(
-        runtime_mind_store,
-        "Modeling",
-        provenance,
-        "Modeling.atlas.dependency_claim",
-        strong_reads,
-        vec![write],
-        committed_at,
-    )
-}
-
 pub fn commit_atlas_dependency_verification_intent(
     runtime_mind_store: &Path,
     intent: &AtlasDependencyVerificationWriteIntent,
@@ -1167,7 +1104,7 @@ mod tests {
     use semver::{Version, VersionReq};
 
     #[test]
-    fn local_offer_and_claim_intents_commit_through_mind_cas() -> Result<()> {
+    fn modeling_owned_offer_and_claim_support_verification_and_body_drift() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime.cc");
         crate::initialize_runtime_spine(
@@ -1188,80 +1125,70 @@ mod tests {
         }];
         let local = AtlasRepositoryIdentity::new("swarm", "workspace")?;
         let provider = AtlasRepositoryIdentity::new("swarm", "provider")?;
-
-        let offer = AtlasSurfaceOffer {
-            schema_version: ATLAS_SURFACE_OFFER_SCHEMA.into(),
-            provider: local.clone(),
-            surface_id: uuid::Uuid::from_u128(1),
-            contract: AtlasContractDescriptor::Semver {
-                contract_id: "contract:local".into(),
-                version: Version::parse("1.0.0")?,
+        let seed = crate::EpiphanyRepoModelSeed::new(
+            "atlas-modeling-seed",
+            "atlas-modeling-graph",
+            "swarm",
+            "workspace",
+            body.body_binding_sha256.clone(),
+            crate::EpiphanyRepoModelSeedDocuments {
+                domains: Vec::new(),
+                nodes: Vec::new(),
+                edges: Vec::new(),
+                frontier: Vec::new(),
             },
-            lifecycle: AtlasOfferLifecycle::Active,
-            label: "Local contract surface".into(),
-            body_evidence: body_evidence.clone(),
-        };
-        let offer_intent = admit_surface_offer(AtlasSurfaceOfferAdmissionInput {
-            context: AtlasPlannerContext {
-                local_repository: local.clone(),
-                current_body_basis: body.clone(),
-            },
-            offer: offer.clone(),
-        })?;
-        assert!(matches!(
-            commit_atlas_surface_offer_intent(&store, &offer_intent, "2026-08-14T00:00:02Z")?,
-            crate::EpiphanyMindCommitOutcome::Committed(_)
-        ));
-
-        let claim = AtlasDependencyClaim {
-            schema_version: ATLAS_DEPENDENCY_CLAIM_SCHEMA.into(),
-            consumer: local.clone(),
-            claim_id: uuid::Uuid::from_u128(2),
-            target: AtlasDependencyTarget::Exact {
-                provider: provider.clone(),
-                surface_id: uuid::Uuid::from_u128(3),
-                requirement: AtlasContractRequirement::Semver {
-                    contract_id: "contract:provider".into(),
-                    requirement: VersionReq::parse("^1")?,
+        )?;
+        crate::initialize_keyed_repo_model(&store, &seed, "2026-08-14T00:00:01Z")?;
+        let proposal = crate::EpiphanyRepoModelMutationProposal::new(
+            "atlas-modeling-proposal",
+            "atlas-modeling-request",
+            "atlas-modeling-result",
+            vec!["atlas-modeling-evidence".into()],
+            body.clone(),
+            vec![
+                crate::EpiphanyRepoModelMutationOperation::CreateSurfaceOffer {
+                    label: "Local contract surface".into(),
+                    contract: AtlasContractDescriptor::Semver {
+                        contract_id: "contract:local".into(),
+                        version: Version::parse("1.0.0")?,
+                    },
+                    source_refs: vec![manifest.entries[0].path.clone()],
                 },
-            },
-            entanglement_kind: AtlasEntanglementKind::Runtime,
-            failure_semantics: AtlasFailureSemantics::FailClosed,
-            impact_scope: AtlasImpactScope::WholeRepository,
-            lifecycle: AtlasClaimLifecycle::Active,
-            label: "Provider runtime dependency".into(),
-            body_evidence: body_evidence.clone(),
-        };
-        let claim_intent = admit_dependency_claim(AtlasDependencyClaimAdmissionInput {
-            context: AtlasPlannerContext {
-                local_repository: claim.consumer.clone(),
-                current_body_basis: body.clone(),
-            },
-            claim: claim.clone(),
-        })?;
-        assert!(matches!(
-            commit_atlas_dependency_claim_intent(&store, &claim_intent, "2026-08-14T00:00:03Z")?,
-            crate::EpiphanyMindCommitOutcome::Committed(_)
-        ));
-
+                crate::EpiphanyRepoModelMutationOperation::CreateDependencyClaim {
+                    label: "Provider runtime dependency".into(),
+                    target: AtlasDependencyTarget::Exact {
+                        provider: provider.clone(),
+                        surface_id: uuid::Uuid::from_u128(3),
+                        requirement: AtlasContractRequirement::Semver {
+                            contract_id: "contract:provider".into(),
+                            requirement: VersionReq::parse("^1")?,
+                        },
+                    },
+                    entanglement_kind: AtlasEntanglementKind::Runtime,
+                    failure_semantics: AtlasFailureSemantics::FailClosed,
+                    impact_scope: AtlasImpactScope::WholeRepository,
+                    source_refs: vec![manifest.entries[0].path.clone()],
+                },
+            ],
+        )?;
+        let plan = crate::plan_repo_model_mutation(&store, &proposal)?;
         let mut cache = crate::runtime_spine_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        assert_eq!(
-            cache.get::<AtlasSurfaceOffer>(&offer.surface_id.to_string())?,
-            Some(offer)
-        );
-        assert_eq!(
-            cache.get::<AtlasDependencyClaim>(&claim.claim_id.to_string())?,
-            Some(claim.clone())
-        );
-        assert_eq!(
-            cache
-                .get_all::<crate::EpiphanyMindCommitReceipt>()?
-                .into_iter()
-                .filter(|receipt| receipt.invariant_owner.starts_with("Modeling.atlas."))
-                .count(),
-            2
-        );
+        let provenance = cache.prepare_entry(&proposal.proposal_id, &proposal)?.0;
+        assert!(matches!(
+            crate::commit_typed_organ_mind_mutation(
+                &store,
+                "Modeling",
+                provenance,
+                "Modeling.repo_model_mutation",
+                plan.strong_reads,
+                plan.writes,
+                "2026-08-14T00:00:02Z",
+            )?,
+            crate::EpiphanyMindCommitOutcome::Committed(_)
+        ));
+        let view = crate::assemble_repo_model_view(&store)?;
+        let claim = view.dependency_claims[0].clone();
 
         let local_signer = enroll_service_identity_at::<AtlasRepositorySigningIdentity>(
             &temp.path().join("local-atlas-identity.cc"),

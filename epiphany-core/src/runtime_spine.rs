@@ -97,7 +97,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v13";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v14";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -846,8 +846,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
-    cache.register_entry_type::<crate::AtlasSurfaceOfferWriteIntent>()?;
-    cache.register_entry_type::<crate::AtlasDependencyClaimWriteIntent>()?;
     cache.register_entry_type::<crate::AtlasDependencyVerificationWriteIntent>()?;
     cache.register_entry_type::<crate::AtlasDependencyImpactWriteIntent>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
@@ -3194,7 +3192,7 @@ pub(crate) fn frontier_verification_request_for_launch(
     Ok(Some(request))
 }
 
-pub fn runtime_authenticated_public_source_lookups_for_worker(
+pub(crate) fn runtime_authenticated_public_source_lookups_for_worker(
     store_path: impl AsRef<Path>,
     worker_job_id: &str,
 ) -> Result<Vec<EyesSourceLookupReceipt>> {
@@ -5409,7 +5407,7 @@ pub fn bind_runtime_repository_domain(
     Ok(binding)
 }
 
-pub fn promote_autonomous_direction_options_for_modeling(
+pub(crate) fn promote_autonomous_direction_options_for_modeling(
     runtime_store: impl AsRef<Path>,
     repository: &str,
     workspace: &str,
@@ -6507,7 +6505,7 @@ fn frontier_item_is_actionable_for_organ(
 /// admitted exactly once and contains an item the route committer can hand to
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
-pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
+pub(crate) fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
     runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
 }
 
@@ -6745,7 +6743,7 @@ fn current_repo_frontier_research_request(
         .then_some(frontier))
 }
 
-pub fn select_and_commit_repo_frontier_research_request(
+pub(crate) fn select_and_commit_repo_frontier_research_request(
     runtime_store: impl AsRef<Path>,
     at: &str,
 ) -> Result<RepoFrontierResearchRequest> {
@@ -6906,7 +6904,7 @@ impl RepoFrontierResearchLifecycle {
 /// review, and accepted-packet lifecycle. This is the launch-currency owner:
 /// an uncovered frontier is not launchable while its current attempt is still
 /// running or awaiting review.
-pub fn runtime_repo_frontier_research_lifecycle(
+pub(crate) fn runtime_repo_frontier_research_lifecycle(
     runtime_store: impl AsRef<Path>,
 ) -> Result<RepoFrontierResearchLifecycle> {
     let runtime_store = runtime_store.as_ref();
@@ -7545,7 +7543,7 @@ fn require_worker_decision_context(
     Ok(())
 }
 
-pub fn runtime_reorient_worker_result(
+pub(crate) fn runtime_reorient_worker_result(
     store_path: impl AsRef<Path>,
     job_id: &str,
 ) -> Result<Option<EpiphanyRuntimeReorientWorkerResult>> {
