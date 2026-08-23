@@ -13514,42 +13514,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            SOUL_VERIFICATION_REQUEST_TYPE,
-            SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![SOUL_VERIFICATION_REQUEST_TYPE],
-            vec![
-                SOUL_INVARIANT_CHECK_TYPE,
-                SOUL_VERDICT_RECEIPT_TYPE,
-                SOUL_REGRESSION_RECEIPT_TYPE,
-                SOUL_REVIEW_RECEIPT_TYPE,
-                SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
-            ],
-            vec![
-                "Soul is the verification organ: invariants, tests, review, falsification, and refusal enter here.",
-                "Soul verdicts inform Mind admission; they do not mutate repo or state by themselves.",
-            ],
-        ),
-        mutation_contract(
-            SOUL_INVARIANT_CHECK_TYPE,
-            SOUL_INVARIANT_CHECK_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Invariant checks identify which promise was tested and whether old paths can still violate it.",
-            ],
-        ),
-        mutation_contract(
             SOUL_VERDICT_RECEIPT_TYPE,
             SOUL_VERDICT_RECEIPT_SCHEMA_VERSION,
             vec![
@@ -13560,46 +13524,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Verdict receipts are proof of sanctity or proof of failure."],
-        ),
-        mutation_contract(
-            SOUL_REGRESSION_RECEIPT_TYPE,
-            SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Regression receipts preserve violated invariants and surviving obsolete authorities.",
-            ],
-        ),
-        mutation_contract(
-            SOUL_REVIEW_RECEIPT_TYPE,
-            SOUL_REVIEW_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Review receipts preserve risks, missing tests, and falsification notes."],
-        ),
-        mutation_contract(
-            SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
-            SOUL_VERIFICATION_REFUSAL_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Soul refusal receipts preserve why a verification request could not honestly be performed.",
-            ],
         ),
         mutation_contract(
             CONTINUITY_RECOVERY_RECEIPT_TYPE,

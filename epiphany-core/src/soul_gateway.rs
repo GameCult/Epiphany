@@ -1,25 +1,13 @@
 use cultcache_rs::DatabaseEntry;
 
-pub const SOUL_VERIFICATION_REQUEST_TYPE: &str = "epiphany.soul.verification_request";
-pub const SOUL_INVARIANT_CHECK_TYPE: &str = "epiphany.soul.invariant_check";
 pub const SOUL_VERDICT_RECEIPT_TYPE: &str = "epiphany.soul.verdict_receipt";
-pub const SOUL_REGRESSION_RECEIPT_TYPE: &str = "epiphany.soul.regression_receipt";
-pub const SOUL_REVIEW_RECEIPT_TYPE: &str = "epiphany.soul.review_receipt";
-pub const SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE: &str =
-    "epiphany.soul.verification_refusal_receipt";
-pub const SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.soul.verification_request.v0";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_TYPE: &str =
     "epiphany.soul.repo_frontier_verification_request";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.soul.repo_frontier_verification_request.v2";
 pub const REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_verification_request.v2";
-pub const SOUL_INVARIANT_CHECK_SCHEMA_VERSION: &str = "epiphany.soul.invariant_check.v0";
 pub const SOUL_VERDICT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.verdict_receipt.v1";
-pub const SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.regression_receipt.v0";
-pub const SOUL_REVIEW_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.review_receipt.v0";
-pub const SOUL_VERIFICATION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.soul.verification_refusal_receipt.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.soul.verdict_receipt", schema = "SoulVerdictReceipt")]
