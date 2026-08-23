@@ -3,7 +3,6 @@ use super::EpiphanyMemoryEdge;
 use super::EpiphanyMemoryGraphSnapshot;
 use super::EpiphanyMemoryLifecycle;
 use super::EpiphanyMemoryNode;
-use super::EpiphanyMemorySummary;
 use super::RepoFrontierStatus;
 use std::collections::{HashMap, HashSet};
 
@@ -73,29 +72,13 @@ pub fn validate_memory_graph_snapshot(
         validate_node(node, index, &domain_ids, &mut errors);
     }
 
-    let edge_ids = collect_unique(
+    collect_unique(
         snapshot.edges.iter().map(|edge| edge.id.as_str()),
         "edges",
         &mut errors,
     );
     for (index, edge) in snapshot.edges.iter().enumerate() {
         validate_edge(edge, index, &node_ids, &mut errors);
-    }
-
-    collect_unique(
-        snapshot.summaries.iter().map(|summary| summary.id.as_str()),
-        "summaries",
-        &mut errors,
-    );
-    for (index, summary) in snapshot.summaries.iter().enumerate() {
-        validate_summary(
-            summary,
-            index,
-            &domain_ids,
-            &node_ids,
-            &edge_ids,
-            &mut errors,
-        );
     }
 
     let frontier_ids = collect_unique(
@@ -376,75 +359,6 @@ fn validate_edge(
         "edge claim is required",
         errors,
     );
-}
-
-fn validate_summary(
-    summary: &EpiphanyMemorySummary,
-    index: usize,
-    domain_ids: &HashSet<String>,
-    node_ids: &HashSet<String>,
-    edge_ids: &HashSet<String>,
-    errors: &mut Vec<EpiphanyMemoryGraphValidationError>,
-) {
-    let path = format!("summaries[{index}]");
-    required(
-        &summary.id,
-        format!("{path}.id"),
-        "summary id is required",
-        errors,
-    );
-    if !domain_ids.contains(&summary.domain_id) {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.domain_id"),
-            "summary references missing domain",
-        ));
-    }
-    if summary.covers_node_ids.is_empty() && summary.covers_edge_ids.is_empty() {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.covers_node_ids"),
-            "summary must cover at least one node or edge",
-        ));
-    }
-    for node_id in &summary.covers_node_ids {
-        if !node_ids.contains(node_id) {
-            errors.push(EpiphanyMemoryGraphValidationError::new(
-                format!("{path}.covers_node_ids"),
-                format!("summary covers missing node {node_id}"),
-            ));
-        }
-    }
-    for edge_id in &summary.covers_edge_ids {
-        if !edge_ids.contains(edge_id) {
-            errors.push(EpiphanyMemoryGraphValidationError::new(
-                format!("{path}.covers_edge_ids"),
-                format!("summary covers missing edge {edge_id}"),
-            ));
-        }
-    }
-    required(
-        &summary.target,
-        format!("{path}.target"),
-        "summary target is required",
-        errors,
-    );
-    required(
-        &summary.claim,
-        format!("{path}.claim"),
-        "summary claim is required",
-        errors,
-    );
-    required(
-        &summary.action_implication,
-        format!("{path}.action_implication"),
-        "summary action implication is required",
-        errors,
-    );
-    if summary.question.trim().is_empty() && summary.tension.trim().is_empty() {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.question"),
-            "summary must preserve a question or tension",
-        ));
-    }
 }
 
 fn collect_unique<'a>(

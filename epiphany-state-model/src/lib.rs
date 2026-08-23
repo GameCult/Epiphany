@@ -658,9 +658,6 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[ts(type = "Array<EpiphanyMemoryEdge>")]
     pub edges: Vec<EpiphanyMemoryEdge>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<EpiphanyMemorySummary>")]
-    pub summaries: Vec<EpiphanyMemorySummary>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<RepoFrontierItem>")]
     pub frontier: Vec<RepoFrontierItem>,
 }
@@ -926,33 +923,6 @@ pub struct EpiphanyMemoryAnchor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub note: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
-pub struct EpiphanyMemorySummary {
-    pub id: String,
-    pub domain_id: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub covers_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub covers_edge_ids: Vec<String>,
-    pub target: String,
-    pub claim: String,
-    pub question: String,
-    pub tension: String,
-    pub action_implication: String,
-    #[serde(default, skip_serializing_if = "is_zero_u32")]
-    pub anchor_count: u32,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub source_hashes: Vec<String>,
-    #[serde(default, skip_serializing_if = "is_zero_u32")]
-    pub confidence: u32,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(type = "Array<string>")]
-    pub known_omissions: Vec<String>,
 }
 
 

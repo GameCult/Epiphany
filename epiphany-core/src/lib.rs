@@ -113,7 +113,6 @@ pub use epiphany_state_model::EpiphanyMemoryDomain;
 pub use epiphany_state_model::EpiphanyMemoryEdge;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
 pub use epiphany_state_model::EpiphanyMemoryNode;
-pub use epiphany_state_model::EpiphanyMemorySummary;
 pub use eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 pub use eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
 pub use eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;

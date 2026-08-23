@@ -82,7 +82,6 @@ fn main() -> Result<()> {
                         ..Default::default()
                     }],
                     edges: Vec::new(),
-                    summaries: Vec::new(),
                     frontier: Vec::new(),
                 },
             )?;

@@ -879,7 +879,6 @@ mod tests {
                     domains: Vec::new(),
                     nodes: Vec::new(),
                     edges: Vec::new(),
-                    summaries: Vec::new(),
                     frontier: Vec::new(),
                 },
             )?,

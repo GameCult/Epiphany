@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use epiphany_state_model::{
     EpiphanyMemoryDomain, EpiphanyMemoryEdge, EpiphanyMemoryGraphSnapshot,
-    EpiphanyMemoryNode, EpiphanyMemorySummary, RepoFrontierItem,
+    EpiphanyMemoryNode, RepoFrontierItem,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -80,12 +80,6 @@ repo_document!(
     EpiphanyMemoryEdge
 );
 repo_document!(
-    EpiphanyRepoModelSummaryDocument,
-    "epiphany.mind.repo_model.summary.v1",
-    "EpiphanyRepoModelSummaryDocument",
-    EpiphanyMemorySummary
-);
-repo_document!(
     EpiphanyRepoModelFrontierDocument,
     "epiphany.mind.repo_model.frontier.v1",
     "EpiphanyRepoModelFrontierDocument",
@@ -113,7 +107,6 @@ pub struct EpiphanyRepoModelView {
     pub domains: Vec<EpiphanyMemoryDomain>,
     pub nodes: Vec<EpiphanyMemoryNode>,
     pub edges: Vec<EpiphanyMemoryEdge>,
-    pub summaries: Vec<EpiphanyMemorySummary>,
     pub frontier: Vec<RepoFrontierItem>,
     pub claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
     pub surface_offers: Vec<crate::AtlasSurfaceOffer>,
@@ -142,7 +135,6 @@ impl EpiphanyRepoModelView {
             domains: self.domains.clone(),
             nodes: self.nodes.clone(),
             edges: self.edges.clone(),
-            summaries: self.summaries.clone(),
             frontier: self.frontier.clone(),
         }
     }
@@ -241,7 +233,6 @@ pub struct EpiphanyRepoModelSeedDocuments {
     pub domains: Vec<EpiphanyMemoryDomain>,
     pub nodes: Vec<EpiphanyMemoryNode>,
     pub edges: Vec<EpiphanyMemoryEdge>,
-    pub summaries: Vec<EpiphanyMemorySummary>,
     pub frontier: Vec<RepoFrontierItem>,
 }
 
@@ -284,9 +275,6 @@ impl EpiphanyRepoModelSeed {
             .sort_by(|left, right| left.id.cmp(&right.id));
         documents
             .edges
-            .sort_by(|left, right| left.id.cmp(&right.id));
-        documents
-            .summaries
             .sort_by(|left, right| left.id.cmp(&right.id));
         documents
             .frontier
@@ -336,7 +324,6 @@ impl EpiphanyRepoModelSeed {
             documents.domains,
             documents.nodes,
             documents.edges,
-            documents.summaries,
             documents.frontier,
             obligations,
         )
@@ -346,9 +333,6 @@ impl EpiphanyRepoModelSeed {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub enum EpiphanyRepoModelMutationOperation {
-    PutDomain {
-        domain: EpiphanyMemoryDomain,
-    },
     PutNode {
         node: EpiphanyMemoryNode,
     },
@@ -360,9 +344,6 @@ pub enum EpiphanyRepoModelMutationOperation {
     },
     RetireEdge {
         edge_id: String,
-    },
-    PutSummary {
-        summary: EpiphanyMemorySummary,
     },
     PutFrontier {
         item: RepoFrontierItem,
@@ -474,7 +455,6 @@ pub(crate) fn register_repo_model_document_types(cache: &mut CultCache) -> Resul
     cache.register_entry_type::<EpiphanyRepoModelDomainDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelNodeDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelEdgeDocument>()?;
-    cache.register_entry_type::<EpiphanyRepoModelSummaryDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelFrontierDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelClaimObligationsDocument>()?;
     cache.register_entry_type::<EpiphanyRepoModelMutationProposal>()?;
@@ -570,13 +550,6 @@ pub fn initialize_keyed_repo_model(
                 .0,
         );
     }
-    for value in &documents.summaries {
-        writes.push(
-            cache
-                .prepare_entry(&value.id, &EpiphanyRepoModelSummaryDocument::new(value)?)?
-                .0,
-        );
-    }
     for value in &documents.frontier {
         writes.push(
             cache
@@ -618,7 +591,6 @@ fn repo_model_view_matches_seed(
         && view.domains == documents.domains
         && view.nodes == documents.nodes
         && view.edges == documents.edges
-        && view.summaries == documents.summaries
         && view.frontier == documents.frontier
         && view.claim_obligations
             == claim_obligations_for_frontier(&documents.nodes, &documents.frontier))
@@ -651,10 +623,6 @@ pub(crate) fn repo_model_write_key(envelope: &CultCacheEnvelope) -> Result<Optio
             .id
     } else if envelope.r#type == EpiphanyRepoModelEdgeDocument::TYPE {
         rmp_serde::from_slice::<EpiphanyRepoModelEdgeDocument>(&envelope.payload)?
-            .value()?
-            .id
-    } else if envelope.r#type == EpiphanyRepoModelSummaryDocument::TYPE {
-        rmp_serde::from_slice::<EpiphanyRepoModelSummaryDocument>(&envelope.payload)?
             .value()?
             .id
     } else if envelope.r#type == EpiphanyRepoModelFrontierDocument::TYPE {
@@ -740,7 +708,7 @@ pub fn plan_repo_model_mutation(
     let identity_envelope = cache
         .get_envelope::<EpiphanyRepoModelIdentityDocument>(REPO_MODEL_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("RepoModel mutation lost its identity envelope"))?;
-    let mut domains = view
+    let domains = view
         .domains
         .iter()
         .cloned()
@@ -754,12 +722,6 @@ pub fn plan_repo_model_mutation(
         .collect::<BTreeMap<_, _>>();
     let mut edges = view
         .edges
-        .iter()
-        .cloned()
-        .map(|value| (value.id.clone(), value))
-        .collect::<BTreeMap<_, _>>();
-    let mut summaries = view
-        .summaries
         .iter()
         .cloned()
         .map(|value| (value.id.clone(), value))
@@ -784,25 +746,10 @@ pub fn plan_repo_model_mutation(
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    let staged_domain_ids = operations
-        .iter()
-        .filter_map(|operation| match operation {
-            EpiphanyRepoModelMutationOperation::PutDomain { domain } => Some(domain.id.clone()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
     let staged_frontier_ids = operations
         .iter()
         .filter_map(|operation| match operation {
             EpiphanyRepoModelMutationOperation::PutFrontier { item } => Some(item.id.clone()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let staged_edge_ids = operations
-        .iter()
-        .filter_map(|operation| match operation {
-            EpiphanyRepoModelMutationOperation::PutEdge { edge } => Some(edge.id.clone()),
-            EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => Some(edge_id.clone()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -834,30 +781,13 @@ pub fn plan_repo_model_mutation(
     let mut writes = BTreeMap::new();
     for (operation_index, operation) in operations.iter().enumerate() {
         match operation {
-            EpiphanyRepoModelMutationOperation::PutDomain { domain } => {
-                require_semantic_id(&domain.id, "RepoModel domain")?;
-                if let Some(existing) =
-                    cache.get_envelope::<EpiphanyRepoModelDomainDocument>(&domain.id)?
-                {
-                    insert_strong_envelope(&mut strong, existing)?;
-                }
-                domains.insert(domain.id.clone(), domain.clone());
-                insert_envelope(
-                    &mut writes,
-                    cache
-                        .prepare_entry(&domain.id, &EpiphanyRepoModelDomainDocument::new(domain)?)?
-                        .0,
-                )?;
-            }
             EpiphanyRepoModelMutationOperation::PutNode { node } => {
                 require_semantic_id(&node.id, "RepoModel node")?;
-                if !staged_domain_ids.contains(&node.domain_id) {
-                    require_dependency_envelope::<EpiphanyRepoModelDomainDocument>(
-                        &cache,
-                        &node.domain_id,
-                        &mut strong,
-                    )?;
-                }
+                require_dependency_envelope::<EpiphanyRepoModelDomainDocument>(
+                    &cache,
+                    &node.domain_id,
+                    &mut strong,
+                )?;
                 if let Some(existing) =
                     cache.get_envelope::<EpiphanyRepoModelNodeDocument>(&node.id)?
                 {
@@ -962,49 +892,6 @@ pub fn plan_repo_model_mutation(
                     &mut writes,
                     cache
                         .prepare_entry(edge_id, &EpiphanyRepoModelEdgeDocument::new(&edge)?)?
-                        .0,
-                )?;
-            }
-            EpiphanyRepoModelMutationOperation::PutSummary { summary } => {
-                require_semantic_id(&summary.id, "RepoModel summary")?;
-                if !staged_domain_ids.contains(&summary.domain_id) {
-                    require_dependency_envelope::<EpiphanyRepoModelDomainDocument>(
-                        &cache,
-                        &summary.domain_id,
-                        &mut strong,
-                    )?;
-                }
-                for node_id in &summary.covers_node_ids {
-                    if !staged_node_ids.contains(node_id) {
-                        require_dependency_envelope::<EpiphanyRepoModelNodeDocument>(
-                            &cache,
-                            node_id,
-                            &mut strong,
-                        )?;
-                    }
-                }
-                for edge_id in &summary.covers_edge_ids {
-                    if !staged_edge_ids.contains(edge_id) {
-                        require_dependency_envelope::<EpiphanyRepoModelEdgeDocument>(
-                            &cache,
-                            edge_id,
-                            &mut strong,
-                        )?;
-                    }
-                }
-                if let Some(existing) =
-                    cache.get_envelope::<EpiphanyRepoModelSummaryDocument>(&summary.id)?
-                {
-                    insert_strong_envelope(&mut strong, existing)?;
-                }
-                summaries.insert(summary.id.clone(), summary.clone());
-                insert_envelope(
-                    &mut writes,
-                    cache
-                        .prepare_entry(
-                            &summary.id,
-                            &EpiphanyRepoModelSummaryDocument::new(summary)?,
-                        )?
                         .0,
                 )?;
             }
@@ -1227,7 +1114,6 @@ pub fn plan_repo_model_mutation(
         domains.values().cloned().collect(),
         nodes.values().cloned().collect(),
         edges.values().cloned().collect(),
-        summaries.values().cloned().collect(),
         frontier.values().cloned().collect(),
         obligations.values().cloned().collect(),
     )?;
@@ -1245,14 +1131,10 @@ fn repo_model_operation_identity(
     operation: &EpiphanyRepoModelMutationOperation,
 ) -> Result<(String, String)> {
     let (kind, id) = match operation {
-        EpiphanyRepoModelMutationOperation::PutDomain { domain } => ("domain", domain.id.clone()),
         EpiphanyRepoModelMutationOperation::PutNode { node } => ("node", node.id.clone()),
         EpiphanyRepoModelMutationOperation::RetireNode { node_id } => ("node", node_id.clone()),
         EpiphanyRepoModelMutationOperation::PutEdge { edge } => ("edge", edge.id.clone()),
         EpiphanyRepoModelMutationOperation::RetireEdge { edge_id } => ("edge", edge_id.clone()),
-        EpiphanyRepoModelMutationOperation::PutSummary { summary } => {
-            ("summary", summary.id.clone())
-        }
         EpiphanyRepoModelMutationOperation::PutFrontier { item } => ("frontier", item.id.clone()),
         EpiphanyRepoModelMutationOperation::CreateSurfaceOffer { .. } => (
             "surface_offer",
@@ -1494,8 +1376,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     let mut domains = values::<EpiphanyRepoModelDomainDocument, _>(&cache, |entry| entry.value())?;
     let mut nodes = values::<EpiphanyRepoModelNodeDocument, _>(&cache, |entry| entry.value())?;
     let mut edges = values::<EpiphanyRepoModelEdgeDocument, _>(&cache, |entry| entry.value())?;
-    let mut summaries =
-        values::<EpiphanyRepoModelSummaryDocument, _>(&cache, |entry| entry.value())?;
     let mut frontier =
         values::<EpiphanyRepoModelFrontierDocument, _>(&cache, |entry| entry.value())?;
     let mut claim_obligations = cache.get_all::<EpiphanyRepoModelClaimObligationsDocument>()?;
@@ -1506,7 +1386,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
     domains.sort_by(|left, right| left.id.cmp(&right.id));
     nodes.sort_by(|left, right| left.id.cmp(&right.id));
     edges.sort_by(|left, right| left.id.cmp(&right.id));
-    summaries.sort_by(|left, right| left.id.cmp(&right.id));
     frontier.sort_by(|left, right| left.id.cmp(&right.id));
     claim_obligations.sort_by(|left, right| left.node_id.cmp(&right.node_id));
     surface_offers.sort_by_key(|offer| offer.surface_id);
@@ -1541,7 +1420,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         domains.clone(),
         nodes.clone(),
         edges.clone(),
-        summaries.clone(),
         frontier.clone(),
         claim_obligations.clone(),
     )?;
@@ -1597,7 +1475,6 @@ pub(crate) fn assemble_repo_model_view_from_cache(
         domains,
         nodes,
         edges,
-        summaries,
         frontier,
         claim_obligations,
         surface_offers,
@@ -1619,7 +1496,6 @@ fn validate_repo_model_parts(
     domains: Vec<EpiphanyMemoryDomain>,
     nodes: Vec<EpiphanyMemoryNode>,
     edges: Vec<EpiphanyMemoryEdge>,
-    summaries: Vec<EpiphanyMemorySummary>,
     frontier: Vec<RepoFrontierItem>,
     claim_obligations: Vec<EpiphanyRepoModelClaimObligationsDocument>,
 ) -> Result<()> {
@@ -1628,7 +1504,6 @@ fn validate_repo_model_parts(
         domains,
         nodes,
         edges,
-        summaries,
         frontier,
         ..Default::default()
     };
@@ -1797,7 +1672,6 @@ mod tests {
                 domains: vec![domain],
                 nodes: vec![node],
                 edges: Vec::new(),
-                summaries: Vec::new(),
                 frontier: vec![frontier],
             },
         )?;
@@ -1812,7 +1686,6 @@ mod tests {
                 domains: Vec::new(),
                 nodes: Vec::new(),
                 edges: Vec::new(),
-                summaries: Vec::new(),
                 frontier: Vec::new(),
             },
         )?;
@@ -1882,7 +1755,6 @@ mod tests {
                 domains: Vec::new(),
                 nodes: Vec::new(),
                 edges: Vec::new(),
-                summaries: Vec::new(),
                 frontier: Vec::new(),
             },
         )?;
@@ -2028,24 +1900,30 @@ mod tests {
             },
         )?;
         let body = bind_test_body(&store, "swarm-1", "workspace-1")?;
-        let mut cache = runtime_spine_cache(&store)?;
-        cache.put(
-            REPO_MODEL_IDENTITY_KEY,
-            &EpiphanyRepoModelIdentityDocument {
-                schema_epoch: REPO_MODEL_SCHEMA_EPOCH.into(),
-                graph_id: "graph-atomic".into(),
-                runtime_id: "repo-model-atomic-slice".into(),
-                swarm_id: "swarm-1".into(),
-                workspace_id: "workspace-1".into(),
-                body_binding_sha256: body.body_binding_sha256.clone(),
-            },
-        )?;
         let domain = EpiphanyMemoryDomain {
             id: "domain-new".into(),
             title: "New domain".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
         };
+        initialize_keyed_repo_model(
+            &store,
+            &EpiphanyRepoModelSeed::new(
+                "seed-atomic",
+                "graph-atomic",
+                "swarm-1",
+                "workspace-1",
+                body.body_binding_sha256.clone(),
+                EpiphanyRepoModelSeedDocuments {
+                    domains: vec![domain.clone()],
+                    nodes: Vec::new(),
+                    edges: Vec::new(),
+                    frontier: Vec::new(),
+                },
+            )?,
+            "2026-08-14T00:00:00Z",
+        )?;
+        let cache = runtime_spine_cache(&store)?;
         let node = |id: &str, claim: &str| EpiphanyMemoryNode {
             id: id.into(),
             domain_id: domain.id.clone(),
@@ -2069,32 +1947,15 @@ mod tests {
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
         };
-        let summary = EpiphanyMemorySummary {
-            id: "summary-flow".into(),
-            domain_id: domain.id.clone(),
-            covers_node_ids: vec![left.id.clone(), right.id.clone()],
-            covers_edge_ids: vec![edge.id.clone()],
-            target: "flow".into(),
-            claim: "The flow is document-addressed".into(),
-            question: "Can its members commit atomically?".into(),
-            action_implication: "Commit the exact keyed slice".into(),
-            ..Default::default()
-        };
         let proposal = make_proposal(
             "proposal-atomic-slice",
             &body,
             vec![
-                EpiphanyRepoModelMutationOperation::PutSummary {
-                    summary: summary.clone(),
-                },
                 EpiphanyRepoModelMutationOperation::PutEdge { edge: edge.clone() },
                 EpiphanyRepoModelMutationOperation::PutNode {
                     node: right.clone(),
                 },
                 EpiphanyRepoModelMutationOperation::PutNode { node: left.clone() },
-                EpiphanyRepoModelMutationOperation::PutDomain {
-                    domain: domain.clone(),
-                },
             ],
         )?;
         let plan = plan_repo_model_mutation(&store, &proposal)?;
@@ -2114,7 +1975,6 @@ mod tests {
         assert_eq!(view.domains, [domain]);
         assert_eq!(view.nodes, [left, right]);
         assert_eq!(view.edges, [edge.clone()]);
-        assert_eq!(view.summaries, [summary]);
 
         let retire = make_proposal(
             "proposal-retire-edge",
@@ -2186,7 +2046,6 @@ mod tests {
                     domains: vec![domain.clone()],
                     nodes: Vec::new(),
                     edges: Vec::new(),
-                    summaries: Vec::new(),
                     frontier: Vec::new(),
                 },
             )?,

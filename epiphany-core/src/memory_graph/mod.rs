@@ -7,7 +7,6 @@ pub use epiphany_state_model::EpiphanyMemoryGraphSnapshot;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
 pub use epiphany_state_model::EpiphanyMemoryNode;
 pub use epiphany_state_model::EpiphanyMemoryNodeKind;
-pub use epiphany_state_model::EpiphanyMemorySummary;
 pub use epiphany_state_model::RepoFrontierAdoptedPlan;
 pub use epiphany_state_model::RepoFrontierItem;
 pub use epiphany_state_model::RepoFrontierStatus;
