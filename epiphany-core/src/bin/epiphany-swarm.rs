@@ -157,18 +157,15 @@ fn retain_runtime_receipts(args: &Args, state: &ResidentSelfState) -> Result<()>
 
 fn retain_runtime_worker_attempts(args: &Args) -> Result<()> {
     let live_request_ids = live_resident_self_typed_request_ids(&args.state_store)?;
-    let archived_at = Utc::now().to_rfc3339();
     retain_failed_runtime_worker_attempts(
         &args.policy.runtime_store,
         args.retained_runtime_worker_attempts,
         &live_request_ids,
-        &archived_at,
     )?;
     retain_fulfilled_runtime_worker_attempts(
         &args.policy.runtime_store,
         args.retained_runtime_worker_attempts,
         &live_request_ids,
-        &archived_at,
     )?;
     Ok(())
 }

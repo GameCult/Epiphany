@@ -710,7 +710,7 @@ impl EpiphanyDecisionTerminalRecords {
         self.model_pass_failures
             .sort_by(|left, right| left.failure_id.cmp(&right.failure_id));
         self.archived_worker_attempts
-            .sort_by(|left, right| left.archive_id.cmp(&right.archive_id));
+            .sort_by(|left, right| left.job_id.cmp(&right.job_id));
         self.persona_stage_receipts
             .sort_by(|left, right| left.receipt_id.cmp(&right.receipt_id));
         self.persona_effect_documents
@@ -2754,14 +2754,10 @@ mod tests {
         );
         let archived = crate::EpiphanyArchivedRuntimeWorkerAttempt {
             schema_version: crate::ARCHIVED_RUNTIME_WORKER_ATTEMPT_SCHEMA_VERSION.into(),
-            archive_id: "pass-1".into(),
             job_id: "pass-1".into(),
             request_kind: "proposal-modeling".into(),
             request_id: "proposal-request-1".into(),
             terminal_process_status: "terminal-failure".into(),
-            archived_at: "2026-08-14T00:00:04Z".into(),
-            retired_type_counts: Default::default(),
-            retired_envelope_count: 1,
             retired_chain_digest: "sha256:historical-family".into(),
             decision: Some(crate::EpiphanyArchivedRuntimeWorkerDecision {
                 decision_context_id: context.context_id.clone(),
@@ -2769,7 +2765,7 @@ mod tests {
                 job_results: vec![terminal_result],
             }),
         };
-        archive_cache.put(&archived.archive_id, &archived)?;
+        archive_cache.put(&archived.job_id, &archived)?;
         let before_archived_audit = backing.pull_all()?;
         let archived_audit = audit_decision_context(&store, &context.context_id)?;
         assert!(
