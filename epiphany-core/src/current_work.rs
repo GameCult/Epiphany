@@ -1099,6 +1099,24 @@ pub fn current_frontier_verification_review_job_id(
         .and_then(|work| work.attempt.job_id))
 }
 
+pub(crate) fn frontier_planning_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("frontier-planning-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("frontier Planning job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("frontier Planning attempt ordinal is invalid"))
+}
+
+pub(crate) fn frontier_plan_mind_attempt_ordinal(request_id: &str, job_id: &str) -> Result<usize> {
+    let prefix = format!("frontier-plan-mind-{request_id}-attempt-");
+    job_id
+        .strip_prefix(&prefix)
+        .ok_or_else(|| anyhow!("frontier plan Mind job identity is not canonical"))?
+        .parse::<usize>()
+        .map_err(|_| anyhow!("frontier plan Mind attempt ordinal is invalid"))
+}
+
 pub fn launch_current_frontier_planning_work(
     store_path: impl AsRef<Path>,
     created_at: &str,
@@ -1123,25 +1141,39 @@ pub fn launch_current_frontier_planning_work(
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier Planning launch requires runtime identity"))?;
     let mut prior = cache
-        .get_all::<crate::RepoFrontierPlanningLaunchBinding>()?
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|binding| binding.planning_request_id == request.request_id)
-        .collect::<Vec<_>>();
-    prior.sort_by_key(|binding| binding.attempt_ordinal);
-    let attempt_ordinal = prior.len() as u64;
-    let superseded_failure_result_id = if let Some(latest) = prior.last() {
+        .filter(|launch| {
+            launch.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
+        })
+        .map(|launch| {
+            Ok((
+                frontier_planning_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    prior.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in prior.iter().enumerate() {
+        if *ordinal != expected {
+            return Err(anyhow!(
+                "frontier Planning request has noncontiguous attempt identity"
+            ));
+        }
+    }
+    let attempt_ordinal = prior.len();
+    let retry_authority = if let Some((_, latest)) = prior.last() {
         let result = cache
             .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?
             .ok_or_else(|| anyhow!("frontier Planning retry lost its failure result"))?;
-        crate::runtime_spine::repo_frontier_planning_failure_review(
+        let review = crate::runtime_spine::repo_frontier_planning_failure_review(
             &cache,
             &request.request_id,
             "imagination",
             &result,
         )?
-        .map(|review| review.result_id)
-        .ok_or_else(|| anyhow!("frontier Planning retry is not reviewed"))?
-        .into()
+        .ok_or_else(|| anyhow!("frontier Planning retry is not reviewed"))?;
+        Some((result, review))
     } else {
         None
     };
@@ -1195,40 +1227,6 @@ pub fn launch_current_frontier_planning_work(
             created_at: created_at.into(),
         },
     )?;
-    let launch = prepared
-        .iter()
-        .find(|envelope| {
-            envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
-                && envelope.key == job_id
-        })
-        .ok_or_else(|| anyhow!("frontier Planning launch preparation lost its worker"))?;
-    let worker_launch: crate::EpiphanyRuntimeWorkerLaunchRequest =
-        rmp_serde::from_slice(&launch.payload)?;
-    let binding_record_id = if attempt_ordinal == 0 {
-        format!("repo-frontier-planning-launch-{}", request.request_id)
-    } else {
-        format!(
-            "repo-frontier-planning-launch-{}-attempt-{attempt_ordinal}",
-            request.request_id
-        )
-    };
-    let binding = crate::RepoFrontierPlanningLaunchBinding {
-        schema_version: crate::REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        binding_record_id,
-        planning_request_id: request.request_id.clone(),
-        job_id: job_id.clone(),
-        binding_id: crate::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
-        runtime_id: identity.runtime_id,
-        thread_id: job_id.clone(),
-        launched_at: created_at.into(),
-        worker_launch_document_sha256: format!(
-            "{:x}",
-            Sha256::digest(&worker_launch.launch_document_msgpack)
-        ),
-        contract: crate::REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT.into(),
-        attempt_ordinal,
-        superseded_failure_result_id,
-    };
     let snapshot = cache.snapshot_envelopes();
     let mut expected = vec![
         cache
@@ -1251,12 +1249,31 @@ pub fn launch_current_frontier_planning_work(
         }
         expected.push(envelope.clone());
     }
+    for (_, launch) in &prior {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
+                .ok_or_else(|| anyhow!("frontier Planning retry lost its prior launch envelope"))?,
+        );
+    }
+    if let Some((result, review)) = retry_authority {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+                .ok_or_else(|| anyhow!("frontier Planning retry lost its result envelope"))?,
+        );
+        expected.push(
+            cache
+                .get_envelope::<crate::RepoFrontierPlanningFailureReview>(&review.review_id)?
+                .ok_or_else(|| anyhow!("frontier Planning retry lost its review envelope"))?,
+        );
+    }
     commit_current_work_launch(
         store_path,
         &cache,
         expected,
         prepared,
-        vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
+        Vec::new(),
         "frontier Planning",
     )?;
     Ok(job_id)
@@ -1295,25 +1312,39 @@ pub fn launch_current_frontier_plan_mind_work(
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("frontier plan Mind launch requires runtime identity"))?;
     let mut prior = cache
-        .get_all::<crate::RepoFrontierPlanMindLaunchBinding>()?
+        .get_all::<crate::EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|binding| binding.mind_request_id == request.request_id)
-        .collect::<Vec<_>>();
-    prior.sort_by_key(|binding| binding.attempt_ordinal);
-    let attempt_ordinal = prior.len() as u64;
-    let superseded_failure_result_id = if let Some(latest) = prior.last() {
+        .filter(|launch| {
+            launch.frontier_plan_mind_request_id.as_deref() == Some(request.request_id.as_str())
+        })
+        .map(|launch| {
+            Ok((
+                frontier_plan_mind_attempt_ordinal(&request.request_id, &launch.job_id)?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    prior.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in prior.iter().enumerate() {
+        if *ordinal != expected {
+            return Err(anyhow!(
+                "frontier plan Mind request has noncontiguous attempt identity"
+            ));
+        }
+    }
+    let attempt_ordinal = prior.len();
+    let retry_authority = if let Some((_, latest)) = prior.last() {
         let result = cache
             .get::<crate::EpiphanyRuntimeRoleWorkerResult>(&latest.job_id)?
             .ok_or_else(|| anyhow!("frontier plan Mind retry lost its failure result"))?;
-        crate::runtime_spine::repo_frontier_planning_failure_review(
+        let review = crate::runtime_spine::repo_frontier_planning_failure_review(
             &cache,
             &planning.request_id,
             "mind",
             &result,
         )?
-        .map(|review| review.result_id)
-        .ok_or_else(|| anyhow!("frontier plan Mind retry is not reviewed"))?
-        .into()
+        .ok_or_else(|| anyhow!("frontier plan Mind retry is not reviewed"))?;
+        Some((result, review))
     } else {
         None
     };
@@ -1367,40 +1398,6 @@ pub fn launch_current_frontier_plan_mind_work(
             created_at: created_at.into(),
         },
     )?;
-    let worker_envelope = prepared
-        .iter()
-        .find(|envelope| {
-            envelope.r#type == crate::EpiphanyRuntimeWorkerLaunchRequest::TYPE
-                && envelope.key == job_id
-        })
-        .ok_or_else(|| anyhow!("frontier plan Mind preparation lost its worker"))?;
-    let worker_launch: crate::EpiphanyRuntimeWorkerLaunchRequest =
-        rmp_serde::from_slice(&worker_envelope.payload)?;
-    let binding_record_id = if attempt_ordinal == 0 {
-        format!("repo-frontier-plan-mind-launch-{}", request.request_id)
-    } else {
-        format!(
-            "repo-frontier-plan-mind-launch-{}-attempt-{attempt_ordinal}",
-            request.request_id
-        )
-    };
-    let binding = crate::RepoFrontierPlanMindLaunchBinding {
-        schema_version: crate::REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION.into(),
-        binding_record_id,
-        mind_request_id: request.request_id.clone(),
-        job_id: job_id.clone(),
-        binding_id: crate::EPIPHANY_MIND_ROLE_BINDING_ID.into(),
-        runtime_id: identity.runtime_id,
-        thread_id: job_id.clone(),
-        launched_at: created_at.into(),
-        worker_launch_document_sha256: format!(
-            "{:x}",
-            Sha256::digest(&worker_launch.launch_document_msgpack)
-        ),
-        contract: crate::REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT.into(),
-        attempt_ordinal,
-        superseded_failure_result_id,
-    };
     let snapshot = cache.snapshot_envelopes();
     let mut expected = Vec::new();
     for (document_type, document_key) in [
@@ -1441,12 +1438,33 @@ pub fn launch_current_frontier_plan_mind_work(
         }
         expected.push(envelope.clone());
     }
+    for (_, launch) in &prior {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeWorkerLaunchRequest>(&launch.job_id)?
+                .ok_or_else(|| {
+                    anyhow!("frontier plan Mind retry lost its prior launch envelope")
+                })?,
+        );
+    }
+    if let Some((result, review)) = retry_authority {
+        expected.push(
+            cache
+                .get_envelope::<crate::EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+                .ok_or_else(|| anyhow!("frontier plan Mind retry lost its result envelope"))?,
+        );
+        expected.push(
+            cache
+                .get_envelope::<crate::RepoFrontierPlanningFailureReview>(&review.review_id)?
+                .ok_or_else(|| anyhow!("frontier plan Mind retry lost its review envelope"))?,
+        );
+    }
     commit_current_work_launch(
         store_path,
         &cache,
         expected,
         prepared,
-        vec![cache.prepare_entry(&binding.binding_record_id, &binding)?.0],
+        Vec::new(),
         "frontier plan Mind",
     )?;
     Ok(job_id)
@@ -4408,11 +4426,8 @@ mod tests {
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
-        let proposal_outcome = accept_proposal_modeling_result(
-            &store,
-            &proposal_job_id,
-            "2026-08-17T00:00:13Z",
-        )?;
+        let proposal_outcome =
+            accept_proposal_modeling_result(&store, &proposal_job_id, "2026-08-17T00:00:13Z")?;
         let EpiphanyAgentPassAdmissionOutcome::Refused {
             refusal,
             commit: refusal_commit,
@@ -4558,11 +4573,8 @@ mod tests {
                 .action,
             EpiphanyAgentPassContinuationAction::Review
         );
-        let proposal_outcome = accept_proposal_modeling_result(
-            &store,
-            &proposal_job_id,
-            "2026-08-17T00:00:14Z",
-        )?;
+        let proposal_outcome =
+            accept_proposal_modeling_result(&store, &proposal_job_id, "2026-08-17T00:00:14Z")?;
         let EpiphanyAgentPassAdmissionOutcome::Committed(proposal_commit) = proposal_outcome else {
             panic!("corrected proposal Modeling result must commit")
         };

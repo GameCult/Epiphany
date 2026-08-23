@@ -71,18 +71,10 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_frontier_proposal_modeling_request.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_request.v0";
-pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.coordinator.repo_frontier_planning_launch_binding.v0";
-pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT: &str =
-    "epiphany.repo_frontier_planning_launch_binding.v0";
 pub const REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.self.repo_frontier_plan_mind_request.v1";
 pub const REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_plan_mind_request.v1";
-pub const REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.coordinator.repo_frontier_plan_mind_launch_binding.v0";
-pub const REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT: &str =
-    "epiphany.repo_frontier_plan_mind_launch_binding.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -232,38 +224,6 @@ pub struct RepoFrontierPlanningRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.coordinator.repo_frontier_planning_launch_binding",
-    schema = "RepoFrontierPlanningLaunchBinding"
-)]
-pub struct RepoFrontierPlanningLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_record_id: String,
-    #[cultcache(key = 2)]
-    pub planning_request_id: String,
-    #[cultcache(key = 3)]
-    pub job_id: String,
-    #[cultcache(key = 4)]
-    pub binding_id: String,
-    #[cultcache(key = 5)]
-    pub runtime_id: String,
-    #[cultcache(key = 6)]
-    pub thread_id: String,
-    #[cultcache(key = 7)]
-    pub launched_at: String,
-    #[cultcache(key = 8)]
-    pub worker_launch_document_sha256: String,
-    #[cultcache(key = 9)]
-    pub contract: String,
-    #[cultcache(key = 10, default)]
-    pub attempt_ordinal: u64,
-    #[cultcache(key = 11, default)]
-    pub superseded_failure_result_id: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
     type = "epiphany.self.repo_frontier_research_request",
     schema = "RepoFrontierResearchRequest"
 )]
@@ -403,38 +363,6 @@ pub struct RepoFrontierPlanMindRequest {
     pub requested_at: String,
     #[cultcache(key = 10)]
     pub contract: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.coordinator.repo_frontier_plan_mind_launch_binding",
-    schema = "RepoFrontierPlanMindLaunchBinding"
-)]
-pub struct RepoFrontierPlanMindLaunchBinding {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_record_id: String,
-    #[cultcache(key = 2)]
-    pub mind_request_id: String,
-    #[cultcache(key = 3)]
-    pub job_id: String,
-    #[cultcache(key = 4)]
-    pub binding_id: String,
-    #[cultcache(key = 5)]
-    pub runtime_id: String,
-    #[cultcache(key = 6)]
-    pub thread_id: String,
-    #[cultcache(key = 7)]
-    pub launched_at: String,
-    #[cultcache(key = 8)]
-    pub worker_launch_document_sha256: String,
-    #[cultcache(key = 9)]
-    pub contract: String,
-    #[cultcache(key = 10, default)]
-    pub attempt_ordinal: u64,
-    #[cultcache(key = 11, default)]
-    pub superseded_failure_result_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

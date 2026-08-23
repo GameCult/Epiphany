@@ -14,13 +14,9 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION, REPO_FRONTIER_PLAN_DECISION_CONTRACT,
-    REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION,
-    REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT,
-    REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION,
-    REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT, REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION,
-    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION,
-    REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT,
-    REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION,
+    REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION, REPO_FRONTIER_PLAN_MIND_REQUEST_CONTRACT,
+    REPO_FRONTIER_PLAN_MIND_REQUEST_SCHEMA_VERSION, REPO_FRONTIER_PLANNING_CONTRACT,
+    REPO_FRONTIER_PLANNING_FAILURE_REVIEW_SCHEMA_VERSION,
     REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT,
     REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION,
@@ -31,12 +27,10 @@ use crate::repo_model_gateway::{
     RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION, RepoFrontierAutonomousProposalBinding,
     RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
     RepoFrontierPlanCandidate, RepoFrontierPlanDecision, RepoFrontierPlanDecisionReceipt,
-    RepoFrontierPlanMindDecision, RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
-    RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
+    RepoFrontierPlanMindDecision, RepoFrontierPlanMindRequest, RepoFrontierPlanningFailureReview,
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
-    RepoFrontierProposalModelingRequest,
-    RepoFrontierResearchRequest, RepoFrontierRoute, RepoFrontierVerdictDisposition,
-    RepoFrontierWorkProposal, RuntimeRepositoryDomainBinding,
+    RepoFrontierProposalModelingRequest, RepoFrontierResearchRequest, RepoFrontierRoute,
+    RepoFrontierVerdictDisposition, RepoFrontierWorkProposal, RuntimeRepositoryDomainBinding,
 };
 use crate::runtime_store_backend::{
     RuntimeSpineBackingStore as SingleFileMessagePackBackingStore, runtime_spine_backing_store,
@@ -94,7 +88,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v17";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v18";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -868,7 +862,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierProposalModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
     cache.register_entry_type::<RepoFrontierResearchRequest>()?;
-    cache.register_entry_type::<RepoFrontierPlanningLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanningFailureReview>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationRequest>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationLaunchBinding>()?;
@@ -882,7 +875,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<crate::EpiphanyReorientationLaunchBinding>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationDecisionDocument>()?;
     cache.register_entry_type::<crate::EpiphanyMindReorientationPassFailureDocument>()?;
-    cache.register_entry_type::<RepoFrontierPlanMindLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
@@ -2497,6 +2489,12 @@ pub fn prepare_runtime_spine_heartbeat_job(
         options.frontier_planning_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_frontier_plan_mind_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.frontier_plan_mind_request_id.as_deref(),
+        &options.launch_document,
+    )?;
     validate_frontier_research_launch_carrier(
         &options.role,
         &options.binding_id,
@@ -2842,6 +2840,40 @@ fn validate_frontier_planning_launch_carrier(
         .ok_or_else(|| anyhow!("frontier planning request requires its typed context"))?;
     if projection.request_id != request_id {
         return Err(anyhow!("frontier planning context/request mismatch"));
+    }
+    Ok(())
+}
+
+fn validate_frontier_plan_mind_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    request_id: Option<&str>,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.frontier_plan_mind_context.as_ref()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(request_id) = request_id else {
+        if projection.is_some() {
+            return Err(anyhow!(
+                "frontier plan Mind context requires its typed request id"
+            ));
+        }
+        return Ok(());
+    };
+    validate_non_empty(request_id, "frontier plan Mind request id")?;
+    if role != EPIPHANY_MIND_OWNER_ROLE || binding_id != EPIPHANY_MIND_ROLE_BINDING_ID {
+        return Err(anyhow!(
+            "frontier plan Mind request may only be transported by the Mind role launch"
+        ));
+    }
+    let projection = projection
+        .ok_or_else(|| anyhow!("frontier plan Mind request requires its typed context"))?;
+    if projection.request.request_id != request_id {
+        return Err(anyhow!("frontier plan Mind context/request mismatch"));
     }
     Ok(())
 }
@@ -4265,19 +4297,6 @@ pub fn put_runtime_role_worker_result(
             .frontier_plan_candidate()?
             .ok_or_else(|| anyhow!("frontier planning candidate disappeared"))?;
         validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &request)?;
-        let bindings = cache
-            .get_all::<RepoFrontierPlanningLaunchBinding>()?
-            .into_iter()
-            .filter(|binding| {
-                binding.planning_request_id == request.request_id && binding.job_id == result.job_id
-            })
-            .collect::<Vec<_>>();
-        if bindings.len() != 1 {
-            return Err(anyhow!(
-                "frontier planning result requires exactly one coordinator launch binding"
-            ));
-        }
-        let binding = &bindings[0];
         let worker_launch = cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
             .ok_or_else(|| anyhow!("frontier planning result requires its worker launch"))?;
@@ -4290,36 +4309,22 @@ pub fn put_runtime_role_worker_result(
         };
         let expected_projection =
             crate::RepoFrontierPlanningContextProjection::from_request(&request);
-        let launch_hash = format!(
-            "{:x}",
-            Sha256::digest(&worker_launch.launch_document_msgpack)
-        );
-        let expected_binding_record_id = if binding.attempt_ordinal == 0 {
-            format!("repo-frontier-planning-launch-{}", request.request_id)
-        } else {
-            format!(
-                "repo-frontier-planning-launch-{}-attempt-{}",
-                request.request_id, binding.attempt_ordinal
-            )
-        };
-        if binding.schema_version != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION
-            || binding.contract != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT
-            || binding.binding_record_id != expected_binding_record_id
-            || binding.job_id != result.job_id
-            || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
-            || binding.runtime_id != request.runtime_id
-            || binding.thread_id != launch_document.thread_id()
-            || binding.worker_launch_document_sha256 != launch_hash
+        crate::current_work::frontier_planning_attempt_ordinal(
+            &request.request_id,
+            &result.job_id,
+        )?;
+        if worker_launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
             || worker_launch.job_id != result.job_id
             || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
             || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
             || worker_launch.frontier_planning_request_id.as_deref()
                 != Some(request.request_id.as_str())
             || worker_launch.proposal_modeling_request_id.is_some()
+            || launch_document.thread_id() != result.job_id
             || projection != Some(&expected_projection)
         {
             return Err(anyhow!(
-                "frontier planning result does not exactly bind request, launch, runtime, launch provenance, and candidate"
+                "frontier planning result does not exactly bind request, immutable launch, and candidate"
             ));
         }
     }
@@ -4529,19 +4534,6 @@ pub fn put_runtime_role_worker_result(
                 "Mind decision substituted request echo or immutable candidate identity"
             ));
         }
-        let bindings = cache
-            .get_all::<RepoFrontierPlanMindLaunchBinding>()?
-            .into_iter()
-            .filter(|binding| {
-                binding.mind_request_id == request.request_id && binding.job_id == result.job_id
-            })
-            .collect::<Vec<_>>();
-        if bindings.len() != 1 {
-            return Err(anyhow!(
-                "Mind result requires exactly one coordinator launch binding"
-            ));
-        }
-        let binding = &bindings[0];
         let launch = cache
             .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
             .ok_or_else(|| anyhow!("Mind result launch disappeared"))?;
@@ -4551,21 +4543,20 @@ pub fn put_runtime_role_worker_result(
             _ => None,
         };
         let expected = RepoFrontierPlanMindContextProjection::new(&request, &planning, &candidate);
-        let hash = format!("{:x}", Sha256::digest(&launch.launch_document_msgpack));
-        if binding.schema_version != REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION
-            || binding.contract != REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT
-            || binding.job_id != result.job_id
-            || binding.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
-            || binding.runtime_id != request.runtime_id
-            || binding.thread_id != document.thread_id()
-            || binding.worker_launch_document_sha256 != hash
+        crate::current_work::frontier_plan_mind_attempt_ordinal(
+            &request.request_id,
+            &result.job_id,
+        )?;
+        if launch.schema_version != RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION
+            || launch.job_id != result.job_id
             || launch.role != EPIPHANY_MIND_OWNER_ROLE
             || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
             || launch.frontier_plan_mind_request_id.as_deref() != Some(request.request_id.as_str())
+            || document.thread_id() != result.job_id
             || projection != Some(&expected)
         {
             return Err(anyhow!(
-                "Mind result does not exactly bind request, launch, runtime, launch provenance, and candidate"
+                "Mind result does not exactly bind request, immutable launch, and candidate"
             ));
         }
     }
@@ -6425,7 +6416,9 @@ fn frontier_item_is_actionable_for_organ(
 /// admitted exactly once and contains an item the route committer can hand to
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
-pub(crate) fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
+pub(crate) fn runtime_has_actionable_hands_frontier(
+    runtime_store: impl AsRef<Path>,
+) -> Result<bool> {
     runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
 }
 
@@ -7271,20 +7264,31 @@ pub fn runtime_repo_frontier_planning_lifecycle(
         decision_id: None,
     };
     let mut imagination_launches = cache
-        .get_all::<RepoFrontierPlanningLaunchBinding>()?
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|binding| binding.planning_request_id == request.request_id)
-        .collect::<Vec<_>>();
-    imagination_launches.sort_by_key(|binding| binding.attempt_ordinal);
-    for (expected, binding) in imagination_launches.iter().enumerate() {
-        if binding.attempt_ordinal != expected as u64 {
+        .filter(|launch| {
+            launch.frontier_planning_request_id.as_deref() == Some(request.request_id.as_str())
+        })
+        .map(|launch| {
+            Ok((
+                crate::current_work::frontier_planning_attempt_ordinal(
+                    &request.request_id,
+                    &launch.job_id,
+                )?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    imagination_launches.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in imagination_launches.iter().enumerate() {
+        if *ordinal != expected {
             return Err(anyhow!(
                 "Self found noncontiguous frontier planning attempt identity"
             ));
         }
     }
-    if let Some(binding) = imagination_launches.last() {
-        lifecycle.imagination_job_id = Some(binding.job_id.clone());
+    if let Some((_, launch)) = imagination_launches.last() {
+        lifecycle.imagination_job_id = Some(launch.job_id.clone());
     }
     let imagination_results = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
@@ -7351,18 +7355,30 @@ pub fn runtime_repo_frontier_planning_lifecycle(
     lifecycle.mind_request_id = Some(mind_request.request_id.clone());
     lifecycle.stage = RepoFrontierPlanningLifecycleStage::MindLaunchReady;
     let mut mind_launches = cache
-        .get_all::<RepoFrontierPlanMindLaunchBinding>()?
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
         .into_iter()
-        .filter(|binding| binding.mind_request_id == mind_request.request_id)
-        .collect::<Vec<_>>();
-    mind_launches.sort_by_key(|binding| binding.attempt_ordinal);
-    for (expected, binding) in mind_launches.iter().enumerate() {
-        if binding.attempt_ordinal != expected as u64 {
+        .filter(|launch| {
+            launch.frontier_plan_mind_request_id.as_deref()
+                == Some(mind_request.request_id.as_str())
+        })
+        .map(|launch| {
+            Ok((
+                crate::current_work::frontier_plan_mind_attempt_ordinal(
+                    &mind_request.request_id,
+                    &launch.job_id,
+                )?,
+                launch,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    mind_launches.sort_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in mind_launches.iter().enumerate() {
+        if *ordinal != expected {
             return Err(anyhow!("Self found noncontiguous Mind attempt identity"));
         }
     }
-    if let Some(binding) = mind_launches.last() {
-        lifecycle.mind_job_id = Some(binding.job_id.clone());
+    if let Some((_, launch)) = mind_launches.last() {
+        lifecycle.mind_job_id = Some(launch.job_id.clone());
     }
     let mind_results = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
