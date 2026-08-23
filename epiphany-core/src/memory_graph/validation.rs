@@ -3,7 +3,6 @@ use super::EpiphanyMemoryEdge;
 use super::EpiphanyMemoryGraphSnapshot;
 use super::EpiphanyMemoryLifecycle;
 use super::EpiphanyMemoryNode;
-use super::EpiphanyMemoryProfile;
 use super::EpiphanyMemorySummary;
 use super::RepoFrontierStatus;
 use std::collections::{HashMap, HashSet};
@@ -282,12 +281,6 @@ fn validate_domain(
         "domain title is required",
         errors,
     );
-    if !lifecycle_allowed_for_profile(domain.profile, domain.lifecycle) {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.lifecycle"),
-            "domain lifecycle is not legal for profile",
-        ));
-    }
 }
 
 fn validate_node(
@@ -350,12 +343,6 @@ fn validate_node(
             "node requires anchors or source hash anchor:missing",
         ));
     }
-    if !lifecycle_allowed_for_profile(node.profile, node.lifecycle) {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.lifecycle"),
-            "node lifecycle is not legal for profile",
-        ));
-    }
 }
 
 fn validate_edge(
@@ -389,12 +376,6 @@ fn validate_edge(
         "edge claim is required",
         errors,
     );
-    if !lifecycle_allowed_for_profile(edge.profile, edge.lifecycle) {
-        errors.push(EpiphanyMemoryGraphValidationError::new(
-            format!("{path}.lifecycle"),
-            "edge lifecycle is not legal for profile",
-        ));
-    }
 }
 
 fn validate_summary(
@@ -463,36 +444,6 @@ fn validate_summary(
             format!("{path}.question"),
             "summary must preserve a question or tension",
         ));
-    }
-}
-
-pub fn lifecycle_allowed_for_profile(
-    profile: EpiphanyMemoryProfile,
-    lifecycle: EpiphanyMemoryLifecycle,
-) -> bool {
-    use EpiphanyMemoryLifecycle::*;
-    use EpiphanyMemoryProfile::*;
-    match profile {
-        RepoArchitecture | RepoDataflow => {
-            matches!(lifecycle, Observed | Proposed | Accepted | Stale | Retired)
-        }
-        RoleSelf | Identity => matches!(
-            lifecycle,
-            Proposed | Accepted | Revised | Retired | Crystallized
-        ),
-        ShortTerm => matches!(
-            lifecycle,
-            Active | Clustered | Distilled | Incubated | Pruned
-        ),
-        Incubation => matches!(lifecycle, Active | Deepening | Cooling | Promoted | Retired),
-        AgencyPressure => matches!(lifecycle, Active | Obligated | Cooling | Answered | Retired),
-        CandidateIntervention => {
-            matches!(lifecycle, Queued | Deferred | Spoken | Applied | Retired)
-        }
-        Evidence => matches!(
-            lifecycle,
-            Observed | Reviewed | Accepted | Contradicted | Superseded | Retired
-        ),
     }
 }
 

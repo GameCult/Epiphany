@@ -801,7 +801,6 @@ pub fn reorient_checkpoint_from_admitted_repo_model(
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyMemoryDomain {
     pub id: String,
-    pub profile: EpiphanyMemoryProfile,
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
@@ -815,50 +814,13 @@ pub struct EpiphanyMemoryDomain {
 )]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
-pub enum EpiphanyMemoryProfile {
-    #[default]
-    RepoArchitecture,
-    RepoDataflow,
-    RoleSelf,
-    ShortTerm,
-    Incubation,
-    AgencyPressure,
-    CandidateIntervention,
-    Identity,
-    Evidence,
-}
-
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, JsonSchema, TS, Default,
-)]
-#[serde(rename_all = "snake_case")]
-#[ts(rename_all = "snake_case")]
 pub enum EpiphanyMemoryLifecycle {
     #[default]
     Observed,
     Proposed,
     Accepted,
-    Active,
-    Clustered,
-    Distilled,
-    Incubated,
-    Pruned,
-    Revised,
     Retired,
-    Crystallized,
     Stale,
-    Deepening,
-    Cooling,
-    Promoted,
-    Queued,
-    Deferred,
-    Spoken,
-    Applied,
-    Obligated,
-    Answered,
-    Reviewed,
-    Contradicted,
-    Superseded,
 }
 
 #[derive(
@@ -877,13 +839,6 @@ pub enum EpiphanyMemoryNodeKind {
     Adapter,
     TestSeam,
     StateStore,
-    RoleMemory,
-    ShortTermThought,
-    IncubationThread,
-    AgencyPressure,
-    CandidateIntervention,
-    Identity,
-    Evidence,
     Summary,
     Other,
 }
@@ -892,7 +847,6 @@ pub enum EpiphanyMemoryNodeKind {
 pub struct EpiphanyMemoryNode {
     pub id: String,
     pub domain_id: String,
-    pub profile: EpiphanyMemoryProfile,
     pub kind: EpiphanyMemoryNodeKind,
     pub title: String,
     pub claim: String,
@@ -936,15 +890,8 @@ pub enum EpiphanyMemoryEdgeKind {
     Verifies,
     Supports,
     Contradicts,
-    Distills,
-    Revises,
-    Retires,
     Grounds,
     Triggers,
-    SpokenAs,
-    Cools,
-    ClustersWith,
-    ResonatesWith,
     DependsOn,
     Other,
 }
@@ -955,7 +902,6 @@ pub struct EpiphanyMemoryEdge {
     pub source_id: String,
     pub target_id: String,
     pub kind: EpiphanyMemoryEdgeKind,
-    pub profile: EpiphanyMemoryProfile,
     pub claim: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryAnchor>")]

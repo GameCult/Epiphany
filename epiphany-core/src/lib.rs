@@ -113,7 +113,6 @@ pub use epiphany_state_model::EpiphanyMemoryDomain;
 pub use epiphany_state_model::EpiphanyMemoryEdge;
 pub use epiphany_state_model::EpiphanyMemoryLifecycle;
 pub use epiphany_state_model::EpiphanyMemoryNode;
-pub use epiphany_state_model::EpiphanyMemoryProfile;
 pub use epiphany_state_model::EpiphanyMemorySummary;
 pub use eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 pub use eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
@@ -170,10 +169,6 @@ pub use memory_graph::EpiphanyMemoryNodeKind;
 pub use memory_graph::RepoFrontierAdoptedPlan;
 pub use memory_graph::RepoFrontierItem;
 pub use memory_graph::RepoFrontierStatus;
-pub use memory_graph::lifecycle_allowed_for_profile;
-pub use memory_graph::memory_graph_domain_id;
-pub use memory_graph::memory_graph_edge_id;
-pub use memory_graph::memory_graph_node_id;
 pub use memory_graph::validate_memory_graph_snapshot;
 pub use mind_documents::*;
 pub use packaged_release::{

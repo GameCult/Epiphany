@@ -92,12 +92,11 @@ fn repo_frontier_item_output_schema() -> serde_json::Value {
 fn repo_model_node_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
-        "required": ["id", "domain_id", "profile", "kind", "title", "claim", "question", "tension", "action_implication"],
+        "required": ["id", "domain_id", "kind", "title", "claim", "question", "tension", "action_implication"],
         "properties": {
             "id": {"type": "string", "minLength": 1},
             "domain_id": {"type": "string", "minLength": 1},
-            "profile": {"type": "string", "enum": ["repo_architecture", "repo_dataflow", "role_self", "short_term", "incubation", "agency_pressure", "candidate_intervention", "identity", "evidence"]},
-            "kind": {"type": "string", "enum": ["domain", "module", "crate", "binary", "schema", "runtime_contract", "adapter", "test_seam", "state_store", "role_memory", "short_term_thought", "incubation_thread", "agency_pressure", "candidate_intervention", "identity", "evidence", "summary", "other"]},
+            "kind": {"type": "string", "enum": ["domain", "module", "crate", "binary", "schema", "runtime_contract", "adapter", "test_seam", "state_store", "summary", "other"]},
             "title": {"type": "string", "minLength": 1},
             "claim": {"type": "string", "minLength": 1},
             "question": {"type": "string"},
@@ -105,7 +104,7 @@ fn repo_model_node_output_schema() -> serde_json::Value {
             "action_implication": {"type": "string", "minLength": 1},
             "anchors": {"type": "array", "items": memory_anchor_output_schema()},
             "source_hashes": {"type": "array", "items": {"type": "string"}},
-            "lifecycle": {"type": "string"},
+            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]},
             "salience": {"type": "integer", "minimum": 0},
             "confidence": {"type": "integer", "minimum": 0}
         },
@@ -120,16 +119,15 @@ fn repo_model_node_output_schema() -> serde_json::Value {
 fn repo_model_edge_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
-        "required": ["id", "source_id", "target_id", "kind", "profile", "claim"],
+        "required": ["id", "source_id", "target_id", "kind", "claim"],
         "properties": {
             "id": {"type": "string", "minLength": 1},
             "source_id": {"type": "string", "minLength": 1},
             "target_id": {"type": "string", "minLength": 1},
-            "kind": {"type": "string", "enum": ["owns", "reads", "writes", "derives", "adapts", "persists", "launches", "verifies", "supports", "contradicts", "distills", "revises", "retires", "grounds", "triggers", "spoken_as", "cools", "clusters_with", "resonates_with", "depends_on", "other"]},
-            "profile": {"type": "string", "enum": ["repo_architecture", "repo_dataflow", "role_self", "short_term", "incubation", "agency_pressure", "candidate_intervention", "identity", "evidence"]},
+            "kind": {"type": "string", "enum": ["owns", "reads", "writes", "derives", "adapts", "persists", "launches", "verifies", "supports", "contradicts", "grounds", "triggers", "depends_on", "other"]},
             "claim": {"type": "string"},
             "anchors": {"type": "array", "items": memory_anchor_output_schema()},
-            "lifecycle": {"type": "string"},
+            "lifecycle": {"type": "string", "enum": ["observed", "proposed", "accepted", "retired", "stale"]},
             "confidence": {"type": "integer", "minimum": 0}
         },
         "additionalProperties": false

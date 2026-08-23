@@ -1757,7 +1757,7 @@ mod tests {
     use crate::{RuntimeSpineInitOptions, initialize_runtime_spine};
     use epiphany_state_model::{
         EpiphanyMemoryEdgeKind, EpiphanyMemoryLifecycle, EpiphanyMemoryNodeKind,
-        EpiphanyMemoryProfile, RepoFrontierStatus,
+        RepoFrontierStatus,
     };
 
     fn bind_test_body(
@@ -1800,7 +1800,6 @@ mod tests {
         let body = bind_test_body(&store, "swarm-seed", "workspace-seed")?;
         let domain = EpiphanyMemoryDomain {
             id: "domain-seed".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             title: "Seed domain".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -1808,7 +1807,6 @@ mod tests {
         let node = EpiphanyMemoryNode {
             id: "node-seed".into(),
             domain_id: domain.id.clone(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             kind: EpiphanyMemoryNodeKind::Module,
             title: "Seed node".into(),
             claim: "Bootstrap is keyed".into(),
@@ -1963,7 +1961,6 @@ mod tests {
             "domain-1",
             &EpiphanyRepoModelDomainDocument::new(&EpiphanyMemoryDomain {
                 id: "domain-1".into(),
-                profile: EpiphanyMemoryProfile::RepoArchitecture,
                 title: "Architecture".into(),
                 lifecycle: EpiphanyMemoryLifecycle::Accepted,
                 ..Default::default()
@@ -1974,7 +1971,6 @@ mod tests {
             &EpiphanyRepoModelNodeDocument::new(&EpiphanyMemoryNode {
                 id: "node-1".into(),
                 domain_id: "domain-1".into(),
-                profile: EpiphanyMemoryProfile::RepoArchitecture,
                 kind: EpiphanyMemoryNodeKind::Module,
                 title: "Mind".into(),
                 claim: "Mind state is keyed".into(),
@@ -2088,7 +2084,6 @@ mod tests {
         )?;
         let domain = EpiphanyMemoryDomain {
             id: "domain-new".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             title: "New domain".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -2096,7 +2091,6 @@ mod tests {
         let node = |id: &str, claim: &str| EpiphanyMemoryNode {
             id: id.into(),
             domain_id: domain.id.clone(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             kind: EpiphanyMemoryNodeKind::Module,
             title: id.into(),
             claim: claim.into(),
@@ -2113,7 +2107,6 @@ mod tests {
             source_id: left.id.clone(),
             target_id: right.id.clone(),
             kind: EpiphanyMemoryEdgeKind::Writes,
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             claim: "Left writes Right".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -2219,7 +2212,6 @@ mod tests {
         let body = bind_test_body(&store, "swarm-concurrency", "workspace-concurrency")?;
         let domain = EpiphanyMemoryDomain {
             id: "domain-concurrency".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             title: "Concurrent domain".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -2246,7 +2238,6 @@ mod tests {
         let node = |id: &str, claim: &str| EpiphanyMemoryNode {
             id: id.into(),
             domain_id: domain.id.clone(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             kind: EpiphanyMemoryNodeKind::Module,
             title: id.into(),
             claim: claim.into(),

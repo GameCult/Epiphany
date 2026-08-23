@@ -586,7 +586,6 @@ mod tests {
     use epiphany_state_model::EpiphanyMemoryLifecycle;
     use epiphany_state_model::EpiphanyMemoryNode;
     use epiphany_state_model::EpiphanyMemoryNodeKind;
-    use epiphany_state_model::EpiphanyMemoryProfile;
     use epiphany_state_model::RepoFrontierAdoptedPlan;
     use epiphany_state_model::RepoFrontierItem;
     use epiphany_state_model::RepoFrontierStatus;
@@ -737,7 +736,6 @@ mod tests {
         let body = observe_runtime_repository_body_basis(store)?;
         let domain = EpiphanyMemoryDomain {
             id: "hands-action-domain".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             title: "Hands action fixture".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -745,7 +743,6 @@ mod tests {
         let node = EpiphanyMemoryNode {
             id: "hands-action-node".into(),
             domain_id: domain.id.clone(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             kind: EpiphanyMemoryNodeKind::Module,
             title: "Hands action CLI".into(),
             claim: "Hands consequences require exact frontier authority.".into(),

@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
     EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode,
-    EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, EpiphanyRepoModelSeed,
+    EpiphanyMemoryNodeKind, EpiphanyRepoModelSeed,
     EpiphanyRepoModelSeedDocuments, ObserveOutcome, RuntimeSpineInitOptions,
     admit_repository_body_observation, bind_repository_body, bind_runtime_to_swarm,
     initialize_keyed_repo_model, initialize_runtime_spine,
@@ -47,7 +47,6 @@ fn main() -> Result<()> {
                 EpiphanyRepoModelSeedDocuments {
                     domains: vec![EpiphanyMemoryDomain {
                     id: "repository-body".to_string(),
-                    profile: EpiphanyMemoryProfile::RepoArchitecture,
                     title: "Deployed repository Body".to_string(),
                     description: Some(
                         "Cold-start substrate binding; live Modeling owns architectural expansion."
@@ -58,7 +57,6 @@ fn main() -> Result<()> {
                     nodes: vec![EpiphanyMemoryNode {
                         id: "claim-deployed-repository-body".to_string(),
                         domain_id: "repository-body".to_string(),
-                        profile: EpiphanyMemoryProfile::RepoArchitecture,
                         kind: EpiphanyMemoryNodeKind::RuntimeContract,
                         title: "Runtime is bound to the deployed repository Body".to_string(),
                         claim: format!(

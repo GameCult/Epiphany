@@ -3597,7 +3597,7 @@ mod tests {
     use super::*;
     use epiphany_state_model::{
         EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
-        EpiphanyMemoryProfile, RepoFrontierItem, RepoFrontierStatus,
+        RepoFrontierItem, RepoFrontierStatus,
     };
 
     fn basis(observation_id: &str, generation: u64) -> RepositoryBodyObservationBasis {
@@ -3727,7 +3727,6 @@ mod tests {
         let body = crate::observe_runtime_repository_body_basis(&store)?;
         let domain = EpiphanyMemoryDomain {
             id: "body-domain".into(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             title: "Body".into(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
@@ -3735,7 +3734,6 @@ mod tests {
         let node = EpiphanyMemoryNode {
             id: "body-node".into(),
             domain_id: domain.id.clone(),
-            profile: EpiphanyMemoryProfile::RepoArchitecture,
             kind: EpiphanyMemoryNodeKind::Module,
             title: "Body node".into(),
             claim: "The Body is typed".into(),
