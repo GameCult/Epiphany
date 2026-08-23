@@ -1087,9 +1087,18 @@ old Starfire endpoint and installs no issuer unit. Idunn must repair that before
 Persona consequence readiness; deleting the consequence gate would falsify the
 architecture.
 
-The next source cut is `epiphany-package`: `epiphany-release` already owns its
-package and inspect operations plus publish, while no live repository or
-`gamecult-ops` caller names the leaf wrapper.
+Exact `d2aee1ce` deletes the 97-line `epiphany-package` leaf CLI and its Cargo
+target. `epiphany-release` already owns the same package and inspect operations
+plus publish, and no live caller named the wrapper. Cargo now reports nine
+executable targets; the release-construction library and real release binary
+check cleanly. Each survivor has a deployed lifecycle, external
+protocol/privilege boundary, or live operator/Idunn contract.
+
+The next source cut audits `epiphany-release-construction` tests by the external
+claim each test protects. Preserve package identity, exact sibling bytes,
+clean-source and submodule refusal, path escape/alias refusal, atomic
+publication, and target-specific filename behavior; delete tests that merely
+spell implementation, mirror constants, or duplicate stronger proof.
 
 ## Competitive Eyes/Imagination pass
 

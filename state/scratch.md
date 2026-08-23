@@ -22,7 +22,8 @@ machine smaller and the canonical map explicitly reopens that lane.
   `1d5a1f17` reduced core to 30 binaries with zero duplicate owners and removed
   19,252 net non-vendor lines. The current cut reduces core again to its one
   explicit maintenance binary. Exact `a78c1802` deletes that ceremonial
-  compaction checker as well. Subsequent cuts leave 10 total Cargo executable
+  compaction checker as well. Exact `d2aee1ce` deletes the duplicate packaging
+  CLI. Subsequent cuts leave 9 total Cargo executable
   targets across the workspace, with no duplicate binary-source owner.
 
 The storage failure is evidence of source-shape failure. Build-profile flags
@@ -95,12 +96,16 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    stale Starfire endpoint through Idunn before Persona consequence readiness.
 14. Done: delete the 366-line pre-compaction phrase checker and its Cargo
    target. Agents inspect the existing state status and Git owners directly.
-15. Next: delete `epiphany-package`. `epiphany-release` already owns the same
+15. Done: delete `epiphany-package`. `epiphany-release` already owns the same
    package/inspect operations plus publish, and no live caller names the leaf
-   wrapper. Preserve exact
+   wrapper.
+16. Next: audit `epiphany-release-construction` tests by externally
+   consequential claim. Delete implementation spelling, mirrored constants,
+   deterministic self-equality, source-shape assertions, and duplicate proof;
+   preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-16. Run focused tests after each cut. Only after source subtraction stabilizes
+17. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
