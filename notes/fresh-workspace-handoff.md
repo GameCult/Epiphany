@@ -639,6 +639,14 @@ had no writer, test, or consumer beyond unused context slots and loaders. The
 cut removes 151 lines; non-test core, CultMesh 27/27, and prompt projection 1/1
 pass.
 
+The next producer audit found no production writer for
+`EpiphanyCultMeshDaemonStatusEntry`; only CultMesh tests call its public writer.
+The daemon supervisor and local-Verse context read this manually conjured
+aggregate, while the real semantic/workspace projectors already publish their
+own heartbeat/readiness receipts. Do not add a status publisher. In the
+supervisor split, consume family-owned health directly and delete the generic
+status/poke mirror once its command paths have moved.
+
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the
 remaining daemon supervisor's

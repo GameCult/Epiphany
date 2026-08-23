@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `753707ff` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `c977d149` on `codex/epiphany-shakedown-live`
 Current worktree cut: remaining CultMesh invariant/test audit; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -59,6 +59,14 @@ admission. Cross-repository inspection found no producer for Epiphany's former
 v0 deployment and aftercare DTOs; Epiphany had no writer, test, or consumer for
 them. Those schemas, registry entries, context fields, loaders, and key helpers
 are deleted rather than advertising a crossing that never existed.
+
+The remaining generic daemon-status aggregate has no production writer. Tests
+can mint it, while the supervisor and local-Verse view only read it. Real
+semantic and workspace-coverage projectors already own family-specific
+heartbeat/readiness receipts. During the supervisor split those receipts must
+remain the observation owners; adding a generic status producer would merely
+animate another mirror. The generic status/poke path is therefore a mapped
+deletion target, not a foundation to harden.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
