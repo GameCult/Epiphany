@@ -680,7 +680,7 @@ mod tests {
         ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
             self.calls.push(stage.to_string());
             Box::pin(async move {
-                if !epiphany_core::runtime_spine_status(store_path)?.present {
+                if epiphany_core::runtime_identity(store_path)?.is_none() {
                     epiphany_core::initialize_runtime_spine(
                         store_path,
                         epiphany_core::RuntimeSpineInitOptions {
@@ -752,7 +752,7 @@ mod tests {
         cultmesh_store: PathBuf,
         allowed_channel_ids: Vec<String>,
     ) -> Result<PersonaModelExecutionPlan> {
-        if !epiphany_core::runtime_spine_status(store)?.present {
+        if epiphany_core::runtime_identity(store)?.is_none() {
             epiphany_core::initialize_runtime_spine(
                 store,
                 epiphany_core::RuntimeSpineInitOptions {

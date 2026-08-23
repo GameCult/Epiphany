@@ -23,7 +23,6 @@ use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_repo_frontier_hands_authority;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
-use epiphany_core::runtime_spine_status;
 use epiphany_core::select_and_commit_repo_frontier_route;
 use epiphany_core::substrate_gate_coordinator_implementation_grant;
 use epiphany_core::{
@@ -1331,7 +1330,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "coordinator-final-status.txt".to_string(),
             "coordinator-final-action.txt".to_string(),
             "agent-function-telemetry.json".to_string(),
-            "runtime-spine-status.json".to_string(),
         ];
         let sealed_artifact_manifest = Vec::new();
         let receipt_created_at = now();
@@ -1386,7 +1384,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             final_runtime_job_id: final_action["runtimeJobId"].as_str().map(str::to_string),
         };
         finalize_coordinator_run(&runtime_store, &coordinator_run_receipt)?;
-        let runtime_status = runtime_spine_status(&runtime_store)?;
         let summary = json!({
             "objective": "Coordinate the Epiphany MVP lanes through native typed state and runtime organs.",
             "artifactDir": artifact_dir,
@@ -1397,7 +1394,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "codexHome": codex_home,
             "mcpConfig": mcp_config,
             "runtimeStore": runtime_store,
-            "runtimeSpine": runtime_status,
             "workspace": cwd,
             "threadId": operator_final_status["threadId"],
             "mode": args.mode,
@@ -1418,10 +1414,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         write_json(
             &artifact_dir.join("coordinator-final-status.json"),
             &summary["finalStatus"],
-        )?;
-        write_json(
-            &artifact_dir.join("runtime-spine-status.json"),
-            &summary["runtimeSpine"],
         )?;
         fs::write(
             artifact_dir.join("coordinator-final-status.txt"),

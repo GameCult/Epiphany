@@ -23,8 +23,8 @@ use epiphany_core::open_runtime_model_execution;
 use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
 use epiphany_core::put_runtime_tool_execution_intent;
+use epiphany_core::runtime_identity;
 use epiphany_core::runtime_spine_cache;
-use epiphany_core::runtime_spine_status;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -876,8 +876,7 @@ pub fn fail_model_backed_worker_job(
 }
 
 pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Result<()> {
-    let status = runtime_spine_status(&options.store_path)?;
-    if status.present {
+    if runtime_identity(&options.store_path)?.is_some() {
         return Ok(());
     }
     initialize_runtime_spine(

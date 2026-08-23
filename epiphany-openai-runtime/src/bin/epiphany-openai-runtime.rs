@@ -76,10 +76,8 @@ async fn main() -> Result<()> {
                     other => return Err(anyhow!("unknown preflight argument: {other}")),
                 }
             }
-            let status = epiphany_core::runtime_spine_status(&store)?;
-            if !status.present {
-                return Err(anyhow!("runtime spine is absent at {}", store.display()));
-            }
+            let identity = epiphany_core::runtime_identity(&store)?
+                .ok_or_else(|| anyhow!("runtime spine is absent at {}", store.display()))?;
             let registered_document_types = epiphany_core::runtime_registered_document_types()?;
             let missing: Vec<String> = required_document_types
                 .iter()
@@ -111,7 +109,7 @@ async fn main() -> Result<()> {
                 "schemaCatalogSha256": schema_catalog_sha256,
                 "preflightWitnessId": preflight_witness_id,
                 "runtimeStore": store,
-                "runtimeId": status.runtime_id,
+                "runtimeId": identity.runtime_id,
                 "requiredDocumentTypes": required_document_types,
                 "registeredDocumentTypes": registered_document_types,
                 "schemaPreflightPassed": true,

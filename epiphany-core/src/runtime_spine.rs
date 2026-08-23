@@ -773,23 +773,6 @@ pub enum EpiphanyRuntimeJobStatus {
     Cancelled,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EpiphanyRuntimeSpineStatus {
-    pub store: String,
-    pub present: bool,
-    pub runtime_id: Option<String>,
-    pub display_name: Option<String>,
-    pub sessions: usize,
-    pub active_sessions: usize,
-    pub jobs: usize,
-    pub open_jobs: usize,
-    pub job_results: usize,
-    pub tool_invocation_intents: usize,
-    pub tool_invocation_receipts: usize,
-    pub pending_tool_invocations: usize,
-    pub supported_document_types: Vec<String>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSpineInitOptions {
     pub runtime_id: String,
@@ -9917,83 +9900,16 @@ pub fn complete_runtime_job(
     Ok(result)
 }
 
-pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRuntimeSpineStatus> {
+pub fn runtime_identity(store_path: impl AsRef<Path>) -> Result<Option<EpiphanyRuntimeIdentity>> {
     let store_path = store_path.as_ref();
     if !store_path.exists() {
-        return Ok(EpiphanyRuntimeSpineStatus {
-            store: store_path.display().to_string(),
-            present: false,
-            runtime_id: None,
-            display_name: None,
-            sessions: 0,
-            active_sessions: 0,
-            jobs: 0,
-            open_jobs: 0,
-            job_results: 0,
-            tool_invocation_intents: 0,
-            tool_invocation_receipts: 0,
-            pending_tool_invocations: 0,
-            supported_document_types: Vec::new(),
-        });
+        return Ok(None);
     }
     let mut cache = runtime_spine_cache(store_path)?;
     cache
         .pull_all_backing_stores()
         .with_context(|| format!("failed to read runtime spine {}", store_path.display()))?;
-    let identity = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
-    let sessions = cache.get_all::<EpiphanyRuntimeSession>()?;
-    let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
-    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
-    let tool_intents = cache.get_all::<EpiphanyToolInvocationIntent>()?;
-    let tool_receipts = cache.get_all::<EpiphanyToolInvocationReceipt>()?;
-    let receipt_intent_ids = tool_receipts
-        .iter()
-        .map(|receipt| receipt.intent_id.as_str())
-        .collect::<BTreeSet<_>>();
-    let active_sessions = sessions
-        .iter()
-        .filter(|session| {
-            matches!(
-                session.status,
-                EpiphanyRuntimeSessionStatus::Active
-                    | EpiphanyRuntimeSessionStatus::WaitingForReview
-            )
-        })
-        .count();
-    let open_jobs = jobs
-        .iter()
-        .filter(|job| {
-            matches!(
-                job.status,
-                EpiphanyRuntimeJobStatus::Queued
-                    | EpiphanyRuntimeJobStatus::Running
-                    | EpiphanyRuntimeJobStatus::WaitingForReview
-            )
-        })
-        .count();
-    let supported_document_types = if identity.is_some() {
-        runtime_registered_document_types()?
-    } else {
-        Vec::new()
-    };
-    Ok(EpiphanyRuntimeSpineStatus {
-        store: store_path.display().to_string(),
-        present: identity.is_some(),
-        runtime_id: identity.as_ref().map(|item| item.runtime_id.clone()),
-        display_name: identity.as_ref().map(|item| item.display_name.clone()),
-        sessions: sessions.len(),
-        active_sessions,
-        jobs: jobs.len(),
-        open_jobs,
-        job_results: job_results.len(),
-        tool_invocation_intents: tool_intents.len(),
-        tool_invocation_receipts: tool_receipts.len(),
-        pending_tool_invocations: tool_intents
-            .iter()
-            .filter(|intent| !receipt_intent_ids.contains(intent.intent_id.as_str()))
-            .count(),
-        supported_document_types,
-    })
+    cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)
 }
 
 pub fn runtime_registered_document_types() -> Result<Vec<String>> {
