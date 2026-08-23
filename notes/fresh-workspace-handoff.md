@@ -491,20 +491,30 @@ passes 455/455 and the provider runtime passes 27/27. The obsolete repository-
 local Cargo target was 2.5 GiB and was removed; compilation remains in the
 shared target.
 
-Exact `2164bd0a` collapses heartbeat to Resident Self and Persona scheduling.
+Exact `2164bd0a` first collapsed heartbeat to Resident Self and Persona scheduling.
 It deletes Ghostlight scene scheduling, manual tick/pump/heat/complete and
 queue-mention controls, adaptive pacing/initiative heat, five fake organ lanes,
 five dead schemas, and eight self-referential tests: 2,145 deletions against
 118 additions. The strict heartbeat state is now `v1`; the owning binary checks
 cleanly and the surviving core suite passes 448/448.
 
-Next split pending Persona mentions, turn requests/terminal receipts, blocked
-social pressure, and retention head/plan from the heartbeat singleton into
-keyed CultCache identities. Heartbeat may consume a derived pressure view but
-must not own social state. Continue deleting constructor/projection-copy tests
-as their dead surfaces are exposed. Do not run a full-workspace compile,
-package, deployment, or Ox root until the subtraction audit closes. Never
-resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+The current source cut completes the separation. Pending Persona mentions,
+immutable requests, terminal receipts, quarantine records, and retention state
+are keyed CultCache documents. Persona derives and reserves its own work; the
+heartbeat daemon has no Persona path. The exact social request envelope is the
+pass-input provenance. Failed turns produce a new deterministic retry identity,
+and retention excludes its immutable retired frontier instead of deleting
+decision history. The old heartbeat bridge/terminal names and writable types
+have no compatibility reader.
+
+Next audit whether a singleton one-participant heartbeat scheduler still earns
+its state, selection, projection, artifact-retention, stale-repair, grant, and
+ack machinery. Map the Resident Self grant lifecycle first; delete heartbeat
+state if Resident Self already owns exclusion and terminality. Continue
+deleting tests that prove constructors, field copies, or boolean helpers rather
+than named invariants. Do not run a full-workspace compile, package, deployment,
+or Ox root until the subtraction audit closes. Never resume Ox10, Ox12, Ox13,
+Ox15, or Ox16.
 
 ## Operational state that matters
 

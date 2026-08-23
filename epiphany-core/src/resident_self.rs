@@ -955,8 +955,7 @@ pub fn materialize_resident_self_domain_obligations(
         workspace,
         &requested_at,
     )?;
-    for feedback in
-        crate::bridged_persona_feedback_ready_for_cognition(persona_feedback_store, runtime_id)?
+    for feedback in crate::persona_feedback_ready_for_cognition(persona_feedback_store, runtime_id)?
     {
         let Some(_request) = crate::commit_imagination_consideration_request(
             runtime_store,

@@ -1,21 +1,21 @@
 use std::{env, net::SocketAddr, path::PathBuf, thread, time::Duration};
 
 use anyhow::{Context, Result, anyhow};
-use cultcache_rs::{CacheBackingStore, DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::DatabaseEntry;
+#[cfg(test)]
+use epiphany_core::EpiphanyMindDocumentVersion;
 use epiphany_core::{
-    EpiphanyHeartbeatStateEntry, EpiphanyMindDocumentVersion, EpiphanyMindPersonaMemoryDocument,
-    EpiphanyMindPersonaPassInputDocument, PersonaIdentity, PersonaProjectorInput,
-    PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage, PersonaTurnRequest,
-    PersonaTurnTerminalOptions, admit_persona_pass_input, assemble_mind_view,
-    complete_persona_turn_request_store, default_organ_dependencies_for,
+    EpiphanyMindPersonaMemoryDocument, EpiphanyMindPersonaPassInputDocument, PersonaIdentity,
+    PersonaProjectorInput, PersonaRepoActivity, PersonaSocialAffordance, PersonaTranscriptMessage,
+    PersonaTurnRequest, PersonaTurnTerminalOptions, admit_persona_pass_input, assemble_mind_view,
+    complete_persona_social_turn, default_organ_dependencies_for,
     exchange_persona_discord_delivery_rudp, load_admitted_persona_pass_input,
-    load_epiphany_cultmesh_swarm_brake,
-    load_heartbeat_state_entry, load_persona_discord_receipt_anchor,
+    load_epiphany_cultmesh_swarm_brake, load_persona_discord_receipt_anchor,
     load_persona_discord_service_anchor, open_persona_discord_request_identity,
     pending_persona_discord_delivery_request_for_turn, persona_delivery_receipt_exists_for_turn,
-    persona_model_terminal_exists, poll_persona_discord_crossing,
-    reconcile_terminal_persona_conversation, retain_terminal_persona_conversations,
-    semantic_memory_recall_from_heartbeat_action, validate_persona_discord_request_anchor,
+    persona_model_terminal_exists, persona_turn_request_source, persona_turn_requests,
+    poll_persona_discord_crossing, pulse_persona_social, reconcile_terminal_persona_conversation,
+    retain_terminal_persona_conversations, validate_persona_discord_request_anchor,
 };
 use epiphany_openai_runtime::{
     NativePersonaModelRunner, PersonaModelExecutionPlan, execute_persona_model_turn,
@@ -42,32 +42,29 @@ async fn poll_once(options: &Options) -> Result<bool> {
     if brake.status != "released" {
         return Ok(false);
     }
+    let pulse = pulse_persona_social(&options.social_store, false)?;
     let receipt_anchor = load_persona_discord_receipt_anchor(&options.mouth_receipt_anchor)?;
     retain_terminal_persona_conversations(
         &options.runtime_store,
-        &options.heartbeat_store,
+        &options.social_store,
         &options.mouth_request_store,
         &options.mouth_receipt_store,
         &receipt_anchor,
         options.retained_terminal_conversations,
         &chrono::Utc::now().to_rfc3339(),
     )?;
-    let Some(state) = load_heartbeat_state_entry(&options.heartbeat_store)? else {
-        return Ok(false);
-    };
-    for request in state
-        .persona_turn_requests
+    let requests = persona_turn_requests(&options.social_store)?;
+    for request in requests
         .iter()
         .filter(|request| request.terminal_receipt.is_some())
     {
         reconcile_terminal_persona_conversation(
             &options.runtime_store,
-            &options.heartbeat_store,
+            &options.social_store,
             &request.request_id,
         )?;
     }
-    let mut candidates = state
-        .persona_turn_requests
+    let mut candidates = requests
         .into_iter()
         .filter(|request| request.status == "reserved" && request.terminal_receipt.is_none())
         .collect::<Vec<_>>();
@@ -88,7 +85,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
         }
     });
     let Some(request) = candidates.into_iter().next() else {
-        return Ok(false);
+        return Ok(pulse["status"] != "idle");
     };
     ensure_persona_pass_input_admitted(options, &request)?;
     let plan = PersonaModelExecutionPlan::from_admitted_input(
@@ -111,8 +108,8 @@ async fn poll_once(options: &Options) -> Result<bool> {
         Ok(receipt) => receipt,
         Err(error) if error.to_string().contains("braked") => return Ok(false),
         Err(error) => {
-            complete_persona_turn_request_store(
-                &options.heartbeat_store,
+            complete_persona_social_turn(
+                &options.social_store,
                 PersonaTurnTerminalOptions {
                     request_id: request.request_id,
                     outcome: "failed".into(),
@@ -133,7 +130,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
     }
     let mut result = poll_persona_discord_crossing(
         &options.runtime_store,
-        &options.heartbeat_store,
+        &options.social_store,
         &options.cultmesh_store,
         &options.runtime_id,
         &options.mouth_request_store,
@@ -161,7 +158,7 @@ async fn poll_once(options: &Options) -> Result<bool> {
             Ok(_) => {
                 result = poll_persona_discord_crossing(
                     &options.runtime_store,
-                    &options.heartbeat_store,
+                    &options.social_store,
                     &options.cultmesh_store,
                     &options.runtime_id,
                     &options.mouth_request_store,
@@ -216,9 +213,7 @@ fn ensure_persona_pass_input_admitted(
             timestamp: mention.queued_at.clone(),
         })
         .collect::<Vec<_>>();
-    let semantic_recall = semantic_memory_recall_from_heartbeat_action(
-        &serde_json::json!({"persona_memory_recall": request.semantic_memory_recall}),
-    );
+    let semantic_recall = String::new();
     let social_affordances = request
         .mentions
         .iter()
@@ -253,14 +248,8 @@ fn ensure_persona_pass_input_admitted(
         social_affordances,
         organ_dependencies: vec![default_organ_dependencies_for("Persona")],
     };
-    let heartbeat_envelope = SingleFileMessagePackBackingStore::new(&options.heartbeat_store)
-        .pull_all()?
-        .into_iter()
-        .find(|entry| entry.r#type == EpiphanyHeartbeatStateEntry::TYPE)
-        .ok_or_else(|| anyhow!("Persona pass input lost its heartbeat source"))?;
-    let heartbeat_source =
-        EpiphanyMindDocumentVersion::from_envelope("epiphany-heartbeat", &heartbeat_envelope)?;
-    let mut observed_sources = vec![heartbeat_source.clone()];
+    let social_source = persona_turn_request_source(&options.social_store, &request.request_id)?;
+    let mut observed_sources = vec![social_source.clone()];
     for memory in &memories {
         let source = mind
             .source_documents
@@ -294,7 +283,7 @@ fn ensure_persona_pass_input_admitted(
         observed_sources,
         admitted_at: request.reserved_at.clone(),
     };
-    admit_persona_pass_input(&options.runtime_store, heartbeat_source, &document)?;
+    admit_persona_pass_input(&options.runtime_store, social_source, &document)?;
     load_admitted_persona_pass_input(&options.runtime_store, &request.request_id)?
         .ok_or_else(|| anyhow!("Persona pass input admission was not durable"))?;
     Ok(())
@@ -302,7 +291,7 @@ fn ensure_persona_pass_input_admitted(
 
 struct Options {
     runtime_store: PathBuf,
-    heartbeat_store: PathBuf,
+    social_store: PathBuf,
     cultmesh_store: PathBuf,
     codex_home: PathBuf,
     provider_credential_path: Option<PathBuf>,
@@ -349,7 +338,7 @@ impl Options {
         };
         Ok(Self {
             runtime_store: path("--runtime-store")?,
-            heartbeat_store: path("--heartbeat-store")?,
+            social_store: path("--persona-social-store")?,
             cultmesh_store: path("--cultmesh-store")?,
             codex_home: path("--codex-home")?,
             provider_credential_path: values.get("--provider-credential").map(PathBuf::from),
@@ -449,7 +438,7 @@ mod tests {
         let absent = temp.path().join("intentionally-absent");
         let options = Options {
             runtime_store: runtime_store.clone(),
-            heartbeat_store: absent.join("heartbeat.cc"),
+            social_store: absent.join("persona-social.cc"),
             cultmesh_store: absent.join("cultmesh.cc"),
             codex_home: absent.join("codex-home"),
             provider_credential_path: None,

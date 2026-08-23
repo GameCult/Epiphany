@@ -14,11 +14,10 @@ law lives in `heartbeat_state.rs` and `heartbeat_store.rs`.
 - schema version: `epiphany.agent_heartbeat.v1`
 - key: `default`
 
-The singleton currently carries coordinator/Persona readiness, pending turns,
-bounded scheduling history, explicit Persona transport pressure, and retention
-bookkeeping. The remaining social fields are the next ownership cut: they must
-become keyed Persona documents so social writes do not share the scheduler CAS
-identity.
+The singleton carries Resident Self scheduler readiness, one pending turn, and
+bounded scheduling history. Persona social state is not part of this document.
+Pending mentions, immutable turn requests, terminal receipts, quarantine
+records, and retention state are keyed CultCache documents owned by Persona.
 
 ## Scheduling invariants
 
@@ -26,16 +25,17 @@ identity.
 - Cooldown begins after terminal completion, not at launch.
 - Resident Self pressure may wake the coordinator; heartbeat does not create
   that pressure.
-- Persona may wake only from explicit queued social pressure.
-- The swarm brake prevents new Persona cognition while allowing terminal
+- The swarm brake prevents new Resident Self cognition while allowing terminal
   acknowledgement and recovery physiology to settle.
-- When no typed obligation or social pressure exists, the scheduler sleeps.
+- When no typed obligation exists, the scheduler sleeps.
 
 Heartbeat owns no personality, mood, appraisal, rumination, dreaming, memory
 graph, utterance vector, or generic self-modification surface. Durable Persona
 memory and social interpretation are keyed Mind documents admitted through the
-Persona decision context. Work for Modeling, Eyes, Hands, Soul, and Imagination
-comes from the pure current-work projection over typed state obligations.
+Persona decision context. Persona derives its own current turn from pending
+keyed social documents; heartbeat cannot launch, block, or terminalize it. Work
+for Modeling, Eyes, Hands, Soul, and Imagination comes from the pure
+current-work projection over typed state obligations.
 
 JSON emitted by the heartbeat CLI is an operator artifact only. CultCache
 documents remain authority.

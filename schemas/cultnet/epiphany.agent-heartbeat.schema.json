@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
   "title": "Epiphany Heartbeat State",
-  "description": "Typed scheduling physiology for Resident Self grants and Persona turns.",
+  "description": "Typed scheduling physiology for Resident Self grants.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

@@ -9,7 +9,7 @@ use super::write_heartbeat_state_entry;
 use anyhow::Result;
 use std::path::Path;
 
-pub(super) const ROLE_ORDER: &[&str] = &["coordinator", "Persona"];
+pub(super) const ROLE_ORDER: &[&str] = &["coordinator"];
 
 pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatStateEntry {
     EpiphanyHeartbeatStateEntry {
@@ -39,11 +39,6 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             .map(|role_id| default_participant(role_id))
             .collect(),
         history: Vec::new(),
-        pending_mentions: Vec::new(),
-        persona_turn_requests: Vec::new(),
-        blocked_persona_pressures: Vec::new(),
-        persona_conversation_retention_head: None,
-        persona_conversation_retention_plan: None,
     }
 }
 
@@ -81,7 +76,6 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
 pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "epiphany.self",
-        "Persona" => "epiphany.Persona",
         _ => "epiphany.unknown",
     }
 }
@@ -89,7 +83,6 @@ pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
 pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "Self",
-        "Persona" => "Persona",
         _ => "Unknown",
     }
 }
@@ -97,7 +90,6 @@ pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
 fn initiative_speed_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 1.28,
-        "Persona" => 1.12,
         _ => 1.0,
     }
 }
@@ -105,7 +97,6 @@ fn initiative_speed_for_role(role_id: &str) -> f64 {
 fn reaction_bias_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.88,
-        "Persona" => 0.84,
         _ => 0.5,
     }
 }
@@ -113,7 +104,6 @@ fn reaction_bias_for_role(role_id: &str) -> f64 {
 fn interrupt_threshold_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.42,
-        "Persona" => 0.52,
         _ => 0.5,
     }
 }
@@ -122,9 +112,6 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
     let role_specific = match role_id {
         "coordinator" => {
             "Routes and reviews; must not implement, verify, or accept its own comfort."
-        }
-        "Persona" => {
-            "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room."
         }
         _ => "Unknown role.",
     };

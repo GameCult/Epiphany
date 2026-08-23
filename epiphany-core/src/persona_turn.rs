@@ -1,6 +1,6 @@
 use crate::EpiphanyMindPersonaMemoryDocument;
 use crate::EpiphanyOrganDependency;
-use crate::HeartbeatPendingMention;
+use crate::PersonaSocialMention;
 use crate::default_organ_dependencies_for;
 use crate::render_organ_dependencies;
 use anyhow::Result;
@@ -243,7 +243,7 @@ pub struct PersonaProjectorInput {
     #[serde(default)]
     pub semantic_memory_recall: String,
     #[serde(default)]
-    pub pending_mentions: Vec<HeartbeatPendingMention>,
+    pub pending_mentions: Vec<PersonaSocialMention>,
     #[serde(default)]
     pub repo_activity: Vec<PersonaRepoActivity>,
     #[serde(default)]
@@ -270,7 +270,7 @@ pub struct PersonaInterpreterInput {
     #[serde(default)]
     pub dynamic_semantic_memory_recall: String,
     #[serde(default)]
-    pub pending_mentions: Vec<HeartbeatPendingMention>,
+    pub pending_mentions: Vec<PersonaSocialMention>,
     #[serde(default)]
     pub allowed_channel_ids: Vec<String>,
 }
@@ -615,7 +615,7 @@ fn render_memory_packet(memories: &[EpiphanyMindPersonaMemoryDocument]) -> Strin
         .join("\n")
 }
 
-fn render_pending_mentions(mentions: &[HeartbeatPendingMention]) -> String {
+fn render_pending_mentions(mentions: &[PersonaSocialMention]) -> String {
     if mentions.is_empty() {
         return "- none".to_string();
     }
@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn persona_turn_has_projector_and_interpreter_membranes() {
-        let pending = HeartbeatPendingMention {
+        let pending = PersonaSocialMention {
             id: "mention-1".to_string(),
             target_role_id: "Persona".to_string(),
             target_agent_id: "epiphany.Persona".to_string(),

@@ -4,8 +4,6 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
 use serde_json::Value;
-use sha2::Digest;
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -151,80 +149,6 @@ fn tick_heartbeat_store(
         "stateFile": null,
         "event": result["event"].clone(),
         "schedule": result["schedule"].clone(),
-    }))
-}
-
-pub fn pulse_persona_heartbeat(
-    store_path: impl AsRef<Path>,
-    artifact_dir: impl AsRef<Path>,
-    schedule_id: &str,
-    source_scene_ref: &str,
-    brake_engaged: bool,
-) -> Result<Value> {
-    let store_path = store_path.as_ref();
-    let artifact_dir = artifact_dir.as_ref();
-    if brake_engaged {
-        return Ok(serde_json::json!({
-            "schemaVersion": "epiphany.persona_heartbeat_pulse.v0",
-            "status": "refused-by-swarm-brake",
-            "privateStateExposed": false,
-        }));
-    }
-    let state = load_heartbeat_state_entry(store_path)?
-        .ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    let has_mentions = state
-        .pending_mentions
-        .iter()
-        .any(|mention| mention.target_role_id == "Persona");
-    if !has_mentions {
-        return Ok(serde_json::json!({
-            "schemaVersion": "epiphany.persona_heartbeat_pulse.v0",
-            "status": "idle",
-            "privateStateExposed": false,
-        }));
-    }
-    let persona_running = state
-        .participants
-        .iter()
-        .find(|participant| participant.role_id == "Persona")
-        .and_then(|participant| participant.pending_turn.as_ref())
-        .is_some();
-    let request_running = state
-        .persona_turn_requests
-        .iter()
-        .any(|request| request.status == "reserved");
-    if persona_running || request_running {
-        return Ok(serde_json::json!({
-            "schemaVersion": "epiphany.persona_heartbeat_pulse.v0",
-            "status": "already-running",
-            "privateStateExposed": false,
-        }));
-    }
-    let tick = tick_heartbeat_store(
-        store_path,
-        artifact_dir,
-        HeartbeatTickOptions {
-            target_heartbeat_rate: state.target_heartbeat_rate,
-            schedule_id: schedule_id.to_string(),
-            source_scene_ref: source_scene_ref.to_string(),
-            resident_self_store: None,
-        },
-    )?;
-    let request_id = load_heartbeat_state_entry(store_path)?
-        .and_then(|state| {
-            state
-                .persona_turn_requests
-                .into_iter()
-                .find(|request| request.schedule_id == schedule_id)
-                .map(|request| request.request_id)
-        })
-        .ok_or_else(|| anyhow!("Persona heartbeat pulse did not persist its turn request"))?;
-    Ok(serde_json::json!({
-        "schemaVersion": "epiphany.persona_heartbeat_pulse.v0",
-        "status": "reserved",
-        "requestId": request_id,
-        "schedule": tick["schedule"],
-        "privateStateExposed": false,
     }))
 }
 
@@ -398,96 +322,6 @@ pub fn pulse_resident_self_heartbeat(
     })
 }
 
-pub fn queue_heartbeat_pending_mention_store(
-    store_path: impl AsRef<Path>,
-    options: HeartbeatQueueMentionOptions,
-) -> Result<Value> {
-    let store_path = store_path.as_ref();
-    let mut state = load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| {
-        let mut state = default_heartbeat_state(1.0);
-        patch_missing_participants(&mut state);
-        state
-    });
-    patch_missing_participants(&mut state);
-    let participant_index = participant_index_by_role(&state, &options.target_role_id)?;
-    let participant = &state.participants[participant_index];
-    validate_mention_text("content", &options.content, 4, 1200)?;
-    validate_mention_text("visible_prompt", &options.visible_prompt, 4, 1200)?;
-    for (label, value) in [
-        ("source_surface", &options.source_surface),
-        ("channel_id", &options.channel_id),
-        ("message_id", &options.message_id),
-        ("author_id", &options.author_id),
-        ("source_visibility", &options.source_visibility),
-        ("data_classification", &options.data_classification),
-        ("model_provider_id", &options.model_provider_id),
-    ] {
-        validate_mention_text(label, value, 1, 240)?;
-    }
-    if !options.model_provider_disclosure_allowed {
-        return Err(anyhow!(
-            "pending mention is not authorized for disclosure to the configured model provider"
-        ));
-    }
-    let queued_at = options.queued_at.clone().unwrap_or_else(now_iso);
-    let mention_id = options.mention_id.clone().unwrap_or_else(|| {
-        stable_pending_mention_id(
-            &options.target_role_id,
-            &options.channel_id,
-            &options.message_id,
-            &options.visible_prompt,
-        )
-    });
-    if state
-        .pending_mentions
-        .iter()
-        .any(|mention| mention.id == mention_id)
-    {
-        return Ok(serde_json::json!({
-            "ok": true,
-            "queued": false,
-            "reason": "duplicate-pending-mention",
-            "mentionId": mention_id,
-            "pendingMentionCount": state.pending_mentions.len(),
-        }));
-    }
-    state.pending_mentions.push(HeartbeatPendingMention {
-        id: mention_id.clone(),
-        target_role_id: options.target_role_id.clone(),
-        target_agent_id: participant.agent_id.clone(),
-        source_surface: options.source_surface,
-        channel_id: options.channel_id,
-        message_id: options.message_id,
-        author_id: options.author_id,
-        author_name: options.author_name,
-        content: options.content,
-        visible_prompt: options.visible_prompt,
-        reply_to_message_id: options.reply_to_message_id,
-        queued_at,
-        source_visibility: options.source_visibility,
-        data_classification: options.data_classification,
-        model_provider_id: options.model_provider_id,
-        model_provider_disclosure_allowed: options.model_provider_disclosure_allowed,
-    });
-    state.pending_mentions.sort_by(|left, right| {
-        left.queued_at
-            .cmp(&right.queued_at)
-            .then_with(|| left.id.cmp(&right.id))
-    });
-    state.participants[participant_index].next_ready_at = state.participants[participant_index]
-        .next_ready_at
-        .min(state.scene_clock);
-    write_heartbeat_state_entry(store_path, &state)?;
-    Ok(serde_json::json!({
-        "ok": true,
-        "queued": true,
-        "mentionId": mention_id,
-        "targetRoleId": options.target_role_id,
-        "pendingMentionCount": state.pending_mentions.len(),
-        "contract": "Pending Persona mentions live in heartbeat physiology. They pull the Persona turn forward, but the Persona still writes naturally and the Interpreter owns side effects.",
-    }))
-}
-
 pub fn recover_stale_heartbeat_store(
     store_path: impl AsRef<Path>,
     artifact_dir: impl AsRef<Path>,
@@ -523,44 +357,6 @@ pub fn recover_stale_heartbeat_store(
             .num_seconds();
         if stale_age_seconds < options.max_age_seconds {
             continue;
-        }
-        if pending.action_type == "persona_turn"
-            && let Some(request) = state.persona_turn_requests.iter_mut().find(|request| {
-                request.status == "reserved"
-                    && request.schedule_id == pending.schedule_id
-                    && request.action_id == pending.action_id
-            })
-        {
-            let mention_ids = request
-                .mentions
-                .iter()
-                .map(|mention| mention.id.clone())
-                .collect();
-            let mention_cargo_sha256 = format!(
-                "sha256-{:x}",
-                sha2::Sha256::digest(rmp_serde::to_vec(&request.mentions)?)
-            );
-            request.status = "terminal".to_string();
-            request.terminal_receipt = Some(PersonaTurnTerminalReceipt {
-                schema_version: PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.to_string(),
-                receipt_id: format!("{}:terminal", request.request_id),
-                request_id: request.request_id.clone(),
-                schedule_id: request.schedule_id.clone(),
-                action_id: request.action_id.clone(),
-                outcome: "failed".to_string(),
-                mention_disposition: "retained".to_string(),
-                mention_ids,
-                mention_cargo_sha256,
-                delivery_evidence_id: None,
-                crossing_receipt_id: None,
-                bridge_receipt_sha256: None,
-                blocked_crossing_status: None,
-                blocked_reason: None,
-                completed_at: repaired_at.clone(),
-                private_state_exposed: false,
-            });
-            request.mentions.clear();
-            request.semantic_memory_recall = Value::Null;
         }
         participant.pending_turn = None;
         participant.current_load = 0.0;
@@ -697,16 +493,6 @@ fn tick_once(
     state.participants[selected_index].current_load =
         round6((state.participants[selected_index].current_load * 0.75).clamp(0.0, 1.0));
     state.scene_clock = round6(scene_clock);
-    let selected_pending_mentions = pending_mentions_for_role(state, &selected.role_id);
-    if action.action_type == "persona_turn" {
-        reserve_persona_turn_request(
-            state,
-            &pending,
-            &selected_after_identity(&selected),
-            selected_pending_mentions.clone(),
-            Value::Null,
-        )?;
-    }
     let selected_after = state.participants[selected_index].clone();
     let event = HeartbeatHistoryEvent {
         ts: now_iso(),
@@ -748,7 +534,6 @@ fn tick_once(
             "interruptibility": action.interruptibility,
             "commitment": action.commitment,
             "local_affordance_basis": action.local_affordance_basis,
-            "pending_mentions": selected_pending_mentions,
         }],
         "reaction_windows": if work_role.is_some() {
             serde_json::json!([{
@@ -773,9 +558,8 @@ fn tick_once(
             "override_reason": null,
             "readiness_snapshot": readiness_snapshot,
         },
-        "pending_mentions": state.pending_mentions.clone(),
         "review_notes": [
-            "Epiphany heartbeat records coordinator and Persona scheduling receipts.",
+            "Epiphany heartbeat records Resident Self scheduling receipts.",
             "A selected idle lane records scheduling opportunity; it does not invent project work or mutate durable memory.",
             "When no coordinator work is active, cooldown and sleep pacing keep the swarm from thrashing."
         ],
@@ -784,231 +568,6 @@ fn tick_once(
         "event": history_event_json(event),
         "schedule": schedule,
     }))
-}
-
-fn selected_after_identity(selected: &HeartbeatParticipant) -> (String, String) {
-    (selected.role_id.clone(), selected.agent_id.clone())
-}
-
-fn reserve_persona_turn_request(
-    state: &mut EpiphanyHeartbeatStateEntry,
-    pending: &HeartbeatPendingTurn,
-    identity: &(String, String),
-    mentions: Vec<HeartbeatPendingMention>,
-    semantic_memory_recall: Value,
-) -> Result<()> {
-    let request_id = format!("persona-turn:{}:{}", pending.schedule_id, pending.action_id);
-    let request = PersonaTurnRequest {
-        schema_version: PERSONA_TURN_REQUEST_SCHEMA_VERSION.to_string(),
-        request_id: request_id.clone(),
-        schedule_id: pending.schedule_id.clone(),
-        action_id: pending.action_id.clone(),
-        role_id: identity.0.clone(),
-        agent_id: identity.1.clone(),
-        status: "reserved".to_string(),
-        reserved_at: pending.started_at.clone(),
-        mentions,
-        semantic_memory_recall,
-        terminal_receipt: None,
-        private_state_exposed: false,
-    };
-    if let Some(head) = &state.persona_conversation_retention_head {
-        let frontier = chrono::DateTime::parse_from_rfc3339(&head.through_reserved_at)
-            .map_err(|_| anyhow!("Persona conversation retention frontier is invalid"))?;
-        let reserved = chrono::DateTime::parse_from_rfc3339(&request.reserved_at)
-            .map_err(|_| anyhow!("Persona turn reservation time is invalid"))?;
-        if reserved <= frontier {
-            return Err(anyhow!(
-                "Persona turn reservation is at or behind the retired replay frontier"
-            ));
-        }
-    }
-    if let Some(existing) = state
-        .persona_turn_requests
-        .iter()
-        .find(|existing| existing.request_id == request_id)
-    {
-        if existing != &request {
-            return Err(anyhow!("conflicting Persona turn request {request_id:?}"));
-        }
-        return Ok(());
-    }
-    state.persona_turn_requests.push(request);
-    Ok(())
-}
-
-pub fn complete_persona_turn_request_store(
-    store_path: impl AsRef<Path>,
-    options: PersonaTurnTerminalOptions,
-) -> Result<PersonaTurnTerminalReceipt> {
-    let mention_disposition = match options.outcome.as_str() {
-        "delivered" | "silence" | "dropped" => "consumed",
-        "failed" => "retained",
-        "blocked" => "quarantined",
-        other => {
-            return Err(anyhow!(
-                "unsupported Persona turn terminal outcome {other:?}"
-            ));
-        }
-    };
-    let store_path = store_path.as_ref();
-    let (loaded, expected) = load_heartbeat_state_transaction(store_path)?;
-    let mut state = loaded.ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    let request_index = state
-        .persona_turn_requests
-        .iter()
-        .position(|request| request.request_id == options.request_id)
-        .ok_or_else(|| anyhow!("Persona turn request {:?} is missing", options.request_id))?;
-    if let Some(receipt) = &state.persona_turn_requests[request_index].terminal_receipt {
-        if receipt.outcome == options.outcome {
-            return Ok(receipt.clone());
-        }
-        return Err(anyhow!(
-            "Persona turn request {:?} already terminated as {:?}",
-            options.request_id,
-            receipt.outcome
-        ));
-    }
-    let request = state.persona_turn_requests[request_index].clone();
-    let delivery_evidence = options.delivery_evidence.as_ref();
-    let blocked_evidence = options.blocked_evidence.as_ref();
-    if options.outcome == "delivered" {
-        let evidence = delivery_evidence.ok_or_else(|| {
-            anyhow!("delivered Persona turn requires typed Discord delivery evidence")
-        })?;
-        if evidence.schema_version != crate::PERSONA_DISCORD_DELIVERY_EVIDENCE_SCHEMA_VERSION
-            || evidence.private_state_exposed
-            || evidence.evidence_id.trim().is_empty()
-            || evidence.message_id.trim().is_empty()
-            || evidence.crossing_receipt_id.trim().is_empty()
-            || evidence.bridge_receipt_sha256.trim().is_empty()
-            || !request
-                .mentions
-                .iter()
-                .any(|mention| mention.channel_id == evidence.channel_id)
-        {
-            return Err(anyhow!(
-                "Discord delivery evidence is not bound to the Persona turn"
-            ));
-        }
-    } else if delivery_evidence.is_some() {
-        return Err(anyhow!(
-            "non-delivered Persona terminal outcome must not carry delivery evidence"
-        ));
-    }
-    if options.outcome == "blocked" {
-        let evidence = blocked_evidence
-            .ok_or_else(|| anyhow!("blocked Persona turn requires typed crossing evidence"))?;
-        if !matches!(
-            evidence.evidence_source.as_str(),
-            "bifrost_crossing" | "local_effect"
-        ) || !matches!(evidence.crossing_status.as_str(), "unknown" | "failed")
-            || (evidence.evidence_source == "local_effect"
-                && (evidence.crossing_receipt_id.is_some()
-                    || evidence.bridge_receipt_sha256.is_some()))
-            || evidence.reason.trim().is_empty()
-            || evidence
-                .crossing_receipt_id
-                .as_deref()
-                .is_some_and(|value| value.trim().is_empty())
-            || evidence
-                .bridge_receipt_sha256
-                .as_deref()
-                .is_some_and(|value| {
-                    !value.strip_prefix("sha256:").is_some_and(|digest| {
-                        digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
-                    })
-                })
-        {
-            return Err(anyhow!("blocked Persona crossing evidence is invalid"));
-        }
-    } else if blocked_evidence.is_some() {
-        return Err(anyhow!(
-            "non-blocked Persona terminal outcome must not carry blocked evidence"
-        ));
-    }
-    let participant_index = participant_index_by_role(&state, &request.role_id)?;
-    let pending = state.participants[participant_index]
-        .pending_turn
-        .as_ref()
-        .ok_or_else(|| anyhow!("Persona has no running heartbeat turn"))?;
-    if pending.schedule_id != request.schedule_id || pending.action_id != request.action_id {
-        return Err(anyhow!(
-            "Persona running turn does not match reserved request"
-        ));
-    }
-    if mention_disposition != "retained" {
-        let ids = request
-            .mentions
-            .iter()
-            .map(|mention| mention.id.as_str())
-            .collect::<BTreeSet<_>>();
-        state
-            .pending_mentions
-            .retain(|mention| !ids.contains(mention.id.as_str()));
-    }
-    complete_pending_turn(&mut state, participant_index)?;
-    let receipt = PersonaTurnTerminalReceipt {
-        schema_version: PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: format!("{}:terminal", request.request_id),
-        request_id: request.request_id.clone(),
-        schedule_id: request.schedule_id.clone(),
-        action_id: request.action_id.clone(),
-        outcome: options.outcome,
-        mention_disposition: mention_disposition.to_string(),
-        mention_ids: request
-            .mentions
-            .iter()
-            .map(|mention| mention.id.clone())
-            .collect(),
-        mention_cargo_sha256: format!(
-            "sha256-{:x}",
-            sha2::Sha256::digest(rmp_serde::to_vec(&request.mentions)?)
-        ),
-        delivery_evidence_id: delivery_evidence.map(|evidence| evidence.evidence_id.clone()),
-        crossing_receipt_id: delivery_evidence.map(|evidence| evidence.crossing_receipt_id.clone()),
-        bridge_receipt_sha256: delivery_evidence
-            .map(|evidence| evidence.bridge_receipt_sha256.clone()),
-        blocked_crossing_status: blocked_evidence.map(|evidence| evidence.crossing_status.clone()),
-        blocked_reason: blocked_evidence.map(|evidence| evidence.reason.clone()),
-        completed_at: now_iso(),
-        private_state_exposed: false,
-    };
-    if mention_disposition == "quarantined" {
-        let evidence = blocked_evidence.expect("validated blocked evidence");
-        let quarantine = PersonaBlockedConversationPressure {
-            schema_version: "epiphany.persona_blocked_conversation_pressure.v0".to_string(),
-            quarantine_id: format!("{}:quarantine", request.request_id),
-            request_id: request.request_id.clone(),
-            terminal_receipt_id: receipt.receipt_id.clone(),
-            crossing_status: evidence.crossing_status.clone(),
-            evidence_source: evidence.evidence_source.clone(),
-            reason: evidence.reason.clone(),
-            mentions: request.mentions.clone(),
-            mention_cargo_sha256: receipt.mention_cargo_sha256.clone(),
-            crossing_receipt_id: evidence.crossing_receipt_id.clone(),
-            bridge_receipt_sha256: evidence.bridge_receipt_sha256.clone(),
-            quarantined_at: receipt.completed_at.clone(),
-            private_state_exposed: false,
-        };
-        if let Some(existing) = state
-            .blocked_persona_pressures
-            .iter()
-            .find(|existing| existing.quarantine_id == quarantine.quarantine_id)
-        {
-            if existing != &quarantine {
-                return Err(anyhow!("Persona blocked pressure identity collision"));
-            }
-        } else {
-            state.blocked_persona_pressures.push(quarantine);
-        }
-    }
-    state.persona_turn_requests[request_index].status = "terminal".to_string();
-    state.persona_turn_requests[request_index].terminal_receipt = Some(receipt.clone());
-    state.persona_turn_requests[request_index].mentions.clear();
-    state.persona_turn_requests[request_index].semantic_memory_recall = Value::Null;
-    commit_heartbeat_state_transaction(store_path, expected, &state)?;
-    Ok(receipt)
 }
 
 fn complete_pending_turn(
@@ -1095,17 +654,6 @@ fn select_participant(
             ));
         }
     }
-    if let Some(index) = active.iter().copied().find(|index| {
-        let participant = &state.participants[*index];
-        participant.role_id == "Persona"
-            && !pending_mentions_for_role(state, &participant.role_id).is_empty()
-    }) {
-        return Ok((
-            index,
-            "reaction_interrupt",
-            "Pending addressed Persona mention pulled Persona forward; Projector and Interpreter remain the side-effect boundaries.".to_string(),
-        ));
-    }
     let selected = active
         .into_iter()
         .min_by(|left, right| {
@@ -1137,29 +685,6 @@ fn action_for_selection(
     target_heartbeat_rate: f64,
 ) -> HeartbeatAction {
     let minimum_rate = state.pacing_policy.minimum_effective_rate.max(0.001);
-    let pending_mentions = pending_mentions_for_role(state, &selected.role_id);
-    if !pending_mentions.is_empty() && selected.role_id == "Persona" {
-        let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
-        return HeartbeatAction {
-            action_id: "heartbeat.Persona.turn".to_string(),
-            action_type: "persona_turn",
-            action_scale: "standard",
-            base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
-            initiative_cost: 4.0,
-            interruptibility: 0.35,
-            commitment: 0.7,
-            local_affordance_basis: vec![
-                format!(
-                    "Wake {} for {} pending addressed mention(s).",
-                    selected.display_name,
-                    pending_mentions.len()
-                ),
-                "Projector owns state-to-narrative prompting before Persona sees context.".to_string(),
-                "Persona writes natural narrative thought; Interpreter owns memory, draft, SAY, route, or drop side effects.".to_string(),
-                "Pending mentions are consumed only after this Persona turn is queued.".to_string(),
-            ],
-        };
-    }
     if Some(selected.role_id.as_str()) == work_role {
         let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
         let action_id = format!("heartbeat.{}.work", selected.role_id);
@@ -1201,42 +726,6 @@ fn action_for_selection(
             "When no coordinator work is active, cooldown and sleep pacing keep the swarm from thrashing.".to_string(),
         ],
     }
-}
-
-fn pending_mentions_for_role(
-    state: &EpiphanyHeartbeatStateEntry,
-    role_id: &str,
-) -> Vec<HeartbeatPendingMention> {
-    state
-        .pending_mentions
-        .iter()
-        .filter(|mention| mention.target_role_id == role_id)
-        .filter(|mention| mention.model_provider_disclosure_allowed)
-        .cloned()
-        .collect()
-}
-
-fn validate_mention_text(label: &str, value: &str, min_len: usize, max_len: usize) -> Result<()> {
-    let trimmed = value.trim();
-    if trimmed.len() < min_len || value.len() > max_len {
-        return Err(anyhow!(
-            "pending mention {label} must be between {min_len} and {max_len} UTF-8 bytes"
-        ));
-    }
-    Ok(())
-}
-
-fn stable_pending_mention_id(
-    role_id: &str,
-    channel_id: &str,
-    message_id: &str,
-    visible_prompt: &str,
-) -> String {
-    let mut hash = 5381_u64;
-    for byte in format!("{role_id}\0{channel_id}\0{message_id}\0{visible_prompt}").as_bytes() {
-        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(*byte as u64);
-    }
-    format!("mention-{hash:016x}")
 }
 
 fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
@@ -1365,6 +854,7 @@ pub(super) fn round6(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{PersonaTurnBlockedEvidence, PersonaTurnTerminalOptions};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -1500,11 +990,10 @@ mod tests {
     fn pending_persona_mention_is_reserved_until_terminal_delivery() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("Persona-heartbeats.msgpack");
-        let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
-        let queued = queue_heartbeat_pending_mention_store(
+        let queued = crate::queue_persona_social_mention(
             &store_path,
-            HeartbeatQueueMentionOptions {
+            crate::PersonaSocialQueueMentionOptions {
                 target_role_id: "Persona".to_string(),
                 source_surface: "discord".to_string(),
                 channel_id: "aquarium".to_string(),
@@ -1524,42 +1013,25 @@ mod tests {
         )?;
         assert_eq!(queued["queued"], true);
 
-        let pulse = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "Persona-mentioned",
-            "test/Persona-mentioned",
-            false,
-        )?;
+        let pulse = crate::pulse_persona_social(&store_path, false)?;
 
         assert_eq!(pulse["status"], "reserved");
         assert_eq!(
             pulse["schedule"]["action_catalog"][0]["pending_mentions"][0]["id"],
             "mention-Persona-test"
         );
-        assert_eq!(
-            pulse["schedule"]["pending_mentions"]
-                .as_array()
-                .map(Vec::len),
-            Some(1)
+        let mentions = crate::pending_persona_mentions(&store_path)?;
+        let requests = crate::persona_turn_requests(&store_path)?;
+        assert!(
+            mentions.is_empty(),
+            "reserved mentions are not pending work"
         );
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        assert_eq!(state.pending_mentions.len(), 1);
-        assert_eq!(state.persona_turn_requests.len(), 1);
-        let request = &state.persona_turn_requests[0];
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
         assert_eq!(request.status, "reserved");
-        assert_eq!(request.mentions, state.pending_mentions);
-        assert_eq!(
-            state
-                .participants
-                .iter()
-                .find(|participant| participant.role_id == "Persona")
-                .and_then(|participant| participant.pending_turn.as_ref())
-                .map(|pending| pending.status.as_str()),
-            Some("running")
-        );
+        assert_eq!(request.mentions[0].id, "mention-Persona-test");
 
-        let terminal = complete_persona_turn_request_store(
+        let terminal = crate::complete_persona_social_turn(
             &store_path,
             PersonaTurnTerminalOptions {
                 request_id: request.request_id.clone(),
@@ -1569,7 +1041,7 @@ mod tests {
             },
         )?;
         assert_eq!(terminal.mention_disposition, "consumed");
-        let replay = complete_persona_turn_request_store(
+        let replay = crate::complete_persona_social_turn(
             &store_path,
             PersonaTurnTerminalOptions {
                 request_id: request.request_id.clone(),
@@ -1579,17 +1051,10 @@ mod tests {
             },
         )?;
         assert_eq!(replay, terminal);
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        assert!(state.pending_mentions.is_empty());
-        assert_eq!(state.persona_turn_requests[0].status, "terminal");
-        assert!(
-            state
-                .participants
-                .iter()
-                .find(|participant| participant.role_id == "Persona")
-                .and_then(|participant| participant.pending_turn.as_ref())
-                .is_none()
-        );
+        assert!(crate::pending_persona_mentions(&store_path)?.is_empty());
+        let requests = crate::persona_turn_requests(&store_path)?;
+        assert_eq!(requests[0].status, "terminal");
+        assert!(requests[0].terminal_receipt.is_some());
         Ok(())
     }
 
@@ -1597,11 +1062,10 @@ mod tests {
     fn failed_persona_turn_releases_lane_but_retains_mention_for_retry() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("Persona-heartbeats.msgpack");
-        let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
-        queue_heartbeat_pending_mention_store(
+        crate::queue_persona_social_mention(
             &store_path,
-            HeartbeatQueueMentionOptions {
+            crate::PersonaSocialQueueMentionOptions {
                 target_role_id: "Persona".to_string(),
                 source_surface: "discord".to_string(),
                 channel_id: "aquarium".to_string(),
@@ -1619,16 +1083,11 @@ mod tests {
                 model_provider_disclosure_allowed: true,
             },
         )?;
-        pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "Persona-failure",
-            "test/Persona-failure",
-            false,
-        )?;
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        let request_id = state.persona_turn_requests[0].request_id.clone();
-        let terminal = complete_persona_turn_request_store(
+        crate::pulse_persona_social(&store_path, false)?;
+        let request_id = crate::persona_turn_requests(&store_path)?[0]
+            .request_id
+            .clone();
+        let terminal = crate::complete_persona_social_turn(
             &store_path,
             PersonaTurnTerminalOptions {
                 request_id,
@@ -1638,15 +1097,10 @@ mod tests {
             },
         )?;
         assert_eq!(terminal.mention_disposition, "retained");
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        assert_eq!(state.pending_mentions.len(), 1);
-        assert!(
-            state
-                .participants
-                .iter()
-                .find(|participant| participant.role_id == "Persona")
-                .and_then(|participant| participant.pending_turn.as_ref())
-                .is_none()
+        assert_eq!(crate::pending_persona_mentions(&store_path)?.len(), 1);
+        assert_eq!(
+            crate::persona_turn_requests(&store_path)?[0].status,
+            "terminal"
         );
         Ok(())
     }
@@ -1655,11 +1109,10 @@ mod tests {
     fn indeterminate_local_effect_quarantines_pressure_and_cannot_reschedule() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("Persona-heartbeats.msgpack");
-        let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
-        queue_heartbeat_pending_mention_store(
+        crate::queue_persona_social_mention(
             &store_path,
-            HeartbeatQueueMentionOptions {
+            crate::PersonaSocialQueueMentionOptions {
                 target_role_id: "Persona".to_string(),
                 source_surface: "bifrost-discord".to_string(),
                 channel_id: "aquarium".to_string(),
@@ -1677,16 +1130,10 @@ mod tests {
                 model_provider_disclosure_allowed: true,
             },
         )?;
-        let pulse = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "Persona-unknown",
-            "test/Persona-unknown",
-            false,
-        )?;
+        let pulse = crate::pulse_persona_social(&store_path, false)?;
         let request_id = pulse["requestId"].as_str().expect("request id").to_string();
         assert!(
-            complete_persona_turn_request_store(
+            crate::complete_persona_social_turn(
                 &store_path,
                 PersonaTurnTerminalOptions {
                     request_id: request_id.clone(),
@@ -1697,7 +1144,7 @@ mod tests {
             )
             .is_err()
         );
-        let terminal = complete_persona_turn_request_store(
+        let terminal = crate::complete_persona_social_turn(
             &store_path,
             PersonaTurnTerminalOptions {
                 request_id,
@@ -1714,34 +1161,24 @@ mod tests {
             },
         )?;
         assert_eq!(terminal.mention_disposition, "quarantined");
-        let next = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "Persona-unknown-repeat",
-            "test/Persona-unknown",
-            false,
-        )?;
+        let next = crate::pulse_persona_social(&store_path, false)?;
         assert_eq!(next["status"], "idle");
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        assert!(state.pending_mentions.is_empty());
-        assert_eq!(state.persona_turn_requests.len(), 1);
-        assert_eq!(state.blocked_persona_pressures.len(), 1);
-        assert_eq!(
-            state.blocked_persona_pressures[0].mentions[0].id,
-            "mention-Persona-unknown"
-        );
+        assert!(crate::pending_persona_mentions(&store_path)?.is_empty());
+        assert_eq!(crate::persona_turn_requests(&store_path)?.len(), 1);
+        let blocked = crate::blocked_persona_pressures(&store_path)?;
+        assert_eq!(blocked.len(), 1);
+        assert_eq!(blocked[0].mentions[0].id, "mention-Persona-unknown");
         Ok(())
     }
 
     #[test]
-    fn persona_heartbeat_pulse_reserves_once_and_obeys_brake() -> Result<()> {
+    fn persona_social_pulse_reserves_once_and_obeys_brake() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("Persona-heartbeats.msgpack");
-        let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
-        queue_heartbeat_pending_mention_store(
+        crate::queue_persona_social_mention(
             &store_path,
-            HeartbeatQueueMentionOptions {
+            crate::PersonaSocialQueueMentionOptions {
                 target_role_id: "Persona".to_string(),
                 source_surface: "bifrost-discord".to_string(),
                 channel_id: "aquarium".to_string(),
@@ -1759,39 +1196,15 @@ mod tests {
                 model_provider_disclosure_allowed: true,
             },
         )?;
-        let braked = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "persona-pulse-braked",
-            "test/persona-pulse",
-            true,
-        )?;
+        let braked = crate::pulse_persona_social(&store_path, true)?;
         assert_eq!(braked["status"], "refused-by-swarm-brake");
-        assert!(
-            load_heartbeat_state_entry(&store_path)?
-                .expect("heartbeat state")
-                .persona_turn_requests
-                .is_empty()
-        );
+        assert!(crate::persona_turn_requests(&store_path)?.is_empty());
 
-        let first = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "persona-pulse-one",
-            "test/persona-pulse",
-            false,
-        )?;
+        let first = crate::pulse_persona_social(&store_path, false)?;
         assert_eq!(first["status"], "reserved");
-        let second = pulse_persona_heartbeat(
-            &store_path,
-            &artifact_dir,
-            "persona-pulse-two",
-            "test/persona-pulse",
-            false,
-        )?;
+        let second = crate::pulse_persona_social(&store_path, false)?;
         assert_eq!(second["status"], "already-running");
-        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
-        assert_eq!(state.persona_turn_requests.len(), 1);
+        assert_eq!(crate::persona_turn_requests(&store_path)?.len(), 1);
         Ok(())
     }
 }

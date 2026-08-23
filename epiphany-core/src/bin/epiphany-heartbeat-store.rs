@@ -9,7 +9,6 @@ use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_heartbeat_state_entry;
-use epiphany_core::pulse_persona_heartbeat;
 use epiphany_core::pulse_resident_self_heartbeat;
 use epiphany_core::recover_stale_heartbeat_store;
 use epiphany_core::resident_cognitive_runtime_id;
@@ -339,36 +338,6 @@ fn main() -> Result<()> {
                             "brakeId": brake.brake_id,
                             "brakeScope": brake.scope,
                             "reason": brake.reason,
-                            "retention": retention.as_ref().map(retention_receipt_projection),
-                            "privateStateExposed": false
-                        })
-                    );
-                    if max_iterations > 0 && completed_iterations >= max_iterations {
-                        break;
-                    }
-                    wait_for_shutdown(&shutdown_requested, Duration::from_secs(interval_seconds));
-                    continue;
-                }
-                let persona_pulse = pulse_persona_heartbeat(
-                    &store_path,
-                    &iteration_dir,
-                    &format!("{schedule_id}.persona-{iteration:06}"),
-                    &source_scene_ref,
-                    false,
-                )?;
-                if persona_pulse["status"] != "idle" {
-                    completed_iterations = iteration;
-                    let retention = retain_heartbeat_pulse_artifacts(
-                        &store_path,
-                        &artifact_dir,
-                        retain_pulse_artifacts,
-                        retention_batch_size,
-                        &chrono::Utc::now().to_rfc3339(),
-                    )?;
-                    println!(
-                        "{}",
-                        serde_json::json!({
-                            "pulse": persona_pulse,
                             "retention": retention.as_ref().map(retention_receipt_projection),
                             "privateStateExposed": false
                         })

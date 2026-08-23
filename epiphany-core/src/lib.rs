@@ -24,6 +24,7 @@ mod persona_conversation;
 mod persona_discord_crossing;
 mod persona_discord_permit;
 mod persona_feedback_admission;
+mod persona_social_state;
 mod persona_turn;
 mod process_observation;
 mod promotion;
@@ -507,27 +508,17 @@ pub use heartbeat_state::HeartbeatArtifactRetentionMember;
 pub use heartbeat_state::HeartbeatHistoryEvent;
 pub use heartbeat_state::HeartbeatPacingPolicy;
 pub use heartbeat_state::HeartbeatParticipant;
-pub use heartbeat_state::HeartbeatPendingMention;
 pub use heartbeat_state::HeartbeatPendingTurn;
-pub use heartbeat_state::HeartbeatQueueMentionOptions;
 pub use heartbeat_state::HeartbeatSelectionPolicy;
 pub use heartbeat_state::HeartbeatStaleTurnRepairOptions;
-pub use heartbeat_state::PersonaBlockedConversationPressure;
-pub use heartbeat_state::PersonaTurnBlockedEvidence;
-pub use heartbeat_state::PersonaTurnRequest;
-pub use heartbeat_state::PersonaTurnTerminalOptions;
-pub use heartbeat_state::PersonaTurnTerminalReceipt;
 pub use heartbeat_state::ResidentSelfHeartbeatPulse;
-pub use heartbeat_state::complete_persona_turn_request_store;
 pub use heartbeat_state::default_heartbeat_state;
 pub use heartbeat_state::heartbeat_state_cache;
 pub use heartbeat_state::heartbeat_status_projection;
 pub use heartbeat_state::initialize_heartbeat_store;
 pub use heartbeat_state::load_heartbeat_state_entry;
 pub use heartbeat_state::load_latest_heartbeat_stale_turn_repair_receipt;
-pub use heartbeat_state::pulse_persona_heartbeat;
 pub use heartbeat_state::pulse_resident_self_heartbeat;
-pub use heartbeat_state::queue_heartbeat_pending_mention_store;
 pub use heartbeat_state::reconcile_resident_self_heartbeat_ack;
 pub use heartbeat_state::recover_stale_heartbeat_store;
 pub use heartbeat_state::retain_heartbeat_pulse_artifacts;
@@ -683,14 +674,15 @@ pub use persona_feedback_admission::{
     BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
     BIFROST_PERSONA_FEEDBACK_RECEIPT_SCHEMA_VERSION, BifrostPersonaFeedbackAdmission,
     LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION, LocalAdmittedPersonaFeedback,
-    PERSONA_FEEDBACK_HEARTBEAT_BRIDGE_SCHEMA_VERSION, PersonaFeedbackHeartbeatBridgeReceipt,
-    PersonaFeedbackPacket, admit_bifrost_persona_feedback, admitted_persona_feedback,
-    apply_bifrost_persona_feedback_snapshot, bridge_admitted_persona_feedback_to_heartbeat,
-    bridged_persona_feedback_ready_for_cognition, import_bifrost_persona_feedback_deliveries,
+    PERSONA_FEEDBACK_SOCIAL_ADMISSION_SCHEMA_VERSION, PersonaFeedbackPacket,
+    PersonaFeedbackSocialAdmissionReceipt, admit_bifrost_persona_feedback,
+    admit_persona_feedback_to_social, admitted_persona_feedback,
+    apply_bifrost_persona_feedback_snapshot, import_bifrost_persona_feedback_deliveries,
     persona_feedback_admission_signing_payload, persona_feedback_admission_signing_purpose,
-    persona_feedback_packet_sha256, validate_bifrost_persona_feedback_source,
-    validate_persona_feedback_store_separation,
+    persona_feedback_packet_sha256, persona_feedback_ready_for_cognition,
+    validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
 };
+pub use persona_social_state::*;
 pub use persona_turn::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION;
 pub use persona_turn::PERSONA_INTERPRETER_EFFECT_SET_SCHEMA_VERSION;
 pub use persona_turn::PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION;

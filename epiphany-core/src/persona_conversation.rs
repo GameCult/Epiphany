@@ -8,26 +8,23 @@ use cultcache_rs::{
 use cultnet_rs::{GameCultServiceTrustAnchorRecord, ServiceIdentitySigner};
 use sha2::{Digest, Sha256};
 
-use crate::heartbeat_state::{
+use crate::{
+    EpiphanyDecisionContext, EpiphanyPersonaDeliveryRequestIdentity, EpiphanyReasoningBasis,
     PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION,
     PERSONA_CONVERSATION_RETENTION_PLAN_SCHEMA_VERSION, PersonaConversationRetentionEnvelope,
     PersonaConversationRetentionHead, PersonaConversationRetentionMember,
-    PersonaConversationRetentionPlan, commit_heartbeat_state_transaction,
-    load_heartbeat_state_transaction,
-};
-use crate::{
-    EpiphanyDecisionContext, EpiphanyPersonaDeliveryRequestIdentity, EpiphanyReasoningBasis,
-    PersonaInterpreterEffect, PersonaInterpreterEffectDocument, PersonaModelStageReceipt,
-    PersonaModelTerminalReceipt, PersonaTurnRequest, PersonaTurnTerminalOptions,
-    complete_persona_turn_request_store, insert_persona_discord_delivery_request,
-    load_persona_discord_delivery_receipt, runtime_spine_cache,
-    sign_persona_discord_delivery_request, verify_persona_discord_delivery_receipt,
+    PersonaConversationRetentionPlan, PersonaInterpreterEffect, PersonaInterpreterEffectDocument,
+    PersonaModelStageReceipt, PersonaModelTerminalReceipt, PersonaTurnRequest,
+    PersonaTurnTerminalOptions, complete_persona_social_turn,
+    insert_persona_discord_delivery_request, load_persona_discord_delivery_receipt,
+    runtime_spine_cache, sign_persona_discord_delivery_request,
+    verify_persona_discord_delivery_receipt,
 };
 
 pub const PERSONA_DISCORD_DELIVERY_EVIDENCE_SCHEMA_VERSION: &str =
     "epiphany.persona_discord_delivery_evidence.v0";
 pub const PERSONA_CONVERSATION_EXECUTION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.persona_conversation_execution_receipt.v0";
+    "epiphany.persona_conversation_execution_receipt.v1";
 pub const PERSONA_EFFECT_EXECUTION_INTENT_SCHEMA_VERSION: &str =
     "epiphany.persona_effect_execution_intent.v0";
 pub const PERSONA_CONVERSATION_STORE_RETIREMENT_RECEIPT_SCHEMA_VERSION: &str =
@@ -183,7 +180,7 @@ pub struct PersonaDiscordDeliveryEvidence {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.persona_conversation_execution_receipt.v0",
+    type = "epiphany.persona_conversation_execution_receipt.v1",
     schema = "PersonaConversationExecutionReceipt"
 )]
 pub struct PersonaConversationExecutionReceipt {
@@ -203,8 +200,8 @@ pub struct PersonaConversationExecutionReceipt {
     pub state_effect_reasons: Vec<String>,
     #[cultcache(key = 7, default)]
     pub delivery_evidence_ids: Vec<String>,
-    #[cultcache(key = 8, default)]
-    pub heartbeat_terminal_receipt_id: Option<String>,
+    #[cultcache(key = 8)]
+    pub social_terminal_receipt_id: Option<String>,
     #[cultcache(key = 9)]
     pub private_state_exposed: bool,
     #[cultcache(key = 10)]
@@ -218,7 +215,7 @@ pub struct PersonaConversationExecutionReceipt {
 #[allow(clippy::too_many_arguments)]
 pub fn poll_persona_discord_crossing(
     runtime_store: &Path,
-    heartbeat_store: &Path,
+    social_store: &Path,
     cultmesh_store: &Path,
     runtime_id: &str,
     request_store: &Path,
@@ -234,7 +231,7 @@ pub fn poll_persona_discord_crossing(
     {
         return Ok(Some(existing));
     }
-    let request = load_reserved_request(heartbeat_store, request_id)?;
+    let request = load_reserved_request(social_store, request_id)?;
     let effects =
         runtime_document::<PersonaInterpreterEffectDocument>(runtime_store, effect_document_id)?
             .ok_or_else(|| anyhow!("Persona Interpreter effect document is missing"))?;
@@ -270,7 +267,7 @@ pub fn poll_persona_discord_crossing(
             Err(error) if error.to_string().contains("quarantined") => {
                 return terminalize_local_effect_quarantine(
                     runtime_store,
-                    heartbeat_store,
+                    social_store,
                     &request,
                     &effects,
                     error,
@@ -287,8 +284,8 @@ pub fn poll_persona_discord_crossing(
         } else {
             "silence"
         };
-        let terminal = complete_persona_turn_request_store(
-            heartbeat_store,
+        let terminal = complete_persona_social_turn(
+            social_store,
             PersonaTurnTerminalOptions {
                 request_id: request_id.into(),
                 outcome: outcome.into(),
@@ -305,7 +302,7 @@ pub fn poll_persona_discord_crossing(
             state_effect_status: state_status,
             state_effect_reasons: reasons,
             delivery_evidence_ids: vec![],
-            heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
+            social_terminal_receipt_id: Some(terminal.receipt_id),
             private_state_exposed: false,
             model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
             interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
@@ -330,7 +327,7 @@ pub fn poll_persona_discord_crossing(
             if error.to_string().contains("quarantined") {
                 return terminalize_local_effect_quarantine(
                     runtime_store,
-                    heartbeat_store,
+                    social_store,
                     &request,
                     &effects,
                     error,
@@ -402,8 +399,8 @@ pub fn poll_persona_discord_crossing(
     if let Some(value) = &evidence {
         put_runtime_document(runtime_store, &value.evidence_id, value)?;
     }
-    let terminal = complete_persona_turn_request_store(
-        heartbeat_store,
+    let terminal = complete_persona_social_turn(
+        social_store,
         PersonaTurnTerminalOptions {
             request_id: request_id.into(),
             outcome: outcome.into(),
@@ -429,7 +426,7 @@ pub fn poll_persona_discord_crossing(
             .iter()
             .map(|value| value.evidence_id.clone())
             .collect(),
-        heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
+        social_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id.clone()),
         interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
@@ -440,14 +437,14 @@ pub fn poll_persona_discord_crossing(
 
 fn terminalize_local_effect_quarantine(
     runtime_store: &Path,
-    heartbeat_store: &Path,
+    social_store: &Path,
     request: &PersonaTurnRequest,
     effects: &PersonaInterpreterEffectDocument,
     error: anyhow::Error,
 ) -> Result<Option<PersonaConversationExecutionReceipt>> {
     let model_terminal = validate_model_terminal(runtime_store, request, effects)?;
-    let terminal = complete_persona_turn_request_store(
-        heartbeat_store,
+    let terminal = complete_persona_social_turn(
+        social_store,
         PersonaTurnTerminalOptions {
             request_id: request.request_id.clone(),
             outcome: "blocked".into(),
@@ -470,7 +467,7 @@ fn terminalize_local_effect_quarantine(
         state_effect_status: "quarantined_ambiguous_local_effect".into(),
         state_effect_reasons: vec![error.to_string()],
         delivery_evidence_ids: vec![],
-        heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
+        social_terminal_receipt_id: Some(terminal.receipt_id),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id),
         interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
@@ -479,25 +476,19 @@ fn terminalize_local_effect_quarantine(
     Ok(Some(receipt))
 }
 
-/// Repairs the local execution projection after the heartbeat terminal commit
-/// won a crash race. The heartbeat terminal remains authority; this function
+/// Repairs the local execution projection after the social terminal commit
+/// won a crash race. The social terminal remains authority; this function
 /// only finishes matching typed intents and restores its derived receipt.
 pub fn reconcile_terminal_persona_conversation(
     runtime_store: &Path,
-    heartbeat_store: &Path,
+    social_store: &Path,
     request_id: &str,
 ) -> Result<Option<PersonaConversationExecutionReceipt>> {
     let receipt_id = format!("persona-conversation:{request_id}");
     if let Some(existing) = runtime_document(runtime_store, &receipt_id)? {
         return Ok(Some(existing));
     }
-    let state = crate::heartbeat_state::load_heartbeat_state_entry(heartbeat_store)?
-        .ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    let Some(request) = state
-        .persona_turn_requests
-        .into_iter()
-        .find(|value| value.request_id == request_id)
-    else {
+    let Some(request) = crate::persona_turn_request(social_store, request_id)? else {
         return Ok(None);
     };
     let Some(terminal) = request.terminal_receipt.as_ref() else {
@@ -526,10 +517,10 @@ pub fn reconcile_terminal_persona_conversation(
         request_id: request_id.into(),
         effect_document_id,
         outcome: terminal.outcome.clone(),
-        state_effect_status: "reconciled_from_heartbeat_terminal".into(),
+        state_effect_status: "reconciled_from_social_terminal".into(),
         state_effect_reasons: vec![],
         delivery_evidence_ids: terminal.delivery_evidence_id.clone().into_iter().collect(),
-        heartbeat_terminal_receipt_id: Some(terminal.receipt_id.clone()),
+        social_terminal_receipt_id: Some(terminal.receipt_id.clone()),
         private_state_exposed: false,
         model_terminal_receipt_id: Some(model_terminal.receipt_id),
         interpreter_decision_context_id: Some(effects.decision_context_id.clone()),
@@ -605,7 +596,7 @@ pub fn pending_persona_discord_delivery_request_for_turn(
 #[allow(clippy::too_many_arguments)]
 pub fn retain_terminal_persona_conversations(
     runtime_store: &Path,
-    heartbeat_store: &Path,
+    social_store: &Path,
     request_store: &Path,
     receipt_store: &Path,
     receipt_anchor: &GameCultServiceTrustAnchorRecord,
@@ -614,17 +605,35 @@ pub fn retain_terminal_persona_conversations(
 ) -> Result<Option<PersonaConversationRetentionHead>> {
     chrono::DateTime::parse_from_rfc3339(retained_at)
         .map_err(|_| anyhow!("Persona conversation retention time must be RFC3339"))?;
-    let (loaded, expected) = load_heartbeat_state_transaction(heartbeat_store)?;
-    let mut state = loaded.ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    if state.persona_conversation_retention_plan.is_none() {
-        let mut terminal = state
-            .persona_turn_requests
+    if crate::persona_retention_plan(social_store)?.is_none() {
+        let requests = crate::persona_turn_requests(social_store)?;
+        let retired_through = crate::persona_retention_head(social_store)?
+            .map(|head| {
+                chrono::DateTime::parse_from_rfc3339(&head.through_reserved_at)
+                    .map_err(|_| anyhow!("Persona conversation retention frontier is invalid"))
+            })
+            .transpose()?;
+        let mut terminal = requests
             .iter()
             .filter(|request| request.terminal_receipt.is_some())
-            .collect::<Vec<_>>();
+            .filter_map(|request| {
+                let reserved = chrono::DateTime::parse_from_rfc3339(&request.reserved_at)
+                    .map_err(|_| anyhow!("Persona turn reservation time is invalid"));
+                match reserved {
+                    Ok(reserved)
+                        if retired_through
+                            .as_ref()
+                            .is_none_or(|frontier| reserved > *frontier) =>
+                    {
+                        Some(Ok(request))
+                    }
+                    Ok(_) => None,
+                    Err(error) => Some(Err(error)),
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
         terminal.sort_by(|left, right| left.reserved_at.cmp(&right.reserved_at));
-        let oldest_live = state
-            .persona_turn_requests
+        let oldest_live = requests
             .iter()
             .filter(|request| request.terminal_receipt.is_none())
             .map(|request| request.reserved_at.as_str())
@@ -660,12 +669,11 @@ pub fn retain_terminal_persona_conversations(
             planned_at: retained_at.into(),
             private_state_exposed: false,
         };
-        state.persona_conversation_retention_plan = Some(plan);
-        commit_heartbeat_state_transaction(heartbeat_store, expected, &state)?;
+        crate::put_persona_retention_plan(social_store, &plan)?;
     }
     reconcile_persona_conversation_retention(
         runtime_store,
-        heartbeat_store,
+        social_store,
         request_store,
         receipt_store,
         retained_at,
@@ -699,8 +707,7 @@ fn build_persona_retention_member(
     let model_terminal_id = format!("persona-terminal:{}", request.request_id);
     if conversation.request_id != request.request_id
         || conversation.outcome != terminal.outcome
-        || conversation.heartbeat_terminal_receipt_id.as_deref()
-            != Some(terminal.receipt_id.as_str())
+        || conversation.social_terminal_receipt_id.as_deref() != Some(terminal.receipt_id.as_str())
         || conversation.model_terminal_receipt_id.as_deref() != Some(model_terminal_id.as_str())
         || conversation.private_state_exposed
     {
@@ -836,16 +843,12 @@ fn retention_envelopes(
 
 fn reconcile_persona_conversation_retention(
     runtime_store: &Path,
-    heartbeat_store: &Path,
+    social_store: &Path,
     request_store: &Path,
     receipt_store: &Path,
     retained_at: &str,
 ) -> Result<PersonaConversationRetentionHead> {
-    let state = crate::heartbeat_state::load_heartbeat_state_entry(heartbeat_store)?
-        .ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    let plan = state
-        .persona_conversation_retention_plan
-        .clone()
+    let plan = crate::persona_retention_plan(social_store)?
         .ok_or_else(|| anyhow!("Persona conversation retention plan is missing"))?;
     let runtime_members = plan
         .members
@@ -884,21 +887,14 @@ fn reconcile_persona_conversation_retention(
             .collect::<Vec<_>>(),
     )?;
 
-    let (loaded, expected) = load_heartbeat_state_transaction(heartbeat_store)?;
-    let mut state = loaded.ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    if state.persona_conversation_retention_plan.as_ref() != Some(&plan) {
+    if crate::persona_retention_plan(social_store)?.as_ref() != Some(&plan) {
         return Err(anyhow!(
             "Persona conversation retention plan changed before commit"
         ));
     }
-    let ids = plan
-        .members
-        .iter()
-        .map(|member| member.request_id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
+    let requests = crate::persona_turn_requests(social_store)?;
     for member in &plan.members {
-        let request = state
-            .persona_turn_requests
+        let request = requests
             .iter()
             .find(|request| request.request_id == member.request_id)
             .ok_or_else(|| anyhow!("Persona retention turn disappeared before commit"))?;
@@ -914,14 +910,12 @@ fn reconcile_persona_conversation_retention(
             ));
         }
     }
-    state
-        .persona_turn_requests
-        .retain(|request| !ids.contains(request.request_id.as_str()));
-    let prior = state.persona_conversation_retention_head.as_ref();
+    let prior = crate::persona_retention_head(social_store)?;
     let mut digest = Sha256::new();
     digest.update(b"epiphany.persona-conversation-retention-head.v0\0");
     digest.update(
         prior
+            .as_ref()
             .map(|head| head.chained_digest.as_str())
             .unwrap_or("persona-conversation-retention-root")
             .as_bytes(),
@@ -935,6 +929,7 @@ fn reconcile_persona_conversation_retention(
         .max()
         .unwrap_or_default();
     let through_reserved_at = prior
+        .as_ref()
         .map(|head| head.through_reserved_at.as_str())
         .into_iter()
         .chain(std::iter::once(retired_through))
@@ -943,8 +938,10 @@ fn reconcile_persona_conversation_retention(
         .to_string();
     let head = PersonaConversationRetentionHead {
         schema_version: PERSONA_CONVERSATION_RETENTION_HEAD_SCHEMA_VERSION.into(),
-        revision: prior.map_or(1, |head| head.revision.saturating_add(1)),
-        retired_turn_count: prior.map_or(plan.members.len() as u64, |head| {
+        revision: prior
+            .as_ref()
+            .map_or(1, |head| head.revision.saturating_add(1)),
+        retired_turn_count: prior.as_ref().map_or(plan.members.len() as u64, |head| {
             head.retired_turn_count
                 .saturating_add(plan.members.len() as u64)
         }),
@@ -953,9 +950,7 @@ fn reconcile_persona_conversation_retention(
         retained_at: retained_at.into(),
         private_state_exposed: false,
     };
-    state.persona_conversation_retention_head = Some(head.clone());
-    state.persona_conversation_retention_plan = None;
-    commit_heartbeat_state_transaction(heartbeat_store, expected, &state)?;
+    crate::complete_persona_retention_plan(social_store, &plan, &head)?;
     Ok(head)
 }
 
@@ -1309,12 +1304,7 @@ fn resolve_reply_target(
 }
 
 fn load_reserved_request(store: &Path, request_id: &str) -> Result<PersonaTurnRequest> {
-    let state = crate::heartbeat_state::load_heartbeat_state_entry(store)?
-        .ok_or_else(|| anyhow!("heartbeat state is missing"))?;
-    let request = state
-        .persona_turn_requests
-        .into_iter()
-        .find(|request| request.request_id == request_id)
+    let request = crate::persona_turn_request(store, request_id)?
         .ok_or_else(|| anyhow!("reserved Persona turn request is missing"))?;
     if request.status != "reserved" || request.terminal_receipt.is_some() {
         return Err(anyhow!("Persona turn request is not reserved"));
@@ -1344,6 +1334,40 @@ fn stable_memory_id(document_id: &str, index: usize) -> String {
 mod tests {
     use super::*;
 
+    fn insert_terminal_persona_request(
+        store_path: &Path,
+        mut request: PersonaTurnRequest,
+    ) -> Result<()> {
+        let terminal = request
+            .terminal_receipt
+            .take()
+            .ok_or_else(|| anyhow!("terminal Persona test request requires its receipt"))?;
+        request.status = "reserved".into();
+        let cache = crate::persona_social_cache(store_path)?;
+        let request_id = request.request_id.clone();
+        let terminal_request_id = terminal.request_id.clone();
+        let writes = vec![
+            cache
+                .prepare_entry(
+                    &request_id,
+                    &crate::PersonaSocialTurnRequestDocument { request },
+                )?
+                .0,
+            cache
+                .prepare_entry(
+                    &terminal_request_id,
+                    &crate::PersonaSocialTurnTerminalDocument { receipt: terminal },
+                )?
+                .0,
+        ];
+        if !SingleFileMessagePackBackingStore::new(store_path)
+            .compare_and_swap_batch(&[], writes)?
+        {
+            return Err(anyhow!("terminal Persona test request identity collided"));
+        }
+        Ok(())
+    }
+
     fn unused_anchor() -> GameCultServiceTrustAnchorRecord {
         GameCultServiceTrustAnchorRecord {
             schema_version: cultnet_rs::GAMECULT_SERVICE_TRUST_ANCHOR_SCHEMA.into(),
@@ -1364,7 +1388,7 @@ mod tests {
 
     fn seed_closed_silence_turn(
         runtime_store: &Path,
-        state: &mut crate::heartbeat_state::EpiphanyHeartbeatStateEntry,
+        social_store: &Path,
         suffix: &str,
         reserved_at: &str,
     ) -> Result<()> {
@@ -1372,9 +1396,8 @@ mod tests {
         let effect_id = format!("persona-effects:{request_id}");
         let stage_ids = ["projector", "persona", "interpreter"]
             .map(|stage| format!("persona-stage:{request_id}:{stage}"));
-        let terminal = crate::heartbeat_state::PersonaTurnTerminalReceipt {
-            schema_version: crate::heartbeat_state::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION
-                .into(),
+        let terminal = crate::PersonaTurnTerminalReceipt {
+            schema_version: crate::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: format!("{request_id}:terminal"),
             request_id: request_id.clone(),
             schedule_id: format!("schedule-{suffix}"),
@@ -1387,20 +1410,23 @@ mod tests {
             private_state_exposed: false,
             ..Default::default()
         };
-        state.persona_turn_requests.push(PersonaTurnRequest {
-            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
-            request_id: request_id.clone(),
-            schedule_id: format!("schedule-{suffix}"),
-            action_id: format!("action-{suffix}"),
-            role_id: "Persona".into(),
-            agent_id: "epiphany.Persona".into(),
-            status: "terminal".into(),
-            reserved_at: reserved_at.into(),
-            mentions: vec![],
-            semantic_memory_recall: serde_json::Value::Null,
-            terminal_receipt: Some(terminal.clone()),
-            private_state_exposed: false,
-        });
+        insert_terminal_persona_request(
+            social_store,
+            PersonaTurnRequest {
+                schema_version: crate::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
+                request_id: request_id.clone(),
+                schedule_id: format!("schedule-{suffix}"),
+                action_id: format!("action-{suffix}"),
+                role_id: "Persona".into(),
+                agent_id: "epiphany.Persona".into(),
+                status: "terminal".into(),
+                reserved_at: reserved_at.into(),
+                mentions: vec![],
+                semantic_memory_recall: serde_json::Value::Null,
+                terminal_receipt: Some(terminal.clone()),
+                private_state_exposed: false,
+            },
+        )?;
         let mut effects = PersonaInterpreterEffectDocument {
             schema_version: crate::PERSONA_INTERPRETER_EFFECT_DOCUMENT_SCHEMA_VERSION.into(),
             document_id: effect_id.clone(),
@@ -1506,7 +1532,7 @@ mod tests {
                 state_effect_status: "none".into(),
                 state_effect_reasons: vec![],
                 delivery_evidence_ids: vec![],
-                heartbeat_terminal_receipt_id: Some(terminal.receipt_id),
+                social_terminal_receipt_id: Some(terminal.receipt_id),
                 private_state_exposed: false,
                 model_terminal_receipt_id: Some(format!("persona-terminal:{request_id}")),
                 interpreter_decision_context_id: Some(context_ids[2].clone()),
@@ -1742,38 +1768,38 @@ mod tests {
         let heartbeat = temp.path().join("heartbeat.cc");
         let requests = temp.path().join("requests.cc");
         let receipts = temp.path().join("receipts.cc");
-        let mut state = crate::heartbeat_state::default_heartbeat_state(1.0);
-        state.persona_turn_requests.push(PersonaTurnRequest {
-            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
-            request_id: "turn-failed".into(),
-            schedule_id: "schedule-failed".into(),
-            action_id: "action-failed".into(),
-            role_id: "Persona".into(),
-            agent_id: "epiphany.Persona".into(),
-            status: "terminal".into(),
-            reserved_at: "2026-08-09T23:59:59Z".into(),
-            mentions: vec![],
-            semantic_memory_recall: serde_json::Value::Null,
-            terminal_receipt: Some(crate::heartbeat_state::PersonaTurnTerminalReceipt {
-                schema_version:
-                    crate::heartbeat_state::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
-                receipt_id: "turn-failed:terminal".into(),
+        insert_terminal_persona_request(
+            &heartbeat,
+            PersonaTurnRequest {
+                schema_version: crate::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
                 request_id: "turn-failed".into(),
                 schedule_id: "schedule-failed".into(),
                 action_id: "action-failed".into(),
-                outcome: "failed".into(),
-                mention_disposition: "retained".into(),
-                mention_ids: vec!["mention-failed".into()],
-                mention_cargo_sha256: format!("sha256-{}", "f".repeat(64)),
-                completed_at: "2026-08-09T23:59:59Z".into(),
+                role_id: "Persona".into(),
+                agent_id: "epiphany.Persona".into(),
+                status: "terminal".into(),
+                reserved_at: "2026-08-09T23:59:59Z".into(),
+                mentions: vec![],
+                semantic_memory_recall: serde_json::Value::Null,
+                terminal_receipt: Some(crate::PersonaTurnTerminalReceipt {
+                    schema_version: crate::PERSONA_TURN_TERMINAL_RECEIPT_SCHEMA_VERSION.into(),
+                    receipt_id: "turn-failed:terminal".into(),
+                    request_id: "turn-failed".into(),
+                    schedule_id: "schedule-failed".into(),
+                    action_id: "action-failed".into(),
+                    outcome: "failed".into(),
+                    mention_disposition: "retained".into(),
+                    mention_ids: vec!["mention-failed".into()],
+                    mention_cargo_sha256: format!("sha256-{}", "f".repeat(64)),
+                    completed_at: "2026-08-09T23:59:59Z".into(),
+                    private_state_exposed: false,
+                    ..Default::default()
+                }),
                 private_state_exposed: false,
-                ..Default::default()
-            }),
-            private_state_exposed: false,
-        });
-        seed_closed_silence_turn(&runtime, &mut state, "old", "2026-08-10T00:00:00Z")?;
-        seed_closed_silence_turn(&runtime, &mut state, "new", "2026-08-10T00:00:01Z")?;
-        crate::heartbeat_state::write_heartbeat_state_entry(&heartbeat, &state)?;
+            },
+        )?;
+        seed_closed_silence_turn(&runtime, &heartbeat, "old", "2026-08-10T00:00:00Z")?;
+        seed_closed_silence_turn(&runtime, &heartbeat, "new", "2026-08-10T00:00:01Z")?;
 
         let head = retain_terminal_persona_conversations(
             &runtime,
@@ -1787,9 +1813,9 @@ mod tests {
         .expect("oldest closed turn should retire");
         assert_eq!(head.retired_turn_count, 1);
         assert_eq!(head.through_reserved_at, "2026-08-10T00:00:00Z");
-        let retained = crate::heartbeat_state::load_heartbeat_state_entry(&heartbeat)?.unwrap();
-        assert_eq!(retained.persona_turn_requests.len(), 2);
-        assert!(retained.persona_turn_requests.iter().any(|request| {
+        let retained = crate::persona_turn_requests(&heartbeat)?;
+        assert_eq!(retained.len(), 3);
+        assert!(retained.iter().any(|request| {
             request.request_id == "turn-failed"
                 && request
                     .terminal_receipt
@@ -1798,11 +1824,10 @@ mod tests {
         }));
         assert!(
             retained
-                .persona_turn_requests
                 .iter()
                 .any(|request| request.request_id == "turn-new")
         );
-        assert!(retained.persona_conversation_retention_plan.is_none());
+        assert!(crate::persona_retention_plan(&heartbeat)?.is_none());
         let retired_conversation = runtime_document::<PersonaConversationExecutionReceipt>(
             &runtime,
             "persona-conversation:turn-old",
@@ -1860,22 +1885,6 @@ mod tests {
             .is_none()
         );
 
-        let mut hostile = retained;
-        hostile.persona_turn_requests.push(PersonaTurnRequest {
-            schema_version: crate::heartbeat_state::PERSONA_TURN_REQUEST_SCHEMA_VERSION.into(),
-            request_id: "turn-old".into(),
-            schedule_id: "schedule-old".into(),
-            action_id: "action-old".into(),
-            role_id: "Persona".into(),
-            agent_id: "epiphany.Persona".into(),
-            status: "reserved".into(),
-            reserved_at: "2026-08-10T00:00:00Z".into(),
-            mentions: vec![],
-            semantic_memory_recall: serde_json::Value::Null,
-            terminal_receipt: None,
-            private_state_exposed: false,
-        });
-        assert!(crate::heartbeat_state::validate_heartbeat_state(&hostile).is_err());
         Ok(())
     }
 
@@ -1893,7 +1902,7 @@ mod tests {
             state_effect_status: "none".into(),
             state_effect_reasons: vec![],
             delivery_evidence_ids: vec![],
-            heartbeat_terminal_receipt_id: Some("retry:terminal".into()),
+            social_terminal_receipt_id: Some("retry:terminal".into()),
             private_state_exposed: false,
             model_terminal_receipt_id: Some("persona-terminal:retry".into()),
             interpreter_decision_context_id: Some("decision-context-retry-interpreter".into()),
