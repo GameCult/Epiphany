@@ -372,6 +372,17 @@ runtime plus proposal identity, then binds it to the current Body/domain and
 the exact Imagination request/result/worker chain. Proposal schema is v3;
 Mind/runtime writable epochs are v7/v10.
 
+Exact `2dfd8c72` removes the producerless Eyes claim-challenge side channel.
+Eyes owned no terminal outcome that could create this document; its only
+producer was a test that fabricated both the evidence and the challenge. Eyes
+therefore cannot maintain a parallel status that suppresses Planning or Hands.
+Authenticated external evidence creates a Modeling obligation; Modeling then
+commits a fresh keyed node/frontier state through the normal exact-envelope
+transaction. Existing Planning and Hands passes still refuse when their exact
+claim/frontier envelopes change. Claim-obligation documents now contain only
+their real unresolved frontier identities (v3); Mind/runtime writable epochs
+are v8/v11.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

@@ -1185,6 +1185,20 @@ Mind/runtime writable epochs are v7/v10. The broad lifecycle proof, epoch
 refusal, and coordinator compile pass. `runtime_spine.rs` is 10,500 lines.
 Resume the public runtime-spine/test-liability audit next.
 
+Exact `2dfd8c72` removes the producerless Eyes claim-challenge side channel.
+No live role result, interpreter, or admission owner could create it; one
+capstone fixture fabricated an Eyes packet and challenge, called the only
+writer, and then proved the gating it had manufactured. The contract, writer,
+registry row, validation/routing branches, `active_challenge_ids` cargo, and
+fixture-only packet inserter are gone: 465 net source deletions. Exact keyed
+claim/frontier envelopes still own stale-state refusal. External evidence must
+enter Modeling and change the keyed RepoModel rather than let Eyes separately
+decide Planning or Hands actionability. Claim-obligation documents are v3;
+Mind/runtime writable epochs are v8/v11. `runtime_spine.rs` is 10,216 lines,
+with 63 public functions and 29 public structs. The focused core check, keyed
+lifecycle proof, and epoch-refusal proof pass without warnings. Continue the
+public runtime-spine and test-liability audit.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the

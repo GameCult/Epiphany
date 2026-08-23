@@ -146,7 +146,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    autonomous validation derives that request from binding runtime plus proposal
    identity and checks it against exact Body/domain and Imagination provenance.
    Mind/runtime epochs are v7/v10.
-26. Next: resume the public runtime-spine and test-liability audit by live owner
+26. Done: exact `2dfd8c72` deletes the test-only Eyes claim-challenge side
+   channel. No live agent pass produced it; one fixture authored both evidence
+   and challenge, then invoked the sole writer and asserted its own gating.
+   Exact keyed claim/frontier envelopes still refuse stale Planning and Hands
+   admission. External evidence must now flow into Modeling and change the
+   keyed model itself. The cut removes 465 net source lines; Mind/runtime are
+   v8/v11 and claim-obligation documents are v3.
+27. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-27. Run focused tests after each cut. Only after source subtraction stabilizes
+28. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
