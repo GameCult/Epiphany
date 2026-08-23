@@ -1387,43 +1387,6 @@ fn openai_event_summary(event: &EpiphanyOpenAiStreamEvent) -> String {
     }
 }
 
-#[cfg(test)]
-fn model_request_from_openai_request(
-    provider: &str,
-    request: &EpiphanyOpenAiModelRequest,
-) -> EpiphanyModelRequest {
-    EpiphanyModelRequest {
-        schema_id: epiphany_model_adapter::MODEL_ADAPTER_REQUEST_SCHEMA_ID.to_string(),
-        request_id: request.request_id.clone(),
-        conversation_id: request.conversation_id.clone(),
-        provider: provider.to_string(),
-        model: request.model.clone(),
-        instructions: request.instructions.clone(),
-        input: request
-            .input
-            .iter()
-            .map(model_input_from_openai_input)
-            .collect(),
-        reasoning_effort: request.reasoning_effort.clone(),
-        reasoning_summary: request.reasoning_summary.clone(),
-        service_tier: request.service_tier.clone(),
-        output_contract_id: request.output_contract_id.clone(),
-        previous_response_id: request.previous_response_id.clone(),
-        output_schema_json: request.output_schema_json.clone(),
-        source_worker_job_id: None,
-        reasoning_basis_id: None,
-        tools: request
-            .tools
-            .iter()
-            .map(|tool| EpiphanyModelToolDefinition {
-                name: tool.name.clone(),
-                description: tool.description.clone(),
-                parameters_json: tool.parameters_json.clone(),
-            })
-            .collect(),
-    }
-}
-
 pub fn openai_request_from_model_request(
     request: &EpiphanyModelRequest,
 ) -> EpiphanyOpenAiModelRequest {
@@ -1506,33 +1469,6 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
             .to_string(),
         },
     ]
-}
-
-#[cfg(test)]
-fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyModelInputItem {
-    match input {
-        EpiphanyOpenAiInputItem::UserText { text } => {
-            EpiphanyModelInputItem::UserText { text: text.clone() }
-        }
-        EpiphanyOpenAiInputItem::AssistantText { text } => {
-            EpiphanyModelInputItem::AssistantText { text: text.clone() }
-        }
-        EpiphanyOpenAiInputItem::ToolCall {
-            call_id,
-            name,
-            arguments,
-        } => EpiphanyModelInputItem::ToolCall {
-            call_id: call_id.clone(),
-            name: name.clone(),
-            arguments: arguments.clone(),
-        },
-        EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
-            EpiphanyModelInputItem::ToolResult {
-                call_id: call_id.clone(),
-                output: output.clone(),
-            }
-        }
-    }
 }
 
 pub fn model_event_from_openai_event(
@@ -3817,12 +3753,14 @@ mod tests {
     fn records_typed_openai_documents_in_runtime_store() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        let request = EpiphanyOpenAiModelRequest::new(
+        let native_request = EpiphanyModelRequest::new(
             "req-1",
             "conversation-1",
+            DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
             "Answer plainly.",
         );
+        let request = epiphany_openai_adapter::request_from_native(&native_request);
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -3841,7 +3779,7 @@ mod tests {
                 summary: "test job".to_string(),
                 artifact_refs: Vec::new(),
             },
-            &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
+            &native_request,
             &now(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4");
@@ -4501,14 +4439,16 @@ mod tests {
     fn builds_tool_followup_model_request_from_receipts() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        let mut request = EpiphanyOpenAiModelRequest::new(
+        let mut native_request = EpiphanyModelRequest::new(
             "req-tools",
             "conversation-1",
+            DEFAULT_MODEL_PROVIDER,
             "gpt-5.4",
             "Answer after tool output.",
         );
-        request.output_schema_json =
+        native_request.output_schema_json =
             Some(r#"{"type":"object","required":["researchDecision"]}"#.to_string());
+        let request = epiphany_openai_adapter::request_from_native(&native_request);
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
@@ -4527,7 +4467,7 @@ mod tests {
                 summary: "tool test job".to_string(),
                 artifact_refs: Vec::new(),
             },
-            &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
+            &native_request,
             &now(),
         )?;
         let mut receipt = EpiphanyOpenAiModelReceipt::new("req-tools", "gpt-5.4");
