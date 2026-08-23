@@ -889,6 +889,14 @@ Body-binding, provider, federation, and willingness-to-pay experiments; none is
 adopted roadmap authority. The test-authority audit and Ox17 brake remain
 unchanged.
 
+Interface correction: Epiphany does not currently expose its internal faculty
+and ecosystem vocabulary through a general operator UI. Beyond engineering
+tools, the concrete human-facing surface is Persona projection into shared
+asynchronous chat. CultMesh remains the projection-neutral state API. A social
+Aquarium, dense operator cockpit, TUI, and audit surface may use distinct Eve
+compositions and interaction models over the same provider-owned facts; no one
+projection should fossilize its layout into shared truth.
+
 ## Operational state that matters
 
 - Original c011 resident and Heartbeat containers are not running; both exited

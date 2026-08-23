@@ -59,10 +59,10 @@ buyers have accepted them.
 
 The immediate product hypothesis worth testing is narrow:
 
-> Can one packaged Epiphany golden path make current work, human decisions,
-> Body identity, consequences, and verification as immediately legible as
-> Munder's moving office—without asking the user to learn the internal anatomy
-> first?
+> Can a bounded projection over Epiphany state make current work, human
+> decisions, Body identity, consequences, and verification as immediately
+> legible as Munder's moving office—without bending CultMesh around one
+> interface or asking the user to learn the internal anatomy first?
 
 ## Evidence discipline
 
@@ -648,23 +648,35 @@ Munder has:
 
 Epiphany has stronger internal contracts in several areas, but its public
 [positioning](../docs/positioning.md) correctly calls it a supervised
-engineering alpha. Aquarium's canonical Eve/CultMesh lowering, sustained
-production use, public visitor experience, complete attribution, and a simple
-first-hour product remain unfinished. A coherent internal organism is not a
-competitive product until an ordinary user can reach useful work through it.
+engineering alpha. Aquarium's first complete Eve/CultMesh projections,
+sustained production use, public visitor experience, complete attribution, and
+a simple first-hour product remain unfinished. A coherent internal organism is
+not a competitive product until an ordinary user can reach useful work through
+it.
 
-### 7.2 Epiphany has too many nouns at the front door
+### 7.2 Epiphany has not yet chosen an operator interface
 
-Epiphany, Aquarium, CultCache, CultNet, CultMesh, Eve, Odin, Bifrost, Idunn,
-Huginn, Model Atlas, Persona, Mind, Self, Eyes, Modeling, Hands, Soul. Internally
-these names carry authority boundaries. Externally they can look like the same
-category error Munder makes with fictional employees: a rich ontology the user
-must decode before solving a problem.
+Epiphany has many internal names, but it does not currently put them at a
+user-facing front door because that front door mostly does not exist. Beyond
+engineering and operator tooling, its concrete human-facing surface is Persona
+projection into shared asynchronous conversation such as Discord. Treating the
+internal vocabulary as a shipped onboarding burden invents an interface that
+has not been built.
 
-The product has to compress to one sentence and one action. Dual labels such as
-“Eyes / Research” and “Soul / Verification” can preserve the local language
-without demanding conversion before use. CultMesh should be infrastructure the
-product uses, not a prerequisite concept in the first-run tutorial.
+The live design wager is projection neutrality. CultMesh should expose clean,
+source-owned state without baking in one renderer's information hierarchy. A
+social Aquarium can embody Epiphany state as cute characters, presence, and
+relationships. A serious operator dashboard can maximize plans, obligations,
+blockers, decisions, consequences, provenance, and uncertainty per unit of
+attention. TUI, audit, accessibility, and future room projections can make
+different choices again.
+
+The risk is therefore not that users currently face too many nouns. It is that
+the first compelling projection could fossilize its metaphor into the shared
+API, or that every later projection could be forced through one composition
+designed for another job. Each projection should choose its vocabulary,
+density, and interaction model for its audience while preserving the same
+underlying identities, meanings, provenance, and authority boundaries.
 
 ### 7.3 Governance may be overhead users do not value on simple work
 
@@ -713,11 +725,14 @@ changes.
 
 ### 8.1 Epiphany core
 
-Keep the current distinction between organizational truth, work discovery,
-routing, execution, verification, and admission—but stop expecting users to
-care about those nouns before they see value.
+Epiphany core should keep the distinction between organizational truth, work
+discovery, routing, execution, verification, and admission. It does not
+currently own or prescribe a general operator interface. Its interface
+responsibility is to expose enough clean, source-owned state that downstream
+projections do not have to reconstruct truth from logs or invent it from visual
+activity.
 
-The product surface should begin with:
+One candidate information priority for a serious operator projection is:
 
 ```text
 objective
@@ -729,18 +744,21 @@ objective
 ```
 
 The deeper chain in the
-[current algorithmic map](./epiphany-current-algorithmic-map.md) should become
-visible on demand, especially when something is blocked, disputed, or risky.
-It should not become the onboarding lecture.
+[current algorithmic map](./epiphany-current-algorithmic-map.md) should be
+available for projections to reveal when something is blocked, disputed, or
+risky. That does not require every projection to expose the chain, use the same
+labels, or share an onboarding flow.
 
 Specific pressures:
 
-- Make a human dependency a first-class obligation with rationale, options,
-  downstream impact, and an answer receipt.
-- Separate role templates, worker attempts, Personas, and persistent memory in
-  the public vocabulary as well as in code.
-- Provide one conversational Face without forcing explicit accept, refuse,
-  reprioritize, or revoke actions to be paraphrased by a model.
+- Expose a human dependency as a first-class obligation with rationale,
+  options, downstream impact, and an answer receipt.
+- Keep role templates, worker attempts, Personas, and persistent memory
+  semantically distinct so each projection can combine or separate them
+  deliberately.
+- Where a projection offers conversational Face interaction, do not force
+  explicit accept, refuse, reprioritize, or revoke actions to be paraphrased by
+  a model.
 - Measure whether exact state and verification reduce rework and supervision;
   do not market architectural properties as outcomes.
 - Expect lightweight direct-agent use to win on small tasks; route Epiphany to
@@ -748,13 +766,14 @@ Specific pressures:
 
 ### 8.2 Aquarium and Eve/CultUI
 
-The market signal favors truthful operator visualization. It is ambivalent
-about an immersive habitat: some users find space an excellent compression
-device, while the strongest hands-on critique preferred a dense decision
-cockpit. Aquarium therefore has a real product hypothesis to prove, not a
-market mandate.
+The market signal favors truthful projection but does not select one canonical
+interface. Some users find spatial embodiment an excellent social and
+orientation device; the strongest hands-on critique preferred a dense decision
+cockpit. A social Aquarium and a serious operator dashboard are different
+products over shared Epiphany state, not two skins competing to become the one
+true interface.
 
-A five-second glance should answer:
+A serious operator projection should aim to answer at a five-second glance:
 
 1. What work is active?
 2. What is blocked, and by what missing fact or authority?
@@ -762,18 +781,24 @@ A five-second glance should answer:
 4. What changed, and has it been verified?
 5. Which repository Body, runtime, provider, and version are involved?
 
-The same Eve composition graph should lower into:
+The same authoritative CultMesh state can support distinct consumer-owned Eve
+compositions:
 
-- an immersive habitat for orientation, identity, and ambient state;
+- a social Aquarium for presence, identity, relationship, personality, and
+  ambient state;
 - a dense decision cockpit for plans, questions, dependencies, cost, and
   consequences;
 - a compact TUI for expert operation and agent access;
 - a plain audit view for accessibility and review.
 
-The modes should not maintain separate state. Synthetic/demo events should
-enter the same projection path and remain visibly synthetic. Unknown must look
-unknown. A creature can be charming; it may not launder absent receipts into a
-healthy animation.
+These projections do not need to share one composition graph, layout, density,
+or local interaction state. They do need to agree on the meaning and provenance
+of the source facts they consume. A projection may own filters, camera state,
+layout, animation, and other ephemeral view state; it may not become a competing
+owner of work status. Synthetic or demo data must remain visibly synthetic and
+must not enter authoritative state as observation. Unknown must look unknown. A
+creature can be charming; it may not launder absent receipts into a healthy
+animation.
 
 Munder issue #193 supplies a concrete design principle worth adopting: use
 environmental objects for fleet-level information that users otherwise have to
@@ -802,6 +827,13 @@ Munder's file protocol shows why raw inspectability matters. CultCache/CultMesh
 state should have excellent human-readable inspection through the state CLI,
 Eve, and TUI. A binary or typed substrate that users cannot inspect will lose a
 trust advantage even if it is more correct internally.
+
+Projection neutrality is the important ecosystem constraint. Aquarium should
+not deform shared state around sprites, and a serious dashboard should not
+deform it around cards, tables, or alert queues. Providers own their facts;
+CultMesh carries them; consumer projections select, compose, and render them.
+Eve compositions may themselves travel through CultMesh, but they remain
+interface projections rather than replacements for provider-owned truth.
 
 ### 8.4 Bifrost, Persona, and social use
 
@@ -960,19 +992,23 @@ restart, and re-entry.
 names an actionable owner; no manual state-file repair or internal vocabulary is
 required.
 
-### Experiment B: decision space versus office space
+### Experiment B: social habitat and operator cockpit
 
-**Hypothesis:** Aquarium's immersive view can improve orientation without
-slowing causal judgment.
+**Hypothesis:** independent projections can optimize different human jobs
+without forking the meaning of Epiphany state.
 
-**Test:** with at least ten target operators in randomized mode order, lower the
-same Eve graph as immersive habitat and dense cockpit. Give each operator five
-lookup tasks per mode: active Body, blocker, requested decision, last verified
-consequence, and current cost uncertainty.
+**Test:** render the same recorded and live CultMesh scenarios through separate
+consumer-owned Eve compositions: a social Aquarium and a dense operator
+cockpit. Test the cockpit on active Body, blocker, requested decision, last
+verified consequence, and current uncertainty. Test Aquarium on identity,
+presence, relationship, ambient change recognition, and desire to return or
+engage. Include cross-view checks after state changes.
 
-**Pass:** at least 90% of lookups are correct with a median under ten seconds in
-both modes; immersive mode must materially improve at least one orientation
-task without materially degrading another or be demoted to ambient display.
+**Pass:** both projections report every shared fact consistently and expose
+unknowns honestly. The cockpit reaches at least 90% correct operational lookups
+with a median under ten seconds. Aquarium must improve at least one named social
+or orientation outcome over a neutral control without emitting false work
+state. It does not have to impersonate the cockpit to earn its keep.
 
 ### Experiment C: orchestration earns its overhead
 
