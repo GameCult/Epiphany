@@ -8,27 +8,17 @@ use cultnet_rs::{
     export_service_identity_trust_anchor, open_service_identity_at,
 };
 use ed25519_dalek::SigningKey;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
-use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
-use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
 use epiphany_core::authenticate_resident_provider;
-use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
-use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
-use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
-use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
@@ -37,12 +27,7 @@ use epiphany_core::load_epiphany_packaged_release;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 use epiphany_core::observe_native_process as observe_process;
-use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::runtime_modeling_semantic_projection_input;
-use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
-use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
-use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
-use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
@@ -174,9 +159,6 @@ fn main() -> Result<()> {
 
 fn dispatch(args: Args) -> Result<()> {
     match args.command.as_str() {
-        "reconcile" | "poke" | "restart" => reconcile(args),
-        "tick" | "schedule" | "reconcile-all" => tick(args),
-        "serve" | "loop" | "daemon" => serve(args),
         "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
         "managed-service-task-plan" => managed_service_task_install(args, false),
         "managed-service-task-install" => managed_service_task_install(args, true),
@@ -221,10 +203,9 @@ fn dispatch(args: Args) -> Result<()> {
         | "service-start"
         | "windows-service-stop"
         | "service-stop" => refuse_false_windows_scm_authority(),
-        "policy" | "write-policy" => write_policy(args),
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, policy, or semantic-recover"
+            "unknown command {other:?}; use managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
         ),
     }
 }
@@ -740,72 +721,6 @@ fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
             args.store.display()
         );
     }
-    Ok(())
-}
-
-fn reconcile(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let daemon_status = load_epiphany_cultmesh_daemon_status(
-        &args.store,
-        args.runtime_id.clone(),
-        &args.daemon_id,
-    )?
-    .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-
-    let mut policy = load_policy_or_override(&args, &daemon_status)?;
-    let output = reconcile_daemon_status(
-        &args,
-        brake.as_ref(),
-        &daemon_status,
-        &mut policy,
-        args.force,
-        false,
-        false,
-    )?;
-    println!("{}", serde_json::to_string_pretty(&output)?);
-    Ok(())
-}
-
-fn tick(args: Args) -> Result<()> {
-    let output = run_tick(&args, 0, None)?;
-    println!("{}", serde_json::to_string_pretty(&output)?);
-    Ok(())
-}
-
-fn serve(args: Args) -> Result<()> {
-    let mut outputs = Vec::new();
-    let mut iteration = 0_u64;
-    loop {
-        iteration = iteration.saturating_add(1);
-        let next_wake = if args.max_iterations == 0 || iteration < args.max_iterations {
-            Some((Utc::now() + Duration::seconds(args.loop_interval_seconds)).to_rfc3339())
-        } else {
-            None
-        };
-        let output = run_tick(&args, iteration, next_wake)?;
-        outputs.push(output);
-        if args.max_iterations != 0 && iteration >= args.max_iterations {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_secs(
-            args.loop_interval_seconds.max(0) as u64,
-        ));
-    }
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "serveComplete",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "daemonId": args.daemon_id,
-            "schedulerId": args.scheduler_id,
-            "iterations": iteration,
-            "outputs": outputs,
-            "privateStateExposed": false,
-        }))?
-    );
     Ok(())
 }
 
@@ -3014,532 +2929,6 @@ fn local_file_sha256(path: &str) -> Option<String> {
     let digest = Sha256::digest(&bytes);
     Some(format!("{digest:x}"))
 }
-fn run_tick(args: &Args, iteration: u64, next_wake_utc: Option<String>) -> Result<Value> {
-    let tick_started = Utc::now();
-
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_scheduler_tick(&context)?;
-
-    let now = Utc::now();
-    let mut outcomes = Vec::new();
-    let requested_daemon = args.daemon_id.as_str();
-    let policies: Vec<_> = context
-        .daemon_restart_policies
-        .clone()
-        .into_iter()
-        .filter(|policy| requested_daemon == "*" || policy.daemon_id == requested_daemon)
-        .collect();
-    if policies.is_empty() {
-        anyhow::bail!(
-            "local Verse has no daemon restart policies matching {:?}",
-            requested_daemon
-        );
-    }
-
-    for mut policy in policies {
-        let Some(status) = context
-            .daemon_statuses
-            .iter()
-            .find(|status| status.daemon_id == policy.daemon_id)
-            .cloned()
-        else {
-            outcomes.push(json!({
-                "status": "missingStatus",
-                "policyId": policy.policy_id,
-                "daemonId": policy.daemon_id,
-                "privateStateExposed": false,
-            }));
-            continue;
-        };
-        if !policy.enabled {
-            outcomes.push(json!({
-                "status": "skipped",
-                "reason": "policy disabled",
-                "policyId": policy.policy_id,
-                "daemonId": policy.daemon_id,
-                "privateStateExposed": false,
-            }));
-            continue;
-        }
-        if !reconcile_interval_elapsed(&policy, now)? {
-            outcomes.push(json!({
-                "status": "skipped",
-                "reason": "reconcile interval not elapsed",
-                "policyId": policy.policy_id,
-                "daemonId": policy.daemon_id,
-                "lastReconcileUtc": policy.last_reconcile_utc,
-                "privateStateExposed": false,
-            }));
-            continue;
-        }
-
-        let scheduled_status = status;
-        let heartbeat_stale = daemon_heartbeat_is_stale(&scheduled_status, &policy, now)?;
-        let mut forced = args.force;
-        if heartbeat_stale {
-            forced = true;
-        }
-
-        match reconcile_daemon_status(
-            &args,
-            context.swarm_brake.as_ref(),
-            &scheduled_status,
-            &mut policy,
-            forced,
-            true,
-            heartbeat_stale,
-        ) {
-            Ok(output) => outcomes.push(output),
-            Err(error) => outcomes.push(json!({
-                "status": "refused",
-                "reason": error.to_string(),
-                "policyId": policy.policy_id,
-                "daemonId": policy.daemon_id,
-                "privateStateExposed": false,
-            })),
-        }
-    }
-
-    let outcome_count = outcomes.len() as u32;
-    let restarted_count = count_outcomes(&outcomes, "awaiting-provider-heartbeat");
-    let refused_count = count_outcomes(&outcomes, "refused");
-    let skipped_count = count_outcomes(&outcomes, "skipped");
-    let tick_completed = Utc::now();
-    let receipt_id = format!(
-        "daemon-scheduler-receipt-{}-{}",
-        sanitize_id(&args.scheduler_id),
-        iteration
-    );
-    let receipt = EpiphanyCultMeshDaemonSchedulerReceiptEntry {
-        schema_version: EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id,
-        scheduler_id: args.scheduler_id.clone(),
-        runtime_id: args.runtime_id.clone(),
-        daemon_selector: args.daemon_id.clone(),
-        iteration,
-        status: "tickComplete".to_string(),
-        tick_started_utc: tick_started.to_rfc3339(),
-        tick_completed_utc: tick_completed.to_rfc3339(),
-        next_wake_utc,
-        outcome_count,
-        restarted_count,
-        refused_count,
-        skipped_count,
-        private_state_exposed: false,
-        notes: vec![
-            "Daemon scheduler receipt records one explicit supervisor pulse without exposing private daemon state."
-                .to_string(),
-            "Daemon restart decisions remain owned by durable restart policy, liveness status, swarm brake, and cooldown gates."
-                .to_string(),
-        ],
-    };
-    let written_receipt = write_epiphany_cultmesh_daemon_scheduler_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-
-    Ok(json!({
-        "status": "tickComplete",
-        "store": args.store,
-        "runtimeId": args.runtime_id,
-        "daemonId": args.daemon_id,
-        "schedulerId": args.scheduler_id,
-        "iteration": iteration,
-        "schedulerReceiptId": written_receipt.receipt_id,
-        "outcomeCount": written_receipt.outcome_count,
-        "restartedCount": written_receipt.restarted_count,
-        "refusedCount": written_receipt.refused_count,
-        "skippedCount": written_receipt.skipped_count,
-        "nextWakeUtc": written_receipt.next_wake_utc,
-        "outcomes": outcomes,
-        "privateStateExposed": written_receipt.private_state_exposed,
-    }))
-}
-
-fn write_policy(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let daemon_status = load_epiphany_cultmesh_daemon_status(
-        &args.store,
-        args.runtime_id.clone(),
-        &args.daemon_id,
-    )?
-    .with_context(|| format!("local Verse has no daemon status for {:?}", args.daemon_id))?;
-    let command = args
-        .restart_command
-        .clone()
-        .context("policy requires --restart-command")?;
-    let policy = EpiphanyCultMeshDaemonRestartPolicyEntry {
-        schema_version: EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION.to_string(),
-        policy_id: args
-            .policy_id
-            .clone()
-            .unwrap_or_else(|| format!("daemon-restart-policy-{}", sanitize_id(&daemon_status.daemon_id))),
-        daemon_id: daemon_status.daemon_id.clone(),
-        cluster_id: daemon_status.cluster_id.clone(),
-        restart_command: command.display().to_string(),
-        restart_args: args.restart_args.clone(),
-        cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
-        cooldown_seconds: args.cooldown_seconds,
-        backoff_multiplier: args.backoff_multiplier,
-        failure_count: 0,
-        last_attempt_utc: None,
-        last_result_status: "never-attempted".to_string(),
-        enabled: !args.disabled,
-        private_state_exposed: false,
-        notes: vec![
-            "Daemon restart policy is local Verse process-control state, not private daemon memory."
-                .to_string(),
-            "Supervisor reconciles this policy through typed daemon poke receipts and liveness status."
-                .to_string(),
-        ],
-        reconcile_interval_seconds: args.reconcile_interval_seconds,
-        heartbeat_stale_seconds: args.heartbeat_stale_seconds,
-        last_reconcile_utc: None,
-    };
-    let written = write_epiphany_cultmesh_daemon_restart_policy(
-        &args.store,
-        args.runtime_id.clone(),
-        policy,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "written",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "policyId": written.policy_id,
-            "daemonId": written.daemon_id,
-            "clusterId": written.cluster_id,
-            "enabled": written.enabled,
-            "cooldownSeconds": written.cooldown_seconds,
-            "backoffMultiplier": written.backoff_multiplier,
-            "reconcileIntervalSeconds": written.reconcile_interval_seconds,
-            "heartbeatStaleSeconds": written.heartbeat_stale_seconds,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn load_policy_or_override(
-    args: &Args,
-    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
-) -> Result<EpiphanyCultMeshDaemonRestartPolicyEntry> {
-    if let Some(command) = args.restart_command.as_ref() {
-        return Ok(EpiphanyCultMeshDaemonRestartPolicyEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION.to_string(),
-            policy_id: args
-                .policy_id
-                .clone()
-                .unwrap_or_else(|| format!("daemon-restart-policy-{}", sanitize_id(&daemon_status.daemon_id))),
-            daemon_id: daemon_status.daemon_id.clone(),
-            cluster_id: daemon_status.cluster_id.clone(),
-            restart_command: command.display().to_string(),
-            restart_args: args.restart_args.clone(),
-            cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
-            cooldown_seconds: args.cooldown_seconds,
-            backoff_multiplier: args.backoff_multiplier,
-            failure_count: 0,
-            last_attempt_utc: None,
-            last_result_status: "operator-override".to_string(),
-            enabled: true,
-            private_state_exposed: false,
-            notes: vec![
-                "Operator supplied this restart command directly; write a daemon restart policy for durable unattended use."
-                    .to_string(),
-            ],
-            reconcile_interval_seconds: args.reconcile_interval_seconds,
-            heartbeat_stale_seconds: args.heartbeat_stale_seconds,
-            last_reconcile_utc: None,
-        });
-    }
-    load_epiphany_cultmesh_daemon_restart_policy(
-        &args.store,
-        args.runtime_id.clone(),
-        &daemon_status.daemon_id,
-    )?
-    .with_context(|| {
-        format!(
-            "daemon {} has no restart policy; use policy --restart-command or pass --restart-command explicitly",
-            daemon_status.daemon_id
-        )
-    })
-}
-
-fn reconcile_daemon_status(
-    args: &Args,
-    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
-    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
-    policy: &mut EpiphanyCultMeshDaemonRestartPolicyEntry,
-    force: bool,
-    scheduled: bool,
-    observed_heartbeat_stale: bool,
-) -> Result<Value> {
-    assert_swarm_brake_allows_daemon_poke(brake, daemon_status)?;
-    let now = Utc::now();
-    let needs_restart = force || daemon_status.status != "ready";
-    if !needs_restart {
-        let provider_proved_recovery =
-            provider_heartbeat_follows_last_attempt(daemon_status, policy)?;
-        policy.last_reconcile_utc = Some(now.to_rfc3339());
-        if provider_proved_recovery {
-            policy.failure_count = 0;
-            policy.last_result_status = "provider-heartbeat-recovered".to_string();
-        } else {
-            policy.last_result_status = "awaiting-provider-heartbeat".to_string();
-        }
-        let written_policy = write_epiphany_cultmesh_daemon_restart_policy(
-            &args.store,
-            args.runtime_id.clone(),
-            policy.clone(),
-        )?;
-        return Ok(json!({
-            "status": "noop",
-            "reason": "daemon already ready",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "daemonId": daemon_status.daemon_id,
-            "daemonStatus": daemon_status.status,
-            "providerHeartbeatProvedRecovery": provider_proved_recovery,
-            "policyId": written_policy.policy_id,
-            "scheduled": scheduled,
-            "lastReconcileUtc": written_policy.last_reconcile_utc,
-            "privateStateExposed": false,
-        }));
-    }
-    assert_policy_allows_attempt(policy, now)?;
-
-    let mut reason = args.reason.clone().unwrap_or_else(|| {
-        if scheduled {
-            format!(
-                "Scheduled supervisor reconciliation requested for {} after status {}.",
-                daemon_status.daemon_id, daemon_status.status
-            )
-        } else {
-            format!(
-                "Supervisor restart requested for {} after status {}.",
-                daemon_status.daemon_id, daemon_status.status
-            )
-        }
-    });
-    if observed_heartbeat_stale {
-        reason.push_str(&format!(
-            " Idunn observed a provider heartbeat older than the configured {} second threshold; provider status remains {} pending an authentic heartbeat.",
-            policy.heartbeat_stale_seconds, daemon_status.status
-        ));
-    }
-    let suffix = if scheduled { "scheduled" } else { "intent" };
-    let intent_id = args.intent_id.clone().unwrap_or_else(|| {
-        format!(
-            "daemon-supervisor-{}-{}-{}",
-            suffix,
-            sanitize_id(&daemon_status.daemon_id),
-            Uuid::new_v4().simple()
-        )
-    });
-    let receipt_id = args
-        .receipt_id
-        .clone()
-        .unwrap_or_else(|| format!("{intent_id}-receipt"));
-    let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
-        intent_id,
-        args.requesting_agent_id.clone(),
-        daemon_status,
-        reason,
-    );
-    let written_intent = write_epiphany_cultmesh_daemon_poke_intent(
-        &args.store,
-        args.runtime_id.clone(),
-        intent.clone(),
-    )?;
-
-    let attempted_at = Utc::now();
-    let restart_output = run_restart_command(policy, &receipt_id)?;
-    let completed_at = Utc::now();
-    let resulting_status = restart_lifecycle_observation(&restart_output).to_string();
-    let receipt_status = if restart_output.success {
-        "restart-succeeded"
-    } else {
-        "restart-failed"
-    };
-    let artifact_ref = args.artifact_ref.clone().unwrap_or_else(|| {
-        format!(
-            "process://{}/exit/{}",
-            policy.restart_command,
-            restart_output.exit_code.unwrap_or(-1)
-        )
-    });
-    let mut receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
-        receipt_id,
-        &intent,
-        receipt_status,
-        resulting_status.clone(),
-        artifact_ref,
-    );
-    receipt.attempted_at_utc = attempted_at.to_rfc3339();
-    receipt.completed_at_utc = completed_at.to_rfc3339();
-    let written_receipt =
-        write_epiphany_cultmesh_daemon_poke_receipt(&args.store, args.runtime_id.clone(), receipt)?;
-
-    // The durable recovery boundary is command completion, not launch. A
-    // provider heartbeat emitted while the command was still running cannot
-    // prove that this lifecycle attempt recovered the daemon.
-    policy.last_attempt_utc = Some(completed_at.to_rfc3339());
-    policy.last_reconcile_utc = Some(now.to_rfc3339());
-    policy.last_result_status = resulting_status.clone();
-    // A command attempt is not a recovered daemon. Backoff remains under
-    // pressure until a later provider heartbeat proves this attempt worked.
-    policy.failure_count = unresolved_attempt_failure_count(policy.failure_count);
-    let written_policy = write_epiphany_cultmesh_daemon_restart_policy(
-        &args.store,
-        args.runtime_id.clone(),
-        policy.clone(),
-    )?;
-
-    Ok(json!({
-        "status": resulting_status,
-        "store": args.store,
-        "runtimeId": args.runtime_id,
-        "daemonId": daemon_status.daemon_id,
-        "previousStatus": written_intent.observed_status,
-        "resultingStatus": written_receipt.resulting_status,
-        "providerStatus": daemon_status.status,
-        "providerOperatorAction": daemon_status.operator_action,
-        "providerLastHeartbeatUtc": daemon_status.last_heartbeat_utc,
-        "intentId": written_intent.intent_id,
-        "receiptId": written_receipt.receipt_id,
-        "exitCode": restart_output.exit_code,
-        "stdoutBytes": restart_output.stdout_len,
-        "stderrBytes": restart_output.stderr_len,
-        "policyId": written_policy.policy_id,
-        "cooldownSeconds": written_policy.cooldown_seconds,
-        "failureCount": written_policy.failure_count,
-        "scheduled": scheduled,
-        "observedHeartbeatStale": observed_heartbeat_stale,
-        "heartbeatStaleSeconds": policy.heartbeat_stale_seconds,
-        "lastReconcileUtc": written_policy.last_reconcile_utc,
-        "privateStateRequested": written_intent.private_state_requested,
-        "privateStateExposed": written_receipt.private_state_exposed || daemon_status.private_state_exposed,
-    }))
-}
-
-fn provider_heartbeat_follows_last_attempt(
-    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
-    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
-) -> Result<bool> {
-    let Some(last_attempt) = policy.last_attempt_utc.as_deref() else {
-        return Ok(true);
-    };
-    let attempt = DateTime::parse_from_rfc3339(last_attempt)
-        .with_context(|| format!("invalid last_attempt_utc in policy {}", policy.policy_id))?;
-    let heartbeat =
-        DateTime::parse_from_rfc3339(&daemon_status.last_heartbeat_utc).with_context(|| {
-            format!(
-                "invalid last_heartbeat_utc for daemon {}",
-                daemon_status.daemon_id
-            )
-        })?;
-    Ok(heartbeat > attempt)
-}
-
-fn restart_lifecycle_observation(output: &RestartOutput) -> &'static str {
-    if output.success {
-        // Process creation/exit is Idunn evidence only. The provider must publish
-        // a later authentic heartbeat before anybody may call it ready.
-        "awaiting-provider-heartbeat"
-    } else {
-        "restart-failed"
-    }
-}
-
-fn unresolved_attempt_failure_count(current: u32) -> u32 {
-    current.saturating_add(1)
-}
-
-fn assert_policy_allows_attempt(
-    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
-    now: DateTime<Utc>,
-) -> Result<()> {
-    if !policy.enabled {
-        anyhow::bail!("daemon restart policy {} is disabled", policy.policy_id);
-    }
-    let Some(last_attempt) = policy.last_attempt_utc.as_deref() else {
-        return Ok(());
-    };
-    let last = DateTime::parse_from_rfc3339(last_attempt)
-        .with_context(|| format!("invalid last_attempt_utc in policy {}", policy.policy_id))?
-        .with_timezone(&Utc);
-    let multiplier = policy
-        .backoff_multiplier
-        .saturating_pow(policy.failure_count)
-        .max(1);
-    let cooldown_seconds = policy
-        .cooldown_seconds
-        .saturating_mul(i64::from(multiplier));
-    let next_allowed = last + Duration::seconds(cooldown_seconds);
-    if now < next_allowed {
-        anyhow::bail!(
-            "daemon restart policy {} is cooling down until {}; lastResult={}; failureCount={}",
-            policy.policy_id,
-            next_allowed.to_rfc3339(),
-            policy.last_result_status,
-            policy.failure_count
-        );
-    }
-    Ok(())
-}
-
-fn reconcile_interval_elapsed(
-    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
-    now: DateTime<Utc>,
-) -> Result<bool> {
-    if policy.reconcile_interval_seconds == 0 {
-        return Ok(true);
-    }
-    let Some(last_reconcile) = policy.last_reconcile_utc.as_deref() else {
-        return Ok(true);
-    };
-    let last = DateTime::parse_from_rfc3339(last_reconcile)
-        .with_context(|| format!("invalid last_reconcile_utc in policy {}", policy.policy_id))?
-        .with_timezone(&Utc);
-    Ok(now >= last + Duration::seconds(policy.reconcile_interval_seconds))
-}
-
-fn daemon_heartbeat_is_stale(
-    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
-    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
-    now: DateTime<Utc>,
-) -> Result<bool> {
-    if policy.heartbeat_stale_seconds == 0 {
-        return Ok(false);
-    }
-    let last = DateTime::parse_from_rfc3339(&daemon_status.last_heartbeat_utc)
-        .with_context(|| {
-            format!(
-                "invalid last_heartbeat_utc for daemon {}",
-                daemon_status.daemon_id
-            )
-        })?
-        .with_timezone(&Utc);
-    Ok(now > last + Duration::seconds(policy.heartbeat_stale_seconds))
-}
-
-fn count_outcomes(outcomes: &[Value], expected_status: &str) -> u32 {
-    outcomes
-        .iter()
-        .filter(|outcome| {
-            outcome
-                .get("status")
-                .and_then(Value::as_str)
-                .is_some_and(|status| status == expected_status)
-        })
-        .count() as u32
-}
-
 fn service_command_path(args: &Args) -> Result<PathBuf> {
     if let Some(command) = args.service_command.as_ref() {
         return Ok(command.clone());
@@ -3702,89 +3091,6 @@ fn service_lifecycle_receipt(
     }
 }
 
-fn run_restart_command(
-    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
-    lifecycle_receipt_id: &str,
-) -> Result<RestartOutput> {
-    let mut command = Command::new(&policy.restart_command);
-    command.args(&policy.restart_args);
-    command.env(
-        "EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID",
-        lifecycle_receipt_id,
-    );
-    if let Some(cwd) = &policy.cwd {
-        command.current_dir(cwd);
-    }
-    #[cfg(windows)]
-    {
-        command.creation_flags(0x08000000);
-    }
-    let output = command
-        .output()
-        .with_context(|| format!("failed to run {}", policy.restart_command))?;
-    Ok(RestartOutput {
-        success: output.status.success(),
-        exit_code: output.status.code(),
-        stdout_len: output.stdout.len(),
-        stderr_len: output.stderr.len(),
-    })
-}
-
-fn assert_swarm_brake_allows_daemon_poke(
-    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
-    daemon: &EpiphanyCultMeshDaemonStatusEntry,
-) -> Result<()> {
-    let Some(brake) = brake else {
-        return Ok(());
-    };
-    if brake.status != "engaged" {
-        return Ok(());
-    }
-    let scope_matches = matches!(brake.scope.as_str(), "swarm" | "all")
-        || brake
-            .affected_clusters
-            .iter()
-            .any(|affected| affected == &daemon.cluster_id || affected == &daemon.daemon_id);
-    let surface_matches = brake.protected_surfaces.is_empty()
-        || brake.protected_surfaces.iter().any(|surface| {
-            surface == "daemon.lifecycle_poke" || surface == "daemon.*" || surface == "*"
-        });
-    if scope_matches && surface_matches {
-        anyhow::bail!(
-            "local Verse swarm brake engaged; refusing daemon supervisor poke for {}; scope={}; protected={}; affected={}; reason={}",
-            daemon.daemon_id,
-            brake.scope,
-            brake.protected_surfaces.join(","),
-            brake.affected_clusters.join(","),
-            brake.reason
-        );
-    }
-    Ok(())
-}
-
-fn assert_swarm_brake_allows_scheduler_tick(context: &EpiphanyLocalVerseContext) -> Result<()> {
-    let Some(brake) = context.swarm_brake.as_ref() else {
-        return Ok(());
-    };
-    if brake.status != "engaged" {
-        return Ok(());
-    }
-    let scope_matches = matches!(brake.scope.as_str(), "swarm" | "all");
-    let surface_matches = brake.protected_surfaces.is_empty()
-        || brake.protected_surfaces.iter().any(|surface| {
-            surface == "heartbeat.scheduler" || surface == "daemon.*" || surface == "*"
-        });
-    if scope_matches && surface_matches {
-        anyhow::bail!(
-            "local Verse swarm brake engaged; refusing daemon supervisor scheduler tick; scope={}; protected={}; reason={}",
-            brake.scope,
-            brake.protected_surfaces.join(","),
-            brake.reason
-        );
-    }
-    Ok(())
-}
-
 fn assert_swarm_brake_allows_service_lifecycle_entry(
     brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
 ) -> Result<()> {
@@ -3820,13 +3126,6 @@ fn sanitize_id(raw: &str) -> String {
         .collect()
 }
 
-struct RestartOutput {
-    success: bool,
-    exit_code: Option<i32>,
-    stdout_len: usize,
-    stderr_len: usize,
-}
-
 #[cfg(test)]
 mod provider_status_ownership_tests {
     use super::*;
@@ -3845,23 +3144,6 @@ mod provider_status_ownership_tests {
             semantic_projector_observation_status(true, "degraded"),
             "provider-degraded"
         );
-    }
-
-    #[test]
-    fn successful_command_awaits_provider_heartbeat_instead_of_minting_readiness() {
-        let exit_zero = RestartOutput {
-            success: true,
-            exit_code: Some(0),
-            stdout_len: 0,
-            stderr_len: 0,
-        };
-
-        let observation = restart_lifecycle_observation(&exit_zero);
-
-        assert_eq!(observation, "awaiting-provider-heartbeat");
-        assert_ne!(observation, "ready");
-        assert_eq!(unresolved_attempt_failure_count(0), 1);
-        assert_eq!(unresolved_attempt_failure_count(3), 4);
     }
 }
 
@@ -3887,23 +3169,6 @@ mod service_lifecycle_brake_authority_tests {
         }
     }
 
-    fn daemon() -> EpiphanyCultMeshDaemonStatusEntry {
-        EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: "epiphany.cultmesh.daemon_status.v0".into(),
-            daemon_id: "epiphany-daemon-hands".into(),
-            cluster_id: "local".into(),
-            body_domain: "repo:F:/Projects/Epiphany".into(),
-            daemon_surface_id: "cultmesh://daemon/hands".into(),
-            eve_surface_id: "eve://daemon/hands".into(),
-            status: "degraded".into(),
-            last_heartbeat_utc: "2026-08-11T00:00:00Z".into(),
-            supported_actions: vec!["pokeDaemon".into()],
-            operator_action: "pokeDaemon".into(),
-            private_state_exposed: false,
-            notes: Vec::new(),
-        }
-    }
-
     #[test]
     fn cognitive_scheduler_brake_does_not_claim_service_physiology() {
         let cognitive = brake(&[
@@ -3922,17 +3187,6 @@ mod service_lifecycle_brake_authority_tests {
             assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&lifecycle)).is_err());
             assert!(swarm_brake_blocks_service_lifecycle_entry(Some(&lifecycle)));
             assert!(required_managed_health_services(true).is_empty());
-        }
-    }
-
-    #[test]
-    fn daemon_poke_reads_the_narrow_brake_without_weakening_scope() {
-        let daemon = daemon();
-        let cognitive = brake(&["heartbeat.scheduler", "coordinator.run"]);
-        assert!(assert_swarm_brake_allows_daemon_poke(Some(&cognitive), &daemon).is_ok());
-        for surface in ["daemon.lifecycle_poke", "daemon.*", "*"] {
-            let lifecycle = brake(&[surface]);
-            assert!(assert_swarm_brake_allows_daemon_poke(Some(&lifecycle), &daemon).is_err());
         }
     }
 }
@@ -4127,16 +3381,11 @@ struct Args {
     store: PathBuf,
     runtime_id: String,
     daemon_id: String,
-    restart_command: Option<PathBuf>,
-    restart_args: Vec<String>,
     cwd: Option<PathBuf>,
     force: bool,
     disabled: bool,
     cooldown_seconds: i64,
     backoff_multiplier: u32,
-    reconcile_interval_seconds: i64,
-    heartbeat_stale_seconds: i64,
-    requesting_agent_id: String,
     policy_id: Option<String>,
     scheduler_id: String,
     service_id: String,
@@ -4149,7 +3398,6 @@ struct Args {
     max_iterations: u64,
     wait_child: bool,
     reason: Option<String>,
-    intent_id: Option<String>,
     receipt_id: Option<String>,
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
@@ -4179,21 +3427,16 @@ struct Args {
 impl Args {
     fn parse() -> Result<Self> {
         let mut values = env::args().skip(1);
-        let command = values.next().unwrap_or_else(|| "reconcile".to_string());
+        let command = values.next().context("missing supervisor command")?;
         let mut store = PathBuf::from(".epiphany-run/cultmesh/local-verse.ccmp");
         let mut store_explicit = false;
         let mut runtime_id = "epiphany-local".to_string();
         let mut daemon_id = None;
-        let mut restart_command = None;
-        let mut restart_args = Vec::new();
         let mut cwd = None;
         let mut force = false;
         let mut disabled = false;
         let mut cooldown_seconds = 0_i64;
         let mut backoff_multiplier = 1_u32;
-        let mut reconcile_interval_seconds = 0_i64;
-        let mut heartbeat_stale_seconds = 0_i64;
-        let mut requesting_agent_id = "epiphany.Self".to_string();
         let mut policy_id = None;
         let mut scheduler_id = "epiphany-daemon-supervisor".to_string();
         let mut service_id = "epiphany-daemon-supervisor-service".to_string();
@@ -4206,7 +3449,6 @@ impl Args {
         let mut max_iterations = 0_u64;
         let mut wait_child = false;
         let mut reason = None;
-        let mut intent_id = None;
         let mut receipt_id = None;
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
@@ -4244,14 +3486,6 @@ impl Args {
                 "--daemon-id" => {
                     daemon_id = Some(values.next().context("missing --daemon-id value")?)
                 }
-                "--restart-command" => {
-                    restart_command = Some(PathBuf::from(
-                        values.next().context("missing --restart-command value")?,
-                    ));
-                }
-                "--restart-arg" | "--restart-args" => {
-                    restart_args.push(values.next().context("missing --restart-arg value")?);
-                }
                 "--cwd" => cwd = Some(PathBuf::from(values.next().context("missing --cwd value")?)),
                 "--force" => force = true,
                 "--disabled" => disabled = true,
@@ -4266,23 +3500,6 @@ impl Args {
                         .next()
                         .context("missing --backoff-multiplier value")?
                         .parse()?;
-                }
-                "--reconcile-interval-seconds" => {
-                    reconcile_interval_seconds = values
-                        .next()
-                        .context("missing --reconcile-interval-seconds value")?
-                        .parse()?;
-                }
-                "--heartbeat-stale-seconds" => {
-                    heartbeat_stale_seconds = values
-                        .next()
-                        .context("missing --heartbeat-stale-seconds value")?
-                        .parse()?;
-                }
-                "--requesting-agent-id" => {
-                    requesting_agent_id = values
-                        .next()
-                        .context("missing --requesting-agent-id value")?;
                 }
                 "--policy-id" => {
                     policy_id = Some(values.next().context("missing --policy-id value")?)
@@ -4326,9 +3543,6 @@ impl Args {
                 }
                 "--wait-child" => wait_child = true,
                 "--reason" => reason = Some(values.next().context("missing --reason value")?),
-                "--intent-id" => {
-                    intent_id = Some(values.next().context("missing --intent-id value")?)
-                }
                 "--receipt-id" => {
                     receipt_id = Some(values.next().context("missing --receipt-id value")?)
                 }
@@ -4583,16 +3797,11 @@ impl Args {
             store,
             runtime_id,
             daemon_id,
-            restart_command,
-            restart_args,
             cwd,
             force,
             disabled,
             cooldown_seconds,
             backoff_multiplier,
-            reconcile_interval_seconds,
-            heartbeat_stale_seconds,
-            requesting_agent_id,
             policy_id,
             scheduler_id,
             service_id,
@@ -4605,7 +3814,6 @@ impl Args {
             max_iterations,
             wait_child,
             reason,
-            intent_id,
             receipt_id,
             artifact_ref,
             stdout_artifact,

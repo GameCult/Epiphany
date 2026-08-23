@@ -44,34 +44,10 @@ use uuid::Uuid;
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE: &str = "epiphany.cultmesh.cluster_topology";
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.cluster_topology.v0";
-pub const EPIPHANY_CULTMESH_DAEMON_STATUS_TYPE: &str = "epiphany.cultmesh.daemon_status";
-pub const EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_status.v0";
 pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_TYPE: &str =
     "epiphany.cultmesh.daemon_heartbeat_event";
 pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.daemon_heartbeat_event.v1";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_TYPE: &str = "epiphany.cultmesh.daemon_poke_intent";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_poke_intent.v1";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY: &str =
-    "epiphany-local/daemon-poke-intent/latest";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_TYPE: &str =
-    "epiphany.cultmesh.daemon_poke_receipt";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_poke_receipt.v1";
-pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY: &str =
-    "epiphany-local/daemon-poke-receipt/latest";
-pub const EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_TYPE: &str =
-    "epiphany.cultmesh.daemon_restart_policy";
-pub const EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_restart_policy.v0";
-pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_TYPE: &str =
-    "epiphany.cultmesh.daemon_scheduler_receipt";
-pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_scheduler_receipt.v0";
-pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY: &str =
-    "epiphany-local/daemon-scheduler-receipt/latest";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE: &str =
     "epiphany.cultmesh.daemon_service_lifecycle_receipt";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &str =
@@ -231,38 +207,6 @@ pub struct EpiphanyCultMeshClusterTopologyEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.cultmesh.daemon_status",
-    schema = "EpiphanyCultMeshDaemonStatusEntry"
-)]
-pub struct EpiphanyCultMeshDaemonStatusEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub daemon_id: String,
-    #[cultcache(key = 2)]
-    pub cluster_id: String,
-    #[cultcache(key = 3)]
-    pub body_domain: String,
-    #[cultcache(key = 4)]
-    pub daemon_surface_id: String,
-    #[cultcache(key = 5)]
-    pub eve_surface_id: String,
-    #[cultcache(key = 6)]
-    pub status: String,
-    #[cultcache(key = 7)]
-    pub last_heartbeat_utc: String,
-    #[cultcache(key = 8)]
-    pub supported_actions: Vec<String>,
-    #[cultcache(key = 9)]
-    pub operator_action: String,
-    #[cultcache(key = 10)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 11)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
     type = "epiphany.cultmesh.daemon_heartbeat_event",
     schema = "EpiphanyCultMeshDaemonHeartbeatEventEntry"
 )]
@@ -287,160 +231,6 @@ pub struct EpiphanyCultMeshDaemonHeartbeatEventEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 9, default)]
     pub startup_lifecycle_receipt_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.daemon_poke_intent",
-    schema = "EpiphanyCultMeshDaemonPokeIntentEntry"
-)]
-pub struct EpiphanyCultMeshDaemonPokeIntentEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub intent_id: String,
-    #[cultcache(key = 2)]
-    pub requesting_agent_id: String,
-    #[cultcache(key = 3)]
-    pub target_daemon_id: String,
-    #[cultcache(key = 4)]
-    pub target_cluster_id: String,
-    #[cultcache(key = 5)]
-    pub daemon_surface_id: String,
-    #[cultcache(key = 6)]
-    pub eve_surface_id: String,
-    #[cultcache(key = 7)]
-    pub reason: String,
-    #[cultcache(key = 8)]
-    pub requested_action: String,
-    #[cultcache(key = 9)]
-    pub observed_status: String,
-    #[cultcache(key = 10)]
-    pub private_state_requested: bool,
-    #[cultcache(key = 11)]
-    pub notes: Vec<String>,
-    #[cultcache(key = 12, default)]
-    pub observed_last_heartbeat_utc: String,
-    #[cultcache(key = 13, default)]
-    pub requested_at_utc: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.daemon_poke_receipt",
-    schema = "EpiphanyCultMeshDaemonPokeReceiptEntry"
-)]
-pub struct EpiphanyCultMeshDaemonPokeReceiptEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub intent_id: String,
-    #[cultcache(key = 3)]
-    pub target_daemon_id: String,
-    #[cultcache(key = 4)]
-    pub target_cluster_id: String,
-    #[cultcache(key = 5)]
-    pub action_taken: String,
-    #[cultcache(key = 6)]
-    pub status: String,
-    #[cultcache(key = 7)]
-    pub resulting_status: String,
-    #[cultcache(key = 8)]
-    pub operator_artifact_ref: String,
-    #[cultcache(key = 9)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 10)]
-    pub notes: Vec<String>,
-    #[cultcache(key = 11, default)]
-    pub attempted_at_utc: String,
-    #[cultcache(key = 12, default)]
-    pub completed_at_utc: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.daemon_restart_policy",
-    schema = "EpiphanyCultMeshDaemonRestartPolicyEntry"
-)]
-pub struct EpiphanyCultMeshDaemonRestartPolicyEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub policy_id: String,
-    #[cultcache(key = 2)]
-    pub daemon_id: String,
-    #[cultcache(key = 3)]
-    pub cluster_id: String,
-    #[cultcache(key = 4)]
-    pub restart_command: String,
-    #[cultcache(key = 5)]
-    pub restart_args: Vec<String>,
-    #[cultcache(key = 6)]
-    pub cwd: Option<String>,
-    #[cultcache(key = 7)]
-    pub cooldown_seconds: i64,
-    #[cultcache(key = 8)]
-    pub backoff_multiplier: u32,
-    #[cultcache(key = 9)]
-    pub failure_count: u32,
-    #[cultcache(key = 10)]
-    pub last_attempt_utc: Option<String>,
-    #[cultcache(key = 11)]
-    pub last_result_status: String,
-    #[cultcache(key = 12)]
-    pub enabled: bool,
-    #[cultcache(key = 13)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 14)]
-    pub notes: Vec<String>,
-    #[cultcache(key = 15)]
-    pub reconcile_interval_seconds: i64,
-    #[cultcache(key = 16)]
-    pub heartbeat_stale_seconds: i64,
-    #[cultcache(key = 17)]
-    pub last_reconcile_utc: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.daemon_scheduler_receipt",
-    schema = "EpiphanyCultMeshDaemonSchedulerReceiptEntry"
-)]
-pub struct EpiphanyCultMeshDaemonSchedulerReceiptEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub scheduler_id: String,
-    #[cultcache(key = 3)]
-    pub runtime_id: String,
-    #[cultcache(key = 4)]
-    pub daemon_selector: String,
-    #[cultcache(key = 5)]
-    pub iteration: u64,
-    #[cultcache(key = 6)]
-    pub status: String,
-    #[cultcache(key = 7)]
-    pub tick_started_utc: String,
-    #[cultcache(key = 8)]
-    pub tick_completed_utc: String,
-    #[cultcache(key = 9)]
-    pub next_wake_utc: Option<String>,
-    #[cultcache(key = 10)]
-    pub outcome_count: u32,
-    #[cultcache(key = 11)]
-    pub restarted_count: u32,
-    #[cultcache(key = 12)]
-    pub refused_count: u32,
-    #[cultcache(key = 13)]
-    pub skipped_count: u32,
-    #[cultcache(key = 14)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 15)]
-    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -740,11 +530,6 @@ pub struct EpiphanyLocalVerseContext {
     pub verse_policies: Vec<EpiphanyVersePolicy>,
     pub global_room_policies: Vec<EpiphanyGlobalRoomPolicy>,
     pub cluster_topology: Vec<EpiphanyCultMeshClusterTopologyEntry>,
-    pub daemon_statuses: Vec<EpiphanyCultMeshDaemonStatusEntry>,
-    pub latest_daemon_poke_intent: Option<EpiphanyCultMeshDaemonPokeIntentEntry>,
-    pub latest_daemon_poke_receipt: Option<EpiphanyCultMeshDaemonPokeReceiptEntry>,
-    pub daemon_restart_policies: Vec<EpiphanyCultMeshDaemonRestartPolicyEntry>,
-    pub latest_daemon_scheduler_receipt: Option<EpiphanyCultMeshDaemonSchedulerReceiptEntry>,
     pub latest_daemon_service_lifecycle_receipt:
         Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
     pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
@@ -770,12 +555,7 @@ pub struct EpiphanyLocalVerseContractSummary {
 
 cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonStatusEntry => EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonHeartbeatEventEntry => EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonPokeIntentEntry => EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonPokeReceiptEntry => EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonRestartPolicyEntry => EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonSchedulerReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshManagedServicePolicyEntry => EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION,
     WorkspaceCoverageManagedProcessLaunchEntry => WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
@@ -993,232 +773,6 @@ fn bounded_opaque_health_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
-}
-
-pub fn epiphany_cultmesh_daemon_poke_intent_from_status(
-    intent_id: impl Into<String>,
-    requesting_agent_id: impl Into<String>,
-    status: &EpiphanyCultMeshDaemonStatusEntry,
-    reason: impl Into<String>,
-) -> EpiphanyCultMeshDaemonPokeIntentEntry {
-    let requested_at_utc = Utc::now().to_rfc3339();
-    EpiphanyCultMeshDaemonPokeIntentEntry {
-        schema_version: EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION.to_string(),
-        intent_id: intent_id.into(),
-        requesting_agent_id: requesting_agent_id.into(),
-        target_daemon_id: status.daemon_id.clone(),
-        target_cluster_id: status.cluster_id.clone(),
-        daemon_surface_id: status.daemon_surface_id.clone(),
-        eve_surface_id: status.eve_surface_id.clone(),
-        reason: reason.into(),
-        requested_action: "pokeDaemon".to_string(),
-        observed_status: status.status.clone(),
-        private_state_requested: false,
-        notes: vec![
-            "Daemon poke intent is an operator-safe lifecycle action request, not a private Verse inspection.".to_string(),
-            "The target daemon owns the resulting status; this intent only records the requested poke.".to_string(),
-        ],
-        observed_last_heartbeat_utc: status.last_heartbeat_utc.clone(),
-        requested_at_utc,
-    }
-}
-
-pub fn epiphany_cultmesh_daemon_poke_receipt_for_intent(
-    receipt_id: impl Into<String>,
-    intent: &EpiphanyCultMeshDaemonPokeIntentEntry,
-    status: impl Into<String>,
-    resulting_status: impl Into<String>,
-    operator_artifact_ref: impl Into<String>,
-) -> EpiphanyCultMeshDaemonPokeReceiptEntry {
-    let completed_at_utc = Utc::now().to_rfc3339();
-    EpiphanyCultMeshDaemonPokeReceiptEntry {
-        schema_version: EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: receipt_id.into(),
-        intent_id: intent.intent_id.clone(),
-        target_daemon_id: intent.target_daemon_id.clone(),
-        target_cluster_id: intent.target_cluster_id.clone(),
-        action_taken: intent.requested_action.clone(),
-        status: status.into(),
-        resulting_status: resulting_status.into(),
-        operator_artifact_ref: operator_artifact_ref.into(),
-        private_state_exposed: false,
-        notes: vec![
-            "Daemon poke receipt records lifecycle intervention proof without exposing private daemon state.".to_string(),
-            "Follow-up daemon status documents remain the liveness authority.".to_string(),
-        ],
-        attempted_at_utc: intent.requested_at_utc.clone(),
-        completed_at_utc,
-    }
-}
-
-pub fn write_epiphany_cultmesh_daemon_poke_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    intent: EpiphanyCultMeshDaemonPokeIntentEntry,
-) -> Result<EpiphanyCultMeshDaemonPokeIntentEntry> {
-    validate_daemon_poke_intent(&intent)?;
-    let store_path = store_path.as_ref();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let intent_key = epiphany_cultmesh_daemon_poke_intent_key(&intent.intent_id);
-    put_immutable_cultmesh_entry_and_advance_latest(
-        &node,
-        store_path,
-        &intent_key,
-        EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY,
-        &intent,
-        |entry| &entry.requested_at_utc,
-    )
-}
-
-pub fn write_epiphany_cultmesh_daemon_poke_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshDaemonPokeReceiptEntry,
-) -> Result<EpiphanyCultMeshDaemonPokeReceiptEntry> {
-    validate_daemon_poke_receipt(&receipt)?;
-    let store_path = store_path.as_ref();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_daemon_poke_receipt_key(&receipt.receipt_id);
-    put_immutable_cultmesh_entry_and_advance_latest(
-        &node,
-        store_path,
-        &receipt_key,
-        EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY,
-        &receipt,
-        |entry| &entry.completed_at_utc,
-    )
-}
-
-fn put_immutable_cultmesh_entry_and_advance_latest<T, F>(
-    node: &CultMeshNode,
-    store_path: &Path,
-    identity_key: &str,
-    latest_key: &str,
-    value: &T,
-    event_time: F,
-) -> Result<T>
-where
-    T: DatabaseEntry + Clone + PartialEq,
-    F: Fn(&T) -> &str,
-{
-    let existing = node.get::<T>(identity_key)?;
-    if existing.as_ref().is_some_and(|current| current != value) {
-        return Err(anyhow!(
-            "immutable CultMesh identity collision for type {:?} key {:?}",
-            T::TYPE,
-            identity_key
-        ));
-    }
-    let candidate_time = DateTime::parse_from_rfc3339(event_time(value))
-        .context("immutable CultMesh event requires RFC3339 ordering time")?;
-    let latest = node.get::<T>(latest_key)?;
-    let advances_latest = match latest.as_ref() {
-        Some(current) => {
-            candidate_time
-                > DateTime::parse_from_rfc3339(event_time(current))
-                    .context("persisted immutable CultMesh event has invalid ordering time")?
-        }
-        None => true,
-    };
-    if existing.is_some() && !advances_latest {
-        return Ok(existing.expect("existing checked"));
-    }
-
-    let mut expected = Vec::new();
-    if advances_latest && let Some(envelope) = node.cache().get_envelope::<T>(latest_key)? {
-        expected.push(envelope);
-    }
-    let mut replacements = Vec::new();
-    if existing.is_none() {
-        replacements.push(node.cache().prepare_entry(identity_key, value)?.0);
-    }
-    if advances_latest {
-        replacements.push(node.cache().prepare_entry(latest_key, value)?.0);
-    }
-    let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&expected, replacements)? {
-        return Ok(value.clone());
-    }
-    let refreshed = open_epiphany_cultmesh_node(store_path, node.runtime_id())?;
-    match refreshed.get::<T>(identity_key)? {
-        Some(current)
-            if current == *value
-                && refreshed
-                    .get::<T>(latest_key)?
-                    .as_ref()
-                    .is_some_and(|latest| {
-                        DateTime::parse_from_rfc3339(event_time(latest)).ok()
-                            >= Some(candidate_time)
-                    }) =>
-        {
-            Ok(current)
-        }
-        Some(_) => Err(anyhow!(
-            "immutable CultMesh identity collision for type {:?} key {:?}",
-            T::TYPE,
-            identity_key
-        )),
-        None => Err(anyhow!(
-            "immutable CultMesh write lost compare-and-swap for type {:?} key {:?}",
-            T::TYPE,
-            identity_key
-        )),
-    }
-}
-
-pub fn write_epiphany_cultmesh_daemon_restart_policy(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    policy: EpiphanyCultMeshDaemonRestartPolicyEntry,
-) -> Result<EpiphanyCultMeshDaemonRestartPolicyEntry> {
-    validate_daemon_restart_policy(&policy)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let key = epiphany_cultmesh_daemon_restart_policy_key(&policy.daemon_id);
-    let written = node.put(key.as_str(), &policy)?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_epiphany_cultmesh_daemon_restart_policy(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    daemon_id: &str,
-) -> Result<Option<EpiphanyCultMeshDaemonRestartPolicyEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let key = epiphany_cultmesh_daemon_restart_policy_key(daemon_id);
-    node.get(key.as_str())
-}
-
-pub fn write_epiphany_cultmesh_daemon_scheduler_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshDaemonSchedulerReceiptEntry,
-) -> Result<EpiphanyCultMeshDaemonSchedulerReceiptEntry> {
-    validate_daemon_scheduler_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_daemon_scheduler_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    let current_latest = node.get::<EpiphanyCultMeshDaemonSchedulerReceiptEntry>(
-        EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY,
-    )?;
-    if current_latest.as_ref().is_none_or(|current| {
-        daemon_scheduler_event_key(&written) >= daemon_scheduler_event_key(current)
-    }) {
-        node.put(
-            EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY,
-            &written,
-        )?;
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_latest_epiphany_cultmesh_daemon_scheduler_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshDaemonSchedulerReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY)
 }
 
 pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -1660,105 +1214,6 @@ fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
     Ok(())
 }
 
-fn validate_daemon_poke_intent(intent: &EpiphanyCultMeshDaemonPokeIntentEntry) -> Result<()> {
-    if intent.private_state_requested {
-        return Err(anyhow!(
-            "daemon poke intents must not request private state"
-        ));
-    }
-    if intent.target_daemon_id.trim().is_empty() || intent.target_cluster_id.trim().is_empty() {
-        return Err(anyhow!(
-            "daemon poke intents require daemon and cluster ids"
-        ));
-    }
-    if intent.requested_action != "pokeDaemon" {
-        return Err(anyhow!("daemon poke intents must request pokeDaemon"));
-    }
-    if intent.reason.trim().is_empty() {
-        return Err(anyhow!("daemon poke intents require a reason"));
-    }
-    for (label, value) in [
-        (
-            "observed provider heartbeat",
-            intent.observed_last_heartbeat_utc.as_str(),
-        ),
-        ("request timestamp", intent.requested_at_utc.as_str()),
-    ] {
-        DateTime::parse_from_rfc3339(value)
-            .with_context(|| format!("daemon poke intent requires RFC3339 {label}"))?;
-    }
-    Ok(())
-}
-
-fn validate_daemon_poke_receipt(receipt: &EpiphanyCultMeshDaemonPokeReceiptEntry) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "daemon poke receipts must not expose private state"
-        ));
-    }
-    if receipt.intent_id.trim().is_empty() || receipt.target_daemon_id.trim().is_empty() {
-        return Err(anyhow!(
-            "daemon poke receipts require intent and daemon ids"
-        ));
-    }
-    if receipt.action_taken != "pokeDaemon" {
-        return Err(anyhow!("daemon poke receipts must record pokeDaemon"));
-    }
-    if receipt.status.trim().is_empty() || receipt.resulting_status.trim().is_empty() {
-        return Err(anyhow!("daemon poke receipts require status results"));
-    }
-    let attempted = DateTime::parse_from_rfc3339(&receipt.attempted_at_utc)
-        .context("daemon poke receipt requires RFC3339 attempt timestamp")?;
-    let completed = DateTime::parse_from_rfc3339(&receipt.completed_at_utc)
-        .context("daemon poke receipt requires RFC3339 completion timestamp")?;
-    if completed < attempted {
-        return Err(anyhow!(
-            "daemon poke receipt completion cannot precede its attempt"
-        ));
-    }
-    Ok(())
-}
-
-fn validate_daemon_restart_policy(policy: &EpiphanyCultMeshDaemonRestartPolicyEntry) -> Result<()> {
-    if policy.private_state_exposed {
-        return Err(anyhow!(
-            "daemon restart policies must not expose private state"
-        ));
-    }
-    for (label, value) in [
-        ("policy id", policy.policy_id.as_str()),
-        ("daemon id", policy.daemon_id.as_str()),
-        ("cluster id", policy.cluster_id.as_str()),
-        ("restart command", policy.restart_command.as_str()),
-        ("last result status", policy.last_result_status.as_str()),
-    ] {
-        if value.trim().is_empty() {
-            return Err(anyhow!("daemon restart policy missing {label}"));
-        }
-    }
-    if policy.cooldown_seconds < 0 {
-        return Err(anyhow!(
-            "daemon restart policy cooldown_seconds must be non-negative"
-        ));
-    }
-    if policy.backoff_multiplier == 0 {
-        return Err(anyhow!(
-            "daemon restart policy backoff_multiplier must be positive"
-        ));
-    }
-    if policy.reconcile_interval_seconds < 0 {
-        return Err(anyhow!(
-            "daemon restart policy reconcile_interval_seconds must be non-negative"
-        ));
-    }
-    if policy.heartbeat_stale_seconds < 0 {
-        return Err(anyhow!(
-            "daemon restart policy heartbeat_stale_seconds must be non-negative"
-        ));
-    }
-    Ok(())
-}
-
 fn validate_managed_service_policy(
     policy: &EpiphanyCultMeshManagedServicePolicyEntry,
 ) -> Result<()> {
@@ -1899,56 +1354,6 @@ pub(crate) fn validate_workspace_coverage_projector_managed_service_policy(
         ));
     }
     Ok(())
-}
-
-fn validate_daemon_scheduler_receipt(
-    receipt: &EpiphanyCultMeshDaemonSchedulerReceiptEntry,
-) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "daemon scheduler receipts must not expose private state"
-        ));
-    }
-    for (label, value) in [
-        ("receipt id", receipt.receipt_id.as_str()),
-        ("scheduler id", receipt.scheduler_id.as_str()),
-        ("runtime id", receipt.runtime_id.as_str()),
-        ("daemon selector", receipt.daemon_selector.as_str()),
-        ("status", receipt.status.as_str()),
-        ("tick started", receipt.tick_started_utc.as_str()),
-        ("tick completed", receipt.tick_completed_utc.as_str()),
-    ] {
-        if value.trim().is_empty() {
-            return Err(anyhow!("daemon scheduler receipt missing {label}"));
-        }
-    }
-    let started_at = DateTime::parse_from_rfc3339(&receipt.tick_started_utc)
-        .map_err(|error| anyhow!("daemon scheduler receipt has invalid tick start: {error}"))?;
-    let completed_at =
-        DateTime::parse_from_rfc3339(&receipt.tick_completed_utc).map_err(|error| {
-            anyhow!("daemon scheduler receipt has invalid tick completion: {error}")
-        })?;
-    if completed_at < started_at {
-        return Err(anyhow!(
-            "daemon scheduler receipt tick completed before it started"
-        ));
-    }
-    if let Some(next_wake) = receipt.next_wake_utc.as_deref() {
-        DateTime::parse_from_rfc3339(next_wake)
-            .map_err(|error| anyhow!("daemon scheduler receipt has invalid next wake: {error}"))?;
-    }
-    Ok(())
-}
-
-fn daemon_scheduler_event_key(
-    receipt: &EpiphanyCultMeshDaemonSchedulerReceiptEntry,
-) -> (DateTime<FixedOffset>, u64, &str) {
-    (
-        DateTime::parse_from_rfc3339(&receipt.tick_completed_utc)
-            .expect("validated scheduler completion timestamp"),
-        receipt.iteration,
-        receipt.receipt_id.as_str(),
-    )
 }
 
 fn validate_daemon_service_lifecycle_receipt(
@@ -2389,20 +1794,6 @@ pub fn query_epiphany_local_verse_context(
         }
     }
 
-    let mut daemon_statuses = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)? {
-            daemon_statuses.push(loaded);
-        }
-    }
-    let mut daemon_restart_policies = Vec::new();
-    for status in &daemon_statuses {
-        let key = epiphany_cultmesh_daemon_restart_policy_key(&status.daemon_id);
-        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonRestartPolicyEntry>(key.as_str())? {
-            daemon_restart_policies.push(loaded);
-        }
-    }
-
     let mut contract_summaries = Vec::new();
     contract_summaries.extend(
         default_mind_cultnet_contracts()
@@ -2453,12 +1844,6 @@ pub fn query_epiphany_local_verse_context(
         verse_policies,
         global_room_policies,
         cluster_topology,
-        daemon_statuses,
-        latest_daemon_poke_intent: node.get(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY)?,
-        latest_daemon_poke_receipt: node.get(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY)?,
-        daemon_restart_policies,
-        latest_daemon_scheduler_receipt: node
-            .get(EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY)?,
         latest_daemon_service_lifecycle_receipt: node
             .get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)?,
         swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
@@ -2470,60 +1855,6 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
         contract_summaries,
     })
-}
-
-pub fn load_epiphany_cultmesh_daemon_liveness(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<
-    Vec<(
-        EpiphanyCultMeshClusterTopologyEntry,
-        EpiphanyCultMeshDaemonStatusEntry,
-    )>,
-> {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-    let mut rows = Vec::new();
-    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        if let Some(status) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)? {
-            rows.push((cluster, status));
-        }
-    }
-    Ok(rows)
-}
-
-pub fn load_epiphany_cultmesh_daemon_status(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    daemon_id: &str,
-) -> Result<Option<EpiphanyCultMeshDaemonStatusEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(daemon_id)
-}
-
-pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<
-    Vec<(
-        EpiphanyCultMeshClusterTopologyEntry,
-        Option<EpiphanyCultMeshDaemonStatusEntry>,
-        Option<EpiphanyCultMeshDaemonRestartPolicyEntry>,
-    )>,
-> {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-    let mut rows = Vec::new();
-    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        let status = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?;
-        let policy = node.get::<EpiphanyCultMeshDaemonRestartPolicyEntry>(
-            &epiphany_cultmesh_daemon_restart_policy_key(&cluster.daemon_id),
-        )?;
-        rows.push((cluster, status, policy));
-    }
-    Ok(rows)
 }
 
 trait IntoLocalVerseContractSummary {
@@ -2554,22 +1885,6 @@ impl_local_verse_contract_summary!(crate::HandsCultNetContract);
 impl_local_verse_contract_summary!(crate::SoulCultNetContract);
 impl_local_verse_contract_summary!(crate::ContinuityCultNetContract);
 impl_local_verse_contract_summary!(EpiphanyCultMeshBifrostContractEntry);
-
-fn epiphany_cultmesh_daemon_poke_intent_key(intent_id: &str) -> String {
-    format!("epiphany-local/daemon-poke-intent/{intent_id}")
-}
-
-fn epiphany_cultmesh_daemon_poke_receipt_key(receipt_id: &str) -> String {
-    format!("epiphany-local/daemon-poke-receipt/{receipt_id}")
-}
-
-fn epiphany_cultmesh_daemon_restart_policy_key(daemon_id: &str) -> String {
-    format!("epiphany-local/daemon-restart-policy/{daemon_id}")
-}
-
-fn epiphany_cultmesh_daemon_scheduler_receipt_key(receipt_id: &str) -> String {
-    format!("epiphany-local/daemon-scheduler-receipt/{receipt_id}")
-}
 
 fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
@@ -2757,18 +2072,6 @@ pub fn load_epiphany_cultmesh_cluster_topology(
         }
     }
     Ok(topology)
-}
-
-pub fn write_epiphany_cultmesh_daemon_status(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    status: EpiphanyCultMeshDaemonStatusEntry,
-) -> Result<EpiphanyCultMeshDaemonStatusEntry> {
-    validate_daemon_status(&status)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let written = node.put(status.daemon_id.clone(), &status)?;
-    node.flush()?;
-    Ok(written)
 }
 
 fn epiphany_cultmesh_daemon_heartbeat_event_key(heartbeat_id: &str) -> String {
@@ -3030,27 +2333,6 @@ fn validate_heartbeat_identifier(label: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<()> {
-    if status.private_state_exposed {
-        return Err(anyhow!("daemon statuses must not expose private state"));
-    }
-    if status.daemon_id.trim().is_empty() || status.cluster_id.trim().is_empty() {
-        return Err(anyhow!("daemon statuses require daemon and cluster ids"));
-    }
-    if status.status.trim().is_empty() {
-        return Err(anyhow!("daemon statuses require a status"));
-    }
-    if status.last_heartbeat_utc.trim().is_empty() {
-        return Err(anyhow!("daemon statuses require a heartbeat timestamp"));
-    }
-    if status.supported_actions.is_empty() {
-        return Err(anyhow!(
-            "daemon statuses require supported operator actions"
-        ));
-    }
-    Ok(())
-}
-
 pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContractEntry> {
     vec![
         EpiphanyCultMeshBifrostContractEntry {
@@ -3106,27 +2388,6 @@ mod tests {
     use super::*;
     use cultcache_rs::CacheBackingStore;
     use pretty_assertions::assert_eq;
-
-    fn test_daemon_status(daemon_id: &str) -> EpiphanyCultMeshDaemonStatusEntry {
-        let cluster = epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.daemon_id == daemon_id)
-            .expect("test daemon has declared topology");
-        EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-            daemon_id: cluster.daemon_id,
-            cluster_id: cluster.cluster_id,
-            body_domain: cluster.body_domain,
-            daemon_surface_id: cluster.daemon_surface_id,
-            eve_surface_id: cluster.eve_surface_id,
-            status: "ready".to_string(),
-            last_heartbeat_utc: "2026-06-17T00:00:00Z".to_string(),
-            supported_actions: vec!["pokeDaemon".to_string()],
-            operator_action: "none".to_string(),
-            private_state_exposed: false,
-            notes: Vec::new(),
-        }
-    }
 
     #[test]
     fn reserved_semantic_projector_policy_requires_specialized_exact_writer() -> Result<()> {
@@ -3914,77 +3175,6 @@ mod tests {
     }
 
     #[test]
-    fn scheduler_latest_mirror_refuses_delayed_replay() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-scheduler-order.ccmp");
-        let older = EpiphanyCultMeshDaemonSchedulerReceiptEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "scheduler-older".to_string(),
-            scheduler_id: "epiphany-daemon-supervisor".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            daemon_selector: "*".to_string(),
-            iteration: 1,
-            status: "completed".to_string(),
-            tick_started_utc: "2026-07-13T01:00:00Z".to_string(),
-            tick_completed_utc: "2026-07-13T01:00:01Z".to_string(),
-            next_wake_utc: Some("2026-07-13T01:01:01Z".to_string()),
-            outcome_count: 1,
-            restarted_count: 0,
-            refused_count: 0,
-            skipped_count: 1,
-            private_state_exposed: false,
-            notes: Vec::new(),
-        };
-        let mut newer = older.clone();
-        newer.receipt_id = "scheduler-newer".to_string();
-        newer.iteration = 2;
-        newer.tick_started_utc = "2026-07-13T02:00:00Z".to_string();
-        newer.tick_completed_utc = "2026-07-13T02:00:01Z".to_string();
-        newer.next_wake_utc = Some("2026-07-13T02:01:01Z".to_string());
-
-        write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", newer.clone())?;
-        write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", older)?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test")?,
-            Some(newer)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn scheduler_receipt_refuses_impossible_time_order() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-scheduler-invalid-time.ccmp");
-        let receipt = EpiphanyCultMeshDaemonSchedulerReceiptEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "scheduler-invalid".to_string(),
-            scheduler_id: "epiphany-daemon-supervisor".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            daemon_selector: "*".to_string(),
-            iteration: 1,
-            status: "completed".to_string(),
-            tick_started_utc: "2026-07-13T02:00:00Z".to_string(),
-            tick_completed_utc: "2026-07-13T01:00:00Z".to_string(),
-            next_wake_utc: Some("2026-07-13T00:00:00Z".to_string()),
-            outcome_count: 0,
-            restarted_count: 0,
-            refused_count: 0,
-            skipped_count: 0,
-            private_state_exposed: false,
-            notes: Vec::new(),
-        };
-        assert!(
-            write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", receipt,)
-                .is_err()
-        );
-        assert!(
-            load_latest_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test")?
-                .is_none()
-        );
-        Ok(())
-    }
-
-    #[test]
     fn service_lifecycle_receipt_refuses_invalid_or_reversed_time() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp
@@ -4052,44 +3242,12 @@ mod tests {
     }
 
     #[test]
-    fn declared_daemon_targets_do_not_materialize_observed_liveness() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-declared-versus-observed.ccmp");
-        let topology = write_epiphany_cultmesh_cluster_topology(
-            &store,
-            "epiphany-test",
-            "repo:C:/fixture/Epiphany",
-        )?;
-
-        assert_eq!(topology.len(), 7);
-        assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
-
-        let observed = test_daemon_status("epiphany-daemon-self");
-        let observed_daemon_id = observed.daemon_id.clone();
-        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", observed)?;
-
-        let liveness = load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?;
-        assert_eq!(liveness.len(), 1);
-        assert_eq!(liveness[0].1.daemon_id, observed_daemon_id);
-        Ok(())
-    }
-
-    #[test]
     fn diagnostic_loaders_do_not_materialize_missing_body_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let missing_parent = temp.path().join("missing-body");
         let store = missing_parent.join("missing-local-verse.ccmp");
 
         assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
-        assert_eq!(
-            load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,
-            None
-        );
-        assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
-        assert!(
-            load_epiphany_cultmesh_daemon_restart_policy_directory(&store, "epiphany-test")?
-                .is_empty()
-        );
         assert!(
             !store.exists(),
             "read-only diagnostic loaders must not create a CultCache store"
@@ -4102,148 +3260,6 @@ mod tests {
             .expect_err("a missing Verse cannot project a context");
         assert!(error.to_string().contains("store does not exist"));
         assert!(!missing_parent.exists());
-        Ok(())
-    }
-
-    #[test]
-    fn exact_daemon_status_loader_reads_only_the_requested_envelope() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-daemon-status.ccmp");
-        let expected = test_daemon_status("epiphany-daemon-hands");
-        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", expected.clone())?;
-
-        assert_eq!(
-            load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,
-            Some(expected)
-        );
-        assert_eq!(
-            load_epiphany_cultmesh_daemon_status(
-                &store,
-                "epiphany-test",
-                "epiphany-daemon-absent"
-            )?,
-            None
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn daemon_status_refuses_private_state_exposure() -> Result<()> {
-        let mut status = test_daemon_status("epiphany-daemon-persona");
-        status.private_state_exposed = true;
-
-        let error =
-            validate_daemon_status(&status).expect_err("private daemon status must be refused");
-        assert!(error.to_string().contains("private state"));
-        Ok(())
-    }
-
-    #[test]
-    fn daemon_poke_identity_is_immutable_and_latest_projection_is_monotonic() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-daemon-poke.ccmp");
-        let hands = test_daemon_status("epiphany-daemon-hands");
-        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", hands.clone())?;
-        let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
-            "daemon-poke-intent-test",
-            "epiphany.Self",
-            &hands,
-            "Hands daemon missed a heartbeat and needs operator-safe poke.",
-        );
-        let receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
-            "daemon-poke-receipt-test",
-            &intent,
-            "completed",
-            "ready",
-            "cultmesh://epiphany-local/daemon-poke/test",
-        );
-
-        write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent.clone())?;
-        write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt.clone())?;
-        assert_eq!(
-            write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent.clone())?,
-            intent
-        );
-        assert_eq!(
-            write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt.clone())?,
-            receipt
-        );
-
-        let mut colliding_intent = intent.clone();
-        colliding_intent.reason = "counterfeit replacement".to_string();
-        let error =
-            write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", colliding_intent)
-                .expect_err("non-identical intent identity collision must be refused");
-        assert!(error.to_string().contains("identity collision"));
-
-        let mut colliding_receipt = receipt.clone();
-        colliding_receipt.resulting_status = "counterfeit-ready".to_string();
-        let error =
-            write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", colliding_receipt)
-                .expect_err("non-identical receipt identity collision must be refused");
-        assert!(error.to_string().contains("identity collision"));
-
-        let mut newer_intent = intent.clone();
-        newer_intent.intent_id = "daemon-poke-intent-newer".to_string();
-        newer_intent.requested_at_utc = "2099-06-17T00:02:00Z".to_string();
-        let mut newer_receipt = receipt.clone();
-        newer_receipt.receipt_id = "daemon-poke-receipt-newer".to_string();
-        newer_receipt.intent_id = newer_intent.intent_id.clone();
-        newer_receipt.attempted_at_utc = "2099-06-17T00:02:00Z".to_string();
-        newer_receipt.completed_at_utc = "2099-06-17T00:03:00Z".to_string();
-        write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", newer_intent.clone())?;
-        write_epiphany_cultmesh_daemon_poke_receipt(
-            &store,
-            "epiphany-test",
-            newer_receipt.clone(),
-        )?;
-        write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent.clone())?;
-        write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt.clone())?;
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context.latest_daemon_poke_intent,
-            Some(newer_intent)
-        );
-        assert_eq!(
-            context.latest_daemon_poke_receipt,
-            Some(newer_receipt)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn daemon_poke_refuses_private_state_and_wrong_action() -> Result<()> {
-        let hands = test_daemon_status("epiphany-daemon-hands");
-        let mut intent = epiphany_cultmesh_daemon_poke_intent_from_status(
-            "daemon-poke-intent-private-test",
-            "epiphany.Self",
-            &hands,
-            "Attempt forbidden private daemon poke.",
-        );
-        intent.private_state_requested = true;
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-daemon-poke-refusal.ccmp");
-        let error = write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent)
-            .expect_err("private daemon poke intents must be refused");
-        assert!(error.to_string().contains("private state"));
-
-        let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
-            "daemon-poke-intent-test",
-            "epiphany.Self",
-            &hands,
-            "Attempt malformed receipt.",
-        );
-        let mut receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
-            "daemon-poke-receipt-wrong-action-test",
-            &intent,
-            "completed",
-            "ready",
-            "cultmesh://epiphany-local/daemon-poke/test",
-        );
-        receipt.action_taken = "inspectStatus".to_string();
-        let error = write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt)
-            .expect_err("wrong daemon poke receipt action must be refused");
-        assert!(error.to_string().contains("pokeDaemon"));
         Ok(())
     }
 
