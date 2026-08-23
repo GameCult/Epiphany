@@ -391,6 +391,11 @@ to manufacture counters, and the coordinator no longer emits a parallel
 `runtime-spine-status.json` summary artifact. Typed documents and Eve/CultMesh
 projections remain the state and interface authorities.
 
+Exact `27c8389c` removes the prepared-heartbeat result wrapper. Heartbeat job
+preparation has one output: the exact CultCache envelope batch that the family
+admission owner commits atomically. The full job is still one envelope in that
+batch; it is no longer duplicated as an unread return field or public DTO.
+
 External lifecycle boundary: Idunn remains available when Epiphany is missing,
 failed, or braked. Epiphany's swarm brake is an input only to an Idunn
 transaction that changes Epiphany's deployed body; it cannot gate Idunn startup,

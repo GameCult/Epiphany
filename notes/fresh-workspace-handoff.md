@@ -1212,6 +1212,15 @@ functions and 28 public structs. The focused core library, OpenAI library,
 release-owned coordinator, and model-runtime targets check cleanly. Continue
 the runtime-spine/test-liability audit.
 
+Exact `27c8389c` removes `PreparedRuntimeSpineHeartbeatJob`. Every caller used
+only its prepared envelope vector; none read the duplicated full `job` value.
+The preparation function now returns that exact vector directly. The job
+document remains inside the atomic batch, so launch identity, admission, and
+CAS behavior do not change. The cut removes ten net source lines and one public
+struct. `runtime_spine.rs` is 10,126 lines, with 63 public functions and 27
+public structs. The focused core check plus the OpenAI-library and
+release-owned model-runtime test harnesses compile cleanly.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the

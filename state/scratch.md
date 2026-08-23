@@ -159,7 +159,11 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    only the immutable runtime identity; schema preflight reads the canonical
    registered type catalog directly. The cut removes 96 net source lines and
    one public struct. `runtime_spine.rs` is 10,132 lines.
-28. Next: resume the public runtime-spine and test-liability audit by live owner
+28. Done: exact `27c8389c` collapses the prepared-heartbeat wrapper into the
+   exact envelope batch every caller actually consumes. Its unread full job
+   clone and one public struct are gone; the job document remains inside the
+   atomic prepared batch. Ten net source lines are removed.
+29. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-29. Run focused tests after each cut. Only after source subtraction stabilizes
+30. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
