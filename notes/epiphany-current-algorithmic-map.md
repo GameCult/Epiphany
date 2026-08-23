@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `b0a4978d` on `codex/epiphany-shakedown-live`
-Current worktree cut: Proposal-Modeling launch-authority deletion; Ox17 remains paused
+Latest committed implementation cut: `b55e96ea` on `codex/epiphany-shakedown-live`
+Current worktree cut: Planning/PlanMind launch-authority deletion; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -216,9 +216,17 @@ Proposal-Modeling has no second launch record. Exact `b0a4978d` deletes the
 persisted binding after its minimized form proved to own nothing. The immutable
 worker launch carries the typed request reference, job, role, binding, and sealed
 document; current-work, retry counting, fulfillment, coordinator actuation, and
-archival all read that owner directly. Body Modeling, Planning, PlanMind,
-Imagination consideration, and Reorientation bindings remain under the same
-audit; family-specific semantic requests remain mandatory.
+archival all read that owner directly. Family-specific semantic requests remain
+mandatory.
+
+Planning and PlanMind likewise have no second launch record. Exact `b55e96ea`
+deletes both persisted binding families and derives contiguous attempts and the
+current job from the family references on immutable worker launches. A retry is
+authorized only by the exact typed failed result and its failure review; the
+launch transaction now strongly reads those documents and every prior launch.
+The semantic Planning and PlanMind requests, sealed projections, result
+validation, and two-stage adoption boundary remain family-owned. Body Modeling,
+Imagination consideration, and Reorientation bindings remain under audit.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

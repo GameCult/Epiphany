@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `b0a4978d`
-Current worktree: documentation/evidence for Proposal-Modeling launch-authority deletion;
+Latest committed implementation cut: `b55e96ea`
+Current worktree: documentation/evidence for Planning/PlanMind launch-authority deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `b0a4978d` is the current
+production symlink body and is inactive. Exact `b55e96ea` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,25 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `b55e96ea` deletes the persisted Planning and PlanMind launch-binding
+families. Their twenty-four fields duplicated the immutable worker launch,
+typed requests, runtime job, canonical attempt identity, and typed failure
+review. Self now derives contiguous attempts and current jobs from the family
+references on worker launches. Retry launch CAS strongly reads every prior
+launch plus the exact failed result and review, so stale retry authority cannot
+be summarized and silently reused. The complete keyed Planning-to-PlanMind
+lifecycle, v17 refusal, release-owned coordinator, and model-runtime checks
+pass. The cut removes 44 net source lines and advances runtime writable state
+to v18.
+
+Continue with the three remaining persisted launch-binding families: Body
+Modeling, Imagination consideration, and Reorientation. Preserve their typed
+semantic requests, projections, result validation, and refusal/retry
+invariants; delete any sibling launch record whose state is derivable from the
+immutable worker launch and owning receipts. Model Atlas remains protected for
+the first real inter-swarm collaboration trial; component tests are not that
+trial.
 
 Exact `b0a4978d` deletes the Proposal-Modeling launch-binding document family.
 The immutable worker launch already owns the exact typed request reference, job,

@@ -340,7 +340,10 @@ Cut in this order:
    planning conflicts without turning unrelated graph writes into a global
    head. Thread provenance, generic coordinator validators/constructors,
    aggregate role lanes, and accepted-at/latest-result behavior no longer own
-   this family.
+   this family. Exact `b55e96ea` deletes both later duplicate launch-binding
+   document families. Immutable worker launches now own attempt identity and
+   current jobs; exact failed results plus typed failure reviews own retry
+   ancestry and are strong reads of the retry launch transaction.
 11. **Reorientation landed at `d5df53ae`:** one keyed request seals the exact
    continuity projection and source document versions; deterministic attempts
    bind an exact reasoning basis and terminal decision context. The family
