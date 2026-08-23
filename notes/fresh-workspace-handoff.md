@@ -1094,11 +1094,18 @@ executable targets; the release-construction library and real release binary
 check cleanly. Each survivor has a deployed lifecycle, external
 protocol/privilege boundary, or live operator/Idunn contract.
 
-The next source cut audits `epiphany-release-construction` tests by the external
-claim each test protects. Preserve package identity, exact sibling bytes,
-clean-source and submodule refusal, path escape/alias refusal, atomic
-publication, and target-specific filename behavior; delete tests that merely
-spell implementation, mirror constants, or duplicate stronger proof.
+Exact `ede5c669` deletes a single-use coordinator runtime-options factory and
+the test that asserted its literal assignments, a stop-policy literal-membership
+test that never exercised continuation, a private Unix credential-mode test
+duplicated by file-level permission proof, and a same-call cache equality.
+Release construction remains 15/15, coordinator 5/5, and core checks cleanly.
+
+The next test-liability pass audits `repository_body_observer` by the external
+Body claim each of its 23 tests protects. Authentication, read-only basis
+loading, no repository-object writes, hostile Git/config refusal, raw-byte
+visibility, binding immutability, stale-head conflict, tamper refusal, and
+generation reuse remain invariants. Private-helper spelling and duplicate
+fixture proof do not.
 
 ## Competitive Eyes/Imagination pass
 

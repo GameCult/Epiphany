@@ -99,7 +99,7 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 15. Done: delete `epiphany-package`. `epiphany-release` already owns the same
    package/inspect operations plus publish, and no live caller names the leaf
    wrapper.
-16. Next: audit `epiphany-release-construction` tests by externally
+16. Done: audit `epiphany-release-construction` tests by externally
    consequential claim. Delete implementation spelling, mirrored constants,
    deterministic self-equality, source-shape assertions, and duplicate proof;
    preserve exact
@@ -107,5 +107,11 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-17. Run focused tests after each cut. Only after source subtraction stabilizes
+17. Done: delete the coordinator runtime-options factory and its field-assignment
+   test, the literal-membership stop test, the credential predicate test
+   duplicated by file-level permissions proof, and same-call cache equality.
+18. Next: audit `repository_body_observer` tests and private helpers by exact
+   Body consequence. Preserve authentication, read-only loading, raw-byte and
+   hostile-Git sight, immutable binding, conflict, tamper, and generation proof.
+19. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
