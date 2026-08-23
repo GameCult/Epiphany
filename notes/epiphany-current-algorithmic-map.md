@@ -121,6 +121,13 @@ authority ends at exact patch, command, and commit consequences. A real remote
 publication result enters as provider/Bifrost-owned evidence rather than an
 Epiphany-authored facsimile.
 
+Tool discovery also has no free-floating capability registry. Exact `beb9fd32`
+deletes `EpiphanyToolCapability`, its constructor/registration/contract row,
+standalone schema, catalog entry, and smoke-banner claim after finding no live
+producer or consumer. Exact tool definitions sealed into model requests plus
+runtime execution bindings and governed invocation receipts own the actual
+path. The catalog retains tool intent/receipt and drops to 42 schemas.
+
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health
 admission. Cross-repository inspection found no producer for Epiphany's former

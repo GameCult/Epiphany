@@ -808,6 +808,15 @@ to depend on exact runtime/store identity, packaged release, brake, service
 policy, process identity, and signed health. Core and release-bundle checks,
 CultMesh 12/12, and supervisor 4/4 pass. The cut removes 1,005 net source lines.
 
+Exact `beb9fd32` deletes the producerless `EpiphanyToolCapability` family from
+the tool adapter, runtime registration/mutation table, standalone JSON schema,
+schema index, and MCP smoke banner. No writer, reader, constructor call,
+admission path, or test existed. Exact model-request tool definitions,
+`RuntimeToolExecutionBinding`, invocation intents, and governed receipts remain
+the tool authority. The canonical catalog drops from 43 to 42 schemas and keeps
+tool intent/receipt. Four affected packages compile; the tool runtime passes
+14/14 active tests with one explicit live-source test still ignored.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
