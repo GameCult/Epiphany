@@ -80,11 +80,15 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    command-description handshake, and main-only tests. It executed nothing;
    the coordinator now reports `awaitingHandsExecutor`, while exact typed
    receipt-chain admission remains for a future real actuator.
-11. Next: remove tests that inspect spelling, duplicate constructors, or
-   exercise one-line helpers without reaching a consequence. Preserve exact
+11. Done: delete three redundant helper-spelling/cache-policy tests and the
+   single-use Git argument helper while retaining source-cache recovery,
+   cache-separation, tool-loop transition, and terminal-failure proofs.
+12. Next: collapse the generic public host-identity verifier into its sole
+   Bifrost feedback-admission consumer if CultNet wire compatibility is exact.
+   Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-12. Run focused tests after each cut. Only after source subtraction stabilizes
+13. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

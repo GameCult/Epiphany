@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `b78ffb25`
+Latest committed implementation cut: `f3360248`
 Current worktree: executable/test authority subtraction; Ox17 remains paused
 
 ## Orientation
@@ -43,6 +43,15 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `f3360248` deletes three tests with no distinct behavioral claim and the
+single-use helper one of them existed to inspect: a release-cache filename
+prefix/determinism assertion already covered by cache stability and separation,
+a literal Git submodule argument-vector mirror, and a raw repeated-tool-round
+predicate test already covered by the retained guard-transition test. This is
+46 net deletions. The actual source-cache replacement recovery, target/toolchain
+cache separation, repeated-loop transition, and terminal failed-worker receipt
+tests all pass.
 
 Exact `b78ffb25` deletes the counterfeit `epiphany-hands-action` consequence
 recorder, its release role, the coordinator's unconsumed `recordPassCommand`,
