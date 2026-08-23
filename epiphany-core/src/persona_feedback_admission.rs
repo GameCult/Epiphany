@@ -1241,17 +1241,8 @@ mod tests {
 
         let mut local =
             crate::open_epiphany_cultmesh_node(&feedback_store, "epiphany-yggdrasil".to_string())?;
-        local.put(
-            "status",
-            &crate::EpiphanyCultMeshStatusEntry {
-                schema_version: crate::EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.into(),
-                runtime_id: "epiphany-yggdrasil".into(),
-                verse_id: "gamecult-local".into(),
-                app_id: "epiphany".into(),
-                note: "existing local Verse state".into(),
-                verse_tier: "local".into(),
-            },
-        )?;
+        let existing_brake = crate::default_epiphany_cultmesh_swarm_brake("2026-08-23T00:00:00Z");
+        local.put(crate::EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, &existing_brake)?;
 
         let imported = import_bifrost_persona_feedback_deliveries(
             &source_store,
@@ -1271,8 +1262,7 @@ mod tests {
             1
         );
         assert!(
-            crate::open_epiphany_cultmesh_node(&feedback_store, "epiphany-yggdrasil".to_string())?
-                .get::<crate::EpiphanyCultMeshStatusEntry>("status")?
+            crate::load_epiphany_cultmesh_swarm_brake(&feedback_store, "epiphany-yggdrasil")?
                 .is_some()
         );
         Ok(())

@@ -41,9 +41,6 @@ use sha2::Sha256;
 use std::path::Path;
 use uuid::Uuid;
 
-pub const EPIPHANY_CULTMESH_STATUS_TYPE: &str = "epiphany.cultmesh.status";
-pub const EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION: &str = "epiphany.cultmesh.status.v0";
-pub const EPIPHANY_CULTMESH_STATUS_KEY: &str = "epiphany-local/status";
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE: &str = "epiphany.cultmesh.cluster_topology";
 pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.cluster_topology.v0";
@@ -179,26 +176,6 @@ pub struct EpiphanyCultMeshSemanticProjectionHealthEntry {
     pub authoritative: bool,
     #[cultcache(key = 19)]
     pub query_eligible_display_only: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.status",
-    schema = "EpiphanyCultMeshStatusEntry"
-)]
-pub struct EpiphanyCultMeshStatusEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub runtime_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub app_id: String,
-    #[cultcache(key = 4)]
-    pub note: String,
-    #[cultcache(key = 5, default)]
-    pub verse_tier: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -865,7 +842,6 @@ pub struct EpiphanyLocalVerseContractSummary {
 }
 
 cultmesh_documents!(EpiphanyCultMeshDocuments {
-    EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonStatusEntry => EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonHeartbeatEventEntry => EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
@@ -1092,25 +1068,6 @@ fn bounded_opaque_health_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
-}
-
-pub fn write_epiphany_cultmesh_status(
-    store_path: impl AsRef<Path>,
-    status: EpiphanyCultMeshStatusEntry,
-) -> Result<EpiphanyCultMeshStatusEntry> {
-    let mut node = open_epiphany_cultmesh_node(&store_path, status.runtime_id.clone())?;
-    let written = node.put(EPIPHANY_CULTMESH_STATUS_KEY, &status)?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_epiphany_cultmesh_status(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshStatusEntry>> {
-    let store_path = store_path.as_ref();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_STATUS_KEY)
 }
 
 pub fn epiphany_cultmesh_daemon_poke_intent_from_status(
@@ -2584,15 +2541,6 @@ pub fn seed_epiphany_local_verse_context(
     if !body_domain.starts_with("repo:") || body_domain.trim() == "repo:" {
         anyhow::bail!("local Verse repository topology requires an explicit repo: Body domain");
     }
-    let status = EpiphanyCultMeshStatusEntry {
-        schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
-        runtime_id: runtime_id.clone(),
-        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
-        verse_tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
-        app_id: "epiphany".to_string(),
-        note: "Epiphany local Verse query context is typed CultMesh state; prompt assembly may read it, but Mind still owns durable adoption.".to_string(),
-    };
-    write_epiphany_cultmesh_status(store_path, status)?;
     write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone(), body_domain)?;
     {
         let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
@@ -4109,27 +4057,6 @@ mod tests {
     }
 
     #[test]
-    fn epiphany_status_round_trips_through_cultmesh() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local.ccmp");
-        let status = EpiphanyCultMeshStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
-            verse_tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
-            app_id: "epiphany".to_string(),
-            note: "CultMesh is the local abstraction over CultCache and CultNet.".to_string(),
-        };
-
-        write_epiphany_cultmesh_status(&store, status.clone())?;
-        assert_eq!(
-            load_epiphany_cultmesh_status(&store, "epiphany-test")?,
-            Some(status)
-        );
-        Ok(())
-    }
-
-    #[test]
     fn service_lifecycle_receipt_history_excludes_latest_mirror() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-service-lifecycle.ccmp");
@@ -4420,10 +4347,6 @@ mod tests {
         let missing_parent = temp.path().join("missing-body");
         let store = missing_parent.join("missing-local-verse.ccmp");
 
-        assert_eq!(
-            load_epiphany_cultmesh_status(&store, "epiphany-test")?,
-            None
-        );
         assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
         assert_eq!(
             load_epiphany_cultmesh_daemon_status(&store, "epiphany-test", "epiphany-daemon-hands")?,

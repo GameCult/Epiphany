@@ -32,7 +32,6 @@ use epiphany_core::load_epiphany_cultmesh_daemon_status;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
-use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_epiphany_packaged_release;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
@@ -734,13 +733,6 @@ fn semantic_recover(args: Args) -> Result<()> {
 }
 
 fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
-    load_epiphany_cultmesh_status(&args.store, args.runtime_id.clone())?
-        .with_context(|| {
-            format!(
-                "local Verse is not bootstrapped at {}; run explicit bootstrap before daemon-supervisor commands",
-                args.store.display()
-            )
-        })?;
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     if topology.is_empty() {
         anyhow::bail!(

@@ -772,6 +772,13 @@ fn credential_file_ready(path: &Path) -> bool {
 mod tests {
     use super::*;
 
+    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+    #[cultcache(type = "test.foreign_owner", schema = "ForeignOwnerEntry")]
+    struct ForeignOwnerEntry {
+        #[cultcache(key = 0)]
+        value: String,
+    }
+
     #[test]
     fn resident_process_singleton_excludes_only_the_same_store() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -936,21 +943,16 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("mixed.cc");
         let mut mixed = CultCache::new();
-        mixed.register_entry_type::<crate::EpiphanyCultMeshStatusEntry>()?;
+        mixed.register_entry_type::<ForeignOwnerEntry>()?;
         mixed.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&store));
-        let foreign = crate::EpiphanyCultMeshStatusEntry {
-            schema_version: crate::EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.into(),
-            runtime_id: "ygg".into(),
-            verse_id: "gamecult-local".into(),
-            app_id: "foreign-owner".into(),
-            note: "must survive readiness CAS".into(),
-            verse_tier: "local".into(),
+        let foreign = ForeignOwnerEntry {
+            value: "must survive readiness CAS".into(),
         };
         mixed.put("foreign/status", &foreign)?;
         publish_resident_provider_readiness(&store, provider())?;
         let entries = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
         assert!(entries.iter().any(|entry| {
-            entry.r#type == <crate::EpiphanyCultMeshStatusEntry as DatabaseEntry>::TYPE
+            entry.r#type == <ForeignOwnerEntry as DatabaseEntry>::TYPE
                 && entry.key == "foreign/status"
         }));
 
