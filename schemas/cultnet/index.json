@@ -145,17 +145,6 @@
       "path": "epiphany.model-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-capability.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.tool_capability.v0",
-      "documentType": "epiphany.tool_capability.v0",
-      "title": "Epiphany Tool Capability",
-      "path": "epiphany.tool-capability.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-invocation-intent.schema.json",
       "kind": "document_payload",
       "wireContracts": [

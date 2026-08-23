@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_tool_adapter::{
     EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
-    TOOL_ADAPTER_CAPABILITY_SCHEMA_ID, TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID,
-    TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID, tool_invocation_intent_key,
+    TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID, TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID,
+    tool_invocation_intent_key,
 };
 use epiphany_tool_mcp_runtime::{
     McpRuntimeConfig, current_utc_timestamp, execute_epiphany_public, execute_epiphany_source,
@@ -237,10 +237,6 @@ fn smoke() -> SmokeSummary {
 fn schemas() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
-            "capability".into(),
-            TOOL_ADAPTER_CAPABILITY_SCHEMA_ID.into(),
-        ),
-        (
             "intent".into(),
             TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID.into(),
         ),
@@ -406,12 +402,7 @@ mod tests {
                 private_state_exposed: false,
             },
         )?;
-        let grant = epiphany_core::heartbeat_issue_resident_self_grant(
-            &resident_store,
-            "schedule-state-tool",
-            "action-state-tool",
-            2,
-        )?
+        let grant = epiphany_core::issue_resident_self_grant(&resident_store, 2)?
         .expect("grant");
         let intent = EpiphanyToolInvocationIntent::new(
             "native-state-read",

@@ -108,7 +108,6 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
-use epiphany_tool_adapter::EpiphanyToolCapability;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
@@ -151,7 +150,6 @@ pub const MODEL_ADAPTER_STATUS_TYPE: &str = "epiphany.model_adapter_status.v0";
 pub const MODEL_REQUEST_TYPE: &str = "epiphany.model_request.v0";
 pub const MODEL_STREAM_EVENT_TYPE: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_RECEIPT_TYPE: &str = "epiphany.model_receipt.v0";
-pub const TOOL_CAPABILITY_TYPE: &str = "epiphany.tool_capability.v0";
 pub const TOOL_INVOCATION_INTENT_TYPE: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt.v0";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
@@ -183,7 +181,6 @@ pub const MODEL_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.model_adapter_st
 pub const MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.model_request.v0";
 pub const MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
-pub const TOOL_CAPABILITY_SCHEMA_VERSION: &str = "epiphany.tool_capability.v0";
 pub const TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_receipt.v0";
 pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
@@ -1154,7 +1151,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::PersonaConversationExecutionReceipt>()?;
     cache.register_entry_type::<crate::PersonaEffectExecutionIntent>()?;
     cache.register_entry_type::<crate::PersonaConversationStoreRetirementReceipt>()?;
-    cache.register_entry_type::<EpiphanyToolCapability>()?;
     cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
     cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
     cache.add_generic_backing_store(backing_store);
@@ -13778,17 +13774,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "Terminal model receipts carry provider response id, usage, and transport evidence.",
-            ],
-        ),
-        mutation_contract(
-            TOOL_CAPABILITY_TYPE,
-            TOOL_CAPABILITY_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Tool capability documents describe adapter-discovered tools without making raw MCP discovery JSON authoritative.",
             ],
         ),
         mutation_contract(
