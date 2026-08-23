@@ -591,6 +591,12 @@ Weksa-lowering-receipt shadows plus all four tests that alone animated them.
 The real Persona and Weksa typed owners remain intact. This removes 432 lines;
 non-test core check and CultMesh 35/35 pass.
 
+Exact `db6a7131` deletes the unused CultMesh operator-run intent/receipt and
+generic work-loop telemetry shadows. Their runtime-spine declarations, prompt
+branch, test-only prompt seed, and two tests are gone; native runtime and keyed
+Mind receipts remain the owners. This is 829 pure deletions. Non-test core,
+CultMesh 33/33, and prompt projection 1/1 pass.
+
 Preserve cluster topology until its runtime-bound Body-domain owner is
 explicit. Separately split the
 4.7-kiloline daemon supervisor's

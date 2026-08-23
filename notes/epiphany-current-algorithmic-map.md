@@ -30,6 +30,9 @@ tool directory. Native runtime and keyed Mind receipts remain the owners; old
 stores containing the deleted envelope types refuse at the schema boundary.
 Persona speech decisions and Weksa lowering receipts likewise remain in their
 own typed owners; CultMesh does not persist unused parallel shadows.
+Operator intent/completion and Hands consequence flow are also read from their
+native runtime and Mind owners. The local Verse has no operator-run or generic
+work-loop telemetry shadow and prompt assembly has no branch that depends on it.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
