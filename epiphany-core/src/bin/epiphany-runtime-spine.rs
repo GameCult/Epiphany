@@ -18,7 +18,6 @@ use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::create_runtime_session;
 use epiphany_core::initialize_runtime_spine;
-use epiphany_core::repair_runtime_root_session_after_invalid_completion;
 use epiphany_core::runtime_has_actionable_eyes_frontier;
 use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_spine_cache;
@@ -263,12 +262,6 @@ fn main() -> Result<()> {
             println!("runtime session completed");
             println!("session: {}", session.session_id);
         }
-        Command::RepairRootSession { reason } => {
-            let session =
-                repair_runtime_root_session_after_invalid_completion(&args.store, &now(), &reason)?;
-            println!("runtime root session repaired");
-            println!("session: {}", session.session_id);
-        }
         Command::OpenJob {
             job_id,
             session_id,
@@ -366,9 +359,6 @@ enum Command {
     CloseSession {
         session_id: String,
         summary: String,
-    },
-    RepairRootSession {
-        reason: String,
     },
     OpenJob {
         job_id: String,
@@ -539,20 +529,6 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
                 summary,
             })
         }
-        "repair-root-session" => {
-            let mut reason = String::new();
-            parse_options(args, |name, value| match name {
-                "--reason" => {
-                    reason = value;
-                    Ok(())
-                }
-                _ => Err(anyhow!("unknown repair-root-session argument: {name}")),
-            })?;
-            if reason.trim().is_empty() {
-                return Err(anyhow!("repair-root-session requires --reason"));
-            }
-            Ok(Command::RepairRootSession { reason })
-        }
         "complete-job" => {
             let mut result_id = format!("result-{}", Uuid::new_v4());
             let mut job_id = String::new();
@@ -681,7 +657,7 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|repair-root-session|open-job|complete-job|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-sessions|list-model-requests|list-events|list-coordinator-runs|list-repo-model-proposals|open-session|close-session|open-job|complete-job|hello-frame|schema-catalog>"
 }
 
 fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {

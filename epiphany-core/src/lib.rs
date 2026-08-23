@@ -489,7 +489,6 @@ pub use runtime_spine::put_runtime_tool_execution_receipt;
 pub use runtime_spine::put_substrate_gate_repo_access_grant_receipt;
 pub use runtime_spine::relinquish_repo_frontier_hands_route;
 pub use runtime_spine::repair_legacy_terminal_coordinator_sessions;
-pub use runtime_spine::repair_runtime_root_session_after_invalid_completion;
 pub use runtime_spine::require_runtime_tool_execution_binding;
 pub use runtime_spine::retain_completed_runtime_sessions;
 pub use runtime_spine::retain_coordinator_run_receipts;

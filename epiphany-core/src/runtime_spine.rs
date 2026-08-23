@@ -1444,29 +1444,10 @@ pub fn close_runtime_session(
             open_job_ids.join(", ")
         ));
     }
-    let event_id = format!("event-session-completed-{}", options.session_id);
-    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
-        return Err(anyhow!(
-            "runtime session {:?} has a completion event but is not completed",
-            options.session_id
-        ));
-    }
     session.status = EpiphanyRuntimeSessionStatus::Completed;
     session.updated_at = options.completed_at.clone();
     session.coordinator_note = options.summary.clone();
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id,
-        occurred_at: options.completed_at,
-        event_type: "session.completed".to_string(),
-        source: "continuity".to_string(),
-        session_id: Some(options.session_id),
-        job_id: None,
-        summary: options.summary,
-        metadata: BTreeMap::new(),
-    };
     cache.put(&session.session_id, &session)?;
-    cache.put(&event.event_id, &event)?;
     Ok(session)
 }
 
@@ -1587,48 +1568,15 @@ pub fn terminalize_model_pass_failure_session(
             open_job_ids.join(", ")
         ));
     }
-    let event_id = format!("event-session-model-pass-failed-{}", failure.failure_id);
-    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
-        return Err(anyhow!(
-            "model pass failure event exists without its terminal record"
-        ));
-    }
     session.status = EpiphanyRuntimeSessionStatus::Completed;
     session.updated_at = options.failed_at.clone();
     session.coordinator_note = options.summary.clone();
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id,
-        occurred_at: options.failed_at.clone(),
-        event_type: "model-pass.failed".to_string(),
-        source: "model-pass-terminal".to_string(),
-        session_id: Some(binding.session_id.clone()),
-        job_id: Some(binding.job_id.clone()),
-        summary: options.summary.clone(),
-        metadata: BTreeMap::from([
-            (
-                "decisionContextId".to_string(),
-                failure.decision_context_id.clone(),
-            ),
-            ("failureId".to_string(), failure.failure_id.clone()),
-        ]),
-    };
     let mut expected = vec![session_envelope];
     let mut replacements = vec![
         cache.prepare_entry(&failure.failure_id, &failure)?.0,
         cache.prepare_entry(&session.session_id, &session)?.0,
-        cache.prepare_entry(&event.event_id, &event)?.0,
     ];
     if model_job_is_live {
-        let completion_event_id = format!("event-job-completed-{}", binding.job_id);
-        if cache
-            .get::<EpiphanyRuntimeEvent>(&completion_event_id)?
-            .is_some()
-        {
-            return Err(anyhow!(
-                "live model pass job already has a completion event"
-            ));
-        }
         model_job.status = EpiphanyRuntimeJobStatus::Failed;
         model_job.updated_at = options.failed_at.clone();
         model_job.summary = options.summary.clone();
@@ -1649,27 +1597,11 @@ pub fn terminalize_model_pass_failure_session(
             metadata: BTreeMap::new(),
             decision_context_id: None,
         };
-        let completion_event = EpiphanyRuntimeEvent {
-            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-            event_id: completion_event_id,
-            occurred_at: options.failed_at.clone(),
-            event_type: "job.completed".to_string(),
-            source: "model-pass-terminal".to_string(),
-            session_id: Some(binding.session_id.clone()),
-            job_id: Some(binding.job_id.clone()),
-            summary: "Model transport job closed by its typed pass failure.".to_string(),
-            metadata: BTreeMap::from([("resultId".to_string(), model_result.result_id.clone())]),
-        };
         expected.push(model_job_envelope);
         replacements.push(cache.prepare_entry(&model_job.job_id, &model_job)?.0);
         replacements.push(
             cache
                 .prepare_entry(&model_result.result_id, &model_result)?
-                .0,
-        );
-        replacements.push(
-            cache
-                .prepare_entry(&completion_event.event_id, &completion_event)?
                 .0,
         );
     }
@@ -1716,98 +1648,6 @@ pub fn model_pass_failure_for_request(
     Ok(Some(failure))
 }
 
-pub fn repair_runtime_root_session_after_invalid_completion(
-    store_path: impl AsRef<Path>,
-    repaired_at: &str,
-    reason: &str,
-) -> Result<EpiphanyRuntimeSession> {
-    validate_non_empty(repaired_at, "root session repair time")?;
-    validate_non_empty(reason, "root session repair reason")?;
-    chrono::DateTime::parse_from_rfc3339(repaired_at)
-        .context("root session repair time must be RFC 3339")?;
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let snapshot = cache.snapshot_envelopes();
-    let mut session = cache
-        .get::<EpiphanyRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)?
-        .ok_or_else(|| anyhow!("runtime root session does not exist"))?;
-    let event_id = format!("event-session-completed-{EPIPHANY_RUNTIME_ROOT_SESSION_ID}");
-    let event = cache.get::<EpiphanyRuntimeEvent>(&event_id)?;
-    if session.status == EpiphanyRuntimeSessionStatus::Active {
-        if event.is_some() {
-            return Err(anyhow!(
-                "active runtime root session has a hostile completion event"
-            ));
-        }
-        return Ok(session);
-    }
-    if session.status != EpiphanyRuntimeSessionStatus::Completed {
-        return Err(anyhow!(
-            "runtime root session is not repairable from its current status"
-        ));
-    }
-    if cache
-        .get::<EpiphanyArchivedRuntimeSession>(EPIPHANY_RUNTIME_ROOT_SESSION_ID)?
-        .is_some()
-    {
-        return Err(anyhow!("archived runtime root session cannot be repaired"));
-    }
-    let event = event
-        .ok_or_else(|| anyhow!("completed runtime root session lacks its completion event"))?;
-    if event.schema_version != RUNTIME_SPINE_SCHEMA_VERSION
-        || event.event_type != "session.completed"
-        || event.source != "continuity"
-        || event.session_id.as_deref() != Some(EPIPHANY_RUNTIME_ROOT_SESSION_ID)
-        || event.job_id.is_some()
-        || event.occurred_at != session.updated_at
-        || event.summary != session.coordinator_note
-    {
-        return Err(anyhow!(
-            "runtime root completion event does not exactly bind the completed session"
-        ));
-    }
-    if cache
-        .get_all::<EpiphanyRuntimeJob>()?
-        .into_iter()
-        .any(|job| {
-            job.session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID
-                && matches!(
-                    job.status,
-                    EpiphanyRuntimeJobStatus::Queued
-                        | EpiphanyRuntimeJobStatus::Running
-                        | EpiphanyRuntimeJobStatus::WaitingForReview
-                )
-        })
-    {
-        return Err(anyhow!(
-            "runtime root session has open jobs and cannot be repaired"
-        ));
-    }
-    let event_envelope = snapshot
-        .iter()
-        .find(|entry| entry.r#type == EpiphanyRuntimeEvent::TYPE && entry.key == event_id)
-        .cloned()
-        .ok_or_else(|| anyhow!("runtime root completion event envelope is missing"))?;
-    session.status = EpiphanyRuntimeSessionStatus::Active;
-    session.updated_at = repaired_at.to_string();
-    session.coordinator_note = reason.to_string();
-    let replacement = cache
-        .prepare_entry(EPIPHANY_RUNTIME_ROOT_SESSION_ID, &session)?
-        .0;
-    if !runtime_spine_backing_store(store_path)?.replace_and_delete_if_snapshot_unchanged(
-        &snapshot,
-        vec![replacement],
-        &[event_envelope],
-    )? {
-        return Err(anyhow!(
-            "runtime root session repair lost its full snapshot fence"
-        ));
-    }
-    Ok(session)
-}
-
 pub fn create_runtime_job(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineJobOptions,
@@ -1848,18 +1688,6 @@ pub fn create_runtime_job(
         metadata: BTreeMap::new(),
     };
     cache.put(&options.job_id, &job)?;
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: format!("event-job-opened-{}", options.job_id),
-        occurred_at: options.created_at,
-        event_type: "job.opened".to_string(),
-        source: "runtime-spine".to_string(),
-        session_id: Some(options.session_id),
-        job_id: Some(options.job_id),
-        summary: "Native runtime job opened.".to_string(),
-        metadata: BTreeMap::new(),
-    };
-    cache.put(&event.event_id, &event)?;
     Ok(job)
 }
 
@@ -1997,27 +1825,6 @@ pub fn open_runtime_model_execution(
         artifact_refs: job_options.artifact_refs,
         metadata: BTreeMap::new(),
     };
-    let opened_event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: format!("event-job-opened-{}", job.job_id),
-        occurred_at: job_options.created_at,
-        event_type: "job.opened".to_string(),
-        source: "runtime-spine".to_string(),
-        session_id: Some(session.session_id.clone()),
-        job_id: Some(job.job_id.clone()),
-        summary: "Native runtime job opened.".to_string(),
-        metadata: BTreeMap::new(),
-    };
-    if cache
-        .get::<EpiphanyRuntimeEvent>(&opened_event.event_id)?
-        .is_some()
-    {
-        return Err(anyhow!(
-            "model execution opened event {:?} already exists",
-            opened_event.event_id
-        ));
-    }
-
     let binding_id = model_request.request_id.clone();
     if cache
         .get::<EpiphanyRuntimeModelExecutionBinding>(&binding_id)?
@@ -2064,9 +1871,6 @@ pub fn open_runtime_model_execution(
         identity_envelope,
         cache.prepare_entry(&session.session_id, &session)?.0,
         cache.prepare_entry(&job.job_id, &job)?.0,
-        cache
-            .prepare_entry(&opened_event.event_id, &opened_event)?
-            .0,
         cache.prepare_entry(&binding_id, &binding)?.0,
         cache
             .prepare_entry(&model_request.request_id, model_request)?
@@ -3592,17 +3396,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         artifact_refs: Vec::new(),
         metadata: BTreeMap::new(),
     };
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: format!("event-job-opened-{}", options.job_id),
-        occurred_at: options.created_at,
-        event_type: "job.opened".to_string(),
-        source: "runtime-spine".to_string(),
-        session_id: Some(options.session_id),
-        job_id: Some(options.job_id.clone()),
-        summary: "Native runtime job opened.".to_string(),
-        metadata: BTreeMap::new(),
-    };
     let request = EpiphanyRuntimeWorkerLaunchRequest {
         schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
         job_id: options.job_id.clone(),
@@ -3628,7 +3421,6 @@ pub fn prepare_runtime_spine_heartbeat_job(
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
         cache.prepare_entry(&session.session_id, &session)?.0,
         cache.prepare_entry(&job.job_id, &job)?.0,
-        cache.prepare_entry(&event.event_id, &event)?.0,
         cache.prepare_entry(&request.job_id, &request)?.0,
     ];
     Ok(PreparedRuntimeSpineHeartbeatJob { job, envelopes })
@@ -4945,23 +4737,9 @@ fn commit_runtime_worker_process_death(
         metadata: BTreeMap::new(),
         decision_context_id: decision_context_id.map(str::to_string),
     };
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id: format!("event-job-completed-{job_id}"),
-        occurred_at: terminal_at.to_string(),
-        event_type: "job.completed".to_string(),
-        source: "runtime-continuity".to_string(),
-        session_id: Some(job.session_id.clone()),
-        job_id: Some(job_id.to_string()),
-        summary,
-        metadata: BTreeMap::from([("resultId".to_string(), result.result_id.clone())]),
-    };
     if cache
-        .get::<EpiphanyRuntimeEvent>(&event.event_id)?
+        .get::<EpiphanyRuntimeJobResult>(&result.result_id)?
         .is_some()
-        || cache
-            .get::<EpiphanyRuntimeJobResult>(&result.result_id)?
-            .is_some()
     {
         return Err(anyhow!("worker death terminal identities already exist"));
     }
@@ -5009,7 +4787,6 @@ fn commit_runtime_worker_process_death(
         cache.prepare_entry(&claim_id, &next)?.0,
         cache.prepare_entry(job_id, &job)?.0,
         cache.prepare_entry(&result.result_id, &result)?.0,
-        cache.prepare_entry(&event.event_id, &event)?.0,
     ];
     writes.extend(unchanged_strong_reads);
     if !SingleFileMessagePackBackingStore::new(store_path)
@@ -12464,13 +12241,6 @@ pub fn complete_runtime_job(
             options.result_id
         ));
     }
-    let event_id = format!("event-job-completed-{}", options.job_id);
-    if cache.get::<EpiphanyRuntimeEvent>(&event_id)?.is_some() {
-        return Err(anyhow!(
-            "runtime job completion event {:?} already exists",
-            event_id
-        ));
-    }
     let snapshot = cache.snapshot_envelopes();
     let job_envelope = snapshot
         .iter()
@@ -12497,25 +12267,10 @@ pub fn complete_runtime_job(
         metadata: BTreeMap::new(),
         decision_context_id: options.decision_context_id,
     };
-    let event = EpiphanyRuntimeEvent {
-        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
-        event_id,
-        occurred_at: options.completed_at,
-        event_type: "job.completed".to_string(),
-        source: "runtime-spine".to_string(),
-        session_id: Some(result.session_id.clone()),
-        job_id: Some(options.job_id),
-        summary: format!(
-            "Native runtime job completed with verdict {}.",
-            result.verdict
-        ),
-        metadata: BTreeMap::from([("resultId".to_string(), result.result_id.clone())]),
-    };
     let mut expected = vec![job_envelope];
     let mut writes = vec![
         cache.prepare_entry(&job.job_id, &job)?.0,
         cache.prepare_entry(&result.result_id, &result)?.0,
-        cache.prepare_entry(&event.event_id, &event)?.0,
     ];
     let claim_id = worker_process_claim_id(&result.job_id);
     if let Some(claim) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
