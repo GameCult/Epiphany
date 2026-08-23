@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `f10f7fb3` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `03140a47` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -66,8 +66,8 @@ tested.
 The schema registry contains no `epiphany.surface.*` families. Exact
 `f10f7fb3` deletes the final twelve schemas and ten catalog entries after a
 producer/consumer audit found no live owner on either side; several still
-claimed global revisions or artifact-directory state. The native schema catalog
-rebuilds successfully with zero surface documents. Persona's portable state
+claimed global revisions or artifact-directory state. The publication index
+contains zero surface documents. Persona's portable state
 remains `gamecult.persona_state.v0`; Eve/CultMesh providers retain their own
 typed contracts.
 
@@ -95,10 +95,12 @@ Provider requests are derived internally from canonical native requests in
 tests as well as production; no fixture may manufacture native ancestry from a
 caller-authored provider document.
 
-Runtime spine is the sole live CultNet mutation-contract publisher. Exact
-`a4af4734` deletes six parallel organ contract DTO/factories, the callerless
-local-Verse context query/seed bundle, and fixed Verse/room policy prose. No
-conversion layer replaces them.
+Live providers own their CultMesh/CultNet schema catalogs. Exact `03140a47`
+deletes the standalone runtime-spine CLI, its callerless Hello/catalog writers,
+and its hand-maintained mutation-contract mirror. Runtime status and model
+preflight derive accepted document types from the same CultCache registration
+that opens the Mind store. The typed runtime documents remain; a command-line
+facsimile no longer impersonates their service owner.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any

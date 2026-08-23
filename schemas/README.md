@@ -20,15 +20,14 @@ only in one Rust struct or one developer's damp recollection.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
 - [cultnet/README.md](./cultnet/README.md):
-  published CultNet-facing state, surface, intent, and receipt schemas that
-  Aquarium and other runtimes can discover through Epiphany's schema-catalog
-  response.
+  JSON Schema publication artifacts for typed CultNet boundaries. Live
+  providers own their schema-catalog responses.
 
 ## Source Of Truth
 
 The living implementation is in code:
 
-- [mind_documents.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/mind_documents.rs)
+- [mind_documents.rs](/F:/Projects/Epiphany/epiphany-core/src/mind_documents.rs)
 
 The rule is simple:
 

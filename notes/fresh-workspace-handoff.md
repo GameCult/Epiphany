@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ab1afc27`
-Current worktree: continuing source/test-authority audit; Ox17 remains paused
+Latest committed implementation cut: `03140a47`
+Current worktree: canonical map/evidence sync; Ox17 remains paused
 
 ## Orientation
 
@@ -44,6 +44,21 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
+Exact `03140a47` deletes the packaged `epiphany-runtime-spine` command and the
+false service authority it carried: 649 lines of operator/debug mutation CLI,
+callerless Hello/schema-catalog writers, a hand-maintained mutation-contract
+mirror, and its source-shape test. CultCache exact `fdbf3bf` now exposes the
+types actually registered in a cache. Runtime status and model preflight derive
+from that single registry instead of a second list. The production Mind store
+and its typed jobs, decisions, and receipts remain; only the duplicate mouth is
+gone. Cargo now has 21 executable targets and zero duplicate binary-source
+owners. Core checks without warnings and release construction passes 17/17.
+
+No Epiphany-owned Rider or Unity code, target, schema, or actuator exists.
+Brokkr owns Unity through Eve/CultMesh. A future Rider daemon owns Rider.
+Epiphany may consume their typed capabilities and receipts; it does not poke
+either editor directly.
+
 Exact `856648de` deletes the unused semantic-memory and workspace-coverage
 projection subsystem: 32,866 net source lines, four binaries, the competing
 local daemon supervisor, Qdrant/Ollama/Postgres configuration, projector
@@ -58,7 +73,7 @@ evidence must earn a typed provider receipt and an explicit reasoning consumer.
 Idunn remains the sole deployment and daemon-survival authority. Core 165/165,
 OpenAI runtime 25/25, and release construction 19/19 pass serially.
 
-The active editor boundary is also clean. Epiphany owns no Rider or Unity
+The active editor boundary is clean. Epiphany owns no Rider or Unity
 bridge, command schema, or editor-specific actuator. Brokkr owns Unity through
 Eve/CultMesh; a future Rider daemon will own Rider. Historical architecture
 snapshots retain their dated record but cannot be mistaken for executable or
@@ -757,8 +772,8 @@ Exact `f10f7fb3` completes that audit: all twelve remaining surface schemas and
 their ten catalog entries had zero producer and zero consumer. The 692-line pure
 deletion includes global-revision status shapes, old Rider/Unity/Void bridges,
 and the artifact-list Persona surface; `gamecult.persona_state.v0` remains the
-portable Persona contract. The native schema-catalog command rebuilds with zero
-`epiphany.surface.*` documents and its temporary audit output was removed.
+portable Persona contract. The publication index contains zero
+`epiphany.surface.*` documents.
 
 Exact `ab3cacfb` deletes thirty-one more producerless contracts: abandoned
 RepoWork aggregates, CultMesh operator-run shadows, generic launch/accept
@@ -807,8 +822,9 @@ bootstrap witness: six organ-specific contract DTO/factories, the callerless
 `EpiphanyLocalVerseContext` query/seed bundle, fixed Verse/room policy prose,
 the `mind_contracts` module and its self-affirming test, persisted seven-cluster
 topology, its dead writer/loader, the supervisor's nonempty-row bootstrap check,
-and the diagnostic test that kept the loader alive. Runtime spine is now the
-sole live CultNet mutation-contract publisher. Supervisor readiness continues
+and the diagnostic test that kept the loader alive. Exact `03140a47` later
+deletes the remaining standalone contract mirror; live providers own their
+CultMesh/CultNet catalogs. Supervisor readiness continues
 to depend on exact runtime/store identity, packaged release, brake, service
 policy, process identity, and signed health. Core and release-bundle checks,
 CultMesh 12/12, and supervisor 4/4 pass. The cut removes 1,005 net source lines.
@@ -882,12 +898,17 @@ Exact `6f93134d` makes the release bundle the sole package owner of every
 production entrypoint. Leaf libraries disable automatic binaries, Cargo
 metadata reports no multiply owned binary source, and the release builder's
 hardcoded shadow target map plus two self-affirming tests are gone. The
-packaged body now has 22 executable targets rather than 26. Exact `c04c3aff`
+packaged body reached 22 executable targets rather than 26. Exact `c04c3aff`
 collapses the five-reexport auth wrapper crate into the transport's narrow
 direct `codex-login` imports. Exact `ffcf036f` advances runtime spine to v7 and
 derives the constant native runtime kind instead of persisting it. Focused
 release construction passes 17/17; the three release-owned daemon targets and
 current runtime epoch checks compile and pass.
+
+Exact `03140a47` then deletes the packaged runtime-spine CLI and its duplicate
+Hello/catalog contract mirror, leaving 21 executable targets. Live providers
+own their CultMesh/CultNet catalogs; model preflight derives accepted document
+types from the real CultCache registration.
 
 Exact `8c20f896` reduces Substrate Gate from six advertised contract families to
 its one real immutable repo-access grant. Request, review, refusal, snapshot,

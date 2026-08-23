@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`ab1afc27`. The current sequence deletes the semantic-memory/workspace-coverage
+`03140a47`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -333,8 +333,9 @@ Cut in this order:
    `MindGatewayReview`, `MindStateCommitReceipt` v0, their generic interpreter
    prompt, runtime registration/read APIs, phantom thought/state-effect/public-
    adoption CultNet mouths, and stale launch receipt profiles are gone.
-   CultMesh and runtime schema catalogues expose only reasoning basis, decision
-   context, and exact Mind commit receipt as read-only audit projections.
+   CultMesh exposes reasoning basis, decision context, and exact Mind commit
+   receipt as read-only audit projections; no runtime schema-catalog mirror
+   survives.
 14. **Model-backed Planning failure repaired at `1c9aafd8`; generic role patch
    deleted at `e0e75a30`:** the runtime seals
    one exact terminal decision context before writing a typed frontier-Planning
@@ -513,6 +514,13 @@ Cut in this order:
    hardcoded package map that does not drive the build. Exact `b95a3266`
    separately deletes the superseded OpenAI debug executable; exact `c04c3aff`
    deletes the auth re-export crate.
+38. **Runtime document registration has one owner at `03140a47`:** the packaged
+   runtime-spine CLI, callerless Hello/schema-catalog writers, and hand-written
+   mutation-contract mirror are deleted. CultCache exact `fdbf3bf` exposes its
+   actual registered type identities; runtime status and model preflight read
+   that registry directly. Cargo has 21 executable targets and no duplicate
+   binary-source owner. Brokkr owns Unity editor capability through Eve/CultMesh;
+   a future Rider daemon owns Rider. Epiphany owns neither editor bridge.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
