@@ -28,7 +28,6 @@ ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "vendor/cultcache-rs" }
 cultmesh-rs = { path = "vendor/cultmesh-rs" }
 cultnet-rs = { path = "vendor/cultnet-rs" }
-ed25519-dalek = "2"
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
@@ -39,7 +38,6 @@ epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = tru
 http = "1"
 ignore = "0.4.23"
 postgres = "0.19"
-rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
 rmp-serde = "1"
 rmcp = { version = "2.2.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
@@ -51,7 +49,6 @@ tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "rt-m
 toml = "0.9"
 tracing = "0.1.44"
 uuid = { version = "1", features = ["serde", "v4"] }
-zeroize = "1"
 
 [features]
 openai-runtime = ["dep:epiphany-openai-runtime"]
@@ -60,12 +57,6 @@ release-runtime = ["openai-runtime", "tool-mcp-runtime"]
 
 [profile.release]
 incremental = true
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
@@ -88,10 +79,6 @@ path = "epiphany-core/src/bin/epiphany-state.rs"
 [[bin]]
 name = "epiphany-repository-body"
 path = "epiphany-core/src/bin/epiphany-repository-body.rs"
-
-[[bin]]
-name = "epiphany-host-identity"
-path = "epiphany-core/src/bin/epiphany-host-identity.rs"
 
 [[bin]]
 name = "epiphany-swarm"

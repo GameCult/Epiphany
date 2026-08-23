@@ -667,7 +667,7 @@ mod tests {
             provider: "bifrost".into(),
             bifrost_admission_receipt_id: "bifrost-receipt-1".into(),
             authority: "feedback_only".into(),
-            provider_identity_id: signer.entry().identity_id.clone(),
+            provider_identity_id: signer.identity_id().into(),
             provider_signature: Vec::new(),
         };
         admission.provider_signature = signer

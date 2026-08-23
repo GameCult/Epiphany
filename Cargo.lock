@@ -2001,7 +2001,6 @@ dependencies = [
  "ignore",
  "libc",
  "pretty_assertions",
- "rand_core 0.6.4",
  "rmp-serde",
  "semver",
  "serde",
@@ -2077,7 +2076,6 @@ dependencies = [
  "cultcache-rs",
  "cultmesh-rs",
  "cultnet-rs",
- "ed25519-dalek",
  "epiphany-core",
  "epiphany-model-adapter",
  "epiphany-openai-adapter",
@@ -2087,9 +2085,7 @@ dependencies = [
  "epiphany-tool-mcp-runtime",
  "http",
  "ignore",
- "libc",
  "postgres",
- "rand_core 0.6.4",
  "reqwest 0.13.4",
  "rmcp 2.2.0",
  "rmp-serde",
@@ -2102,8 +2098,6 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
- "windows-sys 0.59.0",
- "zeroize",
 ]
 
 [[package]]

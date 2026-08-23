@@ -123,13 +123,12 @@ pub use eyes_gateway::EyesSourceLookupReceipt;
 pub use eyes_gateway::eyes_evidence_packet_from_research_finding;
 pub use hands_gateway::*;
 pub use host_identity::{
-    HOST_IDENTITY_KEY, HOST_IDENTITY_SCHEMA_VERSION, HOST_IDENTITY_TRUST_ANCHOR_KEY,
-    HOST_IDENTITY_TRUST_ANCHOR_TYPE, HOST_IDENTITY_TYPE, HostIdentitySignature, HostIdentitySigner,
-    HostIdentityTrustAnchorEntry, HostIncarnationIdentityEntry, LINUX_HOST_IDENTITY_ASSURANCE,
-    WINDOWS_HOST_IDENTITY_ASSURANCE, default_host_identity_store_path,
-    enroll_default_host_identity, enroll_host_identity_at, export_host_identity_trust_anchor,
-    export_raw_host_identity_trust_anchor, open_default_host_identity, open_host_identity_at,
-    verify_host_identity_signature, verify_host_identity_trust_anchor_signature,
+    HOST_IDENTITY_TRUST_ANCHOR_TYPE, HostIdentitySignature, HostIdentityTrustAnchorEntry,
+    verify_host_identity_trust_anchor_signature,
+};
+#[cfg(test)]
+pub(crate) use host_identity::{
+    HostIdentitySigner, enroll_host_identity_at, export_host_identity_trust_anchor,
 };
 pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,

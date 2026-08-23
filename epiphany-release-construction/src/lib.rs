@@ -85,7 +85,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ("release-publisher", file_name("epiphany-release")),
         ("state-steward", file_name("epiphany-state")),
         ("repository-body", file_name("epiphany-repository-body")),
-        ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
         ("persona-service", file_name("epiphany-persona-service")),
         (
