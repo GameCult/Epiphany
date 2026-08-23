@@ -38,7 +38,6 @@ use crate::repo_model_gateway::{
     RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
     RepoFrontierPlanCandidate, RepoFrontierPlanDecision, RepoFrontierPlanDecisionReceipt,
     RepoFrontierPlanMindDecision, RepoFrontierPlanMindLaunchBinding, RepoFrontierPlanMindRequest,
-    RepoFrontierPlanningCandidateEligibility, RepoFrontierPlanningEligibility,
     RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
@@ -7056,7 +7055,7 @@ fn frontier_item_is_actionable_for_organ(
 /// Hands. Status projection must use this instead of assuming that a clear
 /// CRRC lane implies implementation authority.
 pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
-    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
+    runtime_has_actionable_frontier_for_organ(runtime_store, "Hands", true)
 }
 
 
@@ -7700,108 +7699,6 @@ fn repo_frontier_research_request_is_actionable(
     Ok(current_repo_frontier_research_request(cache, request)?.is_some())
 }
 
-/// Read-only Self signal for proposal planning. It uses the same eligibility
-/// predicate as the planning-request committer, including unchallenged target
-/// claims, so status cannot advertise authority that the commit path rejects.
-pub fn runtime_has_actionable_imagination_frontier(
-    runtime_store: impl AsRef<Path>,
-) -> Result<bool> {
-    let eligibility = runtime_repo_frontier_planning_eligibility(runtime_store)?;
-    Ok(eligibility.current_model_count == 1
-        && eligibility
-            .candidates
-            .iter()
-            .any(|candidate| candidate.eligible))
-}
-
-/// Read-only Self signal explaining the exact canonical blockers on every
-/// active Imagination frontier. It derives from the same admitted RepoModel,
-/// current claim-challenge set, repository-scope predicate, and dependency rule as
-/// planning selection; it neither creates nor repairs authority.
-pub fn runtime_repo_frontier_planning_eligibility(
-    runtime_store: impl AsRef<Path>,
-) -> Result<RepoFrontierPlanningEligibility> {
-    let runtime_store = runtime_store.as_ref();
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let Ok((view, basis)) = current_keyed_repo_model(&cache) else {
-        return Ok(RepoFrontierPlanningEligibility {
-            current_model_count: 0,
-            candidates: Vec::new(),
-        });
-    };
-    let model = view.memory_context_projection();
-    let model_count = 1;
-    let challenges = current_repo_model_claim_challenges(&cache, &model, &basis)?;
-    let terminal = |status: crate::RepoFrontierStatus| {
-        matches!(
-            status,
-            crate::RepoFrontierStatus::Resolved
-                | crate::RepoFrontierStatus::Retired
-                | crate::RepoFrontierStatus::Superseded
-        )
-    };
-    let mut candidates = model
-        .frontier
-        .iter()
-        .filter(|item| {
-            matches!(
-                item.status,
-                crate::RepoFrontierStatus::Active | crate::RepoFrontierStatus::Proposed
-            ) && item
-                .recommended_next_organ
-                .eq_ignore_ascii_case("Imagination")
-        })
-        .map(|item| {
-            let status_valid = item.status == crate::RepoFrontierStatus::Active;
-            let recommended_next_organ_valid = item.recommended_next_organ == "Imagination";
-            let repository_scope_valid =
-                crate::memory_graph::frontier_item_has_routeable_repository_scope(item);
-            let mut challenged_target_claim_ids = challenges
-                .iter()
-                .filter(|challenge| item.target_claim_ids.contains(&challenge.target_claim_id))
-                .map(|challenge| challenge.target_claim_id.clone())
-                .collect::<Vec<_>>();
-            challenged_target_claim_ids.sort();
-            challenged_target_claim_ids.dedup();
-            let mut unresolved_dependency_item_ids = item
-                .dependency_item_ids
-                .iter()
-                .filter(|dependency_id| {
-                    !model
-                        .frontier
-                        .iter()
-                        .find(|candidate| candidate.id.as_str() == dependency_id.as_str())
-                        .is_some_and(|dependency| terminal(dependency.status))
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            unresolved_dependency_item_ids.sort();
-            unresolved_dependency_item_ids.dedup();
-            RepoFrontierPlanningCandidateEligibility {
-                frontier_item_id: item.id.clone(),
-                eligible: model_count == 1
-                    && status_valid
-                    && recommended_next_organ_valid
-                    && repository_scope_valid
-                    && challenged_target_claim_ids.is_empty()
-                    && unresolved_dependency_item_ids.is_empty(),
-                status_valid,
-                recommended_next_organ_valid,
-                repository_scope_valid,
-                challenged_target_claim_ids,
-                unresolved_dependency_item_ids,
-            }
-        })
-        .collect::<Vec<_>>();
-    candidates.sort_by(|a, b| a.frontier_item_id.cmp(&b.frontier_item_id));
-    Ok(RepoFrontierPlanningEligibility {
-        current_model_count: model_count,
-        candidates,
-    })
-}
-
 fn repo_frontier_planning_failure_review_id(result_id: &str) -> String {
     format!("repo-frontier-planning-failure-review-{result_id}")
 }
@@ -7980,7 +7877,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
                 ..empty(RepoFrontierPlanningLifecycleStage::Terminal)
             });
         }
-        if runtime_has_actionable_imagination_frontier(runtime_store)? {
+        if runtime_has_actionable_frontier_for_organ(runtime_store, "Imagination", true)? {
             return Ok(empty(RepoFrontierPlanningLifecycleStage::Ready));
         }
         let latest_terminal = decisions.iter().max_by(|a, b| {
@@ -8151,6 +8048,7 @@ pub fn runtime_repo_frontier_planning_lifecycle(
 fn runtime_has_actionable_frontier_for_organ(
     runtime_store: impl AsRef<Path>,
     organ: &str,
+    require_unchallenged_targets: bool,
 ) -> Result<bool> {
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
@@ -8160,12 +8058,18 @@ fn runtime_has_actionable_frontier_for_organ(
         return Ok(false);
     };
     let model = view.memory_context_projection();
-    let challenges = if organ == "Hands" {
+    let challenges = if require_unchallenged_targets {
         current_repo_model_claim_challenges(&cache, &model, &basis)?
     } else {
         Vec::new()
     };
-    Ok(actionable_frontier_item_for_organ(&model, &challenges, organ, organ == "Hands").is_some())
+    Ok(actionable_frontier_item_for_organ(
+        &model,
+        &challenges,
+        organ,
+        require_unchallenged_targets,
+    )
+    .is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
