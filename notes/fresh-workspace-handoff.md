@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `bda8d8c6`
-Current worktree: documentation/evidence for role-launch authority subtraction;
+Latest committed implementation cut: `5ed5ca88`
+Current worktree: documentation/evidence for typed-fulfillment API subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -1233,6 +1233,18 @@ owners compile; reasoning-context tests pass 8/8, and narrow Modeling request,
 typed failure, and repeated-tool-loop terminality proofs pass. Epiphany still
 owns no Rider or Unity editor integration: Brokkr owns Unity through
 CultMesh/Eve, and a future Rider daemon must own Rider.
+
+Exact `5ed5ca88` internalizes the typed-request fulfillment family. The request
+reference, worker-process status classifier, fulfillment function, typed
+attempt reader, and fulfillment evidence DTO had no external consumer. They
+are crate-only now; the DTO's unread request-ID echo and one helper-spelling
+status-class test are deleted. Exact job/result identity, live and archived
+structured-result validation, admission-refusal filtering, retry semantics,
+and Resident Self recovery remain. The cut removes 31 net source lines, two
+public runtime-spine functions, one public runtime-spine struct, and one test.
+`runtime_spine.rs` is 10,124 lines, with 61 public functions and 26 public
+structs. The core check is warning-free and the complete keyed
+Modeling/Research/Verification/Hands/Persona lifecycle proof passes.
 
 ## Competitive Eyes/Imagination pass
 

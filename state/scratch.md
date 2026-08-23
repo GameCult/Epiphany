@@ -168,7 +168,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    empty defaults, and the sealed reasoning basis already owns the exact typed
    Mind projection. Launch authority now carries only identity plus its
    family-specific context. The cut removes 255 net source lines.
-30. Next: resume the public runtime-spine and test-liability audit by live owner
+30. Done: exact `5ed5ca88` internalizes typed-request fulfillment. The request
+   reference, process-status classifier, fulfillment function, attempt reader,
+   and evidence DTO are crate-only; no external consumer existed. The DTO's
+   unread request-ID mirror and one helper-spelling classifier test are gone.
+   Exact job/result fulfillment, archive validation, refusal filtering, and
+   Resident Self recovery remain. The cut removes 31 net source lines, two
+   public functions, and one public struct.
+31. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant.
-31. Run focused tests after each cut. Only after source subtraction stabilizes
+32. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

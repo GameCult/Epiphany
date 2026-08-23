@@ -404,6 +404,16 @@ pass identity and family-specific authority; it cannot carry a second scratch,
 graph, planning, evidence, observation, invariant, checkpoint, or churn view.
 This removes 255 net source lines without changing the decision-context chain.
 
+Exact `5ed5ca88` makes typed-request fulfillment an internal runtime/Self
+primitive. Its request reference, worker-process status classifier,
+fulfillment/attempt functions, and evidence DTO have no external contract or
+consumer and are no longer public crate API. The evidence DTO returns only the
+job and result identities its admission callers consume; it no longer echoes
+the request identity they supplied. A unit test that only restated enum/helper
+classification spelling is gone. Exact live/archive result validation,
+admission-refusal filtering, retry classification, and resident-Self recovery
+remain covered by the keyed lifecycle consequence proof.
+
 Editor actuation is outside this machine. Epiphany may request provider-owned
 editor capabilities through CultMesh/Eve, but owns no Rider or Unity protocol,
 process, state, or verifier. Brokkr owns Unity. A future Rider daemon must own
