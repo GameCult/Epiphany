@@ -738,14 +738,22 @@ mapping helpers, and its one test: 338 net lines. Role lanes and coordinator
 routing now derive directly from exact current work. Focused coordinator/status
 checks pass; the operator thought-sealing test remains 1/1.
 
-Next audit the remaining scene and planning projections against their actual
-operator output. Preserve readable projections over typed Mind/current work;
-cut duplicated Mind payload, legacy state vocabulary, and tests that merely
-reconstruct their producer. Then inspect role-board/coordinator DTO overlap.
-Preserve cluster topology while it owns the runtime-bound Body domain and
-bootstrap evidence. Do not run a full-workspace compile, package, deployment,
-or Ox root until the subtraction audit closes. Never resume Ox10, Ox12, Ox13,
-Ox15, or Ox16.
+Exact `2ce91461` deletes the duplicate scene/planning Mind reconstructions,
+`epiphany-self-policy`, unused prompt templates, four counterfeit surface
+schemas, and ten tests that guarded producers or source text rather than a
+consequence: 1,723 net lines. Exact `78836f3b` deletes eight more unconsumed
+status tableaux, the pressure calculator production only invoked without
+telemetry, its unreachable compaction route, one counterfeit schema, and six
+tests: another 518 net lines. Status now contains Mind identity, exact current
+work, one action/reason decision, and readable role lanes. Core 356/356, status
+1/1, coordinator 8/8, and release construction 19/19 pass.
+
+Next audit every remaining `epiphany.surface.*` schema against a concrete typed
+producer and consumer. Delete catalog entries that merely describe historical
+status JSON. Preserve exact current work, the operator text projection, cluster
+topology, and the four consequence-bearing supervisor tests. Do not run a
+full-workspace compile, package, deployment, or Ox root until subtraction
+closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

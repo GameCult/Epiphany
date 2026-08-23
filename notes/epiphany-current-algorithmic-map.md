@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `7c9b0cf3` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `78836f3b` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -53,11 +53,15 @@ recommendation algorithm. Typed runtime-result interpretation remains shared by
 current work and reorientation. The keyed status composer is the sole CRRC
 recommendation projection; its DTO does not confer routing authority.
 
-Status emits each projection once. It has no nested duplicate `view`, inert
-auxiliary-mode switch, ignored cwd/transcript flags, or fixed synthetic job
-table. Role lanes derive directly from exact current-work obligations; they do
-not borrow authority or decoration from invented Body/RepoModel/Verification
-jobs. The operator thought-sealing boundary remains tested.
+Status projects only Mind identity, exact current work, one coordinator
+action/reason pair, and operator-readable role lanes. It has no nested duplicate
+`view`, inert auxiliary mode, ignored arguments, fixed synthetic jobs, second
+scene/planning Mind, or result/tool/pressure tableaux. Exact `2ce91461` and
+`78836f3b` remove 2,241 net lines and sixteen tests that guarded duplicate
+projections, unreachable pressure routing, manifest strings, or prompt keywords
+rather than a live consequence. Core 356/356, status 1/1, coordinator 8/8, and
+release construction 19/19 pass. The operator thought-sealing boundary remains
+tested.
 
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
@@ -130,7 +134,7 @@ interface authority.
 | `reasoning_context.rs` Mind commit owner | invariant-owned strong reads and complete typed writes | atomic batch CAS plus `EpiphanyMindCommitReceipt` | Disjoint identities merge; same-identity or changed-strong-read conflicts refuse without partial mutation. |
 | concrete family admission owners | sealed decision context, exact family request/result chain, affected semantic documents | one family-specific `MindMutation` | The model cannot choose which stale state is safe to ignore. |
 | `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
-| coordinator policy/status | current-work projections, Resident pressure, and exact runtime receipts | one prioritized recommendation and read-only operator views | Coordinator presence is derived; no mutable coordinator head exists. |
+| coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
 | model-provider boundary | sealed native model request plus explicit provider configuration and injected credential | exact internally derived provider request and transport result | Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
@@ -593,7 +597,7 @@ autonomous scheduling remain forbidden until their owning gates pass.
 - `epiphany-core/src/runtime_spine.rs`
 - `epiphany-core/src/resident_self.rs`
 - `epiphany-core/src/reorientation_work.rs`
-- `epiphany-core/src/surfaces/coordinator.rs`
+- `epiphany-core/src/surfaces/coordinator_decision.rs`
 - `epiphany-core/src/surfaces/worker_launch.rs`
 - `epiphany-openai-runtime/src/lib.rs`
 - `epiphany-openai-runtime/src/persona_executor.rs`
