@@ -193,8 +193,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    deleting the duplicate Atlas-specific offer/claim write intents, commit APIs,
    registry entries, and two tests. Modeling/RepoModel is the sole offer/claim
    author. Runtime epoch is v14; 593 net source lines are gone.
-34. Next: resume the public runtime-spine and test-liability audit by live owner
+34. Done: exact `5d507bfd` reduces the autonomous Imagination-to-Modeling origin
+   binding from 22 duplicate fields to six causal join fields. Owning proposal,
+   request, result, worker, Body, domain, and Modeling documents now supply the
+   values the binding previously mirrored. Runtime epoch is v15; 60 net source
+   lines are gone.
+35. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
-   streamline it around its one end-to-end authority map.
-35. Run focused tests after each cut. Only after source subtraction stabilizes
+   no inter-swarm collaboration has yet been exercised. Streamline it only
+   around its one end-to-end authority map.
+36. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

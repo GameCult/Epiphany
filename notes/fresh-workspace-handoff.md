@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ce306e23`
-Current worktree: documentation/evidence for Atlas authoring subtraction;
+Latest committed implementation cut: `5d507bfd`
+Current worktree: documentation/evidence for autonomous-proposal binding subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `5b799b12` is the current
+production symlink body and is inactive. Exact `5d507bfd` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -45,6 +45,16 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
+Exact `5d507bfd` reduces Self's autonomous Imagination-to-Modeling origin
+binding from 22 duplicate fields to six causal join fields: schema, exact
+direction-result identity, selected option ordinal, worker job identity, and
+exact worker-result/launch digests. Proposal identity and payload, direction
+request, runtime/thread, typed projection, Body/domain binding, option content,
+and canonical Modeling-request identity are now checked directly from their
+owning immutable documents. Atomic promotion and the broad keyed lifecycle
+remain proven. The cut removes 60 net source lines and advances runtime writable
+state to v15.
+
 Exact `ce306e23` preserves Model Atlas for the still-open inter-swarm
 collaboration trial while deleting its second local offer/claim author. Ordinary
 Modeling through keyed RepoModel operations now solely creates, deprecates,
@@ -57,7 +67,8 @@ only animated that duplicate authority are gone. The retained runtime proof
 now creates its offer and claim through RepoModel before exercising exact Soul
 verification and Body-drift refusal. The cut removes 593 net source lines,
 advances runtime writable state to v14, and leaves the three-repository
-direct/transitive Modeling proof passing. No Gate 1 run was started.
+direct/transitive Modeling proof passing. No Gate 1 run was started; no live
+inter-swarm collaboration has yet been tested.
 
 Exact `a276d0f4` collapses the generic public `host_identity` module into its
 sole production consumer, Bifrost Persona-feedback admission. CultNet now owns
@@ -1339,9 +1350,9 @@ projection should fossilize its layout into shared truth.
   readiness. Its current Idunn observation is diagnostic-only rather than a
   lifecycle-authenticated admission. Frozen private Ox12 must prove
   Persona effects and exact context without emitting public speech.
-- Model Atlas code and isolated proofs remain accepted. Signed Gate 1 sight,
-  brake freeze, autonomous cascade, partition exercise, and endurance remain
-  open.
+- Model Atlas code and isolated component proofs remain accepted. No live
+  inter-swarm collaboration has yet run. Signed Gate 1 sight, brake freeze,
+  autonomous cascade, partition exercise, and endurance remain open.
 - GitHub's August 2026 service incidents were external provider downtime. They
   do not count as Epiphany source-identity or grant failures; successful lookup
   and denial-before-network remain separately required evidence.

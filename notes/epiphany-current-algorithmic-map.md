@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
-Updated: 2026-08-23
-Latest committed implementation cut: `ce306e23` on `codex/epiphany-shakedown-live`
-Current worktree cut: Atlas authoring/runtime-surface subtraction; Ox17 remains paused
+Updated: 2026-08-24
+Latest committed implementation cut: `5d507bfd` on `codex/epiphany-shakedown-live`
+Current worktree cut: autonomous-proposal binding subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -193,14 +193,24 @@ now enters through RepoModel before proving verification admission and stale
 Body refusal. Inter-swarm publication, projection, transport, wake, brakes, and
 Eve lowering remain intact for Gate 1.
 
+Those are component proofs, not evidence of collaboration. No live inter-swarm
+exchange has yet run. Atlas therefore remains an unspent vertical slice: future
+subtraction may remove duplicate ceremony around it, but must not narrow the
+publication, trust, transport, verification, admission, wake, brake, or Eve path
+before Gate 1 exercises the whole crossing.
+
 Proposal work has one source: an exact admitted Imagination direction result.
 Self atomically promotes that result into an inert proposal, its autonomous
 origin binding, and its Modeling request. Exact `900c5232` first deleted the
 callerless frontier-proposal executable. Exact `6e600e8d` then deleted the
 remaining generic writer, user input DTO, selector, and User/Persona/Bifrost
 source variants after rebuilding the broad lifecycle proof through the live
-Imagination chain. A proposal cannot exist without its exact direction request,
-worker launch/result, option digest, Body/domain binding, and Modeling request.
+Imagination chain. Exact `5d507bfd` then reduces the origin binding from 22
+mirrored fields to six causal join fields. A proposal still cannot exist without
+its exact direction request/result, worker launch/result, selected option,
+Body/domain binding, and canonical Modeling request; validation reads those
+facts from their owning immutable documents instead of copying them into the
+join record.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
@@ -805,7 +815,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `5b799b12`;
+1. let Idunn compile, test, and seal exact build-affecting source `5d507bfd`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context
