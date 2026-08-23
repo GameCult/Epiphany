@@ -227,6 +227,14 @@ authority ends at exact patch, command, and commit consequences. A real remote
 publication result enters as provider/Bifrost-owned evidence rather than an
 Epiphany-authored facsimile.
 
+Exact `25d4d1fa` deletes a second fictional Hands branch: the callerless route-
+relinquishment writer, its refusal receipt, its Mind receipt, and both schema
+registrations. No scheduler, coordinator, actuator, admission owner, or test
+consumed it. The live path is narrower: exact intent/review/grant authority,
+then patch/command/commit receipts, with the commit atomically creating the
+Verification request. Epiphany has no durable Hands-relinquishment lifecycle
+until a real consequence owner requires and verifies one.
+
 Hands also does not record operator-authored descriptions as if they were
 observed consequences. Exact `b78ffb25` deletes the callerless
 `epiphany-hands-action` recorder, its packaged role, command-description
@@ -317,7 +325,7 @@ interface authority.
 | runtime worker attempt owner | immutable launch, exact process claim, typed result, job result, archival evidence | one terminal attempt authority | Scheduling, process liveness, and semantic admission remain distinct authorities. |
 | model-provider boundary | sealed native model request plus explicit provider configuration and injected credential | exact internally derived provider request and transport result | Provider selection cannot author a second request truth or admit Mind state. |
 | OpenAI Responses schema projector | full native typed output schema | one provider-legal strict generation schema | Provider formatting preserves useful supported constraints but never replaces native decoding or Mind admission. |
-| model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/event in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
+| model-pass terminal owner | sealed reasoning basis/context and typed failure class | exact transport closure plus `EpiphanyModelPassFailure` and terminal session/job result in one batch CAS | The caller cannot nominate a job/session; the context-derived binding closes role, reorient, and Persona failures without granting generic transport results decision authority. |
 | Substrate Gate | exact worker/job authority and requested operation | scoped grant or refusal | Access permission does not admit Mind state. |
 | Eyes | explicit external-evidence obligation plus governed source receipts | typed evidence packet and Mind observations | Eyes gathers outside evidence; it does not gate Modeling over the Body. |
 | Modeling | Body basis, keyed RepoModel view, verified consequences, and explicit proposals | typed graph/frontier mutations | Modeling processes the Body directly and owns no external-source permission. |
@@ -355,8 +363,8 @@ Singleton semantic identities:
 
 Keyed semantic identities include subgoals, invariants, evidence, observations,
 checkpoints, planning items, Persona memories and social reads, Hands receipts,
-Verification audits, and RepoModel domains/nodes/edges/summaries/frontier/
-lifecycle receipts/per-claim obligation guards.
+Verification audits, RepoModel domains/nodes/edges/frontier items, and per-claim
+obligation guards.
 
 `EpiphanyMindView` and `EpiphanyRepoModelView` are deterministic assemblies of
 exact envelopes. Their projection digests identify a view for audit/display;

@@ -116,9 +116,14 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    Exact `79292fe3` makes one authenticated snapshot own route, binding,
    observation, and manifest validation; duplicate store reopens, a private
    scanner-session test, and fixture-wide route assertions are gone.
-19. Next: audit the 11,678-line `runtime_spine.rs` public surface by live
-   non-test caller, persisted document owner, and external consequence. Delete
-   callerless exports and duplicate store/validation paths without weakening
-   identity, terminality, audit, conflict/replay, or anti-resurrection proof.
-20. Run focused tests after each cut. Only after source subtraction stabilizes
+19. Done: audit the `runtime_spine.rs` public surface by live non-test caller,
+   persisted document owner, and external consequence. Exact `25d4d1fa`
+   deletes twenty-four callerless public functions, the tool-status DTO, and
+   the wholly unconsumed Hands route-relinquishment lifecycle: 800 source
+   lines with no replacement. The surviving keyed lifecycle still proves
+   atomic Hands-to-Verification admission and concurrent Persona/Hands writes.
+20. Next: delete the last callerless Hands receipt-chain reader, demote its
+   private summary cargo, then audit single-caller archive/status/retention
+   helpers against anti-resurrection and operator-sight consequences.
+21. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

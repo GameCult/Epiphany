@@ -1108,12 +1108,25 @@ snapshot. The private scanner-session spelling test and fixture-wide route
 assertions are gone; public Body behavior remains 22/22, reasoning context 8/8,
 RepoModel 5/5, Atlas runtime 2/2, and affected current-work proofs pass.
 
-The next cut audits `epiphany-core/src/runtime_spine.rs`. At 11,678 lines it is
-the largest remaining central liability. Inventory every public surface by
-non-test caller, persistent document, and external consequence; delete
-callerless readers/writers/DTOs and collapse repeated store paths while
-preserving immutable identity, exact job/session terminality, decision audit,
-conflict/replay, and retention that prevents resurrection.
+Exact `25d4d1fa` begins the runtime-spine cut. Twenty-four public functions had
+no caller in Epiphany, its live neighboring services, or its deployment/runtime
+body. Their read wrappers, mutation wrappers, status projections, exports, and
+tool-status DTO are gone. The audit also found a complete Hands
+route-relinquishment lifecycle—writer, refusal receipt, Mind receipt, schema
+registration, and prose—with no caller and no verifier; it is deleted rather
+than preserved as fictional safety. The live Hands owner remains the exact
+intent/review/grant and patch/command/commit receipt chain, whose commit
+atomically creates Verification work. The cut removes 800 source lines and adds
+three words of corrected live documentation. Core compiles without warnings;
+the focused keyed lifecycle proof passes, including concurrent Persona and
+Hands commits. `runtime_spine.rs` now has 10,990 lines, 73 public functions, and
+30 public structs.
+
+Continue there. Delete the last callerless Hands receipt-chain reader and
+demote its private summary cargo, then audit single-caller archive, status, and
+retention helpers. Preserve immutable identity, exact job/session terminality,
+decision audit, model/tool binding, atomic Hands-to-Verification admission,
+conflict/replay, and retention fences that prevent authority resurrection.
 
 ## Competitive Eyes/Imagination pass
 
