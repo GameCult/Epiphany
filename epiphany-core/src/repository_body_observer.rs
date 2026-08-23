@@ -1,7 +1,7 @@
 use crate::{
     EpiphanyRuntimeIdentity, EpiphanyRuntimeSwarmBinding, RUNTIME_IDENTITY_KEY,
     RUNTIME_IDENTITY_TYPE, RUNTIME_SPINE_SCHEMA_VERSION, RUNTIME_SWARM_BINDING_KEY,
-    RUNTIME_SWARM_BINDING_SCHEMA_VERSION, runtime_swarm_binding,
+    RUNTIME_SWARM_BINDING_SCHEMA_VERSION,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use cultcache_rs::{
@@ -236,6 +236,18 @@ pub enum ObserveOutcome {
     Unchanged(RepositoryBodyObservation),
 }
 
+struct AuthenticatedRepositoryBodyStore {
+    route: RuntimeRepositoryBodyStoreBinding,
+    entries: Vec<CultCacheEnvelope>,
+    binding: RepositoryBodyBinding,
+}
+
+struct AuthenticatedRepositoryBodySnapshot {
+    store: AuthenticatedRepositoryBodyStore,
+    observation: RepositoryBodyObservation,
+    manifest: RepositoryBodyManifest,
+}
+
 pub fn bind_repository_body(
     repo: &Path,
     store: &Path,
@@ -277,46 +289,28 @@ pub fn bind_repository_body(
 pub fn runtime_repository_body_store_binding(
     runtime_store: &Path,
 ) -> Result<Option<RuntimeRepositoryBodyStoreBinding>> {
-    if !runtime_store.exists() {
-        return Ok(None);
-    }
-    let entries = SingleFileMessagePackBackingStore::new(runtime_store).pull_all()?;
-    let Some(env) = find(
-        &entries,
-        RUNTIME_BODY_STORE_BINDING_TYPE,
-        RUNTIME_BODY_STORE_BINDING_KEY,
-    ) else {
-        return Ok(None);
-    };
-    let binding: RuntimeRepositoryBodyStoreBinding = decode(env)?;
-    validate_runtime_body_store_binding(runtime_store, &binding)?;
-    Ok(Some(binding))
+    Ok(load_authenticated_repository_body_store(runtime_store)?.map(|store| store.route))
 }
 
 pub fn observe_runtime_repository_body_basis(
     runtime_store: &Path,
 ) -> Result<RepositoryBodyObservationBasis> {
-    let route = runtime_repository_body_store_binding(runtime_store)?
+    let store = load_authenticated_repository_body_store(runtime_store)?
         .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let body_store = PathBuf::from(&route.body_store_path);
-    let entries = load_body_envelopes(&body_store)?;
-    let body_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
-    let body: RepositoryBodyBinding = decode(body_env)?;
     let observation = match observe_repository_body(
-        Path::new(&body.git_top_level),
-        &body_store,
+        Path::new(&store.binding.git_top_level),
+        Path::new(&store.route.body_store_path),
         runtime_store,
     )? {
         ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value,
     };
     let basis = RepositoryBodyObservationBasis {
         schema_version: BODY_SCHEMA_VERSION.into(),
-        workspace_id: body.workspace_id,
-        swarm_id: body.swarm_id,
-        runtime_id: body.runtime_id,
-        scope: body.scope,
-        body_binding_sha256: route.body_binding_sha256,
+        workspace_id: store.binding.workspace_id,
+        swarm_id: store.binding.swarm_id,
+        runtime_id: store.binding.runtime_id,
+        scope: store.binding.scope,
+        body_binding_sha256: store.route.body_binding_sha256,
         observation_id: observation.observation_id,
         generation: observation.generation,
         manifest_root_sha256: observation.manifest_root_sha256,
@@ -331,11 +325,12 @@ pub fn admit_repository_body_observation(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
 ) -> Result<crate::EpiphanyMindRepositoryBodyObservationDocument> {
-    validate_repository_body_observation_basis(runtime_store, basis)?;
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let source = find(&entries, BODY_OBSERVATION_TYPE, &basis.observation_id)
+    let snapshot = load_authenticated_repository_body_snapshot(runtime_store, basis)?;
+    let source = find(
+        &snapshot.store.entries,
+        BODY_OBSERVATION_TYPE,
+        &basis.observation_id,
+    )
         .ok_or_else(|| anyhow!("repository Body observation source is absent"))?;
     let source_observation =
         crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-repository-body", source)?;
@@ -383,32 +378,20 @@ pub fn current_mind_repository_body_observation(
 pub fn load_current_runtime_repository_body_basis(
     runtime_store: &Path,
 ) -> Result<RepositoryBodyObservationBasis> {
-    let route = runtime_repository_body_store_binding(runtime_store)?
+    let store = load_authenticated_repository_body_store(runtime_store)?
         .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let binding: RepositoryBodyBinding = decode(
-        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
-    )?;
     let head: RepositoryBodyHead = decode(
-        find(&entries, BODY_HEAD_TYPE, BODY_HEAD_KEY)
+        find(&store.entries, BODY_HEAD_TYPE, BODY_HEAD_KEY)
             .ok_or_else(|| anyhow!("runtime repository Body store has no current Body head"))?,
     )?;
-    let (observation, _) = validate_body_chain(&entries, &binding, &head)?;
-    if binding.runtime_id != route.runtime_id
-        || binding.swarm_id != route.swarm_id
-        || binding.workspace_id != route.workspace_id
-        || body_binding_sha256(&binding)? != route.body_binding_sha256
-    {
-        bail!("current repository Body basis disagrees with its authenticated runtime route");
-    }
+    let (observation, _) = validate_body_chain(&store.entries, &store.binding, &head)?;
     Ok(RepositoryBodyObservationBasis {
         schema_version: BODY_SCHEMA_VERSION.into(),
-        workspace_id: binding.workspace_id,
-        swarm_id: binding.swarm_id,
-        runtime_id: binding.runtime_id,
-        scope: binding.scope,
-        body_binding_sha256: route.body_binding_sha256,
+        workspace_id: store.binding.workspace_id,
+        swarm_id: store.binding.swarm_id,
+        runtime_id: store.binding.runtime_id,
+        scope: store.binding.scope,
+        body_binding_sha256: store.route.body_binding_sha256,
         observation_id: observation.observation_id,
         generation: observation.generation,
         manifest_root_sha256: observation.manifest_root_sha256,
@@ -421,34 +404,19 @@ pub fn load_repository_body_reasoning_projection(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
 ) -> Result<RepositoryBodyReasoningProjection> {
-    validate_repository_body_observation_basis(runtime_store, basis)?;
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let binding: RepositoryBodyBinding = decode(
-        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
-    )?;
-    let historical_head = RepositoryBodyHead {
-        schema_version: BODY_SCHEMA_VERSION.into(),
-        workspace_id: basis.workspace_id.clone(),
-        generation: basis.generation,
-        observation_id: basis.observation_id.clone(),
-        manifest_root_sha256: basis.manifest_root_sha256.clone(),
-    };
-    let (observation, manifest) = validate_body_chain(&entries, &binding, &historical_head)?;
+    let snapshot = load_authenticated_repository_body_snapshot(runtime_store, basis)?;
     Ok(RepositoryBodyReasoningProjection {
         basis: basis.clone(),
-        source_identity_type: binding.source_identity_type,
-        source_identity_key: binding.source_identity_key,
-        source_identity_sha256: binding.source_identity_sha256,
-        git_top_level: binding.git_top_level,
-        object_format: binding.object_format,
-        head_oid: observation.head_oid,
-        tree_oid: observation.tree_oid,
-        two_scan_outcome: observation.two_scan_outcome,
-        manifest_entry_count: observation.manifest_entry_count,
-        manifest_entries: manifest.entries,
+        source_identity_type: snapshot.store.binding.source_identity_type,
+        source_identity_key: snapshot.store.binding.source_identity_key,
+        source_identity_sha256: snapshot.store.binding.source_identity_sha256,
+        git_top_level: snapshot.store.binding.git_top_level,
+        object_format: snapshot.store.binding.object_format,
+        head_oid: snapshot.observation.head_oid,
+        tree_oid: snapshot.observation.tree_oid,
+        two_scan_outcome: snapshot.observation.two_scan_outcome,
+        manifest_entry_count: snapshot.observation.manifest_entry_count,
+        manifest_entries: snapshot.manifest.entries,
     })
 }
 
@@ -456,36 +424,7 @@ pub fn validate_repository_body_observation_basis(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
 ) -> Result<()> {
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    if basis.schema_version != BODY_SCHEMA_VERSION
-        || basis.runtime_id != route.runtime_id
-        || basis.swarm_id != route.swarm_id
-        || basis.workspace_id != route.workspace_id
-        || basis.body_binding_sha256 != route.body_binding_sha256
-        || basis.generation == 0
-        || basis.observation_id != format!("{}:{}", basis.workspace_id, basis.generation)
-    {
-        bail!("repository Body observation basis disagrees with its immutable runtime route");
-    }
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let binding_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
-    let binding: RepositoryBodyBinding = decode(binding_env)?;
-    let historical_head = RepositoryBodyHead {
-        schema_version: BODY_SCHEMA_VERSION.into(),
-        workspace_id: basis.workspace_id.clone(),
-        generation: basis.generation,
-        observation_id: basis.observation_id.clone(),
-        manifest_root_sha256: basis.manifest_root_sha256.clone(),
-    };
-    let (observation, _) = validate_body_chain(&entries, &binding, &historical_head)?;
-    if observation.scan_started_at != basis.scan_started_at
-        || observation.scan_finished_at != basis.scan_finished_at
-        || observation.scope != basis.scope
-    {
-        bail!("repository Body observation basis does not match its persisted observation");
-    }
+    load_authenticated_repository_body_snapshot(runtime_store, basis)?;
     Ok(())
 }
 
@@ -493,22 +432,7 @@ pub fn authenticated_repository_body_manifest(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
 ) -> Result<RepositoryBodyManifest> {
-    validate_repository_body_observation_basis(runtime_store, basis)?;
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let binding_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
-    let binding: RepositoryBodyBinding = decode(binding_env)?;
-    let historical_head = RepositoryBodyHead {
-        schema_version: BODY_SCHEMA_VERSION.into(),
-        workspace_id: basis.workspace_id.clone(),
-        generation: basis.generation,
-        observation_id: basis.observation_id.clone(),
-        manifest_root_sha256: basis.manifest_root_sha256.clone(),
-    };
-    let (_, manifest) = validate_body_chain(&entries, &binding, &historical_head)?;
-    Ok(manifest)
+    Ok(load_authenticated_repository_body_snapshot(runtime_store, basis)?.manifest)
 }
 pub fn observe_repository_body(
     repo: &Path,
@@ -1227,6 +1151,110 @@ fn validate_stored_binding(binding: &RepositoryBodyBinding) -> Result<()> {
     }
     Ok(())
 }
+
+fn load_authenticated_repository_body_store(
+    runtime_store: &Path,
+) -> Result<Option<AuthenticatedRepositoryBodyStore>> {
+    if !runtime_store.exists() {
+        return Ok(None);
+    }
+    let runtime_entries = SingleFileMessagePackBackingStore::new(runtime_store).pull_all()?;
+    let Some(route_env) = find(
+        &runtime_entries,
+        RUNTIME_BODY_STORE_BINDING_TYPE,
+        RUNTIME_BODY_STORE_BINDING_KEY,
+    ) else {
+        return Ok(None);
+    };
+    let route: RuntimeRepositoryBodyStoreBinding = decode(route_env)?;
+    if route.schema_version != BODY_SCHEMA_VERSION
+        || route.binding_id != RUNTIME_BODY_STORE_BINDING_KEY
+        || route.runtime_id.trim().is_empty()
+        || route.swarm_id.trim().is_empty()
+        || route.workspace_id.trim().is_empty()
+        || route.body_store_path.trim().is_empty()
+        || route.body_binding_sha256.trim().is_empty()
+    {
+        bail!("runtime repository Body-store binding is invalid");
+    }
+    let runtime = validate_runtime_binding_entries(&runtime_entries)?;
+    if route.runtime_id != runtime.runtime_id || route.swarm_id != runtime.swarm_id {
+        bail!("runtime repository Body-store binding disagrees with runtime identity");
+    }
+    let body_store = PathBuf::from(&route.body_store_path);
+    let canonical =
+        std::fs::canonicalize(&body_store).context("runtime repository Body store is missing")?;
+    if canonical.to_string_lossy() != route.body_store_path {
+        bail!("runtime repository Body-store locator is not canonical");
+    }
+    let entries = load_body_envelopes(&body_store)?;
+    let body_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
+    let binding: RepositoryBodyBinding = decode(body_env)?;
+    validate_stored_binding(&binding)?;
+    require_runtime_matches(&binding, &runtime)?;
+    if binding.workspace_id != route.workspace_id
+        || body_binding_sha256(&binding)? != route.body_binding_sha256
+    {
+        bail!("runtime repository Body-store binding hash collision");
+    }
+    Ok(Some(AuthenticatedRepositoryBodyStore {
+        route,
+        entries,
+        binding,
+    }))
+}
+
+fn load_authenticated_repository_body_snapshot(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+) -> Result<AuthenticatedRepositoryBodySnapshot> {
+    let store = load_authenticated_repository_body_store(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    if basis.schema_version != BODY_SCHEMA_VERSION
+        || basis.runtime_id != store.route.runtime_id
+        || basis.swarm_id != store.route.swarm_id
+        || basis.workspace_id != store.route.workspace_id
+        || basis.body_binding_sha256 != store.route.body_binding_sha256
+        || basis.generation == 0
+        || basis.observation_id != format!("{}:{}", basis.workspace_id, basis.generation)
+    {
+        bail!("repository Body observation basis disagrees with its immutable runtime route");
+    }
+    let historical_head = RepositoryBodyHead {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: basis.workspace_id.clone(),
+        generation: basis.generation,
+        observation_id: basis.observation_id.clone(),
+        manifest_root_sha256: basis.manifest_root_sha256.clone(),
+    };
+    let (observation, manifest) =
+        validate_body_chain(&store.entries, &store.binding, &historical_head)?;
+    if observation.scan_started_at != basis.scan_started_at
+        || observation.scan_finished_at != basis.scan_finished_at
+        || observation.scope != basis.scope
+    {
+        bail!("repository Body observation basis does not match its persisted observation");
+    }
+    Ok(AuthenticatedRepositoryBodySnapshot {
+        store,
+        observation,
+        manifest,
+    })
+}
+
+fn authenticate_runtime_body_store_binding(
+    runtime_store: &Path,
+    expected: &RuntimeRepositoryBodyStoreBinding,
+) -> Result<RuntimeRepositoryBodyStoreBinding> {
+    let loaded = load_authenticated_repository_body_store(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime lost repository Body-store binding"))?;
+    if loaded.route != *expected {
+        bail!("runtime repository Body-store binding changed during authentication");
+    }
+    Ok(loaded.route)
+}
+
 fn bind_runtime_body_store(
     runtime_store: &Path,
     body_store: &Path,
@@ -1258,8 +1286,7 @@ fn bind_runtime_body_store(
         if existing != binding {
             bail!("runtime repository Body-store immutable binding collision");
         }
-        validate_runtime_body_store_binding(runtime_store, &existing)?;
-        return Ok(existing);
+        return authenticate_runtime_body_store_binding(runtime_store, &existing);
     }
     if !backing.insert_entry_if_absent(envelope(
         RUNTIME_BODY_STORE_BINDING_TYPE,
@@ -1268,45 +1295,7 @@ fn bind_runtime_body_store(
     )?)? {
         bail!("runtime repository Body-store binding lost insert race; reload before retrying");
     }
-    validate_runtime_body_store_binding(runtime_store, &binding)?;
-    Ok(binding)
-}
-fn validate_runtime_body_store_binding(
-    runtime_store: &Path,
-    binding: &RuntimeRepositoryBodyStoreBinding,
-) -> Result<()> {
-    if binding.schema_version != BODY_SCHEMA_VERSION
-        || binding.binding_id != RUNTIME_BODY_STORE_BINDING_KEY
-        || binding.runtime_id.trim().is_empty()
-        || binding.swarm_id.trim().is_empty()
-        || binding.workspace_id.trim().is_empty()
-        || binding.body_store_path.trim().is_empty()
-        || binding.body_binding_sha256.trim().is_empty()
-    {
-        bail!("runtime repository Body-store binding is invalid");
-    }
-    let runtime = load_valid_runtime_binding(runtime_store)?;
-    if binding.runtime_id != runtime.runtime_id || binding.swarm_id != runtime.swarm_id {
-        bail!("runtime repository Body-store binding disagrees with runtime identity");
-    }
-    let body_store = PathBuf::from(&binding.body_store_path);
-    let canonical =
-        std::fs::canonicalize(&body_store).context("runtime repository Body store is missing")?;
-    if canonical.to_string_lossy() != binding.body_store_path {
-        bail!("runtime repository Body-store locator is not canonical");
-    }
-    let entries = load_body_envelopes(&body_store)?;
-    let env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
-    let body: RepositoryBodyBinding = decode(env)?;
-    validate_stored_binding(&body)?;
-    require_runtime_matches(&body, &runtime)?;
-    if body.workspace_id != binding.workspace_id
-        || body_binding_sha256(&body)? != binding.body_binding_sha256
-    {
-        bail!("runtime repository Body-store binding hash collision");
-    }
-    Ok(())
+    authenticate_runtime_body_store_binding(runtime_store, &binding)
 }
 pub(crate) fn body_binding_sha256(binding: &RepositoryBodyBinding) -> Result<String> {
     Ok(format!(
@@ -1360,8 +1349,21 @@ fn validate_body_chain(
     Ok((observation, manifest))
 }
 fn load_valid_runtime_binding(store: &Path) -> Result<EpiphanyRuntimeSwarmBinding> {
-    let binding = runtime_swarm_binding(store)?
-        .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?;
+    let entries = SingleFileMessagePackBackingStore::new(store).pull_all()?;
+    validate_runtime_binding_entries(&entries)
+}
+
+fn validate_runtime_binding_entries(
+    entries: &[CultCacheEnvelope],
+) -> Result<EpiphanyRuntimeSwarmBinding> {
+    let binding: EpiphanyRuntimeSwarmBinding = decode(
+        find(
+            entries,
+            EpiphanyRuntimeSwarmBinding::TYPE,
+            RUNTIME_SWARM_BINDING_KEY,
+        )
+            .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?,
+    )?;
     if binding.schema_version != RUNTIME_SWARM_BINDING_SCHEMA_VERSION
         || binding.binding_id != RUNTIME_SWARM_BINDING_KEY
         || binding.runtime_id.trim().is_empty()
@@ -1373,8 +1375,7 @@ fn load_valid_runtime_binding(store: &Path) -> Result<EpiphanyRuntimeSwarmBindin
     {
         bail!("runtime swarm binding is invalid");
     }
-    let envelopes = SingleFileMessagePackBackingStore::new(store).pull_all()?;
-    let identity_env = find(&envelopes, RUNTIME_IDENTITY_TYPE, RUNTIME_IDENTITY_KEY)
+    let identity_env = find(entries, RUNTIME_IDENTITY_TYPE, RUNTIME_IDENTITY_KEY)
         .ok_or_else(|| anyhow!("runtime swarm binding has no runtime identity"))?;
     let identity: EpiphanyRuntimeIdentity = decode(identity_env)?;
     if identity.schema_version != RUNTIME_SPINE_SCHEMA_VERSION
@@ -1495,13 +1496,6 @@ mod tests {
         )?;
         crate::bind_runtime_to_swarm(&runtime, swarm_id, "2026-07-15T00:00:01Z")?;
         bind_repository_body(repo, &store, &runtime, workspace)?;
-        let route = runtime_repository_body_store_binding(&runtime)?
-            .ok_or_else(|| anyhow!("runtime lost repository Body-store binding"))?;
-        assert_eq!(route.workspace_id, workspace);
-        assert_eq!(
-            PathBuf::from(route.body_store_path),
-            std::fs::canonicalize(&store)?
-        );
         Ok((store, runtime))
     }
     #[test]
@@ -1581,32 +1575,6 @@ mod tests {
                 .iter()
                 .any(|entry| entry.path == "tracked.txt")
         );
-        Ok(())
-    }
-    #[test]
-    fn equality_scans_share_one_private_index_session_and_remove_it() -> Result<()> {
-        let d = repo()?;
-        let state = tempfile::tempdir()?;
-        let (store, _) = bound(d.path(), state.path(), "workspace", "runtime", "swarm")?;
-        write(&d.path().join("tracked.txt"), "one")?;
-        run(d.path(), &["add", "."])?;
-        run(d.path(), &["commit", "-m", "seed"])?;
-        let opening = load_body_envelopes(&store)?;
-        let binding: RepositoryBodyBinding = decode(
-            find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-                .ok_or_else(|| anyhow!("test Body binding missing"))?,
-        )?;
-
-        let mut scanner = IsolatedTreeScanner::new(d.path(), true)?;
-        let temp = scanner.temp.clone();
-        let index = scanner.index.clone();
-        let first = scanner.scan(&binding)?;
-        assert!(Path::new(&index).is_file());
-        let second = scanner.scan(&binding)?;
-        assert_eq!(scanner.index, index);
-        assert_eq!(first, second);
-        drop(scanner);
-        assert!(!temp.exists());
         Ok(())
     }
     #[test]

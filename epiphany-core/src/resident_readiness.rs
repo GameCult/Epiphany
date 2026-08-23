@@ -746,7 +746,7 @@ fn model_provider_credential_ready(policy: &ResidentSelfPolicy) -> bool {
     }
 }
 
-#[cfg(any(unix, test))]
+#[cfg(unix)]
 fn unix_credential_mode_ready(mode: u32) -> bool {
     mode & 0o600 == 0o600 && mode & 0o077 == 0
 }
