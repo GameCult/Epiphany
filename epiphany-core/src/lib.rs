@@ -149,8 +149,6 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEI
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_TYPE;
@@ -182,8 +180,6 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_S
 pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_SURFACE_STATE_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EYES_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_GLOBAL_TIER;
@@ -191,16 +187,12 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_ACTION_GATE_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_INTERNAL_TIER;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_LOCAL_AREA_TIER;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_MIND_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
@@ -230,13 +222,9 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION
 pub use cultmesh_integration::EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SOUL_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_STATUS_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_STATUS_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE;
@@ -258,7 +246,6 @@ pub use cultmesh_integration::EpiphanyCultMeshBifrostGithubPublicationReceiptEnt
 pub use cultmesh_integration::EpiphanyCultMeshBifrostMetricsReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshClusterTopologyEntry;
-pub use cultmesh_integration::EpiphanyCultMeshContinuityContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshCoordinatorRunReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDaemonHeartbeatEventEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDaemonPokeIntentEntry;
@@ -272,14 +259,11 @@ pub use cultmesh_integration::EpiphanyCultMeshDaemonToolInvocationIntentEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDaemonToolInvocationReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDocuments;
 pub use cultmesh_integration::EpiphanyCultMeshEveSurfaceStateEntry;
-pub use cultmesh_integration::EpiphanyCultMeshEyesContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshGlobalRoomPolicyEntry;
 pub use cultmesh_integration::EpiphanyCultMeshHandsActionGateEntry;
-pub use cultmesh_integration::EpiphanyCultMeshHandsContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshManagedServicePolicyEntry;
-pub use cultmesh_integration::EpiphanyCultMeshMindContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshOdinAdvertisementEntry;
 pub use cultmesh_integration::EpiphanyCultMeshOperatorRunIntentEntry;
 pub use cultmesh_integration::EpiphanyCultMeshOperatorRunReceiptEntry;
@@ -291,9 +275,7 @@ pub use cultmesh_integration::EpiphanyCultMeshRepoWorkPublicProofEntry;
 pub use cultmesh_integration::EpiphanyCultMeshRepoWorkReadinessEntry;
 pub use cultmesh_integration::EpiphanyCultMeshRoleReviewEventEntry;
 pub use cultmesh_integration::EpiphanyCultMeshSemanticProjectionHealthEntry;
-pub use cultmesh_integration::EpiphanyCultMeshSoulContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshStatusEntry;
-pub use cultmesh_integration::EpiphanyCultMeshSubstrateGateContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshSwarmBrakeEntry;
 pub use cultmesh_integration::EpiphanyCultMeshVersePolicyEntry;
 pub use cultmesh_integration::EpiphanyCultMeshWeksaLoweringReceiptEntry;
@@ -320,7 +302,6 @@ pub use cultmesh_integration::epiphany_cultmesh_bifrost_github_publication_recei
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof;
-pub use cultmesh_integration::epiphany_cultmesh_continuity_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_intent_from_status;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_receipt_for_intent;
@@ -329,16 +310,10 @@ pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_from_stat
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
-pub use cultmesh_integration::epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::epiphany_cultmesh_hands_action_gate_from_summary_json;
-pub use cultmesh_integration::epiphany_cultmesh_hands_contracts;
-#[cfg(test)]
-pub use cultmesh_integration::epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_operator_snapshot_from_status_json;
 pub use cultmesh_integration::epiphany_cultmesh_role_review_event_from_summary_json;
-pub use cultmesh_integration::epiphany_cultmesh_soul_contracts;
-pub use cultmesh_integration::epiphany_cultmesh_substrate_gate_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_verse_policies;
 pub use cultmesh_integration::epiphany_local_verse_work_loop_summary;
 pub use cultmesh_integration::epiphany_service_execution_audit_report;
@@ -418,7 +393,6 @@ pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_github_publication
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_metrics_receipt;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_continuity_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_coordinator_run_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_heartbeat_event;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_poke_intent;
@@ -430,22 +404,17 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_status;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_action_gate;
-pub use cultmesh_integration::write_epiphany_cultmesh_hands_contracts;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_managed_service_policy;
-pub use cultmesh_integration::write_epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_intent;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_snapshot;
 pub use cultmesh_integration::write_epiphany_cultmesh_persona_speech_audit;
 pub use cultmesh_integration::write_epiphany_cultmesh_role_review_event;
 pub use cultmesh_integration::write_epiphany_cultmesh_semantic_projector_service_policy;
-pub use cultmesh_integration::write_epiphany_cultmesh_soul_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_status;
-pub use cultmesh_integration::write_epiphany_cultmesh_substrate_gate_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::write_epiphany_cultmesh_verse_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_weksa_lowering_receipt;

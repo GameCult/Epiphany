@@ -203,26 +203,6 @@ pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str 
     "epiphany.cultmesh.daemon_tool_invocation_receipt.v0";
 pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/daemon-tool-invocation-receipt/latest";
-pub const EPIPHANY_CULTMESH_MIND_CONTRACT_TYPE: &str = "epiphany.cultmesh.mind_contract";
-pub const EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.mind_contract.v0";
-pub const EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_TYPE: &str =
-    "epiphany.cultmesh.substrate_gate_contract";
-pub const EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.substrate_gate_contract.v0";
-pub const EPIPHANY_CULTMESH_EYES_CONTRACT_TYPE: &str = "epiphany.cultmesh.eyes_contract";
-pub const EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.eyes_contract.v0";
-pub const EPIPHANY_CULTMESH_HANDS_CONTRACT_TYPE: &str = "epiphany.cultmesh.hands_contract";
-pub const EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.hands_contract.v0";
-pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_TYPE: &str = "epiphany.cultmesh.soul_contract";
-pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.soul_contract.v0";
-pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str =
-    "epiphany.cultmesh.continuity_contract";
-pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.continuity_contract.v0";
 pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE: &str = "epiphany.cultmesh.bifrost_contract";
 pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.bifrost_contract.v0";
@@ -1857,174 +1837,6 @@ pub struct EpiphanyCultMeshDaemonToolInvocationReceiptEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.cultmesh.mind_contract",
-    schema = "EpiphanyCultMeshMindContractEntry"
-)]
-pub struct EpiphanyCultMeshMindContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.substrate_gate_contract",
-    schema = "EpiphanyCultMeshSubstrateGateContractEntry"
-)]
-pub struct EpiphanyCultMeshSubstrateGateContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.eyes_contract",
-    schema = "EpiphanyCultMeshEyesContractEntry"
-)]
-pub struct EpiphanyCultMeshEyesContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.hands_contract",
-    schema = "EpiphanyCultMeshHandsContractEntry"
-)]
-pub struct EpiphanyCultMeshHandsContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.soul_contract",
-    schema = "EpiphanyCultMeshSoulContractEntry"
-)]
-pub struct EpiphanyCultMeshSoulContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.continuity_contract",
-    schema = "EpiphanyCultMeshContinuityContractEntry"
-)]
-pub struct EpiphanyCultMeshContinuityContractEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub contract_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub document_type: String,
-    #[cultcache(key = 4)]
-    pub payload_schema_version: String,
-    #[cultcache(key = 5)]
-    pub authority: String,
-    #[cultcache(key = 6)]
-    pub operations: Vec<String>,
-    #[cultcache(key = 7)]
-    pub intent_document_types: Vec<String>,
-    #[cultcache(key = 8)]
-    pub receipt_document_types: Vec<String>,
-    #[cultcache(key = 9)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
     type = "epiphany.cultmesh.bifrost_contract",
     schema = "EpiphanyCultMeshBifrostContractEntry"
 )]
@@ -2425,12 +2237,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshDaemonToolCapabilityEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonToolInvocationIntentEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonToolInvocationReceiptEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION,
-    EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshSubstrateGateContractEntry => EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshEyesContractEntry => EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshHandsContractEntry => EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshSoulContractEntry => EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshContinuityContractEntry => EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostContractEntry => EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION,
@@ -5985,12 +5791,6 @@ pub fn seed_epiphany_local_verse_context(
             )?;
         }
     }
-    write_epiphany_cultmesh_mind_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_substrate_gate_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_eyes_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_hands_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_soul_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_continuity_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_bifrost_contracts(store_path, runtime_id.clone())?;
     Ok(())
 }
@@ -6052,41 +5852,43 @@ pub fn query_epiphany_local_verse_context(
     let daemon_tool_capabilities = Vec::new();
 
     let mut contract_summaries = Vec::new();
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_mind_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_substrate_gate_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_eyes_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_hands_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_soul_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_continuity_contracts(),
-        &mut contract_summaries,
-    )?;
-    collect_contract_summaries(
-        &node,
-        epiphany_cultmesh_bifrost_contracts(),
-        &mut contract_summaries,
-    )?;
+    contract_summaries.extend(
+        default_mind_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    contract_summaries.extend(
+        default_substrate_gate_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    contract_summaries.extend(
+        default_eyes_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    contract_summaries.extend(
+        default_hands_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    contract_summaries.extend(
+        default_soul_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    contract_summaries.extend(
+        default_continuity_cultnet_contracts()
+            .into_iter()
+            .map(IntoLocalVerseContractSummary::into_local_verse_summary),
+    );
+    for contract in epiphany_cultmesh_bifrost_contracts() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshBifrostContractEntry>(&contract.contract_id)?
+        {
+            contract_summaries.push(loaded.into_local_verse_summary());
+        }
+    }
 
     Ok(EpiphanyLocalVerseContext {
         schema_version: "epiphany.local_verse_context.v0".to_string(),
@@ -6235,75 +6037,34 @@ pub fn load_epiphany_cultmesh_daemon_tool_directory(
     Ok(Vec::new())
 }
 
-pub trait EpiphanyCultMeshContractSummarySource: DatabaseEntry {
-    fn contract_id(&self) -> &str;
-    fn verse_id(&self) -> &str;
-    fn authority(&self) -> &str;
-    fn document_type(&self) -> &str;
-    fn operations(&self) -> &[String];
-    fn receipt_document_types(&self) -> &[String];
+trait IntoLocalVerseContractSummary {
+    fn into_local_verse_summary(self) -> EpiphanyLocalVerseContractSummary;
 }
 
-macro_rules! impl_contract_summary_source {
+macro_rules! impl_local_verse_contract_summary {
     ($ty:ty) => {
-        impl EpiphanyCultMeshContractSummarySource for $ty {
-            fn contract_id(&self) -> &str {
-                &self.contract_id
-            }
-
-            fn verse_id(&self) -> &str {
-                &self.verse_id
-            }
-
-            fn authority(&self) -> &str {
-                &self.authority
-            }
-
-            fn document_type(&self) -> &str {
-                &self.document_type
-            }
-
-            fn operations(&self) -> &[String] {
-                &self.operations
-            }
-
-            fn receipt_document_types(&self) -> &[String] {
-                &self.receipt_document_types
+        impl IntoLocalVerseContractSummary for $ty {
+            fn into_local_verse_summary(self) -> EpiphanyLocalVerseContractSummary {
+                EpiphanyLocalVerseContractSummary {
+                    contract_id: self.contract_id,
+                    verse_id: self.verse_id,
+                    authority: self.authority,
+                    document_type: self.document_type,
+                    operations: self.operations,
+                    receipt_document_types: self.receipt_document_types,
+                }
             }
         }
     };
 }
 
-impl_contract_summary_source!(EpiphanyCultMeshMindContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshSubstrateGateContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshEyesContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshHandsContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshSoulContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshContinuityContractEntry);
-impl_contract_summary_source!(EpiphanyCultMeshBifrostContractEntry);
-
-fn collect_contract_summaries<T>(
-    node: &CultMeshNode,
-    contracts: Vec<T>,
-    out: &mut Vec<EpiphanyLocalVerseContractSummary>,
-) -> Result<()>
-where
-    T: EpiphanyCultMeshContractSummarySource,
-{
-    for contract in contracts {
-        if let Some(loaded) = node.get::<T>(contract.contract_id())? {
-            out.push(EpiphanyLocalVerseContractSummary {
-                contract_id: loaded.contract_id().to_string(),
-                verse_id: loaded.verse_id().to_string(),
-                authority: loaded.authority().to_string(),
-                document_type: loaded.document_type().to_string(),
-                operations: loaded.operations().to_vec(),
-                receipt_document_types: loaded.receipt_document_types().to_vec(),
-            });
-        }
-    }
-    Ok(())
-}
+impl_local_verse_contract_summary!(crate::MindCultNetContract);
+impl_local_verse_contract_summary!(crate::SubstrateGateCultNetContract);
+impl_local_verse_contract_summary!(crate::EyesCultNetContract);
+impl_local_verse_contract_summary!(crate::HandsCultNetContract);
+impl_local_verse_contract_summary!(crate::SoulCultNetContract);
+impl_local_verse_contract_summary!(crate::ContinuityCultNetContract);
+impl_local_verse_contract_summary!(EpiphanyCultMeshBifrostContractEntry);
 
 fn epiphany_cultmesh_operator_snapshot_key(snapshot_id: &str) -> String {
     format!("epiphany-local/operator-snapshot/{snapshot_id}")
@@ -7035,193 +6796,6 @@ pub(crate) fn write_legacy_provider_fixture(
     }
     node.flush()?;
     Ok(())
-}
-
-pub fn epiphany_cultmesh_mind_contracts() -> Vec<EpiphanyCultMeshMindContractEntry> {
-    default_mind_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshMindContractEntry {
-            schema_version: EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_mind_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshMindContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_mind_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_substrate_gate_contracts()
--> Vec<EpiphanyCultMeshSubstrateGateContractEntry> {
-    default_substrate_gate_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshSubstrateGateContractEntry {
-            schema_version: EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_substrate_gate_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshSubstrateGateContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_substrate_gate_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_eyes_contracts() -> Vec<EpiphanyCultMeshEyesContractEntry> {
-    default_eyes_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshEyesContractEntry {
-            schema_version: EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_eyes_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshEyesContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_eyes_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_hands_contracts() -> Vec<EpiphanyCultMeshHandsContractEntry> {
-    default_hands_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshHandsContractEntry {
-            schema_version: EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_hands_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshHandsContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_hands_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_soul_contracts() -> Vec<EpiphanyCultMeshSoulContractEntry> {
-    default_soul_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshSoulContractEntry {
-            schema_version: EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_soul_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshSoulContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_soul_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn epiphany_cultmesh_continuity_contracts() -> Vec<EpiphanyCultMeshContinuityContractEntry> {
-    default_continuity_cultnet_contracts()
-        .into_iter()
-        .map(|contract| EpiphanyCultMeshContinuityContractEntry {
-            schema_version: EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: contract.contract_id,
-            verse_id: contract.verse_id,
-            document_type: contract.document_type,
-            payload_schema_version: contract.payload_schema_version,
-            authority: contract.authority,
-            operations: contract.operations,
-            intent_document_types: contract.intent_document_types,
-            receipt_document_types: contract.receipt_document_types,
-            notes: contract.notes,
-        })
-        .collect()
-}
-
-pub fn write_epiphany_cultmesh_continuity_contracts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshContinuityContractEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for contract in epiphany_cultmesh_continuity_contracts() {
-        written.push(node.put(contract.contract_id.clone(), &contract)?);
-    }
-    node.flush()?;
-    Ok(written)
 }
 
 pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContractEntry> {
@@ -10229,156 +9803,6 @@ mod tests {
         assert!(unchanged.odin_advertisements.is_empty());
         assert!(unchanged.eve_surface_states.is_empty());
         assert!(unchanged.daemon_tool_capabilities.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn mind_contracts_use_verses_to_keep_state_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-mind-contracts.ccmp");
-        let written = write_epiphany_cultmesh_mind_contracts(&store, "epiphany-test")?;
-        assert_eq!(written.len(), 3);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let decision_context = node.get_required::<EpiphanyCultMeshMindContractEntry>(
-            "epiphany.mind.decision_context.snapshot",
-        )?;
-        let commit_receipt = node.get_required::<EpiphanyCultMeshMindContractEntry>(
-            "epiphany.mind.commit_receipt.snapshot",
-        )?;
-
-        assert_eq!(
-            decision_context.verse_id,
-            EPIPHANY_CULTMESH_INTERNAL_VERSE_ID
-        );
-        assert_eq!(decision_context.authority, "readOnly");
-        assert!(
-            decision_context
-                .notes
-                .iter()
-                .any(|note| note.contains("terminal native request"))
-        );
-        assert!(
-            commit_receipt
-                .notes
-                .iter()
-                .any(|note| note.contains("concrete invariant owner"))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn substrate_gate_contracts_use_verses_to_keep_repo_access_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-substrate-gate-contracts.ccmp");
-        let written = write_epiphany_cultmesh_substrate_gate_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 4);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let repo_access = node.get_required::<EpiphanyCultMeshSubstrateGateContractEntry>(
-            "epiphany.substrate_gate.repo_access.review",
-        )?;
-
-        assert_eq!(repo_access.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(repo_access.authority, "substrateGate");
-        assert!(
-            repo_access
-                .notes
-                .iter()
-                .any(|note| note.contains("repo access protocol"))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn eyes_contracts_use_verses_to_keep_evidence_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-eyes-contracts.ccmp");
-        let written = write_epiphany_cultmesh_eyes_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 4);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let evidence = node
-            .get_required::<EpiphanyCultMeshEyesContractEntry>("epiphany.eyes.evidence.review")?;
-
-        assert_eq!(evidence.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(evidence.authority, "eyes");
-        assert!(
-            evidence
-                .notes
-                .iter()
-                .any(|note| note.contains("evidence ingress guardian"))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn hands_contracts_use_verses_to_keep_action_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-hands-contracts.ccmp");
-        let written = write_epiphany_cultmesh_hands_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 5);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let action = node
-            .get_required::<EpiphanyCultMeshHandsContractEntry>("epiphany.hands.action.review")?;
-
-        assert_eq!(action.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(action.authority, "hands");
-        assert!(
-            action
-                .notes
-                .iter()
-                .any(|note| note.contains("action organ"))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn soul_contracts_use_verses_to_keep_verification_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-soul-contracts.ccmp");
-        let written = write_epiphany_cultmesh_soul_contracts(&store, "epiphany-test")?;
-        assert!(written.len() >= 5);
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let verification = node.get_required::<EpiphanyCultMeshSoulContractEntry>(
-            "epiphany.soul.verification.review",
-        )?;
-
-        assert_eq!(verification.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(verification.authority, "soul");
-        assert!(
-            verification
-                .notes
-                .iter()
-                .any(|note| note.contains("verification organ"))
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn continuity_contracts_use_verses_to_keep_continuity_guarded() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-continuity-contracts.ccmp");
-        let written = write_epiphany_cultmesh_continuity_contracts(&store, "epiphany-test")?;
-        assert!(written.iter().all(|contract| {
-            contract.document_type != "epiphany.continuity.sleep_distillation"
-        }));
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let continuity = node.get_required::<EpiphanyCultMeshContinuityContractEntry>(
-            "epiphany.continuity.review",
-        )?;
-
-        assert_eq!(continuity.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(continuity.authority, "continuity");
-        assert!(
-            continuity
-                .notes
-                .iter()
-                .any(|note| note.contains("deterministic protocol surface"))
-        );
         Ok(())
     }
 
