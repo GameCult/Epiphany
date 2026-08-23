@@ -277,11 +277,6 @@ fn pinned_packaged_release(
 }
 
 fn managed_service_task_action(args: &Args) -> Result<(PathBuf, PathBuf, Vec<String>)> {
-    if args.service_command.is_some() {
-        anyhow::bail!(
-            "managed-service task command comes from --release-id; --service-command is forbidden"
-        );
-    }
     let (release, witness_digest) = pinned_packaged_release(args, false)?;
     let command = fs::canonicalize(epiphany_packaged_release_binary_path(
         &release,
@@ -799,7 +794,7 @@ fn publish_managed_service_iteration_health(
         else {
             continue;
         };
-        if !policy.enabled || policy.restart_mode == "never" {
+        if !policy.enabled {
             continue;
         }
         match managed_service_lineage(args, release, policy) {
@@ -1492,19 +1487,16 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
     });
     let policy = EpiphanyCultMeshManagedServicePolicyEntry {
         schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
-        policy_id: args
-            .policy_id
-            .clone()
-            .unwrap_or_else(|| format!("managed-service-policy-{}", sanitize_id(&args.service_id))),
+        policy_id: format!("managed-service-policy-{}", sanitize_id(&args.service_id)),
         service_id: args.service_id.clone(),
         owner_daemon_id: "epiphany-daemon-supervisor".to_string(),
         command: command.display().to_string(),
         args: args.service_args.clone(),
         cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
         enabled: !args.disabled,
-        restart_mode: args.restart_mode.clone(),
+        restart_mode: "always".to_string(),
         cooldown_seconds: args.cooldown_seconds,
-        backoff_multiplier: args.backoff_multiplier,
+        backoff_multiplier: 1,
         stdout_artifact: stdout_artifact.display().to_string(),
         stderr_artifact: stderr_artifact.display().to_string(),
         updated_at_utc: Utc::now().to_rfc3339(),
@@ -1554,11 +1546,6 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
 }
 
 fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
-    if args.service_command.is_some() {
-        anyhow::bail!(
-            "semantic-projector-service-policy derives its packaged executable; --service-command is forbidden"
-        );
-    }
     let runtime_store = args
         .runtime_store
         .as_ref()
@@ -1572,10 +1559,6 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         .as_deref()
         .context("semantic-projector-service-policy requires --ollama-base-url")?;
     args.service_id = SEMANTIC_PROJECTOR_SERVICE_ID.to_string();
-    args.policy_id = Some(format!(
-        "managed-service-policy-{SEMANTIC_PROJECTOR_SERVICE_ID}"
-    ));
-    args.restart_mode = "always".to_string();
     args.service_command = Some(packaged_role_command_path(&args, "semantic-projector")?);
     args.service_args = semantic_projector_service_args(
         runtime_store,
@@ -1593,11 +1576,6 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
 }
 
 fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
-    if args.service_command.is_some() {
-        anyhow::bail!(
-            "workspace-coverage-projector-service-policy derives its packaged executable; --service-command is forbidden"
-        );
-    }
     let runtime_store = args
         .runtime_store
         .as_ref()
@@ -1611,10 +1589,6 @@ fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
         .as_deref()
         .context("workspace-coverage-projector-service-policy requires --ollama-base-url")?;
     args.service_id = WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string();
-    args.policy_id = Some(format!(
-        "managed-service-policy-{WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID}"
-    ));
-    args.restart_mode = "always".to_string();
     args.service_command = Some(packaged_role_command_path(
         &args,
         "workspace-coverage-projector",
@@ -1754,7 +1728,7 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
             observation = ProcessObservation::Missing;
         }
     }
-    if !policy.enabled || policy.restart_mode == "never" {
+    if !policy.enabled {
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -1776,24 +1750,6 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
                 "status": "observed-alive",
                 "serviceId": policy.service_id,
                 "processId": latest.as_ref().and_then(|receipt| receipt.process_id),
-                "processObservation": observation.label(),
-                "restarted": false,
-                "privateStateExposed": false,
-            }))?
-        );
-        return Ok(());
-    }
-    if policy.restart_mode == "on-failure"
-        && latest.as_ref().is_some_and(|receipt| {
-            receipt.status == "completed" && receipt.exit_code.unwrap_or_default() == 0
-        })
-    {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
-                "status": "completed-no-restart",
-                "serviceId": policy.service_id,
                 "processObservation": observation.label(),
                 "restarted": false,
                 "privateStateExposed": false,
@@ -1856,7 +1812,7 @@ fn reconcile_workspace_coverage_projector(
     mut args: Args,
     policy: EpiphanyCultMeshManagedServicePolicyEntry,
 ) -> Result<()> {
-    if !policy.enabled || policy.restart_mode == "never" {
+    if !policy.enabled {
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -2632,26 +2588,21 @@ fn service_lifecycle_receipt(
     completed_at: Option<DateTime<Utc>>,
     operator_artifact_ref: Option<String>,
 ) -> EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
-    let receipt_id = args.receipt_id.clone().unwrap_or_else(|| {
-        let base = format!(
-            "daemon-service-lifecycle-receipt-{}-{}",
-            sanitize_id(&args.service_id),
-            sanitize_id(action)
-        );
-        format!(
-            "{base}-{}-{}",
-            started_at.timestamp_millis(),
-            Uuid::new_v4()
-        )
-    });
+    let receipt_id = format!(
+        "daemon-service-lifecycle-receipt-{}-{}-{}-{}",
+        sanitize_id(&args.service_id),
+        sanitize_id(action),
+        started_at.timestamp_millis(),
+        Uuid::new_v4()
+    );
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
         schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
             .to_string(),
         receipt_id,
         service_id: args.service_id.clone(),
-        scheduler_id: args.scheduler_id.clone(),
+        scheduler_id: "epiphany-daemon-supervisor".to_string(),
         runtime_id: args.runtime_id.clone(),
-        daemon_selector: args.daemon_id.clone(),
+        daemon_selector: "*".to_string(),
         action: action.to_string(),
         status: status.to_string(),
         command,
@@ -2661,22 +2612,15 @@ fn service_lifecycle_receipt(
         exit_code,
         started_at_utc: started_at.to_rfc3339(),
         completed_at_utc: completed_at.map(|instant| instant.to_rfc3339()),
-        operator_artifact_ref: operator_artifact_ref
-            .or_else(|| args.artifact_ref.clone())
-            .unwrap_or_else(|| {
-                format!(
-                    "service://{}/{}",
-                    sanitize_id(&args.service_id),
-                    sanitize_id(action)
-                )
-            }),
+        operator_artifact_ref: operator_artifact_ref.unwrap_or_else(|| {
+            format!(
+                "service://{}/{}",
+                sanitize_id(&args.service_id),
+                sanitize_id(action)
+            )
+        }),
         private_state_exposed: false,
-        notes: vec![
-            "Daemon service lifecycle receipt records operator-safe service plan or launch state."
-                .to_string(),
-            "The service command may run the supervisor serve loop, but scheduler decisions remain typed local Verse receipts."
-                .to_string(),
-        ],
+        notes: vec!["Idunn observed this managed-service lifecycle consequence.".to_string()],
         executable_sha256: String::new(),
         schema_catalog_sha256: String::new(),
         preflight_witness_id: String::new(),
@@ -2930,23 +2874,17 @@ struct Args {
     command: String,
     store: PathBuf,
     runtime_id: String,
-    daemon_id: String,
     cwd: Option<PathBuf>,
     force: bool,
     disabled: bool,
     cooldown_seconds: i64,
-    backoff_multiplier: u32,
-    policy_id: Option<String>,
-    scheduler_id: String,
     service_id: String,
     service_name: Option<String>,
-    restart_mode: String,
     service_command: Option<PathBuf>,
     service_args: Vec<String>,
     loop_interval_seconds: i64,
     max_iterations: u64,
     receipt_id: Option<String>,
-    artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
     stderr_artifact: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
@@ -2978,23 +2916,17 @@ impl Args {
         let mut store = PathBuf::from(".epiphany-run/cultmesh/local-verse.ccmp");
         let mut store_explicit = false;
         let mut runtime_id = "epiphany-local".to_string();
-        let mut daemon_id = None;
         let mut cwd = None;
         let mut force = false;
         let mut disabled = false;
         let mut cooldown_seconds = 0_i64;
-        let mut backoff_multiplier = 1_u32;
-        let mut policy_id = None;
-        let mut scheduler_id = "epiphany-daemon-supervisor".to_string();
-        let mut service_id = "epiphany-daemon-supervisor-service".to_string();
+        let service_id = String::new();
         let mut service_name = None;
-        let mut restart_mode = "on-failure".to_string();
-        let mut service_command = None;
-        let mut service_args = Vec::new();
+        let service_command = None;
+        let service_args = Vec::new();
         let mut loop_interval_seconds = 60_i64;
         let mut max_iterations = 0_u64;
         let mut receipt_id = None;
-        let mut artifact_ref = None;
         let mut stdout_artifact = None;
         let mut stderr_artifact = None;
         let mut runtime_store = None;
@@ -3027,9 +2959,6 @@ impl Args {
                 "--runtime-id" => {
                     runtime_id = values.next().context("missing --runtime-id value")?
                 }
-                "--daemon-id" => {
-                    daemon_id = Some(values.next().context("missing --daemon-id value")?)
-                }
                 "--cwd" => cwd = Some(PathBuf::from(values.next().context("missing --cwd value")?)),
                 "--force" => force = true,
                 "--disabled" => disabled = true,
@@ -3039,34 +2968,8 @@ impl Args {
                         .context("missing --cooldown-seconds value")?
                         .parse()?;
                 }
-                "--backoff-multiplier" => {
-                    backoff_multiplier = values
-                        .next()
-                        .context("missing --backoff-multiplier value")?
-                        .parse()?;
-                }
-                "--policy-id" => {
-                    policy_id = Some(values.next().context("missing --policy-id value")?)
-                }
-                "--scheduler-id" => {
-                    scheduler_id = values.next().context("missing --scheduler-id value")?
-                }
-                "--service-id" => {
-                    service_id = values.next().context("missing --service-id value")?
-                }
                 "--service-name" => {
                     service_name = Some(values.next().context("missing --service-name value")?)
-                }
-                "--restart-mode" => {
-                    restart_mode = values.next().context("missing --restart-mode value")?;
-                }
-                "--service-command" => {
-                    service_command = Some(PathBuf::from(
-                        values.next().context("missing --service-command value")?,
-                    ));
-                }
-                "--service-arg" | "--service-args" => {
-                    service_args.push(values.next().context("missing --service-arg value")?);
                 }
                 "--loop-interval-seconds" | "--serve-interval-seconds" => {
                     loop_interval_seconds = values
@@ -3082,9 +2985,6 @@ impl Args {
                 }
                 "--receipt-id" => {
                     receipt_id = Some(values.next().context("missing --receipt-id value")?)
-                }
-                "--artifact-ref" => {
-                    artifact_ref = Some(values.next().context("missing --artifact-ref value")?);
                 }
                 "--stdout-artifact" => {
                     stdout_artifact = Some(PathBuf::from(
@@ -3219,12 +3119,8 @@ impl Args {
             ));
         }
 
-        let daemon_id = daemon_id.unwrap_or_else(|| "*".to_string());
         if loop_interval_seconds < 0 {
             anyhow::bail!("--loop-interval-seconds must be non-negative");
-        }
-        if !matches!(restart_mode.as_str(), "always" | "on-failure" | "never") {
-            anyhow::bail!("--restart-mode must be always, on-failure, or never");
         }
         if matches!(
             command.as_str(),
@@ -3271,23 +3167,17 @@ impl Args {
             command,
             store,
             runtime_id,
-            daemon_id,
             cwd,
             force,
             disabled,
             cooldown_seconds,
-            backoff_multiplier,
-            policy_id,
-            scheduler_id,
             service_id,
             service_name,
-            restart_mode,
             service_command,
             service_args,
             loop_interval_seconds,
             max_iterations,
             receipt_id,
-            artifact_ref,
             stdout_artifact,
             stderr_artifact,
             runtime_store,
