@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `5b799b12`
-Current worktree: Ox16 scope-authority reconciliation and Ox17 preparation
+Latest committed implementation cut: `39dd9fdb`
+Current worktree: heartbeat concurrency-domain audit; Ox17 remains paused
 
 ## Orientation
 
@@ -480,10 +480,25 @@ their obsolete tests are gone. Modeling retrieval now derives only live
 RepoArchitecture/RepoDataflow documents from the complete exact keyed
 RepoModel basis. Native core check passes and the library suite passes 472/472.
 
-Next delete heartbeat personality/rumination `selfPatch` consumers, then the
-aggregate agent-memory identity/generation store they alone preserve. Do not
-run a full-workspace compile, package, deployment, or Ox root until the
-subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
+Exact `d1685df8` deletes heartbeat aggregate cognition: personality/mood timing,
+appraisal, rumination, dreaming, the void routine, and its memory graph. Exact
+`39dd9fdb` deletes the remaining agent-memory identity/generation store, the
+64-float utterance vector, generic `selfPatch` decoding/admission, the phantom
+sleep-distillation contract, stale aggregate/thread schemas, and nine more
+constructor/static-vector tests. Native role ingress now refuses unknown model
+cargo instead of accepting forbidden identity and silently ignoring it. Core
+passes 455/455 and the provider runtime passes 27/27. The obsolete repository-
+local Cargo target was 2.5 GiB and was removed; compilation remains in the
+shared target.
+
+Next map every writer of the heartbeat singleton. Scheduling fields currently
+share one CAS identity with pending Persona mentions, Persona turn requests,
+blocked social pressure, and Persona retention state. Split those collection
+members by semantic identity so Persona transport cannot contend with unrelated
+organ scheduling, and decide whether Ghostlight scene scheduling belongs in
+Epiphany. Do not run a full-workspace compile, package, deployment, or Ox root
+until the subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or
+Ox16.
 
 ## Operational state that matters
 

@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `5b799b12` on `codex/epiphany-shakedown-live`
-Current worktree cut: Ox16 scope-authority reconciliation and Ox17 preparation
+Latest committed implementation cut: `39dd9fdb` on `codex/epiphany-shakedown-live`
+Current worktree cut: heartbeat concurrency-domain audit; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -278,6 +278,21 @@ These are distinct authorities and must not be collapsed into one state enum:
 The attempt aggregate centralizes exact request association and typed terminal
 classification. Archived fulfilled attempts must retain recoverable decision
 authority, not merely an ID/digest tombstone.
+
+Heartbeat is scheduling physiology only. Exact `d1685df8` deletes its
+personality, appraisal, rumination, dreaming, void-routine cognition, and
+memory-graph paths. Exact `39dd9fdb` deletes the parallel agent-memory
+identity/generation store, utterance vector, and generic self-patch admission.
+When no explicit typed pressure exists, heartbeat sleeps and authors no Mind
+state.
+
+One conflict domain remains under audit: `EpiphanyHeartbeatStateEntry` stores
+participant scheduling together with pending Persona mentions, Persona turn
+requests, blocked social pressure, and Persona retention state. These are not
+one invariant. Collection members must become keyed identities so Persona
+transport cannot make an unrelated Hands or Modeling scheduling mutation stale.
+Ghostlight scene scheduling embedded in the Epiphany heartbeat executable also
+requires an explicit owner or deletion.
 
 ## RepoModel and semantic projection
 

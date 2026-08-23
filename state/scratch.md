@@ -51,13 +51,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. In progress: exact `360073a3` deletes the global Mind semantic corpus,
-   agent-memory graph profile, dual-store projector policy, two-source pulse
-   fairness, legacy semantic migrators, and tests that protected those dead
-   authorities. Modeling retrieval now has one exact keyed RepoModel basis,
-   one corpus, one collection, and one pulse input. Next cut heartbeat's
-   aggregate personality/rumination and generic `selfPatch` consumers, then
-   delete the aggregate identity/generation store they preserve.
+1. In progress: exact `d1685df8` and `39dd9fdb` delete heartbeat cognition,
+   aggregate agent memory, utterance state, generic `selfPatch`, phantom
+   sleep-distillation contracts, and constructor-shaped tests. Next map the
+   heartbeat singleton writers and split Persona social queue/turn/retention
+   collection members from scheduling physiology. Decide whether Ghostlight
+   scene scheduling belongs in Epiphany or should be deleted from this Body.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.
 3. Done: delete the local PowerShell operator wrapper, direct Persona/operator
