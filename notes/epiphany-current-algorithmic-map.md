@@ -84,6 +84,12 @@ their four tests were their only population. Live agent passes assemble sealed
 typed reasoning projections and exact native/provider requests directly; no
 parallel freeform context renderer survives.
 
+Exact `16d85b1b` removes the six direct JSON-builder tests from
+`agent_launch` and two OpenAI-runtime self-source searches. Strict provider
+lowering, typed ingress refusal, runtime-owned identity derivation, and Mind
+admission remain the behavioral owners; implementation spelling and duplicate
+schema field inspection do not.
+
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
 supervisor and prompt projection. The former singleton CultMesh status row was

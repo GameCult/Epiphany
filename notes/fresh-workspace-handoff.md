@@ -767,6 +767,13 @@ dependency, and tests are deleted. Native core, OpenAI runtime, and release
 bundle checks pass; the behavioral core suite passes 352/352; the published
 catalog contains 23 local schemas and none of the deleted families.
 
+Exact `16d85b1b` deletes all six remaining direct `agent_launch` schema tests
+and two OpenAI-runtime self-source searches: 209 pure test-line deletions. The
+schema tests duplicated stronger provider-lowering and typed-ingress/admission
+proofs; the source searches proved only that forbidden function names were not
+spelled in one file. Core checks cleanly and the retained OpenAI runtime suite
+passes 25/25.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Retain a test only
 when it reaches Epiphany validation, ownership, authentication, monotonicity,
