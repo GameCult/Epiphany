@@ -383,7 +383,6 @@ pub(crate) fn register_mind_document_types(cache: &mut CultCache) -> Result<()> 
     cache.register_entry_type::<EpiphanyMindRepositoryBodyObservationDocument>()?;
     crate::repo_model_documents::register_repo_model_document_types(cache)?;
     cache.register_entry_type::<crate::RepoFrontierPlanDecisionReceipt>()?;
-    cache.register_entry_type::<crate::RepoFrontierRelinquishmentReceipt>()?;
     cache.register_entry_type::<crate::AtlasSurfaceOffer>()?;
     cache.register_entry_type::<crate::AtlasDependencyClaim>()?;
     cache.register_entry_type::<crate::AtlasDependencyVerification>()?;
@@ -418,9 +417,6 @@ pub(crate) fn validate_mind_write_envelope(envelope: &CultCacheEnvelope) -> Resu
     let expected_key = if envelope.r#type == crate::RepoFrontierPlanDecisionReceipt::TYPE {
         rmp_serde::from_slice::<crate::RepoFrontierPlanDecisionReceipt>(&envelope.payload)?
             .decision_id
-    } else if envelope.r#type == crate::RepoFrontierRelinquishmentReceipt::TYPE {
-        rmp_serde::from_slice::<crate::RepoFrontierRelinquishmentReceipt>(&envelope.payload)?
-            .receipt_id
     } else if envelope.r#type == crate::AtlasSurfaceOffer::TYPE {
         let value: crate::AtlasSurfaceOffer = rmp_serde::from_slice(&envelope.payload)?;
         value.validate()?;

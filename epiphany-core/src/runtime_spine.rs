@@ -42,8 +42,8 @@ use crate::repo_model_gateway::{
     RepoFrontierPlanningFailureReview, RepoFrontierPlanningLaunchBinding,
     RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
-    RepoFrontierRelinquishmentReceipt, RepoFrontierResearchRequest, RepoFrontierRoute,
-    RepoFrontierVerdictDisposition, RepoFrontierWorkProposal, RepoModelClaimChallenge,
+    RepoFrontierResearchRequest, RepoFrontierRoute, RepoFrontierVerdictDisposition,
+    RepoFrontierWorkProposal, RepoModelClaimChallenge,
     RuntimeRepositoryDomainBinding,
 };
 use crate::runtime_store_backend::{
@@ -795,24 +795,6 @@ pub struct EpiphanyRuntimeSpineStatus {
     pub supported_document_types: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyToolInvocationStatus {
-    pub intent_id: String,
-    pub adapter: String,
-    pub server: String,
-    pub tool_name: String,
-    pub call_id: Option<String>,
-    pub model_request_id: Option<String>,
-    pub caller: String,
-    pub reason: String,
-    pub created_at: String,
-    pub status: String,
-    pub receipt_id: Option<String>,
-    pub completed_at: Option<String>,
-    pub error: Option<String>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSpineInitOptions {
     pub runtime_id: String,
@@ -938,7 +920,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
-    cache.register_entry_type::<HandsActionRefusalReceipt>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierWorkProposal>()?;
     cache.register_entry_type::<RepoFrontierAutonomousProposalBinding>()?;
@@ -1157,13 +1138,6 @@ pub fn bind_runtime_to_swarm(
     }
 }
 
-pub fn runtime_swarm_binding(
-    runtime_store: impl AsRef<Path>,
-) -> Result<Option<EpiphanyRuntimeSwarmBinding>> {
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    cache.get(RUNTIME_SWARM_BINDING_KEY)
-}
 
 pub fn create_runtime_session(
     store_path: impl AsRef<Path>,
@@ -3055,14 +3029,6 @@ pub fn runtime_worker_launch_request(
     cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)
 }
 
-pub fn runtime_worker_launch_body_basis(
-    store_path: impl AsRef<Path>,
-    job_id: &str,
-) -> Result<Option<crate::RepositoryBodyObservationBasis>> {
-    runtime_worker_launch_request(store_path, job_id)?
-        .ok_or_else(|| anyhow!("worker launch request {job_id:?} is missing"))?
-        .repository_body_observation_basis()
-}
 
 pub fn runtime_worker_process_claim(
     store_path: impl AsRef<Path>,
@@ -5604,15 +5570,6 @@ pub fn intake_user_repo_frontier_proposal(
     Ok(proposal)
 }
 
-pub fn runtime_repo_frontier_work_proposal(
-    store_path: impl AsRef<Path>,
-    proposal_id: &str,
-) -> Result<Option<RepoFrontierWorkProposal>> {
-    validate_non_empty(proposal_id, "repo frontier work proposal id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoFrontierWorkProposal>(proposal_id)
-}
 
 pub fn bind_runtime_repository_domain(
     runtime_store: impl AsRef<Path>,
@@ -5999,32 +5956,6 @@ pub fn promote_autonomous_direction_options_for_modeling(
     Ok(promoted)
 }
 
-pub fn runtime_repo_frontier_proposal_modeling_request(
-    store_path: impl AsRef<Path>,
-    request_id: &str,
-) -> Result<Option<RepoFrontierProposalModelingRequest>> {
-    validate_non_empty(request_id, "repo frontier proposal Modeling request id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoFrontierProposalModelingRequest>(request_id)
-}
-
-pub fn runtime_current_repo_model(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<crate::EpiphanyMemoryGraphSnapshot>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    if cache
-        .get::<crate::EpiphanyRepoModelIdentityDocument>(crate::REPO_MODEL_IDENTITY_KEY)?
-        .is_none()
-    {
-        return Ok(None);
-    }
-    Ok(Some(
-        crate::repo_model_documents::assemble_repo_model_view_from_cache(&cache)?
-            .memory_context_projection(),
-    ))
-}
 
 fn current_keyed_repo_model(
     cache: &CultCache,
@@ -6068,42 +5999,6 @@ fn keyed_repo_model_basis_envelopes(
         .collect()
 }
 
-fn keyed_repo_model_basis_after_writes(
-    current: &crate::EpiphanyRepoModelBasis,
-    writes: &[CultCacheEnvelope],
-) -> Result<crate::EpiphanyRepoModelBasis> {
-    let mut sources = current
-        .source_documents
-        .iter()
-        .cloned()
-        .map(|source| {
-            (
-                (source.document_type.clone(), source.document_key.clone()),
-                source,
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    for write in writes {
-        if crate::repo_model_documents::repo_model_write_key(write)?.is_some() {
-            let source = crate::EpiphanyMindDocumentVersion::from_envelope("epiphany-mind", write)?;
-            sources.insert(
-                (source.document_type.clone(), source.document_key.clone()),
-                source,
-            );
-        }
-    }
-    let source_documents = sources.into_values().collect::<Vec<_>>();
-    let projection_digest = format!(
-        "sha256:{:x}",
-        Sha256::digest(rmp_serde::to_vec_named(&source_documents)?)
-    );
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest,
-        source_documents,
-    };
-    basis.validate()?;
-    Ok(basis)
-}
 
 pub fn select_repo_frontier_work_proposal_for_modeling(
     store_path: impl AsRef<Path>,
@@ -7164,12 +7059,6 @@ pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) ->
     runtime_has_actionable_frontier_for_organ(runtime_store, "Hands")
 }
 
-/// Read-only Self signal for source gathering. It is true only when the
-/// canonical runtime model is admitted exactly once and contains an Active,
-/// dependency-ready Eyes frontier item.
-pub fn runtime_has_actionable_eyes_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
-    runtime_has_actionable_frontier_for_organ(runtime_store, "Eyes")
-}
 
 fn frontier_authority_documents(
     cache: &CultCache,
@@ -7518,17 +7407,6 @@ fn repo_frontier_research_request_for_admitted_item(
     })
 }
 
-/// True only when the exact current Eyes frontier has not yet been covered by
-/// an accepted Eyes packet from a worker launch bound to its typed request.
-/// Historical Research acceptance is deliberately irrelevant.
-pub fn runtime_has_uncovered_actionable_eyes_frontier(
-    runtime_store: impl AsRef<Path>,
-) -> Result<bool> {
-    Ok(!matches!(
-        runtime_repo_frontier_research_lifecycle(runtime_store)?.stage,
-        RepoFrontierResearchLifecycleStage::Terminal
-    ))
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -8363,15 +8241,6 @@ pub(crate) fn put_eyes_evidence_packet(
     Ok(())
 }
 
-pub fn runtime_eyes_evidence_packet(
-    store_path: impl AsRef<Path>,
-    packet_id: &str,
-) -> Result<Option<EyesEvidencePacket>> {
-    validate_non_empty(packet_id, "Eyes evidence packet id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<EyesEvidencePacket>(packet_id)
-}
 
 pub fn put_substrate_gate_repo_access_grant_receipt(
     store_path: impl AsRef<Path>,
@@ -8420,15 +8289,6 @@ pub fn put_substrate_gate_repo_access_grant_receipt(
     }
 }
 
-pub fn runtime_substrate_gate_repo_access_grant_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<SubstrateGateRepoAccessGrantReceipt>> {
-    validate_non_empty(receipt_id, "Substrate Gate access grant receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<SubstrateGateRepoAccessGrantReceipt>(receipt_id)
-}
 
 pub fn put_hands_action_intent(
     store_path: impl AsRef<Path>,
@@ -8496,15 +8356,6 @@ pub fn put_hands_action_intent(
     }
 }
 
-pub fn runtime_hands_action_intent(
-    store_path: impl AsRef<Path>,
-    intent_id: &str,
-) -> Result<Option<HandsActionIntent>> {
-    validate_non_empty(intent_id, "Hands action intent id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsActionIntent>(intent_id)
-}
 
 pub fn put_hands_action_review(
     store_path: impl AsRef<Path>,
@@ -8540,15 +8391,6 @@ pub fn put_hands_action_review(
     }
 }
 
-pub fn runtime_hands_action_review(
-    store_path: impl AsRef<Path>,
-    review_id: &str,
-) -> Result<Option<HandsActionReview>> {
-    validate_non_empty(review_id, "Hands action review id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<HandsActionReview>(review_id)
-}
 
 fn validate_repo_frontier_hands_authority_chain(
     cache: &CultCache,
@@ -8758,181 +8600,6 @@ pub fn put_repo_frontier_hands_authority(
     }
 }
 
-/// Atomically records Hands' inability to act under an exact route and lets
-/// Mind retire that route's frontier. The historical route and authority stay
-/// immutable, while the admitted model revision makes them structurally stale.
-pub fn relinquish_repo_frontier_hands_route(
-    store_path: impl AsRef<Path>,
-    intent_id: &str,
-    review_id: &str,
-    refusal_receipt_id: &str,
-    missing_required_paths: Vec<String>,
-    summary: String,
-    relinquished_at: String,
-) -> Result<RepoFrontierRelinquishmentReceipt> {
-    let store_path = store_path.as_ref();
-    for (value, label) in [
-        (intent_id, "Hands intent id"),
-        (review_id, "Hands review id"),
-        (refusal_receipt_id, "Hands refusal receipt id"),
-        (&summary, "Hands refusal summary"),
-    ] {
-        validate_non_empty(value, label)?;
-    }
-    chrono::DateTime::parse_from_rfc3339(&relinquished_at)
-        .map_err(|_| anyhow!("Hands refusal timestamp must be RFC3339"))?;
-    if missing_required_paths.is_empty()
-        || !crate::memory_graph::repo_paths_are_canonical_and_safe(&missing_required_paths)
-    {
-        return Err(anyhow!(
-            "Hands refusal paths must be non-empty and canonical"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    if let Some(existing) = cache.get::<HandsActionRefusalReceipt>(refusal_receipt_id)? {
-        let receipts = cache
-            .get_all::<RepoFrontierRelinquishmentReceipt>()?
-            .into_iter()
-            .filter(|receipt| receipt.hands_refusal_receipt_id == existing.receipt_id)
-            .collect::<Vec<_>>();
-        return match receipts.as_slice() {
-            [receipt]
-                if existing.intent_id == intent_id
-                    && existing.review_id == review_id
-                    && existing.missing_required_paths == missing_required_paths
-                    && existing.summary == summary
-                    && existing.refused_at == relinquished_at =>
-            {
-                Ok(receipt.clone())
-            }
-            _ => Err(anyhow!(
-                "Hands refusal replay is not the exact committed transition"
-            )),
-        };
-    }
-    let authorities = cache
-        .get_all::<RepoFrontierHandsAuthority>()?
-        .into_iter()
-        .filter(|authority| {
-            authority.hands_intent_id == intent_id && authority.hands_review_id == review_id
-        })
-        .collect::<Vec<_>>();
-    let [authority] = authorities.as_slice() else {
-        return Err(anyhow!("Hands refusal requires one exact route authority"));
-    };
-    validate_repo_frontier_hands_authority_chain(&cache, authority)?;
-    let route = cache
-        .get::<RepoFrontierRoute>(&authority.route_id)?
-        .ok_or_else(|| anyhow!("Hands refusal lost its route"))?;
-    if missing_required_paths.iter().all(|path| {
-        route.authorized_paths.iter().any(|scope| {
-            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
-        })
-    }) {
-        return Err(anyhow!(
-            "Hands refusal names no missing path outside route scope"
-        ));
-    }
-    if cache
-        .get_all::<HandsPatchReceipt>()?
-        .iter()
-        .any(|receipt| receipt.intent_id == intent_id)
-        || cache
-            .get_all::<HandsCommandReceipt>()?
-            .iter()
-            .any(|receipt| receipt.intent_id == intent_id)
-        || cache
-            .get_all::<HandsCommitReceipt>()?
-            .iter()
-            .any(|receipt| receipt.intent_id == intent_id)
-    {
-        return Err(anyhow!("Hands cannot relinquish after consequences exist"));
-    }
-    let basis = crate::EpiphanyRepoModelBasis {
-        projection_digest: route.model_projection_digest.clone(),
-        source_documents: route.model_source_documents.clone(),
-    };
-    let view =
-        require_keyed_repo_model_basis(&cache, &basis.projection_digest, &basis.source_documents)?;
-    let mut item = view
-        .frontier
-        .into_iter()
-        .find(|item| item.id == route.frontier_item_id)
-        .ok_or_else(|| anyhow!("Hands refusal frontier disappeared"))?;
-    if repo_frontier_item_hash(&item)? != route.frontier_item_hash {
-        return Err(anyhow!("Hands refusal frontier changed"));
-    }
-    item.status = crate::RepoFrontierStatus::Retired;
-    item.retired_at = Some(relinquished_at.clone());
-    let proposal = crate::EpiphanyRepoModelMutationProposal::new(
-        format!("repo-frontier-relinquishment-{refusal_receipt_id}"),
-        route.route_id.clone(),
-        refusal_receipt_id.to_string(),
-        vec![authority.authority_id.clone(), intent_id.to_string()],
-        crate::load_current_runtime_repository_body_basis(store_path)?,
-        vec![crate::EpiphanyRepoModelMutationOperation::PutFrontier { item }],
-    )?;
-    let plan = crate::plan_repo_model_mutation(store_path, &proposal)?;
-    let admitted_basis = keyed_repo_model_basis_after_writes(&basis, &plan.writes)?;
-    let refusal = HandsActionRefusalReceipt {
-        schema_version: HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION.into(),
-        receipt_id: refusal_receipt_id.to_string(),
-        route_id: route.route_id.clone(),
-        authority_id: authority.authority_id.clone(),
-        intent_id: intent_id.to_string(),
-        review_id: review_id.to_string(),
-        substrate_gate_grant_receipt_id: authority.substrate_grant_receipt_id.clone(),
-        model_projection_digest: basis.projection_digest.clone(),
-        model_source_documents: basis.source_documents.clone(),
-        frontier_item_id: route.frontier_item_id.clone(),
-        frontier_item_hash: route.frontier_item_hash.clone(),
-        missing_required_paths,
-        summary,
-        refused_at: relinquished_at.clone(),
-        contract: HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT.into(),
-    };
-    let receipt_id = format!(
-        "repo-frontier-relinquishment-{:x}",
-        Sha256::digest(format!("{}:{}", route.route_id, refusal.receipt_id).as_bytes())
-    );
-    let receipt = RepoFrontierRelinquishmentReceipt {
-        schema_version: crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_SCHEMA_VERSION.into(),
-        receipt_id: receipt_id.clone(),
-        hands_refusal_receipt_id: refusal.receipt_id.clone(),
-        route_id: route.route_id,
-        frontier_item_id: route.frontier_item_id,
-        previous_model_projection_digest: basis.projection_digest,
-        previous_model_source_documents: basis.source_documents,
-        admitted_model_projection_digest: admitted_basis.projection_digest,
-        admitted_model_source_documents: admitted_basis.source_documents,
-        relinquished_at: relinquished_at.clone(),
-        contract: crate::REPO_FRONTIER_RELINQUISHMENT_RECEIPT_CONTRACT.into(),
-    };
-    let provenance = cache.prepare_entry(&refusal.receipt_id, &refusal)?.0;
-    let mut writes = plan.writes;
-    writes.push(cache.prepare_entry(&receipt.receipt_id, &receipt)?.0);
-    let outcome = crate::commit_typed_organ_mind_mutation(
-        store_path,
-        "Hands",
-        provenance,
-        "Mind.repo_frontier_relinquishment",
-        plan.strong_reads,
-        writes,
-        &relinquished_at,
-    )?;
-    match outcome {
-        crate::EpiphanyMindCommitOutcome::Committed(_) => Ok(receipt),
-        crate::EpiphanyMindCommitOutcome::Conflict { .. } => {
-            let mut reloaded = runtime_spine_cache(store_path)?;
-            reloaded.pull_all_backing_stores()?;
-            match reloaded.get::<RepoFrontierRelinquishmentReceipt>(&receipt_id)? {
-                Some(existing) if existing == receipt => Ok(existing),
-                _ => Err(anyhow!("Hands refusal lost its exact keyed-model CAS")),
-            }
-        }
-    }
-}
 
 fn worker_result_has_keyed_mind_commit(
     cache: &CultCache,
@@ -9046,161 +8713,7 @@ pub(crate) fn verification_frontier_is_current(
         .unwrap_or(false))
 }
 
-pub fn put_repo_frontier_verification_request(
-    store_path: impl AsRef<Path>,
-    request: &RepoFrontierVerificationRequest,
-) -> Result<()> {
-    let store_path = store_path.as_ref();
-    validate_repo_frontier_verification_request_intrinsic(request)?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let route = cache
-        .get::<RepoFrontierRoute>(&request.route_id)?
-        .ok_or_else(|| anyhow!("verification request requires its exact frontier route"))?;
-    if !verification_frontier_is_current(&cache, request)? {
-        return Err(anyhow!(
-            "verification request frontier authority is no longer current"
-        ));
-    }
-    let authorities = cache
-        .get_all::<RepoFrontierHandsAuthority>()?
-        .into_iter()
-        .filter(|value| {
-            value.route_id == route.route_id && value.hands_intent_id == request.hands_intent_id
-        })
-        .collect::<Vec<_>>();
-    if authorities.len() != 1 {
-        return Err(anyhow!(
-            "verification request requires exactly one Hands authority"
-        ));
-    }
-    let authority = &authorities[0];
-    validate_repo_frontier_hands_authority_chain(&cache, authority)?;
-    let intent = cache
-        .get::<HandsActionIntent>(&request.hands_intent_id)?
-        .ok_or_else(|| anyhow!("verification request requires its Hands intent"))?;
-    let review = cache
-        .get::<HandsActionReview>(&request.hands_review_id)?
-        .ok_or_else(|| anyhow!("verification request requires its Hands review"))?;
-    let patch = cache
-        .get::<HandsPatchReceipt>(&request.hands_patch_receipt_id)?
-        .ok_or_else(|| anyhow!("verification request requires its exact patch receipt"))?;
-    let command = cache
-        .get::<HandsCommandReceipt>(&request.hands_command_receipt_id)?
-        .ok_or_else(|| anyhow!("verification request requires its exact command receipt"))?;
-    let commit = cache
-        .get::<HandsCommitReceipt>(&request.hands_commit_receipt_id)?
-        .ok_or_else(|| anyhow!("verification request requires its exact commit receipt"))?;
-    let adopted_plan_mismatches = route.adopted_plan.as_ref().map_or_else(Vec::new, |plan| {
-        let mut mismatches = Vec::new();
-        if intent.frontier_route_id != route.route_id {
-            mismatches.push("intent.plan.route");
-        }
-        if intent.plan_candidate_sha256 != plan.candidate_sha256 {
-            mismatches.push("intent.plan.candidate");
-        }
-        if intent.plan_action != plan.effective_action() {
-            mismatches.push("intent.plan.action");
-        }
-        if command.command != plan.effective_command() {
-            mismatches.push("command.plan.command");
-        }
-        mismatches
-    });
-    if request.model_projection_digest != route.model_projection_digest
-        || request.model_source_documents != route.model_source_documents
-        || request.frontier_item_id != route.frontier_item_id
-        || request.frontier_item_hash != route.frontier_item_hash
-        || authority.hands_review_id != request.hands_review_id
-        || authority.model_projection_digest != request.model_projection_digest
-        || authority.model_source_documents != request.model_source_documents
-        || authority.frontier_item_id != request.frontier_item_id
-        || authority.frontier_item_hash != request.frontier_item_hash
-        || review.intent_id != intent.intent_id
-        || review.decision != "approved"
-        || patch.intent_id != intent.intent_id
-        || patch.review_id != review.review_id
-        || patch.substrate_gate_grant_receipt_id != authority.substrate_grant_receipt_id
-        || command.intent_id != intent.intent_id
-        || command.review_id != review.review_id
-        || command.substrate_gate_grant_receipt_id != authority.substrate_grant_receipt_id
-        || commit.intent_id != intent.intent_id
-        || commit.review_id != review.review_id
-        || patch.runtime_job_id != intent.runtime_job_id
-        || command.runtime_job_id != intent.runtime_job_id
-        || commit.runtime_job_id != intent.runtime_job_id
-        || patch.changed_paths != commit.changed_paths
-        || !consequence_paths_within_authority(&patch.changed_paths, &authority.requested_paths)
-        || !adopted_plan_mismatches.is_empty()
-    {
-        return Err(anyhow!(
-            "verification request does not exactly bind route, model, Hands authority, and complete receipts{}",
-            if adopted_plan_mismatches.is_empty() {
-                String::new()
-            } else {
-                format!("; mismatches: {}", adopted_plan_mismatches.join(", "))
-            }
-        ));
-    }
-    let (envelope, _) = cache.prepare_entry(&request.request_id, request)?;
-    let backing = SingleFileMessagePackBackingStore::new(store_path);
-    let mut expected = Vec::new();
-    for (document_type, document_key) in [
-        (RepoFrontierRoute::TYPE, request.route_id.as_str()),
-        (
-            RepoFrontierHandsAuthority::TYPE,
-            authority.authority_id.as_str(),
-        ),
-        (HandsActionIntent::TYPE, request.hands_intent_id.as_str()),
-        (HandsActionReview::TYPE, request.hands_review_id.as_str()),
-        (
-            HandsPatchReceipt::TYPE,
-            request.hands_patch_receipt_id.as_str(),
-        ),
-        (
-            HandsCommandReceipt::TYPE,
-            request.hands_command_receipt_id.as_str(),
-        ),
-        (
-            HandsCommitReceipt::TYPE,
-            request.hands_commit_receipt_id.as_str(),
-        ),
-        (
-            crate::EpiphanyRepoModelFrontierDocument::TYPE,
-            request.frontier_item_id.as_str(),
-        ),
-    ] {
-        expected.push(
-            cache
-                .snapshot_envelopes()
-                .iter()
-                .find(|value| value.r#type == document_type && value.key == document_key)
-                .cloned()
-                .ok_or_else(|| anyhow!("verification request lost an exact authority"))?,
-        );
-    }
-    let mut writes = expected.clone();
-    writes.push(envelope);
-    if backing.compare_and_swap_batch(&expected, writes)? {
-        return Ok(());
-    }
-    let mut reloaded = runtime_spine_cache(store_path)?;
-    reloaded.pull_all_backing_stores()?;
-    match reloaded.get::<RepoFrontierVerificationRequest>(&request.request_id)? {
-        Some(existing) if existing == *request => Ok(()),
-        _ => Err(anyhow!("verification request ids are immutable")),
-    }
-}
 
-pub fn runtime_repo_frontier_verification_request(
-    store_path: impl AsRef<Path>,
-    request_id: &str,
-) -> Result<Option<RepoFrontierVerificationRequest>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoFrontierVerificationRequest>(request_id)
-}
 
 pub(crate) fn repo_frontier_verification_context(
     cache: &CultCache,
@@ -9281,40 +8794,6 @@ fn repo_frontier_verification_context_with_commit(
     })
 }
 
-pub fn runtime_repo_frontier_route(
-    store_path: impl AsRef<Path>,
-    route_id: &str,
-) -> Result<Option<RepoFrontierRoute>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoFrontierRoute>(route_id)
-}
-
-pub fn runtime_repo_frontier_plan_decision(
-    runtime_store: impl AsRef<Path>,
-    decision_id: &str,
-) -> Result<Option<RepoFrontierPlanDecisionReceipt>> {
-    let mut cache = runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    Ok(cache
-        .get_all::<RepoFrontierPlanDecisionReceipt>()?
-        .into_iter()
-        .find(|receipt| receipt.decision_id == decision_id))
-}
-
-pub fn runtime_latest_repo_frontier_relinquishment(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<RepoFrontierRelinquishmentReceipt>> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let mut receipts = cache.get_all::<RepoFrontierRelinquishmentReceipt>()?;
-    receipts.sort_by(|left, right| {
-        left.relinquished_at
-            .cmp(&right.relinquished_at)
-            .then_with(|| left.receipt_id.cmp(&right.receipt_id))
-    });
-    Ok(receipts.pop())
-}
 
 pub(crate) fn derive_repo_frontier_modeling_request(
     cache: &CultCache,
@@ -9467,18 +8946,6 @@ pub fn commit_repo_frontier_modeling_request(
     }
 }
 
-fn consequence_paths_within_authority(
-    changed_paths: &[String],
-    authority_paths: &[String],
-) -> bool {
-    !changed_paths.is_empty()
-        && changed_paths.iter().all(|path| {
-            authority_paths.iter().any(|scope| {
-                path == scope
-                    || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
-            })
-        })
-}
 
 fn derive_repo_frontier_verification_request_for_chain(
     cache: &CultCache,
@@ -9533,18 +9000,6 @@ fn derive_repo_frontier_verification_request_for_chain(
     Ok(request)
 }
 
-pub fn commit_repo_frontier_verification_request_for_chain(
-    store_path: impl AsRef<Path>,
-    chain: &RuntimeHandsReceiptChainSummary,
-    requested_at: &str,
-) -> Result<RepoFrontierVerificationRequest> {
-    let store_path = store_path.as_ref();
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let request = derive_repo_frontier_verification_request_for_chain(&cache, chain, requested_at)?;
-    put_repo_frontier_verification_request(store_path, &request)?;
-    Ok(request)
-}
 
 fn validate_hands_consequence_grant(
     store_path: &Path,
@@ -9641,30 +9096,6 @@ fn validate_hands_consequence_grant(
     Ok(())
 }
 
-/// Revalidates the persisted Hands/Substrate authority chain before an actuator
-/// performs a consequence. Receipt writers call the same primitive again after
-/// the consequence; this preflight prevents a stale or substituted grant from
-/// authorizing the consequence in the first place.
-pub fn validate_hands_action_authority(
-    store_path: impl AsRef<Path>,
-    intent_id: &str,
-    review_id: &str,
-    runtime_job_id: &str,
-    operation: &str,
-    changed_paths: &[String],
-    stated_grant_id: &str,
-) -> Result<()> {
-    validate_hands_consequence_grant(
-        store_path.as_ref(),
-        intent_id,
-        review_id,
-        runtime_job_id,
-        operation,
-        changed_paths,
-        Some(stated_grant_id),
-        None,
-    )
-}
 
 pub fn put_hands_patch_receipt(
     store_path: impl AsRef<Path>,
@@ -9914,12 +9345,6 @@ pub fn runtime_hands_commit_receipt(
     cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
-pub fn runtime_hands_receipt_chain_after(
-    store_path: impl AsRef<Path>,
-    after_timestamp: &str,
-) -> Result<bool> {
-    Ok(runtime_latest_hands_receipt_chain_after(store_path, after_timestamp)?.is_some())
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeHandsReceiptChainSummary {
@@ -10013,71 +9438,6 @@ pub fn runtime_latest_hands_receipt_chain_after(
     Ok(summaries.pop())
 }
 
-/// A complete historical receipt chain becomes notification-only when its
-/// route no longer describes the current RepoModel. Self uses this predicate
-/// before routing the chain to Soul.
-pub fn runtime_hands_receipt_chain_matches_current_model(
-    store_path: impl AsRef<Path>,
-    chain: &RuntimeHandsReceiptChainSummary,
-) -> Result<bool> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let authorities = cache
-        .get_all::<RepoFrontierHandsAuthority>()?
-        .into_iter()
-        .filter(|authority| authority.hands_intent_id == chain.intent_id)
-        .collect::<Vec<_>>();
-    if authorities.len() != 1 {
-        return Err(anyhow!(
-            "Hands receipt chain requires exactly one persisted frontier authority"
-        ));
-    }
-    let authority = &authorities[0];
-    let route = cache
-        .get::<RepoFrontierRoute>(&authority.route_id)?
-        .ok_or_else(|| anyhow!("Hands receipt chain lost its persisted route"))?;
-    let current = validate_repo_frontier_hands_authority_chain(&cache, authority).is_ok();
-    Ok(authority.hands_review_id == chain.review_id
-        && authority.substrate_grant_receipt_id == chain.substrate_gate_grant_receipt_id
-        && authority.route_id == route.route_id
-        && authority.model_projection_digest == route.model_projection_digest
-        && authority.model_source_documents == route.model_source_documents
-        && authority.frontier_item_id == route.frontier_item_id
-        && authority.frontier_item_hash == route.frontier_item_hash
-        && current)
-}
-
-pub fn runtime_soul_verdict_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<SoulVerdictReceipt>> {
-    validate_non_empty(receipt_id, "Soul verdict receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<SoulVerdictReceipt>(receipt_id)
-}
-
-pub fn runtime_continuity_recovery_receipt(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<ContinuityRecoveryReceipt>> {
-    validate_non_empty(receipt_id, "Continuity recovery receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<ContinuityRecoveryReceipt>(receipt_id)
-}
-
-pub fn put_coordinator_run_receipt(
-    store_path: impl AsRef<Path>,
-    receipt: &EpiphanyCoordinatorRunReceipt,
-) -> Result<()> {
-    validate_coordinator_run_receipt(receipt)?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
-}
 
 fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> Result<()> {
     validate_non_empty(&receipt.receipt_id, "coordinator run receipt id")?;
@@ -11405,54 +10765,6 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
     })
 }
 
-pub fn runtime_tool_invocation_statuses(
-    store_path: impl AsRef<Path>,
-) -> Result<Vec<EpiphanyToolInvocationStatus>> {
-    let store_path = store_path.as_ref();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache
-        .pull_all_backing_stores()
-        .with_context(|| format!("failed to read runtime spine {}", store_path.display()))?;
-    let mut receipts = cache
-        .get_all::<EpiphanyToolInvocationReceipt>()?
-        .into_iter()
-        .map(|receipt| (receipt.intent_id.clone(), receipt))
-        .collect::<BTreeMap<_, _>>();
-    let mut statuses = cache
-        .get_all::<EpiphanyToolInvocationIntent>()?
-        .into_iter()
-        .map(|intent| {
-            let receipt = receipts.remove(&intent.intent_id);
-            EpiphanyToolInvocationStatus {
-                intent_id: intent.intent_id,
-                adapter: intent.adapter,
-                server: intent.server,
-                tool_name: intent.tool_name,
-                call_id: intent.call_id,
-                model_request_id: intent.model_request_id,
-                caller: intent.caller,
-                reason: intent.reason,
-                created_at: intent.created_at,
-                status: receipt
-                    .as_ref()
-                    .map(|receipt| receipt.status.clone())
-                    .unwrap_or_else(|| "pending".to_string()),
-                receipt_id: receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                completed_at: receipt.as_ref().map(|receipt| receipt.completed_at.clone()),
-                error: receipt.and_then(|receipt| receipt.error),
-            }
-        })
-        .collect::<Vec<_>>();
-    statuses.sort_by(|left, right| {
-        left.created_at
-            .cmp(&right.created_at)
-            .then_with(|| left.intent_id.cmp(&right.intent_id))
-    });
-    Ok(statuses)
-}
 
 pub fn runtime_registered_document_types() -> Result<Vec<String>> {
     Ok(runtime_spine_schema_cache()?.registered_entry_types())

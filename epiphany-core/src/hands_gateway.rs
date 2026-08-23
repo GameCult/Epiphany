@@ -5,15 +5,11 @@ pub const HANDS_ACTION_REVIEW_TYPE: &str = "epiphany.hands.action_review";
 pub const HANDS_COMMAND_RECEIPT_TYPE: &str = "epiphany.hands.command_receipt";
 pub const HANDS_PATCH_RECEIPT_TYPE: &str = "epiphany.hands.patch_receipt";
 pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";
-pub const HANDS_ACTION_REFUSAL_RECEIPT_TYPE: &str = "epiphany.hands.action_refusal_receipt";
 pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v1";
 pub const HANDS_ACTION_REVIEW_SCHEMA_VERSION: &str = "epiphany.hands.action_review.v0";
 pub const HANDS_COMMAND_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.command_receipt.v0";
 pub const HANDS_PATCH_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.patch_receipt.v0";
 pub const HANDS_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.commit_receipt.v0";
-pub const HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.hands.action_refusal_receipt.v1";
-pub const HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT: &str = "epiphany.hands.action_refusal.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.hands.action_intent", schema = "HandsActionIntent")]
@@ -68,44 +64,6 @@ pub struct HandsActionReview {
     #[cultcache(key = 7)]
     pub reviewed_at: String,
     #[cultcache(key = 8)]
-    pub contract: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.hands.action_refusal_receipt",
-    schema = "HandsActionRefusalReceipt"
-)]
-pub struct HandsActionRefusalReceipt {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub route_id: String,
-    #[cultcache(key = 3)]
-    pub authority_id: String,
-    #[cultcache(key = 4)]
-    pub intent_id: String,
-    #[cultcache(key = 5)]
-    pub review_id: String,
-    #[cultcache(key = 6)]
-    pub substrate_gate_grant_receipt_id: String,
-    #[cultcache(key = 7)]
-    pub model_projection_digest: String,
-    #[cultcache(key = 8)]
-    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 9)]
-    pub frontier_item_id: String,
-    #[cultcache(key = 10)]
-    pub frontier_item_hash: String,
-    #[cultcache(key = 11)]
-    pub missing_required_paths: Vec<String>,
-    #[cultcache(key = 12)]
-    pub summary: String,
-    #[cultcache(key = 13)]
-    pub refused_at: String,
-    #[cultcache(key = 14)]
     pub contract: String,
 }
 
