@@ -10,7 +10,6 @@ use crate::eyes_gateway::EyesEvidencePacket;
 use crate::eyes_gateway::EyesSourceLookupReceipt;
 use crate::hands_gateway::*;
 use crate::repo_model_gateway::{
-    REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT,
     REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
@@ -97,7 +96,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v14";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v15";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -5139,8 +5138,14 @@ fn validate_autonomous_proposal_origin_binding(
     let binding = cache
         .get::<RepoFrontierAutonomousProposalBinding>(&binding_id)?
         .ok_or_else(|| anyhow!("Imagination proposal lacks its autonomous origin binding"))?;
+    let result = cache
+        .get::<crate::AdmittedModelDirectionConsiderationResult>(&binding.direction_result_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction result"))?;
+    let request = cache
+        .get::<crate::AdmittedModelDirectionConsiderationRequest>(&result.request_id)?
+        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction request"))?;
     let modeling_request_id = crate::proposal_modeling_request_id(
-        &binding.runtime_id,
+        &request.runtime_id,
         &proposal.proposal_id,
         &proposal.payload_sha256,
     );
@@ -5148,12 +5153,6 @@ fn validate_autonomous_proposal_origin_binding(
         .get::<RepoFrontierProposalModelingRequest>(&modeling_request_id)?
         .ok_or_else(|| anyhow!("autonomous proposal binding lost its Modeling request"))?;
     validate_repo_frontier_proposal_modeling_request(&modeling_request)?;
-    let request = cache
-        .get::<crate::AdmittedModelDirectionConsiderationRequest>(&binding.direction_request_id)?
-        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction request"))?;
-    let result = cache
-        .get::<crate::AdmittedModelDirectionConsiderationResult>(&binding.direction_result_id)?
-        .ok_or_else(|| anyhow!("autonomous proposal binding lost its direction result"))?;
     let worker_result = cache
         .get::<EpiphanyRuntimeRoleWorkerResult>(&binding.direction_worker_job_id)?
         .ok_or_else(|| anyhow!("autonomous proposal binding lost its Imagination worker result"))?;
@@ -5162,7 +5161,6 @@ fn validate_autonomous_proposal_origin_binding(
         .ok_or_else(|| anyhow!("autonomous proposal binding lost its Imagination worker launch"))?;
     crate::validate_admitted_model_direction_consideration_request(&request)?;
     crate::validate_admitted_model_direction_consideration_result(&request, &result)?;
-    let result_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&result)?));
     let worker_result_sha256 = format!(
         "{:x}",
         Sha256::digest(rmp_serde::to_vec_named(&worker_result)?)
@@ -5184,7 +5182,6 @@ fn validate_autonomous_proposal_origin_binding(
         .option_drafts
         .get(binding.option_ordinal as usize)
         .ok_or_else(|| anyhow!("autonomous proposal binding names a missing option"))?;
-    let option_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(option)?));
     let route = cache
         .get::<crate::RuntimeRepositoryBodyStoreBinding>(crate::RUNTIME_BODY_STORE_BINDING_KEY)?
         .ok_or_else(|| anyhow!("autonomous proposal requires repository Body binding"))?;
@@ -5192,10 +5189,6 @@ fn validate_autonomous_proposal_origin_binding(
         .get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
         .ok_or_else(|| anyhow!("autonomous proposal requires repository domain binding"))?;
     let chain_checks = [
-        (
-            "worker result identity",
-            binding.direction_worker_result_id == worker_result.result_id,
-        ),
         (
             "worker result hash",
             binding.direction_worker_result_sha256 == worker_result_sha256,
@@ -5256,22 +5249,11 @@ fn validate_autonomous_proposal_origin_binding(
         ));
     }
     if binding.schema_version != REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION
-        || binding.contract != REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT
-        || binding.binding_id != binding_id
-        || binding.proposal_id != proposal.proposal_id
-        || binding.proposal_payload_sha256 != proposal.payload_sha256
-        || binding.direction_request_id != result.request_id
         || binding.direction_result_id != result.result_id
-        || binding.direction_result_sha256 != result_sha256
-        || binding.model_projection_digest != result.model_projection_digest
-        || binding.model_source_documents != result.model_source_documents
-        || binding.option_sha256 != option_sha256
-        || binding.runtime_id != modeling_request.runtime_id
-        || binding.thread_id != modeling_request.thread_id
         || modeling_request.proposal_id != proposal.proposal_id
         || modeling_request.proposal_payload_sha256 != proposal.payload_sha256
-        || binding.workspace_id != route.workspace_id
-        || binding.body_binding_sha256 != route.body_binding_sha256
+        || modeling_request.runtime_id != request.runtime_id
+        || modeling_request.thread_id != request.thread_id
         || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
         || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
         || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
@@ -5280,7 +5262,6 @@ fn validate_autonomous_proposal_origin_binding(
         || domain.swarm_id != route.swarm_id
         || domain.workspace_id != route.workspace_id
         || domain.body_binding_sha256 != route.body_binding_sha256
-        || chrono::DateTime::parse_from_rfc3339(&binding.created_at).is_err()
         || proposal.title != option.title
         || proposal.body != option.summary
     {
@@ -5323,6 +5304,12 @@ pub(crate) fn validate_repo_frontier_proposal_modeling_request(
         || request.thread_id.trim().is_empty()
         || request.repository.trim().is_empty()
         || request.workspace.trim().is_empty()
+        || request.request_id
+            != crate::proposal_modeling_request_id(
+                &request.runtime_id,
+                &request.proposal_id,
+                &request.proposal_payload_sha256,
+            )
         || chrono::DateTime::parse_from_rfc3339(&request.selected_at).is_err()
     {
         return Err(anyhow!(
@@ -5511,7 +5498,6 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
             "{:x}",
             Sha256::digest(rmp_serde::to_vec_named(&direction_launch)?)
         );
-        let result_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&result)?));
         for (ordinal, option) in result.option_drafts.iter().enumerate() {
             if option.title.trim().is_empty() || option.summary.trim().is_empty() {
                 return Err(anyhow!("autonomous direction option is empty"));
@@ -5561,26 +5547,12 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
                 contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
             };
             validate_repo_frontier_work_proposal(&proposal)?;
+            let binding_id = format!("autonomous-proposal-binding-{proposal_id}");
             let binding = RepoFrontierAutonomousProposalBinding {
                 schema_version: REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION.into(),
-                binding_id: format!("autonomous-proposal-binding-{proposal_id}"),
-                proposal_id: proposal_id.clone(),
-                proposal_payload_sha256: payload_sha256.clone(),
-                direction_request_id: request.request_id.clone(),
                 direction_result_id: result.result_id.clone(),
-                direction_result_sha256: result_sha256.clone(),
-                model_projection_digest: result.model_projection_digest.clone(),
-                model_source_documents: result.model_source_documents.clone(),
                 option_ordinal: ordinal as u32,
-                option_sha256,
-                runtime_id: identity.runtime_id.clone(),
-                thread_id: request.thread_id.clone(),
-                workspace_id: route.workspace_id.clone(),
-                body_binding_sha256: route.body_binding_sha256.clone(),
-                created_at: selected_at.into(),
-                contract: REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT.into(),
                 direction_worker_job_id: direction_worker.job_id.clone(),
-                direction_worker_result_id: direction_worker.result_id.clone(),
                 direction_worker_result_sha256: direction_worker_result_sha256.clone(),
                 direction_worker_launch_sha256: direction_worker_launch_sha256.clone(),
             };
@@ -5605,7 +5577,7 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
             current.pull_all_backing_stores()?;
             let existing = (
                 current.get::<RepoFrontierWorkProposal>(&proposal.proposal_id)?,
-                current.get::<RepoFrontierAutonomousProposalBinding>(&binding.binding_id)?,
+                current.get::<RepoFrontierAutonomousProposalBinding>(&binding_id)?,
                 current.get::<RepoFrontierProposalModelingRequest>(&selection.request_id)?,
             );
             let replay_selection_matches = existing.2.as_ref().is_some_and(|existing_selection| {
@@ -5632,7 +5604,7 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
                 ));
             }
             let (proposal_envelope, _) = current.prepare_entry(&proposal.proposal_id, &proposal)?;
-            let (binding_envelope, _) = current.prepare_entry(&binding.binding_id, &binding)?;
+            let (binding_envelope, _) = current.prepare_entry(&binding_id, &binding)?;
             let (selection_envelope, _) =
                 current.prepare_entry(&selection.request_id, &selection)?;
             let mut expected = vec![

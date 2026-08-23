@@ -62,9 +62,7 @@ pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v3";
 pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_autonomous_proposal_binding.v1";
-pub const REPO_FRONTIER_AUTONOMOUS_PROPOSAL_BINDING_CONTRACT: &str =
-    "epiphany.repo_frontier_autonomous_proposal_binding.v1";
+    "epiphany.self.repo_frontier_autonomous_proposal_binding.v2";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY: &str = "runtime-repository-domain-binding";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.repository_domain_binding.v0";
@@ -133,44 +131,14 @@ pub struct RepoFrontierAutonomousProposalBinding {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
-    pub binding_id: String,
-    #[cultcache(key = 2)]
-    pub proposal_id: String,
-    #[cultcache(key = 3)]
-    pub proposal_payload_sha256: String,
-    #[cultcache(key = 4)]
-    pub direction_request_id: String,
-    #[cultcache(key = 5)]
     pub direction_result_id: String,
-    #[cultcache(key = 6)]
-    pub direction_result_sha256: String,
-    #[cultcache(key = 7)]
-    pub model_projection_digest: String,
-    #[cultcache(key = 8)]
-    pub model_source_documents: Vec<crate::EpiphanyMindDocumentVersion>,
-    #[cultcache(key = 10)]
+    #[cultcache(key = 2)]
     pub option_ordinal: u32,
-    #[cultcache(key = 11)]
-    pub option_sha256: String,
-    #[cultcache(key = 12)]
-    pub runtime_id: String,
-    #[cultcache(key = 13)]
-    pub thread_id: String,
-    #[cultcache(key = 14)]
-    pub workspace_id: String,
-    #[cultcache(key = 15)]
-    pub body_binding_sha256: String,
-    #[cultcache(key = 16)]
-    pub created_at: String,
-    #[cultcache(key = 17)]
-    pub contract: String,
-    #[cultcache(key = 18)]
+    #[cultcache(key = 3)]
     pub direction_worker_job_id: String,
-    #[cultcache(key = 19)]
-    pub direction_worker_result_id: String,
-    #[cultcache(key = 20)]
+    #[cultcache(key = 4)]
     pub direction_worker_result_sha256: String,
-    #[cultcache(key = 21)]
+    #[cultcache(key = 5)]
     pub direction_worker_launch_sha256: String,
 }
 
