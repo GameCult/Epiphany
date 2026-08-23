@@ -566,10 +566,17 @@ lines; CultMesh integration passes 51/51 and non-test core remains clean. A
 store containing the deleted derived envelopes refuses under the new registry;
 there is no migrator or dual reader.
 
-Next audit the deterministic Verse policy, global room, and cluster topology
-documents still rewritten into CultMesh from compile-time vectors. If no live
-authority mutates them, derive them directly and delete the stored copies and
-mirror tests. Separately split the 4.7-kiloline daemon supervisor's
+Exact `fe591b33` deletes the persisted Verse-policy and global-room-policy
+families. Their registry rows, schema/type constants, seed-time writers, public
+writer APIs, and two literal-copy tests are gone; `EpiphanyLocalVerseContext`
+projects the fixed policy tables directly. This removes 130 net lines and the
+focused CultMesh suite remains clean at 49/49.
+
+Next cut dead JSON-to-CultMesh mirror families that have no production writer
+or consumer beyond their own tests, and remove any surviving legacy migration
+command that contradicts the fresh-store hard cut. Preserve cluster topology
+until its runtime-bound Body-domain owner is explicit. Separately split the
+4.7-kiloline daemon supervisor's
 launch/reconcile authority before claiming sequencing coverage. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
 audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.

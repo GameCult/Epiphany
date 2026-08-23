@@ -54,7 +54,8 @@ earned OpenAI-compatible authentication or model-transport capability.
 - CultMesh local Verse, compact operator readbacks, Gjallar sight, Eve
   connection receipts, and three-Verse trust boundaries. Organ contract
   summaries derive directly from their CultNet owners; CultMesh persists no
-  parallel contract directory.
+  parallel contract directory. Fixed Verse and public-room policy project
+  directly into the local context rather than occupying mutable store rows.
 - Complete removal of the Epiphany Codex app-server compatibility surface and
   `epiphany-codex-bridge`.
 

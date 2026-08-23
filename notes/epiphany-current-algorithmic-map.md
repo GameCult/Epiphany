@@ -20,6 +20,9 @@ CultCache is the decision-bearing substrate. CultNet/CultMesh carry typed
 projections and crossings. Each organ's typed CultNet contract factory is the
 sole author of its contract directory; local Verse summaries derive directly
 from those contracts and no parallel CultMesh contract documents are persisted.
+The fixed three-Verse trust policy and public-room directory are also direct
+local Verse projections; they are not written into CultCache as counterfeit
+mutable state.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
