@@ -9347,7 +9347,7 @@ pub fn runtime_hands_commit_receipt(
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeHandsReceiptChainSummary {
+struct RuntimeHandsReceiptChainSummary {
     pub patch_schema_version: String,
     pub patch_receipt_id: String,
     pub command_schema_version: String,
@@ -9368,76 +9368,6 @@ pub struct RuntimeHandsReceiptChainSummary {
     pub summary: String,
     pub emitted_at: String,
 }
-
-pub fn runtime_latest_hands_receipt_chain_after(
-    store_path: impl AsRef<Path>,
-    after_timestamp: &str,
-) -> Result<Option<RuntimeHandsReceiptChainSummary>> {
-    validate_non_empty(after_timestamp, "Hands receipt lower-bound timestamp")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let patches = cache.get_all::<HandsPatchReceipt>()?;
-    let commands = cache.get_all::<HandsCommandReceipt>()?;
-    let commits = cache.get_all::<HandsCommitReceipt>()?;
-
-    let mut summaries = Vec::new();
-    for commit in commits
-        .iter()
-        .filter(|commit| timestamp_after(&commit.emitted_at, after_timestamp))
-    {
-        let Some(patch) = patches
-            .iter()
-            .filter(|patch| {
-                patch.intent_id == commit.intent_id
-                    && patch.review_id == commit.review_id
-                    && patch.runtime_job_id == commit.runtime_job_id
-                    && timestamp_after(&patch.emitted_at, after_timestamp)
-                    && patch.emitted_at <= commit.emitted_at
-            })
-            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
-        else {
-            continue;
-        };
-        let Some(command) = commands
-            .iter()
-            .filter(|command| {
-                command.intent_id == commit.intent_id
-                    && command.review_id == commit.review_id
-                    && command.runtime_job_id == commit.runtime_job_id
-                    && command.exit_code == "0"
-                    && timestamp_after(&command.emitted_at, after_timestamp)
-                    && command.emitted_at <= commit.emitted_at
-            })
-            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
-        else {
-            continue;
-        };
-        summaries.push(RuntimeHandsReceiptChainSummary {
-            patch_schema_version: patch.schema_version.clone(),
-            patch_receipt_id: patch.receipt_id.clone(),
-            command_schema_version: command.schema_version.clone(),
-            command_receipt_id: command.receipt_id.clone(),
-            commit_schema_version: commit.schema_version.clone(),
-            commit_receipt_id: commit.receipt_id.clone(),
-            intent_id: commit.intent_id.clone(),
-            review_id: commit.review_id.clone(),
-            runtime_job_id: commit.runtime_job_id.clone(),
-            substrate_gate_grant_receipt_id: command.substrate_gate_grant_receipt_id.clone(),
-            changed_paths: commit.changed_paths.clone(),
-            command: command.command.clone(),
-            exit_code: command.exit_code.clone(),
-            stdout_artifact: command.stdout_artifact.clone(),
-            stderr_artifact: command.stderr_artifact.clone(),
-            commit_sha: commit.commit_sha.clone(),
-            branch: commit.branch.clone(),
-            summary: commit.summary.clone(),
-            emitted_at: commit.emitted_at.clone(),
-        });
-    }
-    summaries.sort_by(|left, right| left.emitted_at.cmp(&right.emitted_at));
-    Ok(summaries.pop())
-}
-
 
 fn validate_coordinator_run_receipt(receipt: &EpiphanyCoordinatorRunReceipt) -> Result<()> {
     validate_non_empty(&receipt.receipt_id, "coordinator run receipt id")?;
@@ -10808,10 +10738,6 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
         return Err(anyhow!("{field} must be non-empty"));
     }
     Ok(())
-}
-
-fn timestamp_after(value: &str, lower_bound: &str) -> bool {
-    !value.trim().is_empty() && value > lower_bound
 }
 
 fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
