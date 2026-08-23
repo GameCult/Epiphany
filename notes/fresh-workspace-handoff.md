@@ -522,7 +522,7 @@ five dead schemas, and eight self-referential tests: 2,145 deletions against
 118 additions. The strict heartbeat state is now `v1`; the owning binary checks
 cleanly and the surviving core suite passes 448/448.
 
-The current source cut completes the separation. Pending Persona mentions,
+The keyed Persona cut completes the separation. Pending Persona mentions,
 immutable requests, terminal receipts, quarantine records, and retention state
 are keyed CultCache documents. Persona derives and reserves its own work; the
 heartbeat daemon has no Persona path. The exact social request envelope is the
@@ -531,14 +531,31 @@ and retention excludes its immutable retired frontier instead of deleting
 decision history. The old heartbeat bridge/terminal names and writable types
 have no compatibility reader.
 
-Next audit whether a singleton one-participant heartbeat scheduler still earns
-its state, selection, projection, artifact-retention, stale-repair, grant, and
-ack machinery. Map the Resident Self grant lifecycle first; delete heartbeat
-state if Resident Self already owns exclusion and terminality. Continue
-deleting tests that prove constructors, field copies, or boolean helpers rather
-than named invariants. Do not run a full-workspace compile, package, deployment,
-or Ox root until the subtraction audit closes. Never resume Ox10, Ox12, Ox13,
-Ox15, or Ox16.
+Exact `4d0db2c7` deletes the final singleton heartbeat scheduler: module,
+binary, schema, store, service, deployment lifecycle, artifact tree, stale
+repair, pacing/history state, and acknowledgement consumer. Resident Self now
+owns pressure-to-grant CAS, launch exclusion, leases, terminal receipts, retry,
+and retention directly. The same cut deletes twenty-one tests that guarded
+source spelling, constructor copies, or one-line helpers instead of behavior.
+
+Exact `67a3a57b` deletes every remaining Rust test that parses its own source:
+nineteen daemon-supervisor/workspace-coverage string and ordering assertions,
+plus two exact argument-vector mirrors. This removes 591 lines. The focused
+native supervisor suite now passes 10/10 and the workspace-coverage behavioral
+slice passes 74/74. The retained tests exercise validation, owned-store
+exclusion, process observation, CAS conflict, signed authority, recovery, and
+re-entry. The deleted tests named several legitimate sequencing invariants but
+proved none of them. The 4.7-kiloline daemon supervisor is therefore an exposed
+launch/reconcile authority knot; split it before restoring transition-level
+proof rather than adding a mock shell around the monolith.
+
+Next audit `cultmesh_integration.rs`: it is 11.1 kilolines with sixty-one tests
+and several test-only Odin, Eve, daemon-capability, and topology template
+factories. Delete fixtures and assertions that preserve static presentation or
+copy field values without exercising persistence, authentication, projection,
+or an authority boundary. Do not run a full-workspace compile, package,
+deployment, or Ox root until the subtraction audit closes. Never resume Ox10,
+Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 
