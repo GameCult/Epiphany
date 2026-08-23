@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`500125d5`. The current sequence has deleted the semantic-memory/workspace-coverage
+`63939fa2`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -526,6 +526,12 @@ Cut in this order:
    projection, rendering, and operator-thought sealing live once in
    `epiphany-core`; the coordinator imports that module directly. Cargo falls to
    20 executable targets without losing the operator-sealing check.
+40. **Persona consequence safety is typed at `63939fa2`:** projector and Persona
+   prose are inert stage outputs, so a hand-written forbidden-word tribunal
+   cannot add authority. Only the Interpreter's closed effect enum can propose
+   consequence. The tribunal, test-only prompt wrapper, prompt-substring test,
+   and forbidden-word test are deleted; exact stage/context and typed-effect
+   refusal tests remain.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

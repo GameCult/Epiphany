@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `500125d5` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `63939fa2` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -107,6 +107,13 @@ Coordinator status is a core projection, not a second program. Exact
 the coordinator actually calls into one `epiphany-core` module. Operator-safe
 lowering remains tested; command parsing, file output, and duplicate compilation
 do not.
+
+Persona's consequence membrane is typed, not lexical. Exact `63939fa2` removes
+the keyword tribunal that rejected projector prose for looking like JSON or
+containing action-shaped words. Projector and Persona outputs remain sealed
+private stage results. The Interpreter's closed effect enum, allowed-channel
+set, cardinality and size bounds, exact decision context, and Mind admission
+own consequence safety. Prompt-substring tests do not.
 
 Persisted cluster topology is also gone. Its writer became dead when the
 callerless seed bundle was removed, while the supervisor merely accepted any
