@@ -286,13 +286,19 @@ identity/generation store, utterance vector, and generic self-patch admission.
 When no explicit typed pressure exists, heartbeat sleeps and authors no Mind
 state.
 
+Exact `2164bd0a` removes the unowned scheduler generality. Heartbeat has only
+two live participants: Resident Self and Persona. Ghostlight scene scheduling,
+generic tick/pump/heat/complete controls, adaptive pacing, initiative heat, and
+their public intent schemas are gone. Modeling, Eyes, Hands, Soul, and
+Imagination route from typed current-work obligations and never acquire idle
+heartbeat lanes.
+
 One conflict domain remains under audit: `EpiphanyHeartbeatStateEntry` stores
-participant scheduling together with pending Persona mentions, Persona turn
-requests, blocked social pressure, and Persona retention state. These are not
-one invariant. Collection members must become keyed identities so Persona
-transport cannot make an unrelated Hands or Modeling scheduling mutation stale.
-Ghostlight scene scheduling embedded in the Epiphany heartbeat executable also
-requires an explicit owner or deletion.
+coordinator/Persona readiness and history together with pending Persona
+mentions, Persona turn requests, blocked social pressure, and Persona retention
+state. These are not one invariant. The social collection members must become
+keyed identities so Persona transport cannot make scheduler acknowledgement
+stale or be blocked by it.
 
 ## RepoModel and semantic projection
 

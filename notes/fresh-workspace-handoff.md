@@ -491,14 +491,20 @@ passes 455/455 and the provider runtime passes 27/27. The obsolete repository-
 local Cargo target was 2.5 GiB and was removed; compilation remains in the
 shared target.
 
-Next map every writer of the heartbeat singleton. Scheduling fields currently
-share one CAS identity with pending Persona mentions, Persona turn requests,
-blocked social pressure, and Persona retention state. Split those collection
-members by semantic identity so Persona transport cannot contend with unrelated
-organ scheduling, and decide whether Ghostlight scene scheduling belongs in
-Epiphany. Do not run a full-workspace compile, package, deployment, or Ox root
-until the subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or
-Ox16.
+Exact `2164bd0a` collapses heartbeat to Resident Self and Persona scheduling.
+It deletes Ghostlight scene scheduling, manual tick/pump/heat/complete and
+queue-mention controls, adaptive pacing/initiative heat, five fake organ lanes,
+five dead schemas, and eight self-referential tests: 2,145 deletions against
+118 additions. The strict heartbeat state is now `v1`; the owning binary checks
+cleanly and the surviving core suite passes 448/448.
+
+Next split pending Persona mentions, turn requests/terminal receipts, blocked
+social pressure, and retention head/plan from the heartbeat singleton into
+keyed CultCache identities. Heartbeat may consume a derived pressure view but
+must not own social state. Continue deleting constructor/projection-copy tests
+as their dead surfaces are exposed. Do not run a full-workspace compile,
+package, deployment, or Ox root until the subtraction audit closes. Never
+resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Operational state that matters
 

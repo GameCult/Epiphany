@@ -51,12 +51,12 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
 
 ## Immediate audit order
 
-1. In progress: exact `d1685df8` and `39dd9fdb` delete heartbeat cognition,
-   aggregate agent memory, utterance state, generic `selfPatch`, phantom
-   sleep-distillation contracts, and constructor-shaped tests. Next map the
-   heartbeat singleton writers and split Persona social queue/turn/retention
-   collection members from scheduling physiology. Decide whether Ghostlight
-   scene scheduling belongs in Epiphany or should be deleted from this Body.
+1. In progress: exact `2164bd0a` deletes Ghostlight scheduling, generic manual
+   heartbeat mutation controls, five dead schemas, adaptive pacing/initiative
+   heat, five fake organ lanes, and eight tests that only kept those surfaces
+   alive. Heartbeat now schedules only Resident Self and Persona. Next split
+   Persona queue/turn/blocked-pressure/retention members into keyed documents;
+   no shared vector may remain in the scheduler CAS identity.
 2. Done: delete `runtime_store_migration`, its receipt registration, and its
    test. The approved migration has no writable migrator.
 3. Done: delete the local PowerShell operator wrapper, direct Persona/operator
