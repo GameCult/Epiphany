@@ -13286,7 +13286,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 HANDS_COMMAND_RECEIPT_TYPE,
                 HANDS_PATCH_RECEIPT_TYPE,
                 HANDS_COMMIT_RECEIPT_TYPE,
-                HANDS_ROLLBACK_RECEIPT_TYPE,
                 HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
             ],
             vec![
@@ -13341,18 +13340,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Commit receipts preserve repository consequences after verification."],
-        ),
-        mutation_contract(
-            HANDS_ROLLBACK_RECEIPT_TYPE,
-            HANDS_ROLLBACK_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec!["Rollback receipts prove failed action was unwound instead of hidden."],
         ),
         mutation_contract(
             HANDS_ACTION_REFUSAL_RECEIPT_TYPE,

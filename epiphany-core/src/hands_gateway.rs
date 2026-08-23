@@ -5,14 +5,12 @@ pub const HANDS_ACTION_REVIEW_TYPE: &str = "epiphany.hands.action_review";
 pub const HANDS_COMMAND_RECEIPT_TYPE: &str = "epiphany.hands.command_receipt";
 pub const HANDS_PATCH_RECEIPT_TYPE: &str = "epiphany.hands.patch_receipt";
 pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";
-pub const HANDS_ROLLBACK_RECEIPT_TYPE: &str = "epiphany.hands.rollback_receipt";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_TYPE: &str = "epiphany.hands.action_refusal_receipt";
 pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v1";
 pub const HANDS_ACTION_REVIEW_SCHEMA_VERSION: &str = "epiphany.hands.action_review.v0";
 pub const HANDS_COMMAND_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.command_receipt.v0";
 pub const HANDS_PATCH_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.patch_receipt.v0";
 pub const HANDS_COMMIT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.commit_receipt.v0";
-pub const HANDS_ROLLBACK_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.rollback_receipt.v0";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.hands.action_refusal_receipt.v1";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_CONTRACT: &str = "epiphany.hands.action_refusal.v1";

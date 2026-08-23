@@ -998,7 +998,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "continueImplementation" => {
                     let gate = record_hands_implementation_gate(
                         &runtime_store,
-                        &artifact_dir,
                         &thread_id,
                         index,
                         &status,
@@ -1590,7 +1589,6 @@ fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> 
 
 fn record_hands_implementation_gate(
     runtime_store: &Path,
-    artifact_dir: &Path,
     thread_id: &str,
     step_index: usize,
     _status: &Value,
@@ -1706,14 +1704,20 @@ fn record_hands_implementation_gate(
         "plannedStopConditions": route.adopted_plan.as_ref().map(|plan| plan.stop_conditions.as_slice()),
         "plannedRollbackSteps": route.adopted_plan.as_ref().map(|plan| plan.rollback_steps.as_slice()),
         "plannedCommitMessage": route.adopted_plan.as_ref().map(|plan| plan.commit_message.as_str()),
-        "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir, route.adopted_plan.as_ref()),
+        "recordPassCommand": hands_record_pass_command(
+            runtime_store,
+            &intent.intent_id,
+            &review.review_id,
+            route.adopted_plan.as_ref(),
+        ),
         "store": runtime_store,
     }))
 }
 
 fn hands_record_pass_command(
     runtime_store: &Path,
-    artifact_dir: &Path,
+    intent_id: &str,
+    review_id: &str,
     adopted_plan: Option<&epiphany_core::RepoFrontierAdoptedPlan>,
 ) -> Value {
     json!({
@@ -1722,8 +1726,10 @@ fn hands_record_pass_command(
             "--store",
             runtime_store,
             "record-pass",
-            "--gate-summary",
-            artifact_dir.join("coordinator-summary.json"),
+            "--intent-id",
+            intent_id,
+            "--review-id",
+            review_id,
             "--summary",
             "<implementation pass summary>",
             "--changed-path",

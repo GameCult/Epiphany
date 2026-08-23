@@ -15,7 +15,6 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use serde_json::json;
 use std::env;
-use std::fs;
 use std::path::PathBuf;
 
 const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
@@ -50,9 +49,8 @@ enum Command {
 
 #[derive(Debug, Clone)]
 struct GateArgs {
-    intent_id: Option<String>,
-    review_id: Option<String>,
-    gate_summary: Option<PathBuf>,
+    intent_id: String,
+    review_id: String,
     receipt_id: Option<String>,
     summary: String,
 }
@@ -236,23 +234,9 @@ impl ParsedOptions {
     }
 
     fn take_gate(&mut self) -> Result<GateArgs> {
-        let intent_id = self.take_optional("--intent-id");
-        let review_id = self.take_optional("--review-id");
-        let gate_summary = self.take_optional("--gate-summary").map(PathBuf::from);
-        if gate_summary.is_none() && (intent_id.is_none() || review_id.is_none()) {
-            return Err(anyhow!(
-                "gate requires either --gate-summary or both --intent-id and --review-id"
-            ));
-        }
-        if gate_summary.is_some() && (intent_id.is_some() || review_id.is_some()) {
-            return Err(anyhow!(
-                "use either --gate-summary or explicit --intent-id/--review-id, not both"
-            ));
-        }
         Ok(GateArgs {
-            intent_id,
-            review_id,
-            gate_summary,
+            intent_id: self.take_required("--intent-id")?,
+            review_id: self.take_required("--review-id")?,
             receipt_id: self.take_optional("--receipt-id"),
             summary: self.take_required("--summary")?,
         })
@@ -426,15 +410,14 @@ fn record_pass(store: &PathBuf, args: RecordPassArgs) -> Result<serde_json::Valu
 }
 
 fn record_refusal(store: &PathBuf, args: RecordRefusalArgs) -> Result<serde_json::Value> {
-    let resolved = resolve_gate(&args.gate)?;
     let receipt_id = args
         .gate
         .receipt_id
         .unwrap_or_else(|| generated_receipt_id("hands-refusal"));
     let receipt = relinquish_repo_frontier_hands_route(
         store,
-        &resolved.intent_id,
-        &resolved.review_id,
+        &args.gate.intent_id,
+        &args.gate.review_id,
         &receipt_id,
         normalize_paths(args.missing_required_paths),
         args.gate.summary,
@@ -467,13 +450,12 @@ fn load_gate(
     gate: &GateArgs,
     operation: &str,
 ) -> Result<(HandsActionIntent, HandsActionReview)> {
-    let resolved = resolve_gate(gate)?;
-    let intent = runtime_hands_action_intent(store, &resolved.intent_id)
-        .with_context(|| format!("failed to load Hands intent {}", resolved.intent_id))?
-        .ok_or_else(|| anyhow!("Hands intent {} was not found", resolved.intent_id))?;
-    let review = runtime_hands_action_review(store, &resolved.review_id)
-        .with_context(|| format!("failed to load Hands review {}", resolved.review_id))?
-        .ok_or_else(|| anyhow!("Hands review {} was not found", resolved.review_id))?;
+    let intent = runtime_hands_action_intent(store, &gate.intent_id)
+        .with_context(|| format!("failed to load Hands intent {}", gate.intent_id))?
+        .ok_or_else(|| anyhow!("Hands intent {} was not found", gate.intent_id))?;
+    let review = runtime_hands_action_review(store, &gate.review_id)
+        .with_context(|| format!("failed to load Hands review {}", gate.review_id))?
+        .ok_or_else(|| anyhow!("Hands review {} was not found", gate.review_id))?;
     if review.intent_id != intent.intent_id {
         return Err(anyhow!(
             "Hands review {} belongs to intent {}, not {}",
@@ -500,56 +482,6 @@ fn load_gate(
         ));
     }
     Ok((intent, review))
-}
-
-#[derive(Debug)]
-struct ResolvedGate {
-    intent_id: String,
-    review_id: String,
-}
-
-fn resolve_gate(gate: &GateArgs) -> Result<ResolvedGate> {
-    if let Some(summary_path) = &gate.gate_summary {
-        return resolve_gate_from_summary(summary_path);
-    }
-    Ok(ResolvedGate {
-        intent_id: gate
-            .intent_id
-            .clone()
-            .ok_or_else(|| anyhow!("--intent-id is required"))?,
-        review_id: gate
-            .review_id
-            .clone()
-            .ok_or_else(|| anyhow!("--review-id is required"))?,
-    })
-}
-
-fn resolve_gate_from_summary(path: &PathBuf) -> Result<ResolvedGate> {
-    let text = fs::read_to_string(path)
-        .with_context(|| format!("failed to read coordinator summary {}", path.display()))?;
-    let value: serde_json::Value = serde_json::from_str(&text)
-        .with_context(|| format!("failed to parse coordinator summary {}", path.display()))?;
-    let gate = value
-        .pointer("/finalAction/handsActionGate")
-        .or_else(|| value.pointer("/handsActionGate"))
-        .ok_or_else(|| {
-            anyhow!(
-                "{} does not contain finalAction.handsActionGate",
-                path.display()
-            )
-        })?;
-    let intent_id = gate
-        .get("intentId")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| anyhow!("handsActionGate is missing intentId"))?;
-    let review_id = gate
-        .get("reviewId")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| anyhow!("handsActionGate is missing reviewId"))?;
-    Ok(ResolvedGate {
-        intent_id: intent_id.to_string(),
-        review_id: review_id.to_string(),
-    })
 }
 
 fn validate_paths_within_gate(intent: &HandsActionIntent, paths: &[String]) -> Result<()> {
@@ -626,7 +558,7 @@ fn take_value(tokens: &mut impl Iterator<Item = String>, name: &str) -> Result<S
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass|record-refusal> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
+    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass|record-refusal> --intent-id id --review-id id --summary text ..."
 }
 
 #[cfg(test)]
@@ -649,7 +581,6 @@ mod tests {
     use epiphany_core::runtime_hands_command_receipt;
     use epiphany_core::runtime_hands_commit_receipt;
     use epiphany_core::runtime_hands_patch_receipt;
-    use epiphany_core::runtime_latest_hands_receipt_chain_after;
     use epiphany_core::select_and_commit_repo_frontier_route;
     use epiphany_state_model::EpiphanyMemoryDomain;
     use epiphany_state_model::EpiphanyMemoryLifecycle;
@@ -698,81 +629,6 @@ mod tests {
         assert!(runtime_hands_patch_receipt(&store, "hands-patch-test")?.is_some());
         assert!(runtime_hands_command_receipt(&store, "hands-command-test")?.is_some());
         assert!(runtime_hands_commit_receipt(&store, "hands-commit-test")?.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn record_pass_can_load_gate_from_coordinator_summary() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("runtime-spine.msgpack");
-        seed_gate(&store, vec!["src".to_string()])?;
-        let summary_path = temp.path().join("coordinator-summary.json");
-        fs::write(
-            &summary_path,
-            serde_json::to_string_pretty(&json!({
-                "finalAction": {
-                    "handsActionGate": {
-                        "intentId": "hands-intent-test",
-                        "reviewId": "hands-review-test"
-                    }
-                }
-            }))?,
-        )?;
-
-        let result = record_pass(
-            &store,
-            RecordPassArgs {
-                gate: GateArgs {
-                    intent_id: None,
-                    review_id: None,
-                    gate_summary: Some(summary_path),
-                    receipt_id: None,
-                    summary: "implementation pass".to_string(),
-                },
-                command: "cargo test".to_string(),
-                exit_code: "0".to_string(),
-                stdout_artifact: ".epiphany/stdout.log".to_string(),
-                stderr_artifact: ".epiphany/stderr.log".to_string(),
-                commit_sha: "def456".to_string(),
-                branch: "codex/test".to_string(),
-                changed_paths: vec!["src/lib.rs".to_string()],
-                validate_commit_sha: false,
-            },
-        )?;
-
-        let patch_id = result
-            .pointer("/patch/receiptId")
-            .and_then(serde_json::Value::as_str)
-            .expect("record-pass should emit patch receipt id");
-        let command_id = result
-            .pointer("/command/receiptId")
-            .and_then(serde_json::Value::as_str)
-            .expect("record-pass should emit command receipt id");
-        let commit_id = result
-            .pointer("/commit/receiptId")
-            .and_then(serde_json::Value::as_str)
-            .expect("record-pass should emit commit receipt id");
-        assert!(runtime_hands_patch_receipt(&store, patch_id)?.is_some());
-        assert!(runtime_hands_command_receipt(&store, command_id)?.is_some());
-        assert!(runtime_hands_commit_receipt(&store, commit_id)?.is_some());
-
-        let chain = runtime_latest_hands_receipt_chain_after(&store, "2026-06-02T00:00:02Z")?
-            .expect("record-pass should produce a complete Hands receipt chain");
-        assert_eq!(chain.patch_receipt_id, patch_id);
-        assert_eq!(chain.command_receipt_id, command_id);
-        assert_eq!(chain.commit_receipt_id, commit_id);
-        assert_eq!(chain.intent_id, "hands-intent-test");
-        assert_eq!(chain.review_id, "hands-review-test");
-        assert_eq!(chain.runtime_job_id, "hands-job-test");
-        assert_eq!(
-            chain.substrate_gate_grant_receipt_id,
-            "substrate-grant-test"
-        );
-        assert_eq!(chain.command, "cargo test");
-        assert_eq!(chain.exit_code, "0");
-        assert_eq!(chain.commit_sha, "def456");
-        assert_eq!(chain.changed_paths, vec!["src/lib.rs".to_string()]);
-
         Ok(())
     }
 
@@ -845,7 +701,6 @@ mod tests {
                 "patch".to_string(),
                 "command".to_string(),
                 "commit".to_string(),
-                "pr".to_string(),
             ],
         )
     }
@@ -868,8 +723,8 @@ mod tests {
             .ok_or_else(|| anyhow!("Hands test store has no fixture root"))?;
         let body_store = fixture_root.join("body.cc");
         let repo = fixture_root.join("workspace");
-        fs::create_dir_all(repo.join("src"))?;
-        fs::write(repo.join("src/lib.rs"), "pub fn fixture() {}\n")?;
+        std::fs::create_dir_all(repo.join("src"))?;
+        std::fs::write(repo.join("src/lib.rs"), "pub fn fixture() {}\n")?;
         let git = ProcessCommand::new("git")
             .args(["init", "-q"])
             .current_dir(&repo)
@@ -1020,9 +875,8 @@ mod tests {
 
     fn gate_args(receipt_id: &str) -> GateArgs {
         GateArgs {
-            intent_id: Some("hands-intent-test".to_string()),
-            review_id: Some("hands-review-test".to_string()),
-            gate_summary: None,
+            intent_id: "hands-intent-test".to_string(),
+            review_id: "hands-review-test".to_string(),
             receipt_id: Some(receipt_id.to_string()),
             summary: "test receipt".to_string(),
         }
