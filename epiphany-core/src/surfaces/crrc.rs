@@ -58,4 +58,3 @@ pub struct EpiphanyCrrcRecommendation {
     pub recommended_scene_action: Option<EpiphanyCrrcSceneAction>,
     pub reason: String,
 }
-
