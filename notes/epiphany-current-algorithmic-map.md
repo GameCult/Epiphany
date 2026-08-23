@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `47454e61` on `codex/epiphany-shakedown-live`
-Current worktree cut: projector runbook and canonical map/evidence sync; Ox17 remains paused
+Latest committed implementation cut: `803e3447` on `codex/epiphany-shakedown-live`
+Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -91,6 +91,10 @@ Scheduler installer/control plane and its argv test: Idunn on Yggdrasil is the
 deployment and daemon-survival owner. The supervisor falls from 3,156 to 2,693
 lines, 463 net lines smaller. Its four surviving tests now guard brake scope,
 Idunn signed-health binding, stale process identity, and heartbeat correlation.
+Exact `803e3447` deletes the unconsumed ad hoc semantic service-status JSON
+command. Exact typed lifecycle and heartbeat documents plus Idunn's signed
+aggregate health remain the inspection surfaces; the supervisor no longer owns
+a parallel display summary.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;

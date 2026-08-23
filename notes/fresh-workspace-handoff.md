@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `47454e61`
+Latest committed implementation cut: `803e3447`
 Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
@@ -696,6 +696,11 @@ body. Its deployment preflight records one external mismatch: the current
 and `--daemon-id` flags. The owning infrastructure lane must correct that unit
 before a fresh Epiphany package is admitted; do not edit or deploy it from this
 source-subtraction lane.
+
+Exact `803e3447` deletes the unconsumed `semantic-projector-service-status`
+command and its ad hoc JSON projection: 40 net lines. Typed lifecycle and
+heartbeat state plus Idunn's signed aggregate health remain the read paths.
+Supervisor check and 4/4 consequence tests pass.
 
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the remaining daemon supervisor's
