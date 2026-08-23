@@ -10,10 +10,6 @@ license-file = "../LICENSE"
 name = "epiphany_release_construction"
 path = "src/lib.rs"
 
-[[bin]]
-name = "epiphany-package"
-path = "src/bin/epiphany-package.rs"
-
 [dependencies]
 anyhow = "1"
 chrono = "0.4.44"
