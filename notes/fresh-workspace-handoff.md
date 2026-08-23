@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `856648de`
-Current worktree: documentation repair and continuing source/test-authority audit; Ox17 remains paused
+Latest committed implementation cut: `ab1afc27`
+Current worktree: continuing source/test-authority audit; Ox17 remains paused
 
 ## Orientation
 
@@ -63,6 +63,24 @@ bridge, command schema, or editor-specific actuator. Brokkr owns Unity through
 Eve/CultMesh; a future Rider daemon will own Rider. Historical architecture
 snapshots retain their dated record but cannot be mistaken for executable or
 current authority.
+
+Four subsequent cuts narrow RepoModel to what Modeling can actually decide:
+
+- `6ea4ff3c` removes the redundant memory-profile axis, dead SHA-1 ID factory,
+  empty profile module, seven cache/Persona-only node kinds, seven cache-only
+  edge kinds, and seventeen impossible lifecycle states.
+- `5218cf2c` deletes the producerless RepoModel lifecycle-receipt document
+  family and all of its empty projection/fixture plumbing.
+- `8bb039af` makes domain creation seed-only and deletes the unreachable summary
+  operation, summary document family, validation, registry contract, and the
+  test cargo that alone produced it. The retained atomic graph test now follows
+  the live seeded-domain then node/edge path.
+- `ab1afc27` removes node salience/confidence and edge confidence because no
+  owner read, validated, routed, or displayed them; they merely perturbed exact
+  document identity.
+
+Affected targets check cleanly. Core remains 165/165; focused RepoModel tests
+pass 5/5 and reasoning-context tests pass 8/8.
 
 The global thread-state authority is gone.
 

@@ -467,8 +467,9 @@ work.
 ## RepoModel projection
 
 RepoModel persistence is keyed by semantic identity: identity/body binding,
-domain, node, edge, summary, frontier, lifecycle receipt, and per-node claim-
-obligation guard.
+seed-owned domain, node, edge, frontier, and per-node claim-obligation guard.
+Domains cannot be model-mutated. The producerless summary and lifecycle-receipt
+families are deleted.
 
 `EpiphanyRepoModelView` sorts and assembles those documents. Frontier dependency
 and cycle checks include the exact reachable closure in strong reads. Per-node

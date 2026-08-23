@@ -224,10 +224,12 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`856648de`. That cut deletes the unused semantic-memory/workspace-coverage
-projection system, its four binaries, its local daemon supervisor, and 32,866
-net source lines. Modeling now consumes typed Body and keyed RepoModel state
-directly. Persona consumes keyed memory and social state directly. No
+`ab1afc27`. The current sequence deletes the semantic-memory/workspace-coverage
+projection system, its local daemon supervisor, and the surviving generic
+RepoModel profile, impossible lifecycle, producerless receipt/summary, and
+decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
+directly. Domains are seed-owned; model passes mutate only live keyed operations.
+Persona consumes keyed memory and social state directly. No
 Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through typed
 Eve/CultMesh capabilities, and a future Rider daemon will own Rider. Do not
 admit a fresh package until the remaining production surfaces and tests have
