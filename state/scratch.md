@@ -21,7 +21,8 @@ machine smaller and the canonical map explicitly reopens that lane.
   another 26 targets, many by pointing at the same source files. Exact
   `1d5a1f17` reduced core to 30 binaries with zero duplicate owners and removed
   19,252 net non-vendor lines. The current cut reduces core again to its one
-  explicit maintenance binary. Subsequent cuts leave 12 total Cargo executable
+  explicit maintenance binary. Exact `a78c1802` deletes that ceremonial
+  compaction checker as well. Subsequent cuts leave 10 total Cargo executable
   targets across the workspace, with no duplicate binary-source owner.
 
 The storage failure is evidence of source-shape failure. Build-profile flags
@@ -62,8 +63,9 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    binaries, shipped `verse-query` control plane, and all Epiphany-owned
    Rider/Unity integration. Brokkr owns Unity through CultMesh/Eve; a future
    Rider daemon owns Rider.
-4. Done: reduce `epiphany-core` from 30 binary targets to the one native
-   compaction helper. Runtime executables belong to the release bundle.
+4. Done: reduce `epiphany-core` from 30 binary targets to zero. The final
+   compaction helper duplicated the existing state view plus Git inspection
+   and did not earn an executable boundary.
 5. Done: delete the callerless Persona mouth/permit identity executables, their
    release roles, and enrollment wrappers. Purpose-specific identities remain;
    separate setup processes do not.
@@ -87,11 +89,18 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    feedback admission. CultNet owns the shared public shapes; exact legacy
    domains and anchor bytes remain compatible; generic aliases, exports, and
    setup fixtures are gone.
-13. Next: audit the remaining eleven executables by real lifecycle/privilege
-   consumer, beginning with the Persona Discord permit process. Preserve exact
+13. Done: audit the Persona Discord permit process. Bifrost's live delivery
+   tool consumes its short-lived request-bound signature, and the distinct key
+   is an earned privilege boundary. Retain it; repair the missing Ygg unit and
+   stale Starfire endpoint through Idunn before Persona consequence readiness.
+14. Done: delete the 366-line pre-compaction phrase checker and its Cargo
+   target. Agents inspect the existing state status and Git owners directly.
+15. Next: delete `epiphany-package`. `epiphany-release` already owns the same
+   package/inspect operations plus publish, and no live caller names the leaf
+   wrapper. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The semantic-memory/workspace-coverage projection stack and its local daemon
    supervisor were deleted at `856648de` after proving that no sealed reasoning
    projection consumed them.
-14. Run focused tests after each cut. Only after source subtraction stabilizes
+16. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

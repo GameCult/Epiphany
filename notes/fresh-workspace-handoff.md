@@ -1072,6 +1072,25 @@ or write event shadows. Session/job state and exact typed terminal documents
 are the sole lifecycle owners. Core 337/337, model runtime 25/25, coordinator
 8/8, swarm 4/4, coordinator-core 4/4, and affected native checks pass.
 
+Exact `a78c1802` deletes the final `epiphany-core` executable: a 366-line
+pre-compaction checker that re-rendered `epiphany-state status`, Git status/log,
+and substring checks over canonical documents. The state steward and Git remain
+the direct owners; no replacement abstraction was added. Cargo now reports ten
+executable targets, the state binary and core library check cleanly, and
+`epiphany-core` is library-only.
+
+The Persona Discord permit target survives this audit. Bifrost's actual
+delivery tool consumes its short-lived request-bound signature, and the permit
+key is intentionally distinct, so the process has a real external consumer and
+privilege boundary. Deployment is stale: Ygg configuration still targets the
+old Starfire endpoint and installs no issuer unit. Idunn must repair that before
+Persona consequence readiness; deleting the consequence gate would falsify the
+architecture.
+
+The next source cut is `epiphany-package`: `epiphany-release` already owns its
+package and inspect operations plus publish, while no live repository or
+`gamecult-ops` caller names the leaf wrapper.
+
 ## Competitive Eyes/Imagination pass
 
 `notes/munder-difflin-launch-intelligence-2026-08-23.md` distills the
