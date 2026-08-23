@@ -1681,7 +1681,7 @@ fn record_hands_implementation_gate(
     put_repo_frontier_hands_authority(runtime_store, &authority)?;
 
     Ok(json!({
-        "status": "ready",
+        "status": "awaitingHandsExecutor",
         "runtimeJobId": runtime_job_id,
         "substrateGateGrantReceiptId": grant_id,
         "intentId": intent.intent_id,
@@ -1700,52 +1700,8 @@ fn record_hands_implementation_gate(
         "plannedStopConditions": route.adopted_plan.as_ref().map(|plan| plan.stop_conditions.as_slice()),
         "plannedRollbackSteps": route.adopted_plan.as_ref().map(|plan| plan.rollback_steps.as_slice()),
         "plannedCommitMessage": route.adopted_plan.as_ref().map(|plan| plan.commit_message.as_str()),
-        "recordPassCommand": hands_record_pass_command(
-            runtime_store,
-            &intent.intent_id,
-            &review.review_id,
-            route.adopted_plan.as_ref(),
-        ),
         "store": runtime_store,
     }))
-}
-
-fn hands_record_pass_command(
-    runtime_store: &Path,
-    intent_id: &str,
-    review_id: &str,
-    adopted_plan: Option<&epiphany_core::RepoFrontierAdoptedPlan>,
-) -> Value {
-    json!({
-        "executable": "epiphany-hands-action",
-        "args": [
-            "--store",
-            runtime_store,
-            "record-pass",
-            "--intent-id",
-            intent_id,
-            "--review-id",
-            review_id,
-            "--summary",
-            "<implementation pass summary>",
-            "--changed-path",
-            "<changed path>",
-            "--command",
-            adopted_plan
-                .map(|plan| plan.effective_command())
-                .unwrap_or("<verification command>"),
-            "--exit-code",
-            "<exit code>",
-            "--stdout-artifact",
-            "<stdout artifact path>",
-            "--stderr-artifact",
-            "<stderr artifact path>",
-            "--commit-sha",
-            "<commit sha>",
-            "--branch",
-            "<branch>"
-        ],
-    })
 }
 
 fn accept_reorient(runtime_store: &Path) -> Result<Value> {

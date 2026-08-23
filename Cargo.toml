@@ -98,10 +98,6 @@ name = "epiphany-mvp-coordinator"
 path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
 
 [[bin]]
-name = "epiphany-hands-action"
-path = "epiphany-core/src/bin/epiphany-hands-action.rs"
-
-[[bin]]
 name = "epiphany-model-runtime"
 path = "epiphany-openai-runtime/src/bin/epiphany-model-runtime.rs"
 required-features = ["openai-runtime"]

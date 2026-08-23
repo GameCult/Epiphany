@@ -47,7 +47,7 @@ Pull-request or other remote publication is not an Epiphany-owned Hands receipt.
 The remote provider/Bifrost crossing owns its exact publication evidence;
 Epiphany may consume that provider-owned receipt after the local commit exists.
 
-## Executable Slice
+## Admission Slice
 
 The first runtime-spine proof chain now exists:
 
@@ -64,14 +64,16 @@ HandsActionIntent
 command, and commit receipts from the runtime-spine CultCache store.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
-`epiphany-mvp-coordinator` now turns `continueImplementation` into a persisted
-Substrate Gate grant plus Hands intent/review gate and exposes the receipt ids in
-the operator step.
-`epiphany-hands-action` is the first native consequence recorder for that gate:
-`record-patch`, `record-command`, and `record-commit` load the stored
-intent/review, reject mismatches, require an approved review, enforce allowed
-operations, and keep patch/commit changed paths inside the requested scope.
-Focused `epiphany-hands-action` tests prove that the live packaged recorder
-refuses wrong authority, scope escape, and substituted consequence cargo. The
-separate main-only smoke executables were deleted; they were compiled by Cargo
-but did not participate in the Rust test harness.
+`epiphany-mvp-coordinator` turns `continueImplementation` into a persisted
+Substrate Gate grant plus Hands intent/review gate and exposes the exact receipt
+identities required by downstream Verification.
+
+Epiphany currently has no admitted repository actuator. The former
+`epiphany-hands-action` executable only accepted operator-authored descriptions
+of consequences that had already happened; it executed no patch, command, or
+commit and had no runtime caller. It was deleted rather than allow receipt
+recording to impersonate Hands. A future actuator must execute the approved
+operation itself and atomically emit the exact typed receipts from what it
+actually observed. Until then, the coordinator reports
+`awaitingHandsExecutor`, and no local implementation consequence can be
+terminalized by this slice.

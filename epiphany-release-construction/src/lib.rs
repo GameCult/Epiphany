@@ -92,7 +92,6 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
             file_name("epiphany-persona-discord-permit"),
         ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
-        ("hands-action", file_name("epiphany-hands-action")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         ("tool-mcp-runtime", file_name("epiphany-tool-mcp-runtime")),
     ]
