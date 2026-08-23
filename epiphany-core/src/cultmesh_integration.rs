@@ -1241,46 +1241,6 @@ where
     }
 }
 
-pub fn load_latest_epiphany_cultmesh_daemon_poke_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshDaemonPokeIntentEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY)
-}
-
-pub fn load_epiphany_cultmesh_daemon_poke_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    intent_id: &str,
-) -> Result<Option<EpiphanyCultMeshDaemonPokeIntentEntry>> {
-    if intent_id.trim().is_empty() {
-        return Err(anyhow!("daemon poke intent identity is required"));
-    }
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(&epiphany_cultmesh_daemon_poke_intent_key(intent_id))
-}
-
-pub fn load_latest_epiphany_cultmesh_daemon_poke_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshDaemonPokeReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY)
-}
-
-pub fn load_epiphany_cultmesh_daemon_poke_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt_id: &str,
-) -> Result<Option<EpiphanyCultMeshDaemonPokeReceiptEntry>> {
-    if receipt_id.trim().is_empty() {
-        return Err(anyhow!("daemon poke receipt identity is required"));
-    }
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(&epiphany_cultmesh_daemon_poke_receipt_key(receipt_id))
-}
-
 pub fn write_epiphany_cultmesh_daemon_restart_policy(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -2334,22 +2294,6 @@ pub fn write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
     Ok(written)
 }
 
-pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY)
-}
-
-pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)
-}
-
 #[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
@@ -2403,14 +2347,6 @@ pub fn write_epiphany_cultmesh_bifrost_github_publication_receipt(
     )?;
     node.flush()?;
     Ok(written)
-}
-
-pub fn load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 fn validate_bifrost_body_change_publication_intent(
@@ -4406,7 +4342,7 @@ mod tests {
     }
 
     #[test]
-    fn daemon_poke_intent_and_receipt_round_trip() -> Result<()> {
+    fn daemon_poke_identity_is_immutable_and_latest_projection_is_monotonic() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-poke.ccmp");
         let hands = test_daemon_status("epiphany-daemon-hands");
@@ -4466,29 +4402,14 @@ mod tests {
         )?;
         write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent.clone())?;
         write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt.clone())?;
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert_eq!(
-            load_latest_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test")?,
+            context.latest_daemon_poke_intent,
             Some(newer_intent)
         );
         assert_eq!(
-            load_latest_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test")?,
+            context.latest_daemon_poke_receipt,
             Some(newer_receipt)
-        );
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context
-                .latest_daemon_poke_intent
-                .as_ref()
-                .map(|intent| intent.requested_action.as_str()),
-            Some("pokeDaemon")
-        );
-        assert_eq!(
-            context
-                .latest_daemon_poke_receipt
-                .as_ref()
-                .map(|receipt| receipt.resulting_status.as_str()),
-            Some("ready")
         );
         Ok(())
     }
@@ -4607,7 +4528,7 @@ mod tests {
     }
 
     #[test]
-    fn bifrost_body_change_publication_intent_and_receipt_round_trip() -> Result<()> {
+    fn bifrost_body_change_projection_binds_intent_to_governed_receipt() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp
             .path()
@@ -4649,18 +4570,13 @@ mod tests {
             receipt.clone(),
         )?;
 
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert_eq!(
-            load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
-                &store,
-                "epiphany-test"
-            )?,
+            context.arrival_latest_bifrost_body_change_publication_intent,
             Some(intent.clone())
         );
         assert_eq!(
-            load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-                &store,
-                "epiphany-test"
-            )?,
+            context.arrival_latest_bifrost_body_change_publication_receipt,
             Some(receipt.clone())
         );
         assert!(intent.github_publication_requested);
@@ -4732,7 +4648,7 @@ mod tests {
     }
 
     #[test]
-    fn bifrost_github_publication_receipt_round_trips_with_hands_pr_proof() -> Result<()> {
+    fn bifrost_github_projection_binds_hands_pr_and_ledger_proof() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-bifrost-github-publication.ccmp");
         let intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
@@ -4774,7 +4690,7 @@ mod tests {
         write_epiphany_cultmesh_bifrost_body_change_publication_intent(
             &store,
             "epiphany-test",
-            intent,
+            intent.clone(),
         )?;
         write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
             &store,
@@ -4787,11 +4703,17 @@ mod tests {
             github.clone(),
         )?;
 
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert_eq!(
-            load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
-                &store,
-                "epiphany-test"
-            )?,
+            context.arrival_latest_bifrost_body_change_publication_intent,
+            Some(intent)
+        );
+        assert_eq!(
+            context.arrival_latest_bifrost_body_change_publication_receipt,
+            Some(publication)
+        );
+        assert_eq!(
+            context.arrival_latest_bifrost_github_publication_receipt,
             Some(github.clone())
         );
         assert_eq!(
