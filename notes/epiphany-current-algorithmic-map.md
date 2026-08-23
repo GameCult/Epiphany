@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `2aeab7a9` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `77e817c1` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -46,6 +46,12 @@ owners derive exact dependencies from typed state; no universal "every organ
 depends on every other organ" prompt cargo can make Eyes gate Modeling or make
 a decorative list impersonate transaction authority. Persona projects exact
 social, memory, and Body inputs without that fiction.
+
+The operator surface has no unconsumed view-lens registry, legacy acceptance
+bundle builder, test-only raw-JSON result interpreter, or second CRRC
+recommendation algorithm. Typed runtime-result interpretation remains shared by
+current work and reorientation. The keyed status composer is the sole CRRC
+recommendation projection; its DTO does not confer routing authority.
 
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the

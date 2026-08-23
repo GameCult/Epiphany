@@ -719,13 +719,25 @@ Family validators, typed launch documents, sealed reasoning projections, and
 concrete invariant owners remain. Focused acceptance is core 378/378,
 OpenRouter runtime 27/27, packaged runtime 13/13, and Persona re-entry 1/1.
 
-Next audit the derived operator surface modules and their tests by production
-consumer. Preserve Eve/CultMesh projections that expose live typed owners; cut
-surface DTOs, status helpers, and tests whose only consumer is their own
-fixture. Preserve cluster topology while it owns the runtime-bound Body domain
-and bootstrap evidence. Do not run a full-workspace compile, package,
-deployment, or Ox root until the subtraction audit closes. Never resume Ox10,
-Ox12, Ox13, Ox15, or Ox16.
+Exact `ef92e853` deletes the callerless view-lens registry, legacy role and
+reorientation acceptance-bundle builders, two `#[cfg(test)]` raw-JSON result
+parsers, and the six tests that animated them: 797 net lines. The typed runtime
+result interpreter remains in use by current work and reorientation. Core is
+372/372.
+
+Exact `a292979d` plus formatting receipt `77e817c1` delete the second CRRC
+recommendation algorithm, its unused input model, and four tests: 206 lines.
+The keyed status composer remains the sole recommendation projection. Core
+check and the remaining surface slice 12/12 pass.
+
+Next trace the remaining status composition as one pipeline: scene, jobs,
+planning, role board, keyed CRRC, and coordinator. Preserve only projections
+consumed by the operator/Eve surface or coordinator; cut legacy aggregate input,
+duplicate decision logic, and tests that animate no live consumer. Preserve
+cluster topology while it owns the runtime-bound Body domain and bootstrap
+evidence. Do not run a full-workspace compile, package, deployment, or Ox root
+until the subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or
+Ox16.
 
 ## Operational state that matters
 
