@@ -843,7 +843,7 @@ or tests. Authenticated source lookup receipts and the exact research decision's
 persisted evidence packet remain the real Eyes path. Core/release checks and
 focused Research 2/2 pass.
 
-Next continue the test-authority audit, beginning with remaining direct schema,
+Next continue the test-authority audit after exact `87983ffc`, beginning with remaining direct schema,
 prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
 cross-service contract against its real producer before preserving it. Retain a test only
 when it reaches Epiphany validation, ownership, authentication, monotonicity,
@@ -854,6 +854,22 @@ supervisor tests. Do not run a full-workspace compile, package, deployment, or
 Ox root until subtraction closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
 
 ## Latest authority cuts
+
+Exact `bf997ce0` hard-cuts frontier plan-decision receipts to v2. The two
+permanently empty legacy worker echoes are gone, decision provenance is
+required, and unused public type aliases no longer pretend to be contracts.
+Exact `e00ea70f` deletes the PID-only process-observation compatibility API and
+its unused path helper; exact process-incarnation identity remains the only
+liveness and termination authority.
+
+Exact `87983ffc` makes runtime identity immutable bootstrap state and advances
+runtime spine to v6. Launches no longer rewrite a shared singleton merely to
+refresh `stored_at`, an update timestamp, a derived capability list, or
+temporary evacuation metadata. Existing identity and root-session envelopes
+are replayed byte-for-byte as strong reads, so disjoint keyed jobs can merge
+without losing identity substitution protection. The existing current-work
+capstone now proves the identity envelope survives all launch families
+unchanged; focused core and OpenAI-runtime native checks pass.
 
 Exact `8c20f896` reduces Substrate Gate from six advertised contract families to
 its one real immutable repo-access grant. Request, review, refusal, snapshot,
