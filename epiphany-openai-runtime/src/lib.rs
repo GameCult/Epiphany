@@ -179,11 +179,9 @@ async fn run_openai_model_turn_bound(
             let status =
                 status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
             let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
-            let events = collect_transport_events(
-                transport.collect_model_events(request.clone()),
-                &request,
-            )
-            .await;
+            let events =
+                collect_transport_events(transport.collect_model_events(request.clone()), &request)
+                    .await;
             (status, events)
         }
         EpiphanyProviderProfile::OpenRouter => {
@@ -196,11 +194,9 @@ async fn run_openai_model_turn_bound(
                 options.default_model.clone(),
             );
             let transport = EpiphanyOpenRouterTransport::new(credential, options.request_timeout)?;
-            let events = collect_transport_events(
-                transport.collect_model_events(request.clone()),
-                &request,
-            )
-            .await;
+            let events =
+                collect_transport_events(transport.collect_model_events(request.clone()), &request)
+                    .await;
             (status, events)
         }
     };
@@ -2460,10 +2456,7 @@ mod tests {
     use sha2::{Digest, Sha256};
     use tempfile::tempdir;
 
-    fn seed_test_runtime_job(
-        store: &Path,
-        options: RuntimeSpineHeartbeatJobOptions,
-    ) -> Result<()> {
+    fn seed_test_runtime_job(store: &Path, options: RuntimeSpineHeartbeatJobOptions) -> Result<()> {
         epiphany_core::initialize_runtime_spine(
             store,
             epiphany_core::RuntimeSpineInitOptions {
@@ -2949,19 +2942,6 @@ mod tests {
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
             });
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
             schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
@@ -3294,19 +3274,6 @@ mod tests {
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
                 admitted_model_direction_consideration_context: None,
-                active_subgoal_id: None,
-                active_subgoals: Vec::new(),
-                active_graph_node_ids: Vec::new(),
-                investigation_checkpoint: None,
-                scratch: None,
-                invariants: Vec::new(),
-                graphs: None,
-                recent_evidence: Vec::new(),
-                recent_observations: Vec::new(),
-                graph_frontier: None,
-                graph_checkpoint: None,
-                planning: None,
-                churn: None,
             });
         let launch = EpiphanyRuntimeWorkerLaunchRequest {
             schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.into(),
@@ -3792,19 +3759,6 @@ mod tests {
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
-                        active_subgoal_id: None,
-                        active_subgoals: Vec::new(),
-                        active_graph_node_ids: Vec::new(),
-                        investigation_checkpoint: None,
-                        scratch: None,
-                        invariants: Vec::new(),
-                        graphs: None,
-                        recent_evidence: Vec::new(),
-                        recent_observations: Vec::new(),
-                        graph_frontier: None,
-                        graph_checkpoint: None,
-                        planning: None,
-                        churn: None,
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
@@ -4103,19 +4057,6 @@ mod tests {
                 frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
                         admitted_model_direction_consideration_context: None,
-                        active_subgoal_id: None,
-                        active_subgoals: Vec::new(),
-                        active_graph_node_ids: Vec::new(),
-                        investigation_checkpoint: None,
-                        scratch: None,
-                        invariants: Vec::new(),
-                        graphs: None,
-                        recent_evidence: Vec::new(),
-                        recent_observations: Vec::new(),
-                        graph_frontier: None,
-                        graph_checkpoint: None,
-                        planning: None,
-                        churn: None,
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),

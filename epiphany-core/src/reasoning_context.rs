@@ -1943,19 +1943,6 @@ mod tests {
             frontier_plan_mind_context: None,
             imagination_consideration_context: None,
             admitted_model_direction_consideration_context: None,
-            active_subgoal_id: None,
-            active_subgoals: Vec::new(),
-            active_graph_node_ids: Vec::new(),
-            investigation_checkpoint: None,
-            scratch: None,
-            invariants: Vec::new(),
-            graphs: None,
-            recent_evidence: Vec::new(),
-            recent_observations: Vec::new(),
-            graph_frontier: None,
-            graph_checkpoint: None,
-            planning: None,
-            churn: None,
         }
     }
 

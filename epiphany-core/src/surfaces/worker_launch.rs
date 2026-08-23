@@ -1,14 +1,3 @@
-use epiphany_state_model::EpiphanyChurnState;
-use epiphany_state_model::EpiphanyEvidenceRecord;
-use epiphany_state_model::EpiphanyGraphCheckpoint;
-use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphs;
-use epiphany_state_model::EpiphanyInvariant;
-use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-use epiphany_state_model::EpiphanyObservation;
-use epiphany_state_model::EpiphanyPlanningState;
-use epiphany_state_model::EpiphanyScratchPad;
-use epiphany_state_model::EpiphanySubgoal;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -111,32 +100,6 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub admitted_model_direction_consideration_context:
         Option<AdmittedModelDirectionConsiderationContextProjection>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active_subgoal_id: Option<String>,
-    #[serde(default)]
-    pub active_subgoals: Vec<EpiphanySubgoal>,
-    #[serde(default)]
-    pub active_graph_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scratch: Option<EpiphanyScratchPad>,
-    #[serde(default)]
-    pub invariants: Vec<EpiphanyInvariant>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graphs: Option<EpiphanyGraphs>,
-    #[serde(default)]
-    pub recent_evidence: Vec<EpiphanyEvidenceRecord>,
-    #[serde(default)]
-    pub recent_observations: Vec<EpiphanyObservation>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graph_frontier: Option<EpiphanyGraphFrontier>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub planning: Option<EpiphanyPlanningState>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub churn: Option<EpiphanyChurnState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
