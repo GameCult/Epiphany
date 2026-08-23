@@ -557,10 +557,19 @@ touches only those rows, private-state tool requests refuse, and typed
 intent/receipt persistence round-trips. The cut removes 396 net lines;
 CultMesh integration passes 57/57 and the non-test core check is clean.
 
-Next map ownership of the static Verse, room, topology, and organ-contract
-documents still published from `cultmesh_integration.rs`. If CultNet already
-owns a contract, CultMesh should project it directly rather than authoring and
-testing a second copy. Separately split the 4.7-kiloline daemon supervisor's
+Exact `f236e1cd` deletes the six parallel Mind, Substrate Gate, Eyes, Hands,
+Soul, and Continuity CultMesh contract families. Their DTOs, type/schema
+constants, registry bindings, field-copy mappers, writers, seed calls, mirror
+tests, and public reexports are gone. The local Verse now derives summaries
+directly from each organ's owning CultNet contract factory. This removes 607 net
+lines; CultMesh integration passes 51/51 and non-test core remains clean. A
+store containing the deleted derived envelopes refuses under the new registry;
+there is no migrator or dual reader.
+
+Next audit the deterministic Verse policy, global room, and cluster topology
+documents still rewritten into CultMesh from compile-time vectors. If no live
+authority mutates them, derive them directly and delete the stored copies and
+mirror tests. Separately split the 4.7-kiloline daemon supervisor's
 launch/reconcile authority before claiming sequencing coverage. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
 audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.

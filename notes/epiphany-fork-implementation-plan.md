@@ -15,7 +15,7 @@ earned OpenAI-compatible authentication or model-transport capability.
 
 - `epiphany-state-model` owns shared typed semantic contracts; durable Mind is keyed CultCache owned by `epiphany-core`.
 - `epiphany-core` owns keyed Mind admission, runtime spine, organ gates,
-  heartbeat physiology, Persona, and CultMesh integration. Coordinator policy,
+  Resident Self physiology, Persona, and CultMesh integration. Coordinator policy,
   status, and every migrated work family consume keyed Mind plus exact runtime
   receipts. Persisted `EpiphanyThreadStateEntry`, the in-memory
   `EpiphanyThreadState` schema, generic launch/update transactions, and global
@@ -52,7 +52,9 @@ earned OpenAI-compatible authentication or model-transport capability.
 - Native repo-work planning, Hands/Soul/Mind closure, public-proof, credit, and
   Bifrost accounting families.
 - CultMesh local Verse, compact operator readbacks, Gjallar sight, Eve
-  connection receipts, and three-Verse trust boundaries.
+  connection receipts, and three-Verse trust boundaries. Organ contract
+  summaries derive directly from their CultNet owners; CultMesh persists no
+  parallel contract directory.
 - Complete removal of the Epiphany Codex app-server compatibility surface and
   `epiphany-codex-bridge`.
 
