@@ -2,8 +2,8 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `803e3447`
-Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
+Latest committed implementation cut: `856648de`
+Current worktree: documentation repair and continuing source/test-authority audit; Ox17 remains paused
 
 ## Orientation
 
@@ -44,29 +44,25 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
-The current uncommitted subtraction removes the final heartbeat scheduler.
+Exact `856648de` deletes the unused semantic-memory and workspace-coverage
+projection subsystem: 32,866 net source lines, four binaries, the competing
+local daemon supervisor, Qdrant/Ollama/Postgres configuration, projector
+policy/lifecycle/heartbeat/recovery state, query/context packets, aggregate
+RepoModel revision/hash cargo, and Persona's always-empty semantic-recall
+plumbing.
 
-- Resident Self directly owns typed pressure selection, pressure-to-grant
-  batch CAS, prepared and active launch exclusion, leases, terminal receipts,
-  retry, and bounded retention. Terminal receipts are final records; no second
-  daemon consumes acknowledgements.
-- Persona owns its separate keyed social store. The swarm receives that store
-  directly and cannot use a scheduler singleton to launch, block, retain, or
-  terminalize Persona work.
-- The heartbeat Rust module, six submodules, CLI binary, release role, schema,
-  store contract, systemd unit, deployment lifecycle, readiness checks,
-  artifact directory, pacing/history state, stale repair, and old cross-store
-  reconciliation are deleted. Old heartbeat grants, acknowledgements, and
-  Resident Self v0 stores fail the writable epoch check.
-- Native core passes 426/426 after the first fake-test pruning slice. Twenty-
-  one tests across library and runtime targets that only inspected source
-  spelling, copied removed fields, or exercised one-line helper truth tables
-  are gone. Daemon supervisor passes 29/29, coordinator 8/8, status 1/1, and
-  swarm 4/4. Exact CAS, hostile substitution, concurrency, lifecycle,
-  readiness, and re-entry proofs remain.
-- The gamecult-ops contract removes 52 net lines, and Git Bash syntax plus the
-  deployment outage-order check pass. Bootstrap retains one deliberate cleanup
-  line to remove an obsolete installed heartbeat unit.
+No agent request builder or sealed reasoning projection consumed those caches.
+Modeling now reads the exact typed Body and keyed RepoModel projection directly;
+Persona reads keyed memory and typed social state directly. Future retrieval
+evidence must earn a typed provider receipt and an explicit reasoning consumer.
+Idunn remains the sole deployment and daemon-survival authority. Core 165/165,
+OpenAI runtime 25/25, and release construction 19/19 pass serially.
+
+The active editor boundary is also clean. Epiphany owns no Rider or Unity
+bridge, command schema, or editor-specific actuator. Brokkr owns Unity through
+Eve/CultMesh; a future Rider daemon will own Rider. Historical architecture
+snapshots retain their dated record but cannot be mistaken for executable or
+current authority.
 
 The global thread-state authority is gone.
 
@@ -463,9 +459,17 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-The Ox17 deployment lane is paused. Yggdrasil exposed 96 GiB of dead native
-Cargo targets after interrupted full-workspace builds; exact cleanup returned
-the builder target root to 4 KiB. Exact `1d5a1f17` landed the first causal cut:
+The Ox17 deployment lane is paused. Continue the source/test-authority audit
+from exact `856648de`; do not compile or deploy through Idunn yet. Inspect the
+remaining production modules and tests by owner, consumer, invariant, and
+failure mode. Delete an abstraction with the tests that merely animate it when
+it has no decision-bearing consumer. Preserve the keyed Mind, sealed reasoning,
+direct Body-to-Modeling flow, family admission owners, Persona social state,
+provider boundaries, and consequence-verifying receipts.
+
+Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
+interrupted full-workspace builds; exact cleanup returned the builder target
+root to 4 KiB. Exact `1d5a1f17` landed the first causal cut:
 
 - 21 duplicate core/release binary declarations are gone; each production
   entrypoint has one Cargo owner;
@@ -496,13 +500,11 @@ documents participate in the exact projection digest and source set. Dead
 test-only alternate Resident Self and direct Continuity writers are also gone.
 The final core library passes 483/483 and Persona service re-entry passes 1/1.
 
-Exact `360073a3` collapses semantic projection to one Modeling corpus and
-removes 1,726 net lines. The global Mind semantic corpus, agent-memory graph
-profile, dual-store projector contract, multi-source fairness cursor, legacy
-semantic migrators, one-variant partition type, unused semantic traits, and
-their obsolete tests are gone. Modeling retrieval now derives only live
-RepoArchitecture/RepoDataflow documents from the complete exact keyed
-RepoModel basis. Native core check passes and the library suite passes 472/472.
+Exact `360073a3` was an intermediate reduction of semantic projection. Exact
+`856648de` later proved the remaining cache had no reasoning consumer and
+deleted the subsystem wholesale. Modeling now seals the live typed Body and
+keyed RepoModel basis directly; no vector readiness or workspace-coverage gate
+stands between Body and Modeling.
 
 Exact `d1685df8` deletes heartbeat aggregate cognition: personality/mood timing,
 appraisal, rumination, dreaming, the void routine, and its memory graph. Exact
@@ -624,12 +626,10 @@ topology strings already exercised at prompt/liveness boundaries, and one still
 claimed to reject provider-owned bootstrap state after those provider fields
 had been deleted. This is 78 pure test-line deletions; CultMesh passes 27/27.
 
-Exact `ab5b16ec` deletes the `#[cfg(test)]` generic managed-service-policy writer
-and the two assertions that summoned that forbidden path solely to watch it
-refuse reserved services. Production already exposes only specialized semantic
-and workspace-coverage projector writers. Their hostile-command, injected-
-argument, exact-policy, and policy-digest checks remain. This removes 28 lines;
-non-test core and the three focused reserved-policy tests pass.
+Exact `ab5b16ec` deleted a `#[cfg(test)]` generic managed-service-policy writer
+and the two assertions that summoned it. The specialized projector writers and
+tests that survived that intermediate cut were later deleted with the entire
+unconsumed subsystem at `856648de`.
 
 Exact `c977d149` deletes Epiphany's unused v0 Idunn deployment-receipt and
 aftercare-audit families. VoidBot, `gamecult-ops`, and the local Odin/Idunn body
@@ -639,7 +639,7 @@ had no writer, test, or consumer beyond unused context slots and loaders. The
 cut removes 151 lines; non-test core, CultMesh 27/27, and prompt projection 1/1
 pass.
 
-The next producer audit found no production writer for
+An intermediate producer audit found no production writer for
 `EpiphanyCultMeshDaemonStatusEntry`; only CultMesh tests call its public writer.
 The daemon supervisor and local-Verse context read this manually conjured
 aggregate, while the real semantic/workspace projectors already publish their
@@ -654,8 +654,8 @@ loop, CLI flags, and nine fixture-driven tests; and one helper kept alive only
 by those tests. The cut is 1,808 net lines. Non-test release-bundle supervisor
 check passes, CultMesh passes 20/20, and the remaining supervisor tests pass
 8/8. No source reference to the deleted schemas or reconciliation path remains.
-The live managed-service path continues through specialized semantic and
-workspace-coverage policy, lifecycle, heartbeat, and recovery documents.
+That left an intermediate specialized managed-service path. Exact `856648de`
+later deleted it because neither projector fed a reasoning basis.
 
 Exact `f9eeb460` then removes the remaining self-referential supervisor display
 test and its helper. The test asserted only that a non-authoritative label
@@ -681,34 +681,21 @@ conflicts on concurrent same-service replacement while disjoint services remain
 independent. The cut subtracts 209 net lines. Focused native checks pass:
 CultMesh 18/18, workspace process authority 11/11, and supervisor 5/5.
 
-Exact `47454e61` replaces the branch-filled generic launch function with one
-semantic launch owner, one workspace-coverage launch owner, and one shared
-native spawn mechanic. Optional family tuples and generic launch outcomes are
-gone. The same cut deletes six Windows Task Scheduler commands, PowerShell
-mutation/readback, survival settings, parser cargo, and the argv test. Idunn on
-Yggdrasil is the sole deployment and daemon-survival authority. The supervisor
-drops from 3,156 to 2,693 lines: 463 net lines removed; native check and its
-four consequence tests pass. The retired command refuses at runtime.
-
-`notes/semantic-projector-service-runbook.md` now describes the Yggdrasil/Idunn
-body. Its deployment preflight records one external mismatch: the current
-`gamecult-ops/systemd/epiphany.service` still supplies retired `--agent-store`
-and `--daemon-id` flags. The owning infrastructure lane must correct that unit
-before a fresh Epiphany package is admitted; do not edit or deploy it from this
-source-subtraction lane.
+Exact `47454e61` was the last intermediate supervisor split and correctly
+deleted Epiphany's Windows Task Scheduler control plane. Exact `856648de`
+deletes the remaining native spawn mechanic and both cache-process launch
+owners. Idunn on Yggdrasil is the sole deployment and daemon-survival authority.
+The obsolete semantic-projector runbook is deleted rather than preserved as
+current deployment guidance.
 
 Exact `803e3447` deletes the unconsumed `semantic-projector-service-status`
 command and its ad hoc JSON projection: 40 net lines. Typed lifecycle and
 heartbeat state plus Idunn's signed aggregate health remain the read paths.
 Supervisor check and 4/4 consequence tests pass.
 
-Exact `da8ed840` removes 484 net lines of console-shaped reconcile state.
-Semantic and workspace recovery now prove launches, termination, readiness,
-and recovery through typed receipts; the scheduler proves health through its
-signed Idunn publication. Authentication failures fail the command instead of
-printing a JSON refusal and returning success. Degraded native process sight
-still refuses actuation. The supervisor is 2,104 lines and its four remaining
-tests each cross a live brake, process-identity, or signed-health boundary.
+Exact `da8ed840` removed 484 net lines of console-shaped reconcile state. Its
+remaining supervisor and cache recovery authorities were subsequently deleted
+at `856648de`; signed Idunn health is the operational truth.
 
 Exact `2aeab7a9` deletes the generic organ dependency/proof-profile subsystem,
 its persisted worker-launch field, Persona prompt injection, evaluator, and

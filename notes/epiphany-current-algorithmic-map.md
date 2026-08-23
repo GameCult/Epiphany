@@ -153,15 +153,13 @@ v0 deployment and aftercare DTOs; Epiphany had no writer, test, or consumer for
 them. Those schemas, registry entries, context fields, loaders, and key helpers
 are deleted rather than advertising a crossing that never existed.
 
-Exact `c553868d` deletes the entire generic daemon supervision subsystem rather
-than adding the producer its tests implied: daemon status, poke intent/receipt,
-restart policy, scheduler receipt, their CultMesh registry and local-Verse
-slots, the generic reconcile/tick/serve/policy commands, and their helper-only
-tests are gone. Semantic and workspace-coverage projectors remain the owners of
-their authenticated health. Specialized managed-service policies own desired
-launch configuration; exact lifecycle and provider receipts own observed
-consequences. LocalVerse and Eve may derive status from those family documents,
-but no writable aggregate may impersonate them.
+Exact `856648de` completes the daemon and derived-cache subtraction. Epiphany
+owns no local daemon supervisor, semantic-memory projector, workspace-coverage
+projector, managed-service policy, projector lifecycle/heartbeat/recovery
+mirror, or Qdrant/Ollama/Postgres cache configuration. Idunn owns deployment and
+daemon survival; signed Idunn health is the operational receipt. Eve/CultMesh
+may project that provider-owned state, but Epiphany does not mirror it into a
+second writable authority.
 
 Exact `30c66080`, `008bd493`, `7e16e758`, and `3312880e` close the remaining
 generic command entrances, legacy lifecycle lineage, finite/fallback launch,
@@ -180,17 +178,10 @@ process identity/PID reuse, and heartbeat freshness plus lifecycle correlation.
 Tests that merely format bytes, call a match arm, round-trip a brake, or preserve
 a display/history mirror are gone with the production scaffolding they excused.
 
-Exact `47454e61` splits launch authority into semantic and workspace-coverage
-families over one small native spawn mechanic. Optional family tuples and the
-generic launch outcome are gone. The same cut deletes Epiphany's Windows Task
-Scheduler installer/control plane and its argv test: Idunn on Yggdrasil is the
-deployment and daemon-survival owner. The supervisor falls from 3,156 to 2,693
-lines, 463 net lines smaller. Its four surviving tests now guard brake scope,
-Idunn signed-health binding, stale process identity, and heartbeat correlation.
-Exact `803e3447` deletes the unconsumed ad hoc semantic service-status JSON
-command. Exact typed lifecycle and heartbeat documents plus Idunn's signed
-aggregate health remain the inspection surfaces; the supervisor no longer owns
-a parallel display summary.
+The earlier supervisor reductions established that Idunn on Yggdrasil is the
+deployment and daemon-survival owner. `856648de` deletes the remaining local
+spawn, process-identity, heartbeat, and recovery implementation instead of
+keeping a parallel physiology alive for two cache processes that no agent used.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;
@@ -372,16 +363,11 @@ Collection members therefore remain separate CultCache identities. Shared
 vectors and mutable global heads are forbidden because they manufacture false
 conflict between Persona, Hands, Modeling, and Verification.
 
-The semantic projector applies the same doctrine to derived cache work. It has
-one corpus: Modeling documents derived from live RepoArchitecture and
-RepoDataflow state. Persona memory and other Mind documents are not flattened
-into a second semantic graph. Before acquisition, completion, retention, or
-retirement, the projector reconstructs the complete current Modeling basis
-from the opening snapshot and requires the supplied content-addressed
-obligation to match. Acquisition is full-snapshot CAS, so a concurrent keyed
-insert is fenced even though none of the older source envelopes changed.
-Semantic cache generations and times remain diagnostic cargo; they do not
-establish direction or currentness.
+There is no derived semantic cache authority. Modeling consumes the exact typed
+Body and keyed RepoModel projection directly. Persona consumes keyed Persona
+memory and typed social state directly. If a future retrieval provider earns a
+place in a reasoning basis, its exact observation and receipt must enter Mind
+as typed evidence; it may not grow a parallel mutable head.
 
 ## State-driven work
 
@@ -436,7 +422,7 @@ Reorientation use that shared shape. Research and the two-stage Planning
 workflow retain their full exact lifecycle projections because they carry more
 than one pass stage; current-work may not crush them to an action or stage enum.
 
-The semantic obligation and exact attempt/lifecycle together form current-work
+The typed family obligation and exact attempt/lifecycle together form current-work
 identity. A failed or cancelled attempt therefore changes the projection digest
 and permits one fresh Resident Self pressure/grant; replaying unchanged failed
 state remains idempotent. Proposal attempt ordinals are canonical and
@@ -454,7 +440,7 @@ These are distinct authorities and must not be collapsed into one state enum:
 - Coordinator process owns its incarnation receipt or exact-death closure.
 - Runtime worker attempt owns immutable launch, process claim, activation,
   typed result, job result, and terminal attempt classification.
-- Mind owns adoption of a successful semantic result.
+- Mind owns adoption of a successful structured family result.
 - Retention owns deletion only after all live authorities are terminal.
 
 The attempt aggregate centralizes exact request association and typed terminal
@@ -478,7 +464,7 @@ the mention pending with the terminal receipt bound into its next deterministic
 request identity. Resident Self cannot launch, block, or terminalize Persona
 work.
 
-## RepoModel and semantic projection
+## RepoModel projection
 
 RepoModel persistence is keyed by semantic identity: identity/body binding,
 domain, node, edge, summary, frontier, lifecycle receipt, and per-node claim-
@@ -489,19 +475,11 @@ and cycle checks include the exact reachable closure in strong reads. Per-node
 guards make node retirement versus concurrent frontier targeting physically
 conflict without serializing unrelated graph writes.
 
-Semantic vector projection is derived cache work. Readiness is based on exact
-projection obligations and receipts; semantic cache state never admits Mind or
-routes an agent pass.
-
-For Modeling, each projector pulse assembles the complete current keyed
-RepoModel view, authenticates every exact document version through the Mind
-commit receipt that owns it, and derives a content-addressed projection work
-item from that basis. The work item is not written inside a Mind mutation:
-doing so would recreate a singleton conflict domain across disjoint graph
-commits. An older bootstrap or concurrent work item remains harmless cache
-history and cannot suppress the newly assembled basis. Modeling retention uses
-exact basis identity, not the graph-shaped projector DTO's synthetic revision;
-that DTO is compatibility-shaped cache cargo only.
+Each Modeling basis assembles the complete current keyed RepoModel view from
+exact document versions and authenticates those versions through their owning
+Mind commit receipts. There is no aggregate model revision, semantic projector
+DTO, workspace-coverage readiness gate, or cache work item. Currentness is the
+exact source-version set sealed into the reasoning basis.
 
 ## External and social facts
 

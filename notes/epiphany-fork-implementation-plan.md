@@ -20,8 +20,10 @@ earned OpenAI-compatible authentication or model-transport capability.
   receipts. Persisted `EpiphanyThreadStateEntry`, the in-memory
   `EpiphanyThreadState` schema, generic launch/update transactions, and global
   launch revisions have been deleted with no compatibility path.
-- Native binaries expose coordinator, status, state, runtime, memory, daemon,
-  Persona, repo-work, and Verse operations.
+- Native binaries expose coordinator, status, state, model runtime, Persona,
+  repository Body observation, governed work, and Verse operations. Deployment
+  and daemon survival belong to Idunn; retrieval providers remain external
+  evidence sources until a typed reasoning consumer earns them.
 - CultCache stores typed state and receipts; CultMesh/CultNet carry typed local
   and federated projections.
 - Vendored Codex exposes no Epiphany route, DTO, thread-state field, rollout
@@ -185,7 +187,7 @@ Exit evidence:
 
 - Demonstrate a Bifrost-originated work item flowing through Epiphany lanes,
   maintainer review, credit/ledger receipts, and operator-safe public proof.
-- Demonstrate Persona discussion with semantic memory, consent, disagreement,
+- Demonstrate Persona discussion with keyed typed memory, consent, disagreement,
   and governed external crossing.
 - Treat foreign dreams as thought weather until a reviewed adoption receipt.
 
@@ -220,22 +222,16 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Keep the five-day shakedown and Model Atlas operational Gate 1 paused. The
-source-level Decision-Auditable Concurrent Mind hard cut is accepted. Fresh
-Gate preflight exposed the aggregate ownership defect; the aggregate has now
-been structurally removed. Decision-context admission, retention,
-writable-epoch refusal, keyed graph/Verification concurrency, concrete
-Persona+Hands concurrency, sealed Persona ingress, and deterministic read-only
-restart/re-entry are accepted. Exact source `d2ca6630` is deployed,
-OpenRouter `stealth/ox-alpha` credential readiness is proven. Ox9 and Ox10 were
-deliberate isolated resumptions, and both falsified routing seams without
-contaminating production Mind. Ox12 proved the d2ca Body/dead-worker repairs,
-then exact `9b9b5c85` proved canonical proposal retry and exposed a structured
-mutation refusal that was not durable routing state. Exact `e046a4d1` makes
-family admission refusal typed, replayable, and retryable, and cuts writable
-Mind/runtime epochs to v3/v4. Build it through Idunn and use a new private
-fresh-store Ox root; historical Ox12 cannot be resumed. Model Atlas Gate 1
-remains paused.
+Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
+1 paused. Continue the source-subtraction and test-authority audit from exact
+`856648de`. That cut deletes the unused semantic-memory/workspace-coverage
+projection system, its four binaries, its local daemon supervisor, and 32,866
+net source lines. Modeling now consumes typed Body and keyed RepoModel state
+directly. Persona consumes keyed memory and social state directly. No
+Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through typed
+Eve/CultMesh capabilities, and a future Rider daemon will own Rider. Do not
+admit a fresh package until the remaining production surfaces and tests have
+earned their authority under the same audit.
 
 Exact `f8412b69` closes the last known retention wound before that capstone:
 the packaged model runtime can reconstruct a decision by context ID from its
@@ -260,12 +256,11 @@ RepoModel initializer independently validates the complete route before any
 envelope is written. A hostile seed refuses byte-identically; no migration or
 fallback identity exists.
 
-Exact `bb823c54` closes the two wounds found by that native replay. One
-shared model-pass terminal owner atomically binds a typed failure to its sealed
-decision context and closes the exact Persona session. Modeling semantic work
-is derived from the complete exact keyed RepoModel document-version set plus
-the Mind commit receipts that own those versions; it is content-addressed cache
-physiology outside Mind mutation CAS, not a singleton projection head.
+Exact `bb823c54` closed the two wounds found by that native replay. One shared
+model-pass terminal owner atomically binds a typed failure to its sealed
+decision context and closes the exact Persona session. Its derived semantic
+cache design was later proven unconsumed and deleted wholesale at `856648de`;
+the sealed typed Body/RepoModel basis remains the current Modeling input.
 
 Cut in this order:
 
@@ -394,7 +389,7 @@ Cut in this order:
    `553f79d9` package proved concurrent Persona plus terminal Modeling cognition,
    then correctly exposed the bad seed during admission. Rebuild and replay the
    capstone from exact `a8f3c1f0`; do not transplant the prior decision.
-23. **Terminality, provider-authorship, and semantic-work cut landed at `bb823c54`:**
+23. **Terminality and provider-authorship landed at `bb823c54`; its cache projection was superseded by `856648de`:**
    a provider or contract failure seals one `EpiphanyModelPassFailure`; its
    sealed context, not caller arguments, identifies and atomically closes the
    exact model transport job/session. Role, reorient, and Persona failures share
@@ -403,16 +398,12 @@ Cut in this order:
    opening, event recording, and context sealing; the public caller-authored
    provider store is deleted. Reorientation failure admission requires the
    same canonical model-pass failure rather than a generic failed worker result
-   plus context. Restart cannot silently infer again. Modeling
-   semantic projection work is regenerated from exact keyed document versions
-   and their owning Mind commit receipts. Disjoint Mind commits never replace
-   a shared semantic head. Each semantic operation reconstructs the complete
-   current keyed basis from its opening snapshot and uses a full-snapshot fence
-   where namespace phantoms matter; stale work is identified by exact basis
-   identity rather than aggregate revision or timestamp order. Focused
-   concurrency/retention suites and core `496/496` pass. The complete native
-   workspace/all-target suite also passes; the only ignored test is the
-   explicitly live immutable-GitHub proof.
+   plus context. Restart cannot silently infer again. Modeling seals exact keyed
+   document versions and their owning Mind commit receipts directly into its
+   reasoning basis. The later cache/projector layer that duplicated this source
+   set had no reasoning consumer and is gone. Concurrency is protected by keyed
+   Mind CAS and exact basis identity rather than aggregate revision or timestamp
+   order.
 24. **Build/run retention is bounded:** Idunn on upgraded Yggdrasil owns the
    source-triggered compile/test/package/deploy path. Starfire does not run a
    parallel release build. Any containerized run must use exact run labels and remove disposable

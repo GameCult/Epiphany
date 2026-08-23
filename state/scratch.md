@@ -67,6 +67,8 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    exercise one-line helpers without reaching a consequence. Preserve exact
    CAS, conflict, substitution, concurrency, lifecycle, and re-entry proofs.
    The remaining source-inspection concentration is the daemon supervisor and
-   workspace-coverage service; map those claims before deleting them.
+   The semantic-memory/workspace-coverage projection stack and its local daemon
+   supervisor were deleted at 856648de after proving that no sealed reasoning
+   projection consumed them. Repair current maps; preserve history as history.
 6. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.
