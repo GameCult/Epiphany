@@ -82,7 +82,7 @@ machine-spirit awake.
 - Handoff summary: `F:\Projects\Epiphany\notes\fresh-workspace-handoff.md`
 - Epiphany algorithmic map: `F:\Projects\Epiphany\notes\epiphany-current-algorithmic-map.md`
 - Epiphany safety architecture: `F:\Projects\Epiphany\notes\epiphany-safety-architecture.md`
-- State CLI: `cargo run --manifest-path F:\Projects\Epiphany\epiphany-core\Cargo.toml --bin epiphany-state -- ...`
+- State CLI: `cargo run --manifest-path F:\Projects\Epiphany\Cargo.toml --bin epiphany-state -- ...`
 - Pre-compaction helper: `cargo run --manifest-path F:\Projects\Epiphany\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction -- ...`
 
 ## Useful Commands
@@ -96,7 +96,7 @@ name the shared target explicitly:
 ```powershell
 & 'C:\Users\Meta\.cargo-target-codex\debug\epiphany-state.exe' status
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
+cargo run --manifest-path .\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --
 ```
 
@@ -219,10 +219,50 @@ operator-enginseer, not the implementation servitor.
   run contaminated for supervision purposes, and continue from sealed
   projections instead of letting the worker's stream steer the supervisor.
 
+## Source And Build Economy
+
+- Verified capability is the asset. Epiphany-owned source, tests, schemas,
+  dependencies, executable targets, and compiler artifacts are carrying costs.
+  Minimize authority surfaces and build fan-out, not line count; readable code
+  and consequence-bearing verifier reach remain invariants.
+- The target invariant is one Cargo package owner per production entrypoint.
+  `epiphany-core` owns only the `epiphany-prepare-compaction` maintenance
+  binary; runtime entrypoints are converging on `epiphany-release-bundle`.
+  Known violations still under repair are `epiphany-model-runtime`,
+  `epiphany-persona-service`, and `epiphany-tool-mcp-runtime`, whose sources are
+  also admitted by their leaf package manifests. Treat those duplicates as cut
+  work, not precedent. Do not point multiple packages at the same binary source
+  or preserve a binary because a stale manifest, smoke command, or historical
+  document still names it.
+- Admit a new executable only when a live consumer requires an independent
+  process, privilege boundary, lifecycle, or deployment contract. Tests,
+  fixtures, probes, and one-off migrations belong in existing library or
+  integration-test surfaces unless they must cross such a boundary.
+- Local Cargo checks must name one package and a focused library, integration
+  test, or binary target. Do not run local workspace-wide, `--all-targets`, or
+  otherwise unspecified multi-binary builds without explicit operator
+  authorization. Idunn owns release-wide build execution. Before an authorized
+  broad build, inventory the target graph, output root, current output size,
+  free disk, expected budget, and terminal retention.
+- An interrupted build remains unsettled work. Before retrying, inventory every
+  output root it may have written, including absolute path, size, last write,
+  owning run or revision, live process status, and retention decision. Settle
+  that run before creating another target root; cleanup machinery is not a
+  substitute for deleting unowned source or target fan-out.
+
 ## Verification Guardrails
 
 - Use focused checks for the surface being changed instead of defaulting to a
   whole-repo ritual. Not every prayer needs a cathedral.
-- For Epiphany control-plane behavior changes, run focused Rust checks against the touched app-server mapper/handler tests plus any matching native `epiphany-core` smoke binary. The old Python smoke shims have been cut; do not resurrect them.
+- For Epiphany control-plane behavior changes, run the focused existing library
+  or integration tests that exercise the changed consequence, plus touched
+  app-server mapper/handler tests when applicable. Do not create or resurrect a
+  standalone smoke executable merely to test a library or contract.
+- Source, test, and target counts are pressure signals, not acceptance metrics.
+  Do not delete exact conflict, substitution, concurrency, lifecycle, re-entry,
+  or user-visible consequence proofs merely to improve a count. Preserve the
+  claim in the smallest owning library or integration surface, and delete a
+  verifier only when the claim is dead, duplicated, or covered by stronger
+  evidence.
 - For Codex Rust work on this Windows machine, set `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'`.
 - Do not parallelize cargo builds or tests against the same target directory.

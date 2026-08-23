@@ -48,6 +48,24 @@ In the codex-rs folder where the rust code lives:
     trivial; prefer new modules/files and keep `chatwidget.rs` focused on orchestration.
 - When running Rust commands (e.g. `just fix` or `cargo test`) be patient with the command and never try to kill them using the PID. Rust lock can make the execution slow, this is expected.
 
+## Source And Build Economy
+
+- Verified behavior is the asset. Owned source, tests, crates, dependencies,
+  compiled targets, and build output are carrying costs. Prefer deletion,
+  collapse, or reuse before adding another mechanism, and minimize build fan-out
+  rather than chasing line-count reductions.
+- Every new crate, binary, dependency, or test target must have a named owner,
+  live consumer, and invariant that an existing surface cannot coherently own.
+  A fixture or probe does not justify a shipped binary.
+- Treat module-size guidance as a readability constraint, not an instruction to
+  manufacture crates or abstraction layers. Preserve consequence-bearing tests
+  and clear code when a smaller metric would make the machine harder to trust.
+- Before a workspace-wide, all-target, or all-feature build, enumerate the
+  package and target scope, identify the output root, inspect its size and free
+  disk, and decide what may be retained. If a build is interrupted, inventory
+  and settle its output before retrying instead of accumulating a fresh target
+  directory.
+
 Run `just fmt` (in `codex-rs` directory) automatically after you have finished making Rust code changes; do not ask for approval to run it. Additionally, run the tests:
 
 1. Run the test for the specific project that was changed. For example, if changes were made in `codex-rs/tui`, run `cargo test -p codex-tui`.
@@ -64,7 +82,10 @@ To that end: **resist adding code to codex-core**!
 Particularly when introducing a new concept/feature/API, before adding to `codex-core`, consider whether:
 
 - There is an existing crate other than `codex-core` that is an appropriate place for your new code to live.
-- It is time to introduce a new crate to the Cargo workspace for your new functionality. Refactor existing code as necessary to make this happen.
+- A new Cargo workspace crate owns a coherent boundary and repays its added
+  dependency graph, build target, and maintenance surface by removing or
+  isolating greater complexity. Do not introduce one merely to satisfy a module
+  line-count guideline.
 
 Likewise, when reviewing code, do not hesitate to push back on PRs that would unnecessarily add code to `codex-core`.
 

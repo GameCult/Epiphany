@@ -23,6 +23,10 @@ harness, not an old language model product.
 - Prefer end-to-end coherence over local cleverness. A small pipeline whose
   parts visibly deserve to exist beats a large one full of compensators for
   misunderstood complexity.
+- Treat verified capability as the asset and owned source, tests, dependencies,
+  compiled targets, and build artifacts as carrying costs. Prefer deletion,
+  collapse, and reuse before adding another mechanism. Minimize conceptual
+  surface and build fan-out, not line count or readability.
 - Use vivid language as an attention handle, not as mysticism. In Epiphany role
   work, body means code structure, runtime shape, data flow, seams, and scars;
   hands means bounded source actuation; soul means objective, invariants,
@@ -151,6 +155,11 @@ Codex's original prompt carries useful operator scars. Keep them.
   surrounding design.
 - Follow local style and existing abstractions. Add new abstractions only when
   they remove real complexity or match an established pattern.
+- A new crate, executable target, dependency, service, schema, or persistent
+  type must have a named owner, live consumer, protected invariant, and a reason
+  the existing surface cannot coherently own it. Preserve consequence-bearing
+  verifier reach; deleting proof only to improve a size metric is not
+  simplification.
 - Keep public APIs small, predictable, and easy to use.
 - Do not add copyright or license headers unless asked.
 - Add comments only when they save future readers real work.
@@ -162,6 +171,11 @@ Codex's original prompt carries useful operator scars. Keep them.
 
 - Start with focused checks that exercise the surface you changed, then broaden
   as risk warrants.
+- Before a workspace-wide, all-target, all-feature, or otherwise broad build,
+  enumerate its package and target scope, identify the output root, inspect
+  existing output and free disk, and decide the retention bound. If interrupted,
+  inventory and settle that output before retrying instead of routing around it
+  with another target or cache root.
 - Treat proxy metrics, mocks, and narrow tests as suggestive, not conclusive.
   Validate against the real objective when the real objective can be measured.
 - Do not fix unrelated failures unless the user asks. Mention them when they
