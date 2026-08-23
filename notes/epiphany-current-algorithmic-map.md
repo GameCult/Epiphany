@@ -101,10 +101,14 @@ supervisor and prompt projection. The former singleton CultMesh status row was
 a duplicate “bootstrap happened” sentinel with no independent invariant; its
 schema, writer, loader, supervisor check, and serialization test are deleted.
 
-`EpiphanyLocalVerseContext` projects Bifrost publication state but no aggregate
-daemon lifecycle head. Family-specific latest/exact loaders called only by
-tests are deleted. The two specialized projector policy writers are the only
-writers; no test-only generic writer recreates the forbidden policy path.
+`EpiphanyLocalVerseContext` does not invent Bifrost publication state. Exact
+`203bcc41` deletes the producerless body-change/GitHub publication contracts,
+singleton latest heads, writers, validators, advertisement, projection, and five
+tests that manufactured both sides. Bifrost owns its real Persona
+feedback/delivery stores and signed crossing receipts; Epiphany consumes those
+provider-owned documents instead of publishing a substitute protocol. The two
+specialized projector policy writers remain the only writers for their actual
+local service policies; no test-only generic writer recreates that path.
 
 Idunn deployment truth is not mirrored into invented Epiphany-local envelopes.
 Odin/Idunn owns `gamecult.idunn.deployment_manifest.v3` and signed daemon-health

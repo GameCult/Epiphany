@@ -780,8 +780,18 @@ derive the provider request through the production adapter. This removes sixty
 net lines and makes test ancestry obey the same one-way ownership rule as live
 inference; focused typed-storage and tool-followup tests pass.
 
+Exact `203bcc41` deletes Epiphany's fabricated Bifrost body-change and GitHub
+publication family: four CultMesh document types, three singleton latest heads,
+their constructors, validators, writers, local-Verse advertisement and
+projection, public exports, and five tests that manufactured both ends of the
+crossing. A cross-repository producer audit found no live Bifrost or
+`gamecult-ops` owner for any of these types. The real Bifrost Persona
+feedback/delivery stores and signed crossing receipts remain owned by Bifrost.
+Core checks, release-bundle checks, and the remaining CultMesh suite pass 13/13.
+
 Next continue the test-authority audit, beginning with remaining direct schema,
-prompt-rendering, CLI-parser, and CultMesh projection tests. Retain a test only
+prompt-rendering, CLI-parser, and CultMesh projection tests. Audit every claimed
+cross-service contract against its real producer before preserving it. Retain a test only
 when it reaches Epiphany validation, ownership, authentication, monotonicity,
 CAS conflict, replay, projection, or an externally visible consequence; delete
 test-only APIs and fixtures with the tests they animate.
