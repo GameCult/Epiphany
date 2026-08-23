@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`5d507bfd`. The current sequence has deleted the semantic-memory/workspace-coverage
+`6ccc7dd2`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -329,6 +329,8 @@ Cut in this order:
    refuses byte-identically, and replay is stable. Generic launch/acceptance,
    accepted-at/latest-result selection, dynamic telemetry prompts, and
    model-authored causal IDs no longer own this family.
+   Exact `6ccc7dd2` removes the later transient 20-field receipt-chain summary;
+   the request is derived directly from its patch, command, and commit owners.
 10. **Frontier Planning and PlanMind landed at `c9329ed6`:** the Planning
    request seals exact frontier/dependency versions plus per-claim obligation
    guards. Current-work owns deterministic Imagination and Mind attempts;

@@ -198,9 +198,13 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    request, result, worker, Body, domain, and Modeling documents now supply the
    values the binding previously mirrored. Runtime epoch is v15; 60 net source
    lines are gone.
-35. Next: resume the public runtime-spine and test-liability audit by live owner
+35. Done: exact `6ccc7dd2` deletes the 20-field transient Hands receipt-chain
+   summary. The commit owner derives Verification work directly from the typed
+   patch, command, and commit receipts. No schema or test was added; 43 net
+   source lines are gone.
+36. Next: resume the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-36. Run focused tests after each cut. Only after source subtraction stabilizes
+37. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

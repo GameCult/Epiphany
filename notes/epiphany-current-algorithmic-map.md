@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `5d507bfd` on `codex/epiphany-shakedown-live`
-Current worktree cut: autonomous-proposal binding subtraction; Ox17 remains paused
+Latest committed implementation cut: `6ccc7dd2` on `codex/epiphany-shakedown-live`
+Current worktree cut: Hands-to-Verification derivation subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -265,6 +265,12 @@ but reports `awaitingHandsExecutor`; it cannot terminalize that gate. Exact
 receipt-chain admission and Verification projection remain ready for a future
 actuator that performs the operation and emits receipts from its own observed
 effects.
+
+The handoff from Hands to Soul has no transient aggregate. Exact `6ccc7dd2`
+deletes the 20-field receipt-chain summary and derives the Verification request
+directly from the persisted patch, command, and commit receipts plus the
+frontier authority. The commit still publishes itself and its deterministic
+Verification request atomically.
 
 Tool discovery also has no free-floating capability registry. Exact `beb9fd32`
 deletes `EpiphanyToolCapability`, its constructor/registration/contract row,
@@ -815,7 +821,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `5d507bfd`;
+1. let Idunn compile, test, and seal exact build-affecting source `6ccc7dd2`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context

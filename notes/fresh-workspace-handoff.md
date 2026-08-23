@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `5d507bfd`
-Current worktree: documentation/evidence for autonomous-proposal binding subtraction;
+Latest committed implementation cut: `6ccc7dd2`
+Current worktree: documentation/evidence for Hands-to-Verification derivation subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `5d507bfd` is the current
+production symlink body and is inactive. Exact `6ccc7dd2` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,14 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `6ccc7dd2` deletes the private 20-field Hands receipt-chain summary. The
+Hands commit owner now derives the deterministic Verification request directly
+from the persisted patch, command, and commit receipts plus the frontier
+authority. The summary's copied schema, job, grant, command-output, Git, path,
+prose, and timestamp fields owned nothing. Atomic Hands-to-Verification
+admission and the concurrent Persona/Hands lifecycle proof still pass. The cut
+removes 43 net source lines without adding state, schema, or tests.
 
 Exact `5d507bfd` reduces Self's autonomous Imagination-to-Modeling origin
 binding from 22 duplicate fields to six causal join fields: schema, exact
@@ -1157,8 +1165,9 @@ decision audit, model/tool binding, atomic Hands-to-Verification admission,
 conflict/replay, and retention fences that prevent authority resurrection.
 
 Exact `1fea7bde` completes that immediate reader cut: the timestamp-selected
-Hands-chain query and its selector are gone, and the summary is private cargo
-used only while the commit owner derives its exact Verification request. Exact
+Hands-chain query and its selector are gone. Exact `6ccc7dd2` later deletes the
+private summary cargo and derives the Verification request directly from the
+owning receipts. Exact
 `40d00bc5` then removes the detailed planning-eligibility tableau, its two DTOs,
 and two public APIs. No consumer read its per-candidate blocker fields; Self
 reduced the entire projection to a boolean already owned by the shared
