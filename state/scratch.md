@@ -188,7 +188,13 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    decision context, structured role result, and terminal job records remain.
    Runtime epoch is v13 and archived-worker schema/type is v2. The cut removes
    41 net source lines.
-33. Next: resume the public runtime-spine and test-liability audit by live owner
-   and consequential invariant.
-34. Run focused tests after each cut. Only after source subtraction stabilizes
+33. Done: exact `ce306e23` preserves Atlas's inter-swarm publication,
+   projection, verification, impact, wake, transport, brake, and Eve path while
+   deleting the duplicate Atlas-specific offer/claim write intents, commit APIs,
+   registry entries, and two tests. Modeling/RepoModel is the sole offer/claim
+   author. Runtime epoch is v14; 593 net source lines are gone.
+34. Next: resume the public runtime-spine and test-liability audit by live owner
+   and consequential invariant. Do not subtract the unrun Atlas vertical slice;
+   streamline it around its one end-to-end authority map.
+35. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

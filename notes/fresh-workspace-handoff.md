@@ -1,9 +1,9 @@
 # Fresh workspace handoff
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `09001d89`
-Current worktree: documentation/evidence for archived-worker subtraction;
+Latest committed implementation cut: `ce306e23`
+Current worktree: documentation/evidence for Atlas authoring subtraction;
 Ox17 remains paused
 
 ## Orientation
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `ce306e23` preserves Model Atlas for the still-open inter-swarm
+collaboration trial while deleting its second local offer/claim author. Ordinary
+Modeling through keyed RepoModel operations now solely creates, deprecates,
+withdraws, and retires provider offers and consumer claims. Atlas retains its
+signed publication, pinned trust, transport, deterministic join/cycle/blast
+projection, Soul verification, Self impact admission, Resident Self wake,
+brakes, and Eve lowering. The direct Atlas offer/claim write-intent types,
+runtime commit APIs, registry entries, 518 planner lines, and two tests that
+only animated that duplicate authority are gone. The retained runtime proof
+now creates its offer and claim through RepoModel before exercising exact Soul
+verification and Body-drift refusal. The cut removes 593 net source lines,
+advances runtime writable state to v14, and leaves the three-repository
+direct/transitive Modeling proof passing. No Gate 1 run was started.
 
 Exact `a276d0f4` collapses the generic public `host_identity` module into its
 sole production consumer, Bifrost Persona-feedback admission. CultNet now owns

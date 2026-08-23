@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `a276d0f4` on `codex/epiphany-shakedown-live`
-Current worktree cut: executable/test authority subtraction; Ox17 remains paused
+Latest committed implementation cut: `ce306e23` on `codex/epiphany-shakedown-live`
+Current worktree cut: Atlas authoring/runtime-surface subtraction; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -182,6 +182,16 @@ and their separate state remain intact; no current deployment lifecycle pays
 for speculative loops, CLI parsing, sleep cadence, or process termination
 handlers. A future Gate 1 must prove the minimum Idunn-managed process topology
 from actual lifecycle and failure-isolation needs.
+
+Atlas also has one local author per fact. Exact `ce306e23` deletes the parallel
+Atlas-specific offer/claim write intents and direct runtime commit APIs.
+Ordinary Modeling through the keyed RepoModel is the sole owner of offer and
+claim lifecycle; the publisher reads those exact Mind documents. Soul retains
+the exact signed-publication verification planner, Self retains impact
+admission, and the projector remains purely derived. The retained runtime test
+now enters through RepoModel before proving verification admission and stale
+Body refusal. Inter-swarm publication, projection, transport, wake, brakes, and
+Eve lowering remain intact for Gate 1.
 
 Proposal work has one source: an exact admitted Imagination direction result.
 Self atomically promotes that result into an inert proposal, its autonomous

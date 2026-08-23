@@ -89,9 +89,9 @@ not merely that the projector drew one.
   owning CultCache record. `canonicalPayloadMsgpackSha256` separately seals the
   named canonical MessagePack published across the federation. Neither digest
   may substitute for the other.
-- Local offer, claim, verification, and impact writes use dedicated typed
-  planners and exact CultCache CAS. A stale Body or source version refuses the
-  entire mutation.
+- Local offers and claims use Modeling's keyed RepoModel planner and exact Mind
+  CAS. Soul verification and Self impact admission retain their dedicated typed
+  planners. A stale Body or source version refuses the entire mutation.
 - Model-authored offer and claim operations contain semantic intent and source
   paths only. Runtime-owned proposal v2 binds exact cause, evidence, current
   Body basis, resolved source digests, derived identities, and CAS authority.
