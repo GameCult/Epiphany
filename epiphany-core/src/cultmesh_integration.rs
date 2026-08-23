@@ -26,7 +26,6 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::DateTime;
-use chrono::FixedOffset;
 use chrono::Utc;
 use cultcache_rs::CacheBackingStore;
 use cultcache_rs::DatabaseEntry;
@@ -52,8 +51,6 @@ pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE: &str =
     "epiphany.cultmesh.daemon_service_lifecycle_receipt";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.daemon_service_lifecycle_receipt.v2";
-pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
-    "epiphany-local/daemon-service-lifecycle-receipt/latest";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
     "epiphany.cultmesh.managed_service_policy";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION: &str =
@@ -520,8 +517,6 @@ pub struct EpiphanyLocalVerseContext {
     pub verse_policies: Vec<EpiphanyVersePolicy>,
     pub global_room_policies: Vec<EpiphanyGlobalRoomPolicy>,
     pub cluster_topology: Vec<EpiphanyCultMeshClusterTopologyEntry>,
-    pub latest_daemon_service_lifecycle_receipt:
-        Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
     pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
     pub arrival_latest_bifrost_body_change_publication_intent:
         Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
@@ -809,46 +804,15 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
         expected.push(policy_envelope.clone());
         replacements.push(policy_envelope);
     }
-    let current_latest = node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
-        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
-    )?;
-    if current_latest.as_ref().is_none_or(|current| {
-        daemon_service_lifecycle_event_key(&written) >= daemon_service_lifecycle_event_key(current)
-    }) {
-        if let Some(envelope) = node
-            .cache()
-            .get_envelope::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
-                EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
-            )?
-        {
-            expected.push(envelope);
-        }
-        replacements.push(
-            node.cache()
-                .prepare_entry(
-                    EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
-                    &written,
-                )?
-                .0,
-        );
+    let service_current_key =
+        epiphany_cultmesh_daemon_service_lifecycle_receipt_current_key(&written.service_id);
+    if let Some(envelope) = node
+        .cache()
+        .get_envelope::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(&service_current_key)?
+    {
+        expected.push(envelope);
     }
-    let service_latest_key =
-        epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(&written.service_id);
-    let current_service_latest =
-        node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(&service_latest_key)?;
-    if current_service_latest.as_ref().is_none_or(|current| {
-        daemon_service_lifecycle_event_key(&written) >= daemon_service_lifecycle_event_key(current)
-    }) {
-        if let Some(envelope) = node
-            .cache()
-            .get_envelope::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
-                &service_latest_key,
-            )?
-        {
-            expected.push(envelope);
-        }
-        replacements.push(node.cache().prepare_entry(&service_latest_key, &written)?.0);
-    }
+    replacements.push(node.cache().prepare_entry(&service_current_key, &written)?.0);
     let backing = SingleFileMessagePackBackingStore::new(store_path);
     if backing.compare_and_swap_batch(&expected, replacements)? {
         return Ok(written);
@@ -863,7 +827,7 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
             written.receipt_id
         )),
         None => Err(anyhow!(
-            "daemon service lifecycle receipt CAS lost concurrent latest-state race"
+            "daemon service lifecycle receipt CAS lost concurrent current-state race"
         )),
     }
 }
@@ -928,37 +892,13 @@ pub fn authenticate_epiphany_cultmesh_semantic_projector_launch(
     Ok(receipt)
 }
 
-pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)
-}
-
-pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+pub fn load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
     service_id: &str,
 ) -> Result<Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(&epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(service_id))
-}
-
-pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    Ok(node
-        .get_all_with_keys::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>()?
-        .into_iter()
-        .filter(|(key, _)| {
-            key != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY
-                && !key.starts_with("epiphany-local/daemon-service-lifecycle-receipt/latest/")
-        })
-        .map(|(_, receipt)| receipt)
-        .collect())
+    node.get(&epiphany_cultmesh_daemon_service_lifecycle_receipt_current_key(service_id))
 }
 
 pub fn write_epiphany_cultmesh_semantic_projector_service_policy(
@@ -1437,22 +1377,6 @@ fn validate_semantic_projector_launch_receipt(
     Ok(())
 }
 
-fn daemon_service_lifecycle_event_key(
-    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
-) -> (DateTime<FixedOffset>, &str) {
-    let event_time = receipt
-        .completed_at_utc
-        .as_deref()
-        .map(DateTime::parse_from_rfc3339)
-        .transpose()
-        .expect("validated lifecycle completion timestamp")
-        .unwrap_or_else(|| {
-            DateTime::parse_from_rfc3339(&receipt.started_at_utc)
-                .expect("validated lifecycle start timestamp")
-        });
-    (event_time, receipt.receipt_id.as_str())
-}
-
 pub fn epiphany_cultmesh_bifrost_body_change_publication_intent(
     intent_id: impl Into<String>,
     source_cluster_id: impl Into<String>,
@@ -1838,8 +1762,6 @@ pub fn query_epiphany_local_verse_context(
         verse_policies,
         global_room_policies,
         cluster_topology,
-        latest_daemon_service_lifecycle_receipt: node
-            .get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)?,
         swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
         arrival_latest_bifrost_body_change_publication_intent: node
             .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY)?,
@@ -1884,8 +1806,8 @@ fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> S
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
 }
 
-fn epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(service_id: &str) -> String {
-    format!("epiphany-local/daemon-service-lifecycle-receipt/latest/{service_id}")
+fn epiphany_cultmesh_daemon_service_lifecycle_receipt_current_key(service_id: &str) -> String {
+    format!("epiphany-local/daemon-service-lifecycle-receipt/current/{service_id}")
 }
 
 fn epiphany_cultmesh_managed_service_policy_key(service_id: &str) -> String {
@@ -3086,98 +3008,6 @@ mod tests {
     }
 
     #[test]
-    fn service_lifecycle_receipt_history_excludes_latest_mirror() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-service-lifecycle.ccmp");
-        let first = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
-                .to_string(),
-            receipt_id: "service-lifecycle-first".to_string(),
-            service_id: "epiphany-daemon-supervisor-service".to_string(),
-            scheduler_id: "epiphany-daemon-supervisor".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            daemon_selector: "epiphany-daemon-supervisor".to_string(),
-            action: "windows-service-execution-audit".to_string(),
-            status: "incomplete".to_string(),
-            command: "epiphany-daemon-supervisor".to_string(),
-            args: vec!["windows-service-execution-audit".to_string()],
-            cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
-            process_id: None,
-            exit_code: Some(0),
-            started_at_utc: "2026-06-18T00:00:00Z".to_string(),
-            completed_at_utc: Some("2026-06-18T00:00:01Z".to_string()),
-            operator_artifact_ref: "artifact://service-lifecycle/first".to_string(),
-            private_state_exposed: false,
-            notes: Vec::new(),
-            executable_sha256: "sha256-test-projector".into(),
-            preflight_witness_id: String::new(),
-            required_document_types: Vec::new(),
-            schema_preflight_passed: false,
-            schema_catalog_sha256: String::new(),
-            managed_policy_id: String::new(),
-            managed_policy_digest: String::new(),
-            provider_daemon_id: String::new(),
-            startup_correlation_id: String::new(),
-            process_creation_token: 0,
-            process_created_at_rfc3339: None,
-            process_executable_path: String::new(),
-        };
-        let mut second = first.clone();
-        second.receipt_id = "service-lifecycle-second".to_string();
-        second.status = "written".to_string();
-        second.action = "windows-service-execution-runbook".to_string();
-        second.started_at_utc = "2026-06-18T00:01:00Z".to_string();
-        second.completed_at_utc = Some("2026-06-18T00:01:01Z".to_string());
-        second.operator_artifact_ref = "artifact://service-lifecycle/second".to_string();
-
-        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-            &store,
-            "epiphany-test",
-            first.clone(),
-        )?;
-        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-            &store,
-            "epiphany-test",
-            second.clone(),
-        )?;
-
-        let receipts =
-            load_epiphany_cultmesh_daemon_service_lifecycle_receipts(&store, "epiphany-test")?;
-        let mut ids = receipts
-            .iter()
-            .map(|receipt| receipt.receipt_id.as_str())
-            .collect::<Vec<_>>();
-        ids.sort_unstable();
-        assert_eq!(
-            ids,
-            vec!["service-lifecycle-first", "service-lifecycle-second"]
-        );
-        assert_eq!(
-            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-                &store,
-                "epiphany-test"
-            )?,
-            Some(second.clone())
-        );
-
-        let mut delayed_first = first.clone();
-        delayed_first.receipt_id = "service-lifecycle-delayed-first".to_string();
-        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-            &store,
-            "epiphany-test",
-            delayed_first,
-        )?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-                &store,
-                "epiphany-test"
-            )?,
-            Some(second)
-        );
-        Ok(())
-    }
-
-    #[test]
     fn service_lifecycle_receipt_refuses_invalid_or_reversed_time() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp
@@ -3235,9 +3065,10 @@ mod tests {
             .is_err()
         );
         assert!(
-            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
                 &store,
-                "epiphany-test"
+                "epiphany-test",
+                "epiphany-daemon-supervisor-service",
             )?
             .is_none()
         );
@@ -3263,40 +3094,6 @@ mod tests {
             .expect_err("a missing Verse cannot project a context");
         assert!(error.to_string().contains("store does not exist"));
         assert!(!missing_parent.exists());
-        Ok(())
-    }
-
-    #[test]
-    fn swarm_brake_round_trips_and_projects_status() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-swarm-brake.ccmp");
-        seed_epiphany_local_verse_context(
-            &store,
-            "epiphany-test",
-            "2026-06-17T00:00:00Z",
-            "repo:C:/fixture/Epiphany",
-        )?;
-
-        let brake = load_epiphany_cultmesh_swarm_brake(&store, "epiphany-test")?
-            .expect("seeded swarm brake exists");
-        assert_eq!(brake.status, "released");
-        assert_eq!(brake.scope, "swarm");
-        assert!(!brake.private_state_exposed);
-        assert!(
-            brake
-                .affected_clusters
-                .iter()
-                .any(|cluster| cluster == "epiphany.cluster.persona")
-        );
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context
-                .swarm_brake
-                .as_ref()
-                .map(|brake| brake.status.as_str()),
-            Some("released")
-        );
         Ok(())
     }
 

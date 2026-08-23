@@ -17,15 +17,14 @@ use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
 use epiphany_core::authenticate_resident_provider;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
+use epiphany_core::load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
-use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_epiphany_packaged_release;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
-use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::runtime_modeling_semantic_projection_input;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
@@ -556,7 +555,7 @@ fn windows_quote_argv(arg: &str) -> String {
 }
 
 fn semantic_projector_service_status(args: Args) -> Result<()> {
-    let receipt = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+    let receipt = load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
         &args.store,
         args.runtime_id.clone(),
         SEMANTIC_PROJECTOR_SERVICE_ID,
@@ -954,7 +953,7 @@ fn managed_service_lineage(
             },
         );
     }
-    let Some(receipt) = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+    let Some(receipt) = load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
         &args.store,
         args.runtime_id.clone(),
         &policy.service_id,
@@ -1652,14 +1651,12 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
     if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
         return reconcile_workspace_coverage_projector(args, policy);
     }
-    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+    let current = load_current_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
         &args.store,
         args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
-    let mut observation = latest
+        &args.service_id,
+    )?;
+    let mut observation = current
         .as_ref()
         .and_then(|receipt| receipt.process_id)
         .map(observe_process)
@@ -1672,7 +1669,7 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
             })?;
         if let Some(identity) = replacement_process_identity(
             &lineage,
-            latest
+            current
                 .as_ref()
                 .context("alive managed service has no lifecycle receipt")?,
         )? {
@@ -1701,7 +1698,7 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
                 "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
                 "status": "observed-alive",
                 "serviceId": policy.service_id,
-                "processId": latest.as_ref().and_then(|receipt| receipt.process_id),
+                "processId": current.as_ref().and_then(|receipt| receipt.process_id),
                 "processObservation": observation.label(),
                 "restarted": false,
                 "privateStateExposed": false,
@@ -1710,7 +1707,7 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         return Ok(());
     }
     if !args.force && policy.cooldown_seconds > 0 {
-        if let Some(started) = latest
+        if let Some(started) = current
             .as_ref()
             .and_then(|receipt| DateTime::parse_from_rfc3339(&receipt.started_at_utc).ok())
         {
