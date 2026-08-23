@@ -159,7 +159,7 @@ fn main() -> Result<()> {
 
 fn dispatch(args: Args) -> Result<()> {
     match args.command.as_str() {
-        "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
+        "managed-service-serve" => managed_service_serve(args),
         "managed-service-task-plan" => managed_service_task_install(args, false),
         "managed-service-task-install" => managed_service_task_install(args, true),
         "managed-service-task-status" => managed_service_task_status(args),
@@ -169,43 +169,13 @@ fn dispatch(args: Args) -> Result<()> {
         "provider-health-identity-enroll" => provider_health_identity_enroll(args),
         "provider-health-identity-export" => provider_health_identity_export(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
-        "service-plan" => service_plan(args),
-        "service-launch" | "launch-service" | "start-service" => service_launch(args),
-        "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
         "semantic-projector-service-policy" => semantic_projector_service_policy(args),
         "workspace-coverage-projector-service-policy" => {
             workspace_coverage_projector_service_policy(args)
         }
-        "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
-        "managed-service-reconcile" | "service-desired-state-reconcile" => {
-            managed_service_reconcile(args)
-        }
-        "service-runbook" | "runbook-service" => service_runbook(args),
-        "service-install-plan" | "service-install-execute" => refuse_false_windows_scm_authority(),
-        "windows-service-execution-readiness"
-        | "service-execution-readiness"
-        | "service-elevation-status" => refuse_false_windows_scm_authority(),
-        "windows-service-execution-runbook" | "service-execution-runbook" => {
-            refuse_false_windows_scm_authority()
-        }
-        "windows-service-reconcile" | "service-reconcile" | "service-policy-reconcile" => {
-            refuse_false_windows_scm_authority()
-        }
-        "windows-service-execution-audit" | "service-execution-audit" => {
-            refuse_false_windows_scm_authority()
-        }
-        "service-execution-audit-smoke" | "windows-service-execution-audit-smoke" => {
-            refuse_false_windows_scm_authority()
-        }
-        "windows-service-status"
-        | "service-status"
-        | "windows-service-start"
-        | "service-start"
-        | "windows-service-stop"
-        | "service-stop" => refuse_false_windows_scm_authority(),
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
+            "unknown command {other:?}; use managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, provider-health-identity-enroll/export, semantic-projector-service-status, semantic-projector-service-policy, workspace-coverage-projector-service-policy, or semantic-recover"
         ),
     }
 }
@@ -277,12 +247,6 @@ mod provider_health_identity_output_tests {
     fn public_identity_key_is_exact_lowercase_hex() {
         assert_eq!(lowercase_hex(&[0x00, 0x7f, 0x80, 0xff]), "007f80ff");
     }
-}
-
-fn refuse_false_windows_scm_authority() -> Result<()> {
-    anyhow::bail!(
-        "Windows SCM deployment is unsupported: this executable is a foreground console process, not a Windows service host; use managed-service-task-plan/install/status/start/stop/uninstall"
-    )
 }
 
 fn managed_service_task_name(args: &Args) -> String {
@@ -1191,45 +1155,6 @@ fn timestamp_is_fresh_at(value: &str, now: DateTime<Utc>) -> Result<bool> {
     Ok(age >= Duration::zero() && age <= Duration::seconds(AGGREGATE_HEARTBEAT_FRESH_SECONDS))
 }
 
-fn service_plan(args: Args) -> Result<()> {
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let started_at = Utc::now();
-    let command = service_command_path(&args)?;
-    let service_args = service_serve_args(&args);
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "install-plan",
-        "planned",
-        command.display().to_string(),
-        service_args,
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        None,
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "command": written.command,
-            "args": written.args,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
 #[derive(Clone)]
 struct CoverageReplacementEvidence {
     old_launch_id: String,
@@ -1254,7 +1179,7 @@ fn service_launch_internal(
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
-    let service_args = service_serve_args(&args);
+    let service_args = args.service_args.clone();
     let coverage_reserved = args.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID;
     let reserved_executor_id = match args.service_id.as_str() {
         SEMANTIC_PROJECTOR_SERVICE_ID => Some(SEMANTIC_PROJECTOR_EXECUTOR_ID),
@@ -1580,15 +1505,6 @@ fn service_launch_internal(
     })
 }
 
-fn managed_service_policy(args: Args) -> Result<()> {
-    if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID
-        || args.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
-    {
-        anyhow::bail!("reserved projector service policy must use its specialized policy command");
-    }
-    write_managed_service_policy(args)
-}
-
 fn write_managed_service_policy(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
@@ -1621,7 +1537,7 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
         service_id: args.service_id.clone(),
         owner_daemon_id: "epiphany-daemon-supervisor".to_string(),
         command: command.display().to_string(),
-        args: service_serve_args(&args),
+        args: args.service_args.clone(),
         cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
         enabled: !args.disabled,
         restart_mode: args.restart_mode.clone(),
@@ -1866,57 +1782,6 @@ fn semantic_projector_service_args(
     ]
 }
 
-fn managed_service_read(args: Args) -> Result<()> {
-    let policy = load_epiphany_cultmesh_managed_service_policy(
-        &args.store,
-        args.runtime_id.clone(),
-        &args.service_id,
-    )?
-    .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
-    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
-    let process_observation = latest
-        .as_ref()
-        .and_then(|receipt| receipt.process_id)
-        .map(observe_process)
-        .transpose()?
-        .unwrap_or(ProcessObservation::Missing);
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.managed_service_readback.v0",
-            "status": "desired-state-ready",
-            "serviceId": policy.service_id,
-            "ownerDaemonId": policy.owner_daemon_id,
-            "desired": {
-                "enabled": policy.enabled,
-                "restartMode": policy.restart_mode,
-                "command": policy.command,
-                "args": policy.args,
-                "cwd": policy.cwd,
-                "stdoutArtifact": policy.stdout_artifact,
-                "stderrArtifact": policy.stderr_artifact,
-            },
-            "latestLifecycle": latest.as_ref().map(|receipt| json!({
-                "receiptId": receipt.receipt_id,
-                "status": receipt.status,
-                "action": receipt.action,
-                "processId": receipt.process_id,
-                "startedAtUtc": receipt.started_at_utc,
-                "completedAtUtc": receipt.completed_at_utc,
-            })),
-            "processObservation": process_observation.label(),
-            "privateStateExposed": false,
-        }))?
-    );
-    Ok(())
-}
-
 fn managed_service_reconcile(mut args: Args) -> Result<()> {
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
@@ -2084,11 +1949,6 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
     args.cwd = policy.cwd.as_ref().map(PathBuf::from);
     args.stdout_artifact = Some(PathBuf::from(&policy.stdout_artifact));
     args.stderr_artifact = Some(PathBuf::from(&policy.stderr_artifact));
-    args.reason = Some(format!(
-        "Idunn reconciled managed service {} after observing {}.",
-        policy.service_id,
-        observation.label()
-    ));
     service_launch(args)
 }
 
@@ -2857,59 +2717,6 @@ fn finish_workspace_coverage_recovery(
     Ok(())
 }
 
-fn service_runbook(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    let started_at = Utc::now();
-    let command_path = service_command_path(&args)?;
-    let service_args = service_serve_args(&args);
-    let runbook_path = service_runbook_path(&args);
-    if let Some(parent) = runbook_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    fs::write(
-        &runbook_path,
-        service_runbook_content(&args, &command_path, &service_args),
-    )
-    .with_context(|| format!("failed to write {}", runbook_path.display()))?;
-    let artifact_ref = runbook_path.display().to_string();
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "runbook",
-        "written",
-        command_path.display().to_string(),
-        service_args,
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "written",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "command": written.command,
-            "args": written.args,
-            "runbookPath": artifact_ref,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
 fn local_file_sha256(path: &str) -> Option<String> {
     if path.trim().is_empty() || path == "none" {
         return None;
@@ -2927,85 +2734,6 @@ fn service_command_path(args: &Args) -> Result<PathBuf> {
         return Ok(command.clone());
     }
     env::current_exe().context("failed to resolve current supervisor executable")
-}
-
-fn service_serve_args(args: &Args) -> Vec<String> {
-    if !args.service_args.is_empty() {
-        return args.service_args.clone();
-    }
-    let mut service_args = vec![
-        "serve".to_string(),
-        "--store".to_string(),
-        args.store.display().to_string(),
-        "--runtime-id".to_string(),
-        args.runtime_id.clone(),
-        "--daemon-id".to_string(),
-        args.daemon_id.clone(),
-        "--scheduler-id".to_string(),
-        args.scheduler_id.clone(),
-        "--loop-interval-seconds".to_string(),
-        args.loop_interval_seconds.to_string(),
-    ];
-    if args.max_iterations != 0 {
-        service_args.push("--max-iterations".to_string());
-        service_args.push(args.max_iterations.to_string());
-    }
-    if args.force {
-        service_args.push("--force".to_string());
-    }
-    if let Some(reason) = &args.reason {
-        service_args.push("--reason".to_string());
-        service_args.push(reason.clone());
-    }
-    if let Some(cwd) = &args.cwd {
-        service_args.push("--cwd".to_string());
-        service_args.push(cwd.display().to_string());
-    }
-    service_args
-}
-
-fn service_runbook_path(args: &Args) -> PathBuf {
-    if let Some(path) = args.runbook_path.as_ref() {
-        return path.clone();
-    }
-    PathBuf::from(".epiphany-run")
-        .join("daemon-services")
-        .join(format!("{}.ps1", sanitize_id(&args.service_id)))
-}
-
-fn service_runbook_content(
-    args: &Args,
-    command_path: &std::path::Path,
-    service_args: &[String],
-) -> String {
-    let cwd = args
-        .cwd
-        .as_ref()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| ".".to_string());
-    let quoted_args = service_args
-        .iter()
-        .map(|arg| quote_powershell(arg))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        concat!(
-            "# Epiphany daemon supervisor service runbook\n",
-            "# Generated by epiphany-daemon-supervisor service-runbook.\n",
-            "# The typed lifecycle receipt is the witness; this script is an operator artifact.\n",
-            "$ErrorActionPreference = 'Stop'\n",
-            "$command = {command}\n",
-            "$arguments = @({arguments})\n",
-            "$workingDirectory = {cwd}\n",
-            "$process = Start-Process -FilePath $command -ArgumentList $arguments -WorkingDirectory $workingDirectory -WindowStyle Hidden -PassThru\n",
-            "\"started pid=$($process.Id) service={service_id} scheduler={scheduler_id}\"\n"
-        ),
-        command = quote_powershell(&command_path.display().to_string()),
-        arguments = quoted_args,
-        cwd = quote_powershell(&cwd),
-        service_id = args.service_id,
-        scheduler_id = args.scheduler_id
-    )
 }
 
 fn quote_powershell(value: &str) -> String {
@@ -3346,11 +3074,9 @@ struct Args {
     restart_mode: String,
     service_command: Option<PathBuf>,
     service_args: Vec<String>,
-    runbook_path: Option<PathBuf>,
     loop_interval_seconds: i64,
     max_iterations: u64,
     wait_child: bool,
-    reason: Option<String>,
     receipt_id: Option<String>,
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
@@ -3397,11 +3123,9 @@ impl Args {
         let mut restart_mode = "on-failure".to_string();
         let mut service_command = None;
         let mut service_args = Vec::new();
-        let mut runbook_path = None;
         let mut loop_interval_seconds = 60_i64;
         let mut max_iterations = 0_u64;
         let mut wait_child = false;
-        let mut reason = None;
         let mut receipt_id = None;
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
@@ -3477,11 +3201,6 @@ impl Args {
                 "--service-arg" | "--service-args" => {
                     service_args.push(values.next().context("missing --service-arg value")?);
                 }
-                "--runbook-path" => {
-                    runbook_path = Some(PathBuf::from(
-                        values.next().context("missing --runbook-path value")?,
-                    ));
-                }
                 "--loop-interval-seconds" | "--serve-interval-seconds" => {
                     loop_interval_seconds = values
                         .next()
@@ -3495,7 +3214,6 @@ impl Args {
                         .parse()?;
                 }
                 "--wait-child" => wait_child = true,
-                "--reason" => reason = Some(values.next().context("missing --reason value")?),
                 "--receipt-id" => {
                     receipt_id = Some(values.next().context("missing --receipt-id value")?)
                 }
@@ -3635,69 +3353,7 @@ impl Args {
             ));
         }
 
-        let daemon_id = match daemon_id {
-            Some(daemon_id) => daemon_id,
-            None if matches!(
-                command.as_str(),
-                "tick"
-                    | "schedule"
-                    | "reconcile-all"
-                    | "serve"
-                    | "loop"
-                    | "daemon"
-                    | "managed-service-serve"
-                    | "service-desired-state-serve"
-                    | "managed-service-task-plan"
-                    | "managed-service-task-install"
-                    | "managed-service-task-status"
-                    | "managed-service-task-start"
-                    | "managed-service-task-stop"
-                    | "managed-service-task-uninstall"
-                    | "provider-health-identity-enroll"
-                    | "provider-health-identity-export"
-                    | "semantic-projector-service-status"
-                    | "service-plan"
-                    | "install-service"
-                    | "service-launch"
-                    | "launch-service"
-                    | "start-service"
-                    | "managed-service-policy"
-                    | "service-desired-state"
-                    | "semantic-projector-service-policy"
-                    | "managed-service-read"
-                    | "service-desired-state-read"
-                    | "managed-service-reconcile"
-                    | "service-desired-state-reconcile"
-                    | "service-runbook"
-                    | "runbook-service"
-                    | "windows-service-install"
-                    | "service-install-windows"
-                    | "service-install-plan"
-                    | "windows-service-execution-readiness"
-                    | "service-execution-readiness"
-                    | "service-elevation-status"
-                    | "windows-service-execution-runbook"
-                    | "service-execution-runbook"
-                    | "windows-service-execution-audit"
-                    | "service-execution-audit"
-                    | "windows-service-execution-audit-smoke"
-                    | "service-execution-audit-smoke"
-                    | "windows-service-reconcile"
-                    | "service-reconcile"
-                    | "service-policy-reconcile"
-                    | "windows-service-status"
-                    | "service-status"
-                    | "windows-service-start"
-                    | "service-start"
-                    | "windows-service-stop"
-                    | "service-stop"
-                    | "semantic-recover"
-            ) =>
-            {
-                "*".to_string()
-            }
-            None => anyhow::bail!("{command} requires --daemon-id"),
-        };
+        let daemon_id = daemon_id.unwrap_or_else(|| "*".to_string());
         if loop_interval_seconds < 0 {
             anyhow::bail!("--loop-interval-seconds must be non-negative");
         }
@@ -3762,11 +3418,9 @@ impl Args {
             restart_mode,
             service_command,
             service_args,
-            runbook_path,
             loop_interval_seconds,
             max_iterations,
             wait_child,
-            reason,
             receipt_id,
             artifact_ref,
             stdout_artifact,
