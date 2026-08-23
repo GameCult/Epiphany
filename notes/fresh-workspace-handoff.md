@@ -730,14 +730,22 @@ recommendation algorithm, its unused input model, and four tests: 206 lines.
 The keyed status composer remains the sole recommendation projection. Core
 check and the remaining surface slice 12/12 pass.
 
-Next trace the remaining status composition as one pipeline: scene, jobs,
-planning, role board, keyed CRRC, and coordinator. Preserve only projections
-consumed by the operator/Eve surface or coordinator; cut legacy aggregate input,
-duplicate decision logic, and tests that animate no live consumer. Preserve
-cluster topology while it owns the runtime-bound Body domain and bootstrap
-evidence. Do not run a full-workspace compile, package, deployment, or Ox root
-until the subtraction audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or
-Ox16.
+Exact `3b94bf6e` deletes the duplicate nested status `view` and the false
+`--coordinator-only`/auxiliary label: 25 net lines. Exact `59c5e3a6` deletes the
+ignored cwd and historical no-op presentation arguments: 12 lines. Exact
+`7c9b0cf3` deletes the fixed synthetic job table, its role-board cargo and
+mapping helpers, and its one test: 338 net lines. Role lanes and coordinator
+routing now derive directly from exact current work. Focused coordinator/status
+checks pass; the operator thought-sealing test remains 1/1.
+
+Next audit the remaining scene and planning projections against their actual
+operator output. Preserve readable projections over typed Mind/current work;
+cut duplicated Mind payload, legacy state vocabulary, and tests that merely
+reconstruct their producer. Then inspect role-board/coordinator DTO overlap.
+Preserve cluster topology while it owns the runtime-bound Body domain and
+bootstrap evidence. Do not run a full-workspace compile, package, deployment,
+or Ox root until the subtraction audit closes. Never resume Ox10, Ox12, Ox13,
+Ox15, or Ox16.
 
 ## Operational state that matters
 

@@ -1,7 +1,7 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `77e817c1` on `codex/epiphany-shakedown-live`
+Latest committed implementation cut: `7c9b0cf3` on `codex/epiphany-shakedown-live`
 Current worktree cut: canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -52,6 +52,12 @@ bundle builder, test-only raw-JSON result interpreter, or second CRRC
 recommendation algorithm. Typed runtime-result interpretation remains shared by
 current work and reorientation. The keyed status composer is the sole CRRC
 recommendation projection; its DTO does not confer routing authority.
+
+Status emits each projection once. It has no nested duplicate `view`, inert
+auxiliary-mode switch, ignored cwd/transcript flags, or fixed synthetic job
+table. Role lanes derive directly from exact current-work obligations; they do
+not borrow authority or decoration from invented Body/RepoModel/Verification
+jobs. The operator thought-sealing boundary remains tested.
 
 Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
 the runtime-bound Body domain and declared daemon targets consumed by the
