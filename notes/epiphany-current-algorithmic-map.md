@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `39dd9fdb` on `codex/epiphany-shakedown-live`
-Current worktree cut: heartbeat concurrency-domain audit; Ox17 remains paused
+Latest committed implementation cut: `753707ff` on `codex/epiphany-shakedown-live`
+Current worktree cut: remaining CultMesh invariant/test audit; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -33,6 +33,17 @@ own typed owners; CultMesh does not persist unused parallel shadows.
 Operator intent/completion and Hands consequence flow are also read from their
 native runtime and Mind owners. The local Verse has no operator-run or generic
 work-loop telemetry shadow and prompt assembly has no branch that depends on it.
+Repository work likewise has no CultMesh overview, readiness, map-entry, or
+public-proof aggregate. Keyed Mind/runtime documents own the underlying work;
+an unused aggregate cannot become an interface merely by round-tripping. The
+unused service-execution audit and Bifrost artifact, metrics, and public-proof
+receipt families are deleted with the tests that alone called them.
+
+Persisted cluster topology is the sole local-Verse bootstrap witness. It carries
+the runtime-bound Body domain and declared daemon targets consumed by the
+supervisor and prompt projection. The former singleton CultMesh status row was
+a duplicate “bootstrap happened” sentinel with no independent invariant; its
+schema, writer, loader, supervisor check, and serialization test are deleted.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;

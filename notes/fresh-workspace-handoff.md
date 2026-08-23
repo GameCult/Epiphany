@@ -597,9 +597,24 @@ branch, test-only prompt seed, and two tests are gone; native runtime and keyed
 Mind receipts remain the owners. This is 829 pure deletions. Non-test core,
 CultMesh 33/33, and prompt projection 1/1 pass.
 
-Preserve cluster topology until its runtime-bound Body-domain owner is
-explicit. Separately split the
-4.7-kiloline daemon supervisor's
+Exact `75ead942` deletes the four RepoWork aggregate families, their latest
+heads/loaders, the unused service-execution audit helper, unused Bifrost
+artifact/metrics/public-proof receipt families, and every test that alone
+animated those surfaces. The apparent public-proof crossing had no production
+consumer: its context field was assembled and then ignored. This removes 1,410
+net lines. Non-test core, CultMesh 30/30, and prompt projection 1/1 pass.
+
+Exact `753707ff` makes persisted runtime-bound cluster topology the sole
+local-Verse bootstrap witness. The duplicate singleton status document, writer,
+loader, supervisor precondition, exports, and round-trip test are gone. Two
+foreign-row preservation tests now use an honest test-local foreign type and a
+real swarm-brake row instead of borrowing the dead status schema as scenery.
+This removes another 99 net lines. Non-test core, CultMesh 29/29, the affected
+readiness and Persona tests, and daemon supervisor 10/10 pass.
+
+Preserve cluster topology while it owns the runtime-bound Body domain and
+bootstrap evidence. Separately split the
+remaining daemon supervisor's
 launch/reconcile authority before claiming sequencing coverage. Do not run a
 full-workspace compile, package, deployment, or Ox root until the subtraction
 audit closes. Never resume Ox10, Ox12, Ox13, Ox15, or Ox16.
