@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_tool_adapter::{
     EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
-    TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID, TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID,
     tool_invocation_intent_key,
 };
 use epiphany_tool_mcp_runtime::{
@@ -63,12 +62,9 @@ async fn run(options: RunOptions) -> Result<RunSummary> {
     let receipt = execute_to_receipt(&intent, &options).await;
     epiphany_core::put_runtime_tool_execution_receipt(&options.store, &receipt)?;
     Ok(RunSummary {
-        adapter: EPIPHANY_TOOL_RUNTIME_ADAPTER_ID.into(),
-        store: options.store.display().to_string(),
         intent_id: intent.intent_id,
         receipt_id: receipt.receipt_id,
         status: receipt.status,
-        schemas: schemas(),
     })
 }
 
@@ -199,24 +195,9 @@ fn usage() -> &'static str {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RunSummary {
-    adapter: String,
-    store: String,
     intent_id: String,
     receipt_id: String,
     status: String,
-    schemas: BTreeMap<String, String>,
-}
-fn schemas() -> BTreeMap<String, String> {
-    BTreeMap::from([
-        (
-            "intent".into(),
-            TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID.into(),
-        ),
-        (
-            "receipt".into(),
-            TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID.into(),
-        ),
-    ])
 }
 fn unix_millis() -> u128 {
     SystemTime::now()
