@@ -111,24 +111,6 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         }
     }
 
-    if let Some(summary) = input.local_verse.latest_work_loop_summary.as_ref() {
-        lines.push("## Work Loop Receipt Digest".to_string());
-        lines.push(format!(
-            "- Telemetry `{}`: {} -> {}; hands=({}/{}/{}), changed_paths={}, source_refs={}, soul_receipts={}, verification_assertions={}",
-            summary.telemetry_id,
-            summary.source_stage,
-            summary.target_stages.join(","),
-            summary.hands_patch_receipt_id,
-            summary.hands_command_receipt_id,
-            summary.hands_commit_receipt_id,
-            summary.changed_path_count,
-            summary.source_ref_count,
-            summary.soul_receipt_ids.len(),
-            summary.verification_assertion_count
-        ));
-        lines.push(format!("- {}", compact_line(&summary.sealed_preview_note)));
-    }
-
     if !input.local_verse.contract_summaries.is_empty() {
         lines.push("## Organ Contract Summary".to_string());
         for contract in input.local_verse.contract_summaries.iter().take(8) {
@@ -283,9 +265,6 @@ fn push_omitted_count(lines: &mut Vec<String>, total: usize, shown: usize, label
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-    use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
-    use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
     use crate::epiphany_cultmesh_bifrost_body_change_publication_intent;
     use crate::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
     use crate::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
@@ -294,7 +273,6 @@ mod tests {
     use crate::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
     use crate::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
     use crate::write_epiphany_cultmesh_bifrost_github_publication_receipt;
-    use crate::write_epiphany_cultmesh_work_loop_telemetry;
     use epiphany_state_model::EpiphanyMemoryContextPacket;
     use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
     use epiphany_state_model::EpiphanyMemorySummary;
@@ -360,44 +338,6 @@ mod tests {
             "epiphany-test",
             github_receipt,
         )?;
-        write_epiphany_cultmesh_work_loop_telemetry(
-            &store,
-            EpiphanyCultMeshWorkLoopTelemetryEntry {
-                schema_version: EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION.to_string(),
-                runtime_id: "epiphany-test".to_string(),
-                verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
-                telemetry_id: "work-loop-prompt-test".to_string(),
-                thread_id: "thread-prompt-test".to_string(),
-                produced_at_utc: "2026-06-18T00:00:00Z".to_string(),
-                source_stage: "Hands".to_string(),
-                target_stages: vec!["Soul".to_string(), "Modeling".to_string()],
-                lower_bound_receipt_at: "2026-06-18T00:00:00Z".to_string(),
-                hands_intent_id: "hands-intent-prompt-test".to_string(),
-                hands_review_id: "hands-review-prompt-test".to_string(),
-                hands_runtime_job_id: "hands-job-prompt-test".to_string(),
-                substrate_gate_grant_receipt_id: "substrate-grant-prompt-test".to_string(),
-                hands_patch_receipt_id: "hands-patch-prompt-test".to_string(),
-                hands_command_receipt_id: "hands-command-prompt-test".to_string(),
-                hands_commit_receipt_id: "hands-commit-prompt-test".to_string(),
-                command: "cargo test".to_string(),
-                exit_code: "0".to_string(),
-                stdout_artifact: "stdout.log".to_string(),
-                stderr_artifact: "stderr.log".to_string(),
-                commit_sha: "abc123".to_string(),
-                branch: "codex/perfect-machine-cultmesh".to_string(),
-                changed_paths: vec!["epiphany-core/src/prompt_context.rs".to_string()],
-                artifact_previews: vec!["sealed stdout preview should stay internal".to_string()],
-                source_refs: vec!["epiphany-core/src/prompt_context.rs".to_string()],
-                source_path_proof: vec!["source proof should stay internal".to_string()],
-                soul_receipt_ids: vec!["soul-acceptance-prompt-test".to_string()],
-                summary: "Hands consequence digest for prompt assembly.".to_string(),
-                receipt_payload_previews: vec![
-                    "sealed patch payload should stay internal".to_string(),
-                ],
-                commit_diff_preview: "diff --git sealed".to_string(),
-                verification_assertions: vec!["prompt renders digest only".to_string()],
-            },
-        )?;
         let local_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let memory_context = EpiphanyMemoryContextPacket {
             id: "memctx-test".to_string(),
@@ -455,15 +395,6 @@ mod tests {
         assert!(rendered.contains("github_receipt=github-publication-prompt-test"));
         assert!(rendered.contains("github-publication-receipt-prompt-test"));
         assert!(rendered.contains("hands_pr=hands-pr-prompt-test"));
-        assert!(rendered.contains("Work Loop Receipt Digest"));
-        assert!(rendered.contains("work-loop-prompt-test"));
-        assert!(rendered.contains("hands-patch-prompt-test"));
-        assert!(rendered.contains("hands-command-prompt-test"));
-        assert!(rendered.contains("hands-commit-prompt-test"));
-        assert!(rendered.contains("exposes only this digest"));
-        assert!(!rendered.contains("sealed patch payload should stay internal"));
-        assert!(!rendered.contains("diff --git sealed"));
-        assert!(!rendered.contains("sealed stdout preview should stay internal"));
         assert!(rendered.contains("gamecult-local"));
         assert!(rendered.contains("Shared graph law"));
         assert!(rendered.contains("Mind reviews durable state effects"));

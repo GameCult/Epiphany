@@ -7,10 +7,6 @@ use crate::agent_launch::{
 };
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
@@ -13950,37 +13946,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "The ledger is inspected as durable memory; writes are mediated by role-specific state flows.",
-            ],
-        ),
-        mutation_contract(
-            EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE,
-            EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::DocumentPut,
-            ],
-            CultNetMutationAuthority::LocalUser,
-            vec![],
-            vec![EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE],
-            vec![
-                "Operator run intents record explicit local wrapper requests before status/plan/smoke/run actions execute.",
-                "This is not a scheduler queue; it is the typed consent/trace surface for local operator action.",
-            ],
-        ),
-        mutation_contract(
-            EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE,
-            EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::DocumentPut,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::LocalUser,
-            vec![],
-            vec![],
-            vec![
-                "Operator run receipts record completed local wrapper actions and evidence artifact references.",
-                "Referenced artifacts remain evidence; the receipt is the native completion contract.",
             ],
         ),
     ]
