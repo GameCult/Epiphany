@@ -142,18 +142,6 @@ pub const EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY: &str =
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE: &str = "epiphany.cultmesh.swarm_brake";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str = "epiphany.cultmesh.swarm_brake.v0";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_KEY: &str = "epiphany-local/swarm-brake";
-pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_TYPE: &str =
-    "epiphany.cultmesh.persona_speech_audit";
-pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.persona_speech_audit.v0";
-pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY: &str =
-    "epiphany-local/persona-speech-audit/latest";
-pub const EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_TYPE: &str =
-    "epiphany.cultmesh.weksa_lowering_receipt";
-pub const EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.weksa_lowering_receipt.v0";
-pub const EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_LATEST_KEY: &str =
-    "epiphany-local/weksa-lowering-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE: &str = "epiphany.cultmesh.bifrost_contract";
 pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.bifrost_contract.v0";
@@ -1302,98 +1290,6 @@ pub struct EpiphanyCultMeshSwarmBrakeEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.cultmesh.persona_speech_audit",
-    schema = "EpiphanyCultMeshPersonaSpeechAuditEntry"
-)]
-pub struct EpiphanyCultMeshPersonaSpeechAuditEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub audit_id: String,
-    #[cultcache(key = 2)]
-    pub runtime_id: String,
-    #[cultcache(key = 3)]
-    pub verse_id: String,
-    #[cultcache(key = 4)]
-    pub persona_agent_id: String,
-    #[cultcache(key = 5)]
-    pub action_kind: String,
-    #[cultcache(key = 6)]
-    pub decision: String,
-    #[cultcache(key = 7)]
-    pub content_fingerprint: String,
-    #[cultcache(key = 8)]
-    pub opening_key: String,
-    #[cultcache(key = 9)]
-    pub topic_key: String,
-    #[cultcache(key = 10)]
-    pub requested_channel_id: String,
-    #[cultcache(key = 11)]
-    pub recent_window_count: u32,
-    #[cultcache(key = 12)]
-    pub repeated_opening_count: u32,
-    #[cultcache(key = 13)]
-    pub repeated_topic_count: u32,
-    #[cultcache(key = 14)]
-    pub same_channel_post_count: u32,
-    #[cultcache(key = 15)]
-    pub reasons: Vec<String>,
-    #[cultcache(key = 16)]
-    pub artifact_ref: String,
-    #[cultcache(key = 17)]
-    pub created_at_utc: String,
-    #[cultcache(key = 18)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 19)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.weksa_lowering_receipt",
-    schema = "EpiphanyCultMeshWeksaLoweringReceiptEntry"
-)]
-pub struct EpiphanyCultMeshWeksaLoweringReceiptEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub runtime_id: String,
-    #[cultcache(key = 3)]
-    pub verse_id: String,
-    #[cultcache(key = 4)]
-    pub packet_id: String,
-    #[cultcache(key = 5)]
-    pub request_id: String,
-    #[cultcache(key = 6)]
-    pub persona_agent_id: String,
-    #[cultcache(key = 7)]
-    pub target_language: String,
-    #[cultcache(key = 8)]
-    pub target_register: String,
-    #[cultcache(key = 9)]
-    pub delivery_surface: String,
-    #[cultcache(key = 10)]
-    pub lowering_method: String,
-    #[cultcache(key = 11)]
-    pub transport_authority: String,
-    #[cultcache(key = 12)]
-    pub publication_authorized: bool,
-    #[cultcache(key = 13)]
-    pub lowered_text_ref: String,
-    #[cultcache(key = 14)]
-    pub lowered_text_preview: String,
-    #[cultcache(key = 15)]
-    pub created_at_utc: String,
-    #[cultcache(key = 16)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 17)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
     type = "epiphany.cultmesh.bifrost_contract",
     schema = "EpiphanyCultMeshBifrostContractEntry"
 )]
@@ -1686,8 +1582,6 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_idunn_aftercare_audit_receipt:
         Option<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>,
     pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
-    pub latest_persona_speech_audit: Option<EpiphanyCultMeshPersonaSpeechAuditEntry>,
-    pub latest_weksa_lowering_receipt: Option<EpiphanyCultMeshWeksaLoweringReceiptEntry>,
     pub arrival_latest_bifrost_body_change_publication_intent:
         Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
     pub arrival_latest_bifrost_body_change_publication_receipt:
@@ -1770,8 +1664,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnAftercareAuditReceiptEntry => EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
-    EpiphanyCultMeshPersonaSpeechAuditEntry => EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION,
-    EpiphanyCultMeshWeksaLoweringReceiptEntry => EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostContractEntry => EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION,
@@ -2877,129 +2769,6 @@ pub fn load_epiphany_cultmesh_swarm_brake(
     Ok(node
         .get::<EpiphanyCultMeshSwarmBrakeEntry>(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?
         .filter(|brake| brake.runtime_id.is_empty() || brake.runtime_id == runtime_id))
-}
-
-pub fn write_epiphany_cultmesh_persona_speech_audit(
-    store_path: impl AsRef<Path>,
-    audit: EpiphanyCultMeshPersonaSpeechAuditEntry,
-) -> Result<EpiphanyCultMeshPersonaSpeechAuditEntry> {
-    validate_persona_speech_audit(&audit)?;
-    let mut node = open_epiphany_cultmesh_node(&store_path, audit.runtime_id.clone())?;
-    let audit_key = epiphany_cultmesh_persona_speech_audit_key(&audit.audit_id);
-    let written = node.put(audit_key.as_str(), &audit)?;
-    node.put(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY, &written)?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_latest_epiphany_cultmesh_persona_speech_audit(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshPersonaSpeechAuditEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY)
-}
-
-pub fn validate_persona_speech_audit(
-    audit: &EpiphanyCultMeshPersonaSpeechAuditEntry,
-) -> Result<()> {
-    if audit.private_state_exposed {
-        return Err(anyhow!(
-            "Persona speech audit must not expose private state"
-        ));
-    }
-    if audit.audit_id.trim().is_empty()
-        || audit.runtime_id.trim().is_empty()
-        || audit.persona_agent_id.trim().is_empty()
-    {
-        return Err(anyhow!(
-            "Persona speech audit requires audit, runtime, and persona ids"
-        ));
-    }
-    if !matches!(audit.action_kind.as_str(), "draft" | "bubble" | "post") {
-        return Err(anyhow!(
-            "Persona speech audit action_kind must be draft, bubble, or post"
-        ));
-    }
-    if !matches!(audit.decision.as_str(), "eligible" | "blocked") {
-        return Err(anyhow!(
-            "Persona speech audit decision must be eligible or blocked"
-        ));
-    }
-    if audit.decision == "blocked" && audit.reasons.is_empty() {
-        return Err(anyhow!("blocked Persona speech audit requires reasons"));
-    }
-    if audit.content_fingerprint.trim().is_empty() || audit.created_at_utc.trim().is_empty() {
-        return Err(anyhow!(
-            "Persona speech audit requires fingerprint and timestamp"
-        ));
-    }
-    Ok(())
-}
-
-pub fn write_epiphany_cultmesh_weksa_lowering_receipt(
-    store_path: impl AsRef<Path>,
-    receipt: EpiphanyCultMeshWeksaLoweringReceiptEntry,
-) -> Result<EpiphanyCultMeshWeksaLoweringReceiptEntry> {
-    validate_weksa_lowering_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(&store_path, receipt.runtime_id.clone())?;
-    let receipt_key = epiphany_cultmesh_weksa_lowering_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
-        EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_latest_epiphany_cultmesh_weksa_lowering_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshWeksaLoweringReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_LATEST_KEY)
-}
-
-pub fn validate_weksa_lowering_receipt(
-    receipt: &EpiphanyCultMeshWeksaLoweringReceiptEntry,
-) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "Weksa lowering receipt must not expose private state"
-        ));
-    }
-    if receipt.publication_authorized {
-        return Err(anyhow!(
-            "Weksa lowering receipt must not claim publication authority"
-        ));
-    }
-    if receipt.receipt_id.trim().is_empty()
-        || receipt.runtime_id.trim().is_empty()
-        || receipt.packet_id.trim().is_empty()
-        || receipt.request_id.trim().is_empty()
-        || receipt.persona_agent_id.trim().is_empty()
-    {
-        return Err(anyhow!(
-            "Weksa lowering receipt requires receipt, runtime, packet, request, and persona ids"
-        ));
-    }
-    if receipt.target_language.trim().is_empty()
-        || receipt.delivery_surface.trim().is_empty()
-        || receipt.created_at_utc.trim().is_empty()
-    {
-        return Err(anyhow!(
-            "Weksa lowering receipt requires target language, delivery surface, and timestamp"
-        ));
-    }
-    if !receipt.transport_authority.contains("must publish")
-        && receipt.transport_authority.trim() != "none"
-    {
-        return Err(anyhow!(
-            "Weksa lowering receipt transport authority must remain none or defer publication"
-        ));
-    }
-    Ok(())
 }
 
 fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
@@ -4517,10 +4286,6 @@ pub fn query_epiphany_local_verse_context(
         latest_idunn_aftercare_audit_receipt: node
             .get(EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY)?,
         swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
-        latest_persona_speech_audit: node
-            .get(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY)?,
-        latest_weksa_lowering_receipt: node
-            .get(EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_LATEST_KEY)?,
         arrival_latest_bifrost_body_change_publication_intent: node
             .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_body_change_publication_receipt: node
@@ -4632,14 +4397,6 @@ fn epiphany_cultmesh_operator_run_intent_key(run_id: &str) -> String {
 
 fn epiphany_cultmesh_operator_run_receipt_key(run_id: &str) -> String {
     format!("epiphany-local/operator-run-receipt/{run_id}")
-}
-
-fn epiphany_cultmesh_persona_speech_audit_key(audit_id: &str) -> String {
-    format!("epiphany-local/persona-speech-audit/{audit_id}")
-}
-
-fn epiphany_cultmesh_weksa_lowering_receipt_key(receipt_id: &str) -> String {
-    format!("epiphany-local/weksa-lowering-receipt/{receipt_id}")
 }
 
 fn epiphany_cultmesh_daemon_poke_intent_key(intent_id: &str) -> String {
@@ -6824,183 +6581,6 @@ mod tests {
         let error = write_epiphany_cultmesh_swarm_brake(&store, "epiphany-test", brake)
             .expect_err("unreasoned engaged swarm brake must be refused");
         assert!(error.to_string().contains("operator id and reason"));
-        Ok(())
-    }
-
-    #[test]
-    fn persona_speech_audit_round_trips_and_projects_without_private_content() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-persona-speech-audit.ccmp");
-        seed_epiphany_local_verse_context(
-            &store,
-            "epiphany-test",
-            "2026-06-17T00:00:00Z",
-            "repo:C:/fixture/Epiphany",
-        )?;
-        let audit = EpiphanyCultMeshPersonaSpeechAuditEntry {
-            schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
-            audit_id: "persona-speech-audit-test".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            persona_agent_id: "epiphany.Persona".to_string(),
-            action_kind: "post".to_string(),
-            decision: "blocked".to_string(),
-            content_fingerprint: "topic::normalized-opening".to_string(),
-            opening_key: "rite noted modeling".to_string(),
-            topic_key: "modeling|soul|evidence".to_string(),
-            requested_channel_id: "123".to_string(),
-            recent_window_count: 6,
-            repeated_opening_count: 2,
-            repeated_topic_count: 2,
-            same_channel_post_count: 2,
-            reasons: vec!["repeated-opening".to_string()],
-            artifact_ref: "artifact://persona/speech-audit.json".to_string(),
-            created_at_utc: "2026-06-17T00:00:00Z".to_string(),
-            private_state_exposed: false,
-            notes: vec![
-                "CultMesh audit stores policy facts and fingerprints, not raw Persona prose."
-                    .to_string(),
-            ],
-        };
-
-        write_epiphany_cultmesh_persona_speech_audit(&store, audit.clone())?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_persona_speech_audit(&store, "epiphany-test")?,
-            Some(audit)
-        );
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        let projected = context
-            .latest_persona_speech_audit
-            .expect("speech audit should project into local Verse context");
-        assert_eq!(projected.decision, "blocked");
-        assert_eq!(projected.reasons, vec!["repeated-opening"]);
-        assert!(!projected.private_state_exposed);
-        Ok(())
-    }
-
-    #[test]
-    fn persona_speech_audit_refuses_private_state_and_unreasoned_blocks() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp
-            .path()
-            .join("epiphany-persona-speech-audit-refusal.ccmp");
-        let mut audit = EpiphanyCultMeshPersonaSpeechAuditEntry {
-            schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
-            audit_id: "persona-speech-audit-test".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            persona_agent_id: "epiphany.Persona".to_string(),
-            action_kind: "post".to_string(),
-            decision: "eligible".to_string(),
-            content_fingerprint: "topic::normalized-opening".to_string(),
-            opening_key: "rite noted modeling".to_string(),
-            topic_key: "modeling|soul|evidence".to_string(),
-            requested_channel_id: "123".to_string(),
-            recent_window_count: 1,
-            repeated_opening_count: 0,
-            repeated_topic_count: 0,
-            same_channel_post_count: 0,
-            reasons: Vec::new(),
-            artifact_ref: "artifact://persona/speech-audit.json".to_string(),
-            created_at_utc: "2026-06-17T00:00:00Z".to_string(),
-            private_state_exposed: true,
-            notes: Vec::new(),
-        };
-        let error = write_epiphany_cultmesh_persona_speech_audit(&store, audit.clone())
-            .expect_err("private speech audit must be refused");
-        assert!(error.to_string().contains("private state"));
-
-        audit.private_state_exposed = false;
-        audit.decision = "blocked".to_string();
-        let error = write_epiphany_cultmesh_persona_speech_audit(&store, audit)
-            .expect_err("blocked speech audit without reasons must be refused");
-        assert!(error.to_string().contains("requires reasons"));
-        Ok(())
-    }
-
-    #[test]
-    fn weksa_lowering_receipt_round_trips_and_projects_without_publication_authority() -> Result<()>
-    {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-weksa-lowering.ccmp");
-        seed_epiphany_local_verse_context(
-            &store,
-            "epiphany-test",
-            "2026-06-21T00:00:00Z",
-            "repo:C:/fixture/Epiphany",
-        )?;
-        let receipt = EpiphanyCultMeshWeksaLoweringReceiptEntry {
-            schema_version: EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "weksa-lowering-receipt-test".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            packet_id: "weksa-packet-test".to_string(),
-            request_id: "weksa-request-test".to_string(),
-            persona_agent_id: "epiphany.Persona".to_string(),
-            target_language: "es".to_string(),
-            target_register: "warm-technical".to_string(),
-            delivery_surface: "eve-public-room".to_string(),
-            lowering_method: "deterministic-test".to_string(),
-            transport_authority: "none; Bifrost or a configured mouth transport must publish"
-                .to_string(),
-            publication_authorized: false,
-            lowered_text_ref: "artifact://weksa/lowered-text/es".to_string(),
-            lowered_text_preview: "Epiphany puede seguir trabajando.".to_string(),
-            created_at_utc: "2026-06-21T00:00:00Z".to_string(),
-            private_state_exposed: false,
-            notes: vec!["CultMesh Weksa receipt is sight, not publication authority.".to_string()],
-        };
-
-        write_epiphany_cultmesh_weksa_lowering_receipt(&store, receipt.clone())?;
-        assert_eq!(
-            load_latest_epiphany_cultmesh_weksa_lowering_receipt(&store, "epiphany-test")?,
-            Some(receipt)
-        );
-
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        let projected = context
-            .latest_weksa_lowering_receipt
-            .expect("Weksa lowering receipt should project into local Verse context");
-        assert_eq!(projected.target_language, "es");
-        assert!(!projected.publication_authorized);
-        assert!(!projected.private_state_exposed);
-        Ok(())
-    }
-
-    #[test]
-    fn weksa_lowering_receipt_refuses_private_state_and_publication_authority() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-weksa-lowering-refusal.ccmp");
-        let mut receipt = EpiphanyCultMeshWeksaLoweringReceiptEntry {
-            schema_version: EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "weksa-lowering-receipt-test".to_string(),
-            runtime_id: "epiphany-test".to_string(),
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            packet_id: "weksa-packet-test".to_string(),
-            request_id: "weksa-request-test".to_string(),
-            persona_agent_id: "epiphany.Persona".to_string(),
-            target_language: "es".to_string(),
-            target_register: "warm-technical".to_string(),
-            delivery_surface: "eve-public-room".to_string(),
-            lowering_method: "deterministic-test".to_string(),
-            transport_authority: "none".to_string(),
-            publication_authorized: false,
-            lowered_text_ref: "artifact://weksa/lowered-text/es".to_string(),
-            lowered_text_preview: "Epiphany puede seguir trabajando.".to_string(),
-            created_at_utc: "2026-06-21T00:00:00Z".to_string(),
-            private_state_exposed: true,
-            notes: Vec::new(),
-        };
-        let error = write_epiphany_cultmesh_weksa_lowering_receipt(&store, receipt.clone())
-            .expect_err("private Weksa receipt must be refused");
-        assert!(error.to_string().contains("private state"));
-
-        receipt.private_state_exposed = false;
-        receipt.publication_authorized = true;
-        let error = write_epiphany_cultmesh_weksa_lowering_receipt(&store, receipt)
-            .expect_err("publication-authorizing Weksa receipt must be refused");
-        assert!(error.to_string().contains("publication authority"));
         Ok(())
     }
 
