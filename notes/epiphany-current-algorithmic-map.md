@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-23
-Latest committed implementation cut: `ffe707ff` on `codex/epiphany-shakedown-live`
-Current worktree cut: canonical map/evidence sync; Ox17 remains paused
+Latest committed implementation cut: `47454e61` on `codex/epiphany-shakedown-live`
+Current worktree cut: projector runbook and canonical map/evidence sync; Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -83,6 +83,14 @@ Scheduler argv integrity, all-or-none Idunn signed-health identity, stale child
 process identity/PID reuse, and heartbeat freshness plus lifecycle correlation.
 Tests that merely format bytes, call a match arm, round-trip a brake, or preserve
 a display/history mirror are gone with the production scaffolding they excused.
+
+Exact `47454e61` splits launch authority into semantic and workspace-coverage
+families over one small native spawn mechanic. Optional family tuples and the
+generic launch outcome are gone. The same cut deletes Epiphany's Windows Task
+Scheduler installer/control plane and its argv test: Idunn on Yggdrasil is the
+deployment and daemon-survival owner. The supervisor falls from 3,156 to 2,693
+lines, 463 net lines smaller. Its four surviving tests now guard brake scope,
+Idunn signed-health binding, stale process identity, and heartbeat correlation.
 The model-provider boundary explicitly selects a
 typed provider dialect and internally derives the exact provider request from
 the canonical native request. OpenRouter/Ox is the current Yggdrasil provider;

@@ -2,7 +2,7 @@
 
 Updated: 2026-08-23
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ffe707ff`
+Latest committed implementation cut: `47454e61`
 Current worktree: final heartbeat deletion and behavioral-test audit; Ox17 remains paused
 
 ## Orientation
@@ -680,6 +680,22 @@ surfaces. Each service now owns one exact current receipt head; its atomic CAS
 conflicts on concurrent same-service replacement while disjoint services remain
 independent. The cut subtracts 209 net lines. Focused native checks pass:
 CultMesh 18/18, workspace process authority 11/11, and supervisor 5/5.
+
+Exact `47454e61` replaces the branch-filled generic launch function with one
+semantic launch owner, one workspace-coverage launch owner, and one shared
+native spawn mechanic. Optional family tuples and generic launch outcomes are
+gone. The same cut deletes six Windows Task Scheduler commands, PowerShell
+mutation/readback, survival settings, parser cargo, and the argv test. Idunn on
+Yggdrasil is the sole deployment and daemon-survival authority. The supervisor
+drops from 3,156 to 2,693 lines: 463 net lines removed; native check and its
+four consequence tests pass. The retired command refuses at runtime.
+
+`notes/semantic-projector-service-runbook.md` now describes the Yggdrasil/Idunn
+body. Its deployment preflight records one external mismatch: the current
+`gamecult-ops/systemd/epiphany.service` still supplies retired `--agent-store`
+and `--daemon-id` flags. The owning infrastructure lane must correct that unit
+before a fresh Epiphany package is admitted; do not edit or deploy it from this
+source-subtraction lane.
 
 Preserve cluster topology while it owns the runtime-bound Body domain and
 bootstrap evidence. Separately split the remaining daemon supervisor's
