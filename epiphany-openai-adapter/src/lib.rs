@@ -1,7 +1,10 @@
 use anyhow::{Result, anyhow};
 use codex_connector::{CodexInputItem, CodexProviderRequest, CodexToolChoice, CodexToolDefinition};
 use cultcache_rs::DatabaseEntry;
-use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
+use epiphany_model_adapter::{
+    EpiphanyModelInputItem, EpiphanyModelReceipt, EpiphanyModelRequest, EpiphanyModelStreamEvent,
+    EpiphanyModelStreamPayload, EpiphanyModelToolDefinition, MODEL_ADAPTER_EVENT_SCHEMA_ID,
+};
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -19,7 +22,7 @@ pub struct EpiphanyProviderRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EpiphanyProviderRequestPayload {
     Codex(CodexProviderRequest),
-    OpenRouter(EpiphanyOpenAiModelRequest),
+    OpenRouter(EpiphanyOpenRouterRequest),
 }
 
 impl EpiphanyProviderRequest {
@@ -46,22 +49,22 @@ impl EpiphanyProviderRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EpiphanyOpenAiModelRequest {
+pub struct EpiphanyOpenRouterRequest {
     pub request_id: String,
     pub conversation_id: String,
     pub model: String,
     pub instructions: String,
-    pub input: Vec<EpiphanyOpenAiInputItem>,
+    pub input: Vec<EpiphanyModelInputItem>,
     pub reasoning_effort: Option<String>,
     pub reasoning_summary: Option<String>,
     pub service_tier: Option<String>,
     pub output_contract_id: Option<String>,
     pub previous_response_id: Option<String>,
-    pub tools: Vec<EpiphanyOpenAiToolDefinition>,
+    pub tools: Vec<EpiphanyModelToolDefinition>,
     pub output_schema_json: Option<String>,
 }
 
-impl EpiphanyOpenAiModelRequest {
+impl EpiphanyOpenRouterRequest {
     pub fn new(
         request_id: impl Into<String>,
         conversation_id: impl Into<String>,
@@ -99,27 +102,19 @@ pub fn request_from_native(request: &EpiphanyModelRequest) -> Result<EpiphanyPro
     Ok(EpiphanyProviderRequest { payload })
 }
 
-fn openrouter_request_from_native(request: &EpiphanyModelRequest) -> EpiphanyOpenAiModelRequest {
-    EpiphanyOpenAiModelRequest {
+fn openrouter_request_from_native(request: &EpiphanyModelRequest) -> EpiphanyOpenRouterRequest {
+    EpiphanyOpenRouterRequest {
         request_id: request.request_id.clone(),
         conversation_id: request.conversation_id.clone(),
         model: request.model.clone(),
         instructions: request.instructions.clone(),
-        input: request.input.iter().map(input_from_native).collect(),
+        input: request.input.clone(),
         reasoning_effort: request.reasoning_effort.clone(),
         reasoning_summary: request.reasoning_summary.clone(),
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
-        tools: request
-            .tools
-            .iter()
-            .map(|tool| EpiphanyOpenAiToolDefinition {
-                name: tool.name.clone(),
-                description: tool.description.clone(),
-                parameters_json: tool.parameters_json.clone(),
-            })
-            .collect(),
+        tools: request.tools.clone(),
         output_schema_json: request.output_schema_json.clone(),
     }
 }
@@ -204,119 +199,6 @@ fn codex_input_from_native(input: &EpiphanyModelInputItem) -> CodexInputItem {
     }
 }
 
-fn input_from_native(input: &EpiphanyModelInputItem) -> EpiphanyOpenAiInputItem {
-    match input {
-        EpiphanyModelInputItem::UserText { text } => {
-            EpiphanyOpenAiInputItem::UserText { text: text.clone() }
-        }
-        EpiphanyModelInputItem::AssistantText { text } => {
-            EpiphanyOpenAiInputItem::AssistantText { text: text.clone() }
-        }
-        EpiphanyModelInputItem::ToolCall {
-            call_id,
-            name,
-            arguments,
-        } => EpiphanyOpenAiInputItem::ToolCall {
-            call_id: call_id.clone(),
-            name: name.clone(),
-            arguments: arguments.clone(),
-        },
-        EpiphanyModelInputItem::ToolResult { call_id, output } => {
-            EpiphanyOpenAiInputItem::ToolResult {
-                call_id: call_id.clone(),
-                output: output.clone(),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EpiphanyOpenAiToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub parameters_json: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum EpiphanyOpenAiInputItem {
-    UserText {
-        text: String,
-    },
-    AssistantText {
-        text: String,
-    },
-    ToolCall {
-        call_id: String,
-        name: String,
-        arguments: String,
-    },
-    ToolResult {
-        call_id: String,
-        output: String,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EpiphanyOpenAiStreamEvent {
-    pub request_id: String,
-    pub sequence: u64,
-    pub payload: EpiphanyOpenAiStreamPayload,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum EpiphanyOpenAiStreamPayload {
-    TextDelta {
-        text: String,
-    },
-    ReasoningDelta {
-        text: String,
-    },
-    ToolCall {
-        call_id: String,
-        name: String,
-        arguments: String,
-    },
-    Completed {
-        receipt: Box<EpiphanyOpenAiModelReceipt>,
-    },
-    Failed {
-        message: String,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EpiphanyOpenAiModelReceipt {
-    pub request_id: String,
-    pub model: String,
-    pub response_id: Option<String>,
-    pub input_tokens: Option<u64>,
-    pub output_tokens: Option<u64>,
-    pub reasoning_output_tokens: Option<u64>,
-    pub transport: Option<String>,
-    pub caller_runtime_id: Option<String>,
-    pub native_request_sha256: Option<String>,
-    pub provider_request_sha256: Option<String>,
-    pub cached_input_tokens: Option<u64>,
-}
-
-impl EpiphanyOpenAiModelReceipt {
-    pub fn new(request_id: impl Into<String>, model: impl Into<String>) -> Self {
-        Self {
-            request_id: request_id.into(),
-            model: model.into(),
-            response_id: None,
-            input_tokens: None,
-            output_tokens: None,
-            reasoning_output_tokens: None,
-            transport: None,
-            caller_runtime_id: None,
-            native_request_sha256: None,
-            provider_request_sha256: None,
-            cached_input_tokens: None,
-        }
-    }
-}
-
 /// Project Epiphany's canonical JSON Schema into the strict subset accepted by
 /// model providers. Native decoding remains the final validation authority.
 pub fn strict_provider_schema(schema_json: &str) -> anyhow::Result<serde_json::Value> {
@@ -375,12 +257,12 @@ pub const OPENROUTER_TERMINAL_TOOL_NAME: &str = "epiphany_submit_typed_result";
 
 /// Lower one typed Epiphany request to OpenRouter's terminal-tool dialect.
 pub fn openrouter_request_body(
-    request: &EpiphanyOpenAiModelRequest,
+    request: &EpiphanyOpenRouterRequest,
 ) -> anyhow::Result<serde_json::Value> {
     let has_tool_result = request
         .input
         .iter()
-        .any(|item| matches!(item, EpiphanyOpenAiInputItem::ToolResult { .. }));
+        .any(|item| matches!(item, EpiphanyModelInputItem::ToolResult { .. }));
     let output_schema = request
         .output_schema_json
         .as_deref()
@@ -404,13 +286,13 @@ pub fn openrouter_request_body(
     })];
     for item in &request.input {
         messages.push(match item {
-            EpiphanyOpenAiInputItem::UserText { text } => {
+            EpiphanyModelInputItem::UserText { text } => {
                 serde_json::json!({"role": "user", "content": text})
             }
-            EpiphanyOpenAiInputItem::AssistantText { text } => {
+            EpiphanyModelInputItem::AssistantText { text } => {
                 serde_json::json!({"role": "assistant", "content": text})
             }
-            EpiphanyOpenAiInputItem::ToolCall {
+            EpiphanyModelInputItem::ToolCall {
                 call_id,
                 name,
                 arguments,
@@ -422,7 +304,7 @@ pub fn openrouter_request_body(
                     "function": {"name": name, "arguments": arguments},
                 }],
             }),
-            EpiphanyOpenAiInputItem::ToolResult { call_id, output } => serde_json::json!({
+            EpiphanyModelInputItem::ToolResult { call_id, output } => serde_json::json!({
                 "role": "tool",
                 "tool_call_id": call_id,
                 "content": output,
@@ -484,9 +366,9 @@ pub fn openrouter_request_body(
 /// event family. The model transcript remains optional; the terminal receipt
 /// is authoritative transport evidence.
 pub fn openrouter_events_from_response(
-    request: &EpiphanyOpenAiModelRequest,
+    request: &EpiphanyOpenRouterRequest,
     response_bytes: &[u8],
-) -> anyhow::Result<Vec<EpiphanyOpenAiStreamEvent>> {
+) -> anyhow::Result<Vec<EpiphanyModelStreamEvent>> {
     let response: OpenRouterResponse = serde_json::from_slice(response_bytes)
         .map_err(|error| anyhow::anyhow!("OpenRouter returned an invalid response: {error}"))?;
     let choice = response
@@ -499,7 +381,7 @@ pub fn openrouter_events_from_response(
         push_openrouter_event(
             &mut events,
             &request.request_id,
-            EpiphanyOpenAiStreamPayload::ReasoningDelta { text: reasoning },
+            EpiphanyModelStreamPayload::ReasoningDelta { text: reasoning },
         );
     }
     let terminal_calls = choice
@@ -526,7 +408,7 @@ pub fn openrouter_events_from_response(
         push_openrouter_event(
             &mut events,
             &request.request_id,
-            EpiphanyOpenAiStreamPayload::TextDelta {
+            EpiphanyModelStreamPayload::TextDelta {
                 text: arguments.clone(),
             },
         );
@@ -535,14 +417,14 @@ pub fn openrouter_events_from_response(
             push_openrouter_event(
                 &mut events,
                 &request.request_id,
-                EpiphanyOpenAiStreamPayload::TextDelta { text: content },
+                EpiphanyModelStreamPayload::TextDelta { text: content },
             );
         }
         for call in choice.message.tool_calls {
             push_openrouter_event(
                 &mut events,
                 &request.request_id,
-                EpiphanyOpenAiStreamPayload::ToolCall {
+                EpiphanyModelStreamPayload::ToolCall {
                     call_id: call.id,
                     name: call.function.name,
                     arguments: call.function.arguments,
@@ -556,11 +438,12 @@ pub fn openrouter_events_from_response(
         ));
     }
     let usage = response.usage;
-    let mut receipt = EpiphanyOpenAiModelReceipt::new(
+    let mut receipt = EpiphanyModelReceipt::new(
         &request.request_id,
+        "openrouter",
         response.model.unwrap_or_else(|| request.model.clone()),
     );
-    receipt.response_id = response.id;
+    receipt.provider_response_id = response.id;
     receipt.input_tokens = usage.as_ref().and_then(|usage| usage.prompt_tokens);
     receipt.output_tokens = usage.as_ref().and_then(|usage| usage.completion_tokens);
     receipt.reasoning_output_tokens = usage
@@ -571,7 +454,7 @@ pub fn openrouter_events_from_response(
     push_openrouter_event(
         &mut events,
         &request.request_id,
-        EpiphanyOpenAiStreamPayload::Completed {
+        EpiphanyModelStreamPayload::Completed {
             receipt: Box::new(receipt),
         },
     );
@@ -625,12 +508,14 @@ struct OpenRouterCompletionTokenDetails {
 }
 
 fn push_openrouter_event(
-    events: &mut Vec<EpiphanyOpenAiStreamEvent>,
+    events: &mut Vec<EpiphanyModelStreamEvent>,
     request_id: &str,
-    payload: EpiphanyOpenAiStreamPayload,
+    payload: EpiphanyModelStreamPayload,
 ) {
-    events.push(EpiphanyOpenAiStreamEvent {
+    events.push(EpiphanyModelStreamEvent {
+        schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
         request_id: request_id.into(),
+        provider: "openrouter".into(),
         sequence: events.len() as u64,
         payload,
     });
@@ -1002,8 +887,7 @@ mod tests {
 
     #[test]
     fn openrouter_terminal_tool_preserves_structured_decision() {
-        let mut request =
-            EpiphanyOpenAiModelRequest::new("request", "conversation", "ox", "decide");
+        let mut request = EpiphanyOpenRouterRequest::new("request", "conversation", "ox", "decide");
         request.output_schema_json = Some(
             r#"{"type":"object","properties":{"verdict":{"type":"string"}},"required":["verdict"]}"#.into(),
         );
@@ -1027,11 +911,11 @@ mod tests {
                 .unwrap();
         assert!(matches!(
             &events[0].payload,
-            EpiphanyOpenAiStreamPayload::TextDelta { text } if text == "{\"verdict\":\"pass\"}"
+            EpiphanyModelStreamPayload::TextDelta { text } if text == "{\"verdict\":\"pass\"}"
         ));
         assert!(matches!(
             &events[1].payload,
-            EpiphanyOpenAiStreamPayload::Completed { receipt }
+            EpiphanyModelStreamPayload::Completed { receipt }
                 if receipt.transport.as_deref() == Some("openrouter-chat-completions")
         ));
     }

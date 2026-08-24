@@ -17,10 +17,12 @@ use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_model_adapter::EpiphanyModelRequest;
 #[cfg(test)]
-use epiphany_openai_adapter::{
-    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
-    EpiphanyOpenAiStreamPayload, EpiphanyProviderRequestPayload,
+use epiphany_model_adapter::{
+    EpiphanyModelReceipt, EpiphanyModelStreamEvent, EpiphanyModelStreamPayload,
+    MODEL_ADAPTER_EVENT_SCHEMA_ID,
 };
+#[cfg(test)]
+use epiphany_openai_adapter::{EpiphanyOpenRouterRequest, EpiphanyProviderRequestPayload};
 use epiphany_openai_runtime::DEFAULT_CODEX_CONNECTOR_ENDPOINT;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
@@ -993,9 +995,9 @@ mod tests {
             },
         };
 
-        let events = provider_transport::events_from_connector_result(result)?;
+        let events = provider_transport::events_from_connector_result("openai-codex", result)?;
         assert_eq!(events.len(), 1);
-        let EpiphanyOpenAiStreamPayload::Completed { receipt } = &events[0].payload else {
+        let EpiphanyModelStreamPayload::Completed { receipt } = &events[0].payload else {
             panic!("connector result must produce one terminal receipt")
         };
         let native_digest = "11".repeat(32);
@@ -1038,7 +1040,7 @@ mod tests {
         ];
 
         for (index, schema) in schemas.into_iter().enumerate() {
-            let mut request = EpiphanyOpenAiModelRequest::new(
+            let mut request = EpiphanyOpenRouterRequest::new(
                 format!("strict-worker-schema-{index}"),
                 "strict-worker-schema",
                 "gpt-5.4",
@@ -1056,7 +1058,7 @@ mod tests {
 
     #[test]
     fn research_contract_projects_typed_decision_to_provider_strict_shape() -> Result<()> {
-        let mut request = EpiphanyOpenAiModelRequest::new(
+        let mut request = EpiphanyOpenRouterRequest::new(
             "strict-research-schema",
             "strict-worker-schema",
             "gpt-5.4",
@@ -1127,8 +1129,8 @@ mod tests {
             },
             &model_request,
         )?;
-        let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, "gpt-test");
-        receipt.response_id = Some(format!("response-{request_id}"));
+        let mut receipt = EpiphanyModelReceipt::new(request_id, DEFAULT_PROVIDER, "gpt-test");
+        receipt.provider_response_id = Some(format!("response-{request_id}"));
         receipt.transport = Some("test".to_string());
         record_model_turn_events(
             store,
@@ -1146,19 +1148,23 @@ mod tests {
             },
             &model_request,
             &[
-                EpiphanyOpenAiStreamEvent {
+                EpiphanyModelStreamEvent {
+                    schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                     request_id: request_id.to_string(),
+                    provider: DEFAULT_PROVIDER.to_string(),
                     sequence: 0,
-                    payload: EpiphanyOpenAiStreamPayload::ToolCall {
+                    payload: EpiphanyModelStreamPayload::ToolCall {
                         call_id: format!("call-{request_id}"),
                         name: tool_name.to_string(),
                         arguments: arguments.to_string(),
                     },
                 },
-                EpiphanyOpenAiStreamEvent {
+                EpiphanyModelStreamEvent {
+                    schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                     request_id: request_id.to_string(),
+                    provider: DEFAULT_PROVIDER.to_string(),
                     sequence: 1,
-                    payload: EpiphanyOpenAiStreamPayload::Completed {
+                    payload: EpiphanyModelStreamPayload::Completed {
                         receipt: Box::new(receipt),
                     },
                 },

@@ -24,13 +24,10 @@ use epiphany_core::runtime_identity;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::terminalize_runtime_job;
 use epiphany_model_adapter::EpiphanyModelInputItem;
-use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_model_adapter::EpiphanyModelToolDefinition;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::EpiphanyProviderRequest;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
@@ -120,12 +117,12 @@ pub fn record_model_turn_events(
     store_path: impl AsRef<Path>,
     options: &EpiphanyOpenAiRuntimeOptions,
     request: &EpiphanyModelRequest,
-    events: &[EpiphanyOpenAiStreamEvent],
+    events: &[EpiphanyModelStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
     let provider_request = provider_request_from_model_request(request)?;
-    let events = compact_openai_events_for_storage(events);
-    let tool_intents = tool_invocation_intents_from_openai_events(&request.provider, &events);
+    let events = compact_model_events_for_storage(events);
+    let tool_intents = tool_invocation_intents_from_model_events(&events);
     for intent in &tool_intents {
         put_runtime_tool_execution_intent(
             store_path,
@@ -140,19 +137,15 @@ pub fn record_model_turn_events(
         let mut cache = runtime_spine_cache(store_path)?;
         cache.pull_all_backing_stores()?;
         for event in &events {
-            let model_event = model_event_from_openai_event(&request.provider, event);
-            cache.put(
-                model_event_key(&model_event.request_id, model_event.sequence),
-                &model_event,
-            )?;
-            if let EpiphanyModelStreamPayload::Completed { receipt } = &model_event.payload {
+            cache.put(model_event_key(&event.request_id, event.sequence), event)?;
+            if let EpiphanyModelStreamPayload::Completed { receipt } = &event.payload {
                 cache.put(model_receipt_key(&receipt.request_id), receipt.as_ref())?;
             }
             match &event.payload {
-                EpiphanyOpenAiStreamPayload::Completed { receipt: completed } => {
+                EpiphanyModelStreamPayload::Completed { receipt: completed } => {
                     receipt = Some(completed.as_ref().clone());
                 }
-                EpiphanyOpenAiStreamPayload::Failed { message } => {
+                EpiphanyModelStreamPayload::Failed { message } => {
                     failure = Some(message.clone());
                 }
                 _ => {}
@@ -207,19 +200,19 @@ pub fn record_model_turn_events(
     })
 }
 
-fn compact_openai_events_for_storage(
-    events: &[EpiphanyOpenAiStreamEvent],
-) -> Vec<EpiphanyOpenAiStreamEvent> {
+fn compact_model_events_for_storage(
+    events: &[EpiphanyModelStreamEvent],
+) -> Vec<EpiphanyModelStreamEvent> {
     let mut compacted = Vec::new();
     let mut text_buffer = String::new();
     let mut reasoning_buffer = String::new();
     for event in events {
         match &event.payload {
-            EpiphanyOpenAiStreamPayload::TextDelta { text } => {
+            EpiphanyModelStreamPayload::TextDelta { text } => {
                 flush_reasoning_buffer(&mut compacted, event, &mut reasoning_buffer);
                 text_buffer.push_str(text);
             }
-            EpiphanyOpenAiStreamPayload::ReasoningDelta { text } => {
+            EpiphanyModelStreamPayload::ReasoningDelta { text } => {
                 flush_text_buffer(&mut compacted, event, &mut text_buffer);
                 reasoning_buffer.push_str(text);
             }
@@ -238,8 +231,8 @@ fn compact_openai_events_for_storage(
 }
 
 fn flush_text_buffer(
-    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
-    source: &EpiphanyOpenAiStreamEvent,
+    compacted: &mut Vec<EpiphanyModelStreamEvent>,
+    source: &EpiphanyModelStreamEvent,
     buffer: &mut String,
 ) {
     if !buffer.is_empty() {
@@ -247,14 +240,14 @@ fn flush_text_buffer(
         push_compacted_event(
             compacted,
             source,
-            EpiphanyOpenAiStreamPayload::TextDelta { text },
+            EpiphanyModelStreamPayload::TextDelta { text },
         );
     }
 }
 
 fn flush_reasoning_buffer(
-    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
-    source: &EpiphanyOpenAiStreamEvent,
+    compacted: &mut Vec<EpiphanyModelStreamEvent>,
+    source: &EpiphanyModelStreamEvent,
     buffer: &mut String,
 ) {
     if !buffer.is_empty() {
@@ -262,18 +255,20 @@ fn flush_reasoning_buffer(
         push_compacted_event(
             compacted,
             source,
-            EpiphanyOpenAiStreamPayload::ReasoningDelta { text },
+            EpiphanyModelStreamPayload::ReasoningDelta { text },
         );
     }
 }
 
 fn push_compacted_event(
-    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
-    source: &EpiphanyOpenAiStreamEvent,
-    payload: EpiphanyOpenAiStreamPayload,
+    compacted: &mut Vec<EpiphanyModelStreamEvent>,
+    source: &EpiphanyModelStreamEvent,
+    payload: EpiphanyModelStreamPayload,
 ) {
-    compacted.push(EpiphanyOpenAiStreamEvent {
+    compacted.push(EpiphanyModelStreamEvent {
+        schema_id: source.schema_id.clone(),
         request_id: source.request_id.clone(),
+        provider: source.provider.clone(),
         sequence: compacted.len() as u64,
         payload,
     });
@@ -837,74 +832,12 @@ fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
     ]
 }
 
-pub fn model_event_from_openai_event(
-    provider: &str,
-    event: &EpiphanyOpenAiStreamEvent,
-) -> EpiphanyModelStreamEvent {
-    EpiphanyModelStreamEvent {
-        schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
-        request_id: event.request_id.clone(),
-        provider: provider.to_string(),
-        sequence: event.sequence,
-        payload: match &event.payload {
-            EpiphanyOpenAiStreamPayload::TextDelta { text } => {
-                EpiphanyModelStreamPayload::TextDelta { text: text.clone() }
-            }
-            EpiphanyOpenAiStreamPayload::ReasoningDelta { text } => {
-                EpiphanyModelStreamPayload::ReasoningDelta { text: text.clone() }
-            }
-            EpiphanyOpenAiStreamPayload::ToolCall {
-                call_id,
-                name,
-                arguments,
-            } => EpiphanyModelStreamPayload::ToolCall {
-                call_id: call_id.clone(),
-                name: name.clone(),
-                arguments: arguments.clone(),
-            },
-            EpiphanyOpenAiStreamPayload::Completed { receipt } => {
-                EpiphanyModelStreamPayload::Completed {
-                    receipt: Box::new(model_receipt_from_openai_receipt(provider, receipt)),
-                }
-            }
-            EpiphanyOpenAiStreamPayload::Failed { message } => EpiphanyModelStreamPayload::Failed {
-                message: message.clone(),
-            },
-        },
-    }
-}
-
-pub fn model_receipt_from_openai_receipt(
-    provider: &str,
-    receipt: &epiphany_openai_adapter::EpiphanyOpenAiModelReceipt,
-) -> EpiphanyModelReceipt {
-    EpiphanyModelReceipt {
-        schema_id: epiphany_model_adapter::MODEL_ADAPTER_RECEIPT_SCHEMA_ID.to_string(),
-        request_id: receipt.request_id.clone(),
-        provider: provider.to_string(),
-        model: receipt.model.clone(),
-        provider_response_id: receipt.response_id.clone(),
-        input_tokens: receipt.input_tokens,
-        output_tokens: receipt.output_tokens,
-        reasoning_output_tokens: receipt.reasoning_output_tokens,
-        transport: receipt.transport.clone(),
-        caller_runtime_id: receipt.caller_runtime_id.clone(),
-        native_request_sha256: receipt.native_request_sha256.clone(),
-        provider_request_sha256: receipt.provider_request_sha256.clone(),
-        cached_input_tokens: receipt.cached_input_tokens,
-    }
-}
-
-pub fn tool_invocation_intents_from_openai_events(
-    provider: &str,
-    events: &[EpiphanyOpenAiStreamEvent],
+pub fn tool_invocation_intents_from_model_events(
+    events: &[EpiphanyModelStreamEvent],
 ) -> Vec<EpiphanyToolInvocationIntent> {
     events
         .iter()
-        .filter_map(|event| {
-            let model_event = model_event_from_openai_event(provider, event);
-            tool_invocation_intent_from_model_event(&model_event)
-        })
+        .filter_map(tool_invocation_intent_from_model_event)
         .collect()
 }
 
@@ -1929,7 +1862,7 @@ mod tests {
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
     use epiphany_core::runtime_job;
-    use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
+    use epiphany_model_adapter::EpiphanyModelReceipt;
     use sha2::{Digest, Sha256};
     use tempfile::tempdir;
 
@@ -2752,73 +2685,79 @@ mod tests {
         Ok(())
     }
 
-    fn test_openai_event(
+    fn test_model_event(
         request_id: &str,
         sequence: u64,
-        payload: EpiphanyOpenAiStreamPayload,
-    ) -> EpiphanyOpenAiStreamEvent {
-        EpiphanyOpenAiStreamEvent {
+        payload: EpiphanyModelStreamPayload,
+    ) -> EpiphanyModelStreamEvent {
+        EpiphanyModelStreamEvent {
+            schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: request_id.to_string(),
+            provider: DEFAULT_MODEL_PROVIDER.to_string(),
             sequence,
             payload,
         }
     }
 
     #[test]
-    fn compacts_openai_text_and_reasoning_deltas_before_storage() {
+    fn compacts_native_model_text_and_reasoning_deltas_before_storage() {
         let events = vec![
-            test_openai_event(
+            test_model_event(
                 "req-1",
                 0,
-                EpiphanyOpenAiStreamPayload::ReasoningDelta {
+                EpiphanyModelStreamPayload::ReasoningDelta {
                     text: "think".to_string(),
                 },
             ),
-            test_openai_event(
+            test_model_event(
                 "req-1",
                 1,
-                EpiphanyOpenAiStreamPayload::ReasoningDelta {
+                EpiphanyModelStreamPayload::ReasoningDelta {
                     text: " small".to_string(),
                 },
             ),
-            test_openai_event(
+            test_model_event(
                 "req-1",
                 2,
-                EpiphanyOpenAiStreamPayload::TextDelta {
+                EpiphanyModelStreamPayload::TextDelta {
                     text: "{\"role".to_string(),
                 },
             ),
-            test_openai_event(
+            test_model_event(
                 "req-1",
                 3,
-                EpiphanyOpenAiStreamPayload::TextDelta {
+                EpiphanyModelStreamPayload::TextDelta {
                     text: "Id\":\"modeling\"}".to_string(),
                 },
             ),
-            test_openai_event(
+            test_model_event(
                 "req-1",
                 4,
-                EpiphanyOpenAiStreamPayload::Completed {
-                    receipt: Box::new(EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4")),
+                EpiphanyModelStreamPayload::Completed {
+                    receipt: Box::new(EpiphanyModelReceipt::new(
+                        "req-1",
+                        DEFAULT_MODEL_PROVIDER,
+                        "gpt-5.4",
+                    )),
                 },
             ),
         ];
 
-        let compacted = compact_openai_events_for_storage(&events);
+        let compacted = compact_model_events_for_storage(&events);
 
         assert_eq!(compacted.len(), 3);
         assert_eq!(compacted[0].sequence, 0);
         assert!(matches!(
             &compacted[0].payload,
-            EpiphanyOpenAiStreamPayload::ReasoningDelta { text } if text == "think small"
+            EpiphanyModelStreamPayload::ReasoningDelta { text } if text == "think small"
         ));
         assert!(matches!(
             &compacted[1].payload,
-            EpiphanyOpenAiStreamPayload::TextDelta { text } if text == "{\"roleId\":\"modeling\"}"
+            EpiphanyModelStreamPayload::TextDelta { text } if text == "{\"roleId\":\"modeling\"}"
         ));
         assert!(matches!(
             compacted[2].payload,
-            EpiphanyOpenAiStreamPayload::Completed { .. }
+            EpiphanyModelStreamPayload::Completed { .. }
         ));
     }
 
@@ -2844,13 +2783,15 @@ mod tests {
             },
             &native_request,
         )?;
-        let mut receipt = EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4");
-        receipt.response_id = Some("resp-1".to_string());
+        let mut receipt = EpiphanyModelReceipt::new("req-1", DEFAULT_MODEL_PROVIDER, "gpt-5.4");
+        receipt.provider_response_id = Some("resp-1".to_string());
         receipt.transport = Some("test".to_string());
-        let events = vec![EpiphanyOpenAiStreamEvent {
+        let events = vec![EpiphanyModelStreamEvent {
+            schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: "req-1".to_string(),
+            provider: DEFAULT_MODEL_PROVIDER.to_string(),
             sequence: 0,
-            payload: EpiphanyOpenAiStreamPayload::Completed {
+            payload: EpiphanyModelStreamPayload::Completed {
                 receipt: Box::new(receipt),
             },
         }];
@@ -3290,23 +3231,27 @@ mod tests {
             },
             &native_request,
         )?;
-        let mut receipt = EpiphanyOpenAiModelReceipt::new("req-tools", "gpt-5.4");
-        receipt.response_id = Some("resp-tools".to_string());
+        let mut receipt = EpiphanyModelReceipt::new("req-tools", DEFAULT_MODEL_PROVIDER, "gpt-5.4");
+        receipt.provider_response_id = Some("resp-tools".to_string());
         receipt.transport = Some("test".to_string());
         let events = vec![
-            EpiphanyOpenAiStreamEvent {
+            EpiphanyModelStreamEvent {
+                schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                 request_id: "req-tools".to_string(),
+                provider: DEFAULT_MODEL_PROVIDER.to_string(),
                 sequence: 0,
-                payload: EpiphanyOpenAiStreamPayload::ToolCall {
+                payload: EpiphanyModelStreamPayload::ToolCall {
                     call_id: "call-original".to_string(),
                     name: "mcp__smoke_server__smoke_tool".to_string(),
                     arguments: "{}".to_string(),
                 },
             },
-            EpiphanyOpenAiStreamEvent {
+            EpiphanyModelStreamEvent {
+                schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                 request_id: "req-tools".to_string(),
+                provider: DEFAULT_MODEL_PROVIDER.to_string(),
                 sequence: 1,
-                payload: EpiphanyOpenAiStreamPayload::Completed {
+                payload: EpiphanyModelStreamPayload::Completed {
                     receipt: Box::new(receipt),
                 },
             },

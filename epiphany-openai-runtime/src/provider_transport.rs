@@ -7,10 +7,12 @@ use codex_connector::{
     CodexConnectorClient, CodexProviderRequest, CodexTransportDisposition,
     CodexTransportEventPayload, CodexTransportInvocation, CodexTransportOutcome,
 };
-use epiphany_model_adapter::EpiphanyModelRequest;
+use epiphany_model_adapter::{
+    EpiphanyModelReceipt, EpiphanyModelRequest, EpiphanyModelStreamEvent,
+    EpiphanyModelStreamPayload, MODEL_ADAPTER_EVENT_SCHEMA_ID,
+};
 use epiphany_openai_adapter::{
-    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
-    EpiphanyOpenAiStreamPayload, EpiphanyProviderRequestPayload, openrouter_events_from_response,
+    EpiphanyOpenRouterRequest, EpiphanyProviderRequestPayload, openrouter_events_from_response,
     openrouter_request_body,
 };
 use epiphany_openai_runtime::{
@@ -37,11 +39,13 @@ pub async fn run_model_turn(
             collect_transport_events(
                 execute_codex_connector(&options, &request, codex_request),
                 &request_id,
+                provider,
             )
             .await
         }
         (OPENROUTER_MODEL_PROVIDER, EpiphanyProviderRequestPayload::OpenRouter(request)) => {
-            collect_transport_events(execute_openrouter(&options, request), &request_id).await
+            collect_transport_events(execute_openrouter(&options, request), &request_id, provider)
+                .await
         }
         _ => {
             return Err(anyhow!(
@@ -56,7 +60,7 @@ async fn execute_codex_connector(
     options: &EpiphanyOpenAiRuntimeOptions,
     native_request: &EpiphanyModelRequest,
     provider_request: CodexProviderRequest,
-) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+) -> Result<Vec<EpiphanyModelStreamEvent>> {
     let endpoint = options
         .connector_endpoint
         .ok_or_else(|| anyhow!("Codex provider requires an explicit connector endpoint"))?;
@@ -86,17 +90,19 @@ async fn execute_codex_connector(
         MAX_CONNECTOR_FRAME_BYTES,
         options.request_timeout,
     )?;
+    let provider = native_request.provider.clone();
     tokio::task::spawn_blocking(move || {
         let result = client.execute(&invocation)?;
-        events_from_connector_result(result)
+        events_from_connector_result(&provider, result)
     })
     .await
     .context("Codex connector client task failed")?
 }
 
 pub(super) fn events_from_connector_result(
+    provider: &str,
     result: codex_connector::CodexTransportResult,
-) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+) -> Result<Vec<EpiphanyModelStreamEvent>> {
     let request_id = result.request_id.clone();
     match result.disposition {
         CodexTransportDisposition::Refused(reason) => Err(anyhow!(
@@ -105,18 +111,20 @@ pub(super) fn events_from_connector_result(
         CodexTransportDisposition::Transported { events, receipt } => {
             let mut projected = events
                 .into_iter()
-                .map(|event| EpiphanyOpenAiStreamEvent {
+                .map(|event| EpiphanyModelStreamEvent {
+                    schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                     request_id: request_id.clone(),
+                    provider: provider.to_string(),
                     sequence: event.sequence,
                     payload: match event.payload {
                         CodexTransportEventPayload::TextDelta { text } => {
-                            EpiphanyOpenAiStreamPayload::TextDelta { text }
+                            EpiphanyModelStreamPayload::TextDelta { text }
                         }
                         CodexTransportEventPayload::ToolCall {
                             call_id,
                             name,
                             arguments,
-                        } => EpiphanyOpenAiStreamPayload::ToolCall {
+                        } => EpiphanyModelStreamPayload::ToolCall {
                             call_id,
                             name,
                             arguments,
@@ -124,7 +132,7 @@ pub(super) fn events_from_connector_result(
                     },
                 })
                 .collect::<Vec<_>>();
-            let mut terminal = EpiphanyOpenAiModelReceipt::new(&request_id, &receipt.model);
+            let mut terminal = EpiphanyModelReceipt::new(&request_id, provider, &receipt.model);
             terminal.transport = Some(receipt.transport.clone());
             terminal.caller_runtime_id = Some(receipt.caller_runtime_id.clone());
             terminal.native_request_sha256 = Some(hex_digest(receipt.native_request_sha256));
@@ -137,15 +145,17 @@ pub(super) fn events_from_connector_result(
                     reasoning_output_tokens,
                     cached_input_tokens,
                 } => {
-                    terminal.response_id = provider_response_id;
+                    terminal.provider_response_id = provider_response_id;
                     terminal.input_tokens = input_tokens;
                     terminal.output_tokens = output_tokens;
                     terminal.reasoning_output_tokens = reasoning_output_tokens;
                     terminal.cached_input_tokens = cached_input_tokens;
-                    projected.push(EpiphanyOpenAiStreamEvent {
+                    projected.push(EpiphanyModelStreamEvent {
+                        schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                         request_id,
+                        provider: provider.to_string(),
                         sequence: projected.len() as u64,
-                        payload: EpiphanyOpenAiStreamPayload::Completed {
+                        payload: EpiphanyModelStreamPayload::Completed {
                             receipt: Box::new(terminal),
                         },
                     });
@@ -154,10 +164,12 @@ pub(super) fn events_from_connector_result(
                     failure_kind,
                     message,
                 } => {
-                    projected.push(EpiphanyOpenAiStreamEvent {
+                    projected.push(EpiphanyModelStreamEvent {
+                        schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                         request_id,
+                        provider: provider.to_string(),
                         sequence: projected.len() as u64,
-                        payload: EpiphanyOpenAiStreamPayload::Failed {
+                        payload: EpiphanyModelStreamPayload::Failed {
                             message: format!("Codex connector {failure_kind}: {message}"),
                         },
                     });
@@ -170,8 +182,8 @@ pub(super) fn events_from_connector_result(
 
 async fn execute_openrouter(
     options: &EpiphanyOpenAiRuntimeOptions,
-    request: EpiphanyOpenAiModelRequest,
-) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+    request: EpiphanyOpenRouterRequest,
+) -> Result<Vec<EpiphanyModelStreamEvent>> {
     let api_key = Zeroizing::new(read_static_provider_credential(
         options.provider_credential_path.as_deref(),
         OPENROUTER_MODEL_PROVIDER,
@@ -210,16 +222,22 @@ async fn execute_openrouter(
     .context("OpenRouter client task failed")?
 }
 
-async fn collect_transport_events<F>(future: F, request_id: &str) -> Vec<EpiphanyOpenAiStreamEvent>
+async fn collect_transport_events<F>(
+    future: F,
+    request_id: &str,
+    provider: &str,
+) -> Vec<EpiphanyModelStreamEvent>
 where
-    F: std::future::Future<Output = Result<Vec<EpiphanyOpenAiStreamEvent>>>,
+    F: std::future::Future<Output = Result<Vec<EpiphanyModelStreamEvent>>>,
 {
     match future.await {
         Ok(events) => events,
-        Err(error) => vec![EpiphanyOpenAiStreamEvent {
+        Err(error) => vec![EpiphanyModelStreamEvent {
+            schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: request_id.to_string(),
+            provider: provider.to_string(),
             sequence: 0,
-            payload: EpiphanyOpenAiStreamPayload::Failed {
+            payload: EpiphanyModelStreamPayload::Failed {
                 message: error.to_string(),
             },
         }],
