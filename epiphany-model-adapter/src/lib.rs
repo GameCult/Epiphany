@@ -4,7 +4,7 @@ use serde::Serialize;
 
 pub const MODEL_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.model_request.v0";
 pub const MODEL_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.model_stream_event.v0";
-pub const MODEL_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.model_receipt.v0";
+pub const MODEL_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.model_receipt.v1";
 #[derive(Debug, Clone, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.model_request.v0", schema = "EpiphanyModelRequest")]
 pub struct EpiphanyModelRequest {
@@ -129,7 +129,7 @@ pub enum EpiphanyModelStreamPayload {
         arguments: String,
     },
     Completed {
-        receipt: EpiphanyModelReceipt,
+        receipt: Box<EpiphanyModelReceipt>,
     },
     Failed {
         message: String,
@@ -137,7 +137,7 @@ pub enum EpiphanyModelStreamPayload {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(type = "epiphany.model_receipt.v0", schema = "EpiphanyModelReceipt")]
+#[cultcache(type = "epiphany.model_receipt.v1", schema = "EpiphanyModelReceipt")]
 pub struct EpiphanyModelReceipt {
     #[cultcache(key = 0)]
     pub schema_id: String,
@@ -157,6 +157,14 @@ pub struct EpiphanyModelReceipt {
     pub reasoning_output_tokens: Option<u64>,
     #[cultcache(key = 8, default)]
     pub transport: Option<String>,
+    #[cultcache(key = 9, default)]
+    pub caller_runtime_id: Option<String>,
+    #[cultcache(key = 10, default)]
+    pub native_request_sha256: Option<String>,
+    #[cultcache(key = 11, default)]
+    pub provider_request_sha256: Option<String>,
+    #[cultcache(key = 12, default)]
+    pub cached_input_tokens: Option<u64>,
 }
 
 impl EpiphanyModelReceipt {
@@ -175,6 +183,10 @@ impl EpiphanyModelReceipt {
             output_tokens: None,
             reasoning_output_tokens: None,
             transport: None,
+            caller_runtime_id: None,
+            native_request_sha256: None,
+            provider_request_sha256: None,
+            cached_input_tokens: None,
         }
     }
 }

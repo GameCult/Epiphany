@@ -11,6 +11,7 @@ use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
 use epiphany_core::HandsActionIntent;
 use epiphany_core::RepoFrontierHandsAuthority;
 use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::coordinator_status as status_projection;
 use epiphany_core::finalize_coordinator_run;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
@@ -25,13 +26,13 @@ use epiphany_core::substrate_gate_coordinator_implementation_grant;
 use epiphany_core::{
     LaunchedCoordinator, capture_process_instance, claim_resident_self_preparation_as_child,
 };
-use epiphany_core::coordinator_status as status_projection;
 use serde_json::Value;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -69,7 +70,7 @@ struct Args {
     thread_id: Option<String>,
     objective: Option<String>,
     cwd: PathBuf,
-    codex_home: PathBuf,
+    model_connector_endpoint: SocketAddr,
     mcp_config: PathBuf,
     artifact_dir: PathBuf,
     runtime_store: PathBuf,
@@ -106,9 +107,7 @@ impl Args {
             thread_id: None,
             objective: None,
             cwd: root.clone(),
-            codex_home: env::var_os("CODEX_HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| home_dir().join(".codex")),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: root.join(".epiphany").join("mcp.toml"),
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
@@ -197,7 +196,10 @@ impl Args {
                     parsed.required_action = Some(take_string(&mut args, "--required-action")?)
                 }
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
-                "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
+                "--connector-endpoint" => {
+                    parsed.model_connector_endpoint =
+                        take_string(&mut args, "--connector-endpoint")?.parse()?
+                }
                 "--mcp-config" => parsed.mcp_config = take_path(&mut args, "--mcp-config")?,
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
                 "--runtime-store" => {
@@ -283,12 +285,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let cwd = status_projection::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
-    let codex_home = status_projection::absolute_path(&args.codex_home)?;
     let mcp_config = status_projection::absolute_path(&args.mcp_config)?;
     let artifact_dir = status_projection::absolute_path(&args.artifact_dir)?;
     let runtime_store = status_projection::absolute_path(&args.runtime_store)?;
     reset_artifact_dir(&artifact_dir)?;
-    fs::create_dir_all(&codex_home)?;
 
     let telemetry_path = artifact_dir.join("agent-function-telemetry.json");
     let steps_path = artifact_dir.join("coordinator-steps.jsonl");
@@ -408,7 +408,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &args.model,
                 args.provider_credential_path.as_deref(),
                 &runtime_store,
-                &codex_home,
+                args.model_connector_endpoint,
                 &mcp_config,
                 &cwd,
                 args.resident_state_store.as_deref(),
@@ -450,7 +450,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &args.model,
                 args.provider_credential_path.as_deref(),
                 &runtime_store,
-                &codex_home,
+                args.model_connector_endpoint,
                 &mcp_config,
                 &cwd,
                 args.resident_state_store.as_deref(),
@@ -504,7 +504,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 &args.model,
                 args.provider_credential_path.as_deref(),
                 &runtime_store,
-                &codex_home,
+                args.model_connector_endpoint,
                 &mcp_config,
                 &cwd,
                 args.resident_state_store.as_deref(),
@@ -549,7 +549,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             let snapshot_name = format!("step-{index:02}-{action}.txt");
             fs::write(
                 artifact_dir.join(&snapshot_name),
-                status_projection::render_status(&status_projection::sanitize_for_operator(status.clone())),
+                status_projection::render_status(&status_projection::sanitize_for_operator(
+                    status.clone(),
+                )),
             )?;
             snapshots.push(snapshot_name);
             let mut step = json!({
@@ -656,7 +658,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -706,7 +708,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -1027,7 +1029,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -1070,7 +1072,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -1186,7 +1188,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -1256,7 +1258,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &args.model,
                         args.provider_credential_path.as_deref(),
                         &runtime_store,
-                        &codex_home,
+                        args.model_connector_endpoint,
                         &mcp_config,
                         &cwd,
                         args.resident_state_store.as_deref(),
@@ -1344,7 +1346,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "modelRuntimeBin": model_runtime_bin,
             "toolAdapterBin": tool_adapter_bin,
             "modelProvider": args.model_provider,
-            "codexHome": codex_home,
+            "modelConnectorEndpoint": args.model_connector_endpoint,
             "mcpConfig": mcp_config,
             "runtimeStore": runtime_store,
             "workspace": cwd,
@@ -1738,7 +1740,7 @@ fn launch_worker_runtime_detached(
     model: &str,
     provider_credential_path: Option<&Path>,
     runtime_store: &Path,
-    codex_home: &Path,
+    model_connector_endpoint: SocketAddr,
     mcp_config: &Path,
     cwd: &Path,
     resident_store: Option<&Path>,
@@ -1767,8 +1769,8 @@ fn launch_worker_runtime_detached(
         .arg(model)
         .arg("--store")
         .arg(runtime_store)
-        .arg("--codex-home")
-        .arg(codex_home)
+        .arg("--connector-endpoint")
+        .arg(model_connector_endpoint.to_string())
         .arg("--mcp-config")
         .arg(mcp_config)
         .arg("--job-id")
@@ -2053,7 +2055,10 @@ fn append_jsonl(path: &Path, value: &Value) -> Result<()> {
 }
 
 fn append_operator_step_jsonl(path: &Path, step: &Value) -> Result<()> {
-    append_jsonl(path, &status_projection::sanitize_for_operator(step.clone()))
+    append_jsonl(
+        path,
+        &status_projection::sanitize_for_operator(step.clone()),
+    )
 }
 
 fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
@@ -2063,13 +2068,6 @@ fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<St
 
 fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(take_string(args, name)?))
-}
-
-fn home_dir() -> PathBuf {
-    env::var_os("USERPROFILE")
-        .or_else(|| env::var_os("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 #[cfg(test)]
@@ -2111,7 +2109,7 @@ mod tests {
             thread_id: Some("error-terminalization".to_string()),
             objective: Some("Exercise the coordinator error boundary.".to_string()),
             cwd: cwd.clone(),
-            codex_home: temp.path().join("codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: cwd.join(".epiphany/mcp.toml"),
             artifact_dir: cwd.join(".epiphany-smoke/error-terminalization"),
             runtime_store: runtime_store.clone(),

@@ -10,6 +10,9 @@ name = "epiphany_openai_adapter"
 path = "src/lib.rs"
 
 [dependencies]
+anyhow = "1"
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

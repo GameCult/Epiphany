@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process;
@@ -20,7 +21,7 @@ use epiphany_openai_adapter::{
     EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
     EpiphanyOpenAiStreamPayload,
 };
-use epiphany_openai_codex_spine::default_codex_home;
+use epiphany_openai_runtime::DEFAULT_CODEX_CONNECTOR_ENDPOINT;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 #[cfg(test)]
@@ -179,8 +180,9 @@ async fn main() -> Result<()> {
 struct RunWorkerCliOptions {
     provider: String,
     store_path: PathBuf,
-    codex_home: PathBuf,
     provider_credential_path: Option<PathBuf>,
+    connector_endpoint: SocketAddr,
+    caller_runtime_id: String,
     mcp_config: Option<PathBuf>,
     job_id: String,
     model: String,
@@ -195,8 +197,9 @@ struct RunWorkerCliOptions {
 fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
-    let mut codex_home = default_codex_home()?;
     let mut provider_credential_path = None;
+    let mut connector_endpoint = DEFAULT_CODEX_CONNECTOR_ENDPOINT;
+    let mut caller_runtime_id = "epiphany-model-runtime".to_string();
     let mut mcp_config = None;
     let mut job_id = None;
     let mut model = default_worker_model();
@@ -211,12 +214,17 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         match arg.as_str() {
             "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
-            "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
             "--provider-credential" => {
                 provider_credential_path = Some(PathBuf::from(next_value(
                     &mut iter,
                     "--provider-credential",
                 )?))
+            }
+            "--connector-endpoint" => {
+                connector_endpoint = next_value(&mut iter, "--connector-endpoint")?.parse()?
+            }
+            "--caller-runtime-id" => {
+                caller_runtime_id = next_value(&mut iter, "--caller-runtime-id")?
             }
             "--mcp-config" => {
                 mcp_config = Some(PathBuf::from(next_value(&mut iter, "--mcp-config")?))
@@ -245,8 +253,9 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     Ok(RunWorkerCliOptions {
         provider,
         store_path,
-        codex_home,
         provider_credential_path,
+        connector_endpoint,
+        caller_runtime_id,
         mcp_config,
         job_id: job_id.context("run-worker requires --job-id")?,
         model,
@@ -482,8 +491,9 @@ async fn run_worker_launch(
     )?;
     let openai_options = EpiphanyOpenAiRuntimeOptions {
         store_path: options.store_path.clone(),
-        codex_home: options.codex_home.clone(),
         provider_credential_path: options.provider_credential_path.clone(),
+        connector_endpoint: Some(options.connector_endpoint),
+        caller_runtime_id: options.caller_runtime_id.clone(),
         session_id: worker_model_session_id(&launch_request.job_id),
         job_id: format!("openai-worker-{}", launch_request.job_id),
         objective: format!(
@@ -911,6 +921,121 @@ mod tests {
     }
 
     #[test]
+    fn codex_connector_projection_is_one_strict_deterministic_request() -> Result<()> {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "connector-request",
+            "connector-conversation",
+            "gpt-test",
+            "Decide.",
+        );
+        request.output_contract_id = Some("role/result.v1".into());
+        request.output_schema_json = Some(
+            r#"{"type":"object","properties":{"verdict":{"const":"pass"}},"required":["verdict"]}"#
+                .into(),
+        );
+        request
+            .tools
+            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+            name: "inspect_body".into(),
+            description: "Inspect the typed Body.".into(),
+            parameters_json:
+                r#"{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"#
+                    .into(),
+        });
+        request
+            .input
+            .push(epiphany_openai_adapter::EpiphanyOpenAiInputItem::ToolCall {
+                call_id: "native/call".into(),
+                name: "inspect_body".into(),
+                arguments: r#"{"path":"src/lib.rs"}"#.into(),
+            });
+        request.input.push(
+            epiphany_openai_adapter::EpiphanyOpenAiInputItem::ToolResult {
+                call_id: "native/call".into(),
+                output: r#"{"ok":true}"#.into(),
+            },
+        );
+
+        let projected = provider_transport::codex_request_from_epiphany(request)?;
+        assert_eq!(
+            projected.output_format_name.as_deref(),
+            Some("role_result_v1")
+        );
+        assert_eq!(
+            projected.tool_choice,
+            codex_connector::CodexToolChoice::Auto
+        );
+        let (call, result) = (&projected.input[0], &projected.input[1]);
+        let codex_connector::CodexInputItem::ToolCall { call_id, .. } = call else {
+            panic!("first input must remain a tool call")
+        };
+        let codex_connector::CodexInputItem::ToolResult {
+            call_id: result_id, ..
+        } = result
+        else {
+            panic!("second input must remain a tool result")
+        };
+        assert_eq!(call_id, result_id);
+        assert_ne!(call_id, "native/call");
+        assert_eq!(call_id.len(), 64);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                projected.output_schema_json.as_deref().unwrap()
+            )?["properties"]["verdict"]["type"],
+            "string"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn connector_receipt_digests_survive_without_transport_transcript() -> Result<()> {
+        let result = codex_connector::CodexTransportResult {
+            schema_id: codex_connector::RESULT_SCHEMA_ID.into(),
+            request_id: "connector-request".into(),
+            caller_runtime_id: "epiphany-test".into(),
+            disposition: codex_connector::CodexTransportDisposition::Transported {
+                events: Vec::new(),
+                receipt: Box::new(codex_connector::CodexTransportReceipt {
+                    schema_id: codex_connector::RECEIPT_SCHEMA_ID.into(),
+                    request_id: "connector-request".into(),
+                    caller_runtime_id: "epiphany-test".into(),
+                    native_request_sha256: [0x11; 32],
+                    provider_request_sha256: [0x22; 32],
+                    model: "gpt-test".into(),
+                    transport: "fake-connector".into(),
+                    outcome: codex_connector::CodexTransportOutcome::Completed {
+                        provider_response_id: Some("response".into()),
+                        input_tokens: Some(10),
+                        output_tokens: Some(4),
+                        reasoning_output_tokens: Some(2),
+                        cached_input_tokens: Some(6),
+                    },
+                }),
+            },
+        };
+
+        let events = provider_transport::events_from_connector_result(result)?;
+        assert_eq!(events.len(), 1);
+        let EpiphanyOpenAiStreamPayload::Completed { receipt } = &events[0].payload else {
+            panic!("connector result must produce one terminal receipt")
+        };
+        let native_digest = "11".repeat(32);
+        let provider_digest = "22".repeat(32);
+        assert_eq!(receipt.caller_runtime_id.as_deref(), Some("epiphany-test"));
+        assert_eq!(
+            receipt.native_request_sha256.as_deref(),
+            Some(native_digest.as_str())
+        );
+        assert_eq!(
+            receipt.provider_request_sha256.as_deref(),
+            Some(provider_digest.as_str())
+        );
+        assert_eq!(receipt.cached_input_tokens, Some(6));
+        assert_eq!(receipt.transport.as_deref(), Some("fake-connector"));
+        Ok(())
+    }
+
+    #[test]
     fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
         let schemas = vec![
             epiphany_core::epiphany_role_launch_output_schema(
@@ -942,8 +1067,10 @@ mod tests {
             );
             request.output_contract_id = Some(format!("worker-schema-{index}"));
             request.output_schema_json = Some(serde_json::to_string(&schema)?);
-            let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
-            assert_eq!(body["text"]["format"]["strict"], true);
+            let projected = epiphany_openai_adapter::strict_provider_schema(
+                request.output_schema_json.as_deref().unwrap(),
+            )?;
+            assert_eq!(projected["additionalProperties"], false);
         }
         Ok(())
     }
@@ -964,8 +1091,10 @@ mod tests {
             ),
         )?);
 
-        let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
-        let decision = &body["text"]["format"]["schema"]["properties"]["researchDecision"];
+        let projected = epiphany_openai_adapter::strict_provider_schema(
+            request.output_schema_json.as_deref().unwrap(),
+        )?;
+        let decision = &projected["properties"]["researchDecision"];
         assert!(decision.get("anyOf").is_none());
         assert_eq!(decision["additionalProperties"], false);
         assert_eq!(
@@ -1034,8 +1163,9 @@ mod tests {
             store,
             &EpiphanyOpenAiRuntimeOptions {
                 store_path: store.to_path_buf(),
-                codex_home: PathBuf::from(".codex"),
                 provider_credential_path: None,
+                connector_endpoint: Some(DEFAULT_CODEX_CONNECTOR_ENDPOINT),
+                caller_runtime_id: "epiphany-model-runtime-test".to_string(),
                 session_id,
                 job_id,
                 objective: format!("Run model execution for {worker_job_id}."),
@@ -1057,7 +1187,9 @@ mod tests {
                 EpiphanyOpenAiStreamEvent {
                     request_id: request_id.to_string(),
                     sequence: 1,
-                    payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+                    payload: EpiphanyOpenAiStreamPayload::Completed {
+                        receipt: Box::new(receipt),
+                    },
                 },
             ],
         )
@@ -1542,5 +1674,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <list-decisions|audit-decision|run-worker> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--context-id id] [--output path] [--job-id id] [--activation-token-sha256 hex] [--default-model model] --tool-adapter-bin path [--mcp-config path] [--cwd path] [--max-tool-rounds n]"
+    "usage: epiphany-model-runtime <list-decisions|audit-decision|run-worker> [--provider openai-codex|openrouter] [--provider-credential path] [--connector-endpoint 127.0.0.1:17891] [--caller-runtime-id id] [--store path] [--context-id id] [--output path] [--job-id id] [--activation-token-sha256 hex] [--default-model model] --tool-adapter-bin path [--mcp-config path] [--cwd path] [--max-tool-rounds n]"
 }

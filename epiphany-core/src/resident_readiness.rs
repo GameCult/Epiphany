@@ -728,20 +728,12 @@ fn directory_ready(path: &Path) -> bool {
     fs::metadata(path).is_ok_and(|value| value.is_dir() && !value.permissions().readonly())
 }
 
-fn codex_credentials_ready(codex_home: &Path) -> bool {
-    directory_ready(codex_home) && credential_file_ready(&codex_home.join("auth.json"))
-}
-
 fn model_provider_credential_ready(policy: &ResidentSelfPolicy) -> bool {
     match policy.model_provider.as_str() {
-        "openai-codex" | "openai" => codex_credentials_ready(&policy.codex_home),
-        "openrouter" => policy
+        "openai-codex" | "openai" | "openrouter" => policy
             .provider_credential_path
             .as_deref()
-            .is_some_and(|path| {
-                fs::metadata(path).is_ok_and(|metadata| metadata.is_file())
-                    && fs::File::open(path).is_ok()
-            }),
+            .is_some_and(credential_file_ready),
         _ => false,
     }
 }
@@ -972,30 +964,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn unix_credentials_reject_group_or_other_access() -> Result<()> {
-        use std::os::unix::fs::PermissionsExt;
-        let temp = tempfile::tempdir()?;
-        let auth = temp.path().join("auth.json");
-        fs::write(&auth, b"{}")?;
-        fs::set_permissions(&auth, fs::Permissions::from_mode(0o400))?;
-        assert!(!codex_credentials_ready(temp.path()));
-        fs::set_permissions(&auth, fs::Permissions::from_mode(0o644))?;
-        assert!(!codex_credentials_ready(temp.path()));
-        fs::set_permissions(&auth, fs::Permissions::from_mode(0o600))?;
-        assert!(codex_credentials_ready(temp.path()));
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_credentials_file_cannot_impersonate_canonical_auth() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        fs::write(temp.path().join("credentials.json"), b"{}")?;
-        assert!(!codex_credentials_ready(temp.path()));
-        Ok(())
-    }
-
     #[test]
     fn readiness_uses_mounted_cognitive_identity_for_projection_and_brake() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -1026,7 +994,7 @@ mod tests {
             runtime_store,
             local_verse_store,
             artifact_root: shared.join("artifacts"),
-            codex_home: shared.join("codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: shared.join("mcp.toml"),
             model_provider: "test".into(),
             model: "test-model".into(),

@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -51,6 +52,8 @@ pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const DEFAULT_PROVIDER_REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
 pub const OPENROUTER_MODEL_PROVIDER: &str = "openrouter";
+pub const DEFAULT_CODEX_CONNECTOR_ENDPOINT: SocketAddr =
+    SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 17891);
 
 fn validate_model_provider(provider: &str) -> Result<()> {
     match provider {
@@ -68,8 +71,9 @@ pub fn worker_model_session_id(worker_job_id: &str) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyOpenAiRuntimeOptions {
     pub store_path: PathBuf,
-    pub codex_home: PathBuf,
     pub provider_credential_path: Option<PathBuf>,
+    pub connector_endpoint: Option<SocketAddr>,
+    pub caller_runtime_id: String,
     pub session_id: String,
     pub job_id: String,
     pub objective: String,
@@ -158,11 +162,11 @@ pub fn record_model_turn_events(
                 &model_event,
             )?;
             if let EpiphanyModelStreamPayload::Completed { receipt } = &model_event.payload {
-                cache.put(model_receipt_key(&receipt.request_id), receipt)?;
+                cache.put(model_receipt_key(&receipt.request_id), receipt.as_ref())?;
             }
             match &event.payload {
                 EpiphanyOpenAiStreamPayload::Completed { receipt: completed } => {
-                    receipt = Some(completed.clone());
+                    receipt = Some(completed.as_ref().clone());
                 }
                 EpiphanyOpenAiStreamPayload::Failed { message } => {
                     failure = Some(message.clone());
@@ -821,13 +825,13 @@ pub fn append_requested_public_source_receipts(
 
 pub fn default_options(
     store_path: PathBuf,
-    codex_home: PathBuf,
     request: &EpiphanyOpenAiModelRequest,
 ) -> EpiphanyOpenAiRuntimeOptions {
     EpiphanyOpenAiRuntimeOptions {
         store_path,
-        codex_home,
         provider_credential_path: None,
+        connector_endpoint: Some(DEFAULT_CODEX_CONNECTOR_ENDPOINT),
+        caller_runtime_id: "epiphany-model-runtime".to_string(),
         session_id: format!("openai-session-{}", request.conversation_id),
         job_id: format!("openai-job-{}", request.request_id),
         objective: format!("Run typed OpenAI model request {}", request.request_id),
@@ -961,7 +965,7 @@ pub fn model_event_from_openai_event(
             },
             EpiphanyOpenAiStreamPayload::Completed { receipt } => {
                 EpiphanyModelStreamPayload::Completed {
-                    receipt: model_receipt_from_openai_receipt(provider, receipt),
+                    receipt: Box::new(model_receipt_from_openai_receipt(provider, receipt)),
                 }
             }
             EpiphanyOpenAiStreamPayload::Failed { message } => EpiphanyModelStreamPayload::Failed {
@@ -985,6 +989,10 @@ pub fn model_receipt_from_openai_receipt(
         output_tokens: receipt.output_tokens,
         reasoning_output_tokens: receipt.reasoning_output_tokens,
         transport: receipt.transport.clone(),
+        caller_runtime_id: receipt.caller_runtime_id.clone(),
+        native_request_sha256: receipt.native_request_sha256.clone(),
+        provider_request_sha256: receipt.provider_request_sha256.clone(),
+        cached_input_tokens: receipt.cached_input_tokens,
     }
 }
 
@@ -1591,48 +1599,47 @@ fn role_worker_result_from_ingress(
     } else {
         (None, None)
     };
-    let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) = if let Some(ingress) =
-        result.frontier_plan_candidate.as_ref()
-    {
-        let mut safe_paths = clean_string_vec(&ingress.safe_paths);
-        safe_paths.sort();
-        safe_paths.dedup();
-        let mut candidate = epiphany_core::RepoFrontierPlanCandidate {
-            candidate_id: String::new(),
-            planning_request_id: frontier_planning_context
-                .map(|context| context.request_id.clone())
-                .unwrap_or_default(),
-            model_projection_digest: frontier_planning_context
-                .map(|context| context.model_projection_digest.clone())
-                .unwrap_or_default(),
-            model_source_documents: frontier_planning_context
-                .map(|context| context.model_source_documents.clone())
-                .unwrap_or_default(),
-            frontier_item_id: frontier_planning_context
-                .map(|context| context.frontier_item_id.clone())
-                .unwrap_or_default(),
-            frontier_item_hash: frontier_planning_context
-                .map(|context| context.frontier_item_hash.clone())
-                .unwrap_or_default(),
-            safe_paths,
-            action: ingress.action.trim().to_string(),
-            command: ingress.command.trim().to_string(),
-            checks: clean_string_vec(&ingress.checks),
-            stop_conditions: clean_string_vec(&ingress.stop_conditions),
-            rollback_steps: clean_string_vec(&ingress.rollback_steps),
-            commit_message: ingress.commit_message.trim().to_string(),
-            proposed_at: completed_at.to_string(),
-        };
-        match epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate) {
-            Ok(candidate_id) => {
-                candidate.candidate_id = candidate_id;
-                encode_optional_document(&Some(candidate), "frontierPlanCandidate")
+    let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) =
+        if let Some(ingress) = result.frontier_plan_candidate.as_ref() {
+            let mut safe_paths = clean_string_vec(&ingress.safe_paths);
+            safe_paths.sort();
+            safe_paths.dedup();
+            let mut candidate = epiphany_core::RepoFrontierPlanCandidate {
+                candidate_id: String::new(),
+                planning_request_id: frontier_planning_context
+                    .map(|context| context.request_id.clone())
+                    .unwrap_or_default(),
+                model_projection_digest: frontier_planning_context
+                    .map(|context| context.model_projection_digest.clone())
+                    .unwrap_or_default(),
+                model_source_documents: frontier_planning_context
+                    .map(|context| context.model_source_documents.clone())
+                    .unwrap_or_default(),
+                frontier_item_id: frontier_planning_context
+                    .map(|context| context.frontier_item_id.clone())
+                    .unwrap_or_default(),
+                frontier_item_hash: frontier_planning_context
+                    .map(|context| context.frontier_item_hash.clone())
+                    .unwrap_or_default(),
+                safe_paths,
+                action: ingress.action.trim().to_string(),
+                command: ingress.command.trim().to_string(),
+                checks: clean_string_vec(&ingress.checks),
+                stop_conditions: clean_string_vec(&ingress.stop_conditions),
+                rollback_steps: clean_string_vec(&ingress.rollback_steps),
+                commit_message: ingress.commit_message.trim().to_string(),
+                proposed_at: completed_at.to_string(),
+            };
+            match epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate) {
+                Ok(candidate_id) => {
+                    candidate.candidate_id = candidate_id;
+                    encode_optional_document(&Some(candidate), "frontierPlanCandidate")
+                }
+                Err(error) => (None, Some(format!("frontierPlanCandidate: {error}"))),
             }
-            Err(error) => (None, Some(format!("frontierPlanCandidate: {error}"))),
-        }
-    } else {
-        (None, None)
-    };
+        } else {
+            (None, None)
+        };
     let (frontier_plan_mind_decision_msgpack, frontier_plan_mind_decision_error) =
         if let Some(ingress) = result.frontier_plan_mind_decision.as_ref() {
             if let Some(decision) = ingress.decision {
@@ -3038,7 +3045,7 @@ mod tests {
                 "req-1",
                 4,
                 EpiphanyOpenAiStreamPayload::Completed {
-                    receipt: EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4"),
+                    receipt: Box::new(EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4")),
                 },
             ),
         ];
@@ -3073,7 +3080,7 @@ mod tests {
             "Answer plainly.",
         );
         let request = epiphany_openai_adapter::request_from_native(&native_request);
-        let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
+        let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
             &store,
@@ -3097,7 +3104,9 @@ mod tests {
         let events = vec![EpiphanyOpenAiStreamEvent {
             request_id: "req-1".to_string(),
             sequence: 0,
-            payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+            payload: EpiphanyOpenAiStreamPayload::Completed {
+                receipt: Box::new(receipt),
+            },
         }];
 
         let summary = record_model_turn_events(&store, &options, &native_request, &events)?;
@@ -3554,7 +3563,7 @@ mod tests {
         native_request.output_schema_json =
             Some(r#"{"type":"object","required":["researchDecision"]}"#.to_string());
         let request = epiphany_openai_adapter::request_from_native(&native_request);
-        let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
+        let options = default_options(store.clone(), &request);
         ensure_openai_runtime_ready(&options)?;
         open_runtime_model_execution(
             &store,
@@ -3588,7 +3597,9 @@ mod tests {
             EpiphanyOpenAiStreamEvent {
                 request_id: "req-tools".to_string(),
                 sequence: 1,
-                payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+                payload: EpiphanyOpenAiStreamPayload::Completed {
+                    receipt: Box::new(receipt),
+                },
             },
         ];
         let summary = record_model_turn_events(&store, &options, &native_request, &events)?;

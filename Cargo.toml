@@ -3,7 +3,6 @@ members = [
     "epiphany-core",
     "epiphany-model-adapter",
     "epiphany-openai-adapter",
-    "epiphany-openai-codex-spine",
     "epiphany-openai-runtime",
     "epiphany-release-construction",
     "epiphany-state-model",
@@ -30,8 +29,8 @@ cultnet-rs = { path = "vendor/cultnet-rs" }
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
-epiphany-openai-codex-spine = { path = "epiphany-openai-codex-spine", optional = true }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
+codex-connector = { git = "https://github.com/GameCult/CodexConnector", rev = "54d8bc2525b7e7fa1b9dd26b95871247ff4c7566", default-features = false, optional = true }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = true }
 rmp-serde = "1"
@@ -40,10 +39,12 @@ serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "rt-multi-thread", "time"] }
 toml = "0.9"
+ureq = { version = "3.4", default-features = false, features = ["rustls"], optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
+zeroize = { version = "1", optional = true }
 
 [features]
-openai-runtime = ["dep:epiphany-openai-codex-spine", "dep:epiphany-openai-runtime"]
+openai-runtime = ["dep:codex-connector", "dep:epiphany-openai-runtime", "dep:ureq", "dep:zeroize"]
 tool-mcp-runtime = ["dep:epiphany-tool-mcp-runtime"]
 release-runtime = ["openai-runtime", "tool-mcp-runtime"]
 

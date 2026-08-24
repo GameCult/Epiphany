@@ -495,7 +495,11 @@ impl Args {
             runtime_store: path("--runtime-store")?,
             local_verse_store: path("--local-verse-store")?,
             artifact_root: path("--artifact-root")?,
-            codex_home: path("--codex-home")?,
+            model_connector_endpoint: value
+                .get("--connector-endpoint")
+                .ok_or_else(|| anyhow!("missing --connector-endpoint"))?
+                .parse()
+                .context("invalid --connector-endpoint")?,
             mcp_config: path("--mcp-config")?,
             model_provider: value
                 .get("--model-provider")
@@ -776,7 +780,7 @@ mod brake_tests {
             runtime_store,
             local_verse_store: verse_store,
             artifact_root: shared.join("artifacts"),
-            codex_home: shared.join("codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: shared.join("mcp.toml"),
             model_provider: "test".into(),
             model: "test-model".into(),

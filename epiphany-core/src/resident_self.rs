@@ -5,6 +5,7 @@ use cultcache_rs::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashSet};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 pub const RESIDENT_SELF_STATE_KEY: &str = "resident-self";
@@ -273,7 +274,7 @@ pub struct ResidentSelfPolicy {
     pub runtime_store: PathBuf,
     pub local_verse_store: PathBuf,
     pub artifact_root: PathBuf,
-    pub codex_home: PathBuf,
+    pub model_connector_endpoint: SocketAddr,
     pub mcp_config: PathBuf,
     pub model_provider: String,
     pub model: String,
@@ -301,7 +302,6 @@ impl ResidentSelfPolicy {
             ("runtime store", &self.runtime_store),
             ("local Verse store", &self.local_verse_store),
             ("artifact root", &self.artifact_root),
-            ("Codex home", &self.codex_home),
             ("MCP config", &self.mcp_config),
             ("release store", &self.release_store),
         ] {
@@ -318,6 +318,13 @@ impl ResidentSelfPolicy {
             return Err(anyhow!(
                 "resident Self provider credential path must be absolute: {}",
                 path.display()
+            ));
+        }
+        if !self.model_connector_endpoint.ip().is_loopback()
+            || self.model_connector_endpoint.port() == 0
+        {
+            return Err(anyhow!(
+                "resident Self model connector must use a nonzero loopback endpoint"
             ));
         }
         if self.model_provider.trim().is_empty()
@@ -617,8 +624,8 @@ pub fn coordinator_argv(
         turn_id.into(),
         "--cwd".into(),
         policy.workspace.display().to_string(),
-        "--codex-home".into(),
-        policy.codex_home.display().to_string(),
+        "--connector-endpoint".into(),
+        policy.model_connector_endpoint.to_string(),
         "--mcp-config".into(),
         policy.mcp_config.display().to_string(),
         "--artifact-dir".into(),
@@ -2762,7 +2769,7 @@ mod coordinator_launch_contract_tests {
             runtime_store,
             local_verse_store: root.join("local-verse.cc"),
             artifact_root: root.join("artifacts"),
-            codex_home: root.join("codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: root.join("mcp.toml"),
             model_provider: "openrouter".into(),
             model: "stealth/ox-alpha".into(),
@@ -2791,7 +2798,7 @@ mod coordinator_launch_contract_tests {
             runtime_store: PathBuf::from("/epiphany/state/runtime.cc"),
             local_verse_store: PathBuf::from("/epiphany/state/local-verse.cc"),
             artifact_root: PathBuf::from("/epiphany/artifacts"),
-            codex_home: PathBuf::from("/epiphany/codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: PathBuf::from("/epiphany/mcp.toml"),
             model_provider: "openrouter".into(),
             model: "stealth/ox-alpha".into(),

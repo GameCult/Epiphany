@@ -3664,7 +3664,7 @@ mod tests {
             runtime_store: store.clone(),
             local_verse_store: temp.path().join("local-verse.cc"),
             artifact_root: temp.path().join("artifacts"),
-            codex_home: temp.path().join("codex-home"),
+            model_connector_endpoint: "127.0.0.1:17891".parse().unwrap(),
             mcp_config: temp.path().join("mcp.toml"),
             model_provider: "openrouter".into(),
             model: "stealth/ox-alpha".into(),

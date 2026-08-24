@@ -19,8 +19,8 @@ use epiphany_core::{
 };
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_openai_runtime::{
-    EpiphanyOpenAiRuntimeOptions, PersonaModelExecutionPlan, PersonaModelRunner,
-    assistant_text_from_model_events, execute_persona_model_turn,
+    DEFAULT_CODEX_CONNECTOR_ENDPOINT, EpiphanyOpenAiRuntimeOptions, PersonaModelExecutionPlan,
+    PersonaModelRunner, assistant_text_from_model_events, execute_persona_model_turn,
 };
 
 #[path = "../provider_transport.rs"]
@@ -29,8 +29,9 @@ mod provider_transport;
 #[derive(Clone, Debug)]
 struct NativePersonaModelRunner {
     store_path: PathBuf,
-    codex_home: PathBuf,
     provider_credential_path: Option<PathBuf>,
+    connector_endpoint: SocketAddr,
+    caller_runtime_id: String,
     provider: String,
     model: String,
     turn_timeout: Duration,
@@ -54,8 +55,9 @@ impl PersonaModelRunner for NativePersonaModelRunner {
             }
             let options = EpiphanyOpenAiRuntimeOptions {
                 store_path: self.store_path.clone(),
-                codex_home: self.codex_home.clone(),
                 provider_credential_path: self.provider_credential_path.clone(),
+                connector_endpoint: Some(self.connector_endpoint),
+                caller_runtime_id: self.caller_runtime_id.clone(),
                 session_id: format!("persona-turn-{turn_id}"),
                 job_id: format!("persona-{stage}-{turn_id}"),
                 objective: format!("Run Persona {stage} stage for {turn_id}"),
@@ -173,8 +175,9 @@ async fn poll_once(options: &Options) -> Result<bool> {
     )?;
     let mut runner = NativePersonaModelRunner {
         store_path: options.runtime_store.clone(),
-        codex_home: options.codex_home.clone(),
         provider_credential_path: options.provider_credential_path.clone(),
+        connector_endpoint: options.connector_endpoint,
+        caller_runtime_id: options.runtime_id.clone(),
         provider: options.provider.clone(),
         model: options.model.clone(),
         turn_timeout: Duration::from_secs(options.turn_timeout_seconds),
@@ -365,8 +368,8 @@ struct Options {
     runtime_store: PathBuf,
     social_store: PathBuf,
     cultmesh_store: PathBuf,
-    codex_home: PathBuf,
     provider_credential_path: Option<PathBuf>,
+    connector_endpoint: SocketAddr,
     runtime_id: String,
     provider: String,
     model: String,
@@ -412,8 +415,14 @@ impl Options {
             runtime_store: path("--runtime-store")?,
             social_store: path("--persona-social-store")?,
             cultmesh_store: path("--cultmesh-store")?,
-            codex_home: path("--codex-home")?,
             provider_credential_path: values.get("--provider-credential").map(PathBuf::from),
+            connector_endpoint: value(
+                &values,
+                "--connector-endpoint",
+                &DEFAULT_CODEX_CONNECTOR_ENDPOINT.to_string(),
+            )
+            .parse()
+            .context("--connector-endpoint must be an IP:port socket address")?,
             _repo_root: path("--repo-root")?,
             mouth_request_store: path("--mouth-request-store")?,
             mouth_receipt_store: path("--mouth-receipt-store")?,
@@ -511,8 +520,8 @@ mod tests {
             runtime_store: runtime_store.clone(),
             social_store: absent.join("persona-social.cc"),
             cultmesh_store: absent.join("cultmesh.cc"),
-            codex_home: absent.join("codex-home"),
             provider_credential_path: None,
+            connector_endpoint: DEFAULT_CODEX_CONNECTOR_ENDPOINT,
             runtime_id: "persona-reentry".into(),
             provider: "test".into(),
             model: "test-model".into(),
