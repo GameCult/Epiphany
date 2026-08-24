@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `3ed1d564` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for duplicate frontier-Modeling writer deletion;
+Latest committed implementation cut: `63d2991e` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for coordinator terminal-receipt minimization;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -250,6 +250,17 @@ test fixture. That test now launches ordinary Body Modeling through current
 work and still proves exact sealed input, structured completion, typed result
 and job terminality, provider failure, and output-contract failure. Its
 fabricated frontier, route, Verification, and Soul tableau is gone.
+
+Coordinator terminal state is not an artifact catalogue. Exact `63d2991e`
+advances the receipt to v1 and removes its unread step count, model-provider
+echo, runtime-store path, artifact and sealed-artifact lists, arbitrary
+metadata, and final-job echo. The receipt retains its terminal status/action/
+reason, time, session/thread identity, plan-or-execute mode, and the exact
+resident grant, launch, policy, argv, objective, release, manifest, and
+executable provenance continuity authenticates. Operator artifacts remain in
+the operator summary only. The published JSON schema now matches the Rust
+contract instead of rejecting the live resident fields it omitted. Runtime
+writable state is v20.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

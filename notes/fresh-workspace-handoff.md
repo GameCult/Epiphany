@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `3ed1d564`
-Current worktree: documentation/evidence for duplicate frontier-Modeling writer deletion;
+Latest committed implementation cut: `63d2991e`
+Current worktree: documentation/evidence for coordinator terminal-receipt minimization;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `3ed1d564` is the current
+production symlink body and is inactive. Exact `63d2991e` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -45,6 +45,20 @@ authorize the next capstone or Gate 1.
 
 ## What just landed
 
+Exact `63d2991e` reduces `EpiphanyCoordinatorRunReceipt` v1 to its terminal
+Self decision, timestamp, session/thread identity, plan-or-execute mode, and
+exact resident grant/launch/policy/argv/objective/release/manifest/executable
+provenance. Step count, provider echo, store path, artifact lists, arbitrary
+metadata, and final-job echo had no reader and are gone. Operator artifacts
+remain in the non-authoritative summary. The published JSON schema now matches
+the Rust receipt; its previous `additionalProperties: false` contract omitted
+the live resident fields. Runtime writable state advances to v20. JSON schemas
+parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
+cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
+
+Continue the runtime-spine/test-liability audit. Model Atlas remains protected
+for its first live inter-swarm collaboration trial.
+
 Exact `3ed1d564` deletes the public
 `commit_repo_frontier_modeling_request` mutation path. Production had no
 caller: accepted Verification already atomically commits its audit, Soul
@@ -54,7 +68,7 @@ That test now uses the real Body Modeling launcher and retains its consequential
 proofs for sealed input, structured completion, typed result/job persistence,
 provider failure, and output-contract failure. Its fabricated frontier, route,
 Verification result, and Soul verdict are gone. The cut removes 205 net source
-lines; `runtime_spine.rs` is 9,819 lines with 54 public functions. The atomic
+lines; `runtime_spine.rs` reached 9,819 lines with 54 public functions. The atomic
 Verification-to-Modeling lifecycle and release-owned model runtime pass.
 
 Continue auditing public runtime-spine mutation/read wrappers and tests against

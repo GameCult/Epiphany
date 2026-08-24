@@ -369,6 +369,12 @@ Cut in this order:
    parallel Verification/Soul tableau; that test now uses ordinary Body
    Modeling while preserving provider, contract, structured-result, and job-
    terminality proofs.
+   Exact `63d2991e` then reduces the coordinator terminal receipt to the
+   terminal Self decision and exact resident-launch provenance continuity
+   consumes. Operator artifact inventory, provider/store echoes, arbitrary
+   metadata, step count, and final-job echo stay in their existing owners or
+   disappear when unread. Receipt/schema version is v1 and runtime writable
+   state is v20; the published schema now describes the live resident fields.
 12. **Landed at `1662a012`, `07d891ba`, and `ec1431ff`:** coordinator policy now
    projects keyed current work; persisted `EpiphanyThreadStateEntry`,
    `coordinator_state_transaction`, generic coordinator services, the
