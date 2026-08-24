@@ -42,7 +42,7 @@ pub fn read_runtime_reorient_result(
             );
         }
     };
-    let status = reorient_result_status(&snapshot);
+    let status = reorient_result_status(&snapshot.job.status);
     let finding = match status {
         EpiphanyCrrcResultStatus::Completed => {
             match runtime_reorient_worker_result(runtime_store_path, job_id) {
@@ -116,13 +116,10 @@ fn interpret_reorient_lifecycle_failure(
     }
 }
 
-fn reorient_result_status(snapshot: &EpiphanyRuntimeJobSnapshot) -> EpiphanyCrrcResultStatus {
-    match snapshot.job.status {
+fn reorient_result_status(status: &EpiphanyRuntimeJobStatus) -> EpiphanyCrrcResultStatus {
+    match status {
         EpiphanyRuntimeJobStatus::Queued => EpiphanyCrrcResultStatus::Pending,
-        EpiphanyRuntimeJobStatus::Completed if snapshot.result.is_some() => {
-            EpiphanyCrrcResultStatus::Completed
-        }
-        EpiphanyRuntimeJobStatus::Completed => EpiphanyCrrcResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Completed => EpiphanyCrrcResultStatus::Completed,
         EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
     }
 }

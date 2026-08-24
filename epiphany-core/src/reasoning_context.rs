@@ -2658,7 +2658,6 @@ mod tests {
             decision: Some(crate::EpiphanyArchivedRuntimeWorkerDecision {
                 decision_context_id: context.context_id.clone(),
                 role_result: None,
-                job_results: vec![terminal_result],
             }),
         };
         archive_cache.put(&archived.job_id, &archived)?;

@@ -1023,6 +1023,13 @@ mod tests {
                 decision_context_id: Some(context.context_id.clone()),
             },
         )?;
+        assert!(
+            crate::runtime_job_snapshot(&store, &job_id)?
+                .expect("reorientation job snapshot")
+                .result
+                .is_none(),
+            "typed reorientation decisions must not persist a generic result mirror"
+        );
 
         cache.pull_all_backing_stores()?;
         cache.put(

@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v43";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v44";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -234,7 +234,7 @@ pub struct EpiphanyRuntimeWorkerProcessClaim {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.runtime.archived_worker_attempt.v2",
+    type = "epiphany.runtime.archived_worker_attempt.v3",
     schema = "EpiphanyArchivedRuntimeWorkerAttempt"
 )]
 pub struct EpiphanyArchivedRuntimeWorkerAttempt {
@@ -256,7 +256,6 @@ pub struct EpiphanyArchivedRuntimeWorkerAttempt {
 pub struct EpiphanyArchivedRuntimeWorkerDecision {
     pub decision_context_id: String,
     pub role_result: Option<EpiphanyRuntimeRoleWorkerResult>,
-    pub job_results: Vec<EpiphanyRuntimeJobResult>,
 }
 
 impl EpiphanyArchivedRuntimeWorkerAttempt {
@@ -286,17 +285,6 @@ impl EpiphanyArchivedRuntimeWorkerAttempt {
             &decision.decision_context_id,
             "archived worker decision context id",
         )?;
-        if decision.job_results.is_empty()
-            || decision.job_results.iter().any(|result| {
-                result.job_id != self.job_id
-                    || result.decision_context_id.as_deref()
-                        != Some(decision.decision_context_id.as_str())
-            })
-        {
-            return Err(anyhow!(
-                "archived worker decision lost its exact generic result family"
-            ));
-        }
         match &decision.role_result {
             Some(result)
                 if fulfilled
@@ -8210,12 +8198,9 @@ fn archive_runtime_worker_attempt(
     if let Some(context_id) = decision_context_id.as_deref() {
         require_worker_decision_context(&cache, context_id, job_id)?;
     }
-    let mut archived_job_results = worker_job_results.clone();
-    archived_job_results.sort_by(|left, right| left.result_id.cmp(&right.result_id));
     let decision = decision_context_id.map(|context_id| EpiphanyArchivedRuntimeWorkerDecision {
         decision_context_id: context_id,
         role_result: role_result.clone(),
-        job_results: archived_job_results,
     });
     let mut deletions = snapshot
         .iter()
@@ -8754,11 +8739,41 @@ pub fn complete_runtime_job(
         next_safe_move: options.next_safe_move,
         decision_context_id: options.decision_context_id,
     };
+    let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?;
+    let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?;
+    let (structured_result_id, structured_result_envelope) = match (&role, &reorient) {
+        (Some(_), Some(_)) => {
+            return Err(anyhow!(
+                "runtime worker job has both role and reorientation terminal outcomes"
+            ));
+        }
+        (Some(result), None) => (
+            Some(result.result_id.clone()),
+            Some(
+                cache
+                    .get_envelope::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?
+                    .ok_or_else(|| anyhow!("runtime worker completion lost its role result"))?,
+            ),
+        ),
+        (None, Some(result)) => (
+            Some(result.result_id.clone()),
+            Some(
+                cache
+                    .get_envelope::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?
+                    .ok_or_else(|| anyhow!("runtime worker completion lost its reorient result"))?,
+            ),
+        ),
+        (None, None) => (None, None),
+    };
     let mut expected = vec![job_envelope];
-    let mut writes = vec![
-        cache.prepare_entry(&job.job_id, &job)?.0,
-        cache.prepare_entry(&result.result_id, &result)?.0,
-    ];
+    let mut writes = vec![cache.prepare_entry(&job.job_id, &job)?.0];
+    if let Some(envelope) = structured_result_envelope {
+        expected.push(envelope.clone());
+        writes.push(envelope);
+    }
+    if structured_result_id.is_none() {
+        writes.push(cache.prepare_entry(&result.result_id, &result)?.0);
+    }
     let claim_id = worker_process_claim_id(&result.job_id);
     if let Some(claim) = cache.get::<EpiphanyRuntimeWorkerProcessClaim>(&claim_id)? {
         match crate::WorkerProcessStatus::parse(&claim.status)? {
@@ -8772,17 +8787,7 @@ pub fn complete_runtime_job(
                     .cloned()
                     .ok_or_else(|| anyhow!("runtime worker completion lost its claim envelope"))?;
                 let mut terminal = claim;
-                let role = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)?;
-                let reorient = cache.get::<EpiphanyRuntimeReorientWorkerResult>(&result.job_id)?;
-                if role.is_some() && reorient.is_some() {
-                    return Err(anyhow!(
-                        "runtime worker job has both role and reorientation terminal outcomes"
-                    ));
-                }
-                if let Some(terminal_result_id) = role
-                    .map(|result| result.result_id)
-                    .or_else(|| reorient.map(|result| result.result_id))
-                {
+                if let Some(terminal_result_id) = structured_result_id {
                     terminal.status = crate::WorkerProcessStatus::TerminalResult.as_str().into();
                     terminal.terminal_authority_id = Some(terminal_result_id);
                 } else {

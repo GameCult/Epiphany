@@ -3262,7 +3262,8 @@ mod tests {
             runtime_job_snapshot(&store, &worker_job_id)?
                 .expect("snapshot")
                 .result
-                .is_some()
+                .is_none(),
+            "structured worker decisions must not persist a generic result mirror"
         );
         Ok(())
     }

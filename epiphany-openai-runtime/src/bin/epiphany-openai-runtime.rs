@@ -24,8 +24,6 @@ use epiphany_openai_adapter::{
 use epiphany_openai_runtime::DEFAULT_CODEX_CONNECTOR_ENDPOINT;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
-#[cfg(test)]
-use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::append_requested_public_source_receipts;
 use epiphany_openai_runtime::assistant_text_from_model_events;
 use epiphany_openai_runtime::build_tool_followup_model_request;
