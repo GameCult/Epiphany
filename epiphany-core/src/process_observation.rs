@@ -359,6 +359,17 @@ mod platform {
     use super::*;
     use chrono::{DateTime, SecondsFormat, Utc};
 
+    fn is_missing_error(error: &anyhow::Error) -> bool {
+        error.chain().any(|cause| {
+            cause
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| {
+                    error.kind() == std::io::ErrorKind::NotFound
+                        || error.raw_os_error() == Some(libc::ESRCH)
+                })
+        })
+    }
+
     fn stat(process_id: u32) -> Result<(u64, char)> {
         let raw = std::fs::read_to_string(format!("/proc/{process_id}/stat"))
             .with_context(|| format!("read /proc/{process_id}/stat"))?;
@@ -544,6 +555,21 @@ mod tests {
             observe_process_instance(&identity),
             ProcessInstanceObservation::Replaced { .. }
         ));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn absent_linux_pid_is_missing_not_indeterminate() {
+        let identity = ProcessInstanceIdentity {
+            process_id: u32::MAX,
+            creation_token: 1,
+            created_at_rfc3339: None,
+            executable_path: PathBuf::from("/definitely/absent"),
+        };
+        assert_eq!(
+            observe_process_instance(&identity),
+            ProcessInstanceObservation::Missing
+        );
     }
 
     #[test]
