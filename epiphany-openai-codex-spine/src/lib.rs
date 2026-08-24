@@ -9,18 +9,14 @@ use codex_client::Request;
 use codex_client::ReqwestTransport;
 use codex_client::TransportError;
 use codex_client::sse_stream;
-use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
-use epiphany_openai_adapter::EpiphanyOpenAiAuthMode;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::EpiphanyOpenAiWireDialect;
-use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
 use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
-use codex_login::AuthMode;
 use codex_login::CodexAuth;
 use codex_login::default_client::build_reqwest_client;
 use serde::Deserialize;
@@ -37,8 +33,6 @@ const OPENROUTER_API_BASE_URL: &str = "https://openrouter.ai/api/v1";
 const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 const RESPONSES_CALL_ID_MAX_BYTES: usize = 64;
 
-pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
-pub const OPENROUTER_SPINE_ADAPTER_ID: &str = "openrouter-chat-completions-spine";
 pub const OPENROUTER_TERMINAL_TOOL_NAME: &str = "epiphany_submit_typed_result";
 
 pub fn default_codex_home() -> Result<std::path::PathBuf> {
@@ -58,47 +52,6 @@ pub fn auth_manager(codex_home: std::path::PathBuf) -> Arc<AuthManager> {
         AuthCredentialsStoreMode::Auto,
         /*chatgpt_base_url*/ None,
     )
-}
-
-pub async fn status_from_auth_manager(
-    auth_manager: &AuthManager,
-    default_model: Option<String>,
-    supports_websockets: bool,
-) -> EpiphanyOpenAiAdapterStatus {
-    let auth = auth_manager.auth().await;
-    let auth_mode = auth_mode_from_manager(auth_manager, auth.as_ref());
-    let account_id = auth.as_ref().and_then(CodexAuth::get_account_id);
-    let plan_type = auth
-        .as_ref()
-        .and_then(CodexAuth::account_plan_type)
-        .map(|plan| format!("{plan:?}"));
-
-    EpiphanyOpenAiAdapterStatus {
-        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
-        adapter_id: CODEX_SPINE_ADAPTER_ID.to_string(),
-        auth_mode,
-        account_id,
-        plan_type,
-        default_model,
-        supports_websockets,
-        codex_transport_attached: true,
-    }
-}
-
-pub fn status_from_static_api_key(
-    adapter_id: &str,
-    default_model: Option<String>,
-) -> EpiphanyOpenAiAdapterStatus {
-    EpiphanyOpenAiAdapterStatus {
-        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
-        adapter_id: adapter_id.to_string(),
-        auth_mode: EpiphanyOpenAiAuthMode::ApiKey,
-        account_id: None,
-        plan_type: None,
-        default_model,
-        supports_websockets: false,
-        codex_transport_attached: false,
-    }
 }
 
 pub struct EpiphanyCodexOpenAiTransport {
@@ -1457,33 +1410,6 @@ fn transport_error_to_anyhow(err: TransportError) -> anyhow::Error {
     anyhow::anyhow!("failed to open provider transport: {err}")
 }
 
-fn auth_mode_from_manager(
-    auth_manager: &AuthManager,
-    auth: Option<&CodexAuth>,
-) -> EpiphanyOpenAiAuthMode {
-    match auth_manager.auth_mode() {
-        Some(AuthMode::ApiKey) => EpiphanyOpenAiAuthMode::ApiKey,
-        Some(AuthMode::Chatgpt) | Some(AuthMode::ChatgptAuthTokens) => {
-            EpiphanyOpenAiAuthMode::ChatGptSubscription
-        }
-        Some(AuthMode::AgentIdentity) => EpiphanyOpenAiAuthMode::ExternalBearer,
-        None => auth_mode_from_codex_auth(auth),
-    }
-}
-
-fn auth_mode_from_codex_auth(auth: Option<&CodexAuth>) -> EpiphanyOpenAiAuthMode {
-    let Some(auth) = auth else {
-        return EpiphanyOpenAiAuthMode::Unknown;
-    };
-    if auth.is_api_key_auth() {
-        EpiphanyOpenAiAuthMode::ApiKey
-    } else if auth.is_chatgpt_auth() {
-        EpiphanyOpenAiAuthMode::ChatGptSubscription
-    } else {
-        EpiphanyOpenAiAuthMode::ExternalBearer
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1502,20 +1428,6 @@ mod tests {
         request.provider_id = "openrouter".to_string();
         request.wire_dialect = EpiphanyOpenAiWireDialect::ChatCompletionsTerminalTool;
         request
-    }
-
-    #[test]
-    fn static_openrouter_status_does_not_claim_codex_transport() {
-        let status = status_from_static_api_key(
-            OPENROUTER_SPINE_ADAPTER_ID,
-            Some("stealth/ox-alpha".to_string()),
-        );
-
-        assert_eq!(status.adapter_id, OPENROUTER_SPINE_ADAPTER_ID);
-        assert_eq!(status.auth_mode, EpiphanyOpenAiAuthMode::ApiKey);
-        assert_eq!(status.default_model.as_deref(), Some("stealth/ox-alpha"));
-        assert!(!status.supports_websockets);
-        assert!(!status.codex_transport_attached);
     }
 
     #[test]

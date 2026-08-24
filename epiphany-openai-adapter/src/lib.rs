@@ -6,44 +6,10 @@ use serde::Serialize;
 pub const OPENAI_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.openai_model_request.v1";
 pub const OPENAI_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.openai_model_receipt.v0";
-pub const OPENAI_ADAPTER_STATUS_SCHEMA_ID: &str = "epiphany.openai_adapter_status.v0";
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EpiphanyOpenAiAuthMode {
-    ChatGptSubscription,
-    ApiKey,
-    ExternalBearer,
-    Unknown,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EpiphanyOpenAiWireDialect {
     Responses,
     ChatCompletionsTerminalTool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.openai_adapter_status.v0",
-    schema = "EpiphanyOpenAiAdapterStatus"
-)]
-pub struct EpiphanyOpenAiAdapterStatus {
-    #[cultcache(key = 0)]
-    pub schema_id: String,
-    #[cultcache(key = 1)]
-    pub adapter_id: String,
-    #[cultcache(key = 2)]
-    pub auth_mode: EpiphanyOpenAiAuthMode,
-    #[cultcache(key = 3, default)]
-    pub account_id: Option<String>,
-    #[cultcache(key = 4, default)]
-    pub plan_type: Option<String>,
-    #[cultcache(key = 5, default)]
-    pub default_model: Option<String>,
-    #[cultcache(key = 6)]
-    pub supports_websockets: bool,
-    #[cultcache(key = 7)]
-    pub codex_transport_attached: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, DatabaseEntry)]

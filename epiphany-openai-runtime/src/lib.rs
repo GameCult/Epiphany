@@ -31,17 +31,13 @@ use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
 use epiphany_model_adapter::EpiphanyModelToolDefinition;
-use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::EpiphanyOpenRouterTransport;
-use epiphany_openai_codex_spine::OPENROUTER_SPINE_ADAPTER_ID;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
-use epiphany_openai_codex_spine::status_from_auth_manager;
-use epiphany_openai_codex_spine::status_from_static_api_key;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -77,10 +73,6 @@ impl EpiphanyProviderProfile {
                 "unsupported model runtime provider {provider:?}; current providers: openai-codex, openrouter"
             )),
         }
-    }
-
-    fn streaming_supported(self) -> bool {
-        matches!(self, Self::OpenAiCodex)
     }
 }
 
@@ -171,41 +163,23 @@ async fn run_openai_model_turn_bound(
         &model_request,
         &now(),
     )?;
-    let (status, events) = match profile {
+    let events = match profile {
         EpiphanyProviderProfile::OpenAiCodex => {
             let auth_manager = auth_manager(options.codex_home.clone());
-            let status =
-                status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
             let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
-            let events =
-                collect_transport_events(transport.collect_model_events(request.clone()), &request)
-                    .await;
-            (status, events)
+            collect_transport_events(transport.collect_model_events(request.clone()), &request)
+                .await
         }
         EpiphanyProviderProfile::OpenRouter => {
             let credential = read_static_provider_credential(
                 options.provider_credential_path.as_deref(),
                 OPENROUTER_MODEL_PROVIDER,
             )?;
-            let status = status_from_static_api_key(
-                OPENROUTER_SPINE_ADAPTER_ID,
-                options.default_model.clone(),
-            );
             let transport = EpiphanyOpenRouterTransport::new(credential, options.request_timeout)?;
-            let events =
-                collect_transport_events(transport.collect_model_events(request.clone()), &request)
-                    .await;
-            (status, events)
+            collect_transport_events(transport.collect_model_events(request.clone()), &request)
+                .await
         }
     };
-    store_openai_status(&options.store_path, &status)?;
-    store_model_status(
-        &options.store_path,
-        &status,
-        &provider,
-        profile.streaming_supported(),
-        true,
-    )?;
     record_openai_events(&options.store_path, &options, &request, &provider, &events)
 }
 
@@ -881,37 +855,6 @@ pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Re
             created_at: now(),
         },
     )?;
-    Ok(())
-}
-
-pub fn store_openai_status(
-    store_path: impl AsRef<Path>,
-    status: &EpiphanyOpenAiAdapterStatus,
-) -> Result<()> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.put(status.adapter_id.clone(), status)?;
-    Ok(())
-}
-
-pub fn store_model_status(
-    store_path: impl AsRef<Path>,
-    status: &EpiphanyOpenAiAdapterStatus,
-    provider: &str,
-    streaming_supported: bool,
-    provider_transport_attached: bool,
-) -> Result<()> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    let status = epiphany_model_adapter::EpiphanyModelAdapterStatus {
-        schema_id: epiphany_model_adapter::MODEL_ADAPTER_STATUS_SCHEMA_ID.to_string(),
-        adapter_id: status.adapter_id.clone(),
-        provider: provider.to_string(),
-        default_model: status.default_model.clone(),
-        streaming_supported,
-        provider_transport_attached,
-    };
-    cache.put(status.adapter_id.clone(), &status)?;
     Ok(())
 }
 

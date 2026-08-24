@@ -101,17 +101,6 @@
       "path": "epiphany.coordinator-run-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-adapter-status.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.model_adapter_status.v0",
-      "documentType": "epiphany.model_adapter_status.v0",
-      "title": "Epiphany Model Adapter Status",
-      "path": "epiphany.model-adapter-status.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-request.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -165,17 +154,6 @@
       "documentType": "epiphany.tool_invocation_receipt.v0",
       "title": "Epiphany Tool Invocation Receipt",
       "path": "epiphany.tool-invocation-receipt.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-adapter-status.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.openai_adapter_status.v0",
-      "documentType": "epiphany.openai_adapter_status.v0",
-      "title": "Epiphany OpenAI Adapter Status",
-      "path": "epiphany.openai-adapter-status.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-request.schema.json",

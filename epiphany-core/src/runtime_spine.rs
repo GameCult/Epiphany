@@ -47,12 +47,10 @@ use cultcache_rs::CacheBackingStore;
 use cultcache_rs::CultCache;
 use cultcache_rs::CultCacheEnvelope;
 use cultcache_rs::DatabaseEntry;
-use epiphany_model_adapter::EpiphanyModelAdapterStatus;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
-use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
@@ -88,7 +86,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v22";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v23";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -863,11 +861,9 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<HandsCommitReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
-    cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelReceipt>()?;
-    cache.register_entry_type::<EpiphanyModelAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyModelRequest>()?;
     cache.register_entry_type::<EpiphanyModelStreamEvent>()?;
     cache.register_entry_type::<EpiphanyModelReceipt>()?;

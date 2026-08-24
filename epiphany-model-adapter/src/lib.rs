@@ -5,28 +5,6 @@ use serde::Serialize;
 pub const MODEL_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.model_request.v0";
 pub const MODEL_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.model_receipt.v0";
-pub const MODEL_ADAPTER_STATUS_SCHEMA_ID: &str = "epiphany.model_adapter_status.v0";
-
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.model_adapter_status.v0",
-    schema = "EpiphanyModelAdapterStatus"
-)]
-pub struct EpiphanyModelAdapterStatus {
-    #[cultcache(key = 0)]
-    pub schema_id: String,
-    #[cultcache(key = 1)]
-    pub adapter_id: String,
-    #[cultcache(key = 2)]
-    pub provider: String,
-    #[cultcache(key = 3, default)]
-    pub default_model: Option<String>,
-    #[cultcache(key = 4)]
-    pub streaming_supported: bool,
-    #[cultcache(key = 5)]
-    pub provider_transport_attached: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.model_request.v0", schema = "EpiphanyModelRequest")]
 pub struct EpiphanyModelRequest {
