@@ -14,32 +14,32 @@ and release cadence.
 
 ## Current mechanism
 
-The source and live mechanisms are deliberately distinct during the braked cut:
+The source and live mechanisms are deliberately distinct while Epiphany remains
+braked:
 
-1. Exact Epiphany `c37cae8b` seals the final Codex provider request and uses the
-   standalone Connector client ABI only for authenticated transport. Its
-   embedded spine, direct Codex auth/HTTP/SSE path, compiled Codex graph,
-   `CODEX_HOME`, auth.json readiness, and second release-edge request lowering
-   are deleted. That source is not deployed; production Epiphany remains
-   inactive on its historical release.
-2. Yggdrasil still runs `epiphany-model-connector.service` for Ghostlight.
-   It uses encrypted CultNet/MessagePack on loopback TCP 4103, owns a private
-   writable Codex home, serializes refresh through one `AuthManager`, bounds
-   payloads and parallelism, rejects replay/substitution, and advertises a
-   redacted `model.generate.structured` capability through Odin.
+1. Exact Epiphany `a721b763` seals the final provider request and retains only
+   the standalone Connector client ABI for Codex transport. Its embedded Codex
+   spine, direct Codex auth/HTTP/SSE path, compiled Codex graph, `CODEX_HOME`,
+   auth readiness, second request lowering, mirrored provider event family,
+   and one-file OpenAI adapter package are deleted. That source is not deployed;
+   production Epiphany remains inactive on its historical release and its
+   selected live-provider design is the separate direct OpenRouter edge.
+2. Yggdrasil runs independent `codex-connector.service` on loopback TCP 4103.
+   `yggdrasil-codex-connector` is its own Idunn target with its own source,
+   package, signed health, selection, and rollback. Ghostlight may consume its
+   encrypted MessagePack ABI but cannot configure, build, select, start, stop,
+   or roll it back. Epiphany participates in neither release graph.
 
-The live Ghostlight path is source-owned by the stale
-`codex/epiphany-model-bridge` branch, admits only
-`ghostlight-dungeon-yggdrasil`, and is built/deployed inside Ghostlight's Idunn
-transaction. Ghostlight duplicates its wire documents locally. The live proof
-is useful; the ownership is not.
+Ghostlight owns request derivation, schema projection, retry, interpretation,
+and world admission. CodexConnector owns caller admission, replay, credential
+custody, provider transport, and exact transport receipts. The service boundary
+is live; an Epiphany caller admission and round trip remain unaccepted.
 
 ## Current cut status
 
 Independent `GameCult/CodexConnector` exact
-`6dc80f6d266db4d82566d2434adcc55a48e8ecad` completes migration steps 1-4 on
-the source side except redacted CultMesh/Odin publication and the Ghostlight
-cut. It owns one Cargo package, one public daemon binary, the v2 multi-caller
+`6dc80f6d266db4d82566d2434adcc55a48e8ecad` established the independent source
+boundary. It owns one Cargo package, one public daemon binary, the v2 multi-caller
 MessagePack contract, caller-native and exact provider-request digest binding,
 typed tool/result transport, a private digest-pinned official
 `codex app-server` credential child, raw Responses HTTP/SSE, and durable keyed
@@ -83,11 +83,18 @@ the obsolete public JSON schema for the extinct generic OpenAI-shaped request.
 Provider wire contracts are published by their owning provider boundary;
 Epiphany's closed provider-request wrapper remains private Mind state.
 
-Exact Ghostlight `8e7d980` pins the same Connector source contract. Cargo
-metadata and the additive Connector API diff validate the dependency seam; no
-local Ghostlight compilation, Idunn transaction, or live service mutation was
-performed. The current Yggdrasil Ghostlight connector remains historical live
-physiology until the standalone deployment cut is admitted separately.
+Exact Epiphany `b83c0416` deletes the provider-specific request-input, tool,
+event, payload, and receipt mirrors. CodexConnector and OpenRouter now produce
+the canonical native model event and receipt family directly. Exact `a721b763`
+then deletes the one-file `epiphany-openai-adapter` Cargo package and moves pure
+provider lowering beside the native contracts in `epiphany-model-adapter`.
+Transport remains outside that package boundary.
+
+Exact Ghostlight `8e7d980` pinned the same Connector source contract. The live
+Yggdrasil cut now gives Connector its own service and bounded Idunn target;
+Ghostlight consumes the ABI and observes its receipt without owning its daemon
+or credential. The current Ghostlight test profile may select another provider
+without changing this ownership boundary.
 
 ## Authority map
 

@@ -2,10 +2,11 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `125d77a2`
+Latest committed Epiphany source cut: `a721b763`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: reorientation result review uses one typed runtime snapshot;
-continue the terminal-admission reader audit; Ox17 and Atlas Gate 1 remain paused
+Current pass: one native model event/receipt family serves every provider and
+the model adapter owns pure provider lowering; audit the library-only model
+runtime package next. Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -16,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `87ea81db` is the current
+production symlink body and is inactive. Exact `a721b763` is the current
 build-affecting source on this branch. Historical live proofs remain evidence;
 they do not authorize the next capstone or Gate 1.
 
@@ -45,6 +46,24 @@ they do not authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `dfe3757b` retains terminal Reorientation failure disposition inside the
+one current-work projection. The coordinator no longer reopens the runtime job
+to choose success or failure admission; each admission owner still validates
+its exact strong dependencies. Core check, Reorientation 1/1, and the
+release-owned coordinator compile pass. Verification produced 1.6 GiB across
+2,924 files and was removed.
+
+Exact `b83c0416` deletes the provider-specific request-input, tool, stream,
+payload, and receipt mirrors. CodexConnector and OpenRouter now produce the one
+native model event and receipt family directly. Exact `a721b763` then deletes
+the one-file `epiphany-openai-adapter` Cargo package and moves pure provider
+lowering beside the native contracts in `epiphany-model-adapter`. Together the
+cuts remove 174 maintained lines and one Cargo package without changing any
+durable CultCache identity or field order. Model adapter 5/5, decision context
+8/8, runtime 21/21, and release model edge 12/12 pass. The two bounded build
+roots reached 3.9 GiB/5,598 files and 4.7 GiB/6,524 files; both were removed and
+only the exact authenticated state inspector remains.
 
 Independent repository `GameCult/CodexConnector` owns the Codex credential and
 transport authority as one Cargo package
@@ -86,10 +105,11 @@ Clippy passes. The test runs generated 6.2 GiB and 4.6 GiB in the bounded target
 both roots were removed. Only the exact 1,776,640-byte state inspector remains,
 SHA-256 `DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
 
-Redacted CultMesh/Odin publication, the independent Connector Idunn target,
-Yggdrasil installation, a real Epiphany connector round trip, and Ghostlight's
-shared-client/deployment cut remain open. No live service, credential, or
-deployment authority moved in this source pass.
+Yggdrasil now runs the independent Connector service and Idunn target for
+Ghostlight. Ghostlight observes its exact receipt but cannot build, select,
+restart, or roll it back. Epiphany's source client is present; a live Epiphany
+caller admission and round trip remain open while the selected Epiphany
+provider edge is OpenRouter.
 
 Exact `07529fb5` deletes `epiphany-state-model` as a Cargo package. Only
 `epiphany-core` consumed it; the semantic Serde contracts now live in a plain
@@ -1359,9 +1379,9 @@ their existing typed audit cargo. Mind/runtime/RepoModel epochs advance to
 v4/v5/v2. Local acceptance is core `494/494`, OpenAI runtime `26/26`,
 coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
-## Immediate next action
+## Historical subtraction ledger
 
-The Ox17 deployment lane remains paused. Exact Epiphany `c37cae8b` closes the
+The Ox17 deployment lane remained paused through this cut. Exact Epiphany `c37cae8b` closes the
 remaining two-stage Codex request seam. The consumer adapter now derives and
 seals one closed durable provider-request document: either the exact final
 `CodexProviderRequest` or the exact OpenRouter request. The release edge no
@@ -1383,9 +1403,9 @@ Exact `87ea81db` pins the current Connector source and deletes Epiphany's stale
 106-line public JSON schema for the extinct generic request; the public catalog
 now contains only the portable Persona and work-organ contracts.
 
-Ghostlight exact `8e7d980` now pins the same Connector source contract. Only
-Cargo metadata and the additive Connector API diff were checked locally; no
-Ghostlight compilation or deployment ran on Starfire.
+Ghostlight exact `8e7d980` pinned the same Connector source contract. The later
+Yggdrasil cut installed Connector as an independent service and Idunn target;
+Ghostlight can consume its ABI but cannot deploy or mutate the daemon.
 
 Exact `7a125d78` deletes the entire 3,592-file vendored Codex tree: 851,099 net
 lines removed. Cargo metadata and manifest/source guards prove it had no build
@@ -1396,12 +1416,10 @@ superseded live migration notes are gone. Gamecult-ops exact `cb63e77` repairs
 the inventory to name the independent `yggdrasil-codex-connector` Idunn target;
 no service or deployment state changed.
 
-Continue subtraction from exact `7a125d78` in `runtime_spine.rs`. Group its
-surface by semantic owner, then delete or internalize single-caller public
-wrappers, duplicate load/validate paths, and retention/session cargo that buys
-no independent invariant. Preserve keyed Mind, exact audit and CAS guarantees,
-direct Body-to-Modeling flow, OpenRouter as a separate temporary provider edge,
-and the complete unrun Model Atlas slice.
+The subsequent source-subtraction passes grouped `runtime_spine.rs` by semantic
+owner and removed single-caller wrappers, duplicate reads, and unowned cargo.
+The current next action is owned by the handoff header and `state/map.yaml`, not
+this historical ledger.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target

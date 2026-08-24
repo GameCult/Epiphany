@@ -222,23 +222,19 @@ Delete or demote:
 ## Immediate Next Action
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
-1 paused. Exact `ed7357a2` removes Codex transport from Epiphany's body, and
-exact `c37cae8b` closes the residual request-authorship split. Epiphany now
-seals the exact final `CodexProviderRequest` as durable Mind input before the
-release edge sees it. The edge adds authenticated invocation physiology but no
-schema, tool, call-ID, tool-choice, or output-format opinion. Modeling still
-consumes typed Body and keyed RepoModel state directly; Persona still consumes
-keyed memory and social state directly. No Epiphany-owned Rider or Unity bridge
-exists: Brokkr owns Unity through typed Eve/CultMesh capabilities, and a future
-Rider daemon owns Rider. Do not admit a fresh package until the standalone
-Connector has redacted signed readiness, an independent Idunn target, and a
-real digest-bound Epiphany round trip.
+1 paused. Exact `a721b763` leaves Epiphany with one native model event/receipt
+family and one package owning native contracts plus pure provider lowering.
+Audit the library-only `epiphany-openai-runtime` package next. Its production
+model and Persona entrypoints already belong to `epiphany-release-bundle`; if
+the separate package protects no independent compile, dependency, or test
+invariant, make it the root package's library target and delete its manifest
+and dependency edge.
 
-The immediate comparison is now explicit. The former release-edge
-`codex-login` graph is gone from Epiphany. `epiphany-core` remains broad and
-`runtime_spine.rs` remains its largest mixed owner; audit those as owned
-behavior, not as cleanup chores. A future core split must expose an existing
-semantic owner rather than invent a package taxonomy.
+Preserve exact provider-request sealing, the lean Connector client ABI,
+OpenRouter's separate temporary release edge, keyed Mind audit/CAS guarantees,
+direct Body-to-Modeling flow, Persona state, and the complete unrun Model Atlas
+slice. No Epiphany-owned Rider or Unity bridge exists: Brokkr owns Unity through
+typed Eve/CultMesh capabilities, and a future Rider daemon owns Rider.
 
 The provider decision is the independent `GameCult/CodexConnector` service;
 exact `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns the v2 multi-caller contract,
@@ -248,19 +244,19 @@ keyed replay. No features yields only the typed contract; default `client` adds
 authenticated framing and socket transport; `daemon` adds service authority.
 It links no Codex crate. Active replay identity is written before network
 access; the exact encrypted completion is durable before reply; restart
-ambiguity refuses rather than re-executing. Redacted CultMesh/Odin readiness is
-the remaining daemon source cut before its independent Idunn deployment.
+ambiguity refuses rather than re-executing. Yggdrasil now runs Connector as an
+independent service and Idunn target for Ghostlight. One digest-bound Epiphany
+round trip remains unaccepted while Epiphany's selected edge is OpenRouter.
 
 Epiphany pins the contract-only surface in its adapter and enables the client
 only at its release edge. Exact `87ea81db` also deletes Epiphany's obsolete
 public schema for the extinct generic provider request; the shared Codex
 contract belongs to Connector, while Epiphany's wrapper remains private Mind
-state. Ghostlight exact `8e7d980` now pins the same Connector source without
-changing its live deployment. Exact `7a125d78` removes the excluded 3,592-file
+state. Ghostlight exact `8e7d980` pins the same Connector source; its live Ygg
+deployment consumes the independent service without owning it. Exact `7a125d78` removes the excluded 3,592-file
 Codex implementation tree and its obsolete keeper notes; gamecult-ops exact
 `cb63e77` repairs the independent deployment ownership map. No dual daemon or
-refresh writer is an acceptable transition state. Resume the semantic-owner
-audit of `runtime_spine.rs`.
+refresh writer is an acceptable transition state.
 
 Model Atlas has component proofs but no live inter-swarm collaboration run.
 Preserve its publication, trust, transport, projection, Soul verification, Self
@@ -363,7 +359,7 @@ Cut in this order:
    projection assembled from exact keyed Mind document versions. The final
    model request must render that projection; citing keyed sources while
    rendering the old thread snapshot is explicitly forbidden.
-2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9`, consumes one exact snapshot at `7374be5e`, typed fulfillment reuses it at `5f1bea39`, coordinator scheduling becomes its sole consumer projection at `2bcbf268`, and reorientation result review becomes a single-cache typed read at `125d77a2`:** one pure typed projection derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, Hands readiness, and accepted manual-regather obligation from one pulled keyed Mind/runtime cache. Immutable result replay, family admission, PlanMind continuation, worker archival, Resident Self completion, and operator status validate or route against that same projection rather than reopening runtime state or accepting a parallel CRRC action. Reorientation result review likewise reads its job and structured result from one runtime snapshot and exposes no synthetic backend lifecycle.
+2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9`, consumes one exact snapshot at `7374be5e`, typed fulfillment reuses it at `5f1bea39`, coordinator scheduling becomes its sole consumer projection at `2bcbf268`, reorientation result review becomes a single-cache typed read at `125d77a2`, and terminal disposition stays in that projection at `dfe3757b`:** one pure typed projection derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, Hands readiness, accepted manual-regather obligation, and exact Reorientation success/failure disposition from one pulled keyed Mind/runtime cache. Immutable result replay, family admission, PlanMind continuation, worker archival, Resident Self completion, and operator status validate or route against that same projection rather than reopening runtime state or accepting a parallel CRRC action. Reorientation result review likewise reads its job and structured result from one runtime snapshot and exposes no synthetic backend lifecycle.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
    from explicit external-evidence obligations. Body-generation Modeling
    identity, typed Body-to-Mind admission, sealed reasoning, and atomic decision

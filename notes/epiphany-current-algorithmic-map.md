@@ -1,9 +1,10 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-25
-Latest committed implementation cut: `125d77a2` on `codex/epiphany-shakedown-live`
-Current pass: reorientation result review consumes one runtime snapshot;
-terminal-admission reader audit is next; Ox17 remains paused
+Latest committed implementation cut: `a721b763` on `codex/epiphany-shakedown-live`
+Current pass: one native model event/receipt family and one model-adapter
+package own provider projection; audit the library-only model-runtime package
+next. Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
 proof chronology belong in git, `state/ledgers.msgpack`, and bounded smoke
@@ -692,6 +693,11 @@ from it. Pending, Completed, and Failed are the complete live vocabulary.
 Storage failure is an error, and completed-without-result is a broken invariant;
 neither is laundered into a synthetic lifecycle state.
 
+Exact `dfe3757b` carries terminal failure disposition out of that same
+projection. The coordinator does not reopen the runtime job to rediscover a
+fact the projection already observed; success and failure admission owners
+still enforce their own exact strong dependencies.
+
 The target boundary is independent `GameCult/CodexConnector`; exact
 `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller
 transport package and one public daemon binary without linking a Codex crate.
@@ -717,9 +723,10 @@ spine, compiled Codex graph, direct auth/HTTP/SSE path, and Codex-home/readiness
 plumbing are gone. OpenRouter remains a separate direct provider edge. Durable
 model receipts retain Connector caller identity, exact native/provider digests,
 and cached-token usage without requiring a transcript. Redacted CultMesh/Odin
-readiness, the independent Idunn target, Yggdrasil installation, one real
-Epiphany round trip, and Ghostlight's copied wire/deployment deletion remain
-open.
+readiness and one real Epiphany round trip remain open. Yggdrasil now runs the
+independent service and Idunn target for Ghostlight; Ghostlight can consume the
+ABI but cannot mutate Connector's source, package, service, credential, or
+rollback authority.
 
 Exact `c37cae8b` closes the remaining request-authorship split. The consumer
 adapter turns the canonical native request directly into one closed durable
@@ -731,6 +738,18 @@ choose tools, or author a second provider request. OpenRouter retains its own
 exact direct request variant. Decision contexts and runtime model execution
 persist the same provider-request bytes; runtime v47 and decision context v3
 refuse the old writable shape.
+
+Exact `b83c0416` deletes the transient provider-specific request-input, tool,
+event, payload, and receipt vocabulary. CodexConnector and OpenRouter both emit
+the canonical `EpiphanyModelStreamEvent` family directly, whose completed event
+carries the canonical `EpiphanyModelReceipt`. No isomorphic normalization pass
+or provider-receipt field copy remains.
+
+Exact `a721b763` deletes the `epiphany-openai-adapter` Cargo package. Pure
+provider lowering and OpenRouter response projection are modules of
+`epiphany-model-adapter`, beside the native contracts they translate. Network
+transport remains outside: OpenRouter at the release edge and Codex in the
+independent daemon.
 
 ## Canonical authority map
 
