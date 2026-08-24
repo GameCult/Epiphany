@@ -1026,6 +1026,15 @@ the mention pending with the terminal receipt bound into its next deterministic
 request identity. Resident Self cannot launch, block, or terminalize Persona
 work.
 
+Delivered speech has one local consequence owner. Exact `b3e9b229` deletes the
+standalone Persona delivery-evidence document and the conversation receipt's
+copied evidence-ID vector. Bifrost keeps the durable signed crossing request and
+receipt; the Persona social terminal folds that exact receipt into message ID,
+crossing receipt ID, and digest. Retention reloads and verifies the provider-
+owned pair and matches it against the terminal. Runtime is v36; the terminal
+and conversation execution schemas are v2. This is not an Atlas proof: live
+inter-swarm collaboration remains unrun.
+
 ## RepoModel projection
 
 RepoModel persistence is keyed by semantic identity: identity/body binding,

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `fdefb889`
-Current pass: test-only runtime writers deleted; Ox17
+Latest committed implementation cut: `b3e9b229`
+Current pass: duplicate Persona delivery evidence deleted; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `fdefb889` is the current
+production symlink body and is inactive. Exact `b3e9b229` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,21 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `b3e9b229` makes the Persona social terminal the sole local owner of a
+delivered speech consequence. The already-verified signed Bifrost receipt is
+folded directly into its message ID, crossing receipt ID, and exact receipt
+digest. The standalone `PersonaDiscordDeliveryEvidence` document, runtime
+registration/write/read path, and conversation receipt's copied evidence-ID
+vector are deleted. Retention reloads and cryptographically verifies the
+durable Bifrost request/receipt pair and matches that exact consequence against
+the terminal. Runtime advances to v36; social terminal and conversation
+execution advance to v2 with no compatibility reader. Core compiles, Persona
+consequence/retention passes 5/5, and the release-owned Persona service
+compiles. The cut removes 66 net maintained lines. Verification generated 3.1
+GiB across 7,791 files; cleanup restored the one 1.78 MB state inspector. Atlas
+is untouched. No live inter-swarm collaboration has run; component tests do not
+claim otherwise.
 
 Exact `fdefb889` deletes public `create_runtime_session` and
 `create_runtime_job` plus their exports. Every caller was a fixture. Production
