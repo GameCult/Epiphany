@@ -146,27 +146,24 @@ making the pure document crate depend on Codex.
 The transport wrapper is now also in that spine. It maps typed
 `EpiphanyOpenAiModelRequest` documents into a local serializable Responses
 request body, resolves credentials through vendored `codex-login`, chooses the
-ChatGPT/OpenAI base URL from auth mode, opens an HTTP Responses SSE stream with
-`codex-client`, and converts stream deltas/completion into typed
-`EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt` documents. It no
+ChatGPT/OpenAI base URL from auth mode, opens the selected HTTP stream with
+`codex-client`, and converts provider deltas/completion into transient
+`EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt` values. It no
 longer imports Codex `ResponsesApiRequest`, `ResponsesClient`,
 `ResponseEvent`, provider config, model-provider, or broad app-server
 workflow. Its narrow direct imports preserve Codex-compatible auth identity
 without letting Codex own Epiphany request/state shape.
 
-`schemas/cultnet/` contains publication schemas for OpenAI model request,
-stream event, and terminal receipt. Live providers own their
-CultMesh/CultNet catalogs. The native runtime accepts the document types
-registered by the actual CultCache runtime schema; there is no standalone
-hello/catalog CLI or hand-maintained mutation-contract mirror.
+`schemas/cultnet/` publishes only the exact OpenAI-compatible provider request.
+Provider stream values are normalized immediately into the native model event
+and receipt family; they are not a second CultCache or CultNet authority.
 
 The native runtime route is the operator and daemon edge.
-`epiphany-openai-adapter` documents
-derive CultCache `DatabaseEntry`, `epiphany-core::runtime_spine_cache`
-registers OpenAI request/stream-event/receipt documents, and the
-outside-vendor `epiphany-openai-runtime` crate records typed OpenAI model-turn
-requests, stream events, terminal receipts, runtime sessions, jobs, and job
-results into the native runtime spine. Its `model-turn` command opens the
+`epiphany-openai-adapter` keeps the provider request as a CultCache
+`DatabaseEntry`; `epiphany-core::runtime_spine_cache` registers that request
+beside the native request/event/receipt family. The outside-vendor
+`epiphany-openai-runtime` records those native model documents, runtime
+sessions, jobs, and job results into the runtime spine. Its model command opens the
 Codex-backed transport through the typed spine; its `smoke` command proves the
 CultCache route without touching the network. This is the first native caller
 for the advertised OpenAI CultNet contract.

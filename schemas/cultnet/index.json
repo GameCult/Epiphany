@@ -167,28 +167,6 @@
       "path": "epiphany.openai-model-request.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-stream-event.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.openai_model_stream_event.v0",
-      "documentType": "epiphany.openai_model_stream_event.v0",
-      "title": "Epiphany OpenAI Model Stream Event",
-      "path": "epiphany.openai-model-stream-event.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-receipt.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.openai_model_receipt.v0",
-      "documentType": "epiphany.openai_model_receipt.v0",
-      "title": "Epiphany OpenAI Model Receipt",
-      "path": "epiphany.openai-model-receipt.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [

@@ -50,10 +50,7 @@ use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
-use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
-use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
@@ -85,7 +82,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v27";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v28";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -860,8 +857,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<HandsCommitReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
-    cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
-    cache.register_entry_type::<EpiphanyOpenAiModelReceipt>()?;
     cache.register_entry_type::<EpiphanyModelRequest>()?;
     cache.register_entry_type::<EpiphanyModelStreamEvent>()?;
     cache.register_entry_type::<EpiphanyModelReceipt>()?;
@@ -2137,31 +2132,12 @@ fn archive_completed_model_session(
                 )
             })
             .collect::<Vec<_>>();
-        let mut provider_events = cache
-            .get_all::<EpiphanyOpenAiStreamEvent>()?
-            .into_iter()
-            .filter(|event| event.request_id == *request_id)
-            .collect::<Vec<_>>();
-        provider_events.sort_by_key(|event| event.sequence);
-        let provider_terminals = provider_events
-            .iter()
-            .filter(|event| {
-                matches!(
-                    &event.payload,
-                    EpiphanyOpenAiStreamPayload::Completed { .. }
-                        | EpiphanyOpenAiStreamPayload::Failed { .. }
-                )
-            })
-            .collect::<Vec<_>>();
         if native_terminals.len() != 1
-            || provider_terminals.len() != 1
             || native_events.last().map(|event| event.sequence)
                 != native_terminals.first().map(|event| event.sequence)
-            || provider_events.last().map(|event| event.sequence)
-                != provider_terminals.first().map(|event| event.sequence)
         {
             return Err(anyhow!(
-                "runtime session archive requires one native and provider terminal stream event"
+                "runtime session archive requires one terminal model stream event"
             ));
         }
         match &native_terminals[0].payload {
@@ -2176,30 +2152,6 @@ fn archive_completed_model_session(
                 if cache.get::<EpiphanyModelReceipt>(request_id)?.is_some() {
                     return Err(anyhow!(
                         "failed native model stream retained a success receipt"
-                    ));
-                }
-            }
-            _ => unreachable!("terminal event filtered above"),
-        }
-        match &provider_terminals[0].payload {
-            EpiphanyOpenAiStreamPayload::Completed { receipt } => {
-                if cache
-                    .get::<EpiphanyOpenAiModelReceipt>(request_id)?
-                    .as_ref()
-                    != Some(receipt)
-                {
-                    return Err(anyhow!(
-                        "runtime session archive found inconsistent provider model receipt"
-                    ));
-                }
-            }
-            EpiphanyOpenAiStreamPayload::Failed { .. } => {
-                if cache
-                    .get::<EpiphanyOpenAiModelReceipt>(request_id)?
-                    .is_some()
-                {
-                    return Err(anyhow!(
-                        "failed provider model stream retained a success receipt"
                     ));
                 }
             }
@@ -2295,31 +2247,12 @@ fn archive_completed_model_session(
                 format!("{}:{:08}", event.request_id, event.sequence),
             ));
         }
-        for event in cache
-            .get_all::<EpiphanyOpenAiStreamEvent>()?
-            .into_iter()
-            .filter(|event| event.request_id == binding.request_id)
-        {
-            retired_identities.insert((
-                EpiphanyOpenAiStreamEvent::TYPE.to_string(),
-                format!("{}:{:08}", event.request_id, event.sequence),
-            ));
-        }
         if cache
             .get::<EpiphanyModelReceipt>(&binding.request_id)?
             .is_some()
         {
             retired_identities.insert((
                 EpiphanyModelReceipt::TYPE.to_string(),
-                binding.request_id.clone(),
-            ));
-        }
-        if cache
-            .get::<EpiphanyOpenAiModelReceipt>(&binding.request_id)?
-            .is_some()
-        {
-            retired_identities.insert((
-                EpiphanyOpenAiModelReceipt::TYPE.to_string(),
                 binding.request_id.clone(),
             ));
         }

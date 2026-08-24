@@ -4,8 +4,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 pub const OPENAI_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.openai_model_request.v1";
-pub const OPENAI_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.openai_model_stream_event.v0";
-pub const OPENAI_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.openai_model_receipt.v0";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EpiphanyOpenAiWireDialect {
     Responses,
@@ -164,19 +162,10 @@ pub enum EpiphanyOpenAiInputItem {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.openai_model_stream_event.v0",
-    schema = "EpiphanyOpenAiStreamEvent"
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EpiphanyOpenAiStreamEvent {
-    #[cultcache(key = 0)]
-    pub schema_id: String,
-    #[cultcache(key = 1)]
     pub request_id: String,
-    #[cultcache(key = 2)]
     pub sequence: u64,
-    #[cultcache(key = 3)]
     pub payload: EpiphanyOpenAiStreamPayload,
 }
 
@@ -201,34 +190,20 @@ pub enum EpiphanyOpenAiStreamPayload {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.openai_model_receipt.v0",
-    schema = "EpiphanyOpenAiModelReceipt"
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyOpenAiModelReceipt {
-    #[cultcache(key = 0)]
-    pub schema_id: String,
-    #[cultcache(key = 1)]
     pub request_id: String,
-    #[cultcache(key = 2)]
     pub model: String,
-    #[cultcache(key = 3, default)]
     pub response_id: Option<String>,
-    #[cultcache(key = 4, default)]
     pub input_tokens: Option<u64>,
-    #[cultcache(key = 5, default)]
     pub output_tokens: Option<u64>,
-    #[cultcache(key = 6, default)]
     pub reasoning_output_tokens: Option<u64>,
-    #[cultcache(key = 7, default)]
     pub transport: Option<String>,
 }
 
 impl EpiphanyOpenAiModelReceipt {
     pub fn new(request_id: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
-            schema_id: OPENAI_ADAPTER_RECEIPT_SCHEMA_ID.to_string(),
             request_id: request_id.into(),
             model: model.into(),
             response_id: None,

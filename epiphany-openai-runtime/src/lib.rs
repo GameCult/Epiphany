@@ -193,7 +193,6 @@ where
     match future.await {
         Ok(events) => events,
         Err(err) => vec![EpiphanyOpenAiStreamEvent {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: request.request_id.clone(),
             sequence: 0,
             payload: EpiphanyOpenAiStreamPayload::Failed {
@@ -368,11 +367,8 @@ fn record_openai_events(
             if let EpiphanyModelStreamPayload::Completed { receipt } = &model_event.payload {
                 cache.put(model_receipt_key(&receipt.request_id), receipt)?;
             }
-            let key = openai_event_key(&event.request_id, event.sequence);
-            cache.put(key, event)?;
             match &event.payload {
                 EpiphanyOpenAiStreamPayload::Completed { receipt: completed } => {
-                    cache.put(openai_receipt_key(&completed.request_id), completed)?;
                     receipt = Some(completed.clone());
                 }
                 EpiphanyOpenAiStreamPayload::Failed { message } => {
@@ -434,7 +430,7 @@ fn record_openai_events(
         verdict: verdict.to_string(),
         summary,
         result_id,
-        receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
+        receipt_id: receipt.map(|item| item.request_id),
         tool_intent_ids: tool_intents
             .into_iter()
             .map(|intent| intent.intent_id)
@@ -527,7 +523,6 @@ fn push_compacted_event(
     payload: EpiphanyOpenAiStreamPayload,
 ) {
     compacted.push(EpiphanyOpenAiStreamEvent {
-        schema_id: source.schema_id.clone(),
         request_id: source.request_id.clone(),
         sequence: compacted.len() as u64,
         payload,
@@ -1067,14 +1062,6 @@ pub fn default_options(
         default_model: Some(request.model.clone()),
         request_timeout: Some(DEFAULT_PROVIDER_REQUEST_TIMEOUT),
     }
-}
-
-pub fn openai_event_key(request_id: &str, sequence: u64) -> String {
-    format!("{request_id}:{sequence:08}")
-}
-
-pub fn openai_receipt_key(request_id: &str) -> String {
-    request_id.to_string()
 }
 
 pub fn model_request_key(request_id: &str) -> String {
@@ -3338,7 +3325,6 @@ mod tests {
         payload: EpiphanyOpenAiStreamPayload,
     ) -> EpiphanyOpenAiStreamEvent {
         EpiphanyOpenAiStreamEvent {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: request_id.to_string(),
             sequence,
             payload,
@@ -3404,7 +3390,7 @@ mod tests {
     }
 
     #[test]
-    fn records_typed_openai_documents_in_runtime_store() -> Result<()> {
+    fn records_one_native_model_stream_in_runtime_store() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         let native_request = EpiphanyModelRequest::new(
@@ -3438,7 +3424,6 @@ mod tests {
         receipt.response_id = Some("resp-1".to_string());
         receipt.transport = Some("test".to_string());
         let events = vec![EpiphanyOpenAiStreamEvent {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: "req-1".to_string(),
             sequence: 0,
             payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
@@ -3459,12 +3444,6 @@ mod tests {
         );
         assert!(cache.get::<EpiphanyModelReceipt>("req-1")?.is_some());
         assert!(cache.get::<EpiphanyOpenAiModelRequest>("req-1")?.is_some());
-        assert!(
-            cache
-                .get::<EpiphanyOpenAiStreamEvent>("req-1:00000000")?
-                .is_some()
-        );
-        assert!(cache.get::<EpiphanyOpenAiModelReceipt>("req-1")?.is_some());
         assert_eq!(
             runtime_job_snapshot(&store, &options.job_id)?
                 .expect("snapshot")
@@ -3930,7 +3909,6 @@ mod tests {
         receipt.transport = Some("test".to_string());
         let events = vec![
             EpiphanyOpenAiStreamEvent {
-                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                 request_id: "req-tools".to_string(),
                 sequence: 0,
                 payload: EpiphanyOpenAiStreamPayload::ToolCall {
@@ -3940,7 +3918,6 @@ mod tests {
                 },
             },
             EpiphanyOpenAiStreamEvent {
-                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                 request_id: "req-tools".to_string(),
                 sequence: 1,
                 payload: EpiphanyOpenAiStreamPayload::Completed { receipt },

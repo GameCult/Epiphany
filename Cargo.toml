@@ -99,7 +99,7 @@ path = "epiphany-core/src/bin/epiphany-mvp-coordinator.rs"
 
 [[bin]]
 name = "epiphany-model-runtime"
-path = "epiphany-openai-runtime/src/bin/epiphany-model-runtime.rs"
+path = "epiphany-openai-runtime/src/bin/epiphany-openai-runtime.rs"
 required-features = ["openai-runtime"]
 
 [[bin]]

@@ -1456,7 +1456,6 @@ mod tests {
             &model_request,
             &[
                 EpiphanyOpenAiStreamEvent {
-                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                     request_id: request_id.to_string(),
                     sequence: 0,
                     payload: EpiphanyOpenAiStreamPayload::ToolCall {
@@ -1466,7 +1465,6 @@ mod tests {
                     },
                 },
                 EpiphanyOpenAiStreamEvent {
-                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                     request_id: request_id.to_string(),
                     sequence: 1,
                     payload: EpiphanyOpenAiStreamPayload::Completed { receipt },

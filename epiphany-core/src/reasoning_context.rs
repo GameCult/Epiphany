@@ -2330,25 +2330,11 @@ mod tests {
                 text: "optional transcript".into(),
             },
         };
-        let provider_delta = epiphany_openai_adapter::EpiphanyOpenAiStreamEvent {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.into(),
-            request_id: terminal_native.request_id.clone(),
-            sequence: 0,
-            payload: epiphany_openai_adapter::EpiphanyOpenAiStreamPayload::TextDelta {
-                text: "optional transcript".into(),
-            },
-        };
         cache = runtime_spine_cache(&store)?;
         cache.put("request-2:00000000", &native_delta)?;
-        cache.put("request-2:00000000", &provider_delta)?;
         assert!(
             cache
                 .delete::<epiphany_model_adapter::EpiphanyModelStreamEvent>("request-2:00000000")?
-        );
-        assert!(
-            cache.delete::<epiphany_openai_adapter::EpiphanyOpenAiStreamEvent>(
-                "request-2:00000000"
-            )?
         );
         cache.pull_all_backing_stores()?;
         let retained = cache

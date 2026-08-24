@@ -462,7 +462,6 @@ fn push_openrouter_event(
     payload: EpiphanyOpenAiStreamPayload,
 ) {
     events.push(EpiphanyOpenAiStreamEvent {
-        schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
         request_id: request_id.to_string(),
         sequence: events.len() as u64,
         payload,
@@ -1211,7 +1210,6 @@ impl EpiphanyResponsesStreamState {
 
     fn push_payload(&mut self, payload: EpiphanyOpenAiStreamPayload) {
         self.events.push(EpiphanyOpenAiStreamEvent {
-            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
             request_id: self.request_id.clone(),
             sequence: self.sequence,
             payload,
