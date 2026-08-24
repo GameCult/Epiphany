@@ -211,13 +211,19 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    sealed document identity; current-work, admission, coordinator actuation, and
    archival now consume it directly. Runtime epoch is v17; 70 net source lines
    are gone.
-38. Next: apply the same ownership test to Body Modeling, Planning, PlanMind,
+38. Done: exact `07529fb5` collapses the single-consumer
+   `epiphany-state-model` package into a plain Core-owned module. Unused
+   JsonSchema/TypeScript derives, `schemars`, `ts-rs`, duplicate graph
+   re-exports, stale WebSocket patch pins, and 99 lockfile lines are gone. The
+   commit removes 201 maintained lines net and one Cargo package without a
+   schema-epoch change.
+39. Next: apply the same ownership test to Body Modeling, Planning, PlanMind,
    Imagination consideration, and Reorientation launch bindings. Delete the
    family when the worker launch and typed request already own its facts; do not
    create generic launch authority.
-39. Continue the public runtime-spine and test-liability audit by live owner
+40. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-40. Run focused tests after each cut. Only after source subtraction stabilizes
+41. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

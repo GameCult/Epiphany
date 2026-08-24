@@ -2,11 +2,11 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `ed7357a2`
+Latest committed Epiphany source cut: `07529fb5`
 Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
-Current pass: Codex transport is absent from Epiphany's compiled body; redacted
-Connector readiness and its independent Idunn target are next; Ox17 and Atlas
-Gate 1 remain paused
+Current pass: source subtraction continues after collapsing semantic state into
+Core; duplicate family request identities on generic worker launch/result
+records are next; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -17,7 +17,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `ed7357a2` is the current
+production symlink body and is inactive. Exact `07529fb5` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -92,6 +92,17 @@ Redacted CultMesh/Odin publication, the independent Connector Idunn target,
 Yggdrasil installation, a real Epiphany connector round trip, and Ghostlight's
 shared-client/deployment cut remain open. No live service, credential, or
 deployment authority moved in this source pass.
+
+Exact `07529fb5` deletes `epiphany-state-model` as a Cargo package. Only
+`epiphany-core` consumed it; the semantic Serde contracts now live in a plain
+Core-owned module. Unused JsonSchema/TypeScript derives, `schemars`, `ts-rs`,
+duplicate memory-graph re-exports, three stale WebSocket patch pins, and 99
+lockfile lines are gone. The commit removes 201 maintained lines net and one
+package without changing serialized contracts or schema epochs. Core checks
+without warnings; the deterministic keyed-Mind and repository-path proofs pass.
+Whole-Core Clippy exposes 58 pre-existing lints outside this cut. Verification
+generated 1.842 GB across 2,718 files; cleanup restored only the exact state
+inspector.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -1177,17 +1188,17 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 
 ## Immediate next action
 
-The Ox17 deployment lane remains paused. Continue the standalone transport cut
-from Epiphany `ed7357a2` and Connector
-`54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`: add one redacted provider-owned
-CultMesh/Odin readiness projection, audit its dependency cost, then give the
-Connector an independent Idunn target and install the frozen daemon on
-Yggdrasil. Prove one Epiphany round trip with exact digest-bound receipt,
-transcript-free decision audit, and governed tool continuation before asking
-Ghostlight to adopt the same client ABI and delete its copied wire/deployment
-authority. Preserve keyed Mind, direct Body-to-Modeling flow, consequence
-receipts, and the complete Model Atlas vertical slice; no live inter-swarm
-collaboration has run.
+The Ox17 deployment lane remains paused. Continue subtraction from exact
+`07529fb5`: remove the optional family request-ID mirrors on the generic worker
+launch and their role-result echoes wherever the exact typed launch document or
+structured decision already owns identity. Delete their validators,
+constructor defaults, and fixture assertions rather than replacing them with a
+registry. Then audit whether the generic runtime session aggregate protects any
+invariant not already owned by jobs, decision contexts, coordinator receipts,
+and retention tombstones. The Connector CultMesh/Idunn/Yggdrasil proof and
+Ghostlight adoption remain queued behind source stabilization. Preserve keyed
+Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
+Model Atlas vertical slice; no live inter-swarm collaboration has run.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target
