@@ -228,7 +228,6 @@ pub use runtime_spine::RepoFrontierVerdictModelingLaunchAuthority;
 pub use runtime_spine::RuntimeSpineHeartbeatJobOptions;
 pub use runtime_spine::RuntimeSpineInitOptions;
 pub use runtime_spine::RuntimeSpineJobOptions;
-pub use runtime_spine::RuntimeSpineSessionClosureOptions;
 pub use runtime_spine::abandon_unactivated_runtime_worker_process;
 pub use runtime_spine::activate_runtime_worker_process;
 pub use runtime_spine::bind_runtime_repository_domain;

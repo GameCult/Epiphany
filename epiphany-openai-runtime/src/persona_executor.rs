@@ -10,9 +10,8 @@ use epiphany_core::{
     PERSONA_MODEL_STAGE_RECEIPT_SCHEMA_VERSION, PERSONA_MODEL_TERMINAL_RECEIPT_SCHEMA_VERSION,
     PersonaInterpreterEffectDocument, PersonaInterpreterInput, PersonaModelStageReceipt,
     PersonaModelTerminalReceipt, PersonaProjectorInput, PersonaTranscriptMessage, PersonaTurnInput,
-    RuntimeSpineSessionClosureOptions, build_persona_interpreter_prompt,
-    build_persona_projector_prompt_with_transcript, build_persona_turn_prompt,
-    close_runtime_session, model_pass_failure_for_request,
+    build_persona_interpreter_prompt, build_persona_projector_prompt_with_transcript,
+    build_persona_turn_prompt, close_runtime_session, model_pass_failure_for_request,
     parse_and_validate_persona_interpreter_effect_set, persona_interpreter_effect_set_json_schema,
     runtime_spine_cache, terminalize_model_pass_failure_session,
 };
@@ -117,7 +116,7 @@ fn close_persona_session_if_active(
             session.status == epiphany_core::EpiphanyRuntimeSessionStatus::Active
         })
     {
-        close_runtime_session(store_path, RuntimeSpineSessionClosureOptions { session_id })?;
+        close_runtime_session(store_path, &session_id)?;
     }
     Ok(())
 }

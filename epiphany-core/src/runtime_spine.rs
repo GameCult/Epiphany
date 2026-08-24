@@ -613,11 +613,6 @@ pub struct RuntimeSpineInitOptions {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RuntimeSpineSessionClosureOptions {
-    pub session_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelPassFailureTerminalOptions {
     pub decision_context_id: String,
     pub failure_kind: String,
@@ -883,28 +878,28 @@ pub fn bind_runtime_to_swarm(
 
 pub fn close_runtime_session(
     store_path: impl AsRef<Path>,
-    options: RuntimeSpineSessionClosureOptions,
+    session_id: &str,
 ) -> Result<EpiphanyRuntimeSession> {
-    validate_non_empty(&options.session_id, "session id")?;
-    if options.session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID {
+    validate_non_empty(session_id, "session id")?;
+    if session_id == EPIPHANY_RUNTIME_ROOT_SESSION_ID {
         return Err(anyhow!(
             "runtime root session {:?} is long-lived and cannot be generically completed",
-            options.session_id
+            session_id
         ));
     }
     let mut cache = runtime_spine_cache(store_path.as_ref())?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
     let mut session = cache
-        .get::<EpiphanyRuntimeSession>(&options.session_id)?
-        .ok_or_else(|| anyhow!("runtime session {:?} does not exist", options.session_id))?;
+        .get::<EpiphanyRuntimeSession>(session_id)?
+        .ok_or_else(|| anyhow!("runtime session {session_id:?} does not exist"))?;
     if session.status == EpiphanyRuntimeSessionStatus::Completed {
         return Ok(session);
     }
     let session_job_ids = cache
         .get_all::<EpiphanyRuntimeModelExecutionBinding>()?
         .into_iter()
-        .filter(|binding| binding.session_id == options.session_id)
+        .filter(|binding| binding.session_id == session_id)
         .map(|binding| binding.job_id)
         .collect::<BTreeSet<_>>();
     let open_job_ids = cache
@@ -919,7 +914,7 @@ pub fn close_runtime_session(
     if !open_job_ids.is_empty() {
         return Err(anyhow!(
             "runtime session {:?} has open jobs: {}",
-            options.session_id,
+            session_id,
             open_job_ids.join(", ")
         ));
     }

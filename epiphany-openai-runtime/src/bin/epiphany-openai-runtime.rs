@@ -595,12 +595,7 @@ async fn run_worker_launch(
                 )
             }
         };
-    epiphany_core::close_runtime_session(
-        &options.store_path,
-        epiphany_core::RuntimeSpineSessionClosureOptions {
-            session_id: openai_options.session_id.clone(),
-        },
-    )?;
+    epiphany_core::close_runtime_session(&options.store_path, &openai_options.session_id)?;
 
     Ok(json!({
         "store": options.store_path,

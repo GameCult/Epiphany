@@ -86,14 +86,8 @@ pub struct EpiphanyOpenAiRuntimeOptions {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyOpenAiRuntimeRunSummary {
-    pub store: String,
-    pub session_id: String,
-    pub job_id: String,
-    pub request_id: String,
-    pub event_count: usize,
     pub verdict: String,
     pub summary: String,
-    pub receipt_id: Option<String>,
     pub tool_intent_ids: Vec<String>,
 }
 
@@ -204,14 +198,8 @@ pub fn record_model_turn_events(
     )?;
 
     Ok(EpiphanyOpenAiRuntimeRunSummary {
-        store: store_path.display().to_string(),
-        session_id: options.session_id.clone(),
-        job_id: options.job_id.clone(),
-        request_id: provider_request.request_id,
-        event_count: events.len(),
         verdict: verdict.to_string(),
         summary,
-        receipt_id: receipt.map(|item| item.request_id),
         tool_intent_ids: tool_intents
             .into_iter()
             .map(|intent| intent.intent_id)
@@ -3053,14 +3041,8 @@ mod tests {
         let provider_failure_store = temp.path().join("provider-failure.cc");
         std::fs::copy(&store, &provider_failure_store)?;
         let provider_failure_summary = EpiphanyOpenAiRuntimeRunSummary {
-            store: provider_failure_store.display().to_string(),
-            session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),
-            job_id: "openai-worker-worker-job-1".to_string(),
-            request_id: model_request.request_id.clone(),
-            event_count: 1,
             verdict: "failed".to_string(),
             summary: "Provider refused the model pass.".to_string(),
-            receipt_id: None,
             tool_intent_ids: Vec::new(),
         };
         complete_worker_job_from_assistant_text(
@@ -3093,9 +3075,7 @@ mod tests {
         let contract_failure_store = temp.path().join("contract-failure.cc");
         std::fs::copy(&store, &contract_failure_store)?;
         let contract_failure_summary = EpiphanyOpenAiRuntimeRunSummary {
-            store: contract_failure_store.display().to_string(),
             verdict: "pass".to_string(),
-            receipt_id: Some(model_request.request_id.clone()),
             ..provider_failure_summary.clone()
         };
         complete_worker_job_from_assistant_text(
@@ -3126,14 +3106,8 @@ mod tests {
         );
 
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
-            store: store.display().to_string(),
-            session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),
-            job_id: "openai-worker-worker-job-1".to_string(),
-            request_id: model_request.request_id.clone(),
-            event_count: 2,
             verdict: "pass".to_string(),
             summary: "OpenAI model request completed.".to_string(),
-            receipt_id: Some(model_request.request_id.clone()),
             tool_intent_ids: Vec::new(),
         };
         let assistant_text = serde_json::json!({
