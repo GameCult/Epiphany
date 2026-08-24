@@ -181,6 +181,7 @@ impl EpiphanyCodexOpenAiTransport {
             .unwrap_or_else(|| default_base_url_for_auth(auth).to_string());
         let url = format!("{}/responses", base_url.trim_end_matches('/'));
         let conversation_id = request.conversation_id.clone();
+        let request = request_for_responses_backend(request, auth.uses_codex_backend());
         let mut outbound = Request::new(http::Method::POST, url)
             .with_json(&responses_body_from_epiphany(request)?);
         attach_codex_auth_headers(auth, &mut outbound.headers)
@@ -207,6 +208,18 @@ impl EpiphanyCodexOpenAiTransport {
             .await
             .map_err(transport_error_to_anyhow)
     }
+}
+
+fn request_for_responses_backend(
+    mut request: EpiphanyOpenAiModelRequest,
+    uses_codex_backend: bool,
+) -> EpiphanyOpenAiModelRequest {
+    if uses_codex_backend {
+        // The ChatGPT Codex subscription boundary rejects this otherwise
+        // standard Responses parameter. Callers retain and verify their bound.
+        request.max_output_tokens = None;
+    }
+    request
 }
 
 /// OpenRouter owns a distinct credential and wire dialect. It is intentionally
@@ -1762,6 +1775,23 @@ mod tests {
             "mcp__epiphany_source__read_file"
         );
         assert_eq!(responses["tool_choice"], "auto");
+    }
+
+    #[test]
+    fn codex_subscription_request_omits_unsupported_output_limit() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-codex-limit",
+            "conversation-codex-limit",
+            "gpt-5.4",
+            "Return a bounded answer.",
+        );
+        request.max_output_tokens = Some(512);
+
+        let codex = request_for_responses_backend(request.clone(), true);
+        let openai = request_for_responses_backend(request, false);
+
+        assert_eq!(codex.max_output_tokens, None);
+        assert_eq!(openai.max_output_tokens, Some(512));
     }
 
     #[test]

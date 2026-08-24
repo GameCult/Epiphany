@@ -503,6 +503,23 @@ fn sanitize_model_events(
                     "model provider returned an inadmissible tool call",
                 )];
             }
+            EpiphanyModelStreamPayload::Completed { receipt } => {
+                if let Some(limit) = request.max_output_tokens
+                    && !matches!(receipt.output_tokens, Some(tokens) if tokens <= u64::from(limit))
+                {
+                    return vec![connector_failed_event(
+                        &request.request_id,
+                        "model provider did not prove the requested output-token bound",
+                    )];
+                }
+                sanitized.push(EpiphanyModelStreamEvent {
+                    schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                    request_id: request.request_id.clone(),
+                    provider: request.provider.clone(),
+                    sequence: sanitized.len() as u64,
+                    payload: EpiphanyModelStreamPayload::Completed { receipt },
+                });
+            }
             payload => sanitized.push(EpiphanyModelStreamEvent {
                 schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
                 request_id: request.request_id.clone(),
@@ -857,7 +874,8 @@ mod tests {
     #[test]
     fn reasoning_is_removed_and_public_events_are_renumbered() {
         let invocation = invocation(1_000);
-        let receipt = EpiphanyModelReceipt::new("request-1", "openai-codex", "gpt-5.4");
+        let mut receipt = EpiphanyModelReceipt::new("request-1", "openai-codex", "gpt-5.4");
+        receipt.output_tokens = Some(10);
         let events = vec![
             EpiphanyModelStreamEvent {
                 schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
@@ -897,6 +915,36 @@ mod tests {
             events[1].payload,
             EpiphanyModelStreamPayload::Completed { .. }
         ));
+    }
+
+    #[test]
+    fn connector_refuses_unproven_or_excessive_provider_output() {
+        let invocation = invocation(1_000);
+        let event = |output_tokens| EpiphanyModelStreamEvent {
+            schema_id: MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: "request-1".to_string(),
+            provider: "openai-codex".to_string(),
+            sequence: 0,
+            payload: EpiphanyModelStreamPayload::Completed {
+                receipt: {
+                    let mut receipt =
+                        EpiphanyModelReceipt::new("request-1", "openai-codex", "gpt-5.4");
+                    receipt.output_tokens = output_tokens;
+                    receipt
+                },
+            },
+        };
+
+        for output_tokens in [None, Some(513)] {
+            let events = sanitize_model_events(&invocation.request, vec![event(output_tokens)]);
+            assert!(matches!(
+                events.as_slice(),
+                [EpiphanyModelStreamEvent {
+                    payload: EpiphanyModelStreamPayload::Failed { .. },
+                    ..
+                }]
+            ));
+        }
     }
 
     #[test]
