@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `ffd91c20` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for fixed routing/retention cargo removal;
+Latest committed implementation cut: `fe118e13` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for singular native model-stream ownership;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -65,6 +65,16 @@ Persona social mention v2, Resident Self state v3/retention head v1, and
 Mind/runtime v10/v27. Model Atlas is unchanged and remains unaccepted until a
 live inter-swarm exchange exercises publication, transport, verification,
 admission, wake, and withdrawal end to end.
+
+Provider transport is not a second state machine. Exact `fe118e13` keeps the
+exact provider request as durable decision input, but makes provider events and
+receipts transient values. The runtime immediately lowers each into the native
+model event/receipt family that already owns tool continuation, assistant-text
+reconstruction, terminal validation, and bounded retention. The provider
+event/receipt CultCache registrations, archive requirements, schema IDs, and
+public CultNet schemas are deleted. Runtime advances to v28; the public catalog
+has 18 schemas. `epiphany-model-runtime` now points directly at its executable
+body instead of compiling through an include-only shell. Atlas is untouched.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon

@@ -357,6 +357,12 @@ Cut in this order:
    Eyes packet v2, Persona mention v2, Resident Self state v3/retention head v1,
    and runtime v27 form the hard cut. Model Atlas remains intact for its first
    live inter-swarm collaboration run; component proofs are not acceptance.
+   Exact `fe118e13` makes provider events and receipts transient transport
+   values and deletes their duplicate CultCache/CultNet authority. One native
+   model stream/receipt family now owns continuation, reconstruction, terminal
+   validation, and retention; the exact provider request remains durable audit
+   input. Runtime advances to v28, the catalog drops to 18 schemas, and the
+   model-runtime include shell is gone. Atlas remains unchanged and unaccepted.
 3. **Baseline transaction landed at `9f7b164f`; operator routing at `587c56d2`; Resident continuation and keyed acceptance at `478fb923`:** baseline Body Modeling is now thread-free from unresolved Body obligation through Launch/Wait/Review and exact Mind admission. Resident and operator callers consume the same family projection and acceptance owner. Thread ID remains immutable pass provenance only.
 4. **Proposal Modeling landed at `d1b031cb`:** its immutable request, worker launch, runtime attempt/result, and `Modeling.proposal_frontier` commit now own Launch/Wait/Review and admission. The aggregate launcher refuses proposal cargo; the old selector, validator, context builder, and generic-launch hint are deleted. Body and Proposal share only the exact-envelope launch CAS invariant, not a mutable family registry. Exact `b0a4978d` deletes the later duplicate launch-binding document entirely; the worker launch is the sole launch owner.
 5. **Continuation vocabulary landed at `e404c105` and was named truthfully at `fc5d1a4a`:** concrete pass families share one pure `EpiphanyAgentPassContinuationAction`; their semantic requests, projections, validators, and admission owners remain separate.

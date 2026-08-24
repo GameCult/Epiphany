@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `ffd91c20`
-Current worktree: documentation/evidence for fixed routing/retention cargo removal;
+Latest committed implementation cut: `fe118e13`
+Current worktree: documentation/evidence for singular native model-stream ownership;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `ffd91c20` is the current
+production symlink body and is inactive. Exact `fe118e13` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,20 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `fe118e13` removes the second persisted copy of every provider stream
+event and terminal receipt. OpenAI/OpenRouter transport values now normalize
+immediately into the native `EpiphanyModelStreamEvent` and
+`EpiphanyModelReceipt` family used by tool continuation, assistant
+reconstruction, terminal validation, and runtime retention. The exact provider
+request remains durable in every decision context. Duplicate runtime writes,
+registrations, archival validation/deletion, provider schema IDs, two public
+CultNet schemas/index rows, and the include-only model-runtime shell are gone.
+Runtime advances to v28 and the public catalog has 18 schemas. The cut removes
+270 net maintained lines. Adapter 1/1, provider spine 14/14, reasoning context
+8/8, OpenAI runtime 23/23, model entrypoint 11/11, swarm 4/4, epoch refusal
+1/1, and release construction 15/15 pass. Model Atlas is untouched; its live
+inter-swarm collaboration trial remains open.
 
 Exact `ffd91c20` removes three fixed or non-causal fields outside Model Atlas.
 The Eyes evidence packet no longer repeats `source_role_id = research`; its
@@ -911,7 +925,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `ffd91c20`; do not compile or deploy through Idunn
+liability audit from exact `fe118e13`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
