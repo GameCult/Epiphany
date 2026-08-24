@@ -298,7 +298,6 @@ pub use surfaces::EpiphanyCoordinatorAction;
 pub use surfaces::EpiphanyCoordinatorDecision;
 pub use surfaces::EpiphanyCoordinatorInput;
 pub use surfaces::EpiphanyCoordinatorRoleStatus;
-pub use surfaces::EpiphanyCrrcAction;
 pub use surfaces::EpiphanyCrrcResultStatus;
 pub use surfaces::EpiphanyReorientFindingInterpretation;
 pub use surfaces::EpiphanyReorientWorkerLaunchDocument;

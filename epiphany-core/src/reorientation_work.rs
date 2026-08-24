@@ -986,10 +986,10 @@ mod tests {
         let result = crate::EpiphanyRuntimeReorientWorkerResult {
             result_id: "reorientation-result".into(),
             job_id: job_id.clone(),
-            mode: "resume".into(),
-            summary: "The sealed checkpoint remains coherent.".into(),
-            next_safe_move: "Continue the keyed migration.".into(),
-            checkpoint_still_valid: Some(true),
+            mode: "regather".into(),
+            summary: "The sealed checkpoint requires fresh external evidence.".into(),
+            next_safe_move: "Regather before resuming the keyed migration.".into(),
+            checkpoint_still_valid: Some(false),
             files_inspected: Vec::new(),
             frontier_node_ids: Vec::new(),
             evidence_ids: Vec::new(),
@@ -1028,7 +1028,17 @@ mod tests {
             accept_reorientation_result(&store, &job_id, "2026-08-18T10:00:07Z")?,
             receipt
         );
-        assert!(crate::project_current_work(&store)?.reorientation.is_none());
+        let current_work = crate::project_current_work(&store)?;
+        assert!(current_work.reorientation.is_none());
+        assert!(current_work.operator_regather_required);
+        assert_eq!(
+            crate::recommend_coordinator_action(crate::EpiphanyCoordinatorInput {
+                mind_present: true,
+                current_work,
+            })
+            .action,
+            crate::EpiphanyCoordinatorAction::RegatherManually
+        );
         let mut accepted = crate::runtime_spine_cache(&store)?;
         accepted.pull_all_backing_stores()?;
         assert!(

@@ -969,7 +969,6 @@ pub(crate) fn resident_self_current_work_action(
     let projection_digest = current_work.projection_digest()?;
     let decision = crate::recommend_coordinator_action(crate::EpiphanyCoordinatorInput {
         mind_present: true,
-        crrc_action: crate::EpiphanyCrrcAction::Continue,
         current_work,
     });
     if !matches!(

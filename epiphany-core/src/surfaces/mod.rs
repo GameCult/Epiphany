@@ -8,7 +8,6 @@ mod worker_launch;
 
 pub use coordinator_contract::*;
 pub use coordinator_decision::recommend_coordinator_action;
-pub use crrc::EpiphanyCrrcAction;
 pub use crrc::EpiphanyCrrcResultStatus;
 pub use research_decision::EpiphanyResearchDecision;
 pub use role_board::EpiphanyRoleBoardInput;

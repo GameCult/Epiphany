@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use crate::{
-    EpiphanyCoordinatorInput, EpiphanyCrrcAction, EpiphanyCurrentWorkProjection,
-    EpiphanyRoleBoardInput, RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
+    EpiphanyCoordinatorInput, EpiphanyCurrentWorkProjection, EpiphanyRoleBoardInput,
+    RepoFrontierPlanningLifecycle, RepoFrontierPlanningLifecycleStage,
     RepoFrontierResearchLifecycle, RepoFrontierResearchLifecycleStage, derive_role_board,
 };
 use serde_json::{Value, json};
@@ -23,38 +23,25 @@ const MAX_OPERATOR_TEXT_CHARS: usize = 1200;
 pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<Value> {
     let store_path = absolute_path(runtime_store)?;
 
-    let mind = if store_path.exists() {
-        Some(
-            crate::assemble_mind_view(&store_path).with_context(|| {
-                format!("failed to assemble keyed Mind {}", store_path.display())
-            })?,
-        )
-    } else {
-        None
-    };
-    let current_work = if mind.is_some() {
-        crate::project_current_work(&store_path)
-            .context("failed to derive current work from keyed Mind and runtime receipts")?
-    } else {
-        empty_current_work()
-    };
-    let latest_reorientation_decision = mind
+    let projected_work = store_path
+        .exists()
+        .then(|| {
+            crate::project_current_work(&store_path)
+                .context("failed to derive current work from keyed Mind and runtime receipts")
+        })
+        .transpose()?;
+    let mind_present = projected_work.is_some();
+    let projection_digest = projected_work
         .as_ref()
-        .and_then(|mind| mind.reorientation_decisions.last());
-    let crrc_action =
-        if latest_reorientation_decision.is_some_and(|decision| decision.mode == "regather") {
-            EpiphanyCrrcAction::RegatherManually
-        } else {
-            EpiphanyCrrcAction::Continue
-        };
+        .map(|work| work.mind_projection_digest.clone());
+    let current_work = projected_work.unwrap_or_else(empty_current_work);
 
     let roles = derive_role_board(EpiphanyRoleBoardInput {
-        mind_present: mind.is_some(),
+        mind_present,
         current_work: current_work.clone(),
     });
     let coordinator = crate::recommend_coordinator_action(EpiphanyCoordinatorInput {
-        mind_present: mind.is_some(),
-        crrc_action,
+        mind_present,
         current_work: current_work.clone(),
     });
     Ok(sanitize_for_operator(json!({
@@ -62,8 +49,8 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
         "read": {
             "source": "native",
             "mindStore": store_path,
-            "mindPresent": mind.is_some(),
-            "projectionDigest": mind.as_ref().map(|mind| mind.projection_digest.as_str()),
+            "mindPresent": mind_present,
+            "projectionDigest": projection_digest,
         },
         "roles": {"threadId": thread_id, "source": "native", "roles": roles},
         "currentWork": current_work,
@@ -74,6 +61,7 @@ pub fn native_coordinator_json(runtime_store: &Path, thread_id: &str) -> Result<
 fn empty_current_work() -> EpiphanyCurrentWorkProjection {
     EpiphanyCurrentWorkProjection {
         mind_projection_digest: String::new(),
+        operator_regather_required: false,
         body_modeling: None,
         research: RepoFrontierResearchLifecycle {
             stage: RepoFrontierResearchLifecycleStage::Terminal,

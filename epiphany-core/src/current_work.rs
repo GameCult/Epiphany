@@ -48,6 +48,7 @@ pub enum EpiphanyAgentPassAdmissionRefusalKind {
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyCurrentWorkProjection {
     pub mind_projection_digest: String,
+    pub operator_regather_required: bool,
     pub body_modeling: Option<EpiphanyBodyModelingCurrentWorkProjection>,
     pub research: crate::RepoFrontierResearchLifecycle,
     pub frontier_planning: crate::RepoFrontierPlanningLifecycle,
@@ -519,8 +520,13 @@ pub fn project_current_work(store_path: impl AsRef<Path>) -> Result<EpiphanyCurr
         } else {
             (Vec::new(), None)
         };
+    let operator_regather_required = mind
+        .reorientation_decisions
+        .last()
+        .is_some_and(|decision| decision.mode == "regather");
     Ok(EpiphanyCurrentWorkProjection {
         mind_projection_digest: mind.projection_digest,
+        operator_regather_required,
         body_modeling,
         research: crate::runtime_spine::repo_frontier_research_lifecycle(&cache)?,
         frontier_planning: crate::runtime_spine::repo_frontier_planning_lifecycle(&cache)?,

@@ -1,6 +1,6 @@
 use crate::{
     EpiphanyAgentPassContinuationAction, EpiphanyCoordinatorAction, EpiphanyCoordinatorDecision,
-    EpiphanyCoordinatorInput, EpiphanyCrrcAction, RepoFrontierPlanningLifecycleStage,
+    EpiphanyCoordinatorInput, RepoFrontierPlanningLifecycleStage,
     RepoFrontierResearchContinuationAction,
 };
 
@@ -24,7 +24,7 @@ pub fn recommend_coordinator_action(
         );
     }
 
-    if input.crrc_action == EpiphanyCrrcAction::RegatherManually {
+    if input.current_work.operator_regather_required {
         return decision(
             EpiphanyCoordinatorAction::RegatherManually,
             "The accepted continuity decision requires explicit operator regather.",

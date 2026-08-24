@@ -1,4 +1,3 @@
-use super::EpiphanyCrrcAction;
 use crate::EpiphanyCurrentWorkProjection;
 use serde::{Deserialize, Serialize};
 
@@ -46,7 +45,6 @@ pub enum EpiphanyCoordinatorAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyCoordinatorInput {
     pub mind_present: bool,
-    pub crrc_action: EpiphanyCrrcAction,
     pub current_work: EpiphanyCurrentWorkProjection,
 }
 
