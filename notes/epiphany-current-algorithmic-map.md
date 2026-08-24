@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `3b991e40` on `codex/epiphany-shakedown-live`
-Current pass: model-runtime diagnostic wrappers collapsed;
+Latest committed implementation cut: `24023265` on `codex/epiphany-shakedown-live`
+Current pass: duplicate live Hands receipt rereads deleted;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -1076,6 +1076,15 @@ byte-identically. Unrelated document commits do not participate. Timestamp
 ordering, coordinator notes, whole-store snapshots, and generic archived status
 do not own terminality.
 
+Exact `dbb00c2b` finishes the model-session audit without deleting a real phase
+boundary. A model session can have terminal jobs between tool rounds, so
+binding-derived job terminality cannot say that the session has been explicitly
+closed. The live active/completed latch owns that decision. Retention later
+deletes the bindings and exact tool/model documents; the private archived
+session therefore owns the retired identity set and deletion-chain digest that
+prevents resurrection. Six echo-only fields leave the in-memory model-turn
+summary, and the one-field closure options wrapper is gone: 38 net lines.
+
 Exact `a46725a1` reduces the generic runtime job to the only transition it
 actually performs. A job is inserted `Queued` and terminalizes as `Completed`
 or `Failed`; no writer ever produced `Running`, `WaitingForReview`, or
@@ -1118,6 +1127,15 @@ owns historical request kind/ID and typed terminal classification after the
 live launch is deleted. Archived attempts retain the structured role result
 and decision context—not an ID/digest tombstone—and preserve typed failure
 cargo when the terminal process status is failure.
+
+Verification receives its complete Hands consequence chain in the sealed typed
+projection: route, authority, intent, review, patch, command, and commit. Exact
+`24023265` deletes the second input path that exposed a governed tool for live
+runtime-store rereads of the same three receipts. The MCP schema/dispatch,
+prompt mandate, three public readers and exports, source executor store
+argument, stale Substrate Gate allowance, and advertisement assertion are gone.
+Tool observations remain for facts genuinely outside the sealed basis. The
+durable receipt chain and atomic commit-to-Verification admission are unchanged.
 
 The heartbeat scheduler does not exist. Resident Self directly selects the
 oldest pending pressure when no grant, prepared launch, or active lease exists.

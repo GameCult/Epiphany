@@ -860,8 +860,19 @@ Cut in this order:
    prevents typed failures from claiming successful process fulfillment, and
    failed archives retain the full typed failure. Runtime/Mind advance to
    v45/v11 with no compatibility reader. The cut removes 361 maintained lines
-   net. Next audit whether live plus archived model-session aggregates are an
-   irreducible lifecycle pair or another derived grouping preserved by inertia.
+   net.
+54. **Model-session retirement is retained but stripped at `dbb00c2b`:** the
+   live session latch owns explicit closure between tool rounds; the private
+   archive owns retired identity collision refusal after bindings are deleted.
+   Six model-turn display echoes and the one-field closure wrapper are gone:
+   38 net lines. No registry or replacement aggregate is added.
+55. **Verification has one exact Hands input at `24023265`:** its sealed typed
+   projection already carries the complete consequence chain. The live
+   `read_hands_receipt` tool, three runtime readers, exports, tool/prompt/gate
+   cargo, duplicate source-store argument, and advertisement assertion are
+   deleted: 78 net lines. The consequence receipts and atomic Hands-to-
+   Verification admission remain. Next map the missing production Hands
+   actuator as an ABI boundary and demote only speculative public mouths.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

@@ -2,10 +2,10 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `2c3335dc`
+Latest committed Epiphany source cut: `24023265`
 Current connector source: `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566`
-Current pass: source subtraction continues after deleting the generic runtime
-job-result family; completed model-session retention is next; Ox17 and Atlas
+Current pass: source subtraction continues after deleting duplicate live Hands
+receipt rereads; the Hands actuator ABI boundary is next; Ox17 and Atlas
 Gate 1 remain paused
 
 ## Orientation
@@ -211,6 +211,29 @@ cut removes 361 maintained lines net. Verification generated 6.349 GiB across
 7,376 files; cleanup restored only the exact 1,776,640-byte authenticated state
 inspector at SHA-256
 `DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
+
+Exact `dbb00c2b` removes six echo-only fields from the in-memory model-turn
+summary and deletes the one-field session-closure options wrapper: 38 net
+lines. The completed session audit retains the live and archived documents for
+different reasons. The active/completed session latch is the explicit boundary
+that forbids new model/tool work after a pass with otherwise-terminal jobs is
+closed. The private archive retains retired session, job, model-request, and
+tool-intent identities plus the exact deletion-chain digest after their live
+bindings are deleted, so those identities cannot resurrect. Neither document
+duplicates a decision or transcript.
+
+Exact `24023265` deletes Verification's live Hands-receipt reread path. The
+sealed Verification projection already contains the full intent, review,
+authority, patch, command, and commit records. The extra MCP tool reopened the
+mutable runtime store for decision-bearing input already fixed in the basis.
+Its tool schema, prompt mandate, dispatcher, source-store argument, three public
+read wrappers and exports, stale Substrate Gate allowlist entry, and one
+advertisement assertion are gone: 78 net lines. The consequence documents,
+writers, and atomic commit-to-Verification admission remain. Tool runtime passes
+8/8, OpenAI runtime 21/21, the release-owned tool daemon compiles, and the full
+keyed lifecycle proof still commits concurrent Persona/Hands consequences and
+creates exact Verification work. Focused verification generated 4.909 GiB over
+7,687 files; cleanup restored only the authenticated 1,776,640-byte state tool.
 
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
@@ -1301,18 +1324,18 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`2c3335dc` by mapping completed model-session retention end to end: the live
-session latch, binding-derived membership, terminal receipt/failure reachability,
-tool-family deletion, the private archived-session resurrection fence, and each
-identity-collision reader. Decide whether `EpiphanyRuntimeSession` plus
-`EpiphanyArchivedRuntimeSession` are one necessary lifecycle pair or a
-redundant aggregate that can collapse into binding-derived state and one
-minimal retirement authority. Do not replace them with a registry, retention
-head, metadata map, compatibility reader, or summary DTO. The remaining
-Connector publication/Yggdrasil caller-admission work stays queued behind
-source stabilization. Preserve keyed Mind, direct Body-to-Modeling flow,
-consequence receipts, and the complete Model Atlas vertical slice; no live
-inter-swarm collaboration has run.
+`24023265` by mapping the remaining Hands consequence surface as an ABI
+boundary: the coordinator's truthful `awaitingHandsExecutor` stop, exact
+intent/review/grant, receipt constructors and writers, atomic commit-to-
+Verification admission, sealed Verification projection, and the absent
+production actuator. Preserve the consequence contract; do not fabricate a
+daemon during the audit or keep speculative public mouths merely because a
+future actuator may exist. Delete or demote only surfaces that no live or
+explicitly adopted actuator contract requires, then resume the single-caller
+runtime-spine/status/retention audit. Connector publication and Yggdrasil
+caller admission remain queued behind source stabilization. Preserve keyed
+Mind, direct Body-to-Modeling flow, and the complete Model Atlas vertical slice;
+no live inter-swarm collaboration has run.
 
 Yggdrasil previously exposed 96 GiB of dead native Cargo targets after
 interrupted full-workspace builds; exact cleanup returned the builder target
