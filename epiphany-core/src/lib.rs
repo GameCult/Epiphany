@@ -270,7 +270,6 @@ pub use runtime_spine::runtime_requested_public_source_refs_for_worker;
 pub use runtime_spine::runtime_role_worker_result;
 pub use runtime_spine::runtime_spine_cache;
 pub(crate) use runtime_spine::runtime_typed_request_attempt_exists;
-pub(crate) use runtime_spine::runtime_typed_request_fulfillment;
 pub use runtime_spine::runtime_worker_launch_request;
 pub use runtime_spine::runtime_worker_process_claim;
 pub use runtime_spine::runtime_worker_process_claims;

@@ -3391,6 +3391,16 @@ pub fn put_runtime_role_worker_result(
     result: &EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<()> {
     let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    put_runtime_role_worker_result_from_cache(store_path, &cache, result)
+}
+
+fn put_runtime_role_worker_result_from_cache(
+    store_path: &Path,
+    cache: &CultCache,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<()> {
     validate_non_empty(&result.job_id, "role worker result job id")?;
     validate_non_empty(&result.result_id, "role worker result id")?;
     validate_non_empty(&result.role_id, "role worker result role id")?;
@@ -3398,9 +3408,7 @@ pub fn put_runtime_role_worker_result(
         &result.decision_context_id,
         "role worker result decision context id",
     )?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_worker_decision_context(&cache, &result.decision_context_id, &result.job_id)?;
+    require_worker_decision_context(cache, &result.decision_context_id, &result.job_id)?;
     let worker_launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
         .ok_or_else(|| anyhow!("role worker result requires its immutable worker launch"))?;
@@ -4096,15 +4104,13 @@ pub(crate) fn validate_proposal_modeling_worker_admission(
     Ok(())
 }
 
-pub(crate) fn runtime_typed_request_fulfillment(
-    store_path: impl AsRef<Path>,
+pub(crate) fn runtime_typed_request_fulfillment_from_cache(
+    store_path: &Path,
+    cache: &CultCache,
     request: RuntimeTypedRequestRef<'_>,
 ) -> Result<Option<RuntimeTypedFulfillmentEvidence>> {
-    let store_path = store_path.as_ref();
     let request_id = request.request_id();
     validate_non_empty(request_id, "typed fulfillment request id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
     let admission_refusals = cache
         .get_all::<crate::EpiphanyAgentPassAdmissionRefusal>()?
         .into_iter()
@@ -4206,7 +4212,7 @@ pub(crate) fn runtime_typed_request_fulfillment(
     }
     // This is the runtime admission owner. Replaying an already persisted
     // immutable result performs the same full validation without writing.
-    put_runtime_role_worker_result(store_path, result)?;
+    put_runtime_role_worker_result_from_cache(store_path, cache, result)?;
     match request {
         RuntimeTypedRequestRef::ProposalModeling(_) => {
             validate_proposal_modeling_worker_fulfillment(&cache, result)?;
@@ -4997,7 +5003,7 @@ pub fn commit_repo_frontier_plan_mind_request(
         ));
     }
     let result = &results[0];
-    put_runtime_role_worker_result(runtime_store, result)?;
+    put_runtime_role_worker_result_from_cache(runtime_store, &cache, result)?;
     let source_launch = role_launch_document_for_job(&cache, &result.job_id)?;
     let planning_request_id = source_launch
         .frontier_planning_context
@@ -7894,9 +7900,10 @@ fn archive_runtime_worker_attempt(
             _ => unreachable!("typed request kind was selected above"),
         };
         let evidence =
-            runtime_typed_request_fulfillment(store_path, request_ref)?.ok_or_else(|| {
-                anyhow!("fulfilled worker attempt archive lost authenticated fulfillment")
-            })?;
+            runtime_typed_request_fulfillment_from_cache(store_path, &cache, request_ref)?
+                .ok_or_else(|| {
+                    anyhow!("fulfilled worker attempt archive lost authenticated fulfillment")
+                })?;
         if evidence.job_id != job_id
             || claim.terminal_authority_id.as_deref() != Some(evidence.result_id.as_str())
         {

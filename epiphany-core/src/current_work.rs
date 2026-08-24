@@ -1751,8 +1751,9 @@ pub fn accept_frontier_research_result(
         .ok_or_else(|| anyhow!("frontier Research acceptance lost its launch"))?;
     let request = crate::runtime_spine::frontier_research_request_for_launch(&cache, &launch)?
         .ok_or_else(|| anyhow!("frontier Research acceptance lost its exact request"))?;
-    let fulfillment = crate::runtime_typed_request_fulfillment(
+    let fulfillment = crate::runtime_spine::runtime_typed_request_fulfillment_from_cache(
         store_path,
+        &cache,
         crate::RuntimeTypedRequestRef::FrontierResearch(&request.request_id),
     )?
     .ok_or_else(|| anyhow!("frontier Research result is not exact typed fulfillment"))?;
@@ -1955,8 +1956,9 @@ pub fn accept_frontier_verification_result(
         .ok_or_else(|| anyhow!("frontier Verification acceptance lost its launch"))?;
     let request = crate::runtime_spine::frontier_verification_request_for_launch(&cache, &launch)?
         .ok_or_else(|| anyhow!("frontier Verification acceptance lost its exact request"))?;
-    let fulfillment = crate::runtime_typed_request_fulfillment(
+    let fulfillment = crate::runtime_spine::runtime_typed_request_fulfillment_from_cache(
         store_path,
+        &cache,
         crate::RuntimeTypedRequestRef::FrontierVerification(&request.request_id),
     )?
     .ok_or_else(|| anyhow!("frontier Verification result is not exact typed fulfillment"))?;
@@ -2261,8 +2263,9 @@ pub fn accept_proposal_modeling_result(
     if !result.role_id.eq_ignore_ascii_case("modeling") || role_launch.family_context_count() != 1 {
         return Err(anyhow!("proposal Modeling result crossed family authority"));
     }
-    let evidence = crate::runtime_typed_request_fulfillment(
+    let evidence = crate::runtime_spine::runtime_typed_request_fulfillment_from_cache(
         store_path,
+        &cache,
         crate::RuntimeTypedRequestRef::ProposalModeling(request_id),
     )?
     .ok_or_else(|| anyhow!("proposal Modeling result is not exact typed fulfillment"))?;

@@ -1215,8 +1215,16 @@ pub fn verify_resident_self_grant_fulfillment(
     let Some(request) = request else {
         return Ok(ResidentSelfGrantFulfillment::Fulfilled);
     };
+    let mut runtime = crate::runtime_spine_cache(runtime_store)?;
+    runtime.pull_all_backing_stores()?;
     Ok(
-        if crate::runtime_typed_request_fulfillment(runtime_store, request)?.is_some() {
+        if crate::runtime_spine::runtime_typed_request_fulfillment_from_cache(
+            runtime_store,
+            &runtime,
+            request,
+        )?
+        .is_some()
+        {
             ResidentSelfGrantFulfillment::Fulfilled
         } else {
             ResidentSelfGrantFulfillment::Pending
