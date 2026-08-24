@@ -232,14 +232,19 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    session options wrapper, duplicated prose/timestamps, four dead session
    states, and the dead snapshot-append helper are gone; 62 maintained lines are
    removed net.
-41. Next: map every `EpiphanyRuntimeJob` field and transition. Determine whether
-   role, session membership, timestamps, and mutable status are already owned by
-   sealed worker launches, model bindings, process claims, terminal results, and
-   archived attempts. Preserve only lifecycle state that actually blocks an
-   invalid consequence.
-42. Continue the public runtime-spine and test-liability audit by live owner
+41. Done: exact `a46725a1` removes `EpiphanyRuntimeJob` creation/update clocks
+   and the unwritten Running, WaitingForReview, and Cancelled states. Jobs are
+   now only Queued/Completed/Failed admission latches. Frontier Research derives
+   authority from the exact attempt set and refuses multiple live or successful
+   authorities instead of choosing the newest timestamp. Runtime is v41; 67
+   maintained lines are removed net.
+42. Next: audit the remaining job `role`/`session_id` joins and generic terminal
+   job-result cargo against sealed worker launches, model bindings, structured
+   outcomes, typed failures, process claims, and archives. Preserve only facts
+   that prevent an invalid consequence.
+43. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.
-42. Run focused tests after each cut. Only after source subtraction stabilizes
+44. Run focused tests after each cut. Only after source subtraction stabilizes
    should Idunn's build scratch contract be reconsidered.

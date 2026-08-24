@@ -1076,6 +1076,17 @@ byte-identically. Unrelated document commits do not participate. Timestamp
 ordering, coordinator notes, whole-store snapshots, and generic archived status
 do not own terminality.
 
+Exact `a46725a1` reduces the generic runtime job to the only transition it
+actually performs. A job is inserted `Queued` and terminalizes as `Completed`
+or `Failed`; no writer ever produced `Running`, `WaitingForReview`, or
+`Cancelled`, so those states and both creation/update clocks are deleted.
+Frontier Research no longer sorts attempts by creation time. It evaluates the
+exact set: more than one live or successful authority refuses, one live attempt
+waits, one successful attempt becomes reviewable, and terminal failures require
+their exact job result before retry. Runtime writable state is v41. The next
+audit boundary is the remaining job role/session join and generic terminal-result
+cargo, not another lifecycle layer.
+
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt
 owns historical request kind/ID and typed terminal classification after the

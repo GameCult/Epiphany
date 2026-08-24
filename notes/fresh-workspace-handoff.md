@@ -141,6 +141,17 @@ created 6.3 GiB/7,017 Cargo files; cleanup restored exactly the 1,776,640-byte
 state inspector at SHA-256
 `DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
 
+Exact `a46725a1` removes timestamp authority from generic runtime jobs. Jobs now
+carry only identity, session join, role, and a Queued/Completed/Failed admission
+latch; the unwritten Running, WaitingForReview, and Cancelled states plus both
+creation/update clocks are gone. Frontier Research derives the exact attempt
+set and refuses multiple live or successful authorities instead of selecting a
+latest creation time. Runtime advances to v41. Focused Core, epoch-refusal,
+model-failure, Persona replay, OpenAI runtime, release coordinator, and release
+model-runtime checks pass. The cut removes 67 maintained lines net. Verification
+generated 3.2 GiB across 4,498 files; cleanup restored only the authenticated
+1,776,640-byte state inspector.
+
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
 perform inference. `epiphany-openai-runtime` now owns only exact native-request
@@ -1226,13 +1237,13 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`cabdd6c3`: map every reader, writer, and transition of `EpiphanyRuntimeJob`.
-Determine whether role, session membership, timestamps, and mutable status
-protect an invariant not already owned by sealed worker launches, model
-bindings, process claims, terminal results, decision contexts, and archived
-attempts. Delete mirrors and collapse transitions to the smallest earned
-physiology; do not replace them with a registry, adapter, compatibility reader,
-or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
+`a46725a1`: map every producer and consumer of `EpiphanyRuntimeJob.role` and
+`session_id` plus generic terminal job-result role/session/summary cargo against
+sealed worker launches, model bindings, structured role results, typed pass
+failures, process claims, and archived attempts. Delete mirrors whose exact
+owner already exists; preserve only the minimal join or terminal latch that
+prevents an invalid consequence. Do not replace them with a registry, adapter,
+compatibility reader, or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
 Ghostlight adoption remain queued behind source stabilization. Preserve keyed
 Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
 Model Atlas vertical slice; no live inter-swarm collaboration has run.

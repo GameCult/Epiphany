@@ -821,6 +821,13 @@ Cut in this order:
    one-field open options and whole-snapshot append helper are deleted. The next
    subtraction target is the generic runtime job aggregate, not a lifecycle
    registry.
+49. **Runtime jobs carry lifecycle, not chronology, at `a46725a1`:** every
+   production job is inserted queued and terminalizes completed or failed.
+   Unwritten running/review/cancelled states and creation/update clocks are
+   deleted. Research derives its exact attempt set, refuses multiple live or
+   successful authorities, and never selects work by timestamp order. Runtime
+   is v41; the cut removes 67 maintained lines net. The remaining audit target
+   is duplicated role/session identity and generic terminal-result cargo.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,
