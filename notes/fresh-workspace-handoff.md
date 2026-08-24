@@ -2,10 +2,10 @@
 
 Updated: 2026-08-25
 Branch: `codex/epiphany-shakedown-live`
-Latest committed Epiphany source cut: `7a125d78`
+Latest committed Epiphany source cut: `7374be5e`
 Current connector source: `6dc80f6d266db4d82566d2434adcc55a48e8ecad`
-Current pass: vendored Codex is physically absent; resume the semantic-owner
-audit of `runtime_spine.rs`; Ox17 and Atlas Gate 1 remain paused
+Current pass: current work projects from one exact Mind snapshot; continue the
+semantic-owner audit of runtime path-based reloads; Ox17 and Atlas Gate 1 remain paused
 
 ## Orientation
 
@@ -46,9 +46,8 @@ they do not authorize the next capstone or Gate 1.
 
 ## What just landed
 
-`notes/standalone-codex-transport-migration.md` is the authority and deletion
-map for removing Codex transport entirely from Epiphany's process/build body.
-Independent repository `GameCult/CodexConnector` now owns one Cargo package
+Independent repository `GameCult/CodexConnector` owns the Codex credential and
+transport authority as one Cargo package
 with one public daemon binary and no linked Codex crates. Exact
 `54d8bc2525b7e7fa1b9dd26b95871247ff4c7566` admits distinct authenticated
 callers, preserves caller-native and exact provider-request digests, passes
@@ -2087,3 +2086,23 @@ Read, in order:
 
 Then run the shared-target `epiphany-state.exe status`. Persisted next action is
 orientation, not automatic authority to resume a live Gate.
+
+Exact `7374be5e` makes current-work projection honest about its input. One
+pulled CultCache snapshot now feeds Mind assembly, keyed RepoModel assembly,
+Research and Planning lifecycle, Hands readiness, Modeling launches,
+reasoning-basis assembly, and Reorientation. The former path-based helpers
+could reopen the same `.cc` file up to six times while claiming to emit one
+state projection; three wrappers and numerous repeated reload sequences are
+gone, and Research plus Verification admission reuse their already authenticated cache. The cut adds
+no schema, dependency, target, or process and removes one maintained line net.
+Core check, current-work 3/3, reasoning-context 8/8, Reorientation 1/1, Mind
+determinism 1/1, and RepoModel determinism 1/1 pass. The focused build produced
+2.0 GiB across 2,867 files; cleanup restored only the authenticated
+1,776,640-byte state inspector.
+
+The Connector architecture needs no second daemon or generic provider layer.
+The independent daemon owns Codex credentials, caller admission, provider
+transport, and replay. Its lean typed client is the ABI stub shared by
+Epiphany and Ghostlight; removing that stub would merely duplicate encryption
+and framing in both consumers. Consumers continue to own their exact native
+and provider requests, prompts, tools, decisions, and state admission.

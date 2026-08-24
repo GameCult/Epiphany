@@ -668,9 +668,7 @@ model and Persona entrypoints. Persona keeps its three-stage family executor;
 the service owns its concrete runner. Workers have one governed tool-capable
 route, not a tool route plus a parallel no-tools opinion.
 
-The target boundary is the independent daemon mapped in
-`notes/standalone-codex-transport-migration.md`. Independent
-`GameCult/CodexConnector` exact
+The target boundary is independent `GameCult/CodexConnector`; exact
 `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns one typed multi-caller
 transport package and one public daemon binary without linking a Codex crate.
 With no features the library exposes only the typed provider/result contract.
@@ -718,7 +716,7 @@ refuse the old writable shape.
 | `reasoning_context.rs` Mind commit owner | invariant-owned strong reads and complete typed writes | atomic batch CAS plus `EpiphanyMindCommitReceipt` | Disjoint identities merge; same-identity or changed-strong-read conflicts refuse without partial mutation. |
 | runtime bootstrap | immutable runtime identity envelope | exact identity strong read plus keyed session/job/launch writes | Worker launch replays the original identity and existing session envelopes byte-for-byte; it cannot refresh a singleton timestamp or capability mirror and thereby serialize unrelated work. Native runtime kind and supported document types are derived for CultNet publication. |
 | concrete family admission owners | sealed decision context, exact family request/result chain, affected semantic documents | one family-specific `MindMutation` | The model cannot choose which stale state is safe to ignore. |
-| `current_work.rs` | keyed Mind view and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Events, timestamps, role lanes, and thread provenance cannot create or suppress work. |
+| `current_work.rs` | one pulled CultCache snapshot containing keyed Mind and exact runtime request/job/result/decision families | pure family scheduling and continuation projections | Mind, RepoModel, Research, Planning, Hands readiness, and launch projections derive from the same envelope set. Events, timestamps, role lanes, thread provenance, and later live reads cannot create or suppress work. |
 | coordinator policy/status | keyed Mind presence, exact current work, and the accepted continuity decision | one action/reason pair plus operator-readable role lanes | Coordinator presence is derived; no mutable coordinator head, pressure tableau, or duplicate policy wrapper exists. |
 | runtime worker attempt owner | sealed typed launch, exact process claim, semantic result or typed failure, job result, archival evidence | one terminal attempt authority | The launch document solely owns live family identity. The result cannot repeat routing identity; after live deletion the archive owns exact request kind/ID beside the preserved structured decision. Scheduling, process liveness, and semantic admission remain distinct authorities. |
 | model-provider boundary | sealed native model request plus explicit provider configuration | one closed durable provider-request variant and transport result | The consumer adapter owns provider lowering. OpenRouter remains a release-owned direct boundary. For Codex, the persisted request is the exact `CodexProviderRequest` crossing the lean Connector client ABI; the release edge adds only authenticated invocation physiology. The daemon owns caller admission, credential refresh, exact transport, and durable replay. No transport layer can author a second request truth or admit Mind state. |

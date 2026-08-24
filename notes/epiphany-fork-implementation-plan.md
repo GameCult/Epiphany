@@ -240,10 +240,8 @@ The immediate comparison is now explicit. The former release-edge
 behavior, not as cleanup chores. A future core split must expose an existing
 semantic owner rather than invent a package taxonomy.
 
-The provider decision is a service extraction specified by
-`notes/standalone-codex-transport-migration.md`. Independent
-`GameCult/CodexConnector` exact
-`6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns the v2 multi-caller contract,
+The provider decision is the independent `GameCult/CodexConnector` service;
+exact `6dc80f6d266db4d82566d2434adcc55a48e8ecad` owns the v2 multi-caller contract,
 exact native/provider digest binding, typed tool and terminal receipts, the
 pinned official Codex credential child, raw Responses transport, and durable
 keyed replay. No features yields only the typed contract; default `client` adds
@@ -365,7 +363,7 @@ Cut in this order:
    projection assembled from exact keyed Mind document versions. The final
    model request must render that projection; citing keyed sources while
    rendering the old thread snapshot is explicitly forbidden.
-2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9`:** one pure typed projection now derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, and Hands readiness from keyed Mind/runtime receipts.
+2. **Body admission landed at `2eb95df6`; current-work projection landed at `e42788c9` and now consumes one exact snapshot at `7374be5e`:** one pure typed projection derives Body Modeling, Eyes continuation, proposal Modeling, frontier planning, and Hands readiness from one pulled keyed Mind/runtime cache.
    Modeling must derive from the current Body/RepoModel obligation; Eyes only
    from explicit external-evidence obligations. Body-generation Modeling
    identity, typed Body-to-Mind admission, sealed reasoning, and atomic decision
