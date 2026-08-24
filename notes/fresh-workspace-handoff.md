@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `83611f9b`
-Current pass: Eyes acceptance collapsed into exact Mind commits; Ox17
+Latest committed implementation cut: `fdefb889`
+Current pass: test-only runtime writers deleted; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `83611f9b` is the current
+production symlink body and is inactive. Exact `fdefb889` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,19 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `fdefb889` deletes public `create_runtime_session` and
+`create_runtime_job` plus their exports. Every caller was a fixture. Production
+session/job creation already belongs to family launch CAS, exact model-execution
+opening, and coordinator opening. OpenAI fixtures now use the real family
+preparation owner; native-tool tests seed only their prerequisite documents
+inside the test module rather than buying arbitrary production writers. Tool
+runtime passes 4/4, model runtime passes 8/8, the changed OpenAI request proof
+passes 1/1, and all affected production targets check. The cut removes 96 net
+maintained lines; `runtime_spine.rs` is 9,347 physical lines with 50 public
+functions and 25 public structs. Verification generated 11.56 GiB across
+17,633 files; cleanup restored the shared target to the single 1.78 MB state
+inspector. No schema or Atlas path changed.
 
 Exact `83611f9b` makes the atomic `Eyes.frontier_research` Mind commit the sole
 Research acceptance authority. The never-persisted source-lookup DTO and the
@@ -358,11 +371,11 @@ coordinator 5/5 passes. The cut removes 49 net maintained lines without a
 schema, target, test, or Atlas change. Live inter-swarm collaboration remains
 unproven.
 
-Exact `cd2177e8` deletes the duplicate public `ensure_runtime_session` writer.
+Exact `cd2177e8` deleted the duplicate public `ensure_runtime_session` writer.
 Only two model-runtime test fixtures called it, and an active ID collision made
 it return the existing session without comparing objective, creation time, or
-coordinator note. The fixtures now use strict `create_runtime_session`, which
-refuses identity collisions. Core checks, model-produced completion, and the
+coordinator note. Exact `fdefb889` later deletes the remaining generic session
+and job writers after proving they too had only fixture callers. Core checks, model-produced completion, and the
 packaged model runtime 11/11 pass. The cut removes 37 net maintained lines and
 leaves `runtime_spine.rs` at 9,730 lines with 53 public functions. Runtime stays
 at v21. Model Atlas is untouched and live inter-swarm collaboration remains
@@ -1069,7 +1082,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `83611f9b`; do not compile or deploy through Idunn
+liability audit from exact `fdefb889`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider

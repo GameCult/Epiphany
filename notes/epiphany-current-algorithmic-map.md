@@ -432,13 +432,12 @@ decision-context identity. Sessions retain objective and coordinator note;
 jobs retain exact session, role, status, and time identity. Runtime writable
 state is v21 and the closed session/job catalog schemas are v1.
 
-Standalone diagnostic session creation has one strict owner. Exact `cd2177e8`
-deletes `ensure_runtime_session`, whose only consumers were test fixtures and
-whose active-ID path returned a pre-existing session without comparing its
-objective, creation time, or coordinator note. Those fixtures now use
-`create_runtime_session`; an identity collision refuses instead of being
-treated as a replay. Runtime schema remains v21 because the serialized shape is
-unchanged.
+Runtime physiology is created only by its real owners. Exact `cd2177e8` first
+deleted `ensure_runtime_session`, whose only consumers were fixtures and whose
+active-ID path returned a pre-existing session without comparing its payload.
+Exact `fdefb889` later deletes the remaining generic session/job writers after
+proving every caller was also a fixture. Family launch CAS, model-execution
+opening, and coordinator opening now own creation. Runtime schema is unchanged.
 
 Current typed work has one assembler. Exact `0a97eef8` deletes the separate
 Body-only and unresolved-Body projectors, which reopened Body, RepoModel, and
