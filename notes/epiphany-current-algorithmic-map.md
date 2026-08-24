@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `a4356d1f` on `codex/epiphany-shakedown-live`
-Current pass: runtime child epoch echoes collapsed;
+Latest committed implementation cut: `3b991e40` on `codex/epiphany-shakedown-live`
+Current pass: model-runtime diagnostic wrappers collapsed;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -174,6 +174,16 @@ library, full keyed lifecycle, reorientation, failure audit, transcript-free
 binding audit, provider mapping, coordinator, swarm, and model-runtime targets
 pass. The cut removes 122 net maintained lines and leaves Atlas plus external
 crossings untouched.
+
+The packaged model runtime has one execution authority. Exact `e60b924f`
+deletes the callerless `preflight` JSON self-certificate and registered-type
+catalog accessor; real store epoch admission and Idunn package witnesses own
+compatibility and provenance. Exact `3b991e40` deletes the uncalled standalone
+`model-turn`, `tool-followup`, and `tool-followup-turn` commands plus their
+parser/DTO/test surfaces. `run-worker` remains the sole provider execution path
+and retains internal tool continuation; `list-decisions` and `audit-decision`
+retain transcript-free operator inspection. The two cuts remove 532 net
+maintained lines. The remaining binary suite passes 8/8. Atlas is untouched.
 
 CultMesh contains no JSON-derived operator snapshot, coordinator receipt,
 Hands gate, role-review event, unauthenticated Odin/Eve provider row, or daemon
@@ -1117,7 +1127,7 @@ Accepted through the local `5b799b12` source boundary:
 
 Open before Model Atlas Gate 1 resumes:
 
-1. let Idunn compile, test, and seal exact build-affecting source `a4356d1f`;
+1. let Idunn compile, test, and seal exact build-affecting source `3b991e40`;
 2. use that exact package in private fresh-store Ox17; stop after three
    provider failures total, and prove direct Body Modeling, typed
    refusal-to-retry if exercised, Hands through Verification, exact context

@@ -224,7 +224,7 @@ Delete or demote:
 
 Keep the five-day shakedown, Ox17 deployment, and Model Atlas operational Gate
 1 paused. Continue the source-subtraction and test-authority audit from exact
-`a4356d1f`. The current sequence has deleted the semantic-memory/workspace-coverage
+`3b991e40`. The current sequence has deleted the semantic-memory/workspace-coverage
 projection system, its local daemon supervisor, and the surviving generic
 RepoModel profile, impossible lifecycle, producerless receipt/summary, and
 decorative scoring axes. Modeling consumes typed Body and keyed RepoModel state
@@ -272,6 +272,15 @@ results, coordinator receipts, death recovery, and archives retain their exact
 causal and lifecycle payloads. Runtime advances to v34; old-store refusal and
 all affected consequence paths remain proven. No compatibility layer replaces
 the deleted fields. Atlas and external crossing contracts are unchanged.
+
+Exact `e60b924f` deletes the model runtime's callerless preflight JSON
+self-certificate and registered-type catalog accessor. Exact `3b991e40`
+collapses the packaged model runtime onto admitted `run-worker` plus
+`list-decisions` and `audit-decision`. The three uncalled direct transport/tool
+CLI paths, their parser/option types, and their self-contained ingress tests are
+gone. Provider execution and tool continuation now have one production entry
+path; transcript-free decision inspection remains. The two cuts remove 532 net
+maintained lines without changing Mind/runtime schemas or Atlas.
 
 Resident Self now solely imports authenticated Bifrost deliveries; exact
 `3dda58a5` deletes the standalone Persona feedback ingress and its old Starfire

@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `a4356d1f`
-Current pass: runtime child epoch echoes collapsed; Ox17
+Latest committed implementation cut: `3b991e40`
+Current pass: model-runtime diagnostic wrappers collapsed; Ox17
 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `a4356d1f` is the current
+production symlink body and is inactive. Exact `3b991e40` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,24 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `e60b924f` deletes the callerless model-runtime `preflight` JSON
+self-certificate and its public registered-type catalog accessor. The command
+built a fresh empty schema cache and hashed its type-name list; it did not prove
+the deployed store or package could execute a decision. Actual Mind/runtime
+epoch admission and Idunn's frozen-package witnesses remain the owners.
+
+Exact `3b991e40` then collapses `epiphany-model-runtime` onto its three earned
+commands: admitted `run-worker`, `list-decisions`, and `audit-decision`.
+Standalone `model-turn`, `tool-followup`, and `tool-followup-turn`, their option
+and JSON-ingress families, and three tests that animated only that dead ingress
+are gone. `run-worker` still owns OpenAI/OpenRouter execution, automatic tool
+continuation, typed terminal failure, and decision-context sealing. The
+remaining binary suite passes 8/8 and the exact packaged binary check passes.
+Together the cuts remove 532 net maintained lines and leave the binary source
+at 1,493 lines. Verification generated 9.36 GB across 13,992 files; Cargo
+removed 8.7 GiB and the shared target again contains only the 1.78 MB state
+inspector. Atlas and all inter-swarm contracts remain untouched.
 
 Exact `a4356d1f` keeps runtime identity and swarm binding as the explicit
 writable-root epoch owners, then removes fixed schema-version echoes from
@@ -1036,7 +1054,7 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane is paused. Continue the registered-document and test-
-liability audit from exact `a4356d1f`; do not compile or deploy through Idunn
+liability audit from exact `3b991e40`; do not compile or deploy through Idunn
 yet. Delete an abstraction with tests that merely animate it when it has no
 decision-bearing consumer. Preserve keyed Mind, sealed reasoning, direct Body-
 to-Modeling flow, family admission owners, Persona social state, provider
