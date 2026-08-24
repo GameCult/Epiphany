@@ -62,9 +62,6 @@ pub const REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT: &str =
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v3";
 pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY: &str = "runtime-repository-domain-binding";
-pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION: &str =
-    "epiphany.runtime.repository_domain_binding.v0";
-pub const RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT: &str = "deployment configuration binds one organizational repository name to one exact authenticated repository Body; Self may consume but not relabel it";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_frontier_proposal_modeling_request.v1";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
@@ -115,23 +112,9 @@ pub fn repo_frontier_proposal_payload_sha256(
 )]
 pub struct RuntimeRepositoryDomainBinding {
     #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub binding_id: String,
-    #[cultcache(key = 2)]
     pub repository_full_name: String,
-    #[cultcache(key = 3)]
-    pub runtime_id: String,
-    #[cultcache(key = 4)]
-    pub swarm_id: String,
-    #[cultcache(key = 5)]
-    pub workspace_id: String,
-    #[cultcache(key = 6)]
+    #[cultcache(key = 1)]
     pub body_binding_sha256: String,
-    #[cultcache(key = 7)]
-    pub bound_at: String,
-    #[cultcache(key = 8)]
-    pub contract: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

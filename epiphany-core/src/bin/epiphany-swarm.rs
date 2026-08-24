@@ -10,19 +10,17 @@ use epiphany_core::{
     derive_resident_cognition_readiness, enqueue_resident_self_pressure_idempotent,
     import_bifrost_persona_feedback_deliveries, ingest_resident_self_current_work_pressure,
     issue_resident_self_grant, live_resident_self_typed_request_ids,
-    load_epiphany_cultmesh_swarm_brake,
-    load_resident_self_state, materialize_resident_self_domain_obligations,
-    observe_process_instance, prepare_resident_self_launch,
-    publish_resident_provider_readiness, reap_exited_child_process,
+    load_epiphany_cultmesh_swarm_brake, load_resident_self_state,
+    materialize_resident_self_domain_obligations, observe_process_instance,
+    prepare_resident_self_launch, publish_resident_provider_readiness, reap_exited_child_process,
     recover_dead_runtime_worker_attempts, resident_cognitive_runtime_id,
     resident_prepared_launch_thread_id, resident_self_child_claim,
     resident_self_local_provider_status, retain_completed_runtime_sessions,
-    retain_failed_runtime_worker_attempts,
-    retain_fulfilled_runtime_worker_attempts, retain_resident_self_lifecycles,
-    runtime_worker_process_claims, settle_resident_self_exited_coordinator,
-    settle_resident_self_receipt_free_dead_coordinator, terminate_process_instance,
-    validate_persona_feedback_store_separation, validate_resident_self_coordinator_receipt_binding,
-    validate_resident_self_store_separation,
+    retain_failed_runtime_worker_attempts, retain_fulfilled_runtime_worker_attempts,
+    retain_resident_self_lifecycles, runtime_worker_process_claims,
+    settle_resident_self_exited_coordinator, settle_resident_self_receipt_free_dead_coordinator,
+    terminate_process_instance, validate_persona_feedback_store_separation,
+    validate_resident_self_coordinator_receipt_binding, validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -264,7 +262,6 @@ fn cycle(
         bind_runtime_repository_domain(
             &args.policy.runtime_store,
             &args.feedback_target_repository,
-            &Utc::now().to_rfc3339(),
         )?;
         materialize_resident_self_domain_obligations(
             &args.policy.runtime_store,
@@ -806,5 +803,4 @@ mod brake_tests {
         )?);
         Ok(())
     }
-
 }

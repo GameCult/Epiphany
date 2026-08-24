@@ -3950,11 +3950,7 @@ mod tests {
         let (body_binding, _) =
             crate::load_repository_body_status(std::path::Path::new(&route.body_store_path))?
                 .expect("runtime Body store remains authenticated");
-        crate::bind_runtime_repository_domain(
-            &store,
-            "GameCult/Epiphany",
-            "2026-08-17T00:00:05.100Z",
-        )?;
+        crate::bind_runtime_repository_domain(&store, "GameCult/Epiphany")?;
         let direction_request = crate::commit_admitted_model_direction_consideration_request(
             &store,
             "2026-08-17T00:00:05.200Z",

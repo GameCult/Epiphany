@@ -21,11 +21,10 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_RESEARCH_REQUEST_CONTRACT, REPO_FRONTIER_RESEARCH_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_ROUTE_CONTRACT, REPO_FRONTIER_ROUTE_SCHEMA_VERSION,
     REPO_FRONTIER_WORK_PROPOSAL_CONTRACT, REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION,
-    RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT, RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY,
-    RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION, RepoFrontierHandsAuthority,
-    RepoFrontierModelingRequest, RepoFrontierNextOrgan, RepoFrontierPlanCandidate,
-    RepoFrontierPlanDecision, RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision,
-    RepoFrontierPlanMindRequest, RepoFrontierPlanningFailureReview, RepoFrontierPlanningLifecycle,
+    RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
+    RepoFrontierNextOrgan, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
+    RepoFrontierPlanDecisionReceipt, RepoFrontierPlanMindDecision, RepoFrontierPlanMindRequest,
+    RepoFrontierPlanningFailureReview, RepoFrontierPlanningLifecycle,
     RepoFrontierPlanningLifecycleStage, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingRequest, RepoFrontierResearchRequest, RepoFrontierRoute,
     RepoFrontierVerdictDisposition, RepoFrontierWorkProposal, RuntimeRepositoryDomainBinding,
@@ -70,7 +69,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v30";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v31";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -4996,13 +4995,7 @@ fn validate_autonomous_proposal_origin_request(
         || modeling_request.proposal_payload_sha256 != proposal.payload_sha256
         || modeling_request.runtime_id != request.runtime_id
         || modeling_request.thread_id != request.thread_id
-        || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
-        || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
-        || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
         || domain.repository_full_name != modeling_request.repository
-        || domain.runtime_id != route.runtime_id
-        || domain.swarm_id != route.swarm_id
-        || domain.workspace_id != route.workspace_id
         || domain.body_binding_sha256 != route.body_binding_sha256
         || proposal.title != option.title
         || proposal.body != option.summary
@@ -5066,7 +5059,6 @@ pub(crate) fn validate_repo_frontier_proposal_modeling_request(
 pub fn bind_runtime_repository_domain(
     runtime_store: impl AsRef<Path>,
     repository_full_name: &str,
-    bound_at: &str,
 ) -> Result<RuntimeRepositoryDomainBinding> {
     if !repository_full_name.starts_with("GameCult/")
         || repository_full_name["GameCult/".len()..].trim().is_empty()
@@ -5076,8 +5068,6 @@ pub fn bind_runtime_repository_domain(
             "runtime repository domain requires a canonical GameCult name"
         ));
     }
-    chrono::DateTime::parse_from_rfc3339(bound_at)
-        .map_err(|_| anyhow!("runtime repository domain timestamp must be RFC3339"))?;
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
@@ -5096,22 +5086,13 @@ pub fn bind_runtime_repository_domain(
         return Err(anyhow!("runtime repository domain Body authority mismatch"));
     }
     let binding = RuntimeRepositoryDomainBinding {
-        schema_version: RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION.into(),
-        binding_id: RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY.into(),
         repository_full_name: repository_full_name.into(),
-        runtime_id: route.runtime_id.clone(),
-        swarm_id: route.swarm_id.clone(),
-        workspace_id: route.workspace_id.clone(),
         body_binding_sha256: route.body_binding_sha256.clone(),
-        bound_at: bound_at.into(),
-        contract: RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT.into(),
     };
     if let Some(existing) =
         cache.get::<RuntimeRepositoryDomainBinding>(RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY)?
     {
-        let mut replay = binding;
-        replay.bound_at = existing.bound_at.clone();
-        return if replay == existing {
+        return if binding == existing {
             Ok(existing)
         } else {
             Err(anyhow!("runtime repository domain is immutable"))
@@ -5193,13 +5174,7 @@ pub(crate) fn promote_autonomous_direction_options_for_modeling(
             != route.body_binding_sha256
         || Path::new(workspace).canonicalize()?
             != Path::new(&body_binding.git_top_level).canonicalize()?
-        || domain.schema_version != RUNTIME_REPOSITORY_DOMAIN_BINDING_SCHEMA_VERSION
-        || domain.contract != RUNTIME_REPOSITORY_DOMAIN_BINDING_CONTRACT
-        || domain.binding_id != RUNTIME_REPOSITORY_DOMAIN_BINDING_KEY
         || domain.repository_full_name != repository
-        || domain.runtime_id != route.runtime_id
-        || domain.swarm_id != route.swarm_id
-        || domain.workspace_id != route.workspace_id
         || domain.body_binding_sha256 != route.body_binding_sha256
     {
         return Err(anyhow!(
