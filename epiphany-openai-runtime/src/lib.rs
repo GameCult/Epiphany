@@ -14,9 +14,7 @@ use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineJobResultOptions;
-use epiphany_core::RuntimeSpineSessionClosureOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::close_runtime_session;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::open_runtime_model_execution;
@@ -34,10 +32,6 @@ use epiphany_model_adapter::EpiphanyModelToolDefinition;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
-use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
-use epiphany_openai_codex_spine::EpiphanyOpenRouterTransport;
-use epiphany_openai_codex_spine::auth_manager;
-pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
@@ -58,21 +52,12 @@ pub const DEFAULT_PROVIDER_REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 pub const DEFAULT_MODEL_PROVIDER: &str = "openai-codex";
 pub const OPENROUTER_MODEL_PROVIDER: &str = "openrouter";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EpiphanyProviderProfile {
-    OpenAiCodex,
-    OpenRouter,
-}
-
-impl EpiphanyProviderProfile {
-    fn parse(provider: &str) -> Result<Self> {
-        match provider {
-            "openai-codex" | "openai" => Ok(Self::OpenAiCodex),
-            OPENROUTER_MODEL_PROVIDER => Ok(Self::OpenRouter),
-            _ => Err(anyhow!(
-                "unsupported model runtime provider {provider:?}; current providers: openai-codex, openrouter"
-            )),
-        }
+fn validate_model_provider(provider: &str) -> Result<()> {
+    match provider {
+        "openai-codex" | "openai" | OPENROUTER_MODEL_PROVIDER => Ok(()),
+        _ => Err(anyhow!(
+            "unsupported model runtime provider {provider:?}; current providers: openai-codex, openrouter"
+        )),
     }
 }
 
@@ -110,42 +95,20 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
     pub tool_intent_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyWorkerRuntimeOptions {
-    pub store_path: PathBuf,
-    pub codex_home: PathBuf,
-    pub provider_credential_path: Option<PathBuf>,
-    pub provider: String,
-    pub job_id: String,
-    pub model: String,
-    pub request_timeout: Option<Duration>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpiphanyWorkerRuntimeRunSummary {
-    pub store: String,
-    pub job_id: String,
-    pub binding_id: String,
-    pub role: String,
-    pub request_id: String,
-    pub openai_result_id: String,
-    pub worker_result_id: String,
-    pub verdict: String,
-    pub summary: String,
-    pub next_safe_move: String,
-    pub evidence_refs: Vec<String>,
-    pub artifact_refs: Vec<String>,
-}
-
-async fn run_openai_model_turn_bound(
-    options: EpiphanyOpenAiRuntimeOptions,
-    model_request: EpiphanyModelRequest,
-    request: EpiphanyOpenAiModelRequest,
-) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
+pub fn open_model_turn(
+    provider: &str,
+    options: &EpiphanyOpenAiRuntimeOptions,
+    model_request: &EpiphanyModelRequest,
+) -> Result<EpiphanyOpenAiModelRequest> {
+    validate_model_provider(provider)?;
+    if !provider_matches_request(provider, &model_request.provider) {
+        return Err(anyhow!(
+            "model request provider {:?} does not match selected provider {:?}",
+            model_request.provider,
+            provider
+        ));
+    }
     ensure_openai_runtime_ready(&options)?;
-    let provider = model_request.provider.clone();
-    let profile = EpiphanyProviderProfile::parse(&provider)?;
     open_runtime_model_execution(
         &options.store_path,
         RuntimeSpineSessionOptions {
@@ -160,189 +123,21 @@ async fn run_openai_model_turn_bound(
             role: OPENAI_RUNTIME_ROLE.to_string(),
             created_at: now(),
         },
-        &model_request,
+        model_request,
     )?;
-    let events = match profile {
-        EpiphanyProviderProfile::OpenAiCodex => {
-            let auth_manager = auth_manager(options.codex_home.clone());
-            let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
-            collect_transport_events(transport.collect_model_events(request.clone()), &request)
-                .await
-        }
-        EpiphanyProviderProfile::OpenRouter => {
-            let credential = read_static_provider_credential(
-                options.provider_credential_path.as_deref(),
-                OPENROUTER_MODEL_PROVIDER,
-            )?;
-            let transport = EpiphanyOpenRouterTransport::new(credential, options.request_timeout)?;
-            collect_transport_events(transport.collect_model_events(request.clone()), &request)
-                .await
-        }
-    };
-    record_openai_events(&options.store_path, &options, &request, &provider, &events)
+    Ok(openai_request_from_model_request(model_request))
 }
 
-async fn collect_transport_events<F>(
-    future: F,
-    request: &EpiphanyOpenAiModelRequest,
-) -> Vec<EpiphanyOpenAiStreamEvent>
-where
-    F: std::future::Future<Output = Result<Vec<EpiphanyOpenAiStreamEvent>>>,
-{
-    match future.await {
-        Ok(events) => events,
-        Err(err) => vec![EpiphanyOpenAiStreamEvent {
-            request_id: request.request_id.clone(),
-            sequence: 0,
-            payload: EpiphanyOpenAiStreamPayload::Failed {
-                message: err.to_string(),
-            },
-        }],
-    }
-}
-
-fn read_static_provider_credential(path: Option<&Path>, provider: &str) -> Result<String> {
-    let path = path.ok_or_else(|| {
-        anyhow!("model provider {provider:?} requires an explicit credential file")
-    })?;
-    let raw = std::fs::read_to_string(path).with_context(|| {
-        format!(
-            "failed to read {provider} credential file {}",
-            path.display()
-        )
-    })?;
-    let credential = raw.trim();
-    if credential.is_empty() || raw.trim_matches(['\r', '\n']) != credential {
-        return Err(anyhow!(
-            "model provider {provider:?} credential file is empty or contains surrounding whitespace"
-        ));
-    }
-    Ok(credential.to_string())
-}
-
-pub async fn run_model_turn(
-    provider: &str,
-    options: EpiphanyOpenAiRuntimeOptions,
-    request: EpiphanyModelRequest,
-) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
-    EpiphanyProviderProfile::parse(provider)?;
-    if !provider_matches_request(provider, &request.provider) {
-        return Err(anyhow!(
-            "model request provider {:?} does not match selected provider {:?}",
-            request.provider,
-            provider
-        ));
-    }
-    let provider_request = openai_request_from_model_request(&request);
-    run_openai_model_turn_bound(options, request, provider_request).await
-}
-
-pub async fn run_tool_followup_model_turn(
-    provider: &str,
-    options: EpiphanyOpenAiRuntimeOptions,
-    original_request_id: &str,
-    followup_request_id: &str,
-) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
-    EpiphanyProviderProfile::parse(provider)?;
-    let request = build_tool_followup_model_request(
-        &options.store_path,
-        original_request_id,
-        followup_request_id,
-    )?;
-    run_model_turn(provider, options, request).await
-}
-
-pub async fn run_worker_launch_observed<F>(
-    options: EpiphanyWorkerRuntimeOptions,
-    on_model_request: F,
-) -> Result<EpiphanyWorkerRuntimeRunSummary>
-where
-    F: FnOnce(&str),
-{
-    let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
-    if !epiphany_core::runtime_requested_public_source_refs_for_worker(
-        &options.store_path,
-        &options.job_id,
-    )?
-    .is_empty()
-    {
-        return Err(anyhow!(
-            "worker {:?} has request-owned public sources and must run through the governed automatic tool route",
-            options.job_id
-        ));
-    }
-    let basis = epiphany_core::worker_reasoning_basis(&options.store_path, &launch_request)?;
-    epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
-    let model_request =
-        build_worker_model_request(&launch_request, &options.provider, &options.model, &basis)?;
-    let openai_options = EpiphanyOpenAiRuntimeOptions {
-        store_path: options.store_path.clone(),
-        codex_home: options.codex_home,
-        provider_credential_path: options.provider_credential_path,
-        session_id: worker_model_session_id(&launch_request.job_id),
-        job_id: format!("openai-worker-{}", launch_request.job_id),
-        objective: format!(
-            "Run Epiphany worker {} for {}",
-            launch_request.job_id, launch_request.binding_id
-        ),
-        coordinator_note: "Native worker runtime route; Codex is auth/model transport only."
-            .to_string(),
-        default_model: Some(options.model),
-        request_timeout: options.request_timeout,
-    };
-    on_model_request(&model_request.request_id);
-    let openai_summary = run_model_turn(
-        &options.provider,
-        openai_options.clone(),
-        model_request.clone(),
-    )
-    .await?;
-    let assistant_text =
-        assistant_text_from_model_events(&openai_options.store_path, &model_request.request_id)?;
-    let worker_result = complete_worker_job_from_assistant_text(
-        &openai_options.store_path,
-        &launch_request,
-        &model_request.request_id,
-        &openai_summary,
-        &assistant_text,
-    )?;
-    close_runtime_session(
-        &openai_options.store_path,
-        RuntimeSpineSessionClosureOptions {
-            session_id: openai_options.session_id.clone(),
-            completed_at: now(),
-            summary: format!(
-                "Worker model execution {} reached terminal result {}.",
-                launch_request.job_id, worker_result.result_id
-            ),
-        },
-    )?;
-    Ok(EpiphanyWorkerRuntimeRunSummary {
-        store: openai_options.store_path.display().to_string(),
-        job_id: launch_request.job_id,
-        binding_id: launch_request.binding_id,
-        role: launch_request.role,
-        request_id: model_request.request_id,
-        openai_result_id: openai_summary.result_id,
-        worker_result_id: worker_result.result_id,
-        verdict: worker_result.verdict,
-        summary: worker_result.summary,
-        next_safe_move: worker_result.next_safe_move,
-        evidence_refs: worker_result.evidence_refs,
-        artifact_refs: worker_result.artifact_refs,
-    })
-}
-
-fn record_openai_events(
+pub fn record_model_turn_events(
     store_path: impl AsRef<Path>,
     options: &EpiphanyOpenAiRuntimeOptions,
-    request: &EpiphanyOpenAiModelRequest,
-    provider: &str,
+    request: &EpiphanyModelRequest,
     events: &[EpiphanyOpenAiStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
+    let provider_request = openai_request_from_model_request(request);
     let events = compact_openai_events_for_storage(events);
-    let tool_intents = tool_invocation_intents_from_openai_events(provider, &events);
+    let tool_intents = tool_invocation_intents_from_openai_events(&request.provider, &events);
     for intent in &tool_intents {
         put_runtime_tool_execution_intent(
             store_path,
@@ -357,7 +152,7 @@ fn record_openai_events(
         let mut cache = runtime_spine_cache(store_path)?;
         cache.pull_all_backing_stores()?;
         for event in &events {
-            let model_event = model_event_from_openai_event(provider, event);
+            let model_event = model_event_from_openai_event(&request.provider, event);
             cache.put(
                 model_event_key(&model_event.request_id, model_event.sequence),
                 &model_event,
@@ -385,12 +180,12 @@ fn record_openai_events(
     let summary = if let Some(message) = failure {
         format!(
             "OpenAI model request {} failed: {message}",
-            request.request_id
+            provider_request.request_id
         )
     } else if let Some(receipt) = &receipt {
         format!(
             "OpenAI model request {} completed through {}.",
-            request.request_id,
+            provider_request.request_id,
             receipt
                 .transport
                 .clone()
@@ -399,7 +194,7 @@ fn record_openai_events(
     } else {
         format!(
             "OpenAI model request {} ended without a terminal receipt.",
-            request.request_id
+            provider_request.request_id
         )
     };
     let result_id = format!("result-openai-{}", options.job_id);
@@ -423,7 +218,7 @@ fn record_openai_events(
         store: store_path.display().to_string(),
         session_id: options.session_id.clone(),
         job_id: options.job_id.clone(),
-        request_id: request.request_id.clone(),
+        request_id: provider_request.request_id,
         event_count: events.len(),
         verdict: verdict.to_string(),
         summary,
@@ -434,25 +229,6 @@ fn record_openai_events(
             .map(|intent| intent.intent_id)
             .collect(),
     })
-}
-
-/// Diagnostic event admission is native-request owned. The provider request
-/// used for summaries and event binding is always lowered internally, never
-/// supplied as an independent caller-authored document.
-pub fn record_native_model_events(
-    store_path: impl AsRef<Path>,
-    options: &EpiphanyOpenAiRuntimeOptions,
-    request: &EpiphanyModelRequest,
-    events: &[EpiphanyOpenAiStreamEvent],
-) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
-    let provider_request = epiphany_openai_adapter::request_from_native(request);
-    record_openai_events(
-        store_path,
-        options,
-        &provider_request,
-        &request.provider,
-        events,
-    )
 }
 
 fn compact_openai_events_for_storage(
@@ -2463,76 +2239,6 @@ mod tests {
     }
 
     #[test]
-    fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
-        let schemas = vec![
-            epiphany_core::epiphany_role_launch_output_schema(
-                epiphany_core::EpiphanyRoleResultRoleId::Imagination,
-            ),
-            epiphany_core::epiphany_role_launch_output_schema(
-                epiphany_core::EpiphanyRoleResultRoleId::Research,
-            ),
-            epiphany_core::epiphany_role_launch_output_schema(
-                epiphany_core::EpiphanyRoleResultRoleId::Modeling,
-            ),
-            epiphany_core::epiphany_role_launch_output_schema(
-                epiphany_core::EpiphanyRoleResultRoleId::Verification,
-            ),
-            epiphany_core::epiphany_frontier_planning_output_schema(),
-            epiphany_core::epiphany_frontier_plan_mind_output_schema(),
-            epiphany_core::epiphany_imagination_consideration_output_schema(),
-            epiphany_core::epiphany_admitted_model_direction_consideration_output_schema(),
-            epiphany_core::epiphany_proposal_modeling_output_schema(),
-            epiphany_core::epiphany_reorient_launch_output_schema(),
-        ];
-
-        for (index, schema) in schemas.into_iter().enumerate() {
-            let mut request = EpiphanyOpenAiModelRequest::new(
-                format!("strict-worker-schema-{index}"),
-                "strict-worker-schema",
-                "gpt-5.4",
-                "Return the typed result.",
-            );
-            request.output_contract_id = Some(format!("worker-schema-{index}"));
-            request.output_schema_json = Some(serde_json::to_string(&schema)?);
-            let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
-            assert_eq!(body["text"]["format"]["strict"], true);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn research_contract_projects_typed_decision_to_provider_strict_shape() -> Result<()> {
-        let mut request = EpiphanyOpenAiModelRequest::new(
-            "strict-research-schema",
-            "strict-worker-schema",
-            "gpt-5.4",
-            "Return the typed result.",
-        );
-        request.output_contract_id =
-            Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string());
-        request.output_schema_json = Some(serde_json::to_string(
-            &epiphany_core::epiphany_role_launch_output_schema(
-                epiphany_core::EpiphanyRoleResultRoleId::Research,
-            ),
-        )?);
-
-        let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
-        let decision = &body["text"]["format"]["schema"]["properties"]["researchDecision"];
-        assert!(decision.get("anyOf").is_none());
-        assert_eq!(decision["additionalProperties"], false);
-        assert_eq!(
-            decision["required"],
-            serde_json::json!(["evidence", "investigationCheckpoint", "observations"])
-        );
-        assert!(decision["properties"].get("scratch").is_none());
-        assert_eq!(
-            decision["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
-            false
-        );
-        Ok(())
-    }
-
-    #[test]
     fn role_ingress_rejects_duplicate_top_level_fields() {
         let error = parse_assistant_json::<RoleWorkerResultIngress>(
             r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped","nextSafeMove":"review","checkpointSummary":"first","checkpointSummary":"second"}"#,
@@ -3394,8 +3100,7 @@ mod tests {
             payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
         }];
 
-        let summary =
-            record_openai_events(&store, &options, &request, DEFAULT_MODEL_PROVIDER, &events)?;
+        let summary = record_model_turn_events(&store, &options, &native_request, &events)?;
 
         assert_eq!(summary.verdict, "pass");
         assert_eq!(assistant_text_from_model_events(&store, "req-1")?, "");
@@ -3886,8 +3591,7 @@ mod tests {
                 payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
             },
         ];
-        let summary =
-            record_openai_events(&store, &options, &request, DEFAULT_MODEL_PROVIDER, &events)?;
+        let summary = record_model_turn_events(&store, &options, &native_request, &events)?;
         let intent_id = summary
             .tool_intent_ids
             .first()

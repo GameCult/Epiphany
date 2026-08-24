@@ -83,7 +83,6 @@ struct Args {
     auto_review: bool,
     supersede_failed_results: bool,
     approve_manual_regather: bool,
-    auto_tools: bool,
     proposal_modeling_request_id: Option<String>,
     imagination_consideration_request_id: Option<String>,
     admitted_model_direction_consideration_request_id: Option<String>,
@@ -126,7 +125,6 @@ impl Args {
             auto_review: false,
             supersede_failed_results: false,
             approve_manual_regather: false,
-            auto_tools: true,
             proposal_modeling_request_id: None,
             imagination_consideration_request_id: None,
             admitted_model_direction_consideration_request_id: None,
@@ -228,8 +226,6 @@ impl Args {
                 "--auto-review" => parsed.auto_review = true,
                 "--supersede-failed-results" => parsed.supersede_failed_results = true,
                 "--approve-manual-regather" => parsed.approve_manual_regather = true,
-                "--auto-tools" => parsed.auto_tools = true,
-                "--no-auto-tools" => parsed.auto_tools = false,
                 "--test-complete-backend" => {
                     return Err(anyhow!(
                         "--test-complete-backend was removed: native coordinator refuses direct private state-store job mutation; use live workers or a future CultNet job-result API"
@@ -421,7 +417,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 0,
                 &artifact_dir,
                 args.max_runtime_seconds,
-                args.auto_tools,
             )?;
             startup_events.push(json!({
                 "type": "imaginationConsiderationLaunch",
@@ -464,7 +459,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 0,
                 &artifact_dir,
                 args.max_runtime_seconds,
-                args.auto_tools,
             )?;
             startup_events.push(json!({
                 "type": "admittedModelDirectionConsiderationLaunch",
@@ -519,7 +513,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 0,
                 &artifact_dir,
                 args.max_runtime_seconds,
-                args.auto_tools,
             )?;
             startup_events.push(json!({
                 "type": "proposalModelingLaunch",
@@ -672,7 +665,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -723,7 +715,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -1045,7 +1036,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -1089,7 +1079,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -1206,7 +1195,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -1277,7 +1265,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         index,
                         &artifact_dir,
                         args.max_runtime_seconds,
-                        args.auto_tools,
                     )?;
                     push_event(
                         &mut step,
@@ -1356,7 +1343,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "artifactDir": artifact_dir,
             "modelRuntimeBin": model_runtime_bin,
             "toolAdapterBin": tool_adapter_bin,
-            "autoTools": args.auto_tools,
             "modelProvider": args.model_provider,
             "codexHome": codex_home,
             "mcpConfig": mcp_config,
@@ -1761,7 +1747,6 @@ fn launch_worker_runtime_detached(
     step_index: usize,
     artifact_dir: &Path,
     max_runtime_seconds: u64,
-    auto_tools: bool,
 ) -> Result<Value> {
     let activation_token = Uuid::new_v4().to_string();
     let activation_token_sha256 = format!("{:x}", Sha256::digest(activation_token.as_bytes()));
@@ -1795,18 +1780,15 @@ fn launch_worker_runtime_detached(
     if let Some(path) = provider_credential_path {
         command.arg("--provider-credential").arg(path);
     }
-    if auto_tools {
-        command
-            .arg("--auto-tools")
-            .arg("--tool-adapter-bin")
-            .arg(tool_adapter_bin)
-            .arg("--cwd")
-            .arg(cwd)
-            .arg("--max-tool-rounds")
-            .arg(WORKER_AUTO_TOOL_MAX_ROUNDS.to_string());
-        if let Some(resident_store) = resident_store {
-            command.arg("--resident-store").arg(resident_store);
-        }
+    command
+        .arg("--tool-adapter-bin")
+        .arg(tool_adapter_bin)
+        .arg("--cwd")
+        .arg(cwd)
+        .arg("--max-tool-rounds")
+        .arg(WORKER_AUTO_TOOL_MAX_ROUNDS.to_string());
+    if let Some(resident_store) = resident_store {
+        command.arg("--resident-store").arg(resident_store);
     }
     let stdout_file = fs::File::create(&stdout_path)
         .with_context(|| format!("failed to create {}", stdout_path.display()))?;
@@ -2143,7 +2125,6 @@ mod tests {
             auto_review: false,
             supersede_failed_results: false,
             approve_manual_regather: false,
-            auto_tools: false,
             proposal_modeling_request_id: None,
             imagination_consideration_request_id: Some("conflicting-request".to_string()),
             admitted_model_direction_consideration_request_id: None,

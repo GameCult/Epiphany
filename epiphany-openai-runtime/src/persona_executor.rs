@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use chrono::SecondsFormat;
@@ -20,8 +19,6 @@ use epiphany_core::{
 };
 use epiphany_model_adapter::{EpiphanyModelInputItem, EpiphanyModelRequest};
 use sha2::{Digest, Sha256};
-
-use crate::{EpiphanyOpenAiRuntimeOptions, assistant_text_from_model_events, run_model_turn};
 
 #[derive(Clone, Debug)]
 pub struct PersonaModelExecutionPlan {
@@ -62,16 +59,6 @@ impl PersonaModelExecutionPlan {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct NativePersonaModelRunner {
-    pub store_path: PathBuf,
-    pub codex_home: PathBuf,
-    pub provider_credential_path: Option<PathBuf>,
-    pub provider: String,
-    pub model: String,
-    pub turn_timeout: Duration,
-}
-
 pub trait PersonaModelRunner {
     fn run<'a>(
         &'a mut self,
@@ -83,79 +70,12 @@ pub trait PersonaModelRunner {
     fn recover(&mut self, request_id: &str) -> Result<String>;
 }
 
-impl PersonaModelRunner for NativePersonaModelRunner {
-    fn run<'a>(
-        &'a mut self,
-        _store_path: &'a PathBuf,
-        stage: &'a str,
-        turn_id: &'a str,
-        request: EpiphanyModelRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
-        Box::pin(async move {
-            let replay = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
-            if !replay.trim().is_empty() {
-                return Ok(replay);
-            }
-            let options = EpiphanyOpenAiRuntimeOptions {
-                store_path: self.store_path.clone(),
-                codex_home: self.codex_home.clone(),
-                provider_credential_path: self.provider_credential_path.clone(),
-                session_id: format!("persona-turn-{turn_id}"),
-                job_id: format!("persona-{stage}-{turn_id}"),
-                objective: format!("Run Persona {stage} stage for {turn_id}"),
-                coordinator_note: "Native Persona model executor; transport owns inference only."
-                    .to_string(),
-                default_model: Some(self.model.clone()),
-                // Persona owns one outer typed turn budget. A second transport
-                // timer would give timeout policy two conflicting owners.
-                request_timeout: None,
-            };
-            let summary = tokio::time::timeout(
-                self.turn_timeout,
-                run_model_turn(&self.provider, options.clone(), request.clone()),
-            )
-            .await
-            .map_err(|_| {
-                anyhow!(
-                    "Persona {stage} stage exceeded its {} second outer turn budget",
-                    self.turn_timeout.as_secs()
-                )
-            })??;
-            let output = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
-            if summary.verdict != "pass" || output.trim().is_empty() {
-                let failure_summary = if summary.verdict != "pass" {
-                    summary.summary.clone()
-                } else {
-                    format!("Persona {stage} stage completed without assistant text")
-                };
-                return Err(anyhow!(failure_summary));
-            }
-            Ok(output)
-        })
-    }
-
-    fn recover(&mut self, request_id: &str) -> Result<String> {
-        assistant_text_from_model_events(&self.store_path, request_id)
-    }
-}
-
 struct CompletedPersonaStage {
     receipt: PersonaModelStageReceipt,
     output: String,
 }
 
-pub async fn execute_persona_model_turn(
-    plan: &PersonaModelExecutionPlan,
-    runner: &mut NativePersonaModelRunner,
-) -> Result<PersonaModelTerminalReceipt> {
-    if runner.provider != plan.provider || runner.model != plan.model {
-        return Err(anyhow!("Persona execution plan and model runner disagree"));
-    }
-    let store_path = runner.store_path.clone();
-    execute_persona_model_turn_owned(&store_path, plan, runner).await
-}
-
-async fn execute_persona_model_turn_owned<R: PersonaModelRunner>(
+pub async fn execute_persona_model_turn<R: PersonaModelRunner>(
     store_path: &PathBuf,
     plan: &PersonaModelExecutionPlan,
     runner: &mut R,
@@ -828,7 +748,7 @@ mod tests {
         release_brake(&cultmesh)?;
         let mut runner = FakeRunner { calls: vec![] };
         let first =
-            execute_persona_model_turn_owned(&store, &plan(&store, cultmesh.clone())?, &mut runner)
+            execute_persona_model_turn(&store, &plan(&store, cultmesh.clone())?, &mut runner)
                 .await?;
         assert_eq!(runner.calls, ["projector", "persona", "interpreter"]);
         drop(runner);
@@ -837,8 +757,7 @@ mod tests {
         let admitted_source = restarted_plan.source_documents[0].clone();
         let mut restarted_runner = FakeRunner { calls: vec![] };
         let second =
-            execute_persona_model_turn_owned(&store, &restarted_plan, &mut restarted_runner)
-                .await?;
+            execute_persona_model_turn(&store, &restarted_plan, &mut restarted_runner).await?;
         assert_eq!(first, second);
         assert!(restarted_runner.calls.is_empty());
         for receipt_id in &second.stage_receipt_ids {
@@ -876,7 +795,7 @@ mod tests {
         let mut runner = FakeRunner { calls: vec![] };
         let escaped = plan_with_channels(&store, cultmesh, vec!["elsewhere".into()])?;
         assert!(
-            execute_persona_model_turn_owned(&store, &escaped, &mut runner)
+            execute_persona_model_turn(&store, &escaped, &mut runner)
                 .await
                 .is_err()
         );

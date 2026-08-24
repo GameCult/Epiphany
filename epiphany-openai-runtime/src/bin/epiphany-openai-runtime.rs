@@ -17,30 +17,32 @@ use anyhow::anyhow;
 use epiphany_model_adapter::EpiphanyModelRequest;
 #[cfg(test)]
 use epiphany_openai_adapter::{
-    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiStreamEvent, EpiphanyOpenAiStreamPayload,
+    EpiphanyOpenAiModelReceipt, EpiphanyOpenAiModelRequest, EpiphanyOpenAiStreamEvent,
+    EpiphanyOpenAiStreamPayload,
 };
+use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_runtime::DEFAULT_PROVIDER_REQUEST_TIMEOUT;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
-use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 #[cfg(test)]
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::append_requested_public_source_receipts;
 use epiphany_openai_runtime::assistant_text_from_model_events;
+use epiphany_openai_runtime::build_tool_followup_model_request;
 use epiphany_openai_runtime::build_worker_model_request;
 use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
-use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::fail_model_backed_worker_job;
 use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::load_worker_launch_request;
 #[cfg(test)]
-use epiphany_openai_runtime::record_native_model_events;
-use epiphany_openai_runtime::run_model_turn;
-use epiphany_openai_runtime::run_tool_followup_model_turn;
-use epiphany_openai_runtime::run_worker_launch_observed;
+use epiphany_openai_runtime::record_model_turn_events;
 use epiphany_openai_runtime::worker_model_session_id;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use serde_json::json;
+
+#[path = "../provider_transport.rs"]
+mod provider_transport;
+use provider_transport::run_model_turn;
 
 const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
 const DEFAULT_PROVIDER: &str = "openai-codex";
@@ -182,8 +184,7 @@ struct RunWorkerCliOptions {
     mcp_config: Option<PathBuf>,
     job_id: String,
     model: String,
-    auto_tools: bool,
-    tool_adapter_bin: Option<PathBuf>,
+    tool_adapter_bin: PathBuf,
     cwd: Option<PathBuf>,
     resident_store: Option<PathBuf>,
     max_tool_rounds: usize,
@@ -199,7 +200,6 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut mcp_config = None;
     let mut job_id = None;
     let mut model = default_worker_model();
-    let mut auto_tools = false;
     let mut tool_adapter_bin = None;
     let mut cwd = None;
     let mut resident_store = None;
@@ -223,7 +223,6 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             }
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
             "--model" | "--default-model" => model = next_value(&mut iter, "--model")?,
-            "--auto-tools" => auto_tools = true,
             "--tool-adapter-bin" => {
                 tool_adapter_bin = Some(PathBuf::from(next_value(&mut iter, "--tool-adapter-bin")?))
             }
@@ -251,8 +250,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         mcp_config,
         job_id: job_id.context("run-worker requires --job-id")?,
         model,
-        auto_tools,
-        tool_adapter_bin,
+        tool_adapter_bin: tool_adapter_bin.context("run-worker requires --tool-adapter-bin")?,
         cwd,
         resident_store,
         max_tool_rounds,
@@ -445,15 +443,12 @@ fn seal_worker_runtime_result(
     }
 }
 
-async fn run_worker_launch_with_tool_continuation(
+async fn run_worker_launch(
     options: RunWorkerCliOptions,
     pass_progress: WorkerPassProgress,
 ) -> Result<serde_json::Value> {
     let request_timeout = provider_request_timeout(options.max_runtime_seconds);
-    let tool_adapter_bin = options
-        .tool_adapter_bin
-        .clone()
-        .context("run-worker --auto-tools requires --tool-adapter-bin")?;
+    let tool_adapter_bin = options.tool_adapter_bin.clone();
     let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
     let basis = epiphany_core::worker_reasoning_basis(&options.store_path, &launch_request)?;
     epiphany_core::put_reasoning_basis(&options.store_path, &basis)?;
@@ -881,6 +876,8 @@ mod tests {
             "job-with-gate".into(),
             "--activation-token-sha256".into(),
             "a".repeat(64),
+            "--tool-adapter-bin".into(),
+            "epiphany-tool-mcp-runtime".into(),
         ])?;
         assert_eq!(options.activation_token_sha256, "a".repeat(64));
         Ok(())
@@ -899,6 +896,8 @@ mod tests {
             "job-ox".into(),
             "--activation-token-sha256".into(),
             "b".repeat(64),
+            "--tool-adapter-bin".into(),
+            "epiphany-tool-mcp-runtime".into(),
         ])?;
 
         require_supported_provider(&options.provider)?;
@@ -907,6 +906,76 @@ mod tests {
         assert_eq!(
             options.provider_credential_path.as_deref(),
             Some(Path::new("/run/credentials/epiphany/openrouter-api-key"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn every_static_worker_contract_projects_to_one_strict_provider_shape() -> Result<()> {
+        let schemas = vec![
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Imagination,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Research,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Modeling,
+            ),
+            epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Verification,
+            ),
+            epiphany_core::epiphany_frontier_planning_output_schema(),
+            epiphany_core::epiphany_frontier_plan_mind_output_schema(),
+            epiphany_core::epiphany_imagination_consideration_output_schema(),
+            epiphany_core::epiphany_admitted_model_direction_consideration_output_schema(),
+            epiphany_core::epiphany_proposal_modeling_output_schema(),
+            epiphany_core::epiphany_reorient_launch_output_schema(),
+        ];
+
+        for (index, schema) in schemas.into_iter().enumerate() {
+            let mut request = EpiphanyOpenAiModelRequest::new(
+                format!("strict-worker-schema-{index}"),
+                "strict-worker-schema",
+                "gpt-5.4",
+                "Return the typed result.",
+            );
+            request.output_contract_id = Some(format!("worker-schema-{index}"));
+            request.output_schema_json = Some(serde_json::to_string(&schema)?);
+            let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
+            assert_eq!(body["text"]["format"]["strict"], true);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn research_contract_projects_typed_decision_to_provider_strict_shape() -> Result<()> {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "strict-research-schema",
+            "strict-worker-schema",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id =
+            Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string());
+        request.output_schema_json = Some(serde_json::to_string(
+            &epiphany_core::epiphany_role_launch_output_schema(
+                epiphany_core::EpiphanyRoleResultRoleId::Research,
+            ),
+        )?);
+
+        let body = epiphany_openai_codex_spine::responses_body_from_epiphany(request)?;
+        let decision = &body["text"]["format"]["schema"]["properties"]["researchDecision"];
+        assert!(decision.get("anyOf").is_none());
+        assert_eq!(decision["additionalProperties"], false);
+        assert_eq!(
+            decision["required"],
+            serde_json::json!(["evidence", "investigationCheckpoint", "observations"])
+        );
+        assert!(decision["properties"].get("scratch").is_none());
+        assert_eq!(
+            decision["properties"]["investigationCheckpoint"]["anyOf"][0]["additionalProperties"],
+            false
         );
         Ok(())
     }
@@ -961,7 +1030,7 @@ mod tests {
         let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, "gpt-test");
         receipt.response_id = Some(format!("response-{request_id}"));
         receipt.transport = Some("test".to_string());
-        record_native_model_events(
+        record_model_turn_events(
             store,
             &EpiphanyOpenAiRuntimeOptions {
                 store_path: store.to_path_buf(),
@@ -1389,32 +1458,27 @@ async fn run_worker_options(
     options: RunWorkerCliOptions,
     pass_progress: WorkerPassProgress,
 ) -> Result<serde_json::Value> {
-    if options.auto_tools {
-        run_worker_launch_with_tool_continuation(options, pass_progress).await
-    } else {
-        let request_timeout = provider_request_timeout(options.max_runtime_seconds);
-        Ok(serde_json::to_value(
-            run_worker_launch_observed(
-                EpiphanyWorkerRuntimeOptions {
-                    store_path: options.store_path,
-                    codex_home: options.codex_home,
-                    provider_credential_path: options.provider_credential_path,
-                    provider: options.provider,
-                    job_id: options.job_id,
-                    model: options.model,
-                    request_timeout,
-                },
-                |request_id| pass_progress.note_model_request(request_id),
-            )
-            .await?,
-        )?)
-    }
+    run_worker_launch(options, pass_progress).await
 }
 
 fn provider_request_timeout(max_runtime_seconds: Option<u64>) -> Option<Duration> {
     max_runtime_seconds
         .is_none()
         .then_some(DEFAULT_PROVIDER_REQUEST_TIMEOUT)
+}
+
+async fn run_tool_followup_model_turn(
+    provider: &str,
+    options: EpiphanyOpenAiRuntimeOptions,
+    original_request_id: &str,
+    followup_request_id: &str,
+) -> Result<epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary> {
+    let request = build_tool_followup_model_request(
+        &options.store_path,
+        original_request_id,
+        followup_request_id,
+    )?;
+    run_model_turn(provider, options, request).await
 }
 
 fn run_tool_adapter(
@@ -1478,5 +1542,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <list-decisions|audit-decision|run-worker> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--context-id id] [--output path] [--job-id id] [--activation-token-sha256 hex] [--default-model model] [--auto-tools --tool-adapter-bin path --mcp-config path --cwd path --max-tool-rounds n]"
+    "usage: epiphany-model-runtime <list-decisions|audit-decision|run-worker> [--provider openai-codex|openrouter] [--provider-credential path] [--store path] [--codex-home path] [--context-id id] [--output path] [--job-id id] [--activation-token-sha256 hex] [--default-model model] --tool-adapter-bin path [--mcp-config path] [--cwd path] [--max-tool-rounds n]"
 }

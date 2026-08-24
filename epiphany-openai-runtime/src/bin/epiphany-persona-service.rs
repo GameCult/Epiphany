@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, path::PathBuf, thread, time::Duration};
+use std::{env, future::Future, net::SocketAddr, path::PathBuf, pin::Pin, thread, time::Duration};
 
 use anyhow::{Context, Result, anyhow};
 use cultcache_rs::DatabaseEntry;
@@ -17,9 +17,84 @@ use epiphany_core::{
     pulse_persona_social, reconcile_terminal_persona_conversation,
     retain_terminal_persona_conversations, validate_persona_discord_request_anchor,
 };
+use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_openai_runtime::{
-    NativePersonaModelRunner, PersonaModelExecutionPlan, execute_persona_model_turn,
+    EpiphanyOpenAiRuntimeOptions, PersonaModelExecutionPlan, PersonaModelRunner,
+    assistant_text_from_model_events, execute_persona_model_turn,
 };
+
+#[path = "../provider_transport.rs"]
+mod provider_transport;
+
+#[derive(Clone, Debug)]
+struct NativePersonaModelRunner {
+    store_path: PathBuf,
+    codex_home: PathBuf,
+    provider_credential_path: Option<PathBuf>,
+    provider: String,
+    model: String,
+    turn_timeout: Duration,
+}
+
+impl PersonaModelRunner for NativePersonaModelRunner {
+    fn run<'a>(
+        &'a mut self,
+        _store_path: &'a PathBuf,
+        stage: &'a str,
+        turn_id: &'a str,
+        request: EpiphanyModelRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
+        Box::pin(async move {
+            if request.provider != self.provider || request.model != self.model {
+                return Err(anyhow!("Persona execution plan and model runner disagree"));
+            }
+            let replay = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
+            if !replay.trim().is_empty() {
+                return Ok(replay);
+            }
+            let options = EpiphanyOpenAiRuntimeOptions {
+                store_path: self.store_path.clone(),
+                codex_home: self.codex_home.clone(),
+                provider_credential_path: self.provider_credential_path.clone(),
+                session_id: format!("persona-turn-{turn_id}"),
+                job_id: format!("persona-{stage}-{turn_id}"),
+                objective: format!("Run Persona {stage} stage for {turn_id}"),
+                coordinator_note: "Native Persona model executor; transport owns inference only."
+                    .to_string(),
+                default_model: Some(self.model.clone()),
+                request_timeout: None,
+            };
+            let summary = tokio::time::timeout(
+                self.turn_timeout,
+                provider_transport::run_model_turn(
+                    &self.provider,
+                    options.clone(),
+                    request.clone(),
+                ),
+            )
+            .await
+            .map_err(|_| {
+                anyhow!(
+                    "Persona {stage} stage exceeded its {} second outer turn budget",
+                    self.turn_timeout.as_secs()
+                )
+            })??;
+            let output = assistant_text_from_model_events(&self.store_path, &request.request_id)?;
+            if summary.verdict != "pass" || output.trim().is_empty() {
+                return Err(anyhow!(if summary.verdict != "pass" {
+                    summary.summary
+                } else {
+                    format!("Persona {stage} stage completed without assistant text")
+                }));
+            }
+            Ok(output)
+        })
+    }
+
+    fn recover(&mut self, request_id: &str) -> Result<String> {
+        assistant_text_from_model_events(&self.store_path, request_id)
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -104,22 +179,23 @@ async fn poll_once(options: &Options) -> Result<bool> {
         model: options.model.clone(),
         turn_timeout: Duration::from_secs(options.turn_timeout_seconds),
     };
-    let model_terminal = match execute_persona_model_turn(&plan, &mut runner).await {
-        Ok(receipt) => receipt,
-        Err(error) if error.to_string().contains("braked") => return Ok(false),
-        Err(error) => {
-            complete_persona_social_turn(
-                &options.social_store,
-                PersonaTurnTerminalOptions {
-                    request_id: request.request_id,
-                    outcome: "failed".into(),
-                    delivery_receipt: None,
-                    blocked_evidence: None,
-                },
-            )?;
-            return Err(error);
-        }
-    };
+    let model_terminal =
+        match execute_persona_model_turn(&options.runtime_store, &plan, &mut runner).await {
+            Ok(receipt) => receipt,
+            Err(error) if error.to_string().contains("braked") => return Ok(false),
+            Err(error) => {
+                complete_persona_social_turn(
+                    &options.social_store,
+                    PersonaTurnTerminalOptions {
+                        request_id: request.request_id,
+                        outcome: "failed".into(),
+                        delivery_receipt: None,
+                        blocked_evidence: None,
+                    },
+                )?;
+                return Err(error);
+            }
+        };
     let signer = open_persona_discord_request_identity(&options.mouth_identity_store)?;
     let request_anchor = load_persona_discord_service_anchor(&options.mouth_request_anchor)?;
     validate_persona_discord_request_anchor(&request_anchor, &options.runtime_id)?;
