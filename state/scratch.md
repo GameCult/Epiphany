@@ -223,11 +223,21 @@ and janitors may reduce the symptom but cannot substitute for deleting code.
    sealed typed launch owns live family identity; archived attempts own retained
    request identity. Runtime is v39, the role-result contract is v5, and 443 net
    maintained lines are gone.
-40. Next: map every `EpiphanyRuntimeSession` and
-   `EpiphanyArchivedRuntimeSession` reader/writer. Delete or reduce the session
-   aggregate if exact jobs, native requests, decision contexts, coordinator
-   receipts, and retention tombstones already own its claimed invariants.
-41. Continue the public runtime-spine and test-liability audit by live owner
+40. Done: exact `cabdd6c3` splits coordinator incarnation authority from generic
+   model sessions. Model sessions now contain only identity plus active/completed
+   admission state. An immutable coordinator-run basis records exact launch
+   provenance; deterministic typed terminality plus its full receipt or death
+   recovery owns terminal outcome. Competing outcomes collide on one semantic
+   identity without a whole-store snapshot. Runtime is v40. The one-field model
+   session options wrapper, duplicated prose/timestamps, four dead session
+   states, and the dead snapshot-append helper are gone; 62 maintained lines are
+   removed net.
+41. Next: map every `EpiphanyRuntimeJob` field and transition. Determine whether
+   role, session membership, timestamps, and mutable status are already owned by
+   sealed worker launches, model bindings, process claims, terminal results, and
+   archived attempts. Preserve only lifecycle state that actually blocks an
+   invalid consequence.
+42. Continue the public runtime-spine and test-liability audit by live owner
    and consequential invariant. Do not subtract the unrun Atlas vertical slice;
    no inter-swarm collaboration has yet been exercised. Streamline it only
    around its one end-to-end authority map.

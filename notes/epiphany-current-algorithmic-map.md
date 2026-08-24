@@ -1061,7 +1061,20 @@ worker, and reasoning basis are read from the exact native model request. A
 tool binding contains only intent, session, and job identity; its optional
 model ancestry is read from the exact typed tool intent. Validation and
 retention reload those owners. No binding timestamp participates in causality.
-Runtime writable state is v39.
+Runtime writable state is v40.
+
+Exact `cabdd6c3` separates coordinator incarnation audit from model-session
+admission. `EpiphanyRuntimeSession` now owns only a grouping identity and the
+active/completed latch that prevents new model/tool work after closure.
+Coordinator runs never inhabit that aggregate. Their immutable
+`EpiphanyCoordinatorRunBasis` records thread, resident launch identity,
+objective, and start time. Terminal success/failure receipts and exact process
+death recovery both compete through one deterministic
+`EpiphanyCoordinatorRunTerminality` identity; the winner and its full typed
+authority are inserted atomically while the exact basis is replayed
+byte-identically. Unrelated document commits do not participate. Timestamp
+ordering, coordinator notes, whole-store snapshots, and generic archived status
+do not own terminality.
 
 The sealed typed launch owns exact live request association. The terminal role
 result owns only semantic decision cargo or typed failure. The archived attempt

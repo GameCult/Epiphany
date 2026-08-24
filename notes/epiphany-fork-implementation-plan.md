@@ -810,8 +810,17 @@ Cut in this order:
    uses archived request kind/ID beside the preserved structured decision.
    Success requires the family semantic payload and typed failure forbids
    success cargo. Runtime is v39 and role-result output is v5 with no legacy
-   reader. The next subtraction target is the generic runtime session
-   aggregate, not a replacement launch registry.
+   reader.
+48. **Coordinator incarnation and model-session authority split at
+   `cabdd6c3`:** model sessions retain only identity plus active/completed
+   admission state. Coordinator start provenance is an immutable typed basis;
+   one deterministic terminality identity admits either the exact full run
+   receipt or exact death recovery, so competing outcomes conflict while
+   unrelated document inserts still merge. Runtime is v40. The generic session
+   loses objective, timestamps, notes, and four unused states; the redundant
+   one-field open options and whole-snapshot append helper are deleted. The next
+   subtraction target is the generic runtime job aggregate, not a lifecycle
+   registry.
 
 Do not preserve the aggregate for compatibility, manufacture a bootstrap
 thread, release autonomous scheduling, register topology in `gamecult-ops`,

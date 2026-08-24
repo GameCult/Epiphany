@@ -124,6 +124,23 @@ model-failure audit, concurrent disjoint/same-identity CAS proof, old-epoch
 refusal, and focused proposal/Verification/Planning/consideration/Mind/provider
 completion tests pass.
 
+Exact `cabdd6c3` splits coordinator incarnation authority from generic model
+sessions. Model sessions now contain only their grouping identity and an
+active/completed admission latch. Coordinator launch provenance is preserved in
+an immutable `EpiphanyCoordinatorRunBasis`; exact completion/failure receipts
+and process-death recovery compete through one deterministic
+`EpiphanyCoordinatorRunTerminality` document, so only one terminal outcome can
+commit while unrelated document inserts merge. The full typed winning authority
+remains beside the latch. Objective prose, session clocks, coordinator notes,
+four unused status variants, the redundant one-field session options wrapper,
+and the dead whole-snapshot append helper are gone. Runtime advances to v40
+without a compatibility reader. Focused Core, model-failure audit, Persona,
+coordinator terminality/conflict, release coordinator, and release model-runtime
+checks pass. The code delta removes 62 maintained lines net. The focused checks
+created 6.3 GiB/7,017 Cargo files; cleanup restored exactly the 1,776,640-byte
+state inspector at SHA-256
+`DD38855C6F092C2C53D2212A938E737643F41130F4681708840BA6075320A04E`.
+
 Exact `a6cf9383` quarantines concrete Codex/OpenRouter authentication,
 credential reading, and network transport at the two release entrypoints that
 perform inference. `epiphany-openai-runtime` now owns only exact native-request
@@ -1209,13 +1226,13 @@ coordinator `12/12`, swarm `10/10`, and model-runtime `13/13`.
 ## Immediate next action
 
 The Ox17 deployment lane remains paused. Continue subtraction from exact
-`edb5c3a3`: map every reader and writer of `EpiphanyRuntimeSession` and
-`EpiphanyArchivedRuntimeSession`. Determine whether session identity, objective,
-coordinator note, lifecycle status, and archive membership protect an invariant
-not already owned by exact jobs, native requests, decision contexts,
-coordinator receipts, and retention tombstones. Delete the aggregate or reduce
-it to the smallest earned physiology; do not replace it with a registry,
-adapter, compatibility reader, or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
+`cabdd6c3`: map every reader, writer, and transition of `EpiphanyRuntimeJob`.
+Determine whether role, session membership, timestamps, and mutable status
+protect an invariant not already owned by sealed worker launches, model
+bindings, process claims, terminal results, decision contexts, and archived
+attempts. Delete mirrors and collapse transitions to the smallest earned
+physiology; do not replace them with a registry, adapter, compatibility reader,
+or latest head. The Connector CultMesh/Idunn/Yggdrasil proof and
 Ghostlight adoption remain queued behind source stabilization. Preserve keyed
 Mind, direct Body-to-Modeling flow, consequence receipts, and the complete
 Model Atlas vertical slice; no live inter-swarm collaboration has run.
