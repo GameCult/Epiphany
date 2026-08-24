@@ -55,7 +55,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v42";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v43";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -531,10 +531,6 @@ pub struct EpiphanyRuntimeJobResult {
     #[cultcache(key = 6, default)]
     pub next_safe_move: String,
     #[cultcache(key = 7, default)]
-    pub evidence_refs: Vec<String>,
-    #[cultcache(key = 8, default)]
-    pub artifact_refs: Vec<String>,
-    #[cultcache(key = 9, default)]
     pub decision_context_id: Option<String>,
 }
 
@@ -647,8 +643,6 @@ pub struct RuntimeSpineJobResultOptions {
     pub verdict: String,
     pub summary: String,
     pub next_safe_move: String,
-    pub evidence_refs: Vec<String>,
-    pub artifact_refs: Vec<String>,
     pub decision_context_id: Option<String>,
 }
 
@@ -1081,8 +1075,6 @@ pub fn terminalize_model_pass_failure_session(
             next_safe_move:
                 "Inspect the sealed decision context and typed model-pass failure before retrying."
                     .to_string(),
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: None,
         };
         expected.push(model_job_envelope);
@@ -3330,8 +3322,6 @@ fn complete_persisted_worker_outcome(
                 verdict: result.verdict,
                 summary: result.summary,
                 next_safe_move: result.next_safe_move,
-                evidence_refs: result.evidence_ids,
-                artifact_refs: result.artifact_refs,
                 decision_context_id: Some(result.decision_context_id),
             },
         )
@@ -3345,8 +3335,6 @@ fn complete_persisted_worker_outcome(
                 verdict: result.mode,
                 summary: result.summary,
                 next_safe_move: result.next_safe_move,
-                evidence_refs: result.evidence_ids,
-                artifact_refs: result.artifact_refs,
                 decision_context_id: Some(result.decision_context_id),
             },
         )
@@ -3442,8 +3430,6 @@ fn commit_runtime_worker_process_death(
         summary: summary.clone(),
         completed_at: terminal_at.to_string(),
         next_safe_move: "Derive a fresh attempt from current typed work; never rebase the abandoned model output.".to_string(),
-        evidence_refs: Vec::new(),
-        artifact_refs: Vec::new(),
         decision_context_id: decision_context_id.map(str::to_string),
     };
     if cache
@@ -8766,8 +8752,6 @@ pub fn complete_runtime_job(
         summary: options.summary,
         completed_at: options.completed_at.clone(),
         next_safe_move: options.next_safe_move,
-        evidence_refs: options.evidence_refs,
-        artifact_refs: options.artifact_refs,
         decision_context_id: options.decision_context_id,
     };
     let mut expected = vec![job_envelope];

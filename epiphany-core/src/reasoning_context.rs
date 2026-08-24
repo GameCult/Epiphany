@@ -2436,8 +2436,6 @@ mod tests {
             summary: failure_summary,
             completed_at: "2026-08-18T00:00:03Z".into(),
             next_safe_move: "Create a fresh work obligation and reasoning pass.".into(),
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: Some(context.context_id.clone()),
         };
         let mut cache = runtime_spine_cache(&store)?;
@@ -2630,8 +2628,6 @@ mod tests {
             summary: "Structured Imagination decision".into(),
             completed_at: "2026-08-14T00:00:03Z".into(),
             next_safe_move: "Inspect the durable decision context".into(),
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: Some(context.context_id.clone()),
         };
         runtime_spine_cache(&store)?.put(&terminal_result.result_id, &terminal_result)?;

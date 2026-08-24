@@ -612,8 +612,6 @@ mod tests {
                         verdict: "completed".into(),
                         summary: format!("Persona {stage} test transport completed"),
                         next_safe_move: "Seal the stage decision context".into(),
-                        evidence_refs: Vec::new(),
-                        artifact_refs: Vec::new(),
                         decision_context_id: None,
                     },
                 )?;

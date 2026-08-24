@@ -3933,8 +3933,6 @@ mod tests {
                 verdict: "suggest".into(),
                 summary: direction_result.summary,
                 next_safe_move: "Promote through the exact proposal owner.".into(),
-                evidence_refs: Vec::new(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(direction_context.context_id),
             },
         )?;
@@ -4025,8 +4023,6 @@ mod tests {
                 verdict: "failed".into(),
                 summary: "provider returned no terminal decision".into(),
                 next_safe_move: "retry from the same exact obligation".into(),
-                evidence_refs: Vec::new(),
-                artifact_refs: Vec::new(),
                 decision_context_id: None,
             },
         )?;
@@ -4203,8 +4199,6 @@ mod tests {
                 verdict: proposal_result.verdict.clone(),
                 summary: proposal_result.summary.clone(),
                 next_safe_move: proposal_result.next_safe_move.clone(),
-                evidence_refs: proposal_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(proposal_context.context_id.clone()),
             },
         )?;
@@ -4356,8 +4350,6 @@ mod tests {
                 verdict: proposal_result.verdict.clone(),
                 summary: proposal_result.summary.clone(),
                 next_safe_move: proposal_result.next_safe_move.clone(),
-                evidence_refs: proposal_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(retry_context.context_id),
             },
         )?;
@@ -4697,8 +4689,6 @@ mod tests {
                 verdict: verification_result.verdict.clone(),
                 summary: verification_result.summary.clone(),
                 next_safe_move: verification_result.next_safe_move.clone(),
-                evidence_refs: verification_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(verification_context.context_id.clone()),
             },
         )?;
@@ -5053,8 +5043,6 @@ mod tests {
                 verdict: verdict_result.verdict.clone(),
                 summary: verdict_result.summary.clone(),
                 next_safe_move: verdict_result.next_safe_move.clone(),
-                evidence_refs: verdict_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(verdict_context.context_id.clone()),
             },
         )?;
@@ -5372,8 +5360,6 @@ mod tests {
                 verdict: planning_result.verdict.clone(),
                 summary: planning_result.summary.clone(),
                 next_safe_move: planning_result.next_safe_move.clone(),
-                evidence_refs: planning_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(planning_context.context_id.clone()),
             },
         )?;
@@ -5492,8 +5478,6 @@ mod tests {
                 verdict: mind_result.verdict.clone(),
                 summary: mind_result.summary.clone(),
                 next_safe_move: mind_result.next_safe_move.clone(),
-                evidence_refs: mind_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(mind_context.context_id.clone()),
             },
         )?;
@@ -5706,8 +5690,6 @@ mod tests {
                 verdict: research_result.verdict.clone(),
                 summary: research_result.summary.clone(),
                 next_safe_move: research_result.next_safe_move.clone(),
-                evidence_refs: research_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(research_context.context_id.clone()),
             },
         )?;
@@ -5818,8 +5800,6 @@ mod tests {
                 verdict: research_result.verdict.clone(),
                 summary: research_result.summary.clone(),
                 next_safe_move: research_result.next_safe_move.clone(),
-                evidence_refs: research_result.evidence_ids.clone(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(research_context.context_id.clone()),
             },
         )?;

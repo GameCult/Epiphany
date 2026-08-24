@@ -609,8 +609,6 @@ async fn run_worker_launch(
         "verdict": worker_result.verdict,
         "summary": worker_result.summary,
         "nextSafeMove": worker_result.next_safe_move,
-        "evidenceRefs": worker_result.evidence_refs,
-        "artifactRefs": worker_result.artifact_refs,
         "requestedPublicSourceRuns": requested_public_source_runs,
         "toolRounds": tool_rounds,
     }))

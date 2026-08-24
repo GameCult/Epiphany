@@ -203,8 +203,6 @@ pub fn record_model_turn_events(
             summary: summary.clone(),
             next_safe_move: "Review typed OpenAI receipt before accepting downstream state."
                 .to_string(),
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: None,
         },
     )?;
@@ -530,8 +528,6 @@ pub fn complete_worker_job_from_assistant_text(
             verdict,
             summary,
             next_safe_move,
-            evidence_refs,
-            artifact_refs,
             decision_context_id: Some(decision_context.context_id),
         },
     )
@@ -552,8 +548,6 @@ pub fn fail_worker_job(
             verdict: "failed".to_string(),
             summary,
             next_safe_move,
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: None,
         },
     )
@@ -594,8 +588,6 @@ pub fn fail_model_backed_worker_job(
             verdict: "failed".to_string(),
             summary,
             next_safe_move,
-            evidence_refs: Vec::new(),
-            artifact_refs: Vec::new(),
             decision_context_id: Some(failure.decision_context_id),
         },
     )
@@ -3250,7 +3242,6 @@ mod tests {
             "Review the runtime-owned Body model."
         );
         let runtime_evidence_id = format!("openai-request:{}", model_request.request_id);
-        assert!(result.evidence_refs.contains(&runtime_evidence_id));
         let typed_result = epiphany_core::runtime_role_worker_result(&store, &worker_job_id)?
             .expect("typed role worker result");
         assert_eq!(typed_result.verdict, "checkpoint-ready");
@@ -3259,7 +3250,13 @@ mod tests {
             typed_result.evidence_ids,
             vec!["body-evidence".to_string(), runtime_evidence_id]
         );
-        assert_eq!(typed_result.artifact_refs, result.artifact_refs);
+        assert_eq!(
+            typed_result.artifact_refs,
+            vec![
+                "artifact:model".to_string(),
+                format!("openai-result:{}", openai_summary.result_id)
+            ]
+        );
         assert!(typed_result.repo_model_mutation_proposal()?.is_none());
         assert!(
             runtime_job_snapshot(&store, &worker_job_id)?

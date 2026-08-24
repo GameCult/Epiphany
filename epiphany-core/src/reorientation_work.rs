@@ -1020,8 +1020,6 @@ mod tests {
                 verdict: "resume".into(),
                 summary: result.summary.clone(),
                 next_safe_move: result.next_safe_move.clone(),
-                evidence_refs: Vec::new(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(context.context_id.clone()),
             },
         )?;
@@ -1135,8 +1133,6 @@ mod tests {
                 verdict: "failed".into(),
                 summary: "Provider failed after the terminal request was sealed.".into(),
                 next_safe_move: "Review the typed failure, then retry.".into(),
-                evidence_refs: Vec::new(),
-                artifact_refs: Vec::new(),
                 decision_context_id: Some(failed_context.context_id.clone()),
             },
         )?;
