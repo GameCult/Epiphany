@@ -88,7 +88,7 @@ pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
 pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v1";
-pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v21";
+pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v22";
 pub const EPIPHANY_RUNTIME_ROOT_SESSION_ID: &str = "epiphany-main";
 pub const RUNTIME_MODEL_EXECUTION_BINDING_SCHEMA_VERSION: &str =
     "epiphany.runtime.model_execution_binding.v0";
@@ -843,7 +843,6 @@ fn runtime_spine_schema_cache() -> Result<CultCache> {
     cache.register_entry_type::<crate::ImaginationConsiderationCandidate>()?;
     cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationRequest>()?;
     cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationResult>()?;
-    cache.register_entry_type::<crate::ImaginationConsiderationReviewRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanMindRequest>()?;
     cache.register_entry_type::<crate::EpiphanyReorientationRequest>()?;

@@ -8,7 +8,6 @@ pub const REQUEST_SCHEMA: &str = "epiphany.self.imagination_consideration_reques
 pub const REQUEST_CONTRACT: &str = "epiphany.imagination_consideration_request.v1";
 pub const CANDIDATE_SCHEMA: &str = "epiphany.imagination.consideration_candidate.v1";
 pub const CANDIDATE_CONTRACT: &str = "epiphany.imagination_consideration_candidate.v1";
-pub const REVIEW_REQUEST_SCHEMA: &str = "epiphany.self.imagination_consideration_review_request.v0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -145,26 +144,6 @@ pub struct ImaginationConsiderationCandidate {
     pub source_visibility: String,
     #[cultcache(key = 19)]
     pub data_classification: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.self.imagination_consideration_review_request",
-    schema = "ImaginationConsiderationReviewRequest"
-)]
-pub struct ImaginationConsiderationReviewRequest {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub review_request_id: String,
-    #[cultcache(key = 2)]
-    pub candidate_id: String,
-    #[cultcache(key = 3)]
-    pub candidate_sha256: String,
-    #[cultcache(key = 4)]
-    pub requested_review_route: String,
-    #[cultcache(key = 5)]
-    pub selected_at: String,
 }
 
 pub fn commit_request(
@@ -377,52 +356,6 @@ pub fn render_consideration_prompt(request: &ImaginationConsiderationRequest) ->
          Return only the dedicated consideration candidate contract. Do not emit state, self, model, frontier, Hands, release, or deployment mutations.",
         request.request_id, request.model_projection_digest, quoted
     ))
-}
-
-pub fn request_candidate_modeling_review(
-    runtime_store: &Path,
-    request: &ImaginationConsiderationRequest,
-    candidate: &ImaginationConsiderationCandidate,
-    selected_at: &str,
-) -> Result<ImaginationConsiderationReviewRequest> {
-    chrono::DateTime::parse_from_rfc3339(selected_at)
-        .map_err(|_| anyhow!("consideration selection timestamp must be RFC3339"))?;
-    let mut cache = crate::runtime_spine_cache(runtime_store)?;
-    cache.pull_all_backing_stores()?;
-    validate_current_request(&cache, request)?;
-    validate_candidate(request, candidate)?;
-    if candidate.disposition != ImaginationConsiderationDisposition::Suggest
-        || candidate.recommended_review_route != ImaginationConsiderationReviewRoute::ModelingReview
-    {
-        bail!("only an explicit suggest/modeling_review candidate may be selected");
-    }
-    let candidate_sha256 = format!("sha256-{:x}", Sha256::digest(rmp_serde::to_vec(candidate)?));
-    let review_request_id = format!(
-        "imagination-consideration-review-{:x}",
-        Sha256::digest(format!("{}:{candidate_sha256}", request.request_id).as_bytes())
-    );
-    let review = ImaginationConsiderationReviewRequest {
-        schema_version: REVIEW_REQUEST_SCHEMA.into(),
-        review_request_id: review_request_id.clone(),
-        candidate_id: candidate.candidate_id.clone(),
-        candidate_sha256,
-        requested_review_route: "modeling_review_proposal_only".into(),
-        selected_at: selected_at.into(),
-    };
-    if let Some(existing) =
-        cache.get::<ImaginationConsiderationReviewRequest>(&review_request_id)?
-    {
-        let mut replay = review;
-        replay.selected_at = existing.selected_at.clone();
-        return if replay == existing {
-            Ok(existing)
-        } else {
-            bail!("consideration review request collision")
-        };
-    }
-    let (entry, _) = cache.prepare_entry(&review_request_id, &review)?;
-    SingleFileMessagePackBackingStore::new(runtime_store).push(&entry)?;
-    Ok(review)
 }
 
 #[cfg(test)]
