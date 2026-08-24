@@ -17,7 +17,6 @@ cultcache-rs = { path = "../vendor/cultcache-rs" }
 fs2 = "0.4"
 rmp-serde = "1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 

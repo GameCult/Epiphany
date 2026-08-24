@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_tool_adapter::{
-    EPIPHANY_TOOL_RUNTIME_ADAPTER_ID, EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt,
-    tool_invocation_intent_key,
+    EpiphanyToolInvocationIntent, EpiphanyToolInvocationReceipt, tool_invocation_intent_key,
 };
 use epiphany_tool_mcp_runtime::{
     McpRuntimeConfig, current_utc_timestamp, execute_epiphany_public, execute_epiphany_source,
@@ -216,6 +215,7 @@ fn bound(value: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_tool_adapter::EPIPHANY_TOOL_RUNTIME_ADAPTER_ID;
     use epiphany_tool_adapter::tool_invocation_receipt_key;
 
     #[test]

@@ -26,28 +26,19 @@ anyhow = "1"
 chrono = "0.4.44"
 ctrlc = { version = "3.5.1", features = ["termination"] }
 cultcache-rs = { path = "vendor/cultcache-rs" }
-cultmesh-rs = { path = "vendor/cultmesh-rs" }
 cultnet-rs = { path = "vendor/cultnet-rs" }
 epiphany-core = { path = "epiphany-core" }
 epiphany-model-adapter = { path = "epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "epiphany-openai-adapter" }
 epiphany-openai-runtime = { path = "epiphany-openai-runtime", optional = true }
-epiphany-state-model = { path = "epiphany-state-model" }
 epiphany-tool-adapter = { path = "epiphany-tool-adapter" }
 epiphany-tool-mcp-runtime = { path = "epiphany-tool-mcp-runtime", optional = true }
-http = "1"
-ignore = "0.4.23"
-postgres = "0.19"
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "json", "rustls"] }
 rmp-serde = "1"
-rmcp = { version = "2.2.0", default-features = false, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-semver = { version = "1", features = ["serde"] }
 sha2 = "0.10"
 tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "rt-multi-thread", "time"] }
 toml = "0.9"
-tracing = "0.1.44"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [features]
