@@ -1001,11 +1001,14 @@ mod tests {
             decision_context_id: context.context_id.clone(),
         };
         crate::put_runtime_reorient_worker_result(&store, &result)?;
+        let projected_result = crate::read_runtime_reorient_result(&store, &job_id)?;
         assert_eq!(
-            crate::runtime_job(&store, &job_id)?
-                .expect("reorientation runtime job")
-                .status,
-            EpiphanyRuntimeJobStatus::Completed
+            projected_result.status,
+            crate::EpiphanyReorientResultStatus::Completed
+        );
+        assert_eq!(
+            projected_result.finding.and_then(|finding| finding.mode),
+            Some("regather".into())
         );
 
         cache.pull_all_backing_stores()?;

@@ -1800,7 +1800,7 @@ fn read_reorient_result(runtime_store: &Path, _thread_id: &str) -> Result<Value>
             "note": "The keyed reorientation request is ready to launch."
         }));
     };
-    let snapshot = epiphany_core::read_runtime_reorient_result(Some(runtime_store), &job_id);
+    let snapshot = epiphany_core::read_runtime_reorient_result(runtime_store, &job_id)?;
     let mut value = json!({
         "source": "native",
         "status": snapshot.status,

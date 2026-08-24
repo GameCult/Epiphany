@@ -1,6 +1,5 @@
 mod coordinator_contract;
 mod coordinator_decision;
-mod crrc;
 mod research_decision;
 mod role_board;
 mod role_result;
@@ -8,7 +7,6 @@ mod worker_launch;
 
 pub use coordinator_contract::*;
 pub use coordinator_decision::recommend_coordinator_action;
-pub use crrc::EpiphanyCrrcResultStatus;
 pub use research_decision::EpiphanyResearchDecision;
 pub use role_board::EpiphanyRoleBoardInput;
 pub use role_board::EpiphanyRoleBoardLane;

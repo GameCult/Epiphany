@@ -1,98 +1,68 @@
 use crate::*;
+use anyhow::{Result, anyhow};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EpiphanyReorientResultStatus {
+    Pending,
+    Completed,
+    Failed,
+}
 
 #[derive(Debug, Clone)]
 pub struct EpiphanyCoordinatorReorientResultSnapshot {
-    pub status: EpiphanyCrrcResultStatus,
+    pub status: EpiphanyReorientResultStatus,
     pub finding: Option<EpiphanyReorientFindingInterpretation>,
     pub note: String,
 }
 pub fn read_runtime_reorient_result(
-    runtime_store_path: Option<&Path>,
+    runtime_store_path: &Path,
     job_id: &str,
-) -> EpiphanyCoordinatorReorientResultSnapshot {
-    let Some(runtime_store_path) = runtime_store_path else {
-        return reorient_snapshot(
-            EpiphanyCrrcResultStatus::Pending,
-            None,
-            Some(
-                "Resident Self owns this reorientation worker; no loaded runtime-spine store is available yet.",
-            ),
-        );
-    };
-    let job = match runtime_job(runtime_store_path, job_id) {
-        Ok(Some(job)) => job,
-        Ok(None) => {
-            return reorient_snapshot(
-                EpiphanyCrrcResultStatus::Pending,
+) -> Result<EpiphanyCoordinatorReorientResultSnapshot> {
+    let mut cache = runtime_spine_cache(runtime_store_path)?;
+    cache.pull_all_backing_stores()?;
+    let job = match cache.get::<EpiphanyRuntimeJob>(job_id)? {
+        Some(job) => job,
+        None => {
+            return Ok(reorient_snapshot(
+                EpiphanyReorientResultStatus::Pending,
                 None,
                 Some(&format!(
                     "Resident runtime job {job_id:?} has not reported typed state yet."
                 )),
-            );
-        }
-        Err(error) => {
-            return reorient_snapshot(
-                EpiphanyCrrcResultStatus::BackendUnavailable,
-                None,
-                Some(&format!(
-                    "Failed to read resident runtime-spine job {job_id:?}: {error}"
-                )),
-            );
+            ));
         }
     };
     let status = reorient_result_status(&job.status);
     let finding = match status {
-        EpiphanyCrrcResultStatus::Completed => {
-            match runtime_reorient_worker_result(runtime_store_path, job_id) {
-                Ok(Some(result)) => Some(interpret_runtime_reorient_worker_result(&result)),
-                Ok(None) => {
-                    return reorient_snapshot(
-                        EpiphanyCrrcResultStatus::BackendUnavailable,
-                        None,
-                        Some(&format!(
-                            "Resident runtime job {job_id:?} completed without an EpiphanyRuntimeReorientWorkerResult typed document; generic lifecycle receipts are not reviewable findings."
-                        )),
-                    );
-                }
-                Err(error) => {
-                    return reorient_snapshot(
-                        EpiphanyCrrcResultStatus::BackendUnavailable,
-                        None,
-                        Some(&format!(
-                            "Failed to read typed reorientation worker result for resident runtime job {job_id:?}: {error}"
-                        )),
-                    );
-                }
-            }
-        }
-        EpiphanyCrrcResultStatus::Failed | EpiphanyCrrcResultStatus::Cancelled => {
-            match runtime_reorient_worker_result(runtime_store_path, job_id) {
-                Ok(result) => result
-                    .as_ref()
-                    .map(interpret_runtime_reorient_worker_result),
-                Err(_) => None,
-            }
-        }
-        _ => None,
+        EpiphanyReorientResultStatus::Completed => Some(interpret_runtime_reorient_worker_result(
+            &cache
+                .get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "resident runtime job {job_id:?} completed without its typed reorientation result"
+                    )
+                })?,
+        )),
+        EpiphanyReorientResultStatus::Failed => cache
+            .get::<EpiphanyRuntimeReorientWorkerResult>(job_id)?
+            .as_ref()
+            .map(interpret_runtime_reorient_worker_result),
+        EpiphanyReorientResultStatus::Pending => None,
     };
-    reorient_snapshot(status, finding, None)
+    Ok(reorient_snapshot(status, finding, None))
 }
 
 fn reorient_snapshot(
-    status: EpiphanyCrrcResultStatus,
+    status: EpiphanyReorientResultStatus,
     finding: Option<EpiphanyReorientFindingInterpretation>,
     note_override: Option<&str>,
 ) -> EpiphanyCoordinatorReorientResultSnapshot {
-    let note = note_override.map(str::to_string).unwrap_or_else(|| {
-        render_reorient_result_note(
-            status,
-            finding.as_ref(),
-            finding
-                .as_ref()
-                .and_then(|finding| finding.job_error.as_deref()),
-        )
-    });
+    let note = note_override
+        .map(str::to_string)
+        .unwrap_or_else(|| render_reorient_result_note(status, finding.as_ref()));
     EpiphanyCoordinatorReorientResultSnapshot {
         status,
         finding,
@@ -100,50 +70,31 @@ fn reorient_snapshot(
     }
 }
 
-fn reorient_result_status(status: &EpiphanyRuntimeJobStatus) -> EpiphanyCrrcResultStatus {
+fn reorient_result_status(status: &EpiphanyRuntimeJobStatus) -> EpiphanyReorientResultStatus {
     match status {
-        EpiphanyRuntimeJobStatus::Queued => EpiphanyCrrcResultStatus::Pending,
-        EpiphanyRuntimeJobStatus::Completed => EpiphanyCrrcResultStatus::Completed,
-        EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
+        EpiphanyRuntimeJobStatus::Queued => EpiphanyReorientResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Completed => EpiphanyReorientResultStatus::Completed,
+        EpiphanyRuntimeJobStatus::Failed => EpiphanyReorientResultStatus::Failed,
     }
 }
 
 fn render_reorient_result_note(
-    status: EpiphanyCrrcResultStatus,
+    status: EpiphanyReorientResultStatus,
     finding: Option<&EpiphanyReorientFindingInterpretation>,
-    item_error: Option<&str>,
 ) -> String {
     match status {
-        EpiphanyCrrcResultStatus::Completed => finding.map_or_else(
-            || "Reorientation worker completed, but no structured result was recorded.".to_string(),
-            |finding| {
-                format!(
-                    "Reorientation worker completed. Next safe move: {}",
-                    finding.next_safe_move.as_deref().unwrap_or("not supplied")
-                )
-            },
+        EpiphanyReorientResultStatus::Completed => format!(
+            "Reorientation worker completed. Next safe move: {}",
+            finding
+                .and_then(|finding| finding.next_safe_move.as_deref())
+                .unwrap_or("not supplied")
         ),
-        EpiphanyCrrcResultStatus::Failed => item_error
+        EpiphanyReorientResultStatus::Failed => finding
+            .and_then(|finding| finding.job_error.as_deref())
             .map(|error| format!("Reorientation worker failed: {error}"))
             .unwrap_or_else(|| "Reorientation worker failed.".to_string()),
-        EpiphanyCrrcResultStatus::Cancelled => {
-            "Reorientation worker was cancelled before producing a result.".to_string()
-        }
-        EpiphanyCrrcResultStatus::Running => "Reorientation worker is still running.".to_string(),
-        EpiphanyCrrcResultStatus::Pending => {
+        EpiphanyReorientResultStatus::Pending => {
             "Reorientation worker has not produced a result yet.".to_string()
-        }
-        EpiphanyCrrcResultStatus::MissingState => {
-            "No authoritative Epiphany state exists for this thread.".to_string()
-        }
-        EpiphanyCrrcResultStatus::MissingBinding => {
-            "No matching Epiphany reorientation worker binding exists.".to_string()
-        }
-        EpiphanyCrrcResultStatus::BackendUnavailable => {
-            "The bound runtime backend is unavailable.".to_string()
-        }
-        EpiphanyCrrcResultStatus::BackendMissing => {
-            "The bound runtime backend job or item is missing.".to_string()
         }
     }
 }
