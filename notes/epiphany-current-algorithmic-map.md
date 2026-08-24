@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `2e3489c4` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for generic planning-mirror deletion;
+Latest committed implementation cut: `a6f73fc4` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for Persona quarantine-mirror deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -342,6 +342,13 @@ projection received the same empty structure. Frontier planning requests,
 candidates, Mind review, adopted decisions, checkpoints, and consequence
 receipts remain the sole planning lifecycle. Mind/runtime epochs v9/v24 refuse
 the retired writable shape.
+
+Blocked Persona turns have one durable consequence record. Exact `a6f73fc4`
+deletes the duplicate quarantine-pressure document that was written beside the
+terminal receipt but never read. The terminal receipt retains exact blocked
+crossing evidence and mention digest; keyed mentions retain `quarantined`
+status plus terminal-receipt identity. No second queue or pressure projection
+reconstructs the same decision.
 
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,

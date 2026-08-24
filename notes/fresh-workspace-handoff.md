@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `2e3489c4`
-Current worktree: documentation/evidence for generic planning-mirror deletion;
+Latest committed implementation cut: `a6f73fc4`
+Current worktree: documentation/evidence for Persona quarantine-mirror deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `2e3489c4` is the current
+production symlink body and is inactive. Exact `a6f73fc4` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,16 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `a6f73fc4` deletes the write-only Persona quarantine mirror. A blocked
+turn already atomically writes one terminal receipt containing exact crossing
+status/reason and mention digest, then marks each mention `quarantined` and
+binds it to that receipt. The duplicate blocked-pressure payload, wrapper
+document, construction branch, type constant, registry entry, and decoder are
+gone; nothing read them after the earlier duplicate projection was deleted.
+Core compiles, Persona consequence/retention 5/5 pass, and the feature-gated
+Persona service compiles. The cut is 63 pure deletions and does not touch
+Atlas.
 
 Exact `2e3489c4` deletes the empty generic planning mirror. Four registered Mind
 document families—planning captures, backlog items, roadmap streams, and
@@ -162,7 +172,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the registered-type and test-liability audit after exact `2e3489c4`. Model Atlas remains protected
+Continue the registered-type and test-liability audit after exact `a6f73fc4`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
