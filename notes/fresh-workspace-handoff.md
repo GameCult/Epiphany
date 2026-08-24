@@ -2,8 +2,8 @@
 
 Updated: 2026-08-24
 Branch: `codex/epiphany-shakedown-live`
-Latest committed implementation cut: `a6f73fc4`
-Current worktree: documentation/evidence for Persona quarantine-mirror deletion;
+Latest committed implementation cut: `fed4b857`
+Current worktree: documentation/evidence for duplicate continuity-receipt deletion;
 Ox17 remains paused
 
 ## Orientation
@@ -15,7 +15,7 @@ Idunn's Yggdrasil CI/CD task with local compiler work, or wake resident
 cognition without an explicit operator resumption.
 
 Epiphany is a supervised engineering alpha. Exact source `d2ca6630` remains the
-production symlink body and is inactive. Exact `a6f73fc4` is the current
+production symlink body and is inactive. Exact `fed4b857` is the current
 build-affecting source. Historical live proofs remain evidence; they do not
 authorize the next capstone or Gate 1.
 
@@ -44,6 +44,17 @@ authorize the next capstone or Gate 1.
   emitted.
 
 ## What just landed
+
+Exact `fed4b857` deletes the final duplicate Continuity recovery record. An
+accepted reorientation already persists its exact runtime result, sealed
+reasoning basis/context, typed Mind decision, strong-read admission, and Mind
+commit receipt. `ContinuityRecoveryReceipt` copied the same job/result, mode,
+checkpoint validity, summary, next move, files, and timestamp, and no reader
+consumed it. The entire continuity-gateway module, runtime registration, and
+derived-companion write are gone; success and failure use the ordinary exact
+Mind commit primitive. Runtime writable epoch advances to v25. Core compiles;
+decision-auditable reorientation 1/1, old-epoch refusal, and coordinator 5/5
+pass. The cut removes 80 net maintained lines without touching Atlas.
 
 Exact `a6f73fc4` deletes the write-only Persona quarantine mirror. A blocked
 turn already atomically writes one terminal receipt containing exact crossing
@@ -172,7 +183,7 @@ the live resident fields. Runtime writable state advances to v20. JSON schemas
 parse; core check, old-epoch refusal, coordinator 5/5, and swarm 4/4 pass. The
 cut removes 59 maintained lines and leaves `runtime_spine.rs` at 9,807 lines.
 
-Continue the registered-type and test-liability audit after exact `a6f73fc4`. Model Atlas remains protected
+Continue the registered-type and test-liability audit after exact `fed4b857`. Model Atlas remains protected
 for its first live inter-swarm collaboration trial.
 
 Exact `3ed1d564` deletes the public
@@ -1197,8 +1208,9 @@ tool intent/receipt. Four affected packages compile; the tool runtime passes
 Exact `ca2d2cf2` deletes four prose-only Continuity contract families: packet,
 compaction checkpoint, stale-turn repair, and refusal. They had constants and
 runtime mutation-table rows but no typed documents, schemas, stores, writers,
-readers, or tests. `ContinuityRecoveryReceipt` remains real: accepted
-reorientation constructs, persists, and exposes it. Core/release checks pass
+readers, or tests. At that cut, accepted reorientation still wrote a separate
+`ContinuityRecoveryReceipt`; exact `fed4b857` later removes that unread copy in
+favor of the typed Mind decision and commit receipt. Core/release checks pass
 and the decision-auditable reorientation test passes 1/1.
 
 Exact `f8974d52` deletes five prose-only Soul families: generic verification

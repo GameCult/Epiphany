@@ -1,8 +1,8 @@
 # Epiphany current algorithmic map
 
 Updated: 2026-08-24
-Latest committed implementation cut: `a6f73fc4` on `codex/epiphany-shakedown-live`
-Current worktree cut: documentation/evidence for Persona quarantine-mirror deletion;
+Latest committed implementation cut: `fed4b857` on `codex/epiphany-shakedown-live`
+Current worktree cut: documentation/evidence for duplicate continuity-receipt deletion;
 Ox17 remains paused
 
 This document describes the live machine. Historical cuts, rejected paths, and
@@ -350,6 +350,13 @@ crossing evidence and mention digest; keyed mentions retain `quarantined`
 status plus terminal-receipt identity. No second queue or pressure projection
 reconstructs the same decision.
 
+Reorientation likewise has one decision record. Exact `fed4b857` deletes the
+entire continuity-gateway module and its unread recovery receipt, which copied
+the persisted runtime result into a companion beside the typed Mind decision.
+The sealed basis/context, exact result, strong reads, Mind decision or failure,
+and commit receipt own replay and audit. Reorientation now uses the ordinary
+Mind commit primitive. Runtime epoch v25 refuses v24 stores.
+
 Bifrost owns its private feedback-signing identity. Exact `94098223` deletes
 Epiphany's host-identity executable and the private signer, persisted identity,
 enrollment, platform protection, and anchor-export implementation behind it.
@@ -417,11 +424,12 @@ producer or consumer. Exact tool definitions sealed into model requests plus
 runtime execution bindings and governed invocation receipts own the actual
 path. The catalog retains tool intent/receipt and drops to 42 schemas.
 
-Continuity publishes only the document it owns. Exact `ca2d2cf2` removes packet,
-compaction-checkpoint, stale-turn-repair, and refusal contract rows that had no
-typed documents or runtime path. Reorientation still emits the exact persisted
-`ContinuityRecoveryReceipt`; compaction and handoff remain native state
-physiology rather than advertised CultNet fiction.
+Continuity owns no second reorientation archive. Exact `ca2d2cf2` removes
+packet, compaction-checkpoint, stale-turn-repair, and refusal contract rows that
+had no typed documents or runtime path. Exact `fed4b857` later removes the
+unread recovery-receipt copy. The typed reorientation Mind decision/failure,
+sealed context, exact result, and commit receipt own the live path; compaction
+and handoff remain native state physiology.
 
 Soul likewise publishes only its real result. Exact `f8974d52` removes generic
 verification-request, invariant-check, regression, review, and refusal contract
