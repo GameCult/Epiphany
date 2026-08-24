@@ -2333,20 +2333,6 @@ pub fn validate_resident_self_prepared_objective(
     ))
 }
 
-pub fn validate_resident_self_coordinator_receipt(
-    lease: &ResidentSelfTurnLease,
-    coordinator: &crate::EpiphanyCoordinatorRunReceipt,
-) -> Result<()> {
-    validate_resident_self_coordinator_receipt_binding(lease, coordinator)?;
-    if !matches!(
-        coordinator.status.as_str(),
-        "planned" | "needsReview" | "completed"
-    ) {
-        return Err(anyhow!("coordinator terminal receipt is not successful"));
-    }
-    Ok(())
-}
-
 pub fn validate_resident_self_coordinator_receipt_binding(
     lease: &ResidentSelfTurnLease,
     coordinator: &crate::EpiphanyCoordinatorRunReceipt,

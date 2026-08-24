@@ -8,7 +8,6 @@ use serde::Serialize;
 use serde_json::Value;
 use std::path::Path;
 
-pub const STATE_LEDGER_STORE_TYPE: &str = "epiphany.state_ledger";
 pub const STATE_LEDGER_KEY: &str = "default";
 pub const STATE_LEDGER_SCHEMA_VERSION: &str = "epiphany.state_ledger.v0";
 
@@ -41,34 +40,6 @@ pub struct EpiphanyLedgerEvidenceRecord {
     pub note: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-}
-
-pub fn state_ledger_status(store_path: impl AsRef<Path>) -> Result<Value> {
-    let store_path = store_path.as_ref();
-    if !store_path.exists() {
-        return Ok(serde_json::json!({
-            "ok": false,
-            "present": false,
-            "store": store_path,
-            "entryType": STATE_LEDGER_STORE_TYPE,
-        }));
-    }
-    let entry = load_state_ledger(store_path)?;
-    let active = entry
-        .branches
-        .iter()
-        .filter(|branch| branch.status == "active")
-        .count();
-    Ok(serde_json::json!({
-        "ok": true,
-        "present": true,
-        "store": store_path,
-        "entryType": STATE_LEDGER_STORE_TYPE,
-        "branches": entry.branches.len(),
-        "activeBranches": active,
-        "evidence": entry.evidence.len(),
-        "latestEvidence": entry.evidence.iter().rev().take(8).collect::<Vec<_>>(),
-    }))
 }
 
 pub fn load_state_ledger(store_path: impl AsRef<Path>) -> Result<EpiphanyStateLedgerEntry> {

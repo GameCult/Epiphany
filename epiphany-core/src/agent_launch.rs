@@ -13,35 +13,6 @@ pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
-pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
-    match role_id {
-        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
-        EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_ROLE_BINDING_ID),
-        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
-        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
-        EpiphanyRoleResultRoleId::Implementation => Err(
-            "implementation is owned by the main coding agent; no role specialist launch template exists"
-                .to_string(),
-        ),
-        EpiphanyRoleResultRoleId::Reorientation => Err(
-            "reorientation uses epiphany.coordinator.reorient.launch and epiphany.coordinator.reorient.result.read"
-                .to_string(),
-        ),
-    }
-}
-
-pub fn epiphany_role_owner(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
-    match role_id {
-        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
-        EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_OWNER_ROLE),
-        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
-        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            Err(epiphany_role_binding_id(role_id).unwrap_err())
-        }
-    }
-}
-
 pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     match role_id {
         EpiphanyRoleResultRoleId::Implementation => "implementation",
@@ -759,18 +730,4 @@ pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
         "required": ["mode", "summary", "nextSafeMove"],
         "additionalProperties": true
     })
-}
-
-pub fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut unique = Vec::new();
-    extend_unique_strings(&mut unique, values);
-    unique
-}
-
-fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Item = String>) {
-    for value in values {
-        if !target.iter().any(|existing| existing == &value) {
-            target.push(value);
-        }
-    }
 }
